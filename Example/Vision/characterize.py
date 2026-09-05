@@ -62,16 +62,11 @@ import run
 Description:
     Initialization of constants.
 """
-# The committed background frame used as the segmentation reference, at its
-# Data/Camera/ path. Image_Background_002.png is deliberately NOT differenced
-# against it: the two files are different resolutions (001 is 1200x1920, 002 is
-# 1216x1936), so subtracting them is exactly the size mismatch the app guards
-# against. The mixed pair below therefore differences 001 against a synthetic
-# frame derived from 001 itself, which is the same size and fully deterministic.
-# No camera and no model weights are required.
+# The committed reference background, at its Data/Camera/ path. The mixed pair
+# below differences it against a synthetic frame derived from itself — same size,
+# fully deterministic — so no second real image and no model weights are needed.
 #   Unit [string]
 CONST_BACKGROUND_A = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Image_Background_001.png')
-CONST_BACKGROUND_B = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Image_Background_002.png')
 
 # The two filled rectangles drawn onto the reference to synthesize a frame with
 # a known foreground. They are well above SEG_MIN_AREA_FRAC and separated in x,
@@ -297,15 +292,12 @@ def main() -> None:
         Segmentation, on the committed Data/Camera/ reference (001). The identical
         pair (001 vs 001) must yield no foreground; the synthetic pair differences
         001 against a copy of itself carrying two drawn rectangles, so exactly two
-        ordered boxes must come back. Image_Background_002.png is only measured,
-        not differenced — it is a different resolution (see the note below).
+        ordered boxes must come back. Everything is read from the committed 001
+        reference; no second real image is used.
     """
     lines.append('-- segmentation --')
     bg_a = cv2.imread(CONST_BACKGROUND_A)
-    bg_b = cv2.imread(CONST_BACKGROUND_B)
     lines.append(f'reference 001 shape = {None if bg_a is None else bg_a.shape}')
-    lines.append(f'frame     002 shape = {None if bg_b is None else bg_b.shape}'
-                 '   (not differenced: resolution differs from 001)')
     lines.append('[pair: 001 vs 001 (identical -> expect no objects)]')
     lines.extend(_Characterize_Segmentation(bg_a, bg_a, '001 (identical to reference)'))
     lines.append('[pair: 001 vs synthetic(001 + two rectangles)]')

@@ -2348,8 +2348,9 @@ def _parse_args(argv):
     ap.add_argument(
         "--frame", metavar="PNG", default=None,
         help="Developer path: run the pipeline on a real frame previously saved "
-             "from this camera (e.g. Data/Camera/Image_Background_002.png) instead "
-             "of connecting the camera. Real data, no hardware, repeatable.")
+             "from this camera instead of connecting it. Segmentation differences "
+             "the frame against the reference background, so the frame must match "
+             "that background's resolution (1920x1200). Real data, no hardware.")
     ap.add_argument(
         "--background", metavar="PNG", default=None,
         help="Override the empty-surface reference (default: the BACKGROUND_REF "

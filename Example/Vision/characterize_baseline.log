@@ -35,7 +35,6 @@ Analysis  = Analysis(summary='', objects=[], note='', latency_ms=0, verdict='Idl
 
 -- segmentation --
 reference 001 shape = (1200, 1920, 3)
-frame     002 shape = (1216, 1936, 3)   (not differenced: resolution differs from 001)
 [pair: 001 vs 001 (identical -> expect no objects)]
   frame = 001 (identical to reference)
   foreground pixels = 0

@@ -47,12 +47,13 @@ sentence when a missing component is first used, so **CONNECT → SCAN → ANALY
 degrades one step at a time rather than failing at startup. `F11` toggles
 fullscreen, `Esc` closes.
 
-For a run without the camera, pass a real frame previously saved from it and the
-full pipeline runs against the committed background reference (ANALYZE still
-needs the model weights):
+For a run without the camera, pass a real frame previously saved from it. The
+pipeline differences the frame against the reference background, so the frame
+must match that background's resolution — 1920×1200 (ANALYZE still needs the
+model weights):
 
 ```bash
-python App/run.py --frame Data/Camera/Image_Background_002.png
+python App/run.py --frame path/to/frame.png
 ```
 
 Without Inter and JetBrains Mono installed, the nearest system faces are used.
@@ -89,18 +90,17 @@ App/
 src/                      the project libraries (Basler, Calibration, …)
 Example/                  runnable camera scripts (record, scan, calibrate)
 Data/                     runtime INPUT consumed by the app — committed
-  Camera/                   background references and calibration-result images
+  Camera/                   the reference background and calibration-result images
     Image_Background_001.png  the empty-surface reference ANALYZE subtracts
-    Image_Background_002.png  a second saved frame, handy for --frame
 images/                   documentation illustrations for this README — committed
 models/                   model weights — you supply these, NOT committed
   florence2-large-ft/       Florence-2, downloaded per Setup (git-ignored)
 ```
 
 `Data/` is application input and `images/` is documentation — kept apart on
-purpose. `Data/Camera/` holds both the background references and the images
-`Example/Camera/calibrate.py` writes, and all of it is tracked. Only `models/`
-is user-supplied.
+purpose. `Data/Camera/` holds the reference background and the calibration-result
+images `Example/Camera/calibrate.py` writes, and all of it is tracked. Only
+`models/` is user-supplied.
 
 If a logo file is missing the console prints its filename in that slot rather
 than silently leaving a gap, so a broken asset path is visible immediately.
