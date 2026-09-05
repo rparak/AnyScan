@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check Python files against the RoLE house style. Stdlib only.
+"""Check Python files against the RP house style. Stdlib only.
 
 Usage: python check_style.py <file_or_dir> [...]
 Exit code 0 if clean, 1 if any violation was found.

@@ -1,7 +1,7 @@
-# Migrating an existing project to RoLE style
+# Migrating an existing project to RP style
 
 Converting a codebase that already works is not the same as writing new code.
-Most RoLE conventions are cosmetic and safe; a few — the `Pascal_Snake_Case`
+Most RP conventions are cosmetic and safe; a few — the `Pascal_Snake_Case`
 renaming and the `_Cls` / `_Str` suffixes — break every call site simultaneously.
 Doing those first, across the whole repository, is how a migration turns into a
 day of debugging import errors.
@@ -13,7 +13,7 @@ independently revertable.
 
 ```bash
 git checkout -b style/role-migration
-python .claude/skills/python-style-RoLE/scripts/check_style.py . > /tmp/gap.txt
+python .claude/skills/python-style-RP/scripts/check_style.py . > /tmp/gap.txt
 tail -1 /tmp/gap.txt
 ```
 
@@ -37,7 +37,7 @@ Nothing here changes a name any other file depends on. Safe to do in bulk.
    `# Custom Lib.:` group with `#   ../Path/Module` lines.
 3. `import typing as tp`; rewrite `List[str]` / `list[str]` as `tp.List[str]`.
 4. Add missing parameter and return annotations.
-5. Convert docstrings to the RoLE format — `Description:`, numbered `Args:`,
+5. Convert docstrings to the RP format — `Description:`, numbered `Args:`,
    `Returns:` with the `parameter` entry, `[Vector<float> 1x3]` type notation.
 6. Move module-level literals into a `CONST_*` block under the
    `"""Description:\n    Initialization of constants.\n"""` heading. **Keep the
@@ -131,7 +131,7 @@ Verify: full test suite or characterization diff after **every** module.
 
 ## Phase 4 — Layout
 
-Only worth doing on a project that will genuinely live as a RoLE-style project.
+Only worth doing on a project that will genuinely live as an RP-style project.
 
 1. Move sources under `src/<Package>/<Domain>/Core.py`, helpers into
    `<Domain>/Utilities/<Theme>.py`, dataclasses into `Parameters/`.
@@ -141,7 +141,7 @@ Only worth doing on a project that will genuinely live as a RoLE-style project.
 4. Removing `__init__.py` and switching to the `sys.path` idiom is the most
    disruptive change available and breaks `pip install -e .`. **Do not do this
    unless the user explicitly asks.** If the project is installed as a package,
-   keep the packaging and skip this step — a RoLE-styled installable package is a
+   keep the packaging and skip this step — an RP-styled installable package is a
    perfectly reasonable end state.
 
 ## When to stop
@@ -150,7 +150,7 @@ Not every project should be fully converted. Push back and say so if:
 
 - It is a library other people import — renaming is a breaking API change.
 - It uses a framework whose conventions conflict (Django models, pytest suites,
-  pydantic settings). Framework conventions win; apply RoLE style to the code
+  pydantic settings). Framework conventions win; apply RP style to the code
   around them.
 - The team on the project did not ask for it. A repository consistent in its own
   style is better than one half-converted to another.
@@ -163,4 +163,4 @@ real reason.
 
 At the end, tell the user: the phases completed, the `check_style.py` count
 before and after, every name that was deliberately not renamed and why, and any
-place where RoLE style was overridden by a framework requirement.
+place where RP style was overridden by a framework requirement.

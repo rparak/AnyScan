@@ -1,4 +1,4 @@
-# Naming — RoLE
+# Naming — RP
 
 ## Casing rules
 

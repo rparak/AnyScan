@@ -1,4 +1,4 @@
-# Docstrings and comments — RoLE
+# Docstrings and comments — RP
 
 The project uses a custom docstring format. It resembles Google style but is not
 Google style: arguments are numbered, types use a domain notation in square

@@ -1,4 +1,4 @@
-# python-style-RoLE
+# python-style-RP
 
 A Claude Code skill that reproduces the Python house style of
 [rparak/RoLE](https://github.com/rparak/RoLE) (Robotics Library for Everyone).
@@ -8,13 +8,13 @@ Generated from commit `ee0e67a` (2026-08-16) — 68 files, 17 278 lines.
 ## Install
 
 ```bash
-cp -r python-style-RoLE /path/to/target-repo/.claude/skills/
+cp -r python-style-RP /path/to/target-repo/.claude/skills/
 ```
 
 Or for all your projects:
 
 ```bash
-cp -r python-style-RoLE ~/.claude/skills/
+cp -r python-style-RP ~/.claude/skills/
 ```
 
 Restart Claude Code, then check with `/skills`.
@@ -26,11 +26,11 @@ The skill triggers on ordinary requests once installed:
 > Add a `Sphere_Cls` primitive to `src/RoLE/Primitives/Core.py` with a radius
 > property and an overlap test against `AABB_Cls`.
 
-To force it: *"use the python-style-RoLE skill"*.
+To force it: *"use the python-style-RP skill"*.
 
 ## Convert an existing project
 
-> Use the python-style-RoLE skill. Read references/migration.md, then run
+> Use the python-style-RP skill. Read references/migration.md, then run
 > Phase 1 on src/ only. Do not rename anything yet.
 
 Work through the phases in order — see `references/migration.md`.
@@ -38,7 +38,7 @@ Work through the phases in order — see `references/migration.md`.
 ## Check existing code
 
 ```bash
-python .claude/skills/python-style-RoLE/scripts/check_style.py src/
+python .claude/skills/python-style-RP/scripts/check_style.py src/
 ```
 
 Rules covered: MIT header presence and `File Name:` accuracy, `_Cls`/`_Str`
@@ -60,9 +60,9 @@ deviations documented in the "Observed anti-patterns" section of `SKILL.md`
 | `references/layout.md` | Directory structure, `sys.path` idiom, no `__init__.py` |
 | `references/naming.md` | Full naming tables, verb prefixes, symbol conventions |
 | `references/typing-and-data.md` | `tp.*` hints, `_Cls` vs `_Str`, constants |
-| `references/docstrings-comments.md` | The RoLE docstring format, comment style |
+| `references/docstrings-comments.md` | The RP docstring format, comment style |
 | `references/scripts-and-examples.md` | `Example/` script shape |
-| `references/pyqt.md` | Building PyQt UIs in RoLE style, and the Qt-dispatch exception |
+| `references/pyqt.md` | Building PyQt UIs in RP style, and the Qt-dispatch exception |
 | `references/migration.md` | Phased workflow for converting an existing project |
 | `assets/header.txt` | The MIT header block to copy into new files |
 | `assets/module_template.py` | A blank library module in house style |

@@ -1,13 +1,13 @@
-# PyQt applications — RoLE
+# PyQt applications — RP
 
-Qt introduces one genuine conflict with the RoLE style: some method names are
+Qt introduces one genuine conflict with the RP style: some method names are
 **dispatched by the framework by name**, and renaming them to `Pascal_Snake_Case`
 silently breaks the application — the event never fires, no error is raised. The
 rule below is therefore not "rename everything"; it is "rename everything you
 call yourself, and leave the names Qt calls for you exactly as Qt spells them."
 
-Everything the RoLE style already says still applies: MIT header, annotated
-imports, `tp.*` hints, `CONST_*` constants, `*_Str` dataclasses, the RoLE
+Everything the RP style already says still applies: MIT header, annotated
+imports, `tp.*` hints, `CONST_*` constants, `*_Str` dataclasses, the RP
 docstring format, `print(f'[INFO] ...')`, single quotes. This file only covers
 what is specific to a Qt UI.
 
@@ -15,7 +15,7 @@ what is specific to a Qt UI.
 
 **Widget and window classes take `_Cls` and keep their Qt base** (hard
 requirement). The suffix marks it as a behaviour class; the base stays explicit,
-the same way RoLE classes write `(object)`:
+the same way RP classes write `(object)`:
 
 ```python
 class Main_Window_Cls(QMainWindow):
@@ -24,7 +24,7 @@ class Scan_View_Cls(QWidget):
 
 **Methods you write and call yourself are `Pascal_Snake_Case`** (hard
 requirement) — `Initialize_Ui`, `Connect_Signals`, `Update_Preview`,
-`Get_Selected_Path`. These are ordinary RoLE methods; Qt never looks them up by
+`Get_Selected_Path`. These are ordinary RP methods; Qt never looks them up by
 name, so the convention applies unchanged.
 
 **Qt-dispatched names keep their camelCase and are never renamed** (hard
@@ -100,7 +100,7 @@ is the house pattern, and `@pyqtSlot` is not needed for ordinary connections.
 ## State and structure
 
 **Widgets are private, name-mangled attributes** (hard requirement), declared
-under the `# << PRIVATE >> #` marker in `__init__`, exactly as RoLE declares
+under the `# << PRIVATE >> #` marker in `__init__`, exactly as RP declares
 private state. Prefix each by widget type so the type is readable at the call
 site — `button_`, `label_`, `combo_`, `line_`, `table_`, `layout_`:
 
@@ -249,7 +249,7 @@ class Scan_Worker_Cls(QObject):
             self.Error_Raised.emit('The scan parameters are not initialized.')
 ```
 
-**Every class gets the RoLE docstring format** (hard requirement), including the
+**Every class gets the RP docstring format** (hard requirement), including the
 `Initialization of the Class:` block with `Args:` and an `Example:` section — the
 same as any other `_Cls`. `__init__` itself carries no docstring; the
 initialization block documents it. For a worker, the `Example:` shows the

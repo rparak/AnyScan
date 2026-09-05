@@ -1,4 +1,4 @@
-# Example scripts — RoLE
+# Example scripts — RP
 
 Runnable programs live in `Example/`, mirroring the `src/` tree. They are
 demonstrations and benchmarks, not automated tests, even when named `test_*.py`.

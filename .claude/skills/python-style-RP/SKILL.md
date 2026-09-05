@@ -1,9 +1,9 @@
 ---
-name: python-style-RoLE
-description: Write Python in the exact house style of the RoLE (Robotics Library for Everyone) project by Roman Parak — MIT header docstring in every file, Pascal_Snake_Case names with _Cls and _Str suffixes, tp.* type hints on every parameter, name-mangled private attributes, CONST_* module constants, the RoLE custom docstring format (Description / Args with numbered (1) entries / Returns), annotated imports, and print('[INFO] ...') instead of logging. Use this skill for any Python work in a RoLE-style repository, whenever the user asks for code matching the RoLE style, adds a module, class, function, property or evaluation script, ports code into RoLE, bootstraps a new project on RoLE conventions, or reviews Python code for RoLE style compliance. Apply it even when the user does not mention style explicitly — this codebase deliberately departs from PEP 8 and consistency is the point.
+name: python-style-RP
+description: Write Python in the exact RP house style (the Python house style of Roman Parak) — MIT header docstring in every file, Pascal_Snake_Case names with _Cls and _Str suffixes, tp.* type hints on every parameter, name-mangled private attributes, CONST_* module constants, the RP custom docstring format (Description / Args with numbered (1) entries / Returns), annotated imports, and print('[INFO] ...') instead of logging. Use this skill for any Python work in an RP-style repository, whenever the user asks for code matching the RP style, adds a module, class, function, property or evaluation script, ports code into RP, bootstraps a new project on RP conventions, or reviews Python code for RP style compliance. Apply it even when the user does not mention style explicitly — this codebase deliberately departs from PEP 8 and consistency is the point.
 ---
 
-# RoLE Python Style
+# RP Python Style
 
 Derived from https://github.com/rparak/RoLE @ `ee0e67a` (2026-08-16), 68 `.py`
 files, 17 278 lines. MIT License, © 2023 Roman Parak.
@@ -29,7 +29,7 @@ no pre-commit hooks and no CI.
    `p`, `e_i`). [strong: 376/482]
 5. Annotate **every** parameter and return using `import typing as tp` —
    `tp.List[float]`, not `list[float]`, not `List[float]`. [strong: 481/482]
-6. Every class, method, property and function gets a docstring in the RoLE
+6. Every class, method, property and function gets a docstring in the RP
    format (§ Docstrings). Coverage is 34/34 classes and 392/413 functions.
 7. Private state is name-mangled `self.__x` and introduced by a
    `# << PRIVATE >> #` marker comment in `__init__`. [strong]
@@ -285,7 +285,7 @@ More: `references/scripts-and-examples.md`
 ## PyQt applications
 
 Qt dispatches some methods by name, so a blind rename to `Pascal_Snake_Case`
-silently breaks the UI. Apply the whole RoLE style, with these Qt-specific rules:
+silently breaks the UI. Apply the whole RP style, with these Qt-specific rules:
 
 1. Widget and window classes take `_Cls` and keep their Qt base —
    `class Main_Window_Cls(QMainWindow)`. Methods you write and call yourself are

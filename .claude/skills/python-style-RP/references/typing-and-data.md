@@ -1,4 +1,4 @@
-# Typing, classes and data structures — RoLE
+# Typing, classes and data structures — RP
 
 ## Type hints
 
