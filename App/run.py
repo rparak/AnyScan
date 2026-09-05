@@ -51,6 +51,9 @@ if _SRC not in sys.path:
 # Custom Lib.: AnyScan domain — the scene-analysis result (Qt-free)
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
+# Custom Lib.: AnyScan domain — camera backends (Qt-free; Capture returns ndarray)
+#   ../Camera/Core
+from Camera.Core import Camera_Error_Cls, File_Camera_Cls, Basler_Camera_Cls
 # Custom Lib.: AnyScan domain — vision backend (Qt-free; Analyze takes an ndarray).
 # The composer, segmentation and captioning modules are now used through this
 # backend, not directly by the UI.
@@ -59,38 +62,6 @@ import Vision.Core as Vision_Core
 from Vision.Core import Florence_Vision_Cls
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
-
-# ============================================================================
-# Basler camera configuration
-#
-# Everything the real backend needs lives here — exposure, gain, pixel format
-# and the path to the project's src/ directory. Nothing in BaslerCamera is
-# hard-coded; change a value here, never inside a method.
-# ============================================================================
-
-# Absolute path to the project's `src/` directory, which holds Basler.Core,
-# Utilities.Image_Processing and Calibration.Parameters. Derived from this
-# file's own location (App/ -> ../src) and made absolute, so it holds whatever
-# the working directory is — a shortcut, a service, or a PyInstaller launch —
-# rather than the old cwd-relative '../src'. Override with an absolute path if
-# the source tree lives elsewhere.
-BASLER_SRC = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
-)
-
-# Settings passed straight to Basler.Core.Camera_Cls. The keys are capitalized
-# to match Camera_Cls.__Configure exactly; lower-case keys are read by nothing
-# and then raise KeyError when the device is configured.
-BASLER_CONFIG = {
-    'Exposure_Time': 10000,                                # microseconds
-    'Gain': 10,
-    'Balance_Ratios': {'Red': 0.95, 'Green': 0.9, 'Blue': 1.2},
-    'Pixel_Format': 'BayerRG8',
-}
-
-# Which Utilities.Image_Processing.Process_Image_Cls profile is applied to each
-# raw frame. 'real' is the profile written for the physical camera.
-BASLER_IMAGE_PROFILE = 'real'
 
 # ============================================================================
 # Vision configuration
@@ -258,291 +229,24 @@ def font(size: float, weight: int = QFont.Normal, mono: bool = False,
 # ============================================================================
 
 # ============================================================================
-# Camera layer
-# ============================================================================
-
-class CameraError(RuntimeError):
-    """Raised for anything the operator needs to see on screen."""
-
-
-class Camera:
-    """Connect, capture, disconnect. Nothing else.
-
-    The base class owns the connected flag and refuses capture() when
-    disconnected, so a subclass never tracks that itself. `_grab()` returns a
-    QImage in RGB — that is the exchange format for the whole application,
-    whatever the SDK hands you.
-    """
-
-    name = "camera"
-
-    def __init__(self):
-        self._connected = False
-
-    @property
-    def connected(self) -> bool:
-        return self._connected
-
-    @property
-    def resolution(self):
-        raise NotImplementedError
-
-    def _open(self):
-        raise NotImplementedError
-
-    def _close(self):
-        raise NotImplementedError
-
-    def _grab(self) -> QImage:
-        raise NotImplementedError
-
-    def connect(self):
-        if self._connected:
-            return
-        self._open()
-        self._connected = True
-
-    def disconnect(self):
-        if not self._connected:
-            return
-        self._close()
-        self._connected = False
-
-    def capture(self) -> QImage:
-        if not self._connected:
-            raise CameraError("Camera is not connected.")
-        return self._grab()
-
-
-class FileCamera(Camera):
-    """A real frame from disk, standing in for the camera — developer only.
-
-    Not a mock: it delivers an actual PNG previously saved from this camera
-    (see Example/Camera/scan.py), so the whole pipeline runs on real data with
-    no pylon and no hardware present, repeatably. It is the fastest way to check
-    that boxes land where the text says they do. Reached only through the
-    `--frame` command-line argument in main() and never surfaced in the UI.
-    """
-
-    name = "Saved frame (developer)"
-
-    def __init__(self, path):
-        super().__init__()
-        self._path = path
-        self._image = None
-
-    @property
-    def resolution(self):
-        if self._image is None:
-            return (0, 0)
-        return (self._image.width(), self._image.height())
-
-    def _open(self):
-        if not os.path.isfile(self._path):
-            raise CameraError(
-                "No saved frame at \"%s\". Pass --frame with the path to a PNG "
-                "captured from this camera." % self._path
-            )
-        img = QImage(self._path)
-        if img.isNull():
-            raise CameraError(
-                "The saved frame at \"%s\" could not be read as an image." % self._path
-            )
-        # RGB888 is the application's exchange format, matching BaslerCamera._grab.
-        self._image = img.convertToFormat(QImage.Format_RGB888)
-
-    def _close(self):
-        self._image = None
-
-    def _grab(self) -> QImage:
-        if self._image is None:
-            raise CameraError("The saved frame is not loaded.")
-        return QImage(self._image)  # a shallow copy; the frame is immutable here
-
-
-class BaslerCamera(Camera):
-    """The real camera, wired to src/Basler/Core.Camera_Cls.
-
-    Backed by pypylon through the project's Camera_Cls wrapper and the capture
-    sequence in Example/Camera/scan.py and record.py. This is the console's
-    camera; all its settings live in the Basler configuration block near the
-    top. (For a hardware-free run, --frame swaps in a FileCamera instead.)
-
-    The four things this class exists to get right:
-
-      * The SDK is imported inside _open(), never at module level, so the
-        console still starts (as the mock backend) on a machine with no pylon.
-      * A pylon device is closed explicitly in _close() via the public camera
-        handle — dropping the Python reference and waiting for __del__ is not
-        deterministic, and a device left open makes the next CONNECT fail with
-        "device busy".
-      * Camera_Cls.Capture() returns BGR (its converter emits BGR8packed); this
-        application exchanges RGB, so the frame is converted once, at the end.
-      * getOptimalNewCameraMatrix depends only on the calibration and the frame
-        size, so it is computed once per size and cached, never per frame.
-
-    Camera_Cls.Capture() already uses an explicit 5000 ms retrieve timeout that
-    raises on hang; _grab turns that (and any other grab failure) into a
-    CameraError instead of freezing the GUI thread on a traceback.
-    """
-
-    name = "Basler"
-
-    def __init__(self):
-        super().__init__()
-        self._cam = None
-        # A placeholder until the device is open; overwritten with the real
-        # device size in _open() and again with the delivered size in _grab().
-        self._resolution = (1920, 1200)
-        self._processor = None
-        self._calib = None
-        self._cv2 = None
-        self._np = None
-        # (width, height) -> (K, distortion coeffs, optimal new camera matrix)
-        self._undistort_cache = {}
-
-    @property
-    def resolution(self):
-        return self._resolution
-
-    def _open(self):
-        # Imported here, not at module level, so a machine without the camera
-        # SDK can still run the mock backend and the UI.
-        try:
-            if BASLER_SRC not in sys.path:
-                sys.path.insert(0, BASLER_SRC)
-            import cv2
-            import numpy as np
-            from Basler.Core import Camera_Cls
-            import Utilities.Image_Processing as Image_Processing
-            from Calibration.Parameters import Basler_Calib_Param_Str
-        except ImportError as exc:
-            raise CameraError(
-                "The Basler libraries could not be loaded from \"%s\". Check that "
-                "pypylon and OpenCV are installed and that BASLER_SRC points at the "
-                "project's src directory." % BASLER_SRC
-            ) from exc
-
-        # Camera_Cls connects inside its constructor and raises if no device is
-        # found, so a failure here is a connection failure.
-        try:
-            self._cam = Camera_Cls(config=BASLER_CONFIG)
-        except Exception as exc:                          # noqa: BLE001
-            self._cam = None
-            raise CameraError(
-                "No Basler camera was detected. Check that the camera is powered "
-                "and the GigE link is up."
-            ) from exc
-
-        if getattr(self._cam, "camera", None) is None:
-            self._cam = None
-            raise CameraError(
-                "No Basler camera was detected. Check that the camera is powered "
-                "and the GigE link is up."
-            )
-
-        # Cache what _grab needs so it never re-imports or re-reads config.
-        self._cv2 = cv2
-        self._np = np
-        self._processor = Image_Processing.Process_Image_Cls(BASLER_IMAGE_PROFILE)
-        self._calib = Basler_Calib_Param_Str
-        self._undistort_cache = {}
-
-        # Report the device's actual sensor size straight away, so the status
-        # strip is right at CONNECT and not only after the first SCAN.
-        try:
-            self._resolution = (int(self._cam.camera.Width.Value),
-                                int(self._cam.camera.Height.Value))
-        except Exception:                                 # noqa: BLE001
-            pass  # the delivered frame in _grab is the authoritative size
-
-    def _close(self):
-        # Stop grabbing and close the device explicitly through the public pylon
-        # handle. Dropping the reference alone is not enough — see the class
-        # docstring — and a close failure must never block DISCONNECT.
-        cam = getattr(self._cam, "camera", None)
-        if cam is not None:
-            try:
-                if cam.IsGrabbing():
-                    cam.StopGrabbing()
-                if cam.IsOpen():
-                    cam.Close()
-            except Exception:                             # noqa: BLE001
-                pass
-        self._cam = None
-        self._processor = None
-        self._undistort_cache = {}
-
-    def _grab(self) -> QImage:
-        cv2, np = self._cv2, self._np
-
-        # One frame. Capture() auto-starts grabbing (LatestImageOnly) and uses a
-        # 5000 ms retrieve timeout that raises on hang; translate any failure
-        # into a message the operator can act on rather than freezing the window.
-        try:
-            raw = self._cam.Capture()
-        except Exception as exc:                          # noqa: BLE001
-            raise CameraError(
-                "The camera did not return a frame in time. Check that it is still "
-                "powered and that the GigE link is up, then scan again."
-            ) from exc
-        if raw is None:
-            raise CameraError(
-                "The camera returned an empty frame. Check the exposure time and "
-                "the scene lighting, then scan again."
-            )
-
-        # Project image pipeline (BGR in, BGR out), then undistort with the
-        # cached optimal camera matrix.
-        processed = self._processor.Apply(raw)
-        undistorted = self._undistort(processed)
-
-        # The pipeline works in BGR; the application exchanges RGB.
-        rgb = np.ascontiguousarray(cv2.cvtColor(undistorted, cv2.COLOR_BGR2RGB))
-        h, w = rgb.shape[:2]
-        self._resolution = (w, h)
-
-        # QImage does not own the numpy buffer: it is a view over rgb.data with
-        # a 3*w stride. .copy() detaches it so the frame survives rgb being
-        # garbage-collected, which otherwise tears the viewport or segfaults.
-        image = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888)
-        return image.copy()
-
-    def _undistort(self, image):
-        """Undistort a BGR frame, caching the per-size optimal camera matrix."""
-        cv2, np = self._cv2, self._np
-        h, w = image.shape[:2]
-        cached = self._undistort_cache.get((w, h))
-        if cached is None:
-            K = self._calib.K
-            coeffs = np.array(list(self._calib.Coefficients.values()),
-                              dtype=np.float64)
-            new_K, _ = cv2.getOptimalNewCameraMatrix(K, coeffs, (w, h), 1, (w, h))
-            cached = (K, coeffs, new_K)
-            self._undistort_cache[(w, h)] = cached
-        K, coeffs, new_K = cached
-        return cv2.undistort(image, K, coeffs, None, new_K)
-
-
-# ============================================================================
-# Vision layer boundary (QImage -> ndarray)
+# UI/domain boundary (ndarray <-> QImage)
 #
-# The vision backend now lives in ../src/Vision/Core.py (Vision_Backend_Cls,
-# Florence_Vision_Cls) and is Qt-free: Analyze() accepts an RGB ndarray. The one
-# thing that must stay on the UI side is turning the captured QImage into that
-# array — the single QImage<->ndarray conversion point, used by AnalysisWorker.
+# The camera (../src/Camera/Core.py) and the vision backend (../src/Vision/Core.py)
+# are both Qt-free: a frame is a contiguous RGB ndarray, the application's exchange
+# format. The one place a QImage is needed is the viewport, which paints one — so
+# the ndarray -> QImage conversion lives here, on the UI side, and nowhere else.
 # ============================================================================
 
-def _qimage_to_rgb(image: QImage, np):
-    """A QImage frame as a contiguous RGB array (H, W, 3), the vision exchange format."""
-    img = image.convertToFormat(QImage.Format_RGB888)
-    w, h = img.width(), img.height()
-    bpl = img.bytesPerLine()                       # may be padded past 3*w
-    ptr = img.constBits()
-    ptr.setsize(h * bpl)
-    arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, bpl))
-    rgb = arr[:, : w * 3].reshape((h, w, 3))       # drop any row padding
-    return np.ascontiguousarray(rgb)
+def _rgb_to_qimage(rgb) -> QImage:
+    """An RGB ndarray (H, W, 3) as a QImage for the viewport to paint.
+
+    QImage does not own the numpy buffer: it is a view over rgb.data with a 3*w
+    stride. .copy() detaches it so the frame survives rgb being garbage-collected,
+    which otherwise tears the viewport or segfaults.
+    """
+    h, w = rgb.shape[:2]
+    image = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888)
+    return image.copy()
 
 
 # ============================================================================
@@ -1121,14 +825,10 @@ class AnalysisWorker(QObject):
 
     def run(self):
         try:
-            # Convert the captured QImage to the vision exchange format (a
-            # contiguous RGB ndarray) here, on the worker side. The backend is
-            # Qt-free and never sees a QImage. numpy is imported lazily, matching
-            # the rest of the heavy runtime.
-            import numpy as np
-            image_rgb = _qimage_to_rgb(self._image, np)
+            # self._image is already the RGB ndarray the camera captured (the
+            # exchange format); the Qt-free backend takes it directly.
             result = self._vision.Analyze(
-                image_rgb,
+                self._image,
                 progress_cb=lambda done, total: self.progress.emit(done, total),
                 stage_cb=lambda text: self.stage.emit(text),
             )
@@ -1158,7 +858,7 @@ class ConnectWorker(QObject):
 
     def run(self):
         try:
-            self._camera.connect()
+            self._camera.Connect()
         except Exception as exc:                          # noqa: BLE001
             self.failed.emit(str(exc))
         else:
@@ -1183,7 +883,7 @@ class AnyScanWindow(QMainWindow):
 
         # One real implementation each. `camera` is injected so the developer
         # --frame path can supply a FileCamera; production is the Basler.
-        self.camera = camera if camera is not None else BaslerCamera()
+        self.camera = camera if camera is not None else Basler_Camera_Cls()
         self.vision = Florence_Vision_Cls()
 
         self.frame = None
@@ -1415,19 +1115,19 @@ class AnyScanWindow(QMainWindow):
     def _prompt_text(self):
         if self.frame is not None:
             return self.READING_HAS_FRAME
-        return self.READING_NO_FRAME if self.camera.connected else self.READING_DISCONNECTED
+        return self.READING_NO_FRAME if self.camera.Connected else self.READING_DISCONNECTED
 
     def _sync_prompts(self):
         """Point both empty states at the step that is actually available."""
         self.viewport.set_empty_text(
-            "Press Scan to capture a frame." if self.camera.connected
+            "Press Scan to capture a frame." if self.camera.Connected
             else "Connect a camera, then press Scan to capture a frame."
         )
         if not self._showing_error and not self.reading_empty.isHidden():
             self.reading_empty.setText(self._prompt_text())
 
     def _sync_controls(self):
-        connected = self.camera.connected
+        connected = self.camera.Connected
         # While the worker runs, every control is disabled: a second ANALYZE
         # must not start on top of the first, and connect/scan/clear would pull
         # the frame out from under it.
@@ -1462,7 +1162,7 @@ class AnyScanWindow(QMainWindow):
         print("[ERROR] %s" % message)
 
     def on_connect(self):
-        if self._worker_running or self.camera.connected:
+        if self._worker_running or self.camera.Connected:
             return
 
         # Open the camera on its own thread so the loading indicator turns and
@@ -1493,7 +1193,7 @@ class AnyScanWindow(QMainWindow):
         self._conn_thread = None
         self._conn_worker = None
         self.viewport.stop_busy()
-        w, h = self.camera.resolution
+        w, h = self.camera.Resolution
         self.status.camera.set_value("Connected", OK, OK)
         self.status.resolution.set_value("%d \u00d7 %d" % (w, h))
         self._sync_controls()
@@ -1508,7 +1208,7 @@ class AnyScanWindow(QMainWindow):
         self._sync_controls()
 
     def on_disconnect(self):
-        self.camera.disconnect()
+        self.camera.Disconnect()
         self.frame = None
         self.viewport.clear()
         self.frame_badge.setText("No frame")
@@ -1519,13 +1219,13 @@ class AnyScanWindow(QMainWindow):
     def on_scan(self):
         try:
             self.viewport.set_busy("Capturing frame\u2026")
-            self.frame = self.camera.capture()
-        except CameraError as exc:
+            self.frame = self.camera.Capture()
+        except Camera_Error_Cls as exc:
             self._fail(str(exc))
         else:
-            self.viewport.show_frame(self.frame)
+            self.viewport.show_frame(_rgb_to_qimage(self.frame))
             self.frame_badge.setText("%d \u00d7 %d \u00b7 RGB"
-                                     % (self.frame.width(), self.frame.height()))
+                                     % (self.frame.shape[1], self.frame.shape[0]))
             self.status.updated.set_value(datetime.now().strftime("%H:%M:%S"))
             self._clear_reading()
         finally:
@@ -1698,7 +1398,7 @@ def main():
         except Exception:  # noqa: BLE001 - cosmetic only, never worth a crash
             pass
 
-    camera = FileCamera(os.path.abspath(args.frame)) if args.frame else BaslerCamera()
+    camera = File_Camera_Cls(os.path.abspath(args.frame)) if args.frame else Basler_Camera_Cls()
     window = AnyScanWindow(camera=camera)
     window.setWindowIcon(icon)
     window.resize(1720, 1020)
