@@ -1,5 +1,10 @@
+# TEMPLATE NOTE (delete this block): the header below is the `"""` docstring
+#   form the source repository (RoLE) uses. If the host repo opens its files
+#   with a `#`-comment block instead (e.g. anyscan-pyqt), use Form B from
+#   assets/header.txt — same content, each line prefixed `#`. Match the repo's
+#   existing form; consistency within the repo wins. See SKILL.md Non-negotiable 1.
 """
-## =========================================================================== ## 
+## =========================================================================== ##
 MIT License
 Copyright (c) 2023 Roman Parak
 Permission is hereby granted, free of charge, to any person obtaining a copy

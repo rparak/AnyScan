@@ -18,8 +18,15 @@ no pre-commit hooks and no CI.
 
 ## Non-negotiables
 
-1. Every `.py` file opens with the MIT + author header docstring. Copy
-   `assets/header.txt` and fix the `File Name:` line. [strong: 68/68]
+1. Every `.py` file opens with the MIT + author header, carrying the copyright,
+   the `Author` / `Email` / `Github` lines, and a `File Name:` line matching the
+   real path. The header takes **whichever form the host repository already
+   uses** — a `"""` docstring block or a `#`-comment block. Match the existing
+   files; consistency within the repo wins over the form shown here. The source
+   repository (RoLE) writes it as a `"""` docstring, which is why the templates
+   default to that; a repo whose files open with a `#`-comment block (as this
+   one, anyscan-pyqt, does) keeps that form instead. Copy the matching variant
+   from `assets/header.txt` and fix the `File Name:` line. [strong: 68/68]
 2. Classes are `Pascal_Snake_Case_Cls`; `@dataclass` structures are
    `Pascal_Snake_Case_Str`. [strong: 34/34]
 3. Functions, methods and properties are `Pascal_Snake_Case` —
@@ -142,7 +149,13 @@ class Thing_Cls(object):
     ...
 ```
 
-Order: header docstring → imports (stdlib, then third-party, then
+The header above is shown in the `"""` docstring form the source repository
+uses. If the host repo opens its files with a `#`-comment block instead, use
+that form (same content, each line prefixed `#`) — see Non-negotiable 1 and the
+`# comment block` variant in `assets/header.txt`. Everything below the header is
+identical either way.
+
+Order: header → imports (stdlib, then third-party, then
 `# Custom Lib.:` group) → constants block → dataclasses → classes → functions.
 Each import gets its own comment line above it; custom imports get a second
 comment line with the `#   ../RoLE/...` source path.
@@ -335,7 +348,8 @@ a way to verify behaviour is unchanged before touching anything.
 
 1. Reread the Non-negotiables and check the code against each one.
 2. Run `python scripts/check_style.py <files>` and fix everything it reports.
-3. Confirm the header docstring `File Name:` line matches the real path.
+3. Confirm the header's `File Name:` line matches the real path, and that the
+   header form (`"""` docstring or `#`-comment block) matches the host repo.
 4. Confirm no `__init__.py` was created and no relative import was used.
 5. Anything not covered here: copy the surrounding file, not your own defaults.
 
