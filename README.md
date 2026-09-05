@@ -12,54 +12,83 @@ pip install -r requirements.txt
 ```
 
 The vision pipeline loads a local Florence-2 model from
-`models/florence2-large-ft/`, which is **not** tracked in git. Download the
-weights (Microsoft Florence-2, MIT licensed) before running with the model
-enabled:
+`models/florence2-large-ft/`, which is **not** tracked in git. It is a required
+setup step: the weights (Microsoft Florence-2, MIT licensed) must be present at
+that path before `python App/run.py`, or ANALYZE fails with a message telling
+the operator the runtime is missing. Download them with:
 
 ```bash
 huggingface-cli download microsoft/Florence-2-large-ft \
     --local-dir models/florence2-large-ft
 ```
 
-See `models/.gitkeep` for the expected layout and alternative fetch methods.
+Upstream source: <https://huggingface.co/microsoft/Florence-2-large-ft>. See
+`models/.gitkeep` for the expected directory contents and alternative fetch
+methods (git-lfs).
 
 ## Run
 
 ```bash
-pip install PyQt5
-python run.py
+python App/run.py
 ```
 
-Nothing else is needed. The camera and the model are both mocked, so the whole
-console works with no hardware and no weights: **CONNECT → SCAN → ANALYZE**.
-`F11` toggles fullscreen, `Esc` closes.
+The console drives a Basler camera and the local Florence-2 model — both real,
+no mocks. The window still opens when either is absent and reports an actionable
+sentence when a missing component is first used, so **CONNECT → SCAN → ANALYZE**
+degrades one step at a time rather than failing at startup. `F11` toggles
+fullscreen, `Esc` closes.
 
-## Files
+For a run without the camera, pass a real frame previously saved from it and the
+full pipeline runs against the committed background reference (ANALYZE still
+needs the model weights):
 
+```bash
+python App/run.py --frame Data/Camera/Image_Background_002.png
 ```
-run.py                    the entire application
-assets/
-  brand-jic.png           header mark
-  edih-digimat-dark.png   project wordmark, footer
-  partner-ministry.png    Ministry of Industry and Trade
-  funder-eu.png           Co-funded by the European Union
-  anyscan-mark.png        the AI mark shown in the empty viewport
-  icon.png                square 256px version, used as the window icon
-  icon.ico                multi-size Windows icon, for a PyInstaller build
-  fonts/                  optional: drop Inter.ttf and JetBrainsMono.ttf here
-```
-
-If a logo file is missing the console prints its filename in that slot rather
-than silently leaving a gap, so a broken asset path is visible immediately.
 
 Without Inter and JetBrains Mono installed, the nearest system faces are used.
 The layout holds either way; the metrics shift slightly.
+
+## Repository layout
+
+What is committed, and what you must supply:
+
+```
+App/
+  run.py                  the application (entry point)
+  assets/                 UI images, committed
+    brand-jic.png           header mark
+    edih-digimat-dark.png   project wordmark, footer
+    partner-ministry.png    Ministry of Industry and Trade
+    funder-eu.png           Co-funded by the European Union
+    anyscan-mark.png        the AI mark shown in the empty viewport
+    icon.png / icon.ico     window icon; multi-size Windows icon
+    fonts/                  optional: drop Inter.ttf and JetBrainsMono.ttf here
+src/                      the project libraries (Basler, Calibration, …)
+Example/                  runnable camera scripts (record, scan, calibrate)
+Data/                     runtime INPUT consumed by the app — committed
+  Camera/                   background references and calibration-result images
+    Image_Background_001.png  the empty-surface reference ANALYZE subtracts
+    Image_Background_002.png  a second saved frame, handy for --frame
+images/                   documentation illustrations for this README — committed
+models/                   model weights — you supply these, NOT committed
+  florence2-large-ft/       Florence-2, downloaded per Setup (git-ignored)
+```
+
+`Data/` is application input and `images/` is documentation — kept apart on
+purpose. `Data/Camera/` holds both the background references and the images
+`Example/Camera/calibrate.py` writes, and all of it is tracked. Only `models/`
+is user-supplied.
+
+If a logo file is missing the console prints its filename in that slot rather
+than silently leaving a gap, so a broken asset path is visible immediately.
 
 ## Packaging for Windows
 
 ```bash
 pip install pyinstaller
-pyinstaller --noconsole --icon assets/icon.ico --add-data "assets;assets" run.py
+pyinstaller --noconsole --icon App/assets/icon.ico \
+    --add-data "App/assets;assets" App/run.py
 ```
 
 `--add-data` matters: without it the executable starts with no logos and no

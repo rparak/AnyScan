@@ -1,0 +1,8 @@
+Documentation illustrations for the project README — tracked in git.
+
+This directory holds screenshots, diagrams and other figures referenced from
+README.md. It is committed.
+
+Not to be confused with Data/, which holds runtime input consumed by the
+application (the empty-surface background references and the calibration
+result images under Data/Camera/). images/ is documentation; Data/ is input.

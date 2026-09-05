@@ -111,7 +111,7 @@ MODEL_DIR = os.path.abspath(
 # the lighting is moved.
 BACKGROUND_REF = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
-                 "Data", "Image_Background_001.png")
+                 "Data", "Camera", "Image_Background_001.png")
 )
 
 # The Florence-2 task token sent per crop. <CAPTION> is the default: on a single
@@ -2348,8 +2348,8 @@ def _parse_args(argv):
     ap.add_argument(
         "--frame", metavar="PNG", default=None,
         help="Developer path: run the pipeline on a real frame previously saved "
-             "from this camera (e.g. Data/Image_001.png) instead of connecting "
-             "the camera. Real data, no hardware, repeatable.")
+             "from this camera (e.g. Data/Camera/Image_Background_002.png) instead "
+             "of connecting the camera. Real data, no hardware, repeatable.")
     ap.add_argument(
         "--background", metavar="PNG", default=None,
         help="Override the empty-surface reference (default: the BACKGROUND_REF "

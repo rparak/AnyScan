@@ -13,7 +13,3 @@ env/
 # Model weights — the app loads Florence-2 from models/florence2-large-ft/
 # (~GBs, MIT-licensed upstream). Fetched separately, never committed.
 models/
-
-# Generated calibration / scan output written by Example/Camera/calibrate.py.
-# The required background assets (Data/Image_Background_*.png) are kept.
-Data/Camera/
