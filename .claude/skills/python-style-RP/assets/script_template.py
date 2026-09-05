@@ -33,11 +33,13 @@ if '../../../' + 'src' not in sys.path:
 import time
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
-# Custom Lib.: <Project name> (<Package>)
-#   ../<Package>/<Domain>/<Module>
-# import <Package>.<Domain>.<Module> as <Alias>
-#   ../<Package>/<Domain>/<Module>
-# import <Package>.<Domain>.<Module>
+# Custom Lib.: <Project name>
+#   ../<Domain>/<Module>
+# import <Domain>.<Module> as <Alias>
+#   ../<Domain>/<Module>
+# from <Domain>.<Module> import <Name>
+#   Example (drawn from this project):
+#   import Transformation.Core as Transformation
 
 """
 Description:
@@ -70,8 +72,8 @@ def main():
     # 1) <State the step performed here.>
     t_0 = time.time()
     for _, x in enumerate(data):
-        # Call into the host project's own package (substitute the placeholders):
-        #   <Package>.<Domain>.<Module>.<Function>(x)
+        # Call into another module of this project (substitute the placeholders):
+        #   <Domain>.<Module>.<Function>(x)
         pass
     t = time.time() - t_0
     print(f'[INFO]  1) <Name of the step>')

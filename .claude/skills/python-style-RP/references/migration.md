@@ -133,8 +133,10 @@ Verify: full test suite or characterization diff after **every** module.
 
 Only worth doing on a project that will genuinely live as an RP-style project.
 
-1. Move sources under `src/<Package>/<Domain>/Core.py`, helpers into
-   `<Domain>/Utilities/<Theme>.py`, dataclasses into `Parameters/`.
+1. Move sources under `src/<Domain>/Core.py`, helpers into
+   `<Domain>/Utilities/<Theme>.py`, dataclasses into `Parameters/`. If the project
+   keeps a wrapping package, that package name becomes the first path segment (as
+   the source repository did with `src/RoLE/`).
 2. Use `git mv` so history follows the file.
 3. Convert runnables into `Example/<mirror>/` scripts with the `CONST_*`
    configuration block and `if __name__ == '__main__': sys.exit(main())`.

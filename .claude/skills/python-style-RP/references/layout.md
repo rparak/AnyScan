@@ -43,14 +43,12 @@ Existing domains: `Transformation`, `Kinematics`, `Collider`, `Primitives`,
 `Interpolation` (with `Bezier/` and `B_Spline/` subdomains), `Trajectory`,
 `Simplification`, `Workspace`, `URDF`, `Utilities`, `Parameters`.
 
-**`RoLE` here is the source repository's own package name, not a fixed part of
-the style.** That repo wrapped its domains in a `src/RoLE/` package; a new
-project substitutes its own. Some projects have no wrapping package at all — the
-domains sit directly under `src/` and modules import each other as
-`<Domain>.<Module>` (e.g. `from Transformation.Core import ...`), with `src/`
-placed on `sys.path`. The `assets/` templates use `<Package>/<Domain>/<Module>`
-placeholders precisely so the first segment is filled in per project rather than
-hardcoded to `RoLE`.
+**The first import segment is whatever sits directly on `sys.path`, not a fixed
+part of the style.** The source repository wrapped its domains in a `src/RoLE/`
+package, so its imports read `from RoLE.<Domain>...`. This project has no wrapping
+package: `src/` itself is the path root, so the first segment is the domain
+directory (`from Transformation.Core import ...`). The `assets/` templates use
+`<Domain>/<Module>` placeholders for exactly this reason.
 
 Rules:
 
@@ -98,6 +96,11 @@ if '../../../../' + 'src' not in sys.path:
 The number of `../` segments matches the script's depth below the repository
 root. Count it from the script's own location; get this wrong and the import
 fails at runtime with no other symptom.
+
+In this project specifically: `Example/` scripts sit two levels below the root
+and use `'../../' + 'src'`; `App/run.py` instead computes the `src` directory and
+inserts it at `sys.path[0]`. A new script must count the `../` segments from its
+own depth.
 
 Do not add `__init__.py`, do not introduce relative imports, and do not add a
 `pyproject.toml` to make the library installable unless the user explicitly asks
