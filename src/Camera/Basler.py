@@ -27,6 +27,8 @@
 from pypylon import pylon
 # Time (Time access and conversions)
 import time
+# Typing (Support for type hints)
+import typing as tp
 
 
 ## =========================================================================== ##
@@ -42,39 +44,39 @@ import time
 #
 # On macOS pylon reaches GigE cameras through a GenTL producer, which exposes
 # no stream grabber node map. MaxSocketBufferSize and the Statistic_* nodes are
-# unavailable, and GevSCBWR / GevSCBWRA are read-only. THROUGHPUT_LIMIT is
+# unavailable, and GevSCBWR / GevSCBWRA are read-only. CONST_THROUGHPUT_LIMIT is
 # therefore the decisive setting: it is enforced inside the camera, so it
 # throttles the sender instead of relying on the host to keep up.
 ## =========================================================================== ##
 
 # Number of buffers allocated for grabbing. The pylon default is 10; a higher
 # value protects against buffer underruns.
-MAX_NUM_BUFFER = 20
+CONST_MAX_NUM_BUFFER = 20
 
 # Stream packet size in bytes. Use 1400 for a standard 1500 B MTU, or 8192 when
 # the adapter and switch support jumbo frames end to end.
-PACKET_SIZE = 1400
+CONST_PACKET_SIZE = 1400
 
 # Inter-packet delay in ticks (1 tick = 8 ns). Higher values reduce the
 # instantaneous data rate. Lower it until incomplete grabs reappear.
-INTER_PACKET_DELAY = 5000
+CONST_INTER_PACKET_DELAY = 5000
 
 # Device link throughput limit in bytes/s. Measured ceiling on a USB-C Ethernet
 # adapter at full resolution: 10 MB/s. Raise it once jumbo frames or a better
 # adapter are in place. Set to None to leave the camera default in effect.
-THROUGHPUT_LIMIT = 10_000_000
+CONST_THROUGHPUT_LIMIT = 10_000_000
 
 # Bandwidth reserve for packet resends, in percent of the stream bandwidth.
 # Read-only under a GenTL producer, so it is skipped silently on macOS.
-BANDWIDTH_RESERVE = 25
+CONST_BANDWIDTH_RESERVE = 25
 
 # Acquisition frame rate limit in fps. Set to None to leave the camera
 # unthrottled, which is not advisable on a 1 GbE link.
-FRAME_RATE = 5.0
+CONST_FRAME_RATE = 5.0
 
 # Print informational messages about nodes that were skipped because they are
 # absent or read-only on this platform. Turn on when tuning a new setup.
-VERBOSE = False
+CONST_VERBOSE = False
 
 
 class Basler_Cls:
@@ -87,14 +89,26 @@ class Basler_Cls:
         because it is a property of the network hardware rather than of the
         capture.
 
-    Args:
-        (1) config [dict]: Dictionary containing camera parameters like exposure time, gain, and balance ratios.
-        (2) max_retries [int]: Maximum number of times to retry connecting if the initial attempt fails.
-        (3) retry_delay [int]: Delay in seconds between retry attempts.
+    Initialization of the Class:
+        Args:
+            (1) config [dict]: Image parameters (exposure time, gain, balance ratios).
+            (2) max_retries [int]: Maximum number of connection attempts.
+            (3) retry_delay [int]: Delay in seconds between attempts.
+
+        Example:
+            Initialization:
+                # Initialization of the class.
+                Cls = Basler_Cls(config={'Exposure_Time': 10000, 'Gain': 10})
+
+            Features:
+                # Functions of the class.
+                Cls.Capture(); Cls.Is_Grabbing(); Cls.Print_Statistics()
     """
 
-    def __init__(self, config=None, max_retries=10, retry_delay=1):
-        self.camera = None; self.tl_factory = None; self.devices = None
+    def __init__(self, config: tp.Optional[tp.Dict[str, tp.Any]] = None, max_retries: int = 10,
+                 retry_delay: int = 1) -> None:
+        self.camera = None; self.tl_factory = None
+        self.devices = None
 
         # Default image configuration. Transport tuning lives in the module
         # constants above, since it depends on the network hardware rather than
@@ -124,11 +138,15 @@ class Basler_Cls:
         # Initialize the image as None
         self.image = None
 
-    def __Connect(self, max_retries, retry_delay):
+    def __Connect(self, max_retries: int, retry_delay: int) -> None:
         """
         Description:
-            A function that attempts to connect to the camera. If it fails, it retries a specified 
+            A function that attempts to connect to the camera. If it fails, it retries a specified
             number of times.
+
+        Args:
+            (1) max_retries [int]: Maximum number of connection attempts.
+            (2) retry_delay [int]: Delay in seconds between attempts.
         """
 
         attempt = 0
@@ -167,7 +185,8 @@ class Basler_Cls:
                     except Exception:
                         pass
 
-                self.camera = None; self.tl_factory = None; self.devices = None
+                self.camera = None; self.tl_factory = None
+                self.devices = None
                 attempt += 1
 
                 # Pause before attempting to connect again
@@ -176,7 +195,7 @@ class Basler_Cls:
             # If max_retries is reached without success, raise an error
             raise Exception(f'[ERROR] Failed to connect after {max_retries} attempts.')
 
-    def __Set_Optional(self, node_name, value, unit=''):
+    def __Set_Optional(self, node_name: str, value: tp.Any, unit: str = '') -> bool:
         """
         Description:
             Set a camera node only if the device exposes it and the node is
@@ -219,7 +238,7 @@ class Basler_Cls:
             return False
 
     @staticmethod
-    def __Is_Writable(node):
+    def __Is_Writable(node: tp.Any) -> bool:
         """
         Description:
             Determine whether a GenICam node accepts a write.
@@ -257,7 +276,7 @@ class Basler_Cls:
 
         return True
 
-    def __Log(self, message):
+    def __Log(self, message: str) -> None:
         """
         Description:
             Print an informational message unless the configuration asks for
@@ -268,10 +287,10 @@ class Basler_Cls:
             (1) message [string]: Message to be printed.
         """
 
-        if VERBOSE:
+        if CONST_VERBOSE:
             print(message)
 
-    def __Configure(self):
+    def __Configure(self) -> None:
         """
         Description:
             Apply the image settings from the configuration dictionary, then the
@@ -299,7 +318,7 @@ class Basler_Cls:
 
         self.__Configure_Transport()
 
-    def __Configure_Transport(self):
+    def __Configure_Transport(self) -> None:
         """
         Description:
             Apply the GigE transport settings from the module constants.
@@ -312,33 +331,33 @@ class Basler_Cls:
 
         # The parameter MaxNumBuffer can be used to control the count of buffers
         # allocated for grabbing. The default value of this parameter is 10.
-        self.camera.MaxNumBuffer.Value = MAX_NUM_BUFFER
-        self.__Log(f'[INFO] MaxNumBuffer set to: {MAX_NUM_BUFFER}')
+        self.camera.MaxNumBuffer.Value = CONST_MAX_NUM_BUFFER
+        self.__Log(f'[INFO] MaxNumBuffer set to: {CONST_MAX_NUM_BUFFER}')
 
         # Stream packet size. Smaller packets are more robust on USB-C Ethernet
         # adapters; larger ones require jumbo frames end to end.
-        self.__Set_Optional('GevSCPSPacketSize', PACKET_SIZE, ' B')
+        self.__Set_Optional('GevSCPSPacketSize', CONST_PACKET_SIZE, ' B')
 
         # Inter-packet delay. A coarse lever against incomplete grabs.
-        self.__Set_Optional('GevSCPD', INTER_PACKET_DELAY, ' ticks')
+        self.__Set_Optional('GevSCPD', CONST_INTER_PACKET_DELAY, ' ticks')
 
         # Device link throughput limit. Enforced inside the camera, so it
         # throttles the sender rather than relying on the host keeping up.
-        if THROUGHPUT_LIMIT is not None:
+        if CONST_THROUGHPUT_LIMIT is not None:
             if self.__Set_Optional('DeviceLinkThroughputLimitMode', 'On'):
-                self.__Set_Optional('DeviceLinkThroughputLimit', THROUGHPUT_LIMIT, ' B/s')
+                self.__Set_Optional('DeviceLinkThroughputLimit', CONST_THROUGHPUT_LIMIT, ' B/s')
 
         # Bandwidth reserve for resends. Read-only under a GenTL producer, as on
         # macOS, because the producer manages the stream bandwidth itself.
-        if BANDWIDTH_RESERVE is not None:
-            self.__Set_Optional('GevSCBWR', BANDWIDTH_RESERVE, ' %')
+        if CONST_BANDWIDTH_RESERVE is not None:
+            self.__Set_Optional('GevSCBWR', CONST_BANDWIDTH_RESERVE, ' %')
             self.__Set_Optional('GevSCBWRA', 5)
 
         # Limit the acquisition frame rate. Without this the camera floods the
         # link and buffers arrive incomplete.
-        if FRAME_RATE is not None:
+        if CONST_FRAME_RATE is not None:
             if self.__Set_Optional('AcquisitionFrameRateEnable', True):
-                self.__Set_Optional('AcquisitionFrameRate', float(FRAME_RATE), ' fps')
+                self.__Set_Optional('AcquisitionFrameRate', float(CONST_FRAME_RATE), ' fps')
         else:
             self.__Set_Optional('AcquisitionFrameRateEnable', False)
 
@@ -348,15 +367,18 @@ class Basler_Cls:
         except Exception:
             pass
 
-    def Is_Grabbing(self):
+    def Is_Grabbing(self) -> bool:
         """
         Description:
             Function to check whether the camera is currently in the process of acquiring images.
+
+        Returns:
+            (1) parameter [bool]: True while the camera is grabbing.
         """
 
         return self.camera.IsGrabbing()
 
-    def Capture(self, max_attempts=3, timeout=5000):
+    def Capture(self, max_attempts: int = 3, timeout: int = 5000) -> tp.Optional[tp.List[tp.List[int]]]:
         """
         Description:
             Capture a single image and store it in the 'image' class parameter.
@@ -403,7 +425,7 @@ class Basler_Cls:
 
         return None
 
-    def Print_Statistics(self):
+    def Print_Statistics(self) -> None:
         """
         Description:
             Print stream grabber statistics. A non-zero failed packet count after
@@ -427,7 +449,7 @@ class Basler_Cls:
             except Exception:
                 print(f'[STAT] {label}: n/a')
 
-    def __Stop_Grabbing(self):
+    def __Stop_Grabbing(self) -> None:
         """
         Description:
             Stop the acquisition if it is currently running.
@@ -439,7 +461,7 @@ class Basler_Cls:
         except Exception as e:
             print(f'[WARNING] Could not stop grabbing: {e}')
 
-    def __Close(self):
+    def __Close(self) -> None:
         """
         Description:
             Release the camera resources.
@@ -454,7 +476,7 @@ class Basler_Cls:
                 print(f'[WARNING] Could not close the camera: {e}')
             print('[INFO] Camera resources released.')
 
-    def __del__(self):
+    def __del__(self) -> None:
         """
         Description:
             Ensure resources are released when the object is destroyed.
