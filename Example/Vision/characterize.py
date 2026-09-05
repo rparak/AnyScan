@@ -53,13 +53,15 @@ import typing as tp
 #     compose / summarise / scene_note / verdict / describe_object /
 #     caption_sentence + label constants -> ../Reporting/Core.py [EXTRACTED]
 #     _build_mask / _find_objects / _crop_with_pad -> ../Vision/Utilities/Segmentation.py [EXTRACTED]
-#     _condense_label              -> ../Vision/Utilities/Caption.py       (Condense_Label)
+#     _describe / _condense_label  -> ../Vision/Utilities/Caption.py       [EXTRACTED]
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
 import Reporting.Core as Reporting
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import Build_Mask, Find_Objects
+#   ../Vision/Utilities/Caption
+from Vision.Utilities.Caption import Condense_Label
 #   ../../App/run.py
 import run
 
@@ -298,7 +300,7 @@ def main() -> None:
     """
     lines.append('-- label distiller (_condense_label) --')
     for caption in CONST_CAPTION_SAMPLES:
-        lines.append(f'  {caption!r:>62} -> {run._condense_label(caption)!r}')
+        lines.append(f'  {caption!r:>62} -> {Condense_Label(caption)!r}')
     lines.append('')
 
     """

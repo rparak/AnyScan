@@ -61,6 +61,9 @@ from Reporting.Core import (Compose, Verdict, CONST_LABEL_LEADINS,
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import (Build_Mask, Find_Objects, Crop_With_Pad,
                                            CONST_SEG_MAX_AREA_FRAC, CONST_SEG_MAX_OBJECTS)
+# Custom Lib.: AnyScan domain — Florence-2 captioning (Qt-free; runtime injected)
+#   ../Vision/Utilities/Caption
+from Vision.Utilities.Caption import Describe, Condense_Label, CONST_VISION_NUM_BEAMS
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
@@ -129,31 +132,20 @@ BACKGROUND_REF = os.path.abspath(
                  "Data", "Camera", "Image_Background_001.png")
 )
 
-# The Florence-2 task token sent per crop. <CAPTION> is the default: on a single
-# cropped object it returns a concise "A bolt on a green surface." that distils
-# cleanly to a noun-phrase `label`, and it is faster. <DETAILED_CAPTION> and
-# <MORE_DETAILED_CAPTION> also work — the distiller handles their verbose "In
-# this image we can see a …" template — but they add no identification accuracy
-# on a single crop and their extra words land in the line's second sentence only
-# when they actually say more. The token passed to generate() and to
-# post_process_generation() must be identical — they are, both read from here.
-VISION_TASK = "<MORE_DETAILED_CAPTION>"
+# The per-crop caption task, the generation budget and the crop-upscale threshold
+# now live with the caption pass in ../src/Vision/Utilities/Caption.py
+# (CONST_VISION_TASK, CONST_VISION_MAX_NEW_TOKENS, CONST_VISION_NUM_BEAMS,
+# CONST_MIN_CROP_SIDE). _detect_florence still reads CONST_VISION_NUM_BEAMS,
+# imported at the top of this file.
 
 # The human-readable task name shown in the reading panel's meta row. Keep it in
-# step with VISION_TASK ("caption", "detailed caption", "more detailed caption").
+# step with Caption.CONST_VISION_TASK ("caption", "detailed caption", ...).
 VISION_TASK_LABEL = "detailed caption"
 
 # Torch device: "auto" picks cuda, then mps, then cpu. float32 is deliberate —
 # fp16 on Apple's MPS backend is unreliable for this model and produces garbage
 # captions.
 VISION_DEVICE = "auto"
-
-# Generation. do_sample stays False so the same frame reads the same twice; a
-# console the operator cannot trust is worse than a slow one. One beam is the
-# fast, deterministic default; raise VISION_NUM_BEAMS to 3 (the model's own
-# default) for marginally better wording at roughly triple the latency.
-VISION_NUM_BEAMS = 1
-VISION_MAX_NEW_TOKENS = 256
 
 # How object boxes are found, before any per-crop description:
 #   "segment"  — background subtraction against BACKGROUND_REF. Pixel-tight on a
@@ -184,13 +176,10 @@ FLORENCE_DETECT_MAX_TOKENS = 1024
 FLORENCE_MIN_AREA_FRAC = 0.0005   # drop stray specks Florence sometimes proposes
 
 # Segmentation thresholds now live in ../src/Vision/Utilities/Segmentation.py as
-# CONST_SEG_* (colour/shadow/blur/morph/min-area/max-area/max-objects/crop-pad).
-# _detect_florence still caps with CONST_SEG_MAX_AREA_FRAC / CONST_SEG_MAX_OBJECTS,
-# imported at the top of this file.
-#
-# The crop upscale threshold read by _describe stays here until the Caption module
-# is extracted.
-SEG_MIN_CROP_SIDE = 224       # upscale crops smaller than this before the model
+# CONST_SEG_* (colour/shadow/blur/morph/min-area/max-area/max-objects/crop-pad),
+# and the crop-upscale threshold with the caption pass in
+# ../src/Vision/Utilities/Caption.py (CONST_MIN_CROP_SIDE). _detect_florence still
+# caps with CONST_SEG_MAX_AREA_FRAC / CONST_SEG_MAX_OBJECTS, imported at the top.
 
 # The Florence-caption text-cleaning vocabulary (lead-ins, clause boundaries,
 # word cap) and the panel-voice constants (object-line wording, empty-scene
@@ -662,78 +651,6 @@ def _qimage_to_bgr(image: QImage, np, cv2):
     return cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2BGR)
 
 
-def _describe(model, processor, device, dtype, crop_bgr, cv2, np, torch, PILImage):
-    """One Florence-2 caption pass on a single crop; returns the raw caption."""
-    pil = PILImage.fromarray(cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB))
-
-    # tiny crops upscale poorly through the processor's own resize; give it
-    # something reasonable to work with
-    if min(pil.size) < SEG_MIN_CROP_SIDE:
-        scale = SEG_MIN_CROP_SIDE / min(pil.size)
-        pil = pil.resize((int(pil.width * scale), int(pil.height * scale)),
-                         PILImage.LANCZOS)
-
-    inputs = processor(text=VISION_TASK, images=pil, return_tensors="pt")
-    inputs = {k: (v.to(device, dtype) if v.is_floating_point() else v.to(device))
-              for k, v in inputs.items()}
-
-    with torch.inference_mode():
-        ids = model.generate(**inputs, max_new_tokens=VISION_MAX_NEW_TOKENS,
-                             num_beams=VISION_NUM_BEAMS, do_sample=False)
-    # skip_special_tokens=False: post_process_generation needs the location and
-    # task tokens that True would strip, or structured output silently vanishes.
-    raw = processor.batch_decode(ids, skip_special_tokens=False)[0]
-    parsed = processor.post_process_generation(
-        raw, task=VISION_TASK, image_size=pil.size)[VISION_TASK]
-
-    if isinstance(parsed, str):
-        return parsed.strip()
-    if isinstance(parsed, dict):                   # OD-style tasks return a dict
-        labels = parsed.get("labels") or []
-        return labels[0] if labels else ""
-    return str(parsed)
-
-
-def _condense_label(caption: str) -> str:
-    """A two-to-three word noun phrase for `label`, distilled from a caption.
-
-    describe_object() renders `label` as "A <label> in the upper left of the
-    frame.", so a paragraph there produces a line that is not a sentence. The
-    front matter and any trailing clause are stripped and the phrase is capped;
-    the full caption survives untouched in Detection_Str.Detail as the line's second
-    sentence, so an imperfect distillation loses nothing.
-    """
-    text = " ".join(caption.split()).strip().rstrip(".")
-    # Florence stacks lead-ins ("The image shows a close-up of a hex bolt"), so
-    # strip them repeatedly until the front is the noun phrase itself.
-    stripped = True
-    while stripped:
-        stripped = False
-        low = text.lower()
-        for lead in CONST_LABEL_LEADINS:
-            if low.startswith(lead):
-                text = text[len(lead):].lstrip(" ,")
-                stripped = True
-                break
-
-    low = text.lower()
-    cut = len(text)
-    for boundary in CONST_LABEL_BOUNDARIES:
-        idx = low.find(boundary)
-        if idx != -1:
-            cut = min(cut, idx)
-    text = text[:cut].strip(" ,")
-
-    for article in ("a ", "an ", "the "):
-        if text.lower().startswith(article):
-            text = text[len(article):]
-            break
-
-    words = text.split()[:CONST_LABEL_MAX_WORDS]
-    text = " ".join(words).strip(" ,.")
-    return text.lower() if text else "object"
-
-
 class VisionBackend:
     """One method matters: analyze(image) -> Analysis_Str.
 
@@ -869,7 +786,7 @@ class FlorenceVision(VisionBackend):
         with torch.inference_mode():
             ids = self._model.generate(
                 **inputs, max_new_tokens=FLORENCE_DETECT_MAX_TOKENS,
-                num_beams=VISION_NUM_BEAMS, do_sample=False)
+                num_beams=CONST_VISION_NUM_BEAMS, do_sample=False)
         raw = self._processor.batch_decode(ids, skip_special_tokens=False)[0]
         parsed = self._processor.post_process_generation(
             raw, task=FLORENCE_DETECT_TASK, image_size=frame_rgb.size)
@@ -925,9 +842,9 @@ class FlorenceVision(VisionBackend):
             if progress_cb:
                 progress_cb(i, total)
             crop = Crop_With_Pad(frame_bgr, box)
-            caption = _describe(self._model, self._processor, self._device,
+            caption = Describe(self._model, self._processor, self._device,
                                 self._dtype, crop, cv2, np, torch, pil)
-            label = _condense_label(caption)
+            label = Condense_Label(caption)
             # If the caption gave nothing usable, fall back to the detector's own
             # class label (e.g. <OD>'s "screw") rather than the "object" default.
             if label == "object" and det_labels[i]:
