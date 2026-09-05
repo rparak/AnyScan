@@ -85,14 +85,26 @@ class Process_Image_Cls:
     Description:
         A class for processing images based on the type ('synthetic' or 'real').
 
-    Note:
-        Includes methods for adding Gaussian noise, adjusting color style, and applying Gaussian blur.
-    
-    Args:
-        (1) image_type [str]: Type of the image to process. Must be either 'synthetic' or 'real'.
+        Note:
+            Includes methods for adding Gaussian noise, adjusting colour style, and
+            applying Gaussian blur.
+
+    Initialization of the Class:
+        Args:
+            (1) image_type [string]: Type of the image to process. Must be either
+                                     'synthetic' or 'real'.
+
+        Example:
+            Initialization:
+                # Initialization of the class.
+                Cls = Process_Image_Cls('real')
+
+            Features:
+                # Functions of the class.
+                Cls.Apply(image)
     """
 
-    def __init__(self, image_type: str):
+    def __init__(self, image_type: str) -> None:
         if image_type not in ['synthetic', 'real']:
             raise ValueError("[ERROR] Image type must be 'synthetic' or 'real'.")
         self.__image_type = image_type

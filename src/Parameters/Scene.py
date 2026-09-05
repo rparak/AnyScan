@@ -79,9 +79,14 @@ class Camera_Parameters_Str:
     #       Optional structure for vendor/API specific settings (e.g., exposure, gain, white balance, pixel format).
     Custom_Cfg: tp.Dict[str, tp.Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """
+        Description:
+            Validate the configuration after initialization.
+        """
+
         # Ensure valid default values for depth of field and focus distance.
-        if self.Use_DoF == True and self.Focus_Distance == 0.0:
+        if self.Use_DoF and self.Focus_Distance == 0.0:
             raise ValueError('Focus distance must be set if Depth of Field is used.')
 
 @dataclass
@@ -108,7 +113,12 @@ class Light_Parameters_Str:
     # Shape of the light ('POINT', 'SUN', 'SPOT', 'AREA', or 'SQUARE')
     Shape: str = 'POINT'
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """
+        Description:
+            Validate the light parameters after initialization.
+        """
+
         # Ensure valid default values for parameters.
         if self.Energy <= 0:
             raise ValueError('Energy must be a positive value.')
@@ -135,7 +145,9 @@ Description:
         - Sensor:
             - Width: 6.6 mm - The physical width of the sensor.
             - Height: 4.1 mm - The physical height of the sensor.
-            - Fit: 'HORIZONTAL' - The sensor orientation relative to the field of view, indicating that the horizontal axis aligns with the camera's primary viewing direction.
+            - Fit: 'HORIZONTAL' - The sensor orientation relative to the field of
+              view, indicating that the horizontal axis aligns with the camera's
+              primary viewing direction.
 
     Custom camera configuration:
         - Exposure time: Specifies how long the image sensor is exposed to light during image acquisition.

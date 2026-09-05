@@ -56,7 +56,7 @@ class Checkerboard_Calibration_Cls:
                 Cls = Checkerboard_Calibration_Cls(inner_corners, square_size)
     """
         
-    def __init__(self, inner_corners: tp.Tuple[int, int], square_size: float):
+    def __init__(self, inner_corners: tp.Tuple[int, int], square_size: float) -> None:
         # Store the number of inner corners per dimension (adjusting by -1 to match OpenCV expectations).
         self.__inner_corners = [x_i - 1 for x_i in inner_corners]
         self.__square_size = square_size
@@ -108,7 +108,8 @@ class Checkerboard_Calibration_Cls:
             'y': self.__square_size / float(np.mean(dist_vertical))
         }
 
-    def Solve(self, image: np.ndarray, draw_chessboard_corners: bool = False, path: str = '') -> tp.Tuple[bool, tp.Optional[Camera_Calibration_Parameters_Str]]:
+    def Solve(self, image: np.ndarray, draw_chessboard_corners: bool = False,
+              path: str = '') -> tp.Tuple[bool, tp.Optional[Camera_Calibration_Parameters_Str]]:
         """
         Description:
             Performs camera calibration using a single checkerboard image. It computes camera calibration 
@@ -164,7 +165,7 @@ class Checkerboard_Calibration_Cls:
         self.__Calib_Param_Str.Conversion_Factor = self.__Get_Pixel_To_MM_Factor(corners_subpix)
 
         # [Optional] Draw the detected corners and save the image.
-        if draw_chessboard_corners == True:
+        if draw_chessboard_corners:
             img_corners = cv2.drawChessboardCorners(image, self.__inner_corners, corners_subpix, ret)
             cv2.imwrite(f'{path}/Image_Checkerboard_Calibrated.png', img_corners)
 
