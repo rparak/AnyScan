@@ -132,6 +132,20 @@ def project_root() -> str:
 
 
 @pytest.fixture
+def reference_shape() -> tp.Tuple[int, int, int]:
+    """
+    Description:
+        The reference background's expected shape (h, w, c) — the size a --frame
+        input must match.
+
+    Returns:
+        (1) parameter [Tuple<int> 1x3]: (height, width, channels).
+    """
+
+    return CONST_REFERENCE_SHAPE
+
+
+@pytest.fixture
 def reference_background_path() -> str:
     """
     Description:

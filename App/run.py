@@ -48,22 +48,15 @@ _SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                     "..", "src"))
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
-# Custom Lib.: AnyScan domain — data structures (Qt-free)
+# Custom Lib.: AnyScan domain — the scene-analysis result (Qt-free)
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Analysis_Str
-# Custom Lib.: AnyScan domain — report composer (Qt-free)
-#   ../Reporting/Core
-import Reporting.Core as Reporting
-from Reporting.Core import (Compose, Verdict, CONST_LABEL_LEADINS,
-                            CONST_LABEL_BOUNDARIES, CONST_LABEL_MAX_WORDS,
-                            CONST_EMPTY_SCENE_EXPLANATION)
-# Custom Lib.: AnyScan domain — segmentation (Qt-free; cv2/np injected at call)
-#   ../Vision/Utilities/Segmentation
-from Vision.Utilities.Segmentation import (Build_Mask, Find_Objects, Crop_With_Pad,
-                                           CONST_SEG_MAX_AREA_FRAC, CONST_SEG_MAX_OBJECTS)
-# Custom Lib.: AnyScan domain — Florence-2 captioning (Qt-free; runtime injected)
-#   ../Vision/Utilities/Caption
-from Vision.Utilities.Caption import Describe, Condense_Label, CONST_VISION_NUM_BEAMS
+from Parameters.Vision import Analysis_Str
+# Custom Lib.: AnyScan domain — vision backend (Qt-free; Analyze takes an ndarray).
+# The composer, segmentation and captioning modules are now used through this
+# backend, not directly by the UI.
+#   ../Vision/Core
+import Vision.Core as Vision_Core
+from Vision.Core import Florence_Vision_Cls
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
@@ -102,97 +95,15 @@ BASLER_IMAGE_PROFILE = 'real'
 # ============================================================================
 # Vision configuration
 #
-# Everything the analysis pipeline needs — the model directory, the empty-scene
-# background reference, the segmentation thresholds and the generation settings
-# — lives here. analyze() reads these and holds no magic numbers of its own:
-# every path and threshold in this block, nothing hard-coded in a method.
-#
-# The pipeline is a straight port of segment_classify.py: subtract a saved
-# empty-surface photo from the captured frame to find the objects, crop each
-# one from the ORIGINAL frame (Florence-2 labels natural images far better than
-# objects floating on black), and run one caption pass per crop.
+# All of the analysis pipeline's configuration now lives with the code that reads
+# it, under ../src/Vision/ and ../src/Reporting/ as CONST_*:
+#   - model dir, background reference, device, detector, task label and the
+#     Florence detection settings          -> Vision/Core.py
+#   - segmentation thresholds              -> Vision/Utilities/Segmentation.py
+#   - caption task / budget / crop upscale -> Vision/Utilities/Caption.py
+#   - panel voice + caption vocabulary     -> Reporting/Core.py
+# The --background flag reassigns Vision_Core.CONST_BACKGROUND_REF at startup.
 # ============================================================================
-
-# The local Florence-2 weights. Presented to the operator as JIC-AnyScan-VLM-v1
-# (see MODEL_NAME); the weights are Florence-2, MIT licensed — keep Microsoft's
-# notice with the project. Loaded from this directory only, never a hub id, so
-# there is no network call at runtime. Derived from this file's location
-# (App/ -> ../models/...) and made absolute so it survives any working dir.
-MODEL_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
-                 "models", "florence2-large-ft")
-)
-
-# The empty-surface reference photo. Segmentation is the difference between the
-# captured frame and this image, so it must come from the SAME fixed camera and
-# match the frame's pixel dimensions exactly. Re-shoot it whenever the camera or
-# the lighting is moved.
-BACKGROUND_REF = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
-                 "Data", "Camera", "Image_Background_001.png")
-)
-
-# The per-crop caption task, the generation budget and the crop-upscale threshold
-# now live with the caption pass in ../src/Vision/Utilities/Caption.py
-# (CONST_VISION_TASK, CONST_VISION_MAX_NEW_TOKENS, CONST_VISION_NUM_BEAMS,
-# CONST_MIN_CROP_SIDE). _detect_florence still reads CONST_VISION_NUM_BEAMS,
-# imported at the top of this file.
-
-# The human-readable task name shown in the reading panel's meta row. Keep it in
-# step with Caption.CONST_VISION_TASK ("caption", "detailed caption", ...).
-VISION_TASK_LABEL = "detailed caption"
-
-# Torch device: "auto" picks cuda, then mps, then cpu. float32 is deliberate —
-# fp16 on Apple's MPS backend is unreliable for this model and produces garbage
-# captions.
-VISION_DEVICE = "auto"
-
-# How object boxes are found, before any per-crop description:
-#   "segment"  — background subtraction against BACKGROUND_REF. Pixel-tight on a
-#                fixed rig and CLASS-AGNOSTIC: it boxes every foreground part
-#                regardless of what it is, which is what "any object" needs. It
-#                does need the empty-surface photo. The ported, proven method,
-#                and the default for that reason.
-#   "florence" — Florence-2's own detection on the full frame. No background
-#                reference, robust to a moved camera — but the box set depends on
-#                the detection task (below), and <OD> only proposes classes the
-#                model was trained on, so it silently drops unfamiliar parts
-#                (e.g. washers). Use <REGION_PROPOSAL> for class-agnostic boxes.
-# Either way, each box is then cropped and described by one VISION_TASK pass.
-DETECTOR = "segment"
-
-# The Florence-2 detection task used when DETECTOR == "florence".
-#   <REGION_PROPOSAL>       boxes only, CLASS-AGNOSTIC — the right choice for
-#                           "any object"; the per-crop caption supplies the name.
-#   <DENSE_REGION_CAPTION>  boxes + a short caption each, also class-agnostic.
-#   <OD>                    boxes + a class label each, but ONLY for classes the
-#                           model knows — it will miss industrial parts. Avoid
-#                           for a general "any object" console.
-# Boxes come back in full-frame pixels — the description crops the frame, so
-# there is no crop-to-frame coordinate remap. Detection needs room for many
-# boxes, so it gets its own (larger) token budget.
-FLORENCE_DETECT_TASK = "<REGION_PROPOSAL>"
-FLORENCE_DETECT_MAX_TOKENS = 1024
-FLORENCE_MIN_AREA_FRAC = 0.0005   # drop stray specks Florence sometimes proposes
-
-# Segmentation thresholds now live in ../src/Vision/Utilities/Segmentation.py as
-# CONST_SEG_* (colour/shadow/blur/morph/min-area/max-area/max-objects/crop-pad),
-# and the crop-upscale threshold with the caption pass in
-# ../src/Vision/Utilities/Caption.py (CONST_MIN_CROP_SIDE). _detect_florence still
-# caps with CONST_SEG_MAX_AREA_FRAC / CONST_SEG_MAX_OBJECTS, imported at the top.
-
-# The Florence-caption text-cleaning vocabulary (lead-ins, clause boundaries,
-# word cap) and the panel-voice constants (object-line wording, empty-scene
-# explanation) now live in ../src/Reporting/Core.py as CONST_LABEL_LEADINS,
-# CONST_LABEL_BOUNDARIES, CONST_LABEL_MAX_WORDS, CONST_SHOW_OBJECT_DETAIL and
-# CONST_EMPTY_SCENE_EXPLANATION. They are imported at the top of this file; the
-# still-resident _condense_label and analyze() read them from there until the
-# Caption and Vision modules are extracted.
-
-# Busy-indicator animation, driven by a QTimer in the Viewport while the worker
-# runs. Kept here so the whole console's tunable values live in one place.
-BUSY_TICK_MS = 33             # ~30 fps repaint
-BUSY_SPIN_DEG = 6             # arc rotation per tick
 
 # ============================================================================
 # Design tokens
@@ -253,7 +164,8 @@ FONT_UI = "Inter"       # resolved in load_fonts()
 FONT_MONO = "Consolas"  # resolved in load_fonts()
 
 TAGLINE = "The camera sees, the model describes."
-MODEL_NAME = "JIC-AnyScan-VLM-v1"
+# The presented model name now lives in ../src/Vision/Core.py as CONST_MODEL_NAME
+# and is read off the backend as `self.vision.Name`.
 
 
 def load_fonts() -> None:
@@ -613,34 +525,16 @@ class BaslerCamera(Camera):
 
 
 # ============================================================================
-# Vision layer
+# Vision layer boundary (QImage -> ndarray)
 #
-# The pipeline (DETECTOR selects how the boxes are found):
-#
-#   frame  --detect-->  N boxes in FULL-FRAME pixels
-#     "segment":  frame + background reference -> _build_mask -> _find_objects
-#     "florence": Florence-2 <OD> on the full frame -> _detect_florence
-#          -> _crop_with_pad   crop each box from the ORIGINAL frame
-#               -> _describe    one Florence-2 caption per crop (the "what")
-#                    -> Detection_Str(Label, Bbox, Detail)
-#                         -> compose()  the numbered lines the panel renders
-#
-# Boxes are in full-frame pixels either way, so there is no crop-to-frame
-# coordinate remap to get wrong: only the crop (for the caption) is a sub-image.
-# Florence-2 emits no confidence, so confidence stays None and the verdict
-# handles unscored objects. The line says what the object is, not where.
+# The vision backend now lives in ../src/Vision/Core.py (Vision_Backend_Cls,
+# Florence_Vision_Cls) and is Qt-free: Analyze() accepts an RGB ndarray. The one
+# thing that must stay on the UI side is turning the captured QImage into that
+# array — the single QImage<->ndarray conversion point, used by AnalysisWorker.
 # ============================================================================
 
-class VisionError(RuntimeError):
-    """Raised for anything the operator needs to see on screen.
-
-    Its message must be a full, actionable sentence: it is printed straight
-    into the Scene Understanding panel.
-    """
-
-
-def _qimage_to_bgr(image: QImage, np, cv2):
-    """A QImage frame as a contiguous BGR array, matching cv2.imread's order."""
+def _qimage_to_rgb(image: QImage, np):
+    """A QImage frame as a contiguous RGB array (H, W, 3), the vision exchange format."""
     img = image.convertToFormat(QImage.Format_RGB888)
     w, h = img.width(), img.height()
     bpl = img.bytesPerLine()                       # may be padded past 3*w
@@ -648,224 +542,7 @@ def _qimage_to_bgr(image: QImage, np, cv2):
     ptr.setsize(h * bpl)
     arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, bpl))
     rgb = arr[:, : w * 3].reshape((h, w, 3))       # drop any row padding
-    return cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2BGR)
-
-
-class VisionBackend:
-    """One method matters: analyze(image) -> Analysis_Str.
-
-    Everything the Scene Understanding panel shows comes out of that single
-    call, so a backend swap never touches the interface. `progress_cb(done,
-    total)` and `stage_cb(text)` are optional hooks the worker thread uses to
-    drive the busy indicator; a backend may ignore them.
-    """
-
-    name = MODEL_NAME
-
-    def analyze(self, image: QImage, progress_cb=None, stage_cb=None) -> Analysis_Str:
-        raise NotImplementedError
-
-
-class FlorenceVision(VisionBackend):
-    """The real vision-language model.
-
-    Presented as JIC-AnyScan-VLM-v1; the weights are Florence-2, MIT licensed —
-    keep Microsoft's notice with the project.
-
-    Notes that cost hours if missed:
-
-      * These are the native transformers `Florence2ForConditionalGeneration`
-        weights (no bundled modelling code, no auto_map), so they load with
-        local_files_only=True and NOT trust_remote_code. Nothing here touches
-        the network at runtime.
-      * torch, transformers and OpenCV are imported lazily on first analyze, so
-        the window still opens on a machine without them.
-      * The model loads once and is kept; the first analysis therefore pays a
-        cold-load cost the busy indicator must cover ("Loading model…").
-      * It emits no confidence scores. confidence stays None — the verdict
-        handles unscored detections. Never invent a number.
-      * Boxes are in full-frame pixels whichever detector is used (background
-        subtraction or Florence's own <OD>); the per-crop pass only describes.
-        There is no crop-to-frame remap, and `objects` is never reordered after
-        compose().
-    """
-
-    def __init__(self):
-        self._model = None
-        self._processor = None
-        self._device = None
-        self._dtype = None
-        self._torch = None
-        self._cv2 = None
-        self._np = None
-        self._pil = None
-        self._background = None   # cached BGR reference array
-
-    def _pick_device(self, torch):
-        if VISION_DEVICE != "auto":
-            return torch.device(VISION_DEVICE)
-        if torch.cuda.is_available():
-            return torch.device("cuda")
-        if torch.backends.mps.is_available():
-            return torch.device("mps")
-        return torch.device("cpu")
-
-    def _ensure_loaded(self, stage_cb):
-        if self._model is not None:
-            return
-        if stage_cb:
-            stage_cb("Loading model…")
-        try:
-            import cv2
-            import numpy as np
-            import torch
-            from PIL import Image as PILImage
-            from transformers import (AutoProcessor,
-                                      Florence2ForConditionalGeneration)
-        except ImportError as exc:
-            raise VisionError(
-                "The vision runtime is not installed. Install torch, transformers, "
-                "OpenCV and Pillow into this environment, then scan again."
-            ) from exc
-
-        device = self._pick_device(torch)
-        dtype = torch.float32  # fp16 on MPS is unreliable for this model
-        try:
-            model = Florence2ForConditionalGeneration.from_pretrained(
-                MODEL_DIR, dtype=dtype, local_files_only=True)
-            model.to(device)
-            model.eval()
-            processor = AutoProcessor.from_pretrained(
-                MODEL_DIR, local_files_only=True)
-        except Exception as exc:                          # noqa: BLE001
-            raise VisionError(
-                "The model weights at \"%s\" could not be loaded. Check that the "
-                "directory is complete and readable." % MODEL_DIR
-            ) from exc
-
-        self._cv2, self._np, self._torch, self._pil = cv2, np, torch, PILImage
-        self._model, self._processor = model, processor
-        self._device, self._dtype = device, dtype
-
-    def _load_background(self, cv2, frame_shape):
-        if self._background is None:
-            bg = cv2.imread(BACKGROUND_REF)
-            if bg is None:
-                raise VisionError(
-                    "The background reference at \"%s\" could not be read. It is the "
-                    "empty-surface photo the analysis subtracts from the frame; shoot "
-                    "one from this camera and save it there." % BACKGROUND_REF
-                )
-            self._background = bg
-        if self._background.shape != frame_shape:
-            bh, bw = self._background.shape[:2]
-            fh, fw = frame_shape[:2]
-            raise VisionError(
-                "The background reference is %d×%d but the frame is %d×%d. "
-                "Re-shoot the empty-surface reference from this camera so the two "
-                "match." % (bw, bh, fw, fh)
-            )
-        return self._background
-
-    def _detect_florence(self, frame_bgr, stage_cb):
-        """Florence-2's own detection on the full frame.
-
-        Returns (boxes_xyxy, det_labels) in full-frame pixels, filtered by area,
-        capped, and ordered left to right — the same contract _find_objects
-        returns, plus the model's own per-box label for a fallback name.
-        """
-        cv2, torch, pil = self._cv2, self._torch, self._pil
-        if stage_cb:
-            stage_cb("Detecting objects…")
-
-        frame_rgb = pil.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
-        inputs = self._processor(text=FLORENCE_DETECT_TASK, images=frame_rgb,
-                                 return_tensors="pt")
-        inputs = {k: (v.to(self._device, self._dtype) if v.is_floating_point()
-                      else v.to(self._device)) for k, v in inputs.items()}
-        with torch.inference_mode():
-            ids = self._model.generate(
-                **inputs, max_new_tokens=FLORENCE_DETECT_MAX_TOKENS,
-                num_beams=CONST_VISION_NUM_BEAMS, do_sample=False)
-        raw = self._processor.batch_decode(ids, skip_special_tokens=False)[0]
-        parsed = self._processor.post_process_generation(
-            raw, task=FLORENCE_DETECT_TASK, image_size=frame_rgb.size)
-
-        block = parsed.get(FLORENCE_DETECT_TASK, {}) if isinstance(parsed, dict) else {}
-        bboxes = block.get("bboxes", []) if isinstance(block, dict) else []
-        labels = (block.get("labels") if isinstance(block, dict) else None) or []
-
-        h, w = frame_bgr.shape[:2]
-        area_total = float(h * w)
-        items = []
-        for i, box in enumerate(bboxes):
-            x1, y1, x2, y2 = (int(round(v)) for v in box)
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(w, x2), min(h, y2)
-            if x2 <= x1 or y2 <= y1:
-                continue
-            frac = ((x2 - x1) * (y2 - y1)) / area_total
-            if frac < FLORENCE_MIN_AREA_FRAC or frac > CONST_SEG_MAX_AREA_FRAC:
-                continue
-            label = labels[i] if i < len(labels) else None
-            items.append(((x1, y1, x2, y2), label, frac))
-
-        # keep the largest N, then present them left to right (the index contract)
-        items.sort(key=lambda it: it[2], reverse=True)
-        items = items[:CONST_SEG_MAX_OBJECTS]
-        items.sort(key=lambda it: it[0][0])
-        return [it[0] for it in items], [it[1] for it in items]
-
-    def _detect(self, frame_bgr, cv2, np, stage_cb):
-        """Boxes (xyxy) and optional per-box labels, from the chosen detector."""
-        if DETECTOR == "segment":
-            if stage_cb:
-                stage_cb("Segmenting…")
-            bg_bgr = self._load_background(cv2, frame_bgr.shape)
-            mask = Build_Mask(bg_bgr, frame_bgr, cv2, np)
-            boxes = Find_Objects(mask, cv2, np)
-            return boxes, [None] * len(boxes)
-        return self._detect_florence(frame_bgr, stage_cb)
-
-    def analyze(self, image: QImage, progress_cb=None, stage_cb=None) -> Analysis_Str:
-        t0 = time.perf_counter()
-        self._ensure_loaded(stage_cb)
-        cv2, np, torch, pil = self._cv2, self._np, self._torch, self._pil
-        size = (image.width(), image.height())
-
-        frame_bgr = _qimage_to_bgr(image, np, cv2)
-        boxes, det_labels = self._detect(frame_bgr, cv2, np, stage_cb)
-
-        objects = []
-        total = len(boxes)
-        for i, box in enumerate(boxes):
-            if progress_cb:
-                progress_cb(i, total)
-            crop = Crop_With_Pad(frame_bgr, box)
-            caption = Describe(self._model, self._processor, self._device,
-                                self._dtype, crop, cv2, np, torch, pil)
-            label = Condense_Label(caption)
-            # If the caption gave nothing usable, fall back to the detector's own
-            # class label (e.g. <OD>'s "screw") rather than the "object" default.
-            if label == "object" and det_labels[i]:
-                label = " ".join(det_labels[i].split()[:CONST_LABEL_MAX_WORDS]).lower()
-            x1, y1, x2, y2 = box
-            objects.append(Detection_Str(
-                Label=label,
-                Bbox=(x1, y1, x2 - x1, y2 - y1),   # xyxy -> xywh, frame pixels
-                Confidence=None,                   # Florence-2 emits no score
-                Detail=caption,
-            ))
-        if progress_cb:
-            progress_cb(total, total)
-
-        caption = "" if objects else CONST_EMPTY_SCENE_EXPLANATION
-        objects, summary, note = Compose(objects, size, caption=caption)
-        badge, level = Verdict(objects)
-        latency_ms = int((time.perf_counter() - t0) * 1000)
-        return Analysis_Str(Summary=summary, Objects=objects, Note=note,
-                            Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
-                            Task=VISION_TASK_LABEL)
+    return np.ascontiguousarray(rgb)
 
 
 # ============================================================================
@@ -1444,8 +1121,14 @@ class AnalysisWorker(QObject):
 
     def run(self):
         try:
-            result = self._vision.analyze(
-                self._image,
+            # Convert the captured QImage to the vision exchange format (a
+            # contiguous RGB ndarray) here, on the worker side. The backend is
+            # Qt-free and never sees a QImage. numpy is imported lazily, matching
+            # the rest of the heavy runtime.
+            import numpy as np
+            image_rgb = _qimage_to_rgb(self._image, np)
+            result = self._vision.Analyze(
+                image_rgb,
                 progress_cb=lambda done, total: self.progress.emit(done, total),
                 stage_cb=lambda text: self.stage.emit(text),
             )
@@ -1501,7 +1184,7 @@ class AnyScanWindow(QMainWindow):
         # One real implementation each. `camera` is injected so the developer
         # --frame path can supply a FileCamera; production is the Basler.
         self.camera = camera if camera is not None else BaslerCamera()
-        self.vision = FlorenceVision()
+        self.vision = Florence_Vision_Cls()
 
         self.frame = None
         self.analyses = 0
@@ -1594,7 +1277,7 @@ class AnyScanWindow(QMainWindow):
         pill_row.setContentsMargins(12, 0, 12, 0)
         pill_row.setSpacing(7)
         pill_row.addWidget(Icon("cube", 15, INK_MUTE))
-        model_label = QLabel(self.vision.name)
+        model_label = QLabel(self.vision.Name)
         model_label.setFont(font(9, QFont.DemiBold))
         model_label.setStyleSheet("color: %s;" % INK_MUTE)
         pill_row.addWidget(model_label)
@@ -1982,7 +1665,7 @@ def _parse_args(argv):
              "that background's resolution (1920x1200). Real data, no hardware.")
     ap.add_argument(
         "--background", metavar="PNG", default=None,
-        help="Override the empty-surface reference (default: the BACKGROUND_REF "
+        help="Override the empty-surface reference (default: the reference "
              "in the configuration block).")
     # parse_known_args so Qt's own flags (-style, -platform, …) pass through.
     args, _ = ap.parse_known_args(argv[1:])
@@ -1992,8 +1675,7 @@ def _parse_args(argv):
 def main():
     args = _parse_args(sys.argv)
     if args.background:
-        global BACKGROUND_REF
-        BACKGROUND_REF = os.path.abspath(args.background)
+        Vision_Core.CONST_BACKGROUND_REF = os.path.abspath(args.background)
 
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)

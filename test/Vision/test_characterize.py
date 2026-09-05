@@ -49,16 +49,14 @@ def test_reference_background_file_exists(reference_background_path: str) -> Non
     assert os.path.isfile(reference_background_path)
 
 
-def test_reference_background_loads_at_expected_shape(reference_background) -> None:
+def test_reference_background_loads_at_expected_shape(reference_background, reference_shape) -> None:
     """
     Description:
         The reference loads as a BGR array at 1200x1920x3 — the size a --frame
         input must match, since segmentation differences the two.
     """
 
-    from conftest import CONST_REFERENCE_SHAPE
-
-    assert reference_background.shape == CONST_REFERENCE_SHAPE
+    assert reference_background.shape == reference_shape
 
 
 def test_unused_second_background_is_absent(project_root: str) -> None:
