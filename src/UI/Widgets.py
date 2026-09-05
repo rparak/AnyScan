@@ -29,7 +29,8 @@ import os
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint
-from PyQt5.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap
+from PyQt5.QtGui import (QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap,
+                         QPaintEvent)
 from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QVBoxLayout,
                              QHBoxLayout, QSizePolicy, QApplication)
 # Custom Lib.: AnyScan UI — design tokens and style helpers
@@ -85,7 +86,7 @@ class Icon_Cls(QWidget):
         self.setFixedSize(size, size)
 
     # << QT OVERRIDE >> #
-    def paintEvent(self, _) -> None:
+    def paintEvent(self, event: QPaintEvent) -> None:
         """
         Description:
             Paint the stroked icon selected by kind at the widget's size.
@@ -371,7 +372,7 @@ class Viewport_Cls(QWidget):
                      int(w), int(h))
 
     # << QT OVERRIDE >> #
-    def paintEvent(self, _) -> None:
+    def paintEvent(self, event: QPaintEvent) -> None:
         """
         Description:
             Paint the dark surface, the letterboxed frame, its boxes, and any busy

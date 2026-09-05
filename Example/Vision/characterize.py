@@ -34,10 +34,9 @@ import os
 # absolutely instead.
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                     '..', '..'))
-for _path in (os.path.join(CONST_PROJECT_FOLDER, 'src'),
-              os.path.join(CONST_PROJECT_FOLDER, 'App')):
-    if _path not in sys.path:
-        sys.path.append(_path)
+_SRC = os.path.join(CONST_PROJECT_FOLDER, 'src')
+if _SRC not in sys.path:
+    sys.path.append(_SRC)
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
 import cv2
 # Numpy (Array computing) [pip3 install numpy]
@@ -45,15 +44,13 @@ import numpy as np
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan — logic under test
-#   Functions are characterized BEFORE App/run.py is fully split into src/, so
-#   whatever is not yet extracted is imported from `run`. As each module moves,
-#   its import is repointed at the new src/ home and the .log must not change.
-#   Status:
-#     Detection / Analysis         -> ../Parameters/Vision.py   [EXTRACTED]
-#     compose / summarise / scene_note / verdict / describe_object /
-#     caption_sentence + label constants -> ../Reporting/Core.py [EXTRACTED]
-#     _build_mask / _find_objects / _crop_with_pad -> ../Vision/Utilities/Segmentation.py [EXTRACTED]
-#     _describe / _condense_label  -> ../Vision/Utilities/Caption.py       [EXTRACTED]
+#   The migration is complete: every characterized function now lives in its src/
+#   module, so this harness imports only from src/ and needs no Qt. It stays the
+#   end-to-end regression baseline; a change in the .log is a behaviour change.
+#     Detection_Str / Analysis_Str -> ../Parameters/Vision.py
+#     the report composer          -> ../Reporting/Core.py
+#     background subtraction        -> ../Vision/Utilities/Segmentation.py
+#     the label distiller           -> ../Vision/Utilities/Caption.py
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
@@ -62,8 +59,6 @@ import Reporting.Core as Reporting
 from Vision.Utilities.Segmentation import Build_Mask, Find_Objects
 #   ../Vision/Utilities/Caption
 from Vision.Utilities.Caption import Condense_Label
-#   ../../App/run.py
-import run
 
 """
 Description:

@@ -237,6 +237,11 @@ class File_Camera_Cls(Camera_Backend_Cls):
         return (self.__image.shape[1], self.__image.shape[0])
 
     def _Open(self) -> None:
+        """
+        Description:
+            Load the saved PNG into an RGB array, raising if it is missing/unreadable.
+        """
+
         if not os.path.isfile(self.__path):
             raise Camera_Error_Cls(
                 'No saved frame at "%s". Pass --frame with the path to a PNG '
@@ -255,9 +260,22 @@ class File_Camera_Cls(Camera_Backend_Cls):
         self.__image = np.ascontiguousarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
 
     def _Close(self) -> None:
+        """
+        Description:
+            Drop the loaded frame.
+        """
+
         self.__image = None
 
     def _Grab(self) -> tp.List[tp.List[int]]:
+        """
+        Description:
+            Return a copy of the loaded frame (RGB); the source is immutable here.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3]: The frame (RGB).
+        """
+
         if self.__image is None:
             raise Camera_Error_Cls('The saved frame is not loaded.')
         return self.__image.copy()  # a copy; the frame is immutable here
@@ -328,6 +346,12 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         return self.__resolution
 
     def _Open(self) -> None:
+        """
+        Description:
+            Enumerate and open the Basler device, cache the pipeline, and read the
+            sensor size. Raises Camera_Error_Cls on any failure.
+        """
+
         # Imported here, not at module level, so a machine without the camera SDK
         # can still run the UI.
         try:
@@ -379,6 +403,12 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
             pass  # the delivered frame in _Grab is the authoritative size
 
     def _Close(self) -> None:
+        """
+        Description:
+            Stop grabbing and close the device explicitly through the public pylon
+            handle; a close failure must never block DISCONNECT.
+        """
+
         # Stop grabbing and close the device explicitly through the public pylon
         # handle. A close failure must never block DISCONNECT.
         cam = getattr(self.__cam, 'camera', None)
@@ -395,6 +425,14 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         self.__undistort_cache = {}
 
     def _Grab(self) -> tp.List[tp.List[int]]:
+        """
+        Description:
+            Capture, process and undistort one frame, returning it as RGB.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3]: The captured frame (RGB).
+        """
+
         cv2, np = self.__cv2, self.__np
 
         # One frame. Capture() auto-starts grabbing (LatestImageOnly) and uses a

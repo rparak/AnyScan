@@ -28,7 +28,7 @@ import typing as tp
 from datetime import datetime
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QThread, QTimer
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QKeyEvent, QCloseEvent
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
                              QGridLayout, QScrollArea, QFrame)
 # Custom Lib.: AnyScan UI — style, widgets and workers
@@ -732,7 +732,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__Sync_Controls()
 
     # << QT OVERRIDE >> #
-    def keyPressEvent(self, event) -> None:
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         """
         Description:
             Esc closes the window; F11 toggles fullscreen.
@@ -749,7 +749,7 @@ class AnyScan_Window_Cls(QMainWindow):
             super().keyPressEvent(event)
 
     # << QT OVERRIDE >> #
-    def closeEvent(self, event) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """
         Description:
             Stop any running worker thread (analysis or connect) before the window is
