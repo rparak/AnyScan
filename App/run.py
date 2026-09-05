@@ -51,6 +51,12 @@ if _SRC not in sys.path:
 # Custom Lib.: AnyScan domain — data structures (Qt-free)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
+# Custom Lib.: AnyScan domain — report composer (Qt-free)
+#   ../Reporting/Core
+import Reporting.Core as Reporting
+from Reporting.Core import (Compose, Verdict, CONST_LABEL_LEADINS,
+                            CONST_LABEL_BOUNDARIES, CONST_LABEL_MAX_WORDS,
+                            CONST_EMPTY_SCENE_EXPLANATION)
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
@@ -195,53 +201,13 @@ SEG_MAX_OBJECTS = 12          # cap the number of crops per analysis (shared)
 SEG_CROP_PAD_FRAC = 0.2       # crop margin as a fraction of object size (shared)
 SEG_MIN_CROP_SIDE = 224       # upscale crops smaller than this before the model
 
-# Turning a Florence caption into a two-to-three word noun phrase for `label`.
-# These lead-ins are stripped from the front, the phrase is cut at the first of
-# these clause boundaries, and at most LABEL_MAX_WORDS words are kept. The full
-# caption is preserved as the object line's second sentence, so an imperfect
-# distillation loses no information.
-# Stripped from the front, repeatedly, until the noun phrase is exposed. Order
-# is not important (the caller iterates to a fixed point), but every granular
-# piece of Florence's templates must appear — "in this image we can see a bolt"
-# peels as "in this image" + "we can see" + the article. Longest variants first
-# only as a readability aid.
-LABEL_LEADINS = (
-    "in this image we can see", "in the image we can see",
-    "in this picture we can see", "in this image, we can see",
-    "in this image there are", "in this image there is",
-    "in this image we see", "here we can see", "we can also see",
-    "we can see", "we see", "you can see",
-    "in this image", "in the image", "in this picture", "in the picture",
-    "the image shows", "this image shows", "the photo shows",
-    "this is a", "this is an", "there is a", "there is an",
-    "there are", "here is a", "here is an",
-    "a close-up of", "a close up of", "close-up of", "close up of",
-    "an image of", "a image of", "image of", "a photo of", "a picture of",
-    "a photograph of", "it is a", "it is an", "showing a", "showing an",
-    "shows a", "shows an",
-)
-LABEL_BOUNDARIES = (
-    ",", " is ", " are ", " was ", " with ", " that ", " which ", " has ",
-    " have ", " sitting", " lying", " laying", " placed", " resting",
-    " standing", " scattered", " showing", " appears", " against ", " next to",
-    " on top", " on a ", " on an ", " on the ", " in the ", " in a ", " in an ",
-    " across ", " and ",
-)
-LABEL_MAX_WORDS = 4
-
-# The object line's wording:
-#   True  — the model's full detailed description, cleaned into the panel's voice
-#           ("A silver key on a green surface with a keyring attached to it.").
-#   False — a short "A <label>." distilled from the caption.
-SHOW_OBJECT_DETAIL = True
-
-# What the panel says when the model finds nothing. It names both honest
-# possibilities; the report composer's own scene note supplies the next action
-# ("Check the lighting and the focus, then scan again."), so this is only the
-# explanation and carries no trailing full stop of its own.
-EMPTY_SCENE_EXPLANATION = (
-    "Either nothing is on the surface, or the model did not recognise what is there"
-)
+# The Florence-caption text-cleaning vocabulary (lead-ins, clause boundaries,
+# word cap) and the panel-voice constants (object-line wording, empty-scene
+# explanation) now live in ../src/Reporting/Core.py as CONST_LABEL_LEADINS,
+# CONST_LABEL_BOUNDARIES, CONST_LABEL_MAX_WORDS, CONST_SHOW_OBJECT_DETAIL and
+# CONST_EMPTY_SCENE_EXPLANATION. They are imported at the top of this file; the
+# still-resident _condense_label and analyze() read them from there until the
+# Caption and Vision modules are extracted.
 
 # Busy-indicator animation, driven by a QTimer in the Viewport while the worker
 # runs. Kept here so the whole console's tunable values live in one place.
@@ -398,149 +364,6 @@ def font(size: float, weight: int = QFont.Normal, mono: bool = False,
 # Detection_Str and Analysis_Str now live in ../src/Parameters/Vision.py and are
 # imported at the top of this file. They are plain data carriers with no Qt.
 # ============================================================================
-
-# ============================================================================
-# Report composer
-#
-# The panel on the right is the product. Every sentence the operator reads is
-# written here and nowhere else, so the console keeps one voice whichever
-# backend produced the data.
-#
-# House style: plain declarative sentences, present tense, no hedging adverbs,
-# no self-reference, numbers one to ten spelled out, and an empty result is a
-# statement with a next action rather than an apology.
-# ============================================================================
-
-_NUMBER_WORDS = {0: "no", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
-                 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
-
-
-def _count_word(n: int) -> str:
-    return _NUMBER_WORDS.get(n, str(n))
-
-
-def zone(bbox, size) -> str:
-    """Coarse nine-cell position, the way a person would describe it.
-
-    Currently unused: object lines were changed to say what a part is, not where
-    it is (the number on the coloured box carries position). Kept for the day a
-    position phrase is wanted back — re-add it in describe_object.
-    """
-    width, height = size
-    cx = (bbox[0] + bbox[2] / 2) / max(width, 1)
-    cy = (bbox[1] + bbox[3] / 2) / max(height, 1)
-    row = "upper" if cy < 0.34 else ("lower" if cy > 0.66 else "middle")
-    col = "left" if cx < 0.34 else ("right" if cx > 0.66 else "centre")
-    if row == "middle" and col == "centre":
-        return "the centre of the frame"
-    if col == "centre":
-        return "the %s centre of the frame" % row
-    return "the %s %s of the frame" % (row, col)
-
-
-def _clean_detail(text: str) -> str:
-    """Tidy the model's caption into a standalone second sentence.
-
-    The composer, not the model, owns punctuation and capitalisation, so the
-    raw string is normalised here rather than printed as-is: surrounding
-    whitespace gone, first letter capitalised, exactly one terminal full stop.
-    """
-    text = " ".join(text.split()).strip()
-    if not text:
-        return ""
-    # capitalise the first letter of every sentence, not only the first
-    out, at_start = [], True
-    for ch in text:
-        if at_start and ch.isalpha():
-            ch = ch.upper()
-            at_start = False
-        out.append(ch)
-        if ch in ".!?":
-            at_start = True
-    text = "".join(out)
-    return text if text[-1] in ".!?" else text + "."
-
-
-def _caption_sentence(caption: str) -> str:
-    """The model's full caption as a clean, standalone description.
-
-    Florence prefixes a fixed template ("In this image we can see a …"); those
-    lead-ins are peeled from the front so the description reads naturally, then
-    _clean_detail imposes the console's capitalisation and terminal stop. This
-    is where the panel's one voice is put on the model's raw words.
-    """
-    text = " ".join(caption.split()).strip()
-    stripped = True
-    while stripped:
-        stripped = False
-        low = text.lower()
-        for lead in LABEL_LEADINS:
-            if low.startswith(lead):
-                text = text[len(lead):].lstrip(" ,")
-                stripped = True
-                break
-    return _clean_detail(text)
-
-
-def describe_object(det: Detection_Str, size) -> str:
-    """One line for one detection — what the object is, not where it is.
-
-    With SHOW_OBJECT_DETAIL the line is the model's full description, cleaned
-    into the console's voice; otherwise it is the short "A <label>." Position is
-    deliberately not stated: the operator reads the number off the coloured box
-    on the frame, so a coarse location in words earns nothing. (`size` is unused
-    now that the zone is gone; kept so the composer's call site is unchanged.)
-    The index is not repeated here either; the list prints `Object N:` in the
-    box's colour, and duplicating the number reads as a stutter.
-    """
-    sentence = _caption_sentence(det.Detail) if SHOW_OBJECT_DETAIL else ""
-    if not sentence:
-        article = "An" if det.Label[:1].lower() in "aeiou" else "A"
-        sentence = "%s %s." % (article, det.Label)
-    if det.Text:
-        sentence = sentence.rstrip(".") + ", reading \u201c%s\u201d." % det.Text
-    return sentence
-
-
-def summarise(objects) -> str:
-    n = len(objects)
-    if n == 0:
-        return "No objects were located in this frame."
-    if n == 1:
-        return "The frame contains one object, described as follows:"
-    return "The frame contains %s objects, which are described as follows:" % _count_word(n)
-
-
-def scene_note(objects, size, caption="") -> str:
-    # No framing advice: the note carries the empty-scene explanation and its
-    # next action, and otherwise stays silent so the panel is just the objects.
-    parts = []
-    if caption:
-        parts.append(caption.strip().rstrip(".") + ".")
-    if not objects:
-        parts.append("Check the lighting and the focus, then scan again.")
-    return " ".join(parts)
-
-
-def verdict(objects, threshold=0.35):
-    """Badge wording and its severity level.
-
-    The level drives the badge colour, returned separately so the interface
-    never parses the wording to decide how to paint it.
-    """
-    if not objects:
-        return "Empty", "idle"
-    scored = [o.Confidence for o in objects if o.Confidence is not None]
-    if scored and min(scored) < threshold:
-        return "Low confidence", "warn"
-    return "%d found" % len(objects), "ok"
-
-
-def compose(objects, size, caption=""):
-    for det in objects:
-        det.Sentence = describe_object(det, size)
-    return objects, summarise(objects), scene_note(objects, size, caption)
-
 
 # ============================================================================
 # Camera layer
@@ -979,7 +802,7 @@ def _condense_label(caption: str) -> str:
     while stripped:
         stripped = False
         low = text.lower()
-        for lead in LABEL_LEADINS:
+        for lead in CONST_LABEL_LEADINS:
             if low.startswith(lead):
                 text = text[len(lead):].lstrip(" ,")
                 stripped = True
@@ -987,7 +810,7 @@ def _condense_label(caption: str) -> str:
 
     low = text.lower()
     cut = len(text)
-    for boundary in LABEL_BOUNDARIES:
+    for boundary in CONST_LABEL_BOUNDARIES:
         idx = low.find(boundary)
         if idx != -1:
             cut = min(cut, idx)
@@ -998,7 +821,7 @@ def _condense_label(caption: str) -> str:
             text = text[len(article):]
             break
 
-    words = text.split()[:LABEL_MAX_WORDS]
+    words = text.split()[:CONST_LABEL_MAX_WORDS]
     text = " ".join(words).strip(" ,.")
     return text.lower() if text else "object"
 
@@ -1200,7 +1023,7 @@ class FlorenceVision(VisionBackend):
             # If the caption gave nothing usable, fall back to the detector's own
             # class label (e.g. <OD>'s "screw") rather than the "object" default.
             if label == "object" and det_labels[i]:
-                label = " ".join(det_labels[i].split()[:LABEL_MAX_WORDS]).lower()
+                label = " ".join(det_labels[i].split()[:CONST_LABEL_MAX_WORDS]).lower()
             x1, y1, x2, y2 = box
             objects.append(Detection_Str(
                 Label=label,
@@ -1211,9 +1034,9 @@ class FlorenceVision(VisionBackend):
         if progress_cb:
             progress_cb(total, total)
 
-        caption = "" if objects else EMPTY_SCENE_EXPLANATION
-        objects, summary, note = compose(objects, size, caption=caption)
-        badge, level = verdict(objects)
+        caption = "" if objects else CONST_EMPTY_SCENE_EXPLANATION
+        objects, summary, note = Compose(objects, size, caption=caption)
+        badge, level = Verdict(objects)
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return Analysis_Str(Summary=summary, Objects=objects, Note=note,
                             Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,

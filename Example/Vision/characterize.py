@@ -50,13 +50,14 @@ import typing as tp
 #   its import is repointed at the new src/ home and the .log must not change.
 #   Status:
 #     Detection / Analysis         -> ../Parameters/Vision.py   [EXTRACTED]
-#     compose / summarise /         \
-#     scene_note / verdict /         >- ../Reporting/Core.py    (Compose / Summarise / ...)
-#     describe_object / _caption_sentence
+#     compose / summarise / scene_note / verdict / describe_object /
+#     caption_sentence + label constants -> ../Reporting/Core.py [EXTRACTED]
 #     _build_mask / _find_objects  -> ../Vision/Utilities/Segmentation.py (Build_Mask / Find_Objects)
 #     _condense_label              -> ../Vision/Utilities/Caption.py       (Condense_Label)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
+#   ../Reporting/Core
+import Reporting.Core as Reporting
 #   ../../App/run.py
 import run
 
@@ -218,7 +219,7 @@ def main() -> None:
     lines.append(f'python = {sys.version.split()[0]}')
     lines.append(f'numpy  = {np.__version__}')
     lines.append(f'opencv = {cv2.__version__}')
-    lines.append(f'detail-sentences (SHOW_OBJECT_DETAIL) = {run.SHOW_OBJECT_DETAIL}')
+    lines.append(f'detail-sentences (SHOW_OBJECT_DETAIL) = {Reporting.CONST_SHOW_OBJECT_DETAIL}')
     lines.append('')
 
     """
@@ -250,9 +251,9 @@ def main() -> None:
     lines.append('-- report composer --')
 
     # 1) Empty scene: the analyze() empty path passes EMPTY_SCENE_EXPLANATION.
-    empty_objs, empty_summary, empty_note = run.compose([], CONST_FRAME_SIZE,
-                                                        caption=run.EMPTY_SCENE_EXPLANATION)
-    e_badge, e_level = run.verdict(empty_objs)
+    empty_objs, empty_summary, empty_note = Reporting.Compose([], CONST_FRAME_SIZE,
+                                                        caption=Reporting.CONST_EMPTY_SCENE_EXPLANATION)
+    e_badge, e_level = Reporting.Verdict(empty_objs)
     lines.append('[scene: empty]')
     lines.append(f'  summary = {empty_summary}')
     lines.append(f'  note    = {empty_note}')
@@ -261,8 +262,8 @@ def main() -> None:
     # 2) One object, verbose caption exercising the lead-in stripping.
     one = [_Make_Detection('hex bolt', (100, 120, 80, 80),
                            detail='In this image we can see a hex bolt on a green surface.')]
-    one_objs, one_summary, one_note = run.compose(one, CONST_FRAME_SIZE, caption='')
-    o_badge, o_level = run.verdict(one_objs)
+    one_objs, one_summary, one_note = Reporting.Compose(one, CONST_FRAME_SIZE, caption='')
+    o_badge, o_level = Reporting.Verdict(one_objs)
     lines.append('[scene: one object]')
     lines.append(f'  summary = {one_summary}')
     lines.append(f'  object1 = {one_objs[0].Sentence}')
@@ -277,8 +278,8 @@ def main() -> None:
                         confidence=0.20, text='M6'),
         _Make_Detection('nut', (300, 300, 60, 60), detail=''),
     ]
-    many_objs, many_summary, many_note = run.compose(many, CONST_FRAME_SIZE, caption='')
-    m_badge, m_level = run.verdict(many_objs)
+    many_objs, many_summary, many_note = Reporting.Compose(many, CONST_FRAME_SIZE, caption='')
+    m_badge, m_level = Reporting.Verdict(many_objs)
     lines.append('[scene: several objects]')
     lines.append(f'  summary = {many_summary}')
     for i, obj in enumerate(many_objs, start=1):
