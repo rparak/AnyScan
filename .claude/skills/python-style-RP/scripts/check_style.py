@@ -28,21 +28,50 @@ class Report:
         self.items.append(f"{path}:{line}: [{rule}] {message}")
 
 
-def check_header(source: str, path: Path, report: Report) -> None:
-    tree_doc = None
+def _header_text(source: str) -> str | None:
+    """Return the file's header text, from either accepted form, or None.
+
+    The header may be a `\"\"\"` module docstring (as the source repo, RoLE, uses)
+    or a leading `#`-comment block (as a repo whose files open with a comment
+    header, e.g. anyscan-pyqt, uses). Either is valid; the host repo's own form
+    wins (see SKILL.md Non-negotiable 1). A shebang line is ignored.
+    """
+    # Form A: a module docstring as the first statement.
     try:
-        tree_doc = ast.get_docstring(ast.parse(source))
+        doc = ast.get_docstring(ast.parse(source))
     except SyntaxError:
+        return None
+    if doc:
+        return doc
+    # Form B: a leading run of comment lines before the first code/blank.
+    lines: list[str] = []
+    for raw in source.splitlines():
+        stripped = raw.strip()
+        if not stripped:
+            if lines:                       # a blank ends the header block
+                break
+            continue                        # skip blanks before the block
+        if stripped.startswith("#"):
+            if stripped.startswith("#!") and not lines:
+                continue                    # ignore a shebang line
+            lines.append(stripped.lstrip("#").strip())
+        else:
+            break                           # first code line ends the search
+    text = "\n".join(lines).strip()
+    return text or None
+
+
+def check_header(source: str, path: Path, report: Report) -> None:
+    header = _header_text(source)
+    if not header:
+        report.add(path, 1, "header", "missing module header (\"\"\" docstring or #-comment block)")
         return
-    if not tree_doc:
-        report.add(path, 1, "header", "missing module header docstring")
-        return
-    if "MIT License" not in tree_doc:
-        report.add(path, 1, "header", "module docstring is missing the MIT License block")
-    if "File Name:" not in tree_doc:
-        report.add(path, 1, "header", "module docstring is missing the 'File Name:' line")
+    if "MIT License" not in header:
+        report.add(path, 1, "header", "module header is missing the MIT License block")
+    if "File Name:" not in header:
+        report.add(path, 1, "header", "module header is missing the 'File Name:' line")
     else:
-        declared = tree_doc.split("File Name:")[1].splitlines()[0].strip()
+        declared = header.split("File Name:")[1].splitlines()[0].strip()
         if "<" in declared:
             return
         if path.name not in declared:
