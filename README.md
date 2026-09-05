@@ -7,9 +7,18 @@ application. Built at JIC within the EDIH-DIGIMAT project.
 
 ## Setup
 
+Create an isolated environment and install the runtime + test dependencies
+(Python 3.9–3.12; developed and characterized on 3.10):
+
 ```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+`.venv/` is git-ignored. `pypylon` (the Basler SDK) installs a platform wheel and
+is only needed for the live camera; the tests and the `--frame` path run without
+it.
 
 The vision pipeline loads a local Florence-2 model from
 `models/florence2-large-ft/`, which is **not** tracked in git. It is a required
@@ -48,6 +57,19 @@ python App/run.py --frame Data/Camera/Image_Background_002.png
 
 Without Inter and JetBrains Mono installed, the nearest system faces are used.
 The layout holds either way; the metrics shift slightly.
+
+## Tests
+
+The vision logic has an offline characterization harness — the end-to-end
+regression baseline for the ongoing refactor. It exercises the composer, the
+label distiller, the dataclasses and the background subtraction on the committed
+`Data/Camera/` reference, with no camera and no model weights, and writes a
+deterministic `Example/Vision/characterize_baseline.log`:
+
+```bash
+.venv/bin/python Example/Vision/characterize.py
+git diff Example/Vision/characterize_baseline.log     # expect no change
+```
 
 ## Repository layout
 

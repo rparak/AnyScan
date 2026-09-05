@@ -204,6 +204,9 @@ def main() -> None:
         into src/, re-run this and confirm `git diff` on the .log is empty. Only
         numpy and OpenCV are required (pre-migration it also imports App/run.py,
         which pulls in PyQt5; after extraction it imports the Qt-free src/ modules).
+
+        Reproduce (from the repo root, in the project venv — see README Setup):
+            .venv/bin/python Example/Vision/characterize.py
     """
 
     print('[INFO] Characterizing the AnyScan vision logic (no camera, no weights).')
