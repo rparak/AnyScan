@@ -44,7 +44,7 @@ Description:
         with no pylon and this module imports with none of them present.
 """
 # Absolute path to the project's src/ directory (this file lives in src/Camera/),
-# holding Camera.Basler, Utilities.Image_Processing and Calibration.Parameters.
+# holding Camera.Basler, Camera.Utilities.Image_Processing and Calibration.Parameters.
 CONST_BASLER_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 # Settings passed straight to Camera.Basler.Basler_Cls. The keys are capitalized to
@@ -57,7 +57,7 @@ CONST_BASLER_CONFIG = {
     'Pixel_Format': 'BayerRG8',
 }
 
-# Which Utilities.Image_Processing.Process_Image_Cls profile is applied to each
+# Which Camera.Utilities.Image_Processing.Process_Image_Cls profile is applied to each
 # raw frame. 'real' is the profile written for the physical camera.
 CONST_BASLER_IMAGE_PROFILE = 'real'
 
@@ -360,7 +360,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
             import cv2
             import numpy as np
             from Camera.Basler import Basler_Cls
-            import Utilities.Image_Processing as Image_Processing
+            import Camera.Utilities.Image_Processing as Image_Processing
             from Calibration.Parameters import Basler_Calib_Param_Str
         except ImportError as exc:
             raise Camera_Error_Cls(

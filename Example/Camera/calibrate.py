@@ -8,8 +8,8 @@ import os
 # OpenCV (Computer Vision) [pip3 install opencv-python]
 import cv2
 # Custom Library:
-#   ../Utilities/Image_Processing
-import Utilities.Image_Processing
+#   ../Camera/Utilities/Image_Processing
+import Camera.Utilities.Image_Processing
 #   ../Camera/Basler
 from Camera.Basler import Basler_Cls
 #   ../Parameters/Scene
@@ -65,14 +65,14 @@ def main():
     output_path = os.path.join(f'{project_folder}/Data/Camera/{Parameters.Scene.Basler_Cam_Str.Name}/', f'Image_Checkerboard_{(CONST_INIT_INDEX):03}.png')
 
     # Initialize the class for custom image processing.
-    Process_Image_Cls = Utilities.Image_Processing.Process_Image_Cls('real')
+    Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls('real')
 
     # Apply the image processing pipeline.
     img_raw_processed = Process_Image_Cls.Apply(img_raw)
 
     # Function to adjust the contrast and brightness parameters of the input image 
     # by clipping the histogram.
-    (alpha_custom, beta_custom) = Utilities.Image_Processing.Get_Alpha_Beta_Parameters(img_raw_processed, 1.0)  
+    (alpha_custom, beta_custom) = Camera.Utilities.Image_Processing.Get_Alpha_Beta_Parameters(img_raw_processed, 1.0)  
     
     # Adjust the contrast and brightness of the image using the alpha and beta parameters.
     #   Equation:
