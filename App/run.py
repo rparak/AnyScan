@@ -109,6 +109,11 @@ RADIUS_CARD   = 18
 RADIUS_BTN    = 11
 GAP           = 16          # gap between cards, everywhere
 
+# Busy-indicator animation, driven by a QTimer in the Viewport while the worker
+# runs. Kept here so the whole console's tunable values live in one place.
+BUSY_TICK_MS  = 33          # ~30 fps repaint
+BUSY_SPIN_DEG = 6           # arc rotation per tick
+
 # What an empty value slot shows. It is a placeholder, not prose: the em dash
 # stays out of sentences and out of labels, and appears only where a number or
 # a timestamp will later sit.
