@@ -1,0 +1,30 @@
+Florence-2 model weights — not tracked in git (see .gitignore).
+
+The application loads the local vision-language model from:
+
+    models/florence2-large-ft/
+
+Expected contents: a standard Hugging Face model directory (config.json,
+model.safetensors, tokenizer / processor files, etc.).
+
+Upstream source
+---------------
+Microsoft Florence-2 (large, fine-tuned), MIT licensed:
+
+    https://huggingface.co/microsoft/Florence-2-large-ft
+
+The app presents it to the operator as "JIC-AnyScan-VLM-v1"; the weights are
+unmodified Florence-2 (see App/run.py, MODEL_NAME / MODEL_DIR).
+
+How to fetch
+------------
+Using the Hugging Face CLI (pip install -U "huggingface_hub[cli]"):
+
+    huggingface-cli download microsoft/Florence-2-large-ft \
+        --local-dir models/florence2-large-ft
+
+Or with git-lfs:
+
+    git lfs install
+    git clone https://huggingface.co/microsoft/Florence-2-large-ft \
+        models/florence2-large-ft
