@@ -52,12 +52,14 @@ import typing as tp
 #     Detection / Analysis         -> ../Parameters/Vision.py   [EXTRACTED]
 #     compose / summarise / scene_note / verdict / describe_object /
 #     caption_sentence + label constants -> ../Reporting/Core.py [EXTRACTED]
-#     _build_mask / _find_objects  -> ../Vision/Utilities/Segmentation.py (Build_Mask / Find_Objects)
+#     _build_mask / _find_objects / _crop_with_pad -> ../Vision/Utilities/Segmentation.py [EXTRACTED]
 #     _condense_label              -> ../Vision/Utilities/Caption.py       (Condense_Label)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
 import Reporting.Core as Reporting
+#   ../Vision/Utilities/Segmentation
+from Vision.Utilities.Segmentation import Build_Mask, Find_Objects
 #   ../../App/run.py
 import run
 
@@ -159,8 +161,8 @@ def _Characterize_Segmentation(bg: np.ndarray, fg: np.ndarray, frame_label: str)
     """
 
     lines = [f'  frame = {frame_label}']
-    mask = run._build_mask(bg, fg, cv2, np)
-    boxes = run._find_objects(mask, cv2, np)
+    mask = Build_Mask(bg, fg, cv2, np)
+    boxes = Find_Objects(mask, cv2, np)
     lines.append(f'  foreground pixels = {int(np.count_nonzero(mask))}')
     lines.append(f'  objects found     = {len(boxes)}')
     lines.extend(_Format_Boxes(boxes))

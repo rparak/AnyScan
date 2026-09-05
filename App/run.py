@@ -57,6 +57,10 @@ import Reporting.Core as Reporting
 from Reporting.Core import (Compose, Verdict, CONST_LABEL_LEADINS,
                             CONST_LABEL_BOUNDARIES, CONST_LABEL_MAX_WORDS,
                             CONST_EMPTY_SCENE_EXPLANATION)
+# Custom Lib.: AnyScan domain — segmentation (Qt-free; cv2/np injected at call)
+#   ../Vision/Utilities/Segmentation
+from Vision.Utilities.Segmentation import (Build_Mask, Find_Objects, Crop_With_Pad,
+                                           CONST_SEG_MAX_AREA_FRAC, CONST_SEG_MAX_OBJECTS)
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
@@ -179,26 +183,13 @@ FLORENCE_DETECT_TASK = "<REGION_PROPOSAL>"
 FLORENCE_DETECT_MAX_TOKENS = 1024
 FLORENCE_MIN_AREA_FRAC = 0.0005   # drop stray specks Florence sometimes proposes
 
-# Segmentation thresholds. Areas are fractions of the frame. The differencing
-# group (colour/shadow/blur/morph/min-area) is read only when DETECTOR ==
-# "segment"; the last four (max-area, max-objects, crop pad, min crop side) are
-# shared — both detectors cap and crop the same way.
+# Segmentation thresholds now live in ../src/Vision/Utilities/Segmentation.py as
+# CONST_SEG_* (colour/shadow/blur/morph/min-area/max-area/max-objects/crop-pad).
+# _detect_florence still caps with CONST_SEG_MAX_AREA_FRAC / CONST_SEG_MAX_OBJECTS,
+# imported at the top of this file.
 #
-# Segmentation works in COLOUR distance, not brightness: on the green surface a
-# grey screw is close to the green in luminance but far from it in colour, so a
-# brightness threshold drops dark parts while a colour threshold keeps them.
-# Distance is Euclidean over the three 0..255 channels, so it runs 0..441.
-SEG_COLOR_DIST = 40           # min colour distance to count a pixel as foreground
-SEG_STRONG_DIST = 90          # colour distance that is an object regardless of hue
-SEG_SHADOW_TOLERANCE = 0.18   # min per-channel ratio spread; rejects hue-preserving shadow
-SEG_BLUR = 5                  # Gaussian blur kernel before differencing
-SEG_MORPH_KERNEL = 7          # ellipse kernel for open/close
-SEG_OPEN_ITERS = 1
-SEG_CLOSE_ITERS = 3
-SEG_MIN_AREA_FRAC = 0.001     # ignore specks smaller than this
-SEG_MAX_AREA_FRAC = 0.5       # ignore blobs larger than this (lighting drift)
-SEG_MAX_OBJECTS = 12          # cap the number of crops per analysis (shared)
-SEG_CROP_PAD_FRAC = 0.2       # crop margin as a fraction of object size (shared)
+# The crop upscale threshold read by _describe stays here until the Caption module
+# is extracted.
 SEG_MIN_CROP_SIDE = 224       # upscale crops smaller than this before the model
 
 # The Florence-caption text-cleaning vocabulary (lead-ins, clause boundaries,
@@ -671,89 +662,6 @@ def _qimage_to_bgr(image: QImage, np, cv2):
     return cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2BGR)
 
 
-def _build_mask(bg, fg, cv2, np):
-    """Foreground mask from the frame and the empty-surface reference.
-
-    Colour distance, not brightness, is the primary test. On the green surface a
-    grey or black screw sits close to the green in luminance — a brightness
-    threshold silently drops it — yet far from the green in COLOUR, because the
-    green channel alone falls sharply. A bright washer is far in every channel.
-    Both therefore clear a colour-distance threshold.
-
-    A large distance is an object outright. A moderate distance is an object only
-    if the hue also changed (the per-channel ratio spread), which rejects the
-    soft shadow a part casts on the surface: a shadow darkens the green but keeps
-    its hue, so its channel ratios stay roughly constant.
-    """
-    blur = (SEG_BLUR, SEG_BLUR)
-    bg_b = cv2.GaussianBlur(bg, blur, 0).astype(np.float32) + 1.0
-    fg_b = cv2.GaussianBlur(fg, blur, 0).astype(np.float32) + 1.0
-
-    diff = fg_b - bg_b
-    dist = np.sqrt((diff * diff).sum(axis=2))       # Euclidean colour distance
-
-    ratio = fg_b / bg_b
-    spread = ratio.max(axis=2) - ratio.min(axis=2)  # hue change; ~0 under shadow
-
-    strong = dist > SEG_STRONG_DIST                 # unmistakable object, any hue
-    subtle = (dist > SEG_COLOR_DIST) & (spread > SEG_SHADOW_TOLERANCE)
-    mask = ((strong | subtle).astype(np.uint8)) * 255
-
-    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
-                                  (SEG_MORPH_KERNEL, SEG_MORPH_KERNEL))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k, iterations=SEG_OPEN_ITERS)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=SEG_CLOSE_ITERS)
-
-    # fill interior holes: washers and nuts are rings whose centre shows
-    # background and would otherwise split into two components
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    filled = np.zeros_like(mask)
-    cv2.drawContours(filled, contours, -1, 255, thickness=cv2.FILLED)
-    return filled
-
-
-def _find_objects(mask, cv2, np):
-    """Object boxes as (x1, y1, x2, y2) in frame pixels, ordered left to right.
-
-    The reference keeps the largest N by area; that selection is preserved, but
-    the returned order is left-to-right — the order a person reads in and the
-    contract the index draws on. compose() must see them already in this order
-    and never reorder after.
-    """
-    h, w = mask.shape
-    area_total = float(h * w)
-    n, _, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-
-    boxes = []
-    for i in range(1, n):  # 0 is background
-        x, y, bw, bh, area = stats[i]
-        frac = area / area_total
-        if frac < SEG_MIN_AREA_FRAC or frac > SEG_MAX_AREA_FRAC:
-            continue
-        # cast off numpy int32, which is not JSON-serialisable and prints noisily
-        boxes.append((int(x), int(y), int(x + bw), int(y + bh), int(area)))
-
-    # keep the largest N, then present them left to right
-    boxes.sort(key=lambda b: b[4], reverse=True)
-    boxes = boxes[:SEG_MAX_OBJECTS]
-    boxes.sort(key=lambda b: b[0])
-    return [b[:4] for b in boxes]
-
-
-def _crop_with_pad(img, box):
-    """Crop from the ORIGINAL image with a margin, clamped to bounds.
-
-    From the original, never the masked frame: Florence-2 is trained on natural
-    images and an object floating on black is out of distribution.
-    """
-    h, w = img.shape[:2]
-    x1, y1, x2, y2 = box
-    pad = int(SEG_CROP_PAD_FRAC * max(x2 - x1, y2 - y1))
-    cx1, cy1 = max(0, x1 - pad), max(0, y1 - pad)
-    cx2, cy2 = min(w, x2 + pad), min(h, y2 + pad)
-    return img[cy1:cy2, cx1:cx2]
-
-
 def _describe(model, processor, device, dtype, crop_bgr, cv2, np, torch, PILImage):
     """One Florence-2 caption pass on a single crop; returns the raw caption."""
     pil = PILImage.fromarray(cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB))
@@ -980,14 +888,14 @@ class FlorenceVision(VisionBackend):
             if x2 <= x1 or y2 <= y1:
                 continue
             frac = ((x2 - x1) * (y2 - y1)) / area_total
-            if frac < FLORENCE_MIN_AREA_FRAC or frac > SEG_MAX_AREA_FRAC:
+            if frac < FLORENCE_MIN_AREA_FRAC or frac > CONST_SEG_MAX_AREA_FRAC:
                 continue
             label = labels[i] if i < len(labels) else None
             items.append(((x1, y1, x2, y2), label, frac))
 
         # keep the largest N, then present them left to right (the index contract)
         items.sort(key=lambda it: it[2], reverse=True)
-        items = items[:SEG_MAX_OBJECTS]
+        items = items[:CONST_SEG_MAX_OBJECTS]
         items.sort(key=lambda it: it[0][0])
         return [it[0] for it in items], [it[1] for it in items]
 
@@ -997,8 +905,8 @@ class FlorenceVision(VisionBackend):
             if stage_cb:
                 stage_cb("Segmenting…")
             bg_bgr = self._load_background(cv2, frame_bgr.shape)
-            mask = _build_mask(bg_bgr, frame_bgr, cv2, np)
-            boxes = _find_objects(mask, cv2, np)
+            mask = Build_Mask(bg_bgr, frame_bgr, cv2, np)
+            boxes = Find_Objects(mask, cv2, np)
             return boxes, [None] * len(boxes)
         return self._detect_florence(frame_bgr, stage_cb)
 
@@ -1016,7 +924,7 @@ class FlorenceVision(VisionBackend):
         for i, box in enumerate(boxes):
             if progress_cb:
                 progress_cb(i, total)
-            crop = _crop_with_pad(frame_bgr, box)
+            crop = Crop_With_Pad(frame_bgr, box)
             caption = _describe(self._model, self._processor, self._device,
                                 self._dtype, crop, cv2, np, torch, pil)
             label = _condense_label(caption)
