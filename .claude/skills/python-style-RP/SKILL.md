@@ -147,6 +147,16 @@ Order: header docstring → imports (stdlib, then third-party, then
 Each import gets its own comment line above it; custom imports get a second
 comment line with the `#   ../RoLE/...` source path.
 
+**The package name in a custom import is the host project's own, not `RoLE`.**
+Above, `RoLE` is the *source repository's* package name — that repo happened to
+call its package `RoLE`. A new project substitutes its own: either its top-level
+package, or — when domains sit directly under `src/` with no wrapping package
+(so modules import each other as `<Domain>.<Module>`, e.g.
+`from Transformation.Core import ...`) — its own domain as the first segment. The
+`assets/` templates therefore use `<Package>/<Domain>/<Module>` placeholders in
+the `# Custom Lib.:` block; fill them in with the real names. A `<Package>`
+placeholder is a slot to substitute, not a missing dependency.
+
 ## Docstrings
 
 The project uses its own format — **not** Google, NumPy or Sphinx, despite

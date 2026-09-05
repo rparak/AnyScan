@@ -43,6 +43,15 @@ Existing domains: `Transformation`, `Kinematics`, `Collider`, `Primitives`,
 `Interpolation` (with `Bezier/` and `B_Spline/` subdomains), `Trajectory`,
 `Simplification`, `Workspace`, `URDF`, `Utilities`, `Parameters`.
 
+**`RoLE` here is the source repository's own package name, not a fixed part of
+the style.** That repo wrapped its domains in a `src/RoLE/` package; a new
+project substitutes its own. Some projects have no wrapping package at all — the
+domains sit directly under `src/` and modules import each other as
+`<Domain>.<Module>` (e.g. `from Transformation.Core import ...`), with `src/`
+placed on `sys.path`. The `assets/` templates use `<Package>/<Domain>/<Module>`
+placeholders precisely so the first segment is filled in per project rather than
+hardcoded to `RoLE`.
+
 Rules:
 
 - `Core.py` holds the domain's classes and its headline functions. When a domain

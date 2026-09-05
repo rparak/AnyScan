@@ -21,7 +21,7 @@ SOFTWARE.
 Author   : Roman Parak
 Email    : Roman.Parak@outlook.com
 Github   : https://github.com/rparak
-File Name: ../RoLE/<Domain>/Core.py
+File Name: ../<Package>/<Domain>/Core.py
 ## =========================================================================== ## 
 """
 
@@ -31,9 +31,9 @@ import numpy as np
 import typing as tp
 # Dataclasses (Data Classes)
 from dataclasses import dataclass, field
-# Custom Lib.: Robotics Library for Everyone (RoLE)
-#   ../RoLE/Transformation/Core
-from RoLE.Transformation.Core import Homogeneous_Transformation_Matrix_Cls as HTM_Cls
+# Custom Lib.: <Project name> (<Package>)
+#   ../<Package>/<Domain>/<Module>
+# from <Package>.<Domain>.<Module> import <Class>_Cls as <Alias>
 
 """
 Description:

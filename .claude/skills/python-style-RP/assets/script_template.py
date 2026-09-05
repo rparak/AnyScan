@@ -33,18 +33,18 @@ if '../../../' + 'src' not in sys.path:
 import time
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
-# Custom Lib.: Robotics Library for Everyone (RoLE)
-#   ../RoLE/Parameters/Robot
-import RoLE.Parameters.Robot as Parameters
-#   ../RoLE/Kinematics/Core
-import RoLE.Kinematics.Core
+# Custom Lib.: <Project name> (<Package>)
+#   ../<Package>/<Domain>/<Module>
+# import <Package>.<Domain>.<Module> as <Alias>
+#   ../<Package>/<Domain>/<Module>
+# import <Package>.<Domain>.<Module>
 
 """
 Description:
     Initialization of constants.
 """
-# Set the structure of the main parameters of the robot.
-CONST_ROBOT_TYPE = Parameters.Universal_Robots_UR3_Str
+# Set the structure of the main parameters used by the program.
+#   Substitute the host project's own preset, e.g. CONST_INPUT_TYPE = <Alias>.<Preset>_Str
 # Number of randomly generated samples.
 CONST_SIZE = 1000
 
@@ -55,18 +55,11 @@ def main():
         the correctness of the calculation.
     """
 
-    # Initialization of the structure of the main parameters of the robot.
-    Robot_Str = CONST_ROBOT_TYPE
-
     """
     Description:
-        Generation of random joint orientations in radians.
+        Generation of the random input data for the demonstration.
     """
-    theta_rand_aux = [0.0] * len(Robot_Str.Theta.Limit)
-    for i, th_limit in enumerate(Robot_Str.Theta.Limit):
-        theta_rand_aux[i] = np.random.uniform(th_limit[0], th_limit[1], CONST_SIZE)
-
-    theta_rand = np.transpose(theta_rand_aux)
+    data = np.random.uniform(0.0, 1.0, CONST_SIZE)
 
     """
     Description:
@@ -74,25 +67,15 @@ def main():
     """
     print('[INFO] The calculation is in progress.')
 
-    # 1) Forward Kinematics (Standard)
+    # 1) <State the step performed here.>
     t_0 = time.time()
-    for _, th in enumerate(theta_rand):
-        RoLE.Kinematics.Core.Forward_Kinematics(th, 'Standard', Robot_Str)
+    for _, x in enumerate(data):
+        # Call into the host project's own package (substitute the placeholders):
+        #   <Package>.<Domain>.<Module>.<Function>(x)
+        pass
     t = time.time() - t_0
-    print(f'[INFO]  1) Forward Kinematics (Standard)')
+    print(f'[INFO]  1) <Name of the step>')
     print(f'[INFO]      Time: {t:0.05f} in seconds.')
-
-    """
-    Description:
-        Evaluation of the correctness of the calculation.
-    """
-    tolerance = 2
-    for _, th in enumerate(theta_rand):
-        th_limit_err = RoLE.Kinematics.Utilities.General.Check_Theta_Limit(th, Robot_Str)
-        if th_limit_err.any():
-            # Warning: Something wrong!
-            print('[WARNING] The desired absolute joint positions are out of limit!')
-            break
 
     print('[INFO] The calculation process is complete.')
 
