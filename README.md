@@ -61,10 +61,20 @@ The layout holds either way; the metrics shift slightly.
 
 ## Tests
 
-The vision logic has an offline characterization harness — the end-to-end
-regression baseline for the ongoing refactor. It exercises the composer, the
-label distiller, the dataclasses and the background subtraction on the committed
-`Data/Camera/` reference, with no camera and no model weights, and writes a
+Two nets, both running with no camera and no model weights.
+
+**Unit suite** (`pytest`), under `test/`, mirroring `src/` as
+`test/<Domain>/test_<module>.py`. Tests grow alongside each module as the
+single-file app is split into `src/`:
+
+```bash
+pytest                 # the default run; needs neither camera nor weights
+pytest --runslow       # also runs tests marked `slow` (these need the weights)
+```
+
+**Characterization harness**, the coarser end-to-end regression baseline for the
+refactor. It exercises the composer, the label distiller, the dataclasses and the
+background subtraction on the committed `Data/Camera/` reference and writes a
 deterministic `Example/Vision/characterize_baseline.log`:
 
 ```bash
