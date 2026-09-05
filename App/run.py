@@ -23,9 +23,7 @@ import argparse
 import os
 import sys
 import time
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
 from PyQt5.QtCore import (
     QObject, QPoint, QRect, QRectF, QSize, Qt, QThread, QTimer, pyqtSignal,
@@ -39,13 +37,20 @@ from PyQt5.QtWidgets import (
     QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 
-# The project's own libraries (Basler.Core, Utilities.Image_Processing,
-# Calibration.Parameters) and their heavy dependencies (pypylon, OpenCV) are
-# NOT imported here. They are imported lazily inside BaslerCamera._open(), and
-# torch/transformers/OpenCV likewise inside FlorenceVision, so the window still
-# opens on a machine with neither the camera SDK nor the model runtime present
-# and fails with a sentence the operator can act on. See the configuration
-# blocks below.
+# The project's src/ directory holds the extracted, Qt-free domain modules
+# (Parameters, Reporting, Vision, Camera). It is put on the path here so they
+# import by domain name. The lightweight data structures below are imported at
+# module load; the heavier domain code (Basler.Core, Utilities.Image_Processing,
+# Calibration.Parameters, and torch/transformers/OpenCV) is still imported
+# lazily inside BaslerCamera._open() and FlorenceVision, so the window still
+# opens on a machine with neither the camera SDK nor the model runtime present.
+_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "..", "src"))
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+# Custom Lib.: AnyScan domain — data structures (Qt-free)
+#   ../Parameters/Vision
+from Parameters.Vision import Detection_Str, Analysis_Str
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
@@ -389,34 +394,10 @@ def font(size: float, weight: int = QFont.Normal, mono: bool = False,
 
 # ============================================================================
 # Domain objects
+#
+# Detection_Str and Analysis_Str now live in ../src/Parameters/Vision.py and are
+# imported at the top of this file. They are plain data carriers with no Qt.
 # ============================================================================
-
-@dataclass
-class Detection:
-    """One object the pipeline located.
-
-    Order is meaningful: the position in the list is the number the operator
-    sees, both on the box drawn over the frame and at the start of the matching
-    line of text. Never reorder after composing.
-    """
-    label: str
-    bbox: tuple  # (x, y, w, h) in frame pixels
-    confidence: Optional[float] = None
-    text: Optional[str] = None
-    detail: str = ""     # the model's full caption, rendered as a second sentence
-    sentence: str = ""
-
-
-@dataclass
-class Analysis:
-    summary: str = ""
-    objects: list = field(default_factory=list)
-    note: str = ""
-    latency_ms: int = 0
-    verdict: str = "Idle"
-    verdict_level: str = "idle"   # ok | warn | idle
-    task: str = "detailed caption"
-
 
 # ============================================================================
 # Report composer
@@ -501,7 +482,7 @@ def _caption_sentence(caption: str) -> str:
     return _clean_detail(text)
 
 
-def describe_object(det: Detection, size) -> str:
+def describe_object(det: Detection_Str, size) -> str:
     """One line for one detection — what the object is, not where it is.
 
     With SHOW_OBJECT_DETAIL the line is the model's full description, cleaned
@@ -512,12 +493,12 @@ def describe_object(det: Detection, size) -> str:
     The index is not repeated here either; the list prints `Object N:` in the
     box's colour, and duplicating the number reads as a stutter.
     """
-    sentence = _caption_sentence(det.detail) if SHOW_OBJECT_DETAIL else ""
+    sentence = _caption_sentence(det.Detail) if SHOW_OBJECT_DETAIL else ""
     if not sentence:
-        article = "An" if det.label[:1].lower() in "aeiou" else "A"
-        sentence = "%s %s." % (article, det.label)
-    if det.text:
-        sentence = sentence.rstrip(".") + ", reading \u201c%s\u201d." % det.text
+        article = "An" if det.Label[:1].lower() in "aeiou" else "A"
+        sentence = "%s %s." % (article, det.Label)
+    if det.Text:
+        sentence = sentence.rstrip(".") + ", reading \u201c%s\u201d." % det.Text
     return sentence
 
 
@@ -549,7 +530,7 @@ def verdict(objects, threshold=0.35):
     """
     if not objects:
         return "Empty", "idle"
-    scored = [o.confidence for o in objects if o.confidence is not None]
+    scored = [o.Confidence for o in objects if o.Confidence is not None]
     if scored and min(scored) < threshold:
         return "Low confidence", "warn"
     return "%d found" % len(objects), "ok"
@@ -557,7 +538,7 @@ def verdict(objects, threshold=0.35):
 
 def compose(objects, size, caption=""):
     for det in objects:
-        det.sentence = describe_object(det, size)
+        det.Sentence = describe_object(det, size)
     return objects, summarise(objects), scene_note(objects, size, caption)
 
 
@@ -838,7 +819,7 @@ class BaslerCamera(Camera):
 #     "florence": Florence-2 <OD> on the full frame -> _detect_florence
 #          -> _crop_with_pad   crop each box from the ORIGINAL frame
 #               -> _describe    one Florence-2 caption per crop (the "what")
-#                    -> Detection(label, bbox, detail)
+#                    -> Detection_Str(Label, Bbox, Detail)
 #                         -> compose()  the numbered lines the panel renders
 #
 # Boxes are in full-frame pixels either way, so there is no crop-to-frame
@@ -988,7 +969,7 @@ def _condense_label(caption: str) -> str:
     describe_object() renders `label` as "A <label> in the upper left of the
     frame.", so a paragraph there produces a line that is not a sentence. The
     front matter and any trailing clause are stripped and the phrase is capped;
-    the full caption survives untouched in Detection.detail as the line's second
+    the full caption survives untouched in Detection_Str.Detail as the line's second
     sentence, so an imperfect distillation loses nothing.
     """
     text = " ".join(caption.split()).strip().rstrip(".")
@@ -1023,7 +1004,7 @@ def _condense_label(caption: str) -> str:
 
 
 class VisionBackend:
-    """One method matters: analyze(image) -> Analysis.
+    """One method matters: analyze(image) -> Analysis_Str.
 
     Everything the Scene Understanding panel shows comes out of that single
     call, so a backend swap never touches the interface. `progress_cb(done,
@@ -1033,7 +1014,7 @@ class VisionBackend:
 
     name = MODEL_NAME
 
-    def analyze(self, image: QImage, progress_cb=None, stage_cb=None) -> Analysis:
+    def analyze(self, image: QImage, progress_cb=None, stage_cb=None) -> Analysis_Str:
         raise NotImplementedError
 
 
@@ -1198,7 +1179,7 @@ class FlorenceVision(VisionBackend):
             return boxes, [None] * len(boxes)
         return self._detect_florence(frame_bgr, stage_cb)
 
-    def analyze(self, image: QImage, progress_cb=None, stage_cb=None) -> Analysis:
+    def analyze(self, image: QImage, progress_cb=None, stage_cb=None) -> Analysis_Str:
         t0 = time.perf_counter()
         self._ensure_loaded(stage_cb)
         cv2, np, torch, pil = self._cv2, self._np, self._torch, self._pil
@@ -1221,11 +1202,11 @@ class FlorenceVision(VisionBackend):
             if label == "object" and det_labels[i]:
                 label = " ".join(det_labels[i].split()[:LABEL_MAX_WORDS]).lower()
             x1, y1, x2, y2 = box
-            objects.append(Detection(
-                label=label,
-                bbox=(x1, y1, x2 - x1, y2 - y1),   # xyxy -> xywh, frame pixels
-                confidence=None,                   # Florence-2 emits no score
-                detail=caption,
+            objects.append(Detection_Str(
+                Label=label,
+                Bbox=(x1, y1, x2 - x1, y2 - y1),   # xyxy -> xywh, frame pixels
+                Confidence=None,                   # Florence-2 emits no score
+                Detail=caption,
             ))
         if progress_cb:
             progress_cb(total, total)
@@ -1234,9 +1215,9 @@ class FlorenceVision(VisionBackend):
         objects, summary, note = compose(objects, size, caption=caption)
         badge, level = verdict(objects)
         latency_ms = int((time.perf_counter() - t0) * 1000)
-        return Analysis(summary=summary, objects=objects, note=note,
-                        latency_ms=latency_ms, verdict=badge, verdict_level=level,
-                        task=VISION_TASK_LABEL)
+        return Analysis_Str(Summary=summary, Objects=objects, Note=note,
+                            Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
+                            Task=VISION_TASK_LABEL)
 
 
 # ============================================================================
@@ -1581,7 +1562,7 @@ class Viewport(QWidget):
         metrics = p.fontMetrics()
         for i, det in enumerate(self.detections):
             box_color = QColor(INDEX_COLORS[i % len(INDEX_COLORS)][0])
-            x, y, w, h = det.bbox
+            x, y, w, h = det.Bbox
             bx = target.x() + x * scale
             by = target.y() + y * scale
             p.setPen(QPen(box_color, 2.5))
@@ -1649,7 +1630,7 @@ class ObjectList(QWidget):
             ink = INDEX_COLORS[i % len(INDEX_COLORS)][1]
             line = QLabel(
                 '<span style="color:%s"><b>Object %d:</b></span> '
-                '<span style="color:%s">%s</span>' % (ink, i + 1, INK_SOFT, det.sentence)
+                '<span style="color:%s">%s</span>' % (ink, i + 1, INK_SOFT, det.Sentence)
             )
             line.setFont(font(15))
             line.setWordWrap(True)
@@ -2271,24 +2252,24 @@ class AnyScanWindow(QMainWindow):
         self._fail(message)
         self._sync_controls()
 
-    def _show_analysis(self, result: Analysis):
+    def _show_analysis(self, result: Analysis_Str):
         self._showing_error = False
         self.reading_empty.hide()
-        self.reading_lead.setText(result.summary)
+        self.reading_lead.setText(result.Summary)
         self.reading_lead.show()
-        self.object_list.set_objects(result.objects)
-        self.reading_note.setText(result.note)
-        self.reading_note.setVisible(bool(result.note))
+        self.object_list.set_objects(result.Objects)
+        self.reading_note.setText(result.Note)
+        self.reading_note.setVisible(bool(result.Note))
 
-        self.viewport.show_detections(result.objects)
-        self.stage_badge.set_state(result.verdict, result.verdict_level)
+        self.viewport.show_detections(result.Objects)
+        self.stage_badge.set_state(result.Verdict, result.Verdict_Level)
 
-        self.meta_task.setText(result.task)
-        self.meta_objects.setText(str(len(result.objects)))
-        self.meta_latency.setText("%d ms" % result.latency_ms)
+        self.meta_task.setText(result.Task)
+        self.meta_objects.setText(str(len(result.Objects)))
+        self.meta_latency.setText("%d ms" % result.Latency_Ms)
 
         self.analyses += 1
-        self.objects_found += len(result.objects)
+        self.objects_found += len(result.Objects)
         self.status.images.set_value(str(self.analyses))
         self.status.objects.set_value(str(self.objects_found))
         self.status.updated.set_value(datetime.now().strftime("%H:%M:%S"))

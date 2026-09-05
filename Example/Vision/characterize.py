@@ -45,16 +45,18 @@ import numpy as np
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan — logic under test
-#   The functions below are characterized BEFORE App/run.py is split into src/.
-#   They live in App/run.py today, so they are imported from `run`. As each
-#   module is extracted during the migration, repoint the matching import at its
-#   new src/ home and re-run — the baseline .log must not change. Planned homes:
-#     Detection / Analysis         -> ../Parameters/Vision.py   (Detection_Str / Analysis_Str)
+#   Functions are characterized BEFORE App/run.py is fully split into src/, so
+#   whatever is not yet extracted is imported from `run`. As each module moves,
+#   its import is repointed at the new src/ home and the .log must not change.
+#   Status:
+#     Detection / Analysis         -> ../Parameters/Vision.py   [EXTRACTED]
 #     compose / summarise /         \
 #     scene_note / verdict /         >- ../Reporting/Core.py    (Compose / Summarise / ...)
 #     describe_object / _caption_sentence
 #     _build_mask / _find_objects  -> ../Vision/Utilities/Segmentation.py (Build_Mask / Find_Objects)
 #     _condense_label              -> ../Vision/Utilities/Caption.py       (Condense_Label)
+#   ../Parameters/Vision
+from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../../App/run.py
 import run
 
@@ -165,12 +167,11 @@ def _Characterize_Segmentation(bg: np.ndarray, fg: np.ndarray, frame_label: str)
 
 
 def _Make_Detection(label: str, bbox: tp.Tuple[int, int, int, int], detail: str = '',
-                    confidence: tp.Optional[float] = None, text: tp.Optional[str] = None) -> object:
+                    confidence: tp.Optional[float] = None, text: tp.Optional[str] = None) -> Detection_Str:
     """
     Description:
-        Build one Detection fixture. Wrapped in a helper so the field names are
-        named in exactly one place; when Detection becomes Detection_Str with
-        Pascal_Snake_Case fields, only this function changes.
+        Build one Detection_Str fixture. Wrapped in a helper so the construction
+        is named in exactly one place.
 
     Args:
         (1) label [string]: The distilled noun-phrase label.
@@ -180,10 +181,10 @@ def _Make_Detection(label: str, bbox: tp.Tuple[int, int, int, int], detail: str 
         (5) text [string]: Any text read off the object, or None.
 
     Returns:
-        (1) parameter [Detection(object)]: The populated detection.
+        (1) parameter [Detection_Str(object)]: The populated detection.
     """
 
-    return run.Detection(label=label, bbox=bbox, detail=detail, confidence=confidence, text=text)
+    return Detection_Str(Label=label, Bbox=bbox, Detail=detail, Confidence=confidence, Text=text)
 
 
 def main() -> None:
@@ -231,13 +232,13 @@ def main() -> None:
     # structure (Detection -> Detection_Str, label -> Label) leaves the .log
     # byte-identical and the post-extraction diff stays empty.
     lines.append('Detection: '
-                 f'label={det.label!r} bbox={det.bbox} confidence={det.confidence} '
-                 f'text={det.text} detail={det.detail!r} sentence={det.sentence!r}')
-    analysis = run.Analysis()
+                 f'label={det.Label!r} bbox={det.Bbox} confidence={det.Confidence} '
+                 f'text={det.Text} detail={det.Detail!r} sentence={det.Sentence!r}')
+    analysis = Analysis_Str()
     lines.append('Analysis defaults: '
-                 f'summary={analysis.summary!r} objects={analysis.objects} note={analysis.note!r} '
-                 f'latency_ms={analysis.latency_ms} verdict={analysis.verdict!r} '
-                 f'verdict_level={analysis.verdict_level!r} task={analysis.task!r}')
+                 f'summary={analysis.Summary!r} objects={analysis.Objects} note={analysis.Note!r} '
+                 f'latency_ms={analysis.Latency_Ms} verdict={analysis.Verdict!r} '
+                 f'verdict_level={analysis.Verdict_Level!r} task={analysis.Task!r}')
     lines.append('')
 
     """
@@ -264,7 +265,7 @@ def main() -> None:
     o_badge, o_level = run.verdict(one_objs)
     lines.append('[scene: one object]')
     lines.append(f'  summary = {one_summary}')
-    lines.append(f'  object1 = {one_objs[0].sentence}')
+    lines.append(f'  object1 = {one_objs[0].Sentence}')
     lines.append(f'  note    = {one_note!r}')
     lines.append(f'  verdict = {o_badge} ({o_level})')
 
@@ -281,14 +282,14 @@ def main() -> None:
     lines.append('[scene: several objects]')
     lines.append(f'  summary = {many_summary}')
     for i, obj in enumerate(many_objs, start=1):
-        lines.append(f'  object{i} = {obj.sentence}')
+        lines.append(f'  object{i} = {obj.Sentence}')
     lines.append(f'  note    = {many_note!r}')
     lines.append(f'  verdict = {m_badge} ({m_level})')
     lines.append('')
 
     """
     Description:
-        Label distiller. The full caption survives in Detection.detail, so an
+        Label distiller. The full caption survives in Detection_Str.Detail, so an
         imperfect distillation loses nothing — but the short label must stay
         stable, so it is pinned here directly.
     """
