@@ -1,0 +1,49 @@
+== AnyScan vision characterization baseline ==
+python = 3.9.21
+numpy  = 2.0.2
+opencv = 4.11.0
+detail-sentences (SHOW_OBJECT_DETAIL) = True
+
+-- dataclasses --
+Detection = Detection(label='hex bolt', bbox=(10, 20, 30, 40), confidence=None, text=None, detail='a hex bolt on a green surface', sentence='')
+Analysis  = Analysis(summary='', objects=[], note='', latency_ms=0, verdict='Idle', verdict_level='idle', task='detailed caption')
+
+-- report composer --
+[scene: empty]
+  summary = No objects were located in this frame.
+  note    = Either nothing is on the surface, or the model did not recognise what is there. Check the lighting and the focus, then scan again.
+  verdict = Empty (idle)
+[scene: one object]
+  summary = The frame contains one object, described as follows:
+  object1 = A hex bolt on a green surface.
+  note    = ''
+  verdict = 1 found (ok)
+[scene: several objects]
+  summary = The frame contains three objects, which are described as follows:
+  object1 = A metal washer.
+  object2 = A screw, reading “M6”.
+  object3 = A nut.
+  note    = ''
+  verdict = Low confidence (warn)
+
+-- label distiller (_condense_label) --
+  'The image shows a close-up of a hex bolt on a green surface.' -> 'hex bolt'
+                            'In this image we can see a washer.' -> 'washer'
+         'a photograph of two brass fittings sitting on a table' -> 'two brass fittings'
+    'This is an M6 stainless steel screw with a hexagonal head.' -> 'n m6 stainless steel'
+                                                              '' -> 'object'
+
+-- segmentation --
+reference 001 shape = (1200, 1920, 3)
+frame     002 shape = (1216, 1936, 3)   (not differenced: resolution differs from 001)
+[pair: 001 vs 001 (identical -> expect no objects)]
+  frame = 001 (identical to reference)
+  foreground pixels = 0
+  objects found     = 0
+[pair: 001 vs synthetic(001 + two rectangles)]
+  frame = 001 with CONST_SYNTHETIC_RECTS drawn
+  foreground pixels = 147163
+  objects found     = 2
+    box[00] = (  300,   299,   562,   562)
+    box[01] = ( 1199,   699,  1482,   982)
+
