@@ -234,10 +234,12 @@ def Swap(a: float, b: float) -> tp.Tuple[float, float]:
             a, b = b, a
 
     Args:
-        (1, 2) a, b [float]: Input numbers to be swapped.
+        (1) a [float]: The first input number.
+        (2) b [float]: The second input number.
 
     Returns:
-        (1, 2) parameter [float]: Output swapped numbers.
+        (1) parameter [float]: The first output (originally b).
+        (2) parameter [float]: The second output (originally a).
     """
 
     return (b, a)
@@ -320,7 +322,7 @@ def Factorial(n: int) -> int:
         print('[ERROR] The input condition for the calculation is not satisfied.')
         print('[ERROR] The number n ({n}) must be larger than or equal to 0.')
 
-def Combinations(n: int, r: int):
+def Combinations(n: int, r: int) -> int:
     """
     Description:
         Get the number of possible combinations.
@@ -363,7 +365,7 @@ def Perpendicular_Distance(A: tp.List[float], B: tp.List[float], C: tp.List[floa
         (1) parameter [float]: Perpendicular distance.
     """
 
-    if (B == C).all() == True:
+    if (B == C).all():
         return Euclidean_Norm((A - B))
     else:
         return Euclidean_Norm(Cross((A - B), (C - B)))/Euclidean_Norm((C - B))

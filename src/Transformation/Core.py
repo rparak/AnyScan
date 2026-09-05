@@ -20,7 +20,7 @@
 # Author   : Roman Parak
 # Email    : Roman.Parak@outlook.com
 # Github   : https://github.com/rparak
-# File Name: Transformation.py
+# File Name: ../Transformation/Core.py
 ## =========================================================================== ##
 
 # Numpy (Array computing)
@@ -31,10 +31,13 @@ import typing as tp
 # ../Utilities/Mathematics
 import Transformation.Utilities.Mathematics as Mathematics
 
-def Is_Matrix_Square(M: tp.List[tp.List[float]]):
+def Is_Matrix_Square(M: tp.List[tp.List[float]]) -> bool:
     """
     Description:
         A function to check if the shape of the matrix is square.
+
+    Args:
+        (1) M [Matrix<float> nxn]: Input matrix.
 
     Returns:
         (1) parameter [bool]: Information about whether the shape of the matrix is square.
@@ -231,8 +234,8 @@ def Get_Rotation_Matrix(ax: str, theta: tp.List[float]) -> tp.List[tp.List[float
         (1) ax [string]: Axis name.
         (2) theta [float]: Desired absolute joint position in radians.
         
-    Returns
-        (1) parameter [INT]: [Matrix<float> 4x4]: Homogeneous transformation matrix around a specific rotation axis.
+    Returns:
+        (1) parameter [Matrix<float> 4x4]: Homogeneous transformation matrix around a specific rotation axis.
     """
 
     return {
@@ -446,7 +449,7 @@ class Vector3_Cls(object):
 
         return self.__mul__(v)
 
-    def __neg__(self):
+    def __neg__(self) -> 'Vector3_Cls':
         """
         Description:
             The method to calculate the negation of an object.
@@ -483,7 +486,7 @@ class Vector3_Cls(object):
         Description:
             Determine if the shape of the input object is in the correct dimension.
 
-        Return:
+        Returns:
             (1) parameter [Bool]: The result is 'True' if the dimensions are 
                                   correct, and 'False' if they are not.
         """
@@ -614,6 +617,9 @@ class Vector3_Cls(object):
                 s_{2} = a_{3}*b_{1} - a_{1}*b_{3}
                 s_{3} = a_{1}*b_{2} - a_{2}*b_{1}
 
+        Args:
+            (1) v [Vector<cls_data_type> 1x3]: Input vector.
+
         Returns:
             (1) parameter [Vector<cls_data_type> 1x3]: Vector (self.__v x v) with the desired 
                                                        data type.
@@ -631,6 +637,9 @@ class Vector3_Cls(object):
 
                 where self.__v and v are vectors, n is the dimension of the vector 
                 space.
+
+        Args:
+            (1) v [Vector<cls_data_type> 1x3]: Input vector.
 
         Returns:
             (1) parameter [data_type]: The dot product of two vectors.
@@ -1116,7 +1125,7 @@ class Homogeneous_Transformation_Matrix_Cls(object):
         Description:
             Determine if the shape of the input object is in the correct dimension.
 
-        Return:
+        Returns:
             (1) parameter [Bool]: The result is 'True' if the dimensions are 
                                   correct, and 'False' if they are not.
         """
@@ -1430,7 +1439,7 @@ class Euler_Angle_Cls(Vector3_Cls):
 
         return Mathematics.Radian_To_Degree(self.__theta)
 
-    def Set_Axes_Sequence_Cfg(self, axes_sequence_cfg: str):
+    def Set_Axes_Sequence_Cfg(self, axes_sequence_cfg: str) -> None:
         """
         Description:
             Set the axis sequence configuration of the input object.
@@ -1480,8 +1489,10 @@ class Euler_Angle_Cls(Vector3_Cls):
         """
         
         # Abbreviations for individual angle functions.
-        c_th_x = np.cos(self.__theta[0]); c_th_y = np.cos(self.__theta[1]); c_th_z = np.cos(self.__theta[2])
-        s_th_x = np.sin(self.__theta[0]); s_th_y = np.sin(self.__theta[1]); s_th_z = np.sin(self.__theta[2])
+        c_th_x = np.cos(self.__theta[0]); c_th_y = np.cos(self.__theta[1])
+        c_th_z = np.cos(self.__theta[2])
+        s_th_x = np.sin(self.__theta[0]); s_th_y = np.sin(self.__theta[1])
+        s_th_z = np.sin(self.__theta[2])
 
         return {
             'XYZ': Homogeneous_Transformation_Matrix_Cls([[ c_th_y * c_th_z, s_th_x * s_th_y * c_th_z - s_th_z * c_th_x,        s_th_x * s_th_z + s_th_y * c_th_x * c_th_z, 0.0],
@@ -1494,7 +1505,7 @@ class Euler_Angle_Cls(Vector3_Cls):
                                                           [                                        0.0,                                               0.0,                    0.0, 1.0]], self.__data_type)
         }[self.__axes_sequence_cfg]
 
-    def Get_Quaternion(self):
+    def Get_Quaternion(self) -> 'Quaternion_Cls':
         """
         Description:
             Get the Unit-Quaternion (w, x, y, z) from the Euler angles in a specified sequence of axes.
@@ -1508,8 +1519,10 @@ class Euler_Angle_Cls(Vector3_Cls):
         th_half = self.__theta * 0.5
 
         # Abbreviations for individual angle functions.
-        c_th_x = np.cos(th_half[0]); c_th_y = np.cos(th_half[1]); c_th_z = np.cos(th_half[2])
-        s_th_x = np.sin(th_half[0]); s_th_y = np.sin(th_half[1]); s_th_z = np.sin(th_half[2])
+        c_th_x = np.cos(th_half[0]); c_th_y = np.cos(th_half[1])
+        c_th_z = np.cos(th_half[2])
+        s_th_x = np.sin(th_half[0]); s_th_y = np.sin(th_half[1])
+        s_th_z = np.sin(th_half[2])
 
         return {
             'XYZ': Quaternion_Cls([c_th_x * c_th_y * c_th_z + s_th_x * s_th_y * s_th_z,
@@ -1773,7 +1786,7 @@ class Quaternion_Cls(object):
         Description:
             Determine if the shape of the input object is in the correct dimension.
 
-        Return:
+        Returns:
             (1) parameter [Bool]: The result is 'True' if the dimensions are 
                                   correct, and 'False' if they are not.
         """
@@ -2105,7 +2118,7 @@ class Quaternion_Cls(object):
         elif method == 'Geodesic':
             return (self.Inverse() * q).Logarithm().Norm()
 
-    def Get_Angle_Axis(self):
+    def Get_Angle_Axis(self) -> tp.Tuple[float, tp.List[float]]:
         """
         Description:
             Get the Angle-Axis representation of the orientation from the Quaternion.
@@ -2122,7 +2135,7 @@ class Quaternion_Cls(object):
 
         return (2.0 * np.arccos(self.__q[0]), self.Vector.Normalize())
 
-    def Get_Homogeneous_Transformation_Matrix(self, method) -> tp.List[tp.List[cls_data_type]]:
+    def Get_Homogeneous_Transformation_Matrix(self, method: str) -> tp.List[tp.List[cls_data_type]]:
         """
         Description:
             Get the homogeneous transformation matrix {T} from the Quaternion (w, x, y, z) representation of orientation.
