@@ -1,3 +1,28 @@
+## =========================================================================== ##
+# MIT License
+# Copyright (c) 2025 Roman Parak
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+## =========================================================================== ##
+# Author   : Roman Parak
+# Email    : Roman.Parak@outlook.com
+# Github   : https://github.com/rparak
+# File Name: ../Example/Camera/calibrate.py
+## =========================================================================== ##
+
 # System (Default)
 import sys
 #   Add access if it is not in the system path.
@@ -28,10 +53,10 @@ CONST_INIT_INDEX = 1
 def main():
     """
     Description:
-        A program to capture images of a checkerboard pattern using a Basler a2A1920-51gcPRO camera and perform camera calibration based 
+        A program to capture images of a checkerboard pattern using a Basler a2A1920-51gcPRO camera and perform camera calibration based
         on the captured images. The system is equipped with EFFI-FD-200-200-000 lighting to ensure optimal illumination.
 
-        The calibration computes the camera matrix, distortion coefficients, and pixel-to-millimeter conversion factors 
+        The calibration computes the camera matrix, distortion coefficients, and pixel-to-millimeter conversion factors
         to correct image distortions.
 
         Setup:
@@ -40,7 +65,7 @@ def main():
     """
 
     # Locate the path to the project folder.
-    project_folder = os.getcwd().split('Synth_Eye')[0] + 'Synth_Eye'
+    project_folder = os.getcwd().split('anyscan-pyqt')[0] + 'anyscan-pyqt'
 
     # Custom camera configuration.
     custom_cfg = {
@@ -61,8 +86,9 @@ def main():
     # Release the camera resources.
     del Basler_Cam_Id_1
 
-    # Define output image path.
-    output_path = os.path.join(f'{project_folder}/Data/Camera/{Parameters.Scene.Basler_Cam_Str.Name}/', f'Image_Checkerboard_{(CONST_INIT_INDEX):03}.png')
+    # The camera's calibration folder, and the output image path within it.
+    camera_folder = f'{project_folder}/Data/Camera/{Parameters.Scene.Basler_Cam_Str.Name}'
+    output_path = os.path.join(f'{camera_folder}/', f'Image_Checkerboard_{(CONST_INIT_INDEX):03}.png')
 
     # Initialize the class for custom image processing.
     Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls('real')
@@ -70,10 +96,10 @@ def main():
     # Apply the image processing pipeline.
     img_raw_processed = Process_Image_Cls.Apply(img_raw)
 
-    # Function to adjust the contrast and brightness parameters of the input image 
+    # Function to adjust the contrast and brightness parameters of the input image
     # by clipping the histogram.
-    (alpha_custom, beta_custom) = Camera.Utilities.Image_Processing.Get_Alpha_Beta_Parameters(img_raw_processed, 1.0)  
-    
+    (alpha_custom, beta_custom) = Camera.Utilities.Image_Processing.Get_Alpha_Beta_Parameters(img_raw_processed, 1.0)
+
     # Adjust the contrast and brightness of the image using the alpha and beta parameters.
     #   Equation:
     #       g(i, j) = alpha * f(i, j) + beta
@@ -83,10 +109,10 @@ def main():
     Checkerboard_Calib_Cls = Calibration.Core.Checkerboard_Calibration_Cls(inner_corners=(11, 8), square_size=12.0)
 
     # Perform camera calibration using the provided checkerboard image.
-    flag, x = Checkerboard_Calib_Cls.Solve(image_out, False, f'{project_folder}/Data/Camera/{Parameters.Scene.Basler_Cam_Str.Name}')
+    flag, x = Checkerboard_Calib_Cls.Solve(image_out, False, camera_folder)
 
-    # Check whether calibration was successful
-    if flag == True:
+    # Check whether calibration was successful.
+    if flag:
         # Display the camera calibration results: intrinsic matrix, distortion coefficients, and scaling factor.
         print(f'[INFO] Intrinsic Matrix (K):\n{x.K}')
         print(f'[INFO] Distortion Coefficients:\n{x.Coefficients}')

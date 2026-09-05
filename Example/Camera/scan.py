@@ -1,3 +1,28 @@
+## =========================================================================== ##
+# MIT License
+# Copyright (c) 2025 Roman Parak
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+## =========================================================================== ##
+# Author   : Roman Parak
+# Email    : Roman.Parak@outlook.com
+# Github   : https://github.com/rparak
+# File Name: ../Example/Camera/scan.py
+## =========================================================================== ##
+
 # System (Default)
 import sys
 #   Add access if it is not in the system path.
@@ -55,10 +80,10 @@ def main():
 
     # Undistort the image using camera calibration parameters.
     h, w = img.shape[:2]
-    new_camera_matrix, _ = cv2.getOptimalNewCameraMatrix(Basler_Calib_Param_Str.K, np.array(list(Basler_Calib_Param_Str.Coefficients.values()), dtype=np.float64), 
+    coeffs = np.array(list(Basler_Calib_Param_Str.Coefficients.values()), dtype=np.float64)
+    new_camera_matrix, _ = cv2.getOptimalNewCameraMatrix(Basler_Calib_Param_Str.K, coeffs,
                                                          (w, h), 1, (w, h))
-    img_undistorted = cv2.undistort(img, Basler_Calib_Param_Str.K, np.array(list(Basler_Calib_Param_Str.Coefficients.values()), dtype=np.float64), 
-                                    None, new_camera_matrix)
+    img_undistorted = cv2.undistort(img, Basler_Calib_Param_Str.K, coeffs, None, new_camera_matrix)
 
     # Save the image with bounding boxes.
     cv2.imwrite(output_path, img_undistorted)
