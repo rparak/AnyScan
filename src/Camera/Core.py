@@ -44,11 +44,11 @@ Description:
         with no pylon and this module imports with none of them present.
 """
 # Absolute path to the project's src/ directory (this file lives in src/Camera/),
-# holding Basler.Core, Utilities.Image_Processing and Calibration.Parameters.
+# holding Camera.Basler, Utilities.Image_Processing and Calibration.Parameters.
 CONST_BASLER_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-# Settings passed straight to Basler.Core.Camera_Cls. The keys are capitalized to
-# match Camera_Cls.__Configure exactly; lower-case keys are read by nothing and
+# Settings passed straight to Camera.Basler.Basler_Cls. The keys are capitalized to
+# match Basler_Cls.__Configure exactly; lower-case keys are read by nothing and
 # then raise KeyError when the device is configured.
 CONST_BASLER_CONFIG = {
     'Exposure_Time': 10000,                                # microseconds
@@ -284,9 +284,9 @@ class File_Camera_Cls(Camera_Backend_Cls):
 class Basler_Camera_Cls(Camera_Backend_Cls):
     """
     Description:
-        The real camera, wired to src/Basler/Core.Camera_Cls. Backed by pypylon
-        through the project's Camera_Cls wrapper and the capture sequence in
-        Example/Camera/scan.py and record.py. (For a hardware-free run, --frame
+        The real camera, wired to Camera.Basler.Basler_Cls. Backed by pypylon
+        through the project's Basler_Cls wrapper and the capture sequence in
+        Example/Camera/scan.py. (For a hardware-free run, --frame
         swaps in a File_Camera_Cls instead.)
 
         Note:
@@ -297,12 +297,12 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                   camera handle — dropping the Python reference is not
                   deterministic, and a device left open makes the next CONNECT fail
                   with 'device busy'.
-              (3) Camera_Cls.Capture() returns BGR; this application exchanges RGB,
+              (3) Basler_Cls.Capture() returns BGR; this application exchanges RGB,
                   so the frame is converted once, at the end of _Grab.
               (4) getOptimalNewCameraMatrix depends only on the calibration and the
                   frame size, so it is computed once per size and cached.
 
-            Camera_Cls.Capture() already uses an explicit 5000 ms retrieve timeout
+            Basler_Cls.Capture() already uses an explicit 5000 ms retrieve timeout
             that raises on hang; _Grab turns that (and any other grab failure) into
             a Camera_Error_Cls instead of freezing the GUI thread on a traceback.
 
@@ -359,7 +359,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                 sys.path.insert(0, CONST_BASLER_SRC)
             import cv2
             import numpy as np
-            from Basler.Core import Camera_Cls
+            from Camera.Basler import Basler_Cls
             import Utilities.Image_Processing as Image_Processing
             from Calibration.Parameters import Basler_Calib_Param_Str
         except ImportError as exc:
@@ -369,10 +369,10 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                 "the project's src directory." % CONST_BASLER_SRC
             ) from exc
 
-        # Camera_Cls connects inside its constructor and raises if no device is
+        # Basler_Cls connects inside its constructor and raises if no device is
         # found, so a failure here is a connection failure.
         try:
-            self.__cam = Camera_Cls(config=CONST_BASLER_CONFIG)
+            self.__cam = Basler_Cls(config=CONST_BASLER_CONFIG)
         except Exception as exc:                          # noqa: BLE001
             self.__cam = None
             raise Camera_Error_Cls(

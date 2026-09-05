@@ -10,8 +10,8 @@ import cv2
 # Custom Library:
 #   ../Utilities/Image_Processing
 import Utilities.Image_Processing
-#   ../Basler/Camera
-from Basler.Camera import Basler_Cls
+#   ../Camera/Basler
+from Camera.Basler import Basler_Cls
 #   ../Parameters/Scene
 import Parameters.Scene
 #   ../Calibration/Core

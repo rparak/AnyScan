@@ -20,7 +20,7 @@
 # Author   : Roman Parak
 # Email    : Roman.Parak@outlook.com
 # Github   : https://github.com/rparak
-# File Name: Camera.py
+# File Name: ../Camera/Basler.py
 ## =========================================================================== ##
 
 # pypylon library for interfacing with Basler cameras
@@ -77,7 +77,7 @@ FRAME_RATE = 5.0
 VERBOSE = False
 
 
-class Camera_Cls:
+class Basler_Cls:
     """
     Description:
         Initialize and configure a Basler camera from a configuration dictionary.
