@@ -5,8 +5,8 @@ opencv = 5.0.0
 detail-sentences (SHOW_OBJECT_DETAIL) = True
 
 -- dataclasses --
-Detection = Detection(label='hex bolt', bbox=(10, 20, 30, 40), confidence=None, text=None, detail='a hex bolt on a green surface', sentence='')
-Analysis  = Analysis(summary='', objects=[], note='', latency_ms=0, verdict='Idle', verdict_level='idle', task='detailed caption')
+Detection: label='hex bolt' bbox=(10, 20, 30, 40) confidence=None text=None detail='a hex bolt on a green surface' sentence=''
+Analysis defaults: summary='' objects=[] note='' latency_ms=0 verdict='Idle' verdict_level='idle' task='detailed caption'
 
 -- report composer --
 [scene: empty]

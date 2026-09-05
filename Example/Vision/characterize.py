@@ -226,8 +226,18 @@ def main() -> None:
     """
     lines.append('-- dataclasses --')
     det = _Make_Detection('hex bolt', (10, 20, 30, 40), detail='a hex bolt on a green surface')
-    lines.append(f'Detection = {det}')
-    lines.append(f'Analysis  = {run.Analysis()}')
+    # Print field values under fixed labels, not the dataclass repr: the baseline
+    # must pin behaviour, not the class/field names, so an RP rename of the
+    # structure (Detection -> Detection_Str, label -> Label) leaves the .log
+    # byte-identical and the post-extraction diff stays empty.
+    lines.append('Detection: '
+                 f'label={det.label!r} bbox={det.bbox} confidence={det.confidence} '
+                 f'text={det.text} detail={det.detail!r} sentence={det.sentence!r}')
+    analysis = run.Analysis()
+    lines.append('Analysis defaults: '
+                 f'summary={analysis.summary!r} objects={analysis.objects} note={analysis.note!r} '
+                 f'latency_ms={analysis.latency_ms} verdict={analysis.verdict!r} '
+                 f'verdict_level={analysis.verdict_level!r} task={analysis.task!r}')
     lines.append('')
 
     """
