@@ -1,4 +1,4 @@
-"""Regression tests for check_style.py's Args-numbering rule.
+"""Regression tests for check_style.py's Args-numbering and mangling rules.
 
 Run with:  pytest .claude/skills/python-style-RP/scripts/test_check_style.py
 (stdlib + pytest only; not part of the app's test/ suite).
@@ -7,6 +7,10 @@ Both the numbered '(1) ...' form and the grouped '(1 - N) a, b ...' form for
 consecutive arguments of the same type are valid (see
 references/docstrings-comments.md). This guards against the checker regressing to
 accepting only the literal '(1)'.
+
+The mangling tests guard the private-member rule (see references/naming.md): a
+`__name` method a subclass in the same file redefines is a dead override and must
+be flagged; the single-underscore `_name` hook form must not be.
 """
 import ast
 import importlib.util
@@ -87,3 +91,81 @@ def test_grouped_args_accepted():
 
 def test_unnumbered_args_flagged():
     assert _numbering_flags(_UNNUMBERED) != []
+
+
+def _mangling_flags(source: str) -> list:
+    """Return the 'mangling' flags for a source snippet."""
+    report = check_style.Report()
+    check_style.check_mangled_overrides(ast.parse(source), Path("snippet.py"), report)
+    return [item for item in report.items if "[mangling]" in item]
+
+
+# A subclass redefining a base's `__name` method: the override is dead.
+_MANGLED_OVERRIDE = '''
+class Base_Cls(object):
+    def Run(self) -> None:
+        self.__step()
+
+    def __step(self) -> None:
+        pass
+
+
+class Sub_Cls(Base_Cls):
+    def __step(self) -> None:   # dead: mangles to _Sub_Cls__step
+        pass
+'''
+
+# The correct form: a single-underscore hook the subclass overrides.
+_SINGLE_UNDERSCORE_HOOK = '''
+class Base_Cls(object):
+    def Run(self) -> None:
+        self._Step()
+
+    def _Step(self) -> None:
+        pass
+
+
+class Sub_Cls(Base_Cls):
+    def _Step(self) -> None:
+        pass
+'''
+
+# A dunder in both classes is not mangled and is a legitimate override.
+_DUNDER_OVERRIDE = '''
+class Base_Cls(object):
+    def __eq__(self, other: object) -> bool:
+        return True
+
+
+class Sub_Cls(Base_Cls):
+    def __eq__(self, other: object) -> bool:
+        return False
+'''
+
+# Same `__name` in two UNRELATED classes is fine - each is independently mangled.
+_UNRELATED_SAME_NAME = '''
+class A_Cls(object):
+    def __helper(self) -> None:
+        pass
+
+
+class B_Cls(object):
+    def __helper(self) -> None:
+        pass
+'''
+
+
+def test_mangled_override_flagged():
+    assert _mangling_flags(_MANGLED_OVERRIDE) != []
+
+
+def test_single_underscore_hook_not_flagged():
+    assert _mangling_flags(_SINGLE_UNDERSCORE_HOOK) == []
+
+
+def test_dunder_override_not_flagged():
+    assert _mangling_flags(_DUNDER_OVERRIDE) == []
+
+
+def test_unrelated_same_name_not_flagged():
+    assert _mangling_flags(_UNRELATED_SAME_NAME) == []

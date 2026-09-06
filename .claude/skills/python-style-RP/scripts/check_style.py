@@ -137,6 +137,55 @@ def check_tokens(source: str, path: Path, report: Report) -> None:
                        "at most two statements may share a line with ';'")
 
 
+def check_mangled_overrides(tree: ast.Module, path: Path, report: Report) -> None:
+    """Flag a `__name` method a subclass in the SAME file redefines.
+
+    A `__name` method mangles to `_ClassName__name`, so a subclass that defines
+    the same `__name` does not override the base's version: if the base calls
+    `self.__name`, it keeps calling its own, and the subclass copy is dead. A
+    member meant to be overridden must be single-underscore `_name`. This is the
+    exact error the private-member rule prevents (see references/naming.md).
+
+    Scope: only inheritance visible within one file. A base and subclass in
+    different modules cannot be resolved by a per-file static check, so those are
+    not caught here - the rule still holds, it just is not machine-verified.
+    """
+    classes = {node.name: node for node in ast.walk(tree)
+               if isinstance(node, ast.ClassDef)}
+
+    def mangled_methods(cls: ast.ClassDef) -> dict:
+        # A `__name` that does not end in `__` mangles; a `__dunder__` does not.
+        found = {}
+        for item in cls.body:
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if item.name.startswith("__") and not item.name.endswith("__"):
+                    found[item.name] = item.lineno
+        return found
+
+    def ancestor_mangled(cls: ast.ClassDef, seen: set) -> set:
+        names: set = set()
+        for base in cls.bases:
+            if isinstance(base, ast.Name) and base.id in classes and base.id not in seen:
+                seen.add(base.id)
+                parent = classes[base.id]
+                names |= set(mangled_methods(parent))
+                names |= ancestor_mangled(parent, seen)
+        return names
+
+    for cls in classes.values():
+        own = mangled_methods(cls)
+        if not own:
+            continue
+        inherited = ancestor_mangled(cls, {cls.name})
+        for name, lineno in sorted(own.items(), key=lambda kv: kv[1]):
+            if name in inherited:
+                report.add(path, lineno, "mangling",
+                           f"'{cls.name}.{name}' redefines a name-mangled '{name}' "
+                           "from a base class in this file; mangling makes it a "
+                           "different attribute, so the override is dead. Rename the "
+                           f"member meant to be overridden to '_{name.lstrip('_')}'")
+
+
 def check_file(path: Path, report: Report) -> None:
     try:
         source = path.read_text(encoding="utf-8")
@@ -230,6 +279,8 @@ def check_file(path: Path, report: Report) -> None:
                 ):
                     report.add(path, node.lineno, "mutable-default",
                                f"'{node.name}' has a mutable default argument - use None instead")
+
+    check_mangled_overrides(tree, path, report)
 
     for node in tree.body:
         targets = []
