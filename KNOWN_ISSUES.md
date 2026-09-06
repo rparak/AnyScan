@@ -78,6 +78,49 @@ driver's style, not the RP assert-inside-try-then-report pattern, and a bare
   automated coverage. Do it together with a real camera run, narrowing the
   `except Exception` clauses and replacing the bare `raise` with `Camera_Error_Cls`.
 
+## `Verdict`'s confidence branch is dormant by design
+
+`Reporting.Core.Verdict` degrades the operator badge to `'Low confidence' / 'warn'`
+when any detection's `Confidence` is below its threshold (0.35). Florence-2 emits
+no score, so `Confidence` is `None` and that branch never fires. The FastSAM
+pipeline does not wire it up either: the segmenter's score is stored in the
+**separate** `Detection_Str.Segmenter_Score`, and `Confidence` stays `None`.
+
+- **Why kept apart:** a segmenter's mask confidence and a detector's / classifier's
+  confidence are different quantities. Feeding FastSAM's mask score into `Confidence`
+  would silently activate a dormant, operator-visible verdict path — a busy frame
+  with one lower-scoring mask would flip the badge to amber for a reason that has
+  nothing to do with recognition quality. That is a behaviour change dressed up as
+  wiring, so it was declined.
+- **If a real detection/classification confidence ever exists** (a model that scores
+  *what* an object is, not merely how sharp its mask is), populate `Confidence` with
+  it deliberately, and re-check the 0.35 threshold against that model's score
+  distribution. Do not point `Confidence` at `Segmenter_Score` as a shortcut.
+
+## FastSAM dilation and coverage gate are validated only on synthetic scenes
+
+Two stage-tunables were set and checked against synthetic frames (solid shapes on
+the flat green reference), never against hardware captures:
+
+- `Segmentation.CONST_SEG_MASK_DILATE_KERNEL = 5` — how much the stage-1 change mask
+  is grown before stage 3 scores coverage against it.
+- `Mask_Filter.CONST_FILTER_CHANGE_COVERAGE = 0.35` — the fraction of a FastSAM mask
+  that must overlap the change mask for it to count as an object.
+
+- **What the synthetic evidence showed:** the coverage distribution was degenerate —
+  real objects at ~1.0, a cast shadow at 0.0, with the 0.35 gate in a wide empty gap.
+  That validates *separation* but says nothing about where real parts land, because
+  solid shapes on flat green give artificially perfect masks.
+- **The failure signature to watch on real captures:** genuine objects coming back
+  with coverage sitting **just above 0.35** (say 0.4-0.6) rather than near 1.0. That
+  means the FastSAM mask spills past the change mask at textured/shiny/anti-aliased
+  edges the stage-1 subtraction missed — i.e. `CONST_SEG_MASK_DILATE_KERNEL` is too
+  small and is starving those edges. The fix is to grow the dilation until real
+  objects clear the gate comfortably, not to lower the gate.
+- **Revisit both** with a real parts run (the `Example/Vision` FastSAM script, once
+  it exists, is the vehicle), and record the observed real-object coverage range so
+  the gate and dilation can be set from data rather than from synthetic 1.0s.
+
 ## The characterization baseline is pinned to the toolchain
 
 `Example/Vision/characterize.py` records the `python` / `numpy` / `opencv` versions
