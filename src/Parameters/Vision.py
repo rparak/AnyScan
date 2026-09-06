@@ -74,6 +74,21 @@ class Detection_Str(object):
     # The final composed sentence the panel prints for this object.
     #   Unit [string]
     Sentence: str = ''
+    # The instance mask for this object (boolean, frame resolution), or None when
+    # the backend is not mask-based. Excluded from repr and equality: it is a large
+    # array, and two detections are equal on their described fields, not on pixels.
+    #   Unit [Matrix<bool> HxW]
+    Mask: tp.Optional[tp.Any] = field(default=None, repr=False, compare=False)
+    # The fraction of this object's mask that overlaps the stage-1 change mask
+    # (0..1) — the gate that separates a real object from the static scene.
+    #   Unit [float]
+    Change_Coverage: float = 0.0
+    # The segmenter's own confidence for this mask, or None. Kept DISTINCT from
+    # Confidence on purpose: Confidence drives the operator 'Low confidence' verdict
+    # and is reserved for a detection/classification score, which the segmenter does
+    # not emit. See KNOWN_ISSUES.md, 'Verdict confidence branch is dormant'.
+    #   Unit [float]
+    Segmenter_Score: tp.Optional[float] = None
 
 
 @dataclass

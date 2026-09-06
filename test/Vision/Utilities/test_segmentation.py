@@ -46,44 +46,35 @@ def test_identical_frame_finds_no_objects(reference_background) -> None:
     """
     Description:
         Differencing the reference against itself yields an empty mask and no
-        boxes — the guard that an empty surface reads as empty.
+        candidate regions — the guard that an empty surface reads as empty.
     """
 
     mask, regions = Segmentation.Build_Mask(reference_background, reference_background, cv2, np)
     assert int(np.count_nonzero(mask)) == 0
     assert regions == []
-    assert Segmentation.Find_Objects(mask, cv2, np) == []
 
 
-def test_synthetic_frame_finds_ordered_boxes(reference_background, make_synthetic_frame) -> None:
+def test_synthetic_frame_finds_ordered_regions(reference_background, make_synthetic_frame) -> None:
     """
     Description:
-        Two drawn rectangles come back as two boxes, ordered left to right, each
-        overlapping the region it was drawn in — the index contract.
+        Two drawn rectangles come back as two candidate regions, ordered left to
+        right, each padded box enclosing the rectangle it was drawn from — the
+        index contract the segmenter is then prompted with.
     """
 
     frame = make_synthetic_frame(reference_background, CONST_RECTS)
     mask, regions = Segmentation.Build_Mask(reference_background, frame, cv2, np)
-    boxes = Segmentation.Find_Objects(mask, cv2, np)
 
-    assert len(boxes) == 2
-    # Left-to-right order.
-    assert boxes[0][0] < boxes[1][0]
-    # Each detected box brackets the rectangle it came from (morphology plus the
-    # slight mask dilation shift the edges by a few pixels, so allow a small margin).
-    for detected, drawn in zip(boxes, CONST_RECTS):
-        dx1, dy1, dx2, dy2 = detected
-        rx1, ry1, rx2, ry2 = drawn
-        assert abs(dx1 - rx1) <= 5 and abs(dy1 - ry1) <= 5
-        assert abs(dx2 - rx2) <= 5 and abs(dy2 - ry2) <= 5
-
-    # The candidate regions are two padded boxes, left to right, each enclosing the
-    # tight Find_Objects box for the same object.
     assert len(regions) == 2
+    # Left-to-right order.
     assert regions[0][0] < regions[1][0]
-    for region, box in zip(regions, boxes):
-        assert region[0] <= box[0] and region[1] <= box[1]
-        assert region[2] >= box[2] and region[3] >= box[3]
+    # Each padded region encloses the rectangle it came from (the region is grown
+    # by CONST_SEG_REGION_PAD_FRAC, so it sits outside the drawn edges).
+    for region, drawn in zip(regions, CONST_RECTS):
+        rx1, ry1, rx2, ry2 = region
+        dx1, dy1, dx2, dy2 = drawn
+        assert rx1 <= dx1 and ry1 <= dy1
+        assert rx2 >= dx2 and ry2 >= dy2
 
 
 def test_crop_with_pad_stays_in_bounds() -> None:

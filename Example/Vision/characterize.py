@@ -56,7 +56,7 @@ from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
 import Reporting.Core as Reporting
 #   ../Vision/Utilities/Segmentation
-from Vision.Utilities.Segmentation import Build_Mask, Find_Objects
+from Vision.Utilities.Segmentation import Build_Mask
 #   ../Vision/Utilities/Caption
 from Vision.Utilities.Caption import Condense_Label
 
@@ -144,9 +144,12 @@ def _Characterize_Segmentation(bg: np.ndarray, fg: np.ndarray, frame_label: str)
         and return a deterministic textual summary: the foreground pixel count
         and every object box found.
 
-        This is the ported segment_classify pipeline: _build_mask differences the
-        frame against the reference, _find_objects turns the mask into ordered
-        boxes. Both are pure numpy/OpenCV and need no model.
+        Build_Mask differences the frame against the reference and returns the
+        change mask together with the padded connected-component candidate regions —
+        the deterministic stage-1 output that now prompts the segmenter (stage 2).
+        The OpenCV region filtering (Find_Objects) it used to characterize is gone;
+        the FastSAM/mask-filter stages need weights and are not part of this
+        hermetic harness. Pure numpy/OpenCV, no model.
 
     Args:
         (1) bg [Matrix<uint8> HxWx3]: The empty-surface background reference (BGR).
@@ -158,13 +161,10 @@ def _Characterize_Segmentation(bg: np.ndarray, fg: np.ndarray, frame_label: str)
     """
 
     lines = [f'  frame = {frame_label}']
-    # Build_Mask now also returns candidate regions (for stage-2 prompting); this
-    # harness still scores the legacy Find_Objects boxes off the mask.
-    mask, _regions = Build_Mask(bg, fg, cv2, np)
-    boxes = Find_Objects(mask, cv2, np)
+    mask, regions = Build_Mask(bg, fg, cv2, np)
     lines.append(f'  foreground pixels = {int(np.count_nonzero(mask))}')
-    lines.append(f'  objects found     = {len(boxes)}')
-    lines.extend(_Format_Boxes(boxes))
+    lines.append(f'  candidate regions = {len(regions)}')
+    lines.extend(_Format_Boxes(regions))
     return lines
 
 

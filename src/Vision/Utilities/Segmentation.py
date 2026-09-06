@@ -170,45 +170,6 @@ def __Candidate_Regions(mask: tp.List[tp.List[int]], cv2: tp.Any,
     return regions
 
 
-def Find_Objects(mask: tp.List[tp.List[int]], cv2: tp.Any, np: tp.Any) -> tp.List[tp.Tuple[int, int, int, int]]:
-    """
-    Description:
-        Object boxes as (x1, y1, x2, y2) in frame pixels, ordered left to right.
-
-        The largest N by area are kept; that selection is preserved, but the
-        returned order is left-to-right — the order a person reads in and the
-        contract the index draws on. The composer must see them already in this
-        order and never reorder after.
-
-    Args:
-        (1) mask [Matrix<uint8> HxW]: The foreground mask.
-        (2) cv2 [module]: The OpenCV module, injected by the caller.
-        (3) np [module]: The NumPy module, injected by the caller.
-
-    Returns:
-        (1) parameter [Vector<Tuple<int> 1x4>]: Boxes as (x1, y1, x2, y2).
-    """
-
-    h, w = mask.shape
-    area_total = float(h * w)
-    n, _, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-
-    boxes = []
-    for i in range(1, n):  # 0 is background
-        x, y, bw, bh, area = stats[i]
-        frac = area / area_total
-        if frac < CONST_SEG_MIN_AREA_FRAC or frac > CONST_SEG_MAX_AREA_FRAC:
-            continue
-        # Cast off numpy int32, which is not JSON-serialisable and prints noisily.
-        boxes.append((int(x), int(y), int(x + bw), int(y + bh), int(area)))
-
-    # Keep the largest N, then present them left to right.
-    boxes.sort(key=lambda b: b[4], reverse=True)
-    boxes = boxes[:CONST_SEG_MAX_OBJECTS]
-    boxes.sort(key=lambda b: b[0])
-    return [b[:4] for b in boxes]
-
-
 def Crop_With_Pad(image: tp.List[tp.List[float]], box: tp.Tuple[int, int, int, int]) -> tp.List[tp.List[float]]:
     """
     Description:

@@ -54,6 +54,10 @@ def test_detection_str_defaults() -> None:
     assert det.Text is None
     assert det.Detail == ''
     assert det.Sentence == ''
+    # The mask-pipeline fields carry their documented defaults.
+    assert det.Mask is None
+    assert det.Change_Coverage == 0.0
+    assert det.Segmenter_Score is None
 
 
 def test_detection_str_requires_label_and_bbox() -> None:
@@ -106,9 +110,12 @@ def test_field_names_are_pascal_snake_case() -> None:
         against a silent revert to the old lower-case names.
     """
 
-    detection_fields = {f.name for f in dataclasses.fields(Detection_Str)}
+    detection_field_order = [f.name for f in dataclasses.fields(Detection_Str)]
     analysis_fields = {f.name for f in dataclasses.fields(Analysis_Str)}
 
-    assert detection_fields == {'Label', 'Bbox', 'Confidence', 'Text', 'Detail', 'Sentence'}
+    # The mask-pipeline fields are appended after Sentence; the original order is
+    # preserved so positional construction and the operator-visible contract hold.
+    assert detection_field_order == ['Label', 'Bbox', 'Confidence', 'Text', 'Detail',
+                                     'Sentence', 'Mask', 'Change_Coverage', 'Segmenter_Score']
     assert analysis_fields == {'Summary', 'Objects', 'Note', 'Latency_Ms',
                                'Verdict', 'Verdict_Level', 'Task'}

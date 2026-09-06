@@ -34,7 +34,7 @@ from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
 from Reporting.Core import Compose, Verdict, CONST_EMPTY_SCENE_EXPLANATION, CONST_LABEL_MAX_WORDS
 #   ../Vision/Utilities/Segmentation
-from Vision.Utilities.Segmentation import (Build_Mask, Find_Objects, Crop_With_Pad,
+from Vision.Utilities.Segmentation import (Build_Mask, Crop_With_Pad,
                                            CONST_SEG_MAX_AREA_FRAC, CONST_SEG_MAX_OBJECTS)
 #   ../Vision/Utilities/Caption
 from Vision.Utilities.Caption import Describe, Condense_Label, CONST_VISION_NUM_BEAMS
@@ -383,11 +383,11 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             if stage_cb:
                 stage_cb('Segmenting…')
             bg_bgr = self.__Load_Background(cv2, frame_bgr.shape)
-            # Stage-2 FastSAM will consume the candidate regions; the legacy
-            # 'segment' path still derives its boxes from the mask via Find_Objects.
-            mask, _regions = Build_Mask(bg_bgr, frame_bgr, cv2, np)
-            boxes = Find_Objects(mask, cv2, np)
-            return boxes, [None] * len(boxes)
+            # The legacy 'segment' detector now returns the stage-1 candidate regions
+            # directly (Find_Objects is gone). Stage 4 replaces this whole branch with
+            # the FastSAM path; until then this keeps the 'segment' option working.
+            _mask, regions = Build_Mask(bg_bgr, frame_bgr, cv2, np)
+            return regions, [None] * len(regions)
         return self.__Detect_Florence(frame_bgr, stage_cb)
 
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
