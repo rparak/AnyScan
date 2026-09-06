@@ -88,9 +88,43 @@ interface — the user edits those lines rather than passing CLI arguments.
 
 ## Private members
 
-- Attributes: `self.__name` (double underscore, name-mangled), declared in
-  `__init__` under a `# << PRIVATE >> #` marker comment.
-- Methods and module functions: `__Pascal_Snake_Case`.
-- Exposure is via `@property` with the public `Pascal_Snake_Case` name — the
-  property is often the capitalised form of the private attribute
-  (`self.__centroid` → `Centroid`).
+`__name` (double underscore) is the **default** and `_name` (single) is the
+**deliberate exception** — the choice is not cosmetic. `__name` triggers Python
+name mangling to `_ClassName__name`; `_name` does not. So the rule turns on
+whether the member takes part in inheritance:
+
+- `__name` — internal state and helpers used **only within the defining class**.
+  This is the default. Attributes are `self.__name`, declared in `__init__`
+  under a `# << PRIVATE >> #` marker comment; methods and module functions are
+  `__Pascal_Snake_Case`.
+- `_name` — anything that **participates in inheritance**: a method a subclass
+  overrides, a method a base class calls on `self` expecting the subclass's
+  version, or an attribute a subclass reads. Mangling would silently break these
+  — the override would never be reached, with no import error and no test
+  failure unless a test happens to exercise that path. Add a brief comment at the
+  definition saying why it is single-underscore.
+
+The worked example is `src/Camera/Core.py`: `Camera_Backend_Cls` keeps
+`_Open`/`_Close`/`_Grab` single-underscore precisely because the base calls
+`self._Open()` and `File_Camera_Cls` / `Basler_Camera_Cls` override them; its own
+`self.__connected` stays double, being base-internal. The class docstring states
+this rationale — do the same wherever you choose `_name`.
+
+Do **not** reach for `_name` merely to expose a member. Exposure is via
+`@property` with the public `Pascal_Snake_Case` name — the property is often the
+capitalised form of the private attribute (`self.__centroid` → `Centroid`).
+A subclass reaching parent state should go through that public API (as
+`Euler_Angle_Cls` reads `self.Type` / `self.all()` from `Vector3_Cls`), not the
+parent's private.
+
+**Tests can pin a member as `__`.** Name-mangling means a test that reaches a
+private by its mangled name (`getattr(window, '_AnyScan_Window_Cls__thread')`) is
+coupled to that member staying double-underscore under that class name —
+`test/UI/` does exactly this for `AnyScan_Window_Cls`. Renaming or re-scoping
+such a member silently breaks those tests; grep `_ClassName__` before touching
+one.
+
+`check_style.py` flags a `__name` that is overridden in a subclass **defined in
+the same file** — the exact mistake this rule prevents. It cannot see
+cross-file subclasses (static analysis of one file), so a base class and its
+subclass in different modules are on you: apply the rule by hand there.
