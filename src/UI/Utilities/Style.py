@@ -201,12 +201,12 @@ def Font(size: float, weight: int = QFont.Normal, mono: bool = False,
         (1) parameter [QFont(object)]: The configured font.
     """
 
-    f = QFont(FONT_MONO if mono else FONT_UI)
-    f.setPointSizeF(size)
-    f.setWeight(weight)
+    font = QFont(FONT_MONO if mono else FONT_UI)
+    font.setPointSizeF(size)
+    font.setWeight(weight)
     if tracking:
-        f.setLetterSpacing(QFont.PercentageSpacing, 100 + tracking)
-    return f
+        font.setLetterSpacing(QFont.PercentageSpacing, 100 + tracking)
+    return font
 
 
 def Hairline(vertical: bool = True, length: tp.Optional[int] = None,
