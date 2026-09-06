@@ -184,15 +184,52 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         Florence-2 describer; the model is presented as JIC-AnyScan-VLM-v1 and the
         weights are Florence-2, MIT licensed — keep Microsoft's notice with the project.
 
-        Pipeline (Analyze, default CONST_DETECTOR == 'fastsam'), one stage per module:
-            (1) background subtraction  ->  Vision.Utilities.Segmentation (Build_Mask)
-            (2) instance segmentation   ->  Vision.Segmenter (Fast_Sam_Cls)
-            (3) mask filtering          ->  Vision.Utilities.Mask_Filter (Filter_Masks)
-            (4) description             ->  Vision.Utilities.Caption (Describe) or
-                                            Vision.Describe_Fallback (Describe_Fallback)
-        Each stage lives in its own module so this class reads as the sequence and the
-        heavy imports (ultralytics, torch) stay behind their lazy loaders. Analyze()
-        below is that sequence, top to bottom.
+        Pipeline of Analyze(), default CONST_DETECTOR == 'fastsam'. Read top to
+        bottom; each stage delegates to the module named at the right. The
+        'florence' alternative is a pre-stage early return, shown at the end.
+
+          current frame (RGB)  +  reference background
+                   |  (RGB -> BGR)
+                   v
+          (1) background subtraction ......... Segmentation.Build_Mask
+                   |  returns TWO outputs:
+                   |    - change mask ...... skips stage 2; feeds stage 3's
+                   |                         coverage gate (below)
+                   |    - candidate regions  prompt FastSAM only in 'box'
+                   |                         mode; the default 'everything'
+                   |                         mode ignores them
+                   v
+          (2) FastSAM segmentation ........... Segmenter.Fast_Sam_Cls
+                   |
+                   v
+              object masks + segmenter scores
+                   |
+                   v
+          (3) mask filtering ................. Mask_Filter.Filter_Masks
+                   |  scores each mask's overlap with the stage-1 CHANGE
+                   |  MASK (coverage gate), rejects by area/border,
+                   |  suppresses part/whole (NMS), orders left-to-right
+                   v
+              objects: mask + tight bbox (+ coverage, score)
+                   |
+                   v
+          (4) description .................... Caption.Describe  OR
+                   |  padded MASKED crop by default     Describe_Fallback
+                   |  (raw if CONST_USE_MASKED_CROP      (per CONST_DESCRIBER;
+                   |  is False) feeds Florence-2;        the fallback reads
+                   |                                     mask + bbox directly)
+                   v
+              Compose -> summary + per-object sentences + verdict
+                   |
+                   v
+              Analysis_Str
+
+        Alternative, CONST_DETECTOR == 'florence': Florence's own
+        <REGION_PROPOSAL> on the whole frame -> crop -> describe -> Compose,
+        bypassing stages 1-3 (no background subtraction, no FastSAM).
+
+        Each stage lives in its own module so the heavy imports (ultralytics,
+        torch) stay behind their lazy loaders and this class reads as the flow.
 
         Note:
             Notes that cost hours if missed:

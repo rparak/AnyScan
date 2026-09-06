@@ -88,9 +88,11 @@ pytest --runslow       # also runs the `slow` failure-path tests (need the weigh
 
 **Full verification of the real vision path requires the weights.** The default
 `pytest` run includes a CPU-only smoke test through the real
-`Florence_Vision_Cls.Analyze` (detect → crop → caption → compose) that runs
-**whenever the weights are present** at `models/florence2-large-ft/`. When they are
-absent it prints an unmissable `REAL VISION PATH NOT VERIFIED` banner and passes,
+`Florence_Vision_Cls.Analyze` (background subtraction → FastSAM segmentation →
+mask filtering → Florence-2 description → compose) that runs **whenever both the
+FastSAM and Florence-2 weights are present** (`models/sam-1/FastSAM-x.pt` and
+`models/florence2-large-ft/`). When either is absent it prints an unmissable
+`REAL VISION PATH NOT VERIFIED` banner and passes,
 so a fresh clone is never broken — but that path is then unverified. To verify it,
 download the weights (see [Setup](#setup)) and run:
 
