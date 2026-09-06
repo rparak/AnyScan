@@ -41,8 +41,8 @@ reference 001 shape = (1200, 1920, 3)
   objects found     = 0
 [pair: 001 vs synthetic(001 + two rectangles)]
   frame = 001 with CONST_SYNTHETIC_RECTS drawn
-  foreground pixels = 147163
+  foreground pixels = 151519
   objects found     = 2
-    box[00] = (  300,   299,   562,   562)
-    box[01] = ( 1199,   699,  1482,   982)
+    box[00] = (  298,   297,   564,   564)
+    box[01] = ( 1197,   697,  1484,   984)
 
