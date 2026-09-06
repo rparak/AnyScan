@@ -46,7 +46,7 @@ Description:
 CONST_DOMAIN_MODULES = [
     'Camera.Core', 'Camera.Basler', 'Camera.Utilities.Image_Processing',
     'Vision.Core', 'Vision.Utilities.Segmentation', 'Vision.Utilities.Caption',
-    'Reporting.Core', 'Parameters.Vision',
+    'Vision.Segmenter', 'Reporting.Core', 'Parameters.Vision',
 ]
 
 
