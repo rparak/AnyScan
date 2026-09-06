@@ -68,8 +68,8 @@ def main():
     Basler_Cam_Id_1 = Basler_Cls(config=Parameters.Scene.Basler_Cam_Str.Custom_Cfg)
 
     # Capture a single image.
-    img = Basler_Cam_Id_1.Capture()
-    if img is None:
+    image = Basler_Cam_Id_1.Capture()
+    if image is None:
         raise ValueError('[ERROR] No image captured!')
 
     # Release the camera resources.
@@ -79,14 +79,14 @@ def main():
     output_path = os.path.join(f'{project_folder}/Data/', f'Image_{(CONST_INIT_INDEX):03}.png')
 
     # Undistort the image using camera calibration parameters.
-    h, w = img.shape[:2]
+    h, w = image.shape[:2]
     coeffs = np.array(list(Basler_Calib_Param_Str.Coefficients.values()), dtype=np.float64)
     new_camera_matrix, _ = cv2.getOptimalNewCameraMatrix(Basler_Calib_Param_Str.K, coeffs,
                                                          (w, h), 1, (w, h))
-    img_undistorted = cv2.undistort(img, Basler_Calib_Param_Str.K, coeffs, None, new_camera_matrix)
+    image_undistorted = cv2.undistort(image, Basler_Calib_Param_Str.K, coeffs, None, new_camera_matrix)
 
     # Save the image with bounding boxes.
-    cv2.imwrite(output_path, img_undistorted)
+    cv2.imwrite(output_path, image_undistorted)
     print(f'[INFO] Result saved at: {output_path}')
 
 if __name__ == '__main__':
