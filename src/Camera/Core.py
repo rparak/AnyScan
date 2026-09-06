@@ -47,9 +47,10 @@ Description:
 # holding Camera.Basler, Camera.Utilities.Image_Processing and Calibration.Parameters.
 CONST_BASLER_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-# Settings passed straight to Camera.Basler.Basler_Cls. The keys are capitalized to
-# match Basler_Cls.__Configure exactly; lower-case keys are read by nothing and
-# then raise KeyError when the device is configured.
+# The single source of truth for the Basler camera settings. Passed straight to
+# Camera.Basler.Basler_Cls, which also uses it as its own default — there is no
+# second, disagreeing copy. The keys are capitalized to match Basler_Cls.__Configure
+# exactly; lower-case keys are read by nothing.
 CONST_BASLER_CONFIG = {
     'Exposure_Time': 10000,                                # microseconds
     'Gain': 10,

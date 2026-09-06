@@ -29,6 +29,9 @@ from pypylon import pylon
 import time
 # Typing (Support for type hints)
 import typing as tp
+# Custom Lib.: AnyScan domain — the camera configuration (single source of truth)
+#   ../Camera/Core
+from Camera.Core import CONST_BASLER_CONFIG
 
 
 ## =========================================================================== ##
@@ -110,18 +113,11 @@ class Basler_Cls:
         self.camera = None; self.tl_factory = None
         self.devices = None
 
-        # Default image configuration. Transport tuning lives in the module
-        # constants above, since it depends on the network hardware rather than
-        # on the scene being captured.
-        self.default_config = {
-            'Exposure_Time': 10000,
-            'Gain': 10,
-            'Balance_Ratios': {'Red': 1.5, 'Green': 1.0, 'Blue': 1.0},
-            'Pixel_Format': 'BayerRG8'
-        }
-
-        # Use user-provided config, falling back to defaults for missing keys.
-        self.config = dict(self.default_config)
+        # Image configuration. CONST_BASLER_CONFIG (../Camera/Core.py) is the single
+        # source of truth; a caller may override individual keys. Transport tuning
+        # lives in the module constants above (a property of the network hardware,
+        # not of the scene being captured).
+        self.config = dict(CONST_BASLER_CONFIG)
         if config:
             self.config.update(config)
 
