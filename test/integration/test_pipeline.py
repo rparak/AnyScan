@@ -25,6 +25,7 @@
 
 # System (Default)
 import os
+import warnings
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # Custom Lib.: AnyScan domain — the camera and vision backends, the result structure
@@ -41,7 +42,9 @@ Description:
     End-to-end pipeline integration tests: acquire a frame -> detect -> describe ->
     compose the report, exercising the modules together across their seams. The
     default test is hermetic (a File_Camera_Cls source and a fake backend, no camera
-    and no weights); the slow test runs the same flow through the real Florence-2.
+    and no weights). A second test runs the same flow through the real Florence-2 on
+    the CPU whenever the weights exist, and warns loudly (never fails) when they do
+    not, so the real path is covered by default without breaking a fresh clone.
 """
 
 # Two rectangles drawn onto the reference to synthesize a frame with real objects.
@@ -77,18 +80,50 @@ def test_pipeline_camera_to_reporting(reference_background_path, fake_backend) -
     assert not camera.Connected
 
 
-@pytest.mark.slow
-def test_pipeline_real_florence(reference_background, make_synthetic_frame) -> None:
+def _Warn_Weights_Absent(request) -> None:
     """
     Description:
-        The same flow through the real Florence_Vision_Cls on a synthetic frame (the
-        reference with two rectangles). Structural assertions only — object count,
-        boxes within the image, non-empty sentences — never the exact caption text,
-        which is not deterministic. Needs the weights; skipped otherwise.
+        Emit an impossible-to-miss warning that the real vision path was not verified
+        because the model weights are absent — a loud banner written straight to the
+        terminal (uncaptured) plus a pytest warning, not a quiet skip line.
+
+    Args:
+        (1) request [pytest.FixtureRequest(object)]: The request, for the terminal reporter.
+    """
+
+    message = ('MODEL WEIGHTS ABSENT: the real Florence-2 vision path was NOT verified. '
+               'Download them (see README > Setup), then re-run `pytest` to cover Analyze().')
+    warnings.warn(UserWarning(message))
+    reporter = request.config.pluginmanager.getplugin('terminalreporter')
+    if reporter is not None:
+        reporter.write_line('')
+        reporter.write_sep('!', 'REAL VISION PATH NOT VERIFIED - model weights absent',
+                           red=True, bold=True)
+        reporter.write_line('  ' + message, yellow=True)
+        reporter.write_sep('!', red=True, bold=True)
+
+
+def test_pipeline_real_florence_smoke(request, reference_background, make_synthetic_frame,
+                                      monkeypatch) -> None:
+    """
+    Description:
+        The real vision path — detect -> crop -> caption -> compose — through the real
+        Florence_Vision_Cls on a synthetic two-rectangle frame, forced onto the CPU so
+        it is portable and deterministic (no CUDA/MPS dependency). It runs in the
+        DEFAULT suite whenever the weights exist; when they are absent it warns loudly
+        and passes, so a fresh clone is never broken before the weights are downloaded.
+
+        Structural assertions only — object count and box bounds come from the
+        deterministic segmentation, and every described object has a non-empty
+        sentence. The caption text itself is never asserted (it is not deterministic).
     """
 
     if not os.path.isdir(Vision_Core.CONST_MODEL_DIR):
-        pytest.skip(f'model weights not present at {Vision_Core.CONST_MODEL_DIR}')
+        _Warn_Weights_Absent(request)
+        return
+
+    # Force the CPU so the smoke behaves identically on every machine.
+    monkeypatch.setattr(Vision_Core, 'CONST_VISION_DEVICE', 'cpu')
 
     # OpenCV library for computer vision tasks [pip3 install opencv-python]
     import cv2

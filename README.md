@@ -61,15 +61,28 @@ The layout holds either way; the metrics shift slightly.
 
 ## Tests
 
-Two nets, both running with no camera and no model weights.
+Three layers, none of which need a camera. Only the real-model smoke needs the
+Florence-2 weights, and it degrades to a loud warning when they are absent.
 
 **Unit suite** (`pytest`), under `test/`, mirroring `src/` as
-`test/<Domain>/test_<module>.py`. Tests grow alongside each module as the
-single-file app is split into `src/`:
+`test/<Domain>/test_<module>.py`, plus pipeline integration tests under
+`test/integration/`:
 
 ```bash
-pytest                 # the default run; needs neither camera nor weights
-pytest --runslow       # also runs tests marked `slow` (these need the weights)
+pytest                 # the default run
+pytest --runslow       # also runs the `slow` failure-path tests (need the weights)
+```
+
+**Full verification of the real vision path requires the weights.** The default
+`pytest` run includes a CPU-only smoke test through the real
+`Florence_Vision_Cls.Analyze` (detect → crop → caption → compose) that runs
+**whenever the weights are present** at `models/florence2-large-ft/`. When they are
+absent it prints an unmissable `REAL VISION PATH NOT VERIFIED` banner and passes,
+so a fresh clone is never broken — but that path is then unverified. To verify it,
+download the weights (see [Setup](#setup)) and run:
+
+```bash
+pytest                 # the Florence smoke now runs on the CPU
 ```
 
 **Characterization harness**, the coarser end-to-end regression baseline for the
