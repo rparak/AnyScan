@@ -152,3 +152,55 @@ def test_pipeline_real_florence_smoke(request, reference_background, make_synthe
         assert obj.Sentence
     assert result.Summary
     assert result.Latency_Ms >= 0
+
+
+@pytest.mark.slow
+def test_shadow_abutting_part_over_segments_known_defect(request, monkeypatch) -> None:
+    """
+    Description:
+        KNOWN DEFECT, pinned on purpose (see KNOWN_ISSUES.md, 'A shadow abutting a
+        part over-segments into slivers'). Two objects with a cast shadow abutting
+        their lower edges: everything-mode segments the shadow boundary into thin
+        slivers that clear the change-coverage gate and evade the mask NMS, so MORE
+        than the two real objects are reported (four, as measured).
+
+        This asserts the over-count so the behaviour is on record. It is NOT desired
+        behaviour: when the pipeline is fixed the count drops to two and this test
+        fails — that is the signal to UPDATE this test, not to relax the pipeline.
+        Slow because it runs FastSAM; skips with the loud banner when the weights are
+        absent, like the smoke above.
+    """
+
+    if not os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS):
+        _Warn_Weights_Absent(request)
+        return
+
+    monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
+    # OpenCV / NumPy and the stage functions — imported here so a bare test-module
+    # import stays cheap and does not pull the runtime.
+    import cv2
+    import numpy as np
+    from Vision.Utilities.Segmentation import Build_Mask
+    from Vision.Utilities.Mask_Filter import Filter_Masks
+    from Vision.Segmenter import Fast_Sam_Cls
+
+    # Two objects 10 px apart (they touch after morphology), with a soft cast shadow
+    # abutting their lower edges — the scene that produces the boundary slivers.
+    w, h = 1000, 800
+    bg = np.zeros((h, w, 3), dtype=np.uint8)
+    bg[:] = (70, 150, 70)
+    scene = bg.copy()
+    cv2.rectangle(scene, (300, 300), (510, 520), (40, 40, 200), thickness=-1)   # red
+    cv2.rectangle(scene, (520, 300), (730, 520), (200, 60, 40), thickness=-1)   # blue
+    shadow_layer = scene.copy()
+    cv2.ellipse(shadow_layer, (515, 560), (200, 80), 0, 0, 360, (0, 0, 0), thickness=-1)
+    scene = cv2.addWeighted(scene, 0.6, shadow_layer, 0.4, 0.0)
+
+    change_mask, regions = Build_Mask(bg, scene, cv2, np)
+    masks, scores = Fast_Sam_Cls(device='cpu').Segment(scene, regions)
+    objects = Filter_Masks(masks, scores, change_mask, cv2, np)
+
+    # There are exactly two real objects. The shadow-edge slivers push the count
+    # above two (measured: four). KNOWN DEFECT — see the docstring: a failure here
+    # (count == 2) means the defect was fixed; update the test, do not relax it.
+    assert len(objects) > 2
