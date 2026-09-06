@@ -144,22 +144,38 @@ back to `'box'` on the strength of the spec.** The reason is concrete:
 leans on the Stage 3 filter to discard the table, the fixture and the part/whole
 duplicates — which is what that filter was built for.
 
-## Open question: FastSAM missed a flat mid-grey box (verify on real parts)
+## Open question: FastSAM's reliability on low-contrast shapes
 
-In the synthetic evidence, FastSAM segmented dark and red objects cleanly but
-returned **no mask for a flat mid-grey box** (BGR ~105) on the green reference, in
-both prompt modes. This is recorded as an **open question, not a confirmed
-limitation**: a flat synthetic fill is a plausible worst case for a segmentation
-model — it has no internal texture or edges to latch onto — and real metal parts
+FastSAM dropped low-contrast objects **twice** during development, in independent
+synthetic scenes:
+
+- In the prompt-mode comparison, it returned **no mask for a flat mid-grey box**
+  (BGR ~105) on the green reference, in both `'box'` and `'everything'` modes.
+- While building the `analyze.py` synthetic scene, `'everything'` mode **dropped a
+  near-black plate** (BGR ~25) it had segmented cleanly in a different layout — the
+  stage-1 change mask found all four regions, but FastSAM returned a mask for only
+  three.
+
+So this is not a one-off grey quirk but a **low-contrast reliability question in
+general**: objects whose colour sits close to the surface, or which are dark and
+featureless, are the ones FastSAM everything-mode is least dependable on, and its
+output is not fully deterministic across scenes. It is recorded as an **open
+question, not a confirmed limitation** — a flat synthetic fill is a plausible
+worst case (no internal texture or edges to latch onto), and real metal parts
 carry specular highlights and surface texture FastSAM may segment well.
 
-- **Why it matters here:** grey / metallic parts are exactly what this application
-  inspects, so the answer cannot be assumed either way.
-- **The specific check before trusting it:** photograph a real grey part on the
-  reference background, run the `Example/Vision` FastSAM script, and confirm the
-  part segments (a mask survives Stage 3). If a real grey part is also missed,
-  raise the segmenter confidence (`CONST_SEGMENTER_CONF`) or revisit the segmenter
-  choice; if it segments, this note can be closed.
+- **This is why the `analyze.py` synthetic demo uses four saturated colours.** The
+  dark shapes were unreliable, so the demo was built from shapes FastSAM segments
+  dependably. That makes the demo a clean end-to-end illustration — **not evidence
+  that the pipeline handles all parts**. A passing `--synthesize` run says the
+  wiring works, not that a grey or black part would be found.
+- **Why it matters here:** grey / metallic and dark parts are exactly what this
+  application inspects, so the answer cannot be assumed either way.
+- **The specific check before trusting it:** photograph real low-contrast parts
+  (grey/metallic and dark) on the reference background, run `Example/Vision/
+  analyze.py`, and confirm each segments (a mask survives Stage 3). If real parts
+  are missed, lower the segmenter confidence (`CONST_SEGMENTER_CONF`), try `'box'`
+  mode for those, or revisit the segmenter choice; if they segment, close this note.
 
 ## The no-reference-background detection path was removed
 
