@@ -34,6 +34,8 @@ from Camera.Core import File_Camera_Cls
 #   ../Vision/Core
 import Vision.Core as Vision_Core
 from Vision.Core import Florence_Vision_Cls
+#   ../Vision/Segmenter
+import Vision.Segmenter as Vision_Segmenter
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
 
@@ -91,8 +93,8 @@ def _Warn_Weights_Absent(request) -> None:
         (1) request [pytest.FixtureRequest(object)]: The request, for the terminal reporter.
     """
 
-    message = ('MODEL WEIGHTS ABSENT: the real Florence-2 vision path was NOT verified. '
-               'Download them (see README > Setup), then re-run `pytest` to cover Analyze().')
+    message = ('MODEL WEIGHTS ABSENT: the real FastSAM + Florence-2 vision path was NOT '
+               'verified. Download them (see README > Setup), then re-run `pytest` to cover Analyze().')
     warnings.warn(UserWarning(message))
     reporter = request.config.pluginmanager.getplugin('terminalreporter')
     if reporter is not None:
@@ -107,23 +109,28 @@ def test_pipeline_real_florence_smoke(request, reference_background, make_synthe
                                       monkeypatch) -> None:
     """
     Description:
-        The real vision path — detect -> crop -> caption -> compose — through the real
-        Florence_Vision_Cls on a synthetic two-rectangle frame, forced onto the CPU so
-        it is portable and deterministic (no CUDA/MPS dependency). It runs in the
-        DEFAULT suite whenever the weights exist; when they are absent it warns loudly
-        and passes, so a fresh clone is never broken before the weights are downloaded.
+        The real four-stage vision path — background subtraction -> FastSAM
+        segmentation -> mask filtering -> Florence-2 description -> compose — through
+        the real Florence_Vision_Cls on a synthetic two-rectangle frame, forced onto
+        the CPU so it is portable and deterministic (no CUDA/MPS dependency). It runs
+        in the DEFAULT suite whenever BOTH the FastSAM and Florence-2 weights exist;
+        when either is absent it warns loudly and passes, so a fresh clone is never
+        broken before the weights are downloaded.
 
         Structural assertions only — object count and box bounds come from the
-        deterministic segmentation, and every described object has a non-empty
-        sentence. The caption text itself is never asserted (it is not deterministic).
+        deterministic scene, and every described object has a non-empty sentence. The
+        caption text itself is never asserted (it is not deterministic).
     """
 
-    if not os.path.isdir(Vision_Core.CONST_MODEL_DIR):
+    if not (os.path.isdir(Vision_Core.CONST_MODEL_DIR)
+            and os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS)):
         _Warn_Weights_Absent(request)
         return
 
-    # Force the CPU so the smoke behaves identically on every machine.
+    # Force the CPU so the smoke behaves identically on every machine — both the
+    # Florence describer and the FastSAM segmenter.
     monkeypatch.setattr(Vision_Core, 'CONST_VISION_DEVICE', 'cpu')
+    monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
 
     # OpenCV library for computer vision tasks [pip3 install opencv-python]
     import cv2

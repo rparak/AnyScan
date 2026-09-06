@@ -36,6 +36,12 @@ from Reporting.Core import Compose, Verdict, CONST_EMPTY_SCENE_EXPLANATION, CONS
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import (Build_Mask, Crop_With_Pad,
                                            CONST_SEG_MAX_AREA_FRAC, CONST_SEG_MAX_OBJECTS)
+#   ../Vision/Utilities/Mask_Filter
+from Vision.Utilities.Mask_Filter import Filter_Masks, Padded_Bbox, Crop, Masked_Crop
+#   ../Vision/Segmenter
+from Vision.Segmenter import Fast_Sam_Cls
+#   ../Vision/Describe_Fallback
+from Vision.Describe_Fallback import Describe_Fallback
 #   ../Vision/Utilities/Caption
 from Vision.Utilities.Caption import Describe, Condense_Label, CONST_VISION_NUM_BEAMS
 
@@ -43,19 +49,27 @@ from Vision.Utilities.Caption import Describe, Condense_Label, CONST_VISION_NUM_
 Description:
     Initialization of constants.
 
-    The vision pipeline. CONST_DETECTOR selects how the boxes are found:
+    The vision pipeline. CONST_DETECTOR selects the flow:
 
-        frame  --detect-->  N boxes in FULL-FRAME pixels
-          'segment':  frame + background reference -> Build_Mask -> Find_Objects
-          'florence': Florence-2 detection on the full frame -> __Detect_Florence
-               -> Crop_With_Pad   crop each box from the ORIGINAL frame
-                    -> Describe    one Florence-2 caption per crop (the 'what')
-                         -> Detection_Str(Label, Bbox, Detail)
-                              -> Compose  the numbered lines the panel renders
+        'fastsam' (default): the four-stage pipeline, one stage per module —
+            (1) background subtraction   Vision.Utilities.Segmentation.Build_Mask
+                                             -> change mask + candidate regions
+            (2) instance segmentation    Vision.Segmenter.Fast_Sam_Cls.Segment
+                                             -> per-instance masks + confidences
+            (3) mask filtering           Vision.Utilities.Mask_Filter.Filter_Masks
+                                             -> the objects, left to right
+            (4) description              Vision.Utilities.Caption.Describe or
+                                         Vision.Describe_Fallback.Describe_Fallback
+                                             -> a label + sentence per object
+                    -> Compose  the numbered lines the panel renders
 
-    Boxes are in full-frame pixels either way, so there is no crop-to-frame
-    remap to get wrong. Florence-2 emits no confidence, so it stays None and the
-    verdict handles unscored objects.
+        'florence': the alternative whole-frame detector — Florence-2's own
+            <REGION_PROPOSAL>, no background subtraction and no segmentation. Kept as
+            a fallback; it bypasses stages 1-3 (see __Describe_Boxes).
+
+    Masks and boxes are in full-frame pixels, so there is no crop-to-frame remap to
+    get wrong. The segmenter's score lives in Detection_Str.Segmenter_Score;
+    Confidence stays None (see KNOWN_ISSUES) and the verdict handles unscored objects.
 
     Note:
         This module is Qt-free. Analyze accepts an RGB image as a NumPy array; the
@@ -85,10 +99,21 @@ CONST_VISION_DEVICE = 'auto'
 # The human-readable task name shown in the reading panel's meta row.
 CONST_VISION_TASK_LABEL = 'detailed caption'
 
-# How object boxes are found before any per-crop description. 'segment' is
-# background subtraction against CONST_BACKGROUND_REF — class-agnostic and the
-# proven method; 'florence' is Florence-2's own detection on the full frame.
-CONST_DETECTOR = 'segment'
+# How the pipeline finds objects. 'fastsam' is the four-stage pipeline — background
+# subtraction, FastSAM instance segmentation, mask filtering, description — and is
+# the default. 'florence' is the alternative whole-frame detector below (no
+# background subtraction, no segmentation), kept as a fallback for scenes FastSAM
+# handles poorly.
+CONST_DETECTOR = 'fastsam'
+
+# Who writes each object's caption. 'florence' is the Florence-2 VLM; 'fallback' is
+# the model-free describer (size / position / aspect / solidity / HSV colour), which
+# lets stages 1-3 run and be judged without loading a VLM.
+CONST_DESCRIBER = 'florence'
+
+# Feed the mask-flattened crop to the describer by default, so it stops narrating a
+# neighbour that shares the bounding box. Set False for the raw padded crop.
+CONST_USE_MASKED_CROP = True
 
 # The Florence-2 detection task used when CONST_DETECTOR == 'florence', its token
 # budget, and the min box area (fraction of frame) that drops stray specks.
@@ -155,9 +180,19 @@ class Vision_Backend_Cls(object):
 class Florence_Vision_Cls(Vision_Backend_Cls):
     """
     Description:
-        The real vision-language model. Presented as JIC-AnyScan-VLM-v1; the
-        weights are Florence-2, MIT licensed — keep Microsoft's notice with the
-        project.
+        The vision backend. It orchestrates the four-stage pipeline and owns the
+        Florence-2 describer; the model is presented as JIC-AnyScan-VLM-v1 and the
+        weights are Florence-2, MIT licensed — keep Microsoft's notice with the project.
+
+        Pipeline (Analyze, default CONST_DETECTOR == 'fastsam'), one stage per module:
+            (1) background subtraction  ->  Vision.Utilities.Segmentation (Build_Mask)
+            (2) instance segmentation   ->  Vision.Segmenter (Fast_Sam_Cls)
+            (3) mask filtering          ->  Vision.Utilities.Mask_Filter (Filter_Masks)
+            (4) description             ->  Vision.Utilities.Caption (Describe) or
+                                            Vision.Describe_Fallback (Describe_Fallback)
+        Each stage lives in its own module so this class reads as the sequence and the
+        heavy imports (ultralytics, torch) stay behind their lazy loaders. Analyze()
+        below is that sequence, top to bottom.
 
         Note:
             Notes that cost hours if missed:
@@ -203,6 +238,9 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         self.__pil = None
         # Cached BGR reference array.
         self.__background = None
+        # The stage-2 segmenter. Constructing it is cheap — ultralytics loads lazily
+        # on the first Segment, so this keeps the window and the tests light.
+        self.__segmenter = Fast_Sam_Cls()
 
     def __Pick_Device(self, torch: tp.Any) -> tp.Any:
         """
@@ -225,31 +263,43 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             return torch.device('mps')
         return torch.device('cpu')
 
-    def __Ensure_Loaded(self, stage_cb: tp.Optional[tp.Callable]) -> None:
+    def __Ensure_Loaded(self, stage_cb: tp.Optional[tp.Callable], need_florence: bool) -> None:
         """
         Description:
-            Import the runtime and load the model and processor once, caching both.
-            Reports the cold-load through stage_cb.
+            Ensure the runtime the selected pipeline needs is imported and cached.
+            cv2/numpy are always required (stages 1-3). The Florence-2 model is loaded
+            only when a Florence path is selected — the fallback describer skips it —
+            so stages 1-3 can run without a VLM. Reports the cold load through stage_cb.
 
         Args:
             (1) stage_cb [function]: Optional (text) phase hook.
+            (2) need_florence [bool]: Load the Florence-2 model and its runtime.
         """
 
-        if self.__model is not None:
+        if self.__cv2 is None:
+            try:
+                import cv2
+                import numpy as np
+            except ImportError as exc:
+                raise Vision_Error_Cls(
+                    'The vision runtime is not installed. Install OpenCV and NumPy '
+                    'into this environment, then scan again.'
+                ) from exc
+            self.__cv2, self.__np = cv2, np
+
+        if not need_florence or self.__model is not None:
             return
         if stage_cb:
             stage_cb('Loading model…')
         try:
-            import cv2
-            import numpy as np
             import torch
             from PIL import Image as PILImage
             from transformers import (AutoProcessor,
                                       Florence2ForConditionalGeneration)
         except ImportError as exc:
             raise Vision_Error_Cls(
-                'The vision runtime is not installed. Install torch, transformers, '
-                'OpenCV and Pillow into this environment, then scan again.'
+                'The vision runtime is not installed. Install torch, transformers '
+                'and Pillow into this environment, then scan again.'
             ) from exc
 
         device = self.__Pick_Device(torch)
@@ -267,7 +317,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
                 'directory is complete and readable.' % CONST_MODEL_DIR
             ) from exc
 
-        self.__cv2, self.__np, self.__torch, self.__pil = cv2, np, torch, PILImage
+        self.__torch, self.__pil = torch, PILImage
         self.__model, self.__processor = model, processor
         self.__device, self.__dtype = device, dtype
 
@@ -363,40 +413,14 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         items.sort(key=lambda it: it[0][0])
         return [it[0] for it in items], [it[1] for it in items]
 
-    def __Detect(self, frame_bgr: tp.List[tp.List[int]], cv2: tp.Any, np: tp.Any,
-                 stage_cb: tp.Optional[tp.Callable]) -> tp.Tuple[tp.List, tp.List]:
-        """
-        Description:
-            Boxes (xyxy) and optional per-box labels, from the chosen detector.
-
-        Args:
-            (1) frame_bgr [Matrix<uint8> HxWx3]: The frame (BGR).
-            (2) cv2 [module]: The OpenCV module.
-            (3) np [module]: The NumPy module.
-            (4) stage_cb [function]: Optional (text) phase hook.
-
-        Returns:
-            (1) parameter [Tuple]: (boxes, per-box labels or None).
-        """
-
-        if CONST_DETECTOR == 'segment':
-            if stage_cb:
-                stage_cb('Segmenting…')
-            bg_bgr = self.__Load_Background(cv2, frame_bgr.shape)
-            # The legacy 'segment' detector now returns the stage-1 candidate regions
-            # directly (Find_Objects is gone). Stage 4 replaces this whole branch with
-            # the FastSAM path; until then this keeps the 'segment' option working.
-            _mask, regions = Build_Mask(bg_bgr, frame_bgr, cv2, np)
-            return regions, [None] * len(regions)
-        return self.__Detect_Florence(frame_bgr, stage_cb)
-
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
                 stage_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
         """
         Description:
-            Analyse one RGB frame: detect the object boxes, describe each crop, and
-            compose the panel's reading. The frame is a contiguous RGB array (the UI
-            converts the QImage), so this method never touches Qt.
+            Analyse one RGB frame and return the finished reading. The default path is
+            the four-stage pipeline below, read top to bottom; each stage delegates to
+            its own module (see the class docstring's pipeline overview). The frame is
+            a contiguous RGB array (the UI converts the QImage), so this never touches Qt.
 
         Args:
             (1) image [Matrix<uint8> HxWx3]: The frame as a contiguous RGB array.
@@ -408,13 +432,100 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         """
 
         t0 = time.perf_counter()
-        self.__Ensure_Loaded(stage_cb)
-        cv2, np, torch, pil = self.__cv2, self.__np, self.__torch, self.__pil
+        need_florence = (CONST_DETECTOR == 'florence' or CONST_DESCRIBER == 'florence')
+        self.__Ensure_Loaded(stage_cb, need_florence)
+        cv2, np = self.__cv2, self.__np
         size = (image.shape[1], image.shape[0])   # (width, height)
 
         # RGB -> BGR: the pipeline works in BGR, the exchange format is RGB.
         frame_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        boxes, det_labels = self.__Detect(frame_bgr, cv2, np, stage_cb)
+
+        if CONST_DETECTOR == 'florence':
+            # Alternative detector: Florence-2's own whole-frame <REGION_PROPOSAL>,
+            # with no background subtraction and no segmentation. Kept as a fallback
+            # for scenes FastSAM handles poorly; it bypasses stages 1-3 below.
+            objects = self.__Describe_Boxes(frame_bgr, progress_cb, stage_cb)
+            return self.__Compose_Result(objects, size, t0)
+
+        # ---- Stage 1 - background subtraction (Vision.Utilities.Segmentation) ----
+        # The change mask and the candidate regions. Pure cv2/np differencing, shared
+        # with the characterization harness, so it lives in Segmentation, not here.
+        bg_bgr = self.__Load_Background(cv2, frame_bgr.shape)
+        change_mask, regions = Build_Mask(bg_bgr, frame_bgr, cv2, np)
+
+        # ---- Stage 2 - instance segmentation (Vision.Segmenter) ----
+        # FastSAM behind the Segmenter_Backend_Cls seam. In its own module so the lazy
+        # ultralytics import keeps a bare Core import Qt-free and cheap; regions prompt it.
+        masks, scores = self.__segmenter.Segment(frame_bgr, regions, stage_cb)
+
+        # ---- Stage 3 - mask filtering (Vision.Utilities.Mask_Filter) ----
+        # Which masks are objects: the change-coverage gate, area/border rejection,
+        # part/whole NMS, and the explicit left-to-right index order.
+        objects = Filter_Masks(masks, scores, change_mask, cv2, np)
+
+        # ---- Stage 4 - description (Vision.Utilities.Caption / Vision.Describe_Fallback) ----
+        # One caption per object, from the masked crop by default so a neighbour that
+        # shares the bounding box is not narrated with it.
+        self.__Describe_Objects(objects, frame_bgr, progress_cb, stage_cb)
+
+        return self.__Compose_Result(objects, size, t0)
+
+    def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
+                           progress_cb: tp.Optional[tp.Callable], stage_cb: tp.Optional[tp.Callable]) -> None:
+        """
+        Description:
+            Stage 4 for the FastSAM path: fill each survivor's Label and Detail from
+            its crop. The masked crop is fed by default (CONST_USE_MASKED_CROP) so a
+            neighbour sharing the box is flattened out; the describer is Florence-2 or
+            the model-free fallback (CONST_DESCRIBER).
+
+        Args:
+            (1) objects [Vector<Detection_Str(object)>]: The stage-3 survivors (mutated).
+            (2) frame_bgr [Matrix<uint8> HxWx3]: The frame (BGR).
+            (3) progress_cb [function]: Optional (done, total) progress hook.
+            (4) stage_cb [function]: Optional (text) phase hook.
+        """
+
+        cv2, np = self.__cv2, self.__np
+        if stage_cb and objects:
+            stage_cb('Describing…')
+
+        total = len(objects)
+        for i, det in enumerate(objects):
+            if progress_cb:
+                progress_cb(i, total)
+            padded = Padded_Bbox(det.Bbox, frame_bgr.shape)
+            crop = (Masked_Crop(frame_bgr, det.Mask, padded, np) if CONST_USE_MASKED_CROP
+                    else Crop(frame_bgr, padded))
+            if CONST_DESCRIBER == 'fallback':
+                det.Label, det.Detail = Describe_Fallback(
+                    frame_bgr, det.Mask, det.Bbox, frame_bgr.shape, cv2, np)
+            else:
+                det.Detail = Describe(self.__model, self.__processor, self.__device,
+                                      self.__dtype, crop, cv2, np, self.__torch, self.__pil)
+                det.Label = Condense_Label(det.Detail)
+        if progress_cb:
+            progress_cb(total, total)
+
+    def __Describe_Boxes(self, frame_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],
+                         stage_cb: tp.Optional[tp.Callable]) -> tp.List[Detection_Str]:
+        """
+        Description:
+            The 'florence' alternative detector: Florence-2's own <REGION_PROPOSAL>
+            boxes, each cropped and captioned. No masks, no change coverage — this
+            path never runs stages 1-3.
+
+        Args:
+            (1) frame_bgr [Matrix<uint8> HxWx3]: The frame (BGR).
+            (2) progress_cb [function]: Optional (done, total) progress hook.
+            (3) stage_cb [function]: Optional (text) phase hook.
+
+        Returns:
+            (1) parameter [Vector<Detection_Str(object)>]: The described boxes.
+        """
+
+        cv2, np, torch, pil = self.__cv2, self.__np, self.__torch, self.__pil
+        boxes, det_labels = self.__Detect_Florence(frame_bgr, stage_cb)
 
         objects = []
         total = len(boxes)
@@ -431,13 +542,27 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
                 label = ' '.join(det_labels[i].split()[:CONST_LABEL_MAX_WORDS]).lower()
             x1, y1, x2, y2 = box
             objects.append(Detection_Str(
-                Label=label,
-                Bbox=(x1, y1, x2 - x1, y2 - y1),   # xyxy -> xywh, frame pixels
-                Confidence=None,                   # Florence-2 emits no score
-                Detail=caption,
-            ))
+                Label=label, Bbox=(x1, y1, x2 - x1, y2 - y1), Confidence=None, Detail=caption))
         if progress_cb:
             progress_cb(total, total)
+        return objects
+
+    def __Compose_Result(self, objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
+                         t0: float) -> Analysis_Str:
+        """
+        Description:
+            Compose the panel's reading from the described objects: the per-object
+            sentences, the summary, the note, the verdict badge and the latency. The
+            objects are never reordered here — their order is the index contract.
+
+        Args:
+            (1) objects [Vector<Detection_Str(object)>]: The described objects, in order.
+            (2) size [Vector<int> 1x2]: The frame size as (width, height).
+            (3) t0 [float]: The analysis start time (perf_counter).
+
+        Returns:
+            (1) parameter [Analysis_Str(object)]: The finished scene reading.
+        """
 
         caption = '' if objects else CONST_EMPTY_SCENE_EXPLANATION
         objects, summary, note = Compose(objects, size, caption=caption)
