@@ -121,6 +121,46 @@ the flat green reference), never against hardware captures:
   it exists, is the vehicle), and record the observed real-object coverage range so
   the gate and dilation can be set from data rather than from synthetic 1.0s.
 
+## Touching-object separation depends on the FastSAM prompt mode
+
+`Segmenter.CONST_SEGMENTER_PROMPT_MODE` defaults to `'everything'`, and it must
+stay there for the pipeline to earn its keep. `'box'` is kept only as a config
+alternative for scenes whose objects are already well separated.
+
+The task file's Stage 2 said "prefer box-prompting with the stage-1 candidate
+regions." **That wording was superseded by evidence — do not switch the default
+back to `'box'` on the strength of the spec.** The reason is concrete:
+
+- Stage 1 merges touching parts into a **single** candidate region (connected
+  components, plus the dilation). A box prompt returns one mask per box, so
+  `'box'` inherits that merge — two touching parts come back as one object, exactly
+  the failure FastSAM was added to fix. Measured: two dark rectangles 15px apart →
+  one merged region → `'box'` returns 1 mask; `'everything'` returns 2.
+- Under `'box'`, Stage 3's part/whole NMS is near-dead code (one mask per region
+  cannot contain a part/whole pair), so the 144 MB model and the torch dependency
+  would be reproducing what background subtraction already gave us.
+
+`'everything'` segments the frame independently (separating touching parts) and
+leans on the Stage 3 filter to discard the table, the fixture and the part/whole
+duplicates — which is what that filter was built for.
+
+## Open question: FastSAM missed a flat mid-grey box (verify on real parts)
+
+In the synthetic evidence, FastSAM segmented dark and red objects cleanly but
+returned **no mask for a flat mid-grey box** (BGR ~105) on the green reference, in
+both prompt modes. This is recorded as an **open question, not a confirmed
+limitation**: a flat synthetic fill is a plausible worst case for a segmentation
+model — it has no internal texture or edges to latch onto — and real metal parts
+carry specular highlights and surface texture FastSAM may segment well.
+
+- **Why it matters here:** grey / metallic parts are exactly what this application
+  inspects, so the answer cannot be assumed either way.
+- **The specific check before trusting it:** photograph a real grey part on the
+  reference background, run the `Example/Vision` FastSAM script, and confirm the
+  part segments (a mask survives Stage 3). If a real grey part is also missed,
+  raise the segmenter confidence (`CONST_SEGMENTER_CONF`) or revisit the segmenter
+  choice; if it segments, this note can be closed.
+
 ## The characterization baseline is pinned to the toolchain
 
 `Example/Vision/characterize.py` records the `python` / `numpy` / `opencv` versions

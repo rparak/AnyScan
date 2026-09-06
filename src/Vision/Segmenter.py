@@ -66,10 +66,14 @@ CONST_SEGMENTER_CONF = 0.4
 CONST_SEGMENTER_IOU = 0.9
 CONST_SEGMENTER_RETINA_MASKS = True
 
-# 'box' prompts FastSAM with the stage-1 candidate regions; 'everything' segments
-# the whole frame and lets stage 3 filter. Box-prompting is preferred; a failed
-# prompt degrades to everything-mode rather than crashing.
-CONST_SEGMENTER_PROMPT_MODE = 'box'
+# 'everything' segments the whole frame independently and lets stage 3 filter the
+# clutter; 'box' prompts FastSAM with the stage-1 candidate regions. Default is
+# 'everything' because it is what SEPARATES touching objects: stage 1 merges
+# touching parts into a single candidate region, and a box prompt returns one mask
+# per box, so 'box' inherits that merge. 'box' is cheaper and cleaner when the parts
+# are already well separated. See KNOWN_ISSUES. A failed box prompt degrades to
+# everything-mode rather than crashing.
+CONST_SEGMENTER_PROMPT_MODE = 'everything'
 
 # Safety valve: the most masks kept from everything-mode (highest confidence
 # first), so a busy frame cannot flood stage 3.
