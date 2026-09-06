@@ -100,10 +100,10 @@ def Build_Mask(bg: tp.List[tp.List[float]], fg: tp.List[tp.List[float]],
     subtle = (dist > CONST_SEG_COLOR_DIST) & (spread > CONST_SEG_SHADOW_TOLERANCE)
     mask = ((strong | subtle).astype(np.uint8)) * 255
 
-    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
-                                  (CONST_SEG_MORPH_KERNEL, CONST_SEG_MORPH_KERNEL))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k, iterations=CONST_SEG_OPEN_ITERS)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=CONST_SEG_CLOSE_ITERS)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
+                                       (CONST_SEG_MORPH_KERNEL, CONST_SEG_MORPH_KERNEL))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=CONST_SEG_OPEN_ITERS)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=CONST_SEG_CLOSE_ITERS)
 
     # Fill interior holes: washers and nuts are rings whose centre shows
     # background and would otherwise split into two components.
@@ -152,7 +152,7 @@ def Find_Objects(mask: tp.List[tp.List[int]], cv2: tp.Any, np: tp.Any) -> tp.Lis
     return [b[:4] for b in boxes]
 
 
-def Crop_With_Pad(img: tp.List[tp.List[float]], box: tp.Tuple[int, int, int, int]) -> tp.List[tp.List[float]]:
+def Crop_With_Pad(image: tp.List[tp.List[float]], box: tp.Tuple[int, int, int, int]) -> tp.List[tp.List[float]]:
     """
     Description:
         Crop from the ORIGINAL image with a margin, clamped to bounds. From the
@@ -160,16 +160,16 @@ def Crop_With_Pad(img: tp.List[tp.List[float]], box: tp.Tuple[int, int, int, int
         and an object floating on black is out of distribution.
 
     Args:
-        (1) img [Matrix<uint8> HxWx3]: The original frame (BGR).
+        (1) image [Matrix<uint8> HxWx3]: The original frame (BGR).
         (2) box [Vector<int> 1x4]: The box as (x1, y1, x2, y2).
 
     Returns:
         (1) parameter [Matrix<uint8> hxwx3]: The padded crop (BGR).
     """
 
-    h, w = img.shape[:2]
+    h, w = image.shape[:2]
     x1, y1, x2, y2 = box
     pad = int(CONST_SEG_CROP_PAD_FRAC * max(x2 - x1, y2 - y1))
     cx1, cy1 = max(0, x1 - pad), max(0, y1 - pad)
     cx2, cy2 = min(w, x2 + pad), min(h, y2 + pad)
-    return img[cy1:cy2, cx1:cx2]
+    return image[cy1:cy2, cx1:cx2]
