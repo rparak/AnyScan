@@ -234,12 +234,10 @@ def Swap(a: float, b: float) -> tp.Tuple[float, float]:
             a, b = b, a
 
     Args:
-        (1) a [float]: The first input number.
-        (2) b [float]: The second input number.
+        (1 - 2) a, b [float]: Input numbers to be swapped.
 
     Returns:
-        (1) parameter [float]: The first output (originally b).
-        (2) parameter [float]: The second output (originally a).
+        (1 - 2) parameter [float]: Output swapped numbers.
     """
 
     return (b, a)

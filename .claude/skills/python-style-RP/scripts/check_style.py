@@ -89,9 +89,13 @@ def check_docstring_format(doc: str, node, path: Path, report: Report, kind: str
         if args and "Args:" not in doc:
             report.add(path, node.lineno, "docstring",
                        f"function '{node.name}' takes arguments but has no 'Args:' section")
-        if args and "Args:" in doc and "(1)" not in doc:
+        # Accept the numbered '(1) ...' form and the grouped '(1 - N) a, b ...'
+        # form for consecutive arguments of the same type (see
+        # references/docstrings-comments.md); reject only truly unnumbered Args.
+        if args and "Args:" in doc and not re.search(r"\(1\s*[-)]", doc):
             report.add(path, node.lineno, "docstring",
-                       f"function '{node.name}' Args entries are not numbered '(1) ...'")
+                       f"function '{node.name}' Args entries are not numbered "
+                       "'(1) ...' or '(1 - N) ...'")
         returns_value = any(isinstance(n, ast.Return) and n.value is not None
                             for n in ast.walk(node))
         if returns_value and "Returns:" not in doc:
