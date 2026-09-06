@@ -132,6 +132,26 @@ def test_nested_duplicate_masks_are_suppressed() -> None:
     assert (x, y, w, h) == (20, 20, 100, 100)
 
 
+def test_nms_keeps_the_whole_not_a_feature_on_it() -> None:
+    """
+    Description:
+        A plate with a marking on it: FastSAM returns the whole plate and the smaller
+        marking, both fully covered by the change mask, and it scores the sharp little
+        marking higher. With coverage tied, the area tiebreak must keep the WHOLE
+        plate — an inspection operator wants the part, not a feature on it — even
+        though the marking has the higher segmenter score.
+    """
+
+    plate = _Rect_Mask(20, 20, 140, 140)            # 120x120, the whole
+    marking = _Rect_Mask(60, 60, 100, 100)          # 40x40, inside the plate
+    change = _Change_Mask([(20, 20, 140, 140)])     # both fully covered -> coverage ties
+    # The marking scores higher; only the area tiebreak keeps the plate.
+    kept = Mask_Filter.Filter_Masks([marking, plate], [0.98, 0.80], change, cv2, np)
+
+    assert len(kept) == 1
+    assert kept[0].Bbox == (20, 20, 120, 120)       # the plate, not the marking
+
+
 def test_survivors_are_ordered_left_to_right_regardless_of_input_order() -> None:
     """
     Description:

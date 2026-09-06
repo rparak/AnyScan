@@ -71,6 +71,10 @@ CONST_FILTER_BORDER_MAX_FRAC = 0.30
 # Plain IoU therefore cannot catch containment — it would leave every part/whole
 # pair live, which is exactly the failure this NMS exists to prevent.
 CONST_FILTER_NMS_OVERLAP = 0.90
+# On a change-coverage tie in the NMS ranking, keep the LARGER mask — the whole
+# object — rather than a higher-scored feature sitting on it (an inspection operator
+# wants the part, not its marking). Set False to prefer the smaller part instead.
+CONST_FILTER_NMS_PREFER_WHOLE = True
 # Cap the survivors per analysis (ported from the segmentation object cap).
 CONST_FILTER_MAX_OBJECTS = 12
 # Padded-crop margin as a fraction of the object's size (ported from the crop pad).
@@ -125,9 +129,16 @@ def Filter_Masks(masks: tp.List, scores: tp.List[tp.Optional[float]],
             Label='object', Bbox=__Tight_Bbox(mask, np), Confidence=None,
             Mask=mask, Change_Coverage=coverage, Segmenter_Score=score))
 
-    # Rank by change coverage first, then segmenter confidence — the NMS keeps the
-    # higher-ranked mask of an overlapping pair.
-    survivors.sort(key=lambda d: (d.Change_Coverage, d.Segmenter_Score or 0.0), reverse=True)
+    # Rank the survivors: change coverage, then mask area, then segmenter score. The
+    # NMS keeps the higher-ranked mask of an overlapping pair, so on a coverage tie
+    # the larger mask (the whole object) outranks a higher-scored feature on it;
+    # score only breaks a further tie. CONST_FILTER_NMS_PREFER_WHOLE flips the area
+    # preference toward the smaller part.
+    area_sign = 1 if CONST_FILTER_NMS_PREFER_WHOLE else -1
+    survivors.sort(
+        key=lambda d: (d.Change_Coverage, area_sign * int(np.count_nonzero(d.Mask)),
+                       d.Segmenter_Score or 0.0),
+        reverse=True)
     kept = __Suppress_Overlaps(survivors, np)[:CONST_FILTER_MAX_OBJECTS]
 
     # Left to right (the index contract), applied explicitly on the tight box.
