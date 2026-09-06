@@ -59,3 +59,38 @@ this repo (`scan.py` correctly used `'anyscan-pyqt'`). Fixed in the style pass
 (commit "Style: bring Example/Camera/scan.py and calibrate.py to house style").
 Recorded here in case the same `Synth_Eye` copy-paste appears in other inherited
 files pulled in later; a repo-wide `git grep 'Synth_Eye'` is currently clean.
+
+## `Basler_Cls` uses bare `Exception`, not the RP error pattern
+
+`Camera/Basler.py` raises and catches bare `Exception` throughout — e.g.
+`raise Exception('[ERROR] No Basler cameras detected...')` and `except Exception`
+in `__Connect`, `Capture`, `__Set_Optional`, `__Close`. This is the inherited
+driver's style, not the RP assert-inside-try-then-report pattern, and a bare
+`except Exception` can mask an unexpected error as a routine one.
+
+- **Impact:** low in practice. The facade `Basler_Camera_Cls._Open`/`_Grab` catches
+  whatever `Basler_Cls` raises and re-wraps it into a `Camera_Error_Cls` with an
+  actionable sentence, so the operator never sees a bare traceback. The roughness
+  is internal to the driver.
+- **Not fixed here:** the style pass gave `Basler_Cls` types, docstrings and
+  `CONST_*` naming but deliberately did not restructure its control flow —
+  rewriting the error handling changes behaviour on a hardware path that has no
+  automated coverage. Do it together with a real camera run, narrowing the
+  `except Exception` clauses and replacing the bare `raise` with `Camera_Error_Cls`.
+
+## The characterization baseline is pinned to the toolchain
+
+`Example/Vision/characterize.py` records the `python` / `numpy` / `opencv` versions
+in `characterize_baseline.log`, and the segmentation section pins exact box pixel
+coordinates. Those coordinates depend on the OpenCV build, so a `numpy`/`opencv`
+upgrade can change the committed `.log` — flipping the "empty diff" regression gate
+for a reason that has nothing to do with the application code.
+
+- **Impact:** the gate is a genuine behaviour net, but it couples "did the code
+  change behaviour?" to "did the toolchain change?" On a dependency bump someone
+  must re-run the harness and re-commit the baseline, and confirm by eye that only
+  the version header (not the composed sentences) moved.
+- **Options if it becomes annoying:** drop the version header and the exact box
+  coordinates from the pinned output (assert box *count* and ordering instead of
+  pixels), or split the log into a version-independent "behaviour" section that
+  gates and a separate informational "environment" section that does not.
