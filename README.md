@@ -110,6 +110,60 @@ deterministic `Example/Vision/characterize_baseline.log`:
 git diff Example/Vision/characterize_baseline.log     # expect no change
 ```
 
+## Detection logic
+
+`Florence_Vision_Cls.Analyze` runs one frame through four stages, each in its own
+module. Background subtraction (stage 1) finds *what changed* against a fixed
+reference — cheap and class-agnostic — and returns two things: a change **mask**
+and padded **candidate regions**. FastSAM (stage 2) turns the scene into precise
+per-instance masks, which stage 3 filters down to the real objects. Its
+change-coverage gate scores each mask against the stage-1 change mask — which is
+why that mask skips stage 2 and reaches stage 3 directly: it is the evidence that
+a mask is a genuine change and not the static table or a cast shadow. Stage 4
+crops each survivor (masked by default, so a neighbour sharing the box is not
+described with it) and Florence-2, or the model-free fallback, writes its sentence.
+
+```
+  current frame (RGB)  +  reference background
+           |  (RGB -> BGR)
+           v
+  (1) background subtraction ......... Segmentation.Build_Mask
+           |  returns TWO outputs:
+           |    - change mask ...... skips stage 2; feeds stage 3's
+           |                         coverage gate (below)
+           |    - candidate regions  prompt FastSAM only in 'box'
+           |                         mode; the default 'everything'
+           |                         mode ignores them
+           v
+  (2) FastSAM segmentation ........... Segmenter.Fast_Sam_Cls
+           |
+           v
+      object masks + segmenter scores
+           |
+           v
+  (3) mask filtering ................. Mask_Filter.Filter_Masks
+           |  scores each mask's overlap with the stage-1 CHANGE
+           |  MASK (coverage gate), rejects by area/border,
+           |  suppresses part/whole (NMS), orders left-to-right
+           v
+      objects: mask + tight bbox (+ coverage, score)
+           |
+           v
+  (4) description .................... Caption.Describe  OR
+           |  padded MASKED crop by default     Describe_Fallback
+           |  (raw if CONST_USE_MASKED_CROP      (per CONST_DESCRIBER;
+           |  is False) feeds Florence-2;        the fallback reads
+           |                                     mask + bbox directly)
+           v
+      Compose -> summary + per-object sentences + verdict
+           |
+           v
+      Analysis_Str
+```
+
+Every analysis needs a reference-background capture; there is no background-free
+detection path (see `KNOWN_ISSUES.md`).
+
 ## Repository layout
 
 What is committed, and what you must supply:

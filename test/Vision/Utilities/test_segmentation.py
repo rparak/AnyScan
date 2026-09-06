@@ -77,19 +77,6 @@ def test_synthetic_frame_finds_ordered_regions(reference_background, make_synthe
         assert rx2 >= dx2 and ry2 >= dy2
 
 
-def test_crop_with_pad_stays_in_bounds() -> None:
-    """
-    Description:
-        A box at the image edge crops with a margin but never past the bounds.
-    """
-
-    img = np.zeros((100, 120, 3), dtype=np.uint8)
-    crop = Segmentation.Crop_With_Pad(img, (0, 0, 20, 20))
-    # pad = 0.2 * 20 = 4; the crop starts clamped at 0 and extends by the pad.
-    assert crop.shape[0] <= img.shape[0] and crop.shape[1] <= img.shape[1]
-    assert crop.shape[0] == 24 and crop.shape[1] == 24
-
-
 def test_module_is_qt_free() -> None:
     """
     Description:

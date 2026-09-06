@@ -359,9 +359,8 @@ def main() -> int:
     change_mask, regions = Build_Mask(reference_bgr, scene_bgr, cv2, np)
 
     scene_rgb = cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB)
-    print('[INFO] Running the pipeline (detector=%s, describer=%s, segmenter=%s)...'
-          % (Vision_Core.CONST_DETECTOR, Vision_Core.CONST_DESCRIBER,
-             Vision_Segmenter.CONST_SEGMENTER_PROMPT_MODE))
+    print('[INFO] Running the pipeline (describer=%s, segmenter=%s)...'
+          % (Vision_Core.CONST_DESCRIBER, Vision_Segmenter.CONST_SEGMENTER_PROMPT_MODE))
     try:
         result = Florence_Vision_Cls().Analyze(scene_rgb)
     except Segmenter_Error_Cls as error:

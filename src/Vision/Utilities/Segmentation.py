@@ -54,9 +54,6 @@ CONST_SEG_MORPH_KERNEL = 7          # ellipse kernel for open/close
 CONST_SEG_OPEN_ITERS = 1
 CONST_SEG_CLOSE_ITERS = 3
 CONST_SEG_MIN_AREA_FRAC = 0.001     # ignore specks smaller than this
-CONST_SEG_MAX_AREA_FRAC = 0.5       # ignore blobs larger than this (lighting drift)
-CONST_SEG_MAX_OBJECTS = 12          # cap the number of crops per analysis (shared)
-CONST_SEG_CROP_PAD_FRAC = 0.2       # crop margin as a fraction of object size (shared)
 CONST_SEG_MASK_DILATE_KERNEL = 5    # ellipse kernel growing the final change mask
                                     # slightly, so stage-3 coverage is not starved at
                                     # thin object edges (see Build_Mask)
@@ -168,26 +165,3 @@ def __Candidate_Regions(mask: tp.List[tp.List[int]], cv2: tp.Any,
 
     regions.sort(key=lambda b: b[0])  # left to right (the index contract)
     return regions
-
-
-def Crop_With_Pad(image: tp.List[tp.List[float]], box: tp.Tuple[int, int, int, int]) -> tp.List[tp.List[float]]:
-    """
-    Description:
-        Crop from the ORIGINAL image with a margin, clamped to bounds. From the
-        original, never the masked frame: Florence-2 is trained on natural images
-        and an object floating on black is out of distribution.
-
-    Args:
-        (1) image [Matrix<uint8> HxWx3]: The original frame (BGR).
-        (2) box [Vector<int> 1x4]: The box as (x1, y1, x2, y2).
-
-    Returns:
-        (1) parameter [Matrix<uint8> hxwx3]: The padded crop (BGR).
-    """
-
-    h, w = image.shape[:2]
-    x1, y1, x2, y2 = box
-    pad = int(CONST_SEG_CROP_PAD_FRAC * max(x2 - x1, y2 - y1))
-    cx1, cy1 = max(0, x1 - pad), max(0, y1 - pad)
-    cx2, cy2 = min(w, x2 + pad), min(h, y2 + pad)
-    return image[cy1:cy2, cx1:cx2]

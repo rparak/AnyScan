@@ -161,6 +161,31 @@ carry specular highlights and surface texture FastSAM may segment well.
   raise the segmenter confidence (`CONST_SEGMENTER_CONF`) or revisit the segmenter
   choice; if it segments, this note can be closed.
 
+## The no-reference-background detection path was removed
+
+Analysis now **requires a reference background**. Every path through
+`Florence_Vision_Cls.Analyze` runs stage 1 (background subtraction against
+`CONST_BACKGROUND_REF`), so with no reference capture the analysis raises rather
+than running.
+
+Until this change there was a second detector, `CONST_DETECTOR == 'florence'`,
+which ran Florence-2's own `<REGION_PROPOSAL>` on the whole frame with no
+background subtraction — the only path that could analyze an arbitrary image with
+no reference. It was removed deliberately: it was slower than FastSAM, no code
+set it (default was `'fastsam'`), and no test exercised it, so it was an untested
+branch carrying a capability nothing used.
+
+- **Capability lost:** analyzing an image when no reference-background capture
+  exists (e.g. a one-off photo from a different camera). The app, the example
+  script and the tests all supply a background, so none of them regressed.
+- **What it would take to restore:** re-add the whole-frame detector — a method
+  running the `<REGION_PROPOSAL>` task (task token, max-tokens and min-area
+  constants), a describe-the-boxes loop cropping each detection (the old
+  `Crop_With_Pad` helper, also removed), and a `CONST_DETECTOR` toggle selecting
+  it ahead of stage 1. The removed code is recoverable from git history (the
+  commit that removed the `<REGION_PROPOSAL>` path); restoring it should come with
+  the test the original never had.
+
 ## The characterization baseline is pinned to the toolchain
 
 `Example/Vision/characterize.py` records the `python` / `numpy` / `opencv` versions
