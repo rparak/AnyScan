@@ -49,8 +49,9 @@ def test_identical_frame_finds_no_objects(reference_background) -> None:
         boxes — the guard that an empty surface reads as empty.
     """
 
-    mask = Segmentation.Build_Mask(reference_background, reference_background, cv2, np)
+    mask, regions = Segmentation.Build_Mask(reference_background, reference_background, cv2, np)
     assert int(np.count_nonzero(mask)) == 0
+    assert regions == []
     assert Segmentation.Find_Objects(mask, cv2, np) == []
 
 
@@ -62,19 +63,27 @@ def test_synthetic_frame_finds_ordered_boxes(reference_background, make_syntheti
     """
 
     frame = make_synthetic_frame(reference_background, CONST_RECTS)
-    mask = Segmentation.Build_Mask(reference_background, frame, cv2, np)
+    mask, regions = Segmentation.Build_Mask(reference_background, frame, cv2, np)
     boxes = Segmentation.Find_Objects(mask, cv2, np)
 
     assert len(boxes) == 2
     # Left-to-right order.
     assert boxes[0][0] < boxes[1][0]
-    # Each detected box brackets the rectangle it came from (morphology shifts the
-    # edges by a pixel or two, so allow a small margin).
+    # Each detected box brackets the rectangle it came from (morphology plus the
+    # slight mask dilation shift the edges by a few pixels, so allow a small margin).
     for detected, drawn in zip(boxes, CONST_RECTS):
         dx1, dy1, dx2, dy2 = detected
         rx1, ry1, rx2, ry2 = drawn
-        assert abs(dx1 - rx1) <= 3 and abs(dy1 - ry1) <= 3
-        assert abs(dx2 - rx2) <= 3 and abs(dy2 - ry2) <= 3
+        assert abs(dx1 - rx1) <= 5 and abs(dy1 - ry1) <= 5
+        assert abs(dx2 - rx2) <= 5 and abs(dy2 - ry2) <= 5
+
+    # The candidate regions are two padded boxes, left to right, each enclosing the
+    # tight Find_Objects box for the same object.
+    assert len(regions) == 2
+    assert regions[0][0] < regions[1][0]
+    for region, box in zip(regions, boxes):
+        assert region[0] <= box[0] and region[1] <= box[1]
+        assert region[2] >= box[2] and region[3] >= box[3]
 
 
 def test_crop_with_pad_stays_in_bounds() -> None:

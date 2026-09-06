@@ -383,7 +383,9 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             if stage_cb:
                 stage_cb('Segmenting…')
             bg_bgr = self.__Load_Background(cv2, frame_bgr.shape)
-            mask = Build_Mask(bg_bgr, frame_bgr, cv2, np)
+            # Stage-2 FastSAM will consume the candidate regions; the legacy
+            # 'segment' path still derives its boxes from the mask via Find_Objects.
+            mask, _regions = Build_Mask(bg_bgr, frame_bgr, cv2, np)
             boxes = Find_Objects(mask, cv2, np)
             return boxes, [None] * len(boxes)
         return self.__Detect_Florence(frame_bgr, stage_cb)

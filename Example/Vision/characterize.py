@@ -158,7 +158,9 @@ def _Characterize_Segmentation(bg: np.ndarray, fg: np.ndarray, frame_label: str)
     """
 
     lines = [f'  frame = {frame_label}']
-    mask = Build_Mask(bg, fg, cv2, np)
+    # Build_Mask now also returns candidate regions (for stage-2 prompting); this
+    # harness still scores the legacy Find_Objects boxes off the mask.
+    mask, _regions = Build_Mask(bg, fg, cv2, np)
     boxes = Find_Objects(mask, cv2, np)
     lines.append(f'  foreground pixels = {int(np.count_nonzero(mask))}')
     lines.append(f'  objects found     = {len(boxes)}')

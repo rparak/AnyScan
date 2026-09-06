@@ -57,13 +57,22 @@ CONST_SEG_MIN_AREA_FRAC = 0.001     # ignore specks smaller than this
 CONST_SEG_MAX_AREA_FRAC = 0.5       # ignore blobs larger than this (lighting drift)
 CONST_SEG_MAX_OBJECTS = 12          # cap the number of crops per analysis (shared)
 CONST_SEG_CROP_PAD_FRAC = 0.2       # crop margin as a fraction of object size (shared)
+CONST_SEG_MASK_DILATE_KERNEL = 5    # ellipse kernel growing the final change mask
+                                    # slightly, so stage-3 coverage is not starved at
+                                    # thin object edges (see Build_Mask)
+CONST_SEG_REGION_PAD_FRAC = 0.08    # candidate-region margin (fraction of box size)
+                                    # around each change component before it prompts
+                                    # the segmenter (stage 2)
 
 
 def Build_Mask(bg: tp.List[tp.List[float]], fg: tp.List[tp.List[float]],
-               cv2: tp.Any, np: tp.Any) -> tp.List[tp.List[int]]:
+               cv2: tp.Any, np: tp.Any) -> tp.Tuple[tp.List[tp.List[int]], tp.List[tp.Tuple[int, int, int, int]]]:
     """
     Description:
-        Foreground mask from the frame and the empty-surface reference.
+        Foreground change mask AND the candidate regions it implies, from the frame
+        and the empty-surface reference. Both are returned because stages downstream
+        need each: the regions prompt the segmenter (stage 2), and the mask is what
+        stage 3 scores each returned mask's overlap against — do not collapse them.
 
         Colour distance, not brightness, is the primary test. On the green surface
         a grey or black screw sits close to the green in luminance — a brightness
@@ -76,6 +85,10 @@ def Build_Mask(bg: tp.List[tp.List[float]], fg: tp.List[tp.List[float]],
         the soft shadow a part casts on the surface: a shadow darkens the green but
         keeps its hue, so its channel ratios stay roughly constant.
 
+        The returned mask is dilated slightly. Stage 3 measures how much of each
+        segmenter mask overlaps it; an under-grown mask penalises a good mask for
+        the segmenter's own edge slop, so a small margin is deliberate.
+
     Args:
         (1) bg [Matrix<uint8> HxWx3]: The empty-surface background reference (BGR).
         (2) fg [Matrix<uint8> HxWx3]: The captured frame (BGR).
@@ -83,7 +96,9 @@ def Build_Mask(bg: tp.List[tp.List[float]], fg: tp.List[tp.List[float]],
         (4) np [module]: The NumPy module, injected by the caller.
 
     Returns:
-        (1) parameter [Matrix<uint8> HxW]: The filled foreground mask (0 or 255).
+        (1) parameter [Tuple]: (mask as Matrix<uint8> HxW of 0 or 255, candidate
+                               regions as a Vector<Tuple<int> 1x4> of (x1, y1, x2, y2)
+                               boxes ordered left to right).
     """
 
     blur = (CONST_SEG_BLUR, CONST_SEG_BLUR)
@@ -110,7 +125,49 @@ def Build_Mask(bg: tp.List[tp.List[float]], fg: tp.List[tp.List[float]],
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     filled = np.zeros_like(mask)
     cv2.drawContours(filled, contours, -1, 255, thickness=cv2.FILLED)
-    return filled
+
+    # Grow the change mask slightly (see the docstring: stage-3 coverage).
+    dilate_kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE, (CONST_SEG_MASK_DILATE_KERNEL, CONST_SEG_MASK_DILATE_KERNEL))
+    mask_final = cv2.dilate(filled, dilate_kernel)
+
+    return mask_final, __Candidate_Regions(mask_final, cv2, np)
+
+
+def __Candidate_Regions(mask: tp.List[tp.List[int]], cv2: tp.Any,
+                        np: tp.Any) -> tp.List[tp.Tuple[int, int, int, int]]:
+    """
+    Description:
+        Padded connected-component boxes of the change mask, ordered left to right —
+        the candidate regions that prompt the segmenter (stage 2). Specks below
+        CONST_SEG_MIN_AREA_FRAC are dropped; each surviving box is padded by
+        CONST_SEG_REGION_PAD_FRAC of its size and clamped to the frame.
+
+    Args:
+        (1) mask [Matrix<uint8> HxW]: The (dilated) change mask.
+        (2) cv2 [module]: The OpenCV module, injected by the caller.
+        (3) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [Vector<Tuple<int> 1x4>]: Candidate boxes as (x1, y1, x2, y2).
+    """
+
+    h, w = mask.shape
+    area_total = float(h * w)
+    count, _, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+
+    regions = []
+    for i in range(1, count):  # 0 is the background component
+        x, y, bw, bh, area = stats[i]
+        if (area / area_total) < CONST_SEG_MIN_AREA_FRAC:
+            continue
+        pad = int(CONST_SEG_REGION_PAD_FRAC * max(bw, bh))
+        x1, y1 = max(0, int(x) - pad), max(0, int(y) - pad)
+        x2, y2 = min(w, int(x + bw) + pad), min(h, int(y + bh) + pad)
+        regions.append((x1, y1, x2, y2))
+
+    regions.sort(key=lambda b: b[0])  # left to right (the index contract)
+    return regions
 
 
 def Find_Objects(mask: tp.List[tp.List[int]], cv2: tp.Any, np: tp.Any) -> tp.List[tp.Tuple[int, int, int, int]]:
