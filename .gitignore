@@ -13,3 +13,7 @@ env/
 # Model weights — the app loads Florence-2 from models/florence2-large-ft/
 # (~GBs, MIT-licensed upstream). Fetched separately, never committed.
 models/
+
+# Vision example outputs — Example/Vision/analyze.py writes result.png, crops and
+# summary.json here; the inputs (background.png, scene.png) are committed, outputs are not.
+Data/Vision/Output/

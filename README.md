@@ -35,6 +35,19 @@ Upstream source: <https://huggingface.co/microsoft/Florence-2-large-ft>. See
 `models/.gitkeep` for the expected directory contents and alternative fetch
 methods (git-lfs).
 
+The vision pipeline's segmentation stage also loads a local **FastSAM-x** model
+from `models/sam-1/FastSAM-x.pt` (~140 MB), likewise **not** tracked in git.
+Fetch it with ultralytics and move it into place:
+
+```bash
+python -c "from ultralytics import FastSAM; FastSAM('FastSAM-x.pt')"
+mkdir -p models/sam-1 && mv FastSAM-x.pt models/sam-1/
+```
+
+Upstream: <https://docs.ultralytics.com/models/fast-sam/>. `ultralytics` is in
+`requirements.txt`; like Florence-2, the window and the tests run without the
+weights and report an actionable message when a missing one is first used.
+
 ## Run
 
 ```bash

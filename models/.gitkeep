@@ -28,3 +28,32 @@ Or with git-lfs:
     git lfs install
     git clone https://huggingface.co/microsoft/Florence-2-large-ft \
         models/florence2-large-ft
+
+
+FastSAM instance-segmentation weights — not tracked in git
+==========================================================
+
+The vision pipeline's stage 2 loads FastSAM-x from:
+
+    models/sam-1/FastSAM-x.pt
+
+Expected contents: the single ~140 MB FastSAM-x.pt checkpoint.
+
+Upstream source
+---------------
+Ultralytics FastSAM (AGPL-3.0 for the code; the weights are the published
+FastSAM-x release):
+
+    https://docs.ultralytics.com/models/fast-sam/
+
+How to fetch
+------------
+Let ultralytics resolve and download the correct release, then move it into place
+(version-robust — no pinned URL to rot):
+
+    python -c "from ultralytics import FastSAM; FastSAM('FastSAM-x.pt')"
+    mkdir -p models/sam-1 && mv FastSAM-x.pt models/sam-1/
+
+The pipeline resolves this path from Vision/Segmenter.py the same way the
+Florence-2 path is resolved (CONST_SEGMENTER_WEIGHTS); override it per run with
+Example/Vision/analyze.py --weights.
