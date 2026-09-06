@@ -110,8 +110,8 @@ App/
     anyscan-mark.png        the AI mark shown in the empty viewport
     icon.png / icon.ico     window icon; multi-size Windows icon
     fonts/                  optional: drop Inter.ttf and JetBrainsMono.ttf here
-src/                      the project libraries (Basler, Calibration, …)
-Example/                  runnable camera scripts (record, scan, calibrate)
+src/                      Qt-free domain modules + the UI (see "Source layout")
+Example/                  runnable scripts (scan, calibrate, the vision harness)
 Data/                     runtime INPUT consumed by the app — committed
   Camera/                   the reference background and calibration-result images
     Image_Background_001.png  the empty-surface reference ANALYZE subtracts
@@ -127,6 +127,35 @@ images `Example/Camera/calibrate.py` writes, and all of it is tracked. Only
 
 If a logo file is missing the console prints its filename in that slot rather
 than silently leaving a gap, so a broken asset path is visible immediately.
+
+## Source layout — the app and the shared library
+
+`src/` holds two things a fresh reader should not conflate.
+
+**The AnyScan application** — everything the console at `App/run.py` actually runs:
+
+- `Camera/` — the camera backends (`Camera_Backend_Cls`, `File_Camera_Cls`,
+  `Basler_Camera_Cls`) plus the low-level pypylon driver `Camera/Basler.py`.
+- `Vision/` — the Florence-2 backend (`Vision/Core.py`) and its segmentation /
+  caption utilities.
+- `Reporting/` — the report composer, the panel's one voice.
+- `UI/` — the widgets, the window, the threaded workers and the style helpers.
+- `Parameters/Vision.py` — the app's data structures (`Detection_Str`, `Analysis_Str`).
+
+These are the Qt-free domain modules plus the Qt UI; `App/run.py` imports only
+these, and the domain half imports with PyQt5 unavailable (a tested contract).
+
+**A shared robotics library** — inherited, reused, and **not** touched by the
+application; reached only from `Example/`:
+
+- `Transformation/` — homogeneous transforms, Euler angles, quaternions.
+- `Calibration/` — checkerboard camera calibration.
+- `Parameters/Scene.py` — the Basler camera / lighting scene presets.
+
+`Example/Camera/scan.py` and `calibrate.py` use both halves — they drive the real
+camera and calibrate it — but the app itself never imports `Transformation/`,
+`Calibration/` or `Parameters/Scene.py`. That is why those modules are held to a
+lighter style touch than the app.
 
 ## Packaging for Windows
 
