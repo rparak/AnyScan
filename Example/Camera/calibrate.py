@@ -79,8 +79,8 @@ def main():
     Basler_Cam_Id_1 = Basler_Cls(config=custom_cfg)
 
     # Capture a single image.
-    img_raw = Basler_Cam_Id_1.Capture()
-    if img_raw is None:
+    image_raw = Basler_Cam_Id_1.Capture()
+    if image_raw is None:
         raise ValueError('[ERROR] No image captured!')
 
     # Release the camera resources.
@@ -94,16 +94,16 @@ def main():
     Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls('real')
 
     # Apply the image processing pipeline.
-    img_raw_processed = Process_Image_Cls.Apply(img_raw)
+    image_raw_processed = Process_Image_Cls.Apply(image_raw)
 
     # Function to adjust the contrast and brightness parameters of the input image
     # by clipping the histogram.
-    (alpha_custom, beta_custom) = Camera.Utilities.Image_Processing.Get_Alpha_Beta_Parameters(img_raw_processed, 1.0)
+    (alpha_custom, beta_custom) = Camera.Utilities.Image_Processing.Get_Alpha_Beta_Parameters(image_raw_processed, 1.0)
 
     # Adjust the contrast and brightness of the image using the alpha and beta parameters.
     #   Equation:
     #       g(i, j) = alpha * f(i, j) + beta
-    image_out = cv2.convertScaleAbs(img_raw_processed, alpha=alpha_custom, beta=beta_custom)
+    image_out = cv2.convertScaleAbs(image_raw_processed, alpha=alpha_custom, beta=beta_custom)
 
     # Initialize the checkerboard calibration class with checkerboard dimensions and square size (in mm).
     Checkerboard_Calib_Cls = Calibration.Core.Checkerboard_Calibration_Cls(inner_corners=(11, 8), square_size=12.0)
