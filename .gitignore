@@ -14,6 +14,11 @@ env/
 # (~GBs, MIT-licensed upstream). Fetched separately, never committed.
 models/
 
-# Vision example outputs — Example/Vision/analyze.py writes result.png, crops and
-# summary.json here; the inputs (background.png, scene.png) are committed, outputs are not.
-Data/Vision/Output/
+# Vision analysis outputs — Example/Vision/analyze.py writes the per-image annotated
+# image, label mask and descriptions here; the inputs (Image_00*.png and the
+# Image_Background_*.png reference) are committed, the regenerated outputs are not.
+Data/Camera/Results/
+
+# Session logs — one plain-text file per application run, written by Logger/Core.py.
+# A per-run artifact, never committed.
+logger/

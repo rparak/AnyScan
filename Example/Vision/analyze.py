@@ -60,16 +60,16 @@ Description:
     End-to-end demonstration of the four-stage FastSAM pipeline: read a background
     and a scene, run background subtraction -> FastSAM segmentation -> mask filtering
     -> description, and write an annotated result, a change-mask debug view, per-object
-    crops / masks / descriptions and a summary.json. With no input images (or
-    --synthesize) it generates a background and a scene with known shapes and a soft
-    cast shadow, so it runs straight after checkout and shadow rejection is exercised.
+    crops / masks / descriptions and a summary.json. A real (reference, scene) image
+    pair is required (see --input-dir / --background); the script fails with a clear
+    message if none is found.
 
     CONST_* below are the defaults; the flags override them (see main).
 """
 # Committed inputs live here; outputs are written here (git-ignored) by default.
 #   Unit [string]
-CONST_INPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Vision')
-CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Vision', 'Output')
+CONST_INPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera')
+CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Results')
 
 # A filename containing one of these marks the reference (empty-surface) image; the
 # other image in the directory is the scene.
@@ -77,63 +77,10 @@ CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Vision', 'Output'
 CONST_REFERENCE_MARKERS = ('background', 'reference', 'empty', 'bg')
 CONST_IMAGE_EXTS = ('.png', '.jpg', '.jpeg')
 
-# The synthetic pair (BGR): a flat green surface, four well-separated high-contrast
-# shapes, and a soft hue-preserving cast shadow that must NOT be detected.
-#   Unit [Vector<int> 1x2] / [Vector<tuple>]
-CONST_SYNTH_SIZE = (1200, 900)                       # (width, height)
-CONST_SYNTH_SURFACE = (70, 150, 70)                  # the green surface (BGR)
-# Four well-separated, high-contrast shapes — one per corner — so everything-mode
-# returns one clean mask each (a flat mid-grey is deliberately avoided; see the
-# grey-box open question in KNOWN_ISSUES).
-CONST_SYNTH_SHAPES = (
-    ('rect', (120, 120, 360, 360), (40, 190, 225)),  # yellow plate, top-left
-    ('circle', (940, 250, 120), (50, 50, 210)),      # red disc, top-right
-    ('rect', (150, 560, 400, 800), (205, 90, 40)),   # blue block, bottom-left
-    ('rect', (850, 560, 1090, 800), (40, 130, 235)), # orange block, bottom-right
-)
-# The cast shadow sits in open green at the centre, touching no shape, so it tests
-# stage-1 rejection without creating an edge artifact against a part.
-CONST_SYNTH_SHADOW = (600, 450, 130, 65)             # cast shadow ellipse (cx, cy, ax, ay)
-CONST_SYNTH_SHADOW_ALPHA = 0.40                      # shadow darkness (hue preserved)
-
 # Box / label colours for the annotated result, one per object index (BGR).
 #   Unit [Vector<tuple>]
 CONST_RESULT_COLORS = ((230, 70, 200), (70, 200, 230), (120, 220, 120),
                        (80, 130, 240), (210, 160, 70), (170, 120, 230))
-
-
-def _Synthesize() -> tp.Tuple[tp.Any, tp.Any]:
-    """
-    Description:
-        Build the synthetic (background, scene) pair: a flat green surface, and the
-        same surface with CONST_SYNTH_SHAPES painted on it plus a soft cast shadow
-        (the green darkened, hue preserved), so stage 1 must reject the shadow.
-
-    Returns:
-        (1) parameter [Tuple]: (background BGR, scene BGR), same size.
-    """
-
-    w, h = CONST_SYNTH_SIZE
-    background = np.zeros((h, w, 3), dtype=np.uint8)
-    background[:] = CONST_SYNTH_SURFACE
-    scene = background.copy()
-
-    for kind, geometry, color in CONST_SYNTH_SHAPES:
-        if kind == 'rect':
-            x1, y1, x2, y2 = geometry
-            cv2.rectangle(scene, (x1, y1), (x2, y2), color, thickness=-1)
-        elif kind == 'circle':
-            cx, cy, radius = geometry
-            cv2.circle(scene, (cx, cy), radius, color, thickness=-1)
-
-    # A soft cast shadow: darken the green under an ellipse, keeping its hue, so it
-    # clears no colour-distance test but the ratio-spread shadow guard rejects it.
-    shadow_layer = scene.copy()
-    cx, cy, ax, ay = CONST_SYNTH_SHADOW
-    cv2.ellipse(shadow_layer, (cx, cy), (ax, ay), 0, 0, 360, (0, 0, 0), thickness=-1)
-    scene = cv2.addWeighted(scene, 1.0 - CONST_SYNTH_SHADOW_ALPHA,
-                            shadow_layer, CONST_SYNTH_SHADOW_ALPHA, 0.0)
-    return background, scene
 
 
 def _Discover_Images(input_dir: str, background_override: tp.Optional[str]) -> tp.Optional[tp.Tuple[str, str]]:
@@ -142,7 +89,7 @@ def _Discover_Images(input_dir: str, background_override: tp.Optional[str]) -> t
         Find the reference and scene image paths in a directory. The reference is the
         file whose name carries a CONST_REFERENCE_MARKERS mark (or the explicit
         override); the scene is the first other image. Returns None when the directory
-        has no usable pair, so the caller falls back to synthesis.
+        has no usable pair, so the caller fails with a clear message.
 
     Args:
         (1) input_dir [string]: The directory to search.
@@ -306,10 +253,10 @@ def _Configure(args: argparse.Namespace) -> None:
 def main() -> int:
     """
     Description:
-        Parse the arguments, obtain the (reference, scene) pair (from --input-dir or
-        by synthesis), run the four-stage pipeline, write the outputs, and report. The
-        exit code is non-zero when weights are missing or fewer than --expect-objects
-        are found, so the script gates a CI check.
+        Parse the arguments, obtain the (reference, scene) pair from --input-dir (or
+        --background), run the four-stage pipeline, write the outputs, and report. The
+        exit code is non-zero when the pair is missing/unreadable, the weights are
+        missing, or fewer than --expect-objects are found, so the script gates a CI check.
 
     Returns:
         (1) parameter [int]: The process exit code (0 on success).
@@ -323,32 +270,32 @@ def main() -> int:
     parser.add_argument('--device', default=None, help="compute device: 'cpu', 'cuda', 'mps' or 'auto'")
     parser.add_argument('--no-describe', action='store_true', help='use the model-free fallback describer (no VLM)')
     parser.add_argument('--expect-objects', type=int, default=0, help='exit non-zero if fewer than N objects are found')
-    parser.add_argument('--synthesize', action='store_true', help='generate a synthetic shapes-and-shadow pair')
     parser.add_argument('--verbose', action='store_true', help='print per-object coverage and score')
     args = parser.parse_args()
 
     _Configure(args)
 
-    # Obtain the pair: synthesized on request or when no input pair is found.
-    discovered = None if args.synthesize else _Discover_Images(args.input_dir, args.background)
+    # Obtain the (reference, scene) pair from the input directory. A real pair is
+    # required; there is no synthetic fallback.
+    discovered = _Discover_Images(args.input_dir, args.background)
     if discovered is None:
-        print('[INFO] No input pair found; synthesizing a shapes-and-shadow scene.')
-        reference_bgr, scene_bgr = _Synthesize()
-        os.makedirs(args.output_dir, exist_ok=True)
-        reference_path = os.path.join(args.output_dir, 'synth_background.png')
-        cv2.imwrite(reference_path, reference_bgr)
-        cv2.imwrite(os.path.join(args.output_dir, 'synth_scene.png'), scene_bgr)
-    else:
-        reference_path, scene_path = discovered
-        print('[INFO] Reference: %s' % reference_path)
-        print('[INFO] Scene    : %s' % scene_path)
-        reference_bgr = cv2.imread(reference_path)
-        scene_bgr = cv2.imread(scene_path)
-        if reference_bgr is None or scene_bgr is None:
-            _Banner('INPUT IMAGE UNREADABLE',
-                    ['One of the input images could not be read as an image.',
-                     'Reference: %s' % reference_path, 'Scene: %s' % scene_path])
-            return 1
+        _Banner('NO INPUT IMAGE PAIR FOUND',
+                ['A real (reference, scene) image pair is required.',
+                 'Searched: %s' % os.path.abspath(args.input_dir),
+                 'Provide a reference image (name containing one of: %s)'
+                 % ', '.join(CONST_REFERENCE_MARKERS),
+                 'and a scene image in --input-dir, or pass --background explicitly.'])
+        return 1
+    reference_path, scene_path = discovered
+    print('[INFO] Reference: %s' % reference_path)
+    print('[INFO] Scene    : %s' % scene_path)
+    reference_bgr = cv2.imread(reference_path)
+    scene_bgr = cv2.imread(scene_path)
+    if reference_bgr is None or scene_bgr is None:
+        _Banner('INPUT IMAGE UNREADABLE',
+                ['One of the input images could not be read as an image.',
+                 'Reference: %s' % reference_path, 'Scene: %s' % scene_path])
+        return 1
 
     # The pipeline differences the scene against CONST_BACKGROUND_REF, so point it at
     # this run's reference (the same mechanism the app's --background flag uses).
@@ -373,7 +320,7 @@ def main() -> int:
     objects = result.Objects
     metadata = {
         'reference': os.path.abspath(reference_path),
-        'scene': 'synthesized' if discovered is None else os.path.abspath(scene_path),
+        'scene': os.path.abspath(scene_path),
         'device': Vision_Core.CONST_VISION_DEVICE,
         'segmenter_prompt_mode': Vision_Segmenter.CONST_SEGMENTER_PROMPT_MODE,
         'describer': Vision_Core.CONST_DESCRIBER,
