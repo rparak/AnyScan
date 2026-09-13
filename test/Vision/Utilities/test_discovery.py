@@ -59,10 +59,11 @@ def __Touch(directory: str, *names: str) -> None:
 def test_scene_glob_orders_naturally_and_tolerates_a_gap(tmp_path) -> None:
     """
     Description:
-        The scene glob finds the Image_00X frames in natural order, tolerates the
+        The scene glob finds the Image_<n> frames in natural order, tolerates the
         missing Image_001, and excludes both the empty-surface reference and any
-        stray file — the glob-not-a-range contract. Image_010 is intentionally out
-        of the CONST_SCENE_GLOB range (Image_00* covers 001..009) and is dropped.
+        stray file — the glob-not-a-range contract. Image_010 is included and sorts
+        after Image_008 (natural, not lexicographic, order), the guard against
+        silently skipping a two-digit frame.
     """
 
     __Touch(str(tmp_path), 'Image_002.png', 'Image_010.png', 'Image_008.png',
@@ -70,9 +71,9 @@ def test_scene_glob_orders_naturally_and_tolerates_a_gap(tmp_path) -> None:
 
     scenes = [os.path.basename(path) for path in Discovery.Discover_Scenes(str(tmp_path))]
 
-    # The reference, the stray file and the out-of-range Image_010 are all excluded;
-    # the missing Image_001 is simply absent, not an error.
-    assert scenes == ['Image_002.png', 'Image_003.png', 'Image_008.png']
+    # The reference and the stray file are excluded; Image_010 is kept and ordered
+    # after Image_008; the missing Image_001 is simply absent, not an error.
+    assert scenes == ['Image_002.png', 'Image_003.png', 'Image_008.png', 'Image_010.png']
 
 
 def test_scene_glob_empty_directory_returns_empty(tmp_path) -> None:

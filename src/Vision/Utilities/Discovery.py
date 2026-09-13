@@ -45,11 +45,13 @@ Description:
         paths, it does not read pixels, so App/run.py can import it at load time
         and the tests exercise it with synthetic files and no camera.
 """
-# The scene-frame glob. Image_001.png … Image_009.png are the scene captures; the
-# empty-surface reference is excluded by CONST_BACKGROUND_GLOB below, so the two
-# patterns never overlap ('Image_Background_*' does not begin 'Image_0').
+# The scene-frame glob. Image_<n>.png (any number of digits) are the scene
+# captures, so Image_010 and beyond are found rather than silently skipped. The
+# empty-surface reference is excluded because the digit class requires a digit
+# straight after 'Image_', which 'Image_Background_*' never has, so the two
+# patterns never overlap.
 #   Unit [string]
-CONST_SCENE_GLOB = 'Image_00*.png'
+CONST_SCENE_GLOB = 'Image_[0-9]*.png'
 
 # The empty-surface reference glob. Several may be present (one per re-shoot of the
 # empty table); Select_Background picks between them by the documented rule.
