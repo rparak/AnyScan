@@ -34,9 +34,11 @@ from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
 from Reporting.Core import Compose, Verdict, CONST_EMPTY_SCENE_EXPLANATION
 #   ../Vision/Utilities/Segmentation
-from Vision.Utilities.Segmentation import Build_Mask
-#   ../Vision/Utilities/Mask_Filter
-from Vision.Utilities.Mask_Filter import Filter_Masks, Padded_Bbox, Crop, Masked_Crop
+from Vision.Utilities.Segmentation import Background_Foreground
+#   ../Vision/Utilities/Fusion
+from Vision.Utilities.Fusion import Fuse_Objects
+#   ../Vision/Utilities/Enhancement
+from Vision.Utilities.Enhancement import Padded_Bbox, Crop, Enhance_Crop, CONST_ENHANCE_CLIP_LIMIT
 #   ../Vision/Segmenter
 from Vision.Segmenter import Fast_Sam_Cls
 #   ../Vision/Describe_Fallback
@@ -51,23 +53,27 @@ Description:
     The vision pipeline — four stages, one module each (see the flow diagram on
     Florence_Vision_Cls):
 
-        (1) background subtraction   Vision.Utilities.Segmentation.Build_Mask
-                                         -> change mask + candidate regions
+        (1) background subtraction   Vision.Utilities.Segmentation.Background_Foreground
+                                         -> the background-subtracted foreground mask
         (2) instance segmentation    Vision.Segmenter.Fast_Sam_Cls.Segment
                                          -> per-instance masks + confidences
-        (3) mask filtering           Vision.Utilities.Mask_Filter.Filter_Masks
-                                         -> the objects, left to right
+        (3) fusion                   Vision.Utilities.Fusion.Fuse_Objects
+                                         -> FastSAM union OR background mask, split
+                                            into the objects, left to right
         (4) description              Vision.Utilities.Caption.Describe or
                                      Vision.Describe_Fallback.Describe_Fallback
-                                         -> a label + sentence per object
+                                         -> a label + sentence per object, from the
+                                            alpha/beta-enhanced padded crop
                 -> Compose  the numbered lines the panel renders
 
-    Every analysis differences the frame against a reference background (stage 1),
-    so a reference capture must exist; there is no background-free detection path
-    (see KNOWN_ISSUES for the removed <REGION_PROPOSAL> fallback). Masks and boxes
-    are in full-frame pixels, so there is no crop-to-frame remap to get wrong. The
-    segmenter's score lives in Detection_Str.Segmenter_Score; Confidence stays None
-    (see KNOWN_ISSUES) and the verdict handles unscored objects.
+    The two cues are FUSED, not gated: an object survives if EITHER the FastSAM masks
+    or the background-subtracted mask sees it (stage 3), so a part FastSAM misses is
+    kept by the difference and a dark part the difference barely sees is kept by
+    FastSAM. Every analysis differences the frame against a reference background
+    (stage 1), so a reference capture must exist. Masks and boxes are in full-frame
+    pixels, so there is no crop-to-frame remap to get wrong. Each object records the
+    cue(s) that located it in Detection_Str.Cue; Confidence stays None (see
+    KNOWN_ISSUES) and the verdict handles unscored objects.
 
     Note:
         This module is Qt-free. Analyze accepts an RGB image as a NumPy array; the
@@ -101,10 +107,6 @@ CONST_VISION_TASK_LABEL = 'detailed caption'
 # the model-free describer (size / position / aspect / solidity / HSV colour), which
 # lets stages 1-3 run and be judged without loading a VLM.
 CONST_DESCRIBER = 'florence'
-
-# Feed the mask-flattened crop to the describer by default, so it stops narrating a
-# neighbour that shares the bounding box. Set False for the raw padded crop.
-CONST_USE_MASKED_CROP = True
 
 # The model name presented to the operator. The weights are Florence-2, MIT
 # licensed — keep Microsoft's notice with the project.
@@ -175,41 +177,41 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
           current frame (RGB)  +  reference background
                    |  (RGB -> BGR)
                    v
-          (1) background subtraction ......... Segmentation.Build_Mask
-                   |  returns TWO outputs:
-                   |    - change mask ...... skips stage 2; feeds stage 3's
-                   |                         coverage gate (below)
-                   |    - candidate regions  prompt FastSAM only in 'box'
-                   |                         mode; the default 'everything'
-                   |                         mode ignores them
+          (1) background subtraction ......... Segmentation.Background_Foreground
+                   |  the background-subtracted foreground mask
+                   |  (absdiff -> blur -> floored Otsu -> open -> dilate);
+                   |  one of the two cues fused in stage 3
                    v
           (2) FastSAM segmentation ........... Segmenter.Fast_Sam_Cls
-                   |
+                   |  everything-mode; the other fused cue
                    v
               object masks + segmenter scores
                    |
                    v
-          (3) mask filtering ................. Mask_Filter.Filter_Masks
-                   |  scores each mask's overlap with the stage-1 CHANGE
-                   |  MASK (coverage gate), rejects by area/border,
-                   |  suppresses part/whole (NMS), orders left-to-right
+          (3) fusion ......................... Fusion.Fuse_Objects
+                   |  FastSAM union (background-like masks dropped)
+                   |  OR the background mask -> close -> connected
+                   |  components -> area filter -> left-to-right.
+                   |  An object survives on EITHER cue; each records
+                   |  the cue(s) that found it
                    v
-              objects: mask + tight bbox (+ coverage, score)
+              objects: component mask + tight bbox (+ cue, coverage, score)
                    |
                    v
           (4) description .................... Caption.Describe  OR
-                   |  padded MASKED crop by default     Describe_Fallback
-                   |  (raw if CONST_USE_MASKED_CROP      (per CONST_DESCRIBER;
-                   |  is False) feeds Florence-2;        the fallback reads
-                   |                                     mask + bbox directly)
+                   |  the alpha/beta-enhanced padded      Describe_Fallback
+                   |  crop (estimated from object         (per CONST_DESCRIBER;
+                   |  pixels, applied to the whole        the fallback reads
+                   |  crop) feeds Florence-2;             mask + bbox directly)
                    v
               Compose -> summary + per-object sentences + verdict
                    |
                    v
               Analysis_Str
 
-        Every analysis needs a reference background (stage 1); there is no
-        background-free path. Each stage lives in its own module so the heavy
+        The two cues are fused, not gated: an object survives if EITHER stage 1 or
+        stage 2 sees it. Every analysis needs a reference background (stage 1); there
+        is no background-free path. Each stage lives in its own module so the heavy
         imports (ultralytics, torch) stay behind their lazy loaders and this class
         reads as the flow.
 
@@ -402,24 +404,26 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         frame_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
         # ---- Stage 1 - background subtraction (Vision.Utilities.Segmentation) ----
-        # The change mask and the candidate regions. Pure cv2/np differencing, shared
-        # with the characterization harness, so it lives in Segmentation, not here.
+        # The background-subtracted foreground mask: one of the two cues fused in
+        # stage 3. Pure cv2/np differencing, so it lives in Segmentation, not here.
         bg_bgr = self.__Load_Background(cv2, frame_bgr.shape)
-        change_mask, regions = Build_Mask(bg_bgr, frame_bgr, cv2, np)
+        background_fg = Background_Foreground(bg_bgr, frame_bgr, cv2, np)
 
         # ---- Stage 2 - instance segmentation (Vision.Segmenter) ----
-        # FastSAM behind the Segmenter_Backend_Cls seam. In its own module so the lazy
-        # ultralytics import keeps a bare Core import Qt-free and cheap; regions prompt it.
-        masks, scores = self.__segmenter.Segment(frame_bgr, regions, stage_cb)
+        # FastSAM in everything-mode behind the Segmenter_Backend_Cls seam: the other
+        # fused cue. In its own module so the lazy ultralytics import keeps a bare Core
+        # import Qt-free and cheap. No region prompts — everything-mode separates parts.
+        masks, scores = self.__segmenter.Segment(frame_bgr, [], stage_cb)
 
-        # ---- Stage 3 - mask filtering (Vision.Utilities.Mask_Filter) ----
-        # Which masks are objects: the change-coverage gate, area/border rejection,
-        # part/whole NMS, and the explicit left-to-right index order.
-        objects = Filter_Masks(masks, scores, change_mask, cv2, np)
+        # ---- Stage 3 - fusion (Vision.Utilities.Fusion) ----
+        # The objects: the FastSAM union OR the background mask, closed, split into
+        # connected components, area-filtered and ordered left to right. An object
+        # survives on EITHER cue; each records the cue(s) that located it.
+        objects = Fuse_Objects(masks, scores, background_fg, cv2, np)
 
         # ---- Stage 4 - description (Vision.Utilities.Caption / Vision.Describe_Fallback) ----
-        # One caption per object, from the masked crop by default so a neighbour that
-        # shares the bounding box is not narrated with it.
+        # One caption per object, from the alpha/beta-enhanced padded crop (natural
+        # surroundings kept; the stretch is estimated from the object's own pixels).
         self.__Describe_Objects(objects, frame_bgr, progress_cb, stage_cb)
 
         return self.__Compose_Result(objects, size, t0)
@@ -428,13 +432,16 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
                            progress_cb: tp.Optional[tp.Callable], stage_cb: tp.Optional[tp.Callable]) -> None:
         """
         Description:
-            Stage 4 for the FastSAM path: fill each survivor's Label and Detail from
-            its crop. The masked crop is fed by default (CONST_USE_MASKED_CROP) so a
-            neighbour sharing the box is flattened out; the describer is Florence-2 or
-            the model-free fallback (CONST_DESCRIBER).
+            Stage 4: fill each object's Label and Detail from its crop. The padded
+            crop is contrast/brightness-stretched (the gain/bias estimated from the
+            object's own pixels, applied to the whole crop so the natural surroundings
+            are kept) and the stretched crop is fed to the describer — Florence-2 or
+            the model-free fallback (CONST_DESCRIBER). The stretched crop is retained
+            on the object (Enhanced_Crop) so the debug montage shows exactly what the
+            model received, without re-enhancing it.
 
         Args:
-            (1) objects [Vector<Detection_Str(object)>]: The stage-3 survivors (mutated).
+            (1) objects [Vector<Detection_Str(object)>]: The stage-3 objects (mutated).
             (2) frame_bgr [Matrix<uint8> HxWx3]: The frame (BGR).
             (3) progress_cb [function]: Optional (done, total) progress hook.
             (4) stage_cb [function]: Optional (text) phase hook.
@@ -448,15 +455,19 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         for i, det in enumerate(objects):
             if progress_cb:
                 progress_cb(i, total)
+            # The padded crop, and the object's mask within it, so the stretch is
+            # estimated from object pixels only but applied to the whole crop.
             padded = Padded_Bbox(det.Bbox, frame_bgr.shape)
-            crop = (Masked_Crop(frame_bgr, det.Mask, padded, np) if CONST_USE_MASKED_CROP
-                    else Crop(frame_bgr, padded))
+            crop = Crop(frame_bgr, padded)
+            mask_crop = Crop(det.Mask, padded)
+            enhanced = Enhance_Crop(crop, mask_crop, CONST_ENHANCE_CLIP_LIMIT, cv2, np)
+            det.Enhanced_Crop = enhanced
             if CONST_DESCRIBER == 'fallback':
                 det.Label, det.Detail = Describe_Fallback(
                     frame_bgr, det.Mask, det.Bbox, frame_bgr.shape, cv2, np)
             else:
                 det.Detail = Describe(self.__model, self.__processor, self.__device,
-                                      self.__dtype, crop, cv2, np, self.__torch, self.__pil)
+                                      self.__dtype, enhanced, cv2, np, self.__torch, self.__pil)
                 det.Label = Condense_Label(det.Detail)
         if progress_cb:
             progress_cb(total, total)

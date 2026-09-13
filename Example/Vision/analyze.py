@@ -49,7 +49,7 @@ from Vision.Core import Florence_Vision_Cls, Vision_Error_Cls
 import Vision.Segmenter as Vision_Segmenter
 from Vision.Segmenter import Segmenter_Error_Cls
 #   ../Vision/Utilities/Segmentation
-from Vision.Utilities.Segmentation import Build_Mask
+from Vision.Utilities.Segmentation import Background_Foreground
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -301,9 +301,12 @@ def main() -> int:
     # this run's reference (the same mechanism the app's --background flag uses).
     Vision_Core.CONST_BACKGROUND_REF = os.path.abspath(reference_path)
 
-    # Stage 1 again here, only to draw the change-mask debug view; Analyze runs its
-    # own copy internally. Cheap and deterministic, so the two agree.
-    change_mask, regions = Build_Mask(reference_bgr, scene_bgr, cv2, np)
+    # Stage 1 again here, only to draw the background-foreground debug view; Analyze
+    # runs its own copy internally. Cheap and deterministic, so the two agree. The
+    # mask is 0/1; scale to 0/255 for the grayscale debug image. (The full harness
+    # rework — glob discovery and the three §1c artefacts — lands in a later phase.)
+    change_mask = Background_Foreground(reference_bgr, scene_bgr, cv2, np) * 255
+    regions = []
 
     scene_rgb = cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB)
     print('[INFO] Running the pipeline (describer=%s, segmenter=%s)...'

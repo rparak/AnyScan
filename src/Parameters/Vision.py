@@ -28,7 +28,6 @@ import typing as tp
 # Dataclasses (Data Classes)
 from dataclasses import dataclass, field
 
-
 @dataclass
 class Detection_Str(object):
     """
@@ -89,7 +88,17 @@ class Detection_Str(object):
     # not emit. See KNOWN_ISSUES.md, 'Verdict confidence branch is dormant'.
     #   Unit [float]
     Segmenter_Score: tp.Optional[float] = None
-
+    # Which of the two fused cues located this object: 'fastsam' (the segmenter only),
+    # 'background' (background subtraction only) or 'both'. Set by the fusion stage;
+    # it is what the validation harness reports per-cue and never affects the reading.
+    #   Unit [string]
+    Cue: str = ''
+    # The alpha/beta-stretched padded crop that was fed to the describer (BGR), kept
+    # only so the debug montage can tile exactly what the model received — not
+    # re-enhanced downstream. Excluded from repr and equality: it is a large array,
+    # and two detections are equal on their described fields, not on pixels.
+    #   Unit [Matrix<uint8> hxwx3]
+    Enhanced_Crop: tp.Optional[tp.Any] = field(default=None, repr=False, compare=False)
 
 @dataclass
 class Analysis_Str(object):

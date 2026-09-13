@@ -56,7 +56,7 @@ from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
 import Reporting.Core as Reporting
 #   ../Vision/Utilities/Segmentation
-from Vision.Utilities.Segmentation import Build_Mask
+from Vision.Utilities.Segmentation import Background_Foreground
 #   ../Vision/Utilities/Caption
 from Vision.Utilities.Caption import Condense_Label
 
@@ -144,12 +144,12 @@ def _Characterize_Segmentation(bg: np.ndarray, fg: np.ndarray, frame_label: str)
         and return a deterministic textual summary: the foreground pixel count
         and every object box found.
 
-        Build_Mask differences the frame against the reference and returns the
-        change mask together with the padded connected-component candidate regions —
-        the deterministic stage-1 output that now prompts the segmenter (stage 2).
-        The OpenCV region filtering (Find_Objects) it used to characterize is gone;
-        the FastSAM/mask-filter stages need weights and are not part of this
-        hermetic harness. Pure numpy/OpenCV, no model.
+        Background_Foreground differences the frame against the reference and returns
+        the background-subtracted foreground mask — the deterministic stage-1 output
+        that is one of the two cues the fusion stage combines. The FastSAM/fusion
+        stages need weights and are not part of this hermetic harness, so this
+        characterizes the mask alone: its foreground pixel count and the connected
+        components it splits into. Pure numpy/OpenCV, no model.
 
     Args:
         (1) bg [Matrix<uint8> HxWx3]: The empty-surface background reference (BGR).
@@ -161,10 +161,20 @@ def _Characterize_Segmentation(bg: np.ndarray, fg: np.ndarray, frame_label: str)
     """
 
     lines = [f'  frame = {frame_label}']
-    mask, regions = Build_Mask(bg, fg, cv2, np)
+    mask = Background_Foreground(bg, fg, cv2, np)
     lines.append(f'  foreground pixels = {int(np.count_nonzero(mask))}')
-    lines.append(f'  candidate regions = {len(regions)}')
-    lines.extend(_Format_Boxes(regions))
+
+    # The connected components of the foreground mask, above a small speck area, as
+    # deterministic boxes — the objects the difference alone can already separate.
+    count, _, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8) * 255,
+                                                          connectivity=8)
+    boxes = [(int(stats[i, cv2.CC_STAT_LEFT]), int(stats[i, cv2.CC_STAT_TOP]),
+              int(stats[i, cv2.CC_STAT_LEFT] + stats[i, cv2.CC_STAT_WIDTH]),
+              int(stats[i, cv2.CC_STAT_TOP] + stats[i, cv2.CC_STAT_HEIGHT]))
+             for i in range(1, count) if stats[i, cv2.CC_STAT_AREA] >= 50]
+    boxes.sort()
+    lines.append(f'  foreground components = {len(boxes)}')
+    lines.extend(_Format_Boxes(boxes))
     return lines
 
 

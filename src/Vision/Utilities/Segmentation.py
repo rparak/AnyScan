@@ -30,10 +30,12 @@ import typing as tp
 Description:
     Initialization of constants.
 
-    Background-subtraction segmentation: find the foreground objects in a frame by
-    differencing it against an empty-surface reference. Areas are fractions of the
-    frame. This module holds the segmentation tunables; Vision.Core imports the
-    caps it shares (max-area, max-objects) from here.
+    Stage 1 of the pipeline: the background-subtracted foreground mask. The absolute
+    difference between the frame and the empty-surface reference marks the object
+    pixels; it is one of the two cues fused in stage 3 (the other being FastSAM), so
+    an object survives if EITHER cue sees it. This module holds only the
+    background-subtraction chain and its tunables; the fusion, the background-like
+    rejection and the connected-component splitting live in Vision.Utilities.Fusion.
 
     Note:
         OpenCV (cv2) and NumPy (np) are passed in to every function rather than
@@ -42,49 +44,38 @@ Description:
         without it. The caller — which has already loaded cv2/np by the time an
         analysis runs — injects them.
 """
-# Segmentation works in COLOUR distance, not brightness: on the green surface a
-# grey screw is close to the green in luminance but far from it in colour, so a
-# brightness threshold drops dark parts while a colour threshold keeps them.
-# Distance is Euclidean over the three 0..255 channels, so it runs 0..441.
-CONST_SEG_COLOR_DIST = 40           # min colour distance to count a pixel as foreground
-CONST_SEG_STRONG_DIST = 90          # colour distance that is an object regardless of hue
-CONST_SEG_SHADOW_TOLERANCE = 0.18   # min per-channel ratio spread; rejects hue-preserving shadow
-CONST_SEG_BLUR = 5                  # Gaussian blur kernel before differencing
-CONST_SEG_MORPH_KERNEL = 7          # ellipse kernel for open/close
-CONST_SEG_OPEN_ITERS = 1
-CONST_SEG_CLOSE_ITERS = 3
-CONST_SEG_MIN_AREA_FRAC = 0.001     # ignore specks smaller than this
-CONST_SEG_MASK_DILATE_KERNEL = 5    # ellipse kernel growing the final change mask
-                                    # slightly, so stage-3 coverage is not starved at
-                                    # thin object edges (see Build_Mask)
-CONST_SEG_REGION_PAD_FRAC = 0.08    # candidate-region margin (fraction of box size)
-                                    # around each change component before it prompts
-                                    # the segmenter (stage 2)
+# Gaussian blur kernel applied to the difference image, to erase sensor noise
+# before thresholding. Odd, as OpenCV requires.
+CONST_BG_BLUR = 5
+# Minimum grayscale difference that counts as foreground. Otsu picks the split
+# automatically, but on a near-empty frame it can land absurdly low and promote the
+# faint shadow halo / sensor noise to foreground; this floor keeps those out.
+CONST_BG_DIFF_FLOOR = 28
+# Opening kernel that erases the thin shadow halo and speckle left around a part
+# after thresholding (a hue-preserving cast shadow that survived the difference).
+CONST_BG_OPEN_KERNEL = 5
+# Small dilation after the opening, so object edges eroded by the opening are
+# recovered before the mask is fused. 0 disables it.
+CONST_BG_DILATE = 3
 
 
-def Build_Mask(bg: tp.List[tp.List[float]], fg: tp.List[tp.List[float]],
-               cv2: tp.Any, np: tp.Any) -> tp.Tuple[tp.List[tp.List[int]], tp.List[tp.Tuple[int, int, int, int]]]:
+def Background_Foreground(bg: tp.List[tp.List[int]], fg: tp.List[tp.List[int]],
+                          cv2: tp.Any, np: tp.Any) -> tp.List[tp.List[int]]:
     """
     Description:
-        Foreground change mask AND the candidate regions it implies, from the frame
-        and the empty-surface reference. Both are returned because stages downstream
-        need each: the regions prompt the segmenter (stage 2), and the mask is what
-        stage 3 scores each returned mask's overlap against — do not collapse them.
+        The background-subtracted foreground mask: a uint8 {0, 1} mask where 1 marks
+        a pixel that differs from the empty-surface reference (an object pixel).
 
-        Colour distance, not brightness, is the primary test. On the green surface
-        a grey or black screw sits close to the green in luminance — a brightness
-        threshold silently drops it — yet far from the green in COLOUR, because the
-        green channel alone falls sharply. A bright washer is far in every channel.
-        Both therefore clear a colour-distance threshold.
+        The chain is the absolute difference against the reference, a Gaussian blur
+        to erase sensor noise, an Otsu threshold floored at CONST_BG_DIFF_FLOOR so a
+        faint shadow is not promoted to foreground, a morphological opening that
+        removes the thin shadow halo and speckle, and a small dilation that recovers
+        the object edges the opening ate. It is illumination-robust and independent
+        of the segmenter: it is the second cue stage 3 fuses with the FastSAM masks,
+        so a part FastSAM misses still survives if the difference sees it.
 
-        A large distance is an object outright. A moderate distance is an object
-        only if the hue also changed (the per-channel ratio spread), which rejects
-        the soft shadow a part casts on the surface: a shadow darkens the green but
-        keeps its hue, so its channel ratios stay roughly constant.
-
-        The returned mask is dilated slightly. Stage 3 measures how much of each
-        segmenter mask overlaps it; an under-grown mask penalises a good mask for
-        the segmenter's own edge slop, so a small margin is deliberate.
+        The reference must already match the frame's pixel dimensions; the caller
+        resizes it once (see Vision.Core.__Load_Background).
 
     Args:
         (1) bg [Matrix<uint8> HxWx3]: The empty-surface background reference (BGR).
@@ -93,75 +84,26 @@ def Build_Mask(bg: tp.List[tp.List[float]], fg: tp.List[tp.List[float]],
         (4) np [module]: The NumPy module, injected by the caller.
 
     Returns:
-        (1) parameter [Tuple]: (mask as Matrix<uint8> HxW of 0 or 255, candidate
-                               regions as a Vector<Tuple<int> 1x4> of (x1, y1, x2, y2)
-                               boxes ordered left to right).
+        (1) parameter [Matrix<uint8> HxW]: The foreground mask (0 or 1).
     """
 
-    blur = (CONST_SEG_BLUR, CONST_SEG_BLUR)
-    bg_b = cv2.GaussianBlur(bg, blur, 0).astype(np.float32) + 1.0
-    fg_b = cv2.GaussianBlur(fg, blur, 0).astype(np.float32) + 1.0
+    diff = cv2.absdiff(fg, bg)
+    diff = cv2.GaussianBlur(diff, (CONST_BG_BLUR, CONST_BG_BLUR), 0)
+    gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
 
-    diff = fg_b - bg_b
-    dist = np.sqrt((diff * diff).sum(axis=2))       # Euclidean colour distance
+    # Otsu picks the split automatically; the floor keeps a faint shadow out when
+    # Otsu (on a near-empty frame) lands below it.
+    otsu, _ = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    thresh = max(float(otsu), float(CONST_BG_DIFF_FLOOR))
+    mask = (gray >= thresh).astype(np.uint8)
 
-    ratio = fg_b / bg_b
-    spread = ratio.max(axis=2) - ratio.min(axis=2)  # hue change; ~0 under shadow
-
-    strong = dist > CONST_SEG_STRONG_DIST           # unmistakable object, any hue
-    subtle = (dist > CONST_SEG_COLOR_DIST) & (spread > CONST_SEG_SHADOW_TOLERANCE)
-    mask = ((strong | subtle).astype(np.uint8)) * 255
-
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
-                                       (CONST_SEG_MORPH_KERNEL, CONST_SEG_MORPH_KERNEL))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=CONST_SEG_OPEN_ITERS)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=CONST_SEG_CLOSE_ITERS)
-
-    # Fill interior holes: washers and nuts are rings whose centre shows
-    # background and would otherwise split into two components.
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    filled = np.zeros_like(mask)
-    cv2.drawContours(filled, contours, -1, 255, thickness=cv2.FILLED)
-
-    # Grow the change mask slightly (see the docstring: stage-3 coverage).
-    dilate_kernel = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE, (CONST_SEG_MASK_DILATE_KERNEL, CONST_SEG_MASK_DILATE_KERNEL))
-    mask_final = cv2.dilate(filled, dilate_kernel)
-
-    return mask_final, __Candidate_Regions(mask_final, cv2, np)
-
-
-def __Candidate_Regions(mask: tp.List[tp.List[int]], cv2: tp.Any,
-                        np: tp.Any) -> tp.List[tp.Tuple[int, int, int, int]]:
-    """
-    Description:
-        Padded connected-component boxes of the change mask, ordered left to right —
-        the candidate regions that prompt the segmenter (stage 2). Specks below
-        CONST_SEG_MIN_AREA_FRAC are dropped; each surviving box is padded by
-        CONST_SEG_REGION_PAD_FRAC of its size and clamped to the frame.
-
-    Args:
-        (1) mask [Matrix<uint8> HxW]: The (dilated) change mask.
-        (2) cv2 [module]: The OpenCV module, injected by the caller.
-        (3) np [module]: The NumPy module, injected by the caller.
-
-    Returns:
-        (1) parameter [Vector<Tuple<int> 1x4>]: Candidate boxes as (x1, y1, x2, y2).
-    """
-
-    h, w = mask.shape
-    area_total = float(h * w)
-    count, _, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-
-    regions = []
-    for i in range(1, count):  # 0 is the background component
-        x, y, bw, bh, area = stats[i]
-        if (area / area_total) < CONST_SEG_MIN_AREA_FRAC:
-            continue
-        pad = int(CONST_SEG_REGION_PAD_FRAC * max(bw, bh))
-        x1, y1 = max(0, int(x) - pad), max(0, int(y) - pad)
-        x2, y2 = min(w, int(x + bw) + pad), min(h, int(y + bh) + pad)
-        regions.append((x1, y1, x2, y2))
-
-    regions.sort(key=lambda b: b[0])  # left to right (the index contract)
-    return regions
+    # Remove the thin shadow halo / speckle, then grow slightly to recover the object
+    # edges eroded by the opening.
+    open_kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE, (CONST_BG_OPEN_KERNEL, CONST_BG_OPEN_KERNEL))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, open_kernel)
+    if CONST_BG_DILATE > 0:
+        dilate_kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (CONST_BG_DILATE, CONST_BG_DILATE))
+        mask = cv2.dilate(mask, dilate_kernel)
+    return mask

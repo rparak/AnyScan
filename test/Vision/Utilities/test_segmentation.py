@@ -27,63 +27,102 @@
 import cv2
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
-# Custom Lib.: AnyScan domain — segmentation
+# Custom Lib.: AnyScan domain — background-subtraction (stage 1)
 #   ../Vision/Utilities/Segmentation
 import Vision.Utilities.Segmentation as Segmentation
 
 """
 Description:
-    Tests for background-subtraction segmentation. They run on the committed 001
-    reference and synthetic frames built from it, so no camera and no weights are
-    needed. cv2 and np are injected, as the module and the pipeline expect.
+    Tests for the stage-1 background-subtracted foreground mask (Background_Foreground).
+    They run on small synthetic (background, frame) pairs built in the test, so the
+    absdiff -> floored-Otsu -> opening -> dilation chain is exercised deterministically
+    with no camera and no weights. cv2 and np are injected, as the module and the
+    pipeline expect.
 """
 
-# Two well-separated rectangles to paint onto the reference (x1, y1, x2, y2).
-CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 
-
-def test_identical_frame_finds_no_objects(reference_background) -> None:
+def test_identical_frame_finds_no_foreground() -> None:
     """
     Description:
-        Differencing the reference against itself yields an empty mask and no
-        candidate regions — the guard that an empty surface reads as empty.
+        Differencing a flat background against itself yields an empty mask — the
+        guard that an unchanged surface reads as empty.
     """
 
-    mask, regions = Segmentation.Build_Mask(reference_background, reference_background, cv2, np)
+    bg = np.full((200, 200, 3), 100, np.uint8)
+    mask = Segmentation.Background_Foreground(bg, bg.copy(), cv2, np)
+    assert mask.shape == (200, 200)
     assert int(np.count_nonzero(mask)) == 0
-    assert regions == []
 
 
-def test_synthetic_frame_finds_ordered_regions(reference_background, make_synthetic_frame) -> None:
+def test_known_difference_marks_the_object() -> None:
     """
     Description:
-        Two drawn rectangles come back as two candidate regions, ordered left to
-        right, each padded box enclosing the rectangle it was drawn from — the
-        index contract the segmenter is then prompted with.
+        A bright block painted on a flat background comes back as foreground: the
+        block interior is marked, the far background is not, and the mask is a {0, 1}
+        uint8 mask.
     """
 
-    frame = make_synthetic_frame(reference_background, CONST_RECTS)
-    mask, regions = Segmentation.Build_Mask(reference_background, frame, cv2, np)
+    bg = np.full((200, 200, 3), 100, np.uint8)
+    fg = bg.copy()
+    fg[70:130, 70:130] = 200
+    mask = Segmentation.Background_Foreground(bg, fg, cv2, np)
 
-    assert len(regions) == 2
-    # Left-to-right order.
-    assert regions[0][0] < regions[1][0]
-    # Each padded region encloses the rectangle it came from (the region is grown
-    # by CONST_SEG_REGION_PAD_FRAC, so it sits outside the drawn edges).
-    for region, drawn in zip(regions, CONST_RECTS):
-        rx1, ry1, rx2, ry2 = region
-        dx1, dy1, dx2, dy2 = drawn
-        assert rx1 <= dx1 and ry1 <= dy1
-        assert rx2 >= dx2 and ry2 >= dy2
+    assert mask.dtype == np.uint8 and int(mask.max()) == 1
+    assert float(mask[80:120, 80:120].mean()) > 0.95   # block interior is foreground
+    assert int(mask[10, 10]) == 0                       # far background is not
+
+
+def test_opening_removes_a_thin_halo() -> None:
+    """
+    Description:
+        The morphological opening erases a thin structure (a shadow halo is thin)
+        while a solid block of the same contrast survives — so a 1-pixel line all but
+        vanishes and a filled block does not.
+    """
+
+    bg = np.full((200, 200, 3), 100, np.uint8)
+
+    solid = bg.copy()
+    solid[70:130, 70:130] = 200
+    solid_mask = Segmentation.Background_Foreground(bg, solid, cv2, np)
+
+    thin = bg.copy()
+    thin[100, 40:160] = 200            # a 1-pixel-tall line of the same contrast
+    thin_mask = Segmentation.Background_Foreground(bg, thin, cv2, np)
+
+    assert int(np.count_nonzero(solid_mask)) > 2000     # the block survives
+    assert int(np.count_nonzero(thin_mask)) < 200       # the thin line is opened away
+
+
+def test_diff_floor_rejects_a_faint_change() -> None:
+    """
+    Description:
+        A change fainter than CONST_BG_DIFF_FLOOR is rejected even though Otsu, on a
+        near-empty frame, would threshold below it — while a strong change of the same
+        shape is kept. This is the floor keeping a faint shadow out of the foreground.
+    """
+
+    bg = np.full((200, 200, 3), 100, np.uint8)
+
+    faint = bg.copy()
+    faint[70:130, 70:130] = 100 + (Segmentation.CONST_BG_DIFF_FLOOR // 2)   # below the floor
+    faint_mask = Segmentation.Background_Foreground(bg, faint, cv2, np)
+
+    strong = bg.copy()
+    strong[70:130, 70:130] = 200                                           # well above it
+    strong_mask = Segmentation.Background_Foreground(bg, strong, cv2, np)
+
+    assert int(np.count_nonzero(faint_mask)) == 0       # floored out
+    assert int(np.count_nonzero(strong_mask)) > 2000    # kept
 
 
 def test_module_is_qt_free() -> None:
     """
     Description:
-        Segmentation imports no Qt and no heavy runtime — cv2/np are injected.
+        Segmentation imports no Qt and no heavy runtime — cv2/np are injected. The
+        module must import with only stdlib present.
     """
 
     source = open(Segmentation.__file__).read()
-    assert 'PyQt' not in source
-    assert '\nimport cv2' not in source
-    assert '\nimport torch' not in source
+    assert 'import PyQt' not in source and 'from PyQt' not in source
+    assert 'import cv2' not in source and 'import numpy' not in source

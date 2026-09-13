@@ -72,6 +72,12 @@ def Get_Alpha_Beta_Parameters(image: tp.List[tp.List[int]], clip_limit: float) -
         if c_hist_i >= (c_hist_max - clip_limit_mod):
             max_value -= 1
 
+    # Guard against a degenerate (flat) histogram: with no spread to stretch, the
+    # clip collapses max_value onto/under min_value, and dividing by it would give a
+    # nonsensical negative gain. Return the identity transform (no change) instead.
+    if max_value <= min_value:
+        return (1.0, 0.0)
+
     # Express the alpha and beta parameters.
     #   Gain (contrast) parameter.
     alpha = 255 / (max_value - min_value)
@@ -83,16 +89,14 @@ def Get_Alpha_Beta_Parameters(image: tp.List[tp.List[int]], clip_limit: float) -
 class Process_Image_Cls:
     """
     Description:
-        A class for processing images based on the type ('synthetic' or 'real').
+        A class for processing real camera frames.
 
         Note:
-            Includes methods for adding Gaussian noise, adjusting colour style, and
-            applying Gaussian blur.
+            Includes methods for adjusting colour style and applying Gaussian blur.
 
     Initialization of the Class:
         Args:
-            (1) image_type [string]: Type of the image to process. Must be either
-                                     'synthetic' or 'real'.
+            (1) image_type [string]: Type of the image to process. Must be 'real'.
 
         Example:
             Initialization:
@@ -105,26 +109,9 @@ class Process_Image_Cls:
     """
 
     def __init__(self, image_type: str) -> None:
-        if image_type not in ['synthetic', 'real']:
-            raise ValueError("[ERROR] Image type must be 'synthetic' or 'real'.")
+        if image_type != 'real':
+            raise ValueError("[ERROR] Image type must be 'real'.")
         self.__image_type = image_type
-
-    def __Noise(self, image: np.ndarray, std_dev: float = 5.0) -> np.ndarray:
-        """
-        Description:
-            Adds Gaussian noise to an image to simulate sensor noise in synthetic data.
-
-        Args:
-            (1) image [np.ndarray]: Input image in uint8 format.
-            (2) std_dev [float]: Standard deviation of the Gaussian noise.
-
-        Returns:
-            (1) parameter [np.ndarray]: Output image with added noise.
-        """
-
-        random_noise = np.random.normal(0, std_dev, image.shape).astype(np.int16)
-        noisy_img = image.astype(np.int16) + random_noise
-        return np.clip(noisy_img, 0, 255).astype(np.uint8)
 
     def __Color_Style(self, image: np.ndarray, alpha: float = 0.95, beta: int = 5) -> np.ndarray:
         """
@@ -162,7 +149,8 @@ class Process_Image_Cls:
     def Apply(self, image: np.ndarray) -> np.ndarray:
         """
         Description:
-            Applies the image processing pipeline based on image type.
+            Applies the real-frame image processing pipeline: a light Gaussian blur
+            followed by a brightness/contrast colour adjustment.
 
         Args:
             (1) image [np.ndarray]: Input image in uint8 format.
@@ -172,15 +160,5 @@ class Process_Image_Cls:
         """
 
         image_tmp = image.copy()
-
-        if self.__image_type == 'synthetic':
-            noisy_img = self.__Noise(image_tmp, std_dev=5.0)
-            blurred_img = self.__Blur(noisy_img, kernel_size=(3, 3), sigma=0.5)
-            styled_img = self.__Color_Style(blurred_img, alpha=0.95, beta=1)
-            return self.__Blur(styled_img, kernel_size=(3, 3), sigma=1.0)
-        elif self.__image_type == 'real':
-            blurred_img = self.__Blur(image_tmp, kernel_size=(3, 3), sigma=0.5)
-            return self.__Color_Style(blurred_img, alpha=0.95, beta=1)
-
-
-    
+        blurred_img = self.__Blur(image_tmp, kernel_size=(3, 3), sigma=0.5)
+        return self.__Color_Style(blurred_img, alpha=0.95, beta=1)

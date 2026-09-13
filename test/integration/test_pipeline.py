@@ -180,8 +180,8 @@ def test_shadow_abutting_part_over_segments_known_defect(request, monkeypatch) -
     # import stays cheap and does not pull the runtime.
     import cv2
     import numpy as np
-    from Vision.Utilities.Segmentation import Build_Mask
-    from Vision.Utilities.Mask_Filter import Filter_Masks
+    from Vision.Utilities.Segmentation import Background_Foreground
+    from Vision.Utilities.Fusion import Fuse_Objects
     from Vision.Segmenter import Fast_Sam_Cls
 
     # Two objects 10 px apart (they touch after morphology), with a soft cast shadow
@@ -196,9 +196,9 @@ def test_shadow_abutting_part_over_segments_known_defect(request, monkeypatch) -
     cv2.ellipse(shadow_layer, (515, 560), (200, 80), 0, 0, 360, (0, 0, 0), thickness=-1)
     scene = cv2.addWeighted(scene, 0.6, shadow_layer, 0.4, 0.0)
 
-    change_mask, regions = Build_Mask(bg, scene, cv2, np)
-    masks, scores = Fast_Sam_Cls(device='cpu').Segment(scene, regions)
-    objects = Filter_Masks(masks, scores, change_mask, cv2, np)
+    background_fg = Background_Foreground(bg, scene, cv2, np)
+    masks, scores = Fast_Sam_Cls(device='cpu').Segment(scene, [])
+    objects = Fuse_Objects(masks, scores, background_fg, cv2, np)
 
     # There are exactly two real objects. The shadow-edge slivers push the count
     # above two (measured: four). KNOWN DEFECT — see the docstring: a failure here
