@@ -155,37 +155,75 @@ def test_pipeline_real_florence_smoke(request, reference_background, make_synthe
 
 
 @pytest.mark.slow
-def test_shadow_abutting_part_over_segments_known_defect(request, monkeypatch) -> None:
+def test_shadow_rejected_on_real_capture(request, monkeypatch, reference_background_path) -> None:
     """
     Description:
-        KNOWN DEFECT, pinned on purpose (see KNOWN_ISSUES.md, 'A shadow abutting a
-        part over-segments into slivers'). Two objects with a cast shadow abutting
-        their lower edges: everything-mode segments the shadow boundary into thin
-        slivers that clear the change-coverage gate and evade the mask NMS, so MORE
-        than the two real objects are reported (four, as measured).
+        The real cast-shadow frame (Image_004): one two-hole plate with a soft shadow
+        along its lower edge. The fusion pipeline must report exactly ONE object whose
+        silhouette is a compact plate — the shadow rejected by the opening, not
+        absorbed into the component. Silhouette tightness is checked by rectangularity
+        (mask area / bbox area): a clean rotated plate with two holes measures ~0.88;
+        a shadow tail would extend the box and drop it well below the 0.80 bound.
 
-        This asserts the over-count so the behaviour is on record. It is NOT desired
-        behaviour: when the pipeline is fixed the count drops to two and this test
-        fails — that is the signal to UPDATE this test, not to relax the pipeline.
-        Slow because it runs FastSAM; skips with the loud banner when the weights are
-        absent, like the smoke above.
+        This is the real-capture counterpart to the KNOWN_ISSUES shadow entry: it
+        passes because the over-segmentation defect is fixed on real frames. Slow
+        because it runs FastSAM; skips when the weights or the frame are absent.
     """
 
     if not os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS):
         _Warn_Weights_Absent(request)
         return
+    frame_path = os.path.join(os.path.dirname(reference_background_path), 'Image_004.png')
+    if not os.path.isfile(frame_path):
+        pytest.skip('Image_004.png not present at %s' % frame_path)
 
+    import cv2
+    import numpy as np
     monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
-    # OpenCV / NumPy and the stage functions — imported here so a bare test-module
-    # import stays cheap and does not pull the runtime.
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # count/mask only, no VLM
+
+    scene_bgr = cv2.imread(frame_path)
+    result = Florence_Vision_Cls().Analyze(cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB))
+
+    assert len(result.Objects) == 1
+    det = result.Objects[0]
+    x, y, w, h = det.Bbox
+    rectangularity = int(np.count_nonzero(det.Mask)) / float(w * h)
+    assert rectangularity >= 0.80, 'silhouette is not a compact plate (%.2f) — shadow absorbed?' % rectangularity
+
+
+@pytest.mark.slow
+@pytest.mark.xfail(strict=True, reason='a shadow far darker/larger than any real capture is still '
+                                       'absorbed into the component; see KNOWN_ISSUES.md')
+def test_synthetic_harsh_shadow_not_absorbed_xfail(monkeypatch) -> None:
+    """
+    Description:
+        The open residual, pinned as a STRICT xfail. On a synthetic scene with a
+        shadow far harsher than any real capture — a large 40%-darkening ellipse the
+        5px opening cannot remove — the fusion absorbs the shadow into the object's
+        component, so the object's mask extends below the parts into the shadow band.
+
+        The assertion states the DESIRED behaviour (no object reaches into the shadow
+        band); it currently fails, which is why this is xfail. strict=True means the
+        day the pipeline stops absorbing the shadow, this test XPASSes and the suite
+        fails — the signal to promote it to a plain pass and close the KNOWN_ISSUES
+        entry. Uses pytest.skip (not an early return) when weights are absent, so a
+        skip is never mistaken for an unexpected pass.
+    """
+
+    if not os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS):
+        pytest.skip('FastSAM weights absent')
+
     import cv2
     import numpy as np
     from Vision.Utilities.Segmentation import Background_Foreground
     from Vision.Utilities.Fusion import Fuse_Objects
     from Vision.Segmenter import Fast_Sam_Cls
+    monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
 
-    # Two objects 10 px apart (they touch after morphology), with a soft cast shadow
-    # abutting their lower edges — the scene that produces the boundary slivers.
+    # Two objects 10 px apart (they merge after the closing), with a harsh cast
+    # shadow abutting their lower edges — the parts end at y=520, the shadow reaches
+    # to ~y=640.
     w, h = 1000, 800
     bg = np.zeros((h, w, 3), dtype=np.uint8)
     bg[:] = (70, 150, 70)
@@ -200,7 +238,7 @@ def test_shadow_abutting_part_over_segments_known_defect(request, monkeypatch) -
     masks, scores = Fast_Sam_Cls(device='cpu').Segment(scene, [])
     objects = Fuse_Objects(masks, scores, background_fg, cv2, np)
 
-    # There are exactly two real objects. The shadow-edge slivers push the count
-    # above two (measured: four). KNOWN DEFECT — see the docstring: a failure here
-    # (count == 2) means the defect was fixed; update the test, do not relax it.
-    assert len(objects) > 2
+    # Desired: no object's mask reaches past the parts (bottom edge y=520) into the
+    # shadow band. Currently one object extends to ~y=641, so this fails (xfail).
+    bottom = max((y + bh for (x, y, bw, bh) in (o.Bbox for o in objects)), default=0)
+    assert bottom <= 545

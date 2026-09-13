@@ -167,7 +167,7 @@ carry specular highlights and surface texture FastSAM may segment well.
 - **This is why the `analyze.py` synthetic demo uses four saturated colours.** The
   dark shapes were unreliable, so the demo was built from shapes FastSAM segments
   dependably. That makes the demo a clean end-to-end illustration — **not evidence
-  that the pipeline handles all parts**. A passing `--synthesize` run says the
+  that the pipeline handles all parts**. A passing demo run says the
   wiring works, not that a grey or black part would be found.
 - **Why it matters here:** grey / metallic and dark parts are exactly what this
   application inspects, so the answer cannot be assumed either way.
@@ -177,41 +177,37 @@ carry specular highlights and surface texture FastSAM may segment well.
   are missed, lower the segmenter confidence (`CONST_SEGMENTER_CONF`), try `'box'`
   mode for those, or revisit the segmenter choice; if they segment, close this note.
 
-## A shadow abutting a part over-segments into slivers
+## A very harsh cast shadow can be absorbed into a part's component
 
-When a cast shadow abuts an object's edge, the default `'everything'` segmenter
-emits an extra thin **sliver** mask along that edge which survives stage 3 — so a
-scene with N real objects can report more than N. This is a **worse** operator
-experience than the old OpenCV path, not merely different: reporting four objects
-where there are two is more misleading than merging two into one, and the blob
-path could not produce this error at all (it emitted a single coarse box).
+The over-segmentation this entry used to describe — a cast shadow's boundary
+surviving stage 3 as an extra sliver, so N parts reported as more than N — was a
+property of the old coverage-gate + mask-NMS filter. The fusion pipeline replaced
+that filter (see git history: the FastSAM-∪-background-subtraction port), and on
+**real captures the defect is gone**: `Image_004`'s soft cast shadow is stripped
+by the background-subtraction opening (`Segmentation.CONST_BG_OPEN_KERNEL`) and the
+plate comes back as a single, tight silhouette (rectangularity ~0.88, no shadow
+tail). Measured across all seven `Data/Camera` frames, the counts are exactly the
+inventory (15 objects, no over-count).
 
-Mechanism, precisely — all three conditions hold at once:
+What remains is the **opposite, narrower** failure, and only off real data: when a
+shadow is far darker and larger than any real capture — a 40%-darkening ellipse too
+big for the opening to erase — its absdiff clears `CONST_BG_DIFF_FLOOR`, and the
+fusion **absorbs** it into the object's component rather than rejecting it, so the
+mask extends past the part into the shadow band. This does not over-count (it stays
+one object), but the silhouette is no longer tight, and the enhanced crop fed to the
+describer would then contain a strip of table.
 
-- Everything-mode segments the **shadow boundary** — the darkened band where the
-  shadow meets the part — as a mask of its own, separate from the part body.
-- That sliver **clips enough of the part** (which is in the stage-1 change mask) to
-  clear the `Mask_Filter.CONST_FILTER_CHANGE_COVERAGE = 0.35` gate: its coverage is
-  low, but not below 0.35.
-- It overlaps the part **body** too little for the intersection-over-smaller NMS
-  (`CONST_FILTER_NMS_OVERLAP = 0.90`) to suppress it — most of the sliver lies below
-  the part, on the shadow, outside the body mask.
-
-Measured: two objects 10 px apart with a shadow abutting their lower edges — the
-two objects were separated correctly, but two shadow-edge slivers also survived,
-for **four** detections. An earlier isolated-shadow demo missed this entirely
-because the shadow sat in open green, away from any part, so no boundary mask
-formed. A shadow touching a part is the **normal case** in a real scene, not an
-edge case.
-
-- **Pinned by:** `test/integration/test_pipeline.py::test_shadow_abutting_part_over_segments_known_defect`
-  (slow; documents the defect and asserts the over-count — a failure there means the
-  defect was fixed, so update the test, do not relax it).
-- **Not fixed here:** this is a threshold-tuning problem, and every threshold in the
-  filter (the coverage gate, the NMS overlap, the area and border limits) is set
-  only against synthetic data. Tuning it against another synthetic scene would just
-  move the failure. It goes on the real-capture list with the coverage gate and the
-  dilation — set from real shadowed parts, not synthetic shapes.
+- **Fixed case, pinned by:** `test/integration/test_pipeline.py::test_shadow_rejected_on_real_capture`
+  (slow; `Image_004` → one object, rectangularity ≥ 0.80 — the real-capture case that now passes).
+- **Open case, pinned by:** `test/integration/test_pipeline.py::test_synthetic_harsh_shadow_not_absorbed_xfail`
+  (slow; `xfail(strict=True)`. It asserts the desired behaviour — no object reaches into
+  the shadow band — which currently fails. When the pipeline stops absorbing the harsh
+  shadow the test XPASSes and the suite fails: the signal to promote it to a plain pass
+  and delete this entry.)
+- **Not fixed here:** rejecting a shadow this harsh is a threshold problem, and the
+  background-subtraction thresholds are set against real captures, not a synthetic
+  scene darker than any real one. Tuning them against this scene would just move the
+  failure. It stays on the real-capture list.
 
 ## The no-reference-background detection path was removed
 
