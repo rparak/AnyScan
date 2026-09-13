@@ -155,6 +155,104 @@ class B_Cls(object):
 '''
 
 
+def _file_flags(source: str, relpath: str, tmp_path) -> list:
+    """Run check_file on `source` written at `relpath` under tmp_path, so the
+    pytest-module detection (which reads the path) sees a realistic location."""
+    target = tmp_path / relpath
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source, encoding="utf-8")
+    report = check_style.Report()
+    check_style.check_file(target, report)
+    return report.items
+
+
+# A pytest test function: name is test_*, the fixture param is unannotated, and the
+# docstring documents no Args. All three are the pytest convention, not RP slips.
+_PYTEST_TEST = '''
+def test_something(tmp_path) -> None:
+    """
+    Description:
+        A test.
+    """
+    assert tmp_path
+'''
+
+# A pytest hook: pytest calls it by this exact name.
+_PYTEST_HOOK = '''
+def pytest_configure(config) -> None:
+    """
+    Description:
+        A hook.
+    """
+    return None
+'''
+
+
+def test_pytest_test_function_clean_under_test_dir(tmp_path):
+    flags = _file_flags(_PYTEST_TEST, "test/Vision/test_x.py", tmp_path)
+    convention = [f for f in flags if "[naming]" in f or "[typing]" in f or "[docstring]" in f]
+    assert convention == []
+
+
+def test_pytest_hook_name_clean_under_test_dir(tmp_path):
+    flags = _file_flags(_PYTEST_HOOK, "test/conftest.py", tmp_path)
+    assert [f for f in flags if "[naming]" in f] == []
+
+
+def test_same_function_flagged_outside_test_dir(tmp_path):
+    # The identical source under src/ is NOT a test module, so the pytest
+    # convention does not apply and the flags fire — the relaxation is path-scoped.
+    flags = _file_flags(_PYTEST_TEST, "src/Vision/mod.py", tmp_path)
+    assert [f for f in flags if "[naming]" in f] != []
+
+
+# An exception class has no constructor to initialize, so it needs no
+# 'Initialization of the Class:' section.
+_EXCEPTION_CLASS = '''
+class Thing_Error_Cls(RuntimeError):
+    """
+    Description:
+        An error.
+    """
+'''
+
+# A behaviour class DOES need the Initialization section.
+_BEHAVIOUR_CLASS = '''
+class Thing_Cls(object):
+    """
+    Description:
+        A thing.
+    """
+'''
+
+
+def test_exception_class_needs_no_initialization_section(tmp_path):
+    flags = _file_flags(_EXCEPTION_CLASS, "src/Vision/err.py", tmp_path)
+    assert [f for f in flags if "Initialization of the Class:" in f] == []
+
+
+def test_behaviour_class_still_needs_initialization_section(tmp_path):
+    flags = _file_flags(_BEHAVIOUR_CLASS, "src/Vision/thing.py", tmp_path)
+    assert [f for f in flags if "Initialization of the Class:" in f] != []
+
+
+# A structural rule (mutable default) must still fire inside a test module: the
+# relaxation is scoped to the pytest naming/docstring/typing convention only.
+_TEST_WITH_MUTABLE_DEFAULT = '''
+def test_helper_reuse(values=[]) -> None:
+    """
+    Description:
+        A test whose helper takes a mutable default.
+    """
+    assert values == []
+'''
+
+
+def test_structural_rule_still_fires_in_test_dir(tmp_path):
+    flags = _file_flags(_TEST_WITH_MUTABLE_DEFAULT, "test/test_y.py", tmp_path)
+    assert [f for f in flags if "[mutable-default]" in f] != []
+
+
 def test_mangled_override_flagged():
     assert _mangling_flags(_MANGLED_OVERRIDE) != []
 
