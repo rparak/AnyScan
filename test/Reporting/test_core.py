@@ -274,3 +274,34 @@ def test_screen_understanding_assembly() -> None:
     # An empty background sentence just omits the lead; the count sentence still holds.
     assert Reporting.Screen_Understanding([_Line('A washer.')], '') == \
         'There is 1 object on it, described below.\n\nObj. 1 - A washer.'
+
+
+def test_background_sentence_validation() -> None:
+    """
+    Description:
+        The global background sentence keeps a single short caption but rejects an
+        empty, multi-sentence or over-long one for the fixed neutral fallback, with a
+        warning — so a Florence ramble never becomes the first line of the output.
+    """
+
+    # A clean single sentence is kept as-is, no warning.
+    kept, records = Reporting.Background_Sentence('a plain green surface')
+    assert kept == 'A plain green surface.'
+    assert records == []
+
+    # A multi-sentence ramble falls back, with a warning.
+    ramble = 'The image is a solid green color. The color is a shade of teal. It has no color.'
+    kept, records = Reporting.Background_Sentence(ramble)
+    assert kept == Reporting.CONST_BACKGROUND_FALLBACK
+    assert any(level == 'warning' for level, message in records)
+
+    # An over-long single sentence falls back too.
+    long_one = 'a ' * 30 + 'surface'
+    kept, records = Reporting.Background_Sentence(long_one)
+    assert kept == Reporting.CONST_BACKGROUND_FALLBACK
+    assert records and records[0][0] == 'warning'
+
+    # An empty caption falls back.
+    kept, records = Reporting.Background_Sentence('')
+    assert kept == Reporting.CONST_BACKGROUND_FALLBACK
+    assert records and records[0][0] == 'warning'

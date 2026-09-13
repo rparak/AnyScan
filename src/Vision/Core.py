@@ -26,13 +26,15 @@
 # System (Default)
 import os
 import time
+import hashlib
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures, composer, and vision utilities
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
-from Reporting.Core import Compose, Verdict, Caption_Sentence, CONST_EMPTY_SCENE_EXPLANATION
+from Reporting.Core import (Compose, Verdict, Background_Sentence,
+                            CONST_EMPTY_SCENE_EXPLANATION)
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import Background_Foreground
 #   ../Vision/Utilities/Fusion
@@ -107,6 +109,11 @@ CONST_VISION_TASK_LABEL = 'detailed caption'
 # background is described, so the dark vignette at the frame edge does not leak into
 # the description of the surface itself.
 CONST_BG_CROP_MARGIN = 0.12
+
+# The background is captioned with Florence's concise <CAPTION> task, not the detailed
+# object task: on a plain surface the detailed task confabulates a paragraph. See
+# Reporting.Background_Sentence, which validates the result and falls back if needed.
+CONST_BG_CAPTION_TASK = '<CAPTION>'
 
 # Who writes each object's caption. 'florence' is the Florence-2 VLM; 'fallback' is
 # the model-free describer (size / position / aspect / solidity / HSV colour), which
@@ -263,9 +270,11 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         self.__np = None
         self.__pil = None
         # Cached BGR reference array, and the one global background sentence derived
-        # from it (computed once, on the first Florence analysis).
+        # from it — cached against the reference image's content hash, so a new
+        # reference re-describes but the same reference never re-runs Florence.
         self.__background = None
         self.__background_sentence = None
+        self.__background_key = None
         # The stage-2 segmenter. Constructing it is cheap — ultralytics loads lazily
         # on the first Segment, so this keeps the window and the tests light.
         self.__segmenter = Fast_Sam_Cls()
@@ -382,36 +391,47 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             )
         return self.__background
 
-    def __Describe_Background(self, bg_bgr: tp.List[tp.List[int]]) -> str:
+    def __Describe_Background(self, bg_bgr: tp.List[tp.List[int]]) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
         """
         Description:
             The one global background sentence, generated from the reference frame
-            (not from any crop) and cached, so it is unaffected by what Florence
-            hallucinates inside individual object crops. The reference is centre-cropped
-            (CONST_BG_CROP_MARGIN) to skip the dark vignette, captioned once, and cleaned
-            into the panel's voice. Empty when the Florence model is not loaded (the
-            fallback describer writes no scene caption).
+            (not from any crop), so it is unaffected by what Florence hallucinates
+            inside individual object crops. The reference is centre-cropped
+            (CONST_BG_CROP_MARGIN) to skip the dark vignette and captioned with the
+            concise <CAPTION> task; Reporting.Background_Sentence cleans it and falls
+            back to a neutral string (recording a warning) when the caption is empty,
+            multi-sentence or too long.
+
+            The result is cached against the reference image's content hash: the same
+            reference never re-runs Florence, and a changed reference re-describes.
+            Returns an empty sentence and no records when the Florence model is not
+            loaded (the fallback describer writes no scene caption).
 
         Args:
             (1) bg_bgr [Matrix<uint8> HxWx3]: The empty-surface reference (BGR).
 
         Returns:
-            (1) parameter [string]: The background sentence, or '' when unavailable.
+            (1) parameter [Tuple]: (the background sentence, a Vector of (level,
+                                   message) audit records — a warning when the neutral
+                                   fallback was used, else empty).
         """
 
-        if self.__background_sentence is not None:
-            return self.__background_sentence
         if self.__model is None:
-            self.__background_sentence = ''
-            return ''
+            return '', []
+        key = hashlib.md5(bg_bgr.tobytes()).hexdigest()
+        if key == self.__background_key:
+            return self.__background_sentence, []
+
         cv2 = self.__cv2
         h, w = bg_bgr.shape[:2]
         margin = CONST_BG_CROP_MARGIN
         crop = bg_bgr[int(h * margin):int(h * (1 - margin)), int(w * margin):int(w * (1 - margin))]
         caption = Describe(self.__model, self.__processor, self.__device, self.__dtype,
-                           crop, cv2, self.__np, self.__torch, self.__pil)
-        self.__background_sentence = Caption_Sentence(caption)
-        return self.__background_sentence
+                           crop, cv2, self.__np, self.__torch, self.__pil,
+                           task=CONST_BG_CAPTION_TASK)
+        sentence, records = Background_Sentence(caption)
+        self.__background_key, self.__background_sentence = key, sentence
+        return sentence, records
 
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
                 stage_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
@@ -465,8 +485,9 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         self.__Describe_Objects(objects, frame_bgr, progress_cb, stage_cb)
 
         # The one global background sentence, from the reference (cached across frames).
-        background_sentence = self.__Describe_Background(bg_bgr)
-        return self.__Compose_Result(objects, size, t0, len(masks), background_sentence)
+        background_sentence, background_audit = self.__Describe_Background(bg_bgr)
+        return self.__Compose_Result(objects, size, t0, len(masks),
+                                     background_sentence, background_audit)
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            progress_cb: tp.Optional[tp.Callable], stage_cb: tp.Optional[tp.Callable]) -> None:
@@ -513,7 +534,8 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             progress_cb(total, total)
 
     def __Compose_Result(self, objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
-                         t0: float, raw_mask_count: int, background_sentence: str) -> Analysis_Str:
+                         t0: float, raw_mask_count: int, background_sentence: str,
+                         background_audit: tp.List[tp.Tuple[str, str]]) -> Analysis_Str:
         """
         Description:
             Compose the panel's reading from the described objects: the per-object
@@ -527,6 +549,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             (3) t0 [float]: The analysis start time (perf_counter).
             (4) raw_mask_count [int]: The raw segmenter mask count (a diagnostic).
             (5) background_sentence [string]: The one global background description.
+            (6) background_audit [Vector<Tuple<string> 1x2>]: The background-caption audit.
 
         Returns:
             (1) parameter [Analysis_Str(object)]: The finished scene reading.
@@ -539,4 +562,4 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         return Analysis_Str(Summary=summary, Objects=objects, Note=note,
                             Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
                             Task=CONST_VISION_TASK_LABEL, Raw_Mask_Count=raw_mask_count,
-                            Background=background_sentence, Audit=audit)
+                            Background=background_sentence, Audit=background_audit + audit)

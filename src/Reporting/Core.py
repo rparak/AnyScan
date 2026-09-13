@@ -137,6 +137,15 @@ CONST_BG_DANGLE = re.compile(
 CONST_SUBSTANCE_WORDS = re.compile(r'\b(wood|woods|wooden|cardboard|paper)\b', re.IGNORECASE)
 CONST_SUBSTANCE_REPLACEMENT = 'metal'
 
+# ---- The global background sentence -------------------------------------------- #
+# The background is captioned with Florence's concise <CAPTION> task (not the
+# paragraph <MORE_DETAILED_CAPTION> the objects use): on a plain surface the detailed
+# task has nothing to work with and confabulates. Even <CAPTION> can misfire, so a
+# caption that is empty, runs to more than one sentence, or exceeds this many words is
+# rejected for a fixed neutral string rather than written into the file as a ramble.
+CONST_BACKGROUND_MAX_WORDS = 20
+CONST_BACKGROUND_FALLBACK = 'The background is a plain surface.'
+
 
 def Count_Word(n: int) -> str:
     """
@@ -392,6 +401,33 @@ def Object_Description(det: Detection_Str) -> tp.Tuple[str, tp.List[tp.Tuple[str
     if det.Text:
         sentence = sentence.rstrip('.') + ', reading “%s”.' % det.Text
     return sentence, audit
+
+
+def Background_Sentence(caption: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
+    """
+    Description:
+        The one global background sentence, from the reference caption. Florence's
+        concise <CAPTION> is expected to return a single short sentence; a caption that
+        is empty, multi-sentence, or longer than CONST_BACKGROUND_MAX_WORDS is rejected
+        for the fixed neutral CONST_BACKGROUND_FALLBACK and a warning is recorded,
+        rather than writing a paragraph of confabulation as the first line.
+
+    Args:
+        (1) caption [string]: The reference frame's raw caption.
+
+    Returns:
+        (1) parameter [Tuple]: (the background sentence, a Vector of (level, message)
+                               audit records — a single warning when the fallback is used).
+    """
+
+    sentence = Caption_Sentence(caption)
+    words = len(sentence.split())
+    count = len([part for part in re.split(r'[.!?]+', sentence) if part.strip()])
+    if (not sentence) or count > 1 or words > CONST_BACKGROUND_MAX_WORDS:
+        return CONST_BACKGROUND_FALLBACK, [('warning',
+                "background caption unusable (%d words, %d sentence(s)); used the neutral "
+                "fallback instead of: '%s'" % (words, count, ' '.join(caption.split())))]
+    return sentence, []
 
 
 def Describe_Object(det: Detection_Str, size: tp.Tuple[int, int]) -> str:

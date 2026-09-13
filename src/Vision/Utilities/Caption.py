@@ -64,14 +64,15 @@ CONST_MIN_CROP_SIDE = 224
 
 def Describe(model: tp.Any, processor: tp.Any, device: tp.Any, dtype: tp.Any,
              crop_bgr: tp.List[tp.List[float]], cv2: tp.Any, np: tp.Any, torch: tp.Any,
-             PILImage: tp.Any) -> str:
+             pil_image: tp.Any, task: str = CONST_VISION_TASK) -> str:
     """
     Description:
         One Florence-2 caption pass on a single crop; returns the raw caption.
 
         The model, processor, device/dtype and the runtime modules are injected by
         the caller (which has already loaded them), so this module imports no heavy
-        runtime of its own.
+        runtime of its own. The task defaults to the detailed object caption; the
+        caller passes the concise <CAPTION> for the one-off background description.
 
     Args:
         (1) model [object]: The loaded Florence-2 model.
@@ -82,22 +83,23 @@ def Describe(model: tp.Any, processor: tp.Any, device: tp.Any, dtype: tp.Any,
         (6) cv2 [module]: The OpenCV module, injected.
         (7) np [module]: The NumPy module, injected.
         (8) torch [module]: The torch module, injected.
-        (9) PILImage [module]: PIL.Image, injected.
+        (9) pil_image [module]: PIL.Image, injected.
+        (10) task [string]: The Florence task token (default CONST_VISION_TASK).
 
     Returns:
         (1) parameter [string]: The model's raw caption for the crop.
     """
 
-    pil = PILImage.fromarray(cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB))
+    pil = pil_image.fromarray(cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB))
 
     # Tiny crops upscale poorly through the processor's own resize; give it
     # something reasonable to work with.
     if min(pil.size) < CONST_MIN_CROP_SIDE:
         scale = CONST_MIN_CROP_SIDE / min(pil.size)
         pil = pil.resize((int(pil.width * scale), int(pil.height * scale)),
-                         PILImage.LANCZOS)
+                         pil_image.LANCZOS)
 
-    inputs = processor(text=CONST_VISION_TASK, images=pil, return_tensors='pt')
+    inputs = processor(text=task, images=pil, return_tensors='pt')
     inputs = {k: (v.to(device, dtype) if v.is_floating_point() else v.to(device))
               for k, v in inputs.items()}
 
@@ -108,7 +110,7 @@ def Describe(model: tp.Any, processor: tp.Any, device: tp.Any, dtype: tp.Any,
     # task tokens that True would strip, or structured output silently vanishes.
     raw = processor.batch_decode(ids, skip_special_tokens=False)[0]
     parsed = processor.post_process_generation(
-        raw, task=CONST_VISION_TASK, image_size=pil.size)[CONST_VISION_TASK]
+        raw, task=task, image_size=pil.size)[task]
 
     if isinstance(parsed, str):
         return parsed.strip()
