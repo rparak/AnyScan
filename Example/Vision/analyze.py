@@ -49,6 +49,8 @@ import Vision.Segmenter as Vision_Segmenter
 from Vision.Segmenter import Segmenter_Error_Cls
 #   ../Vision/Utilities/Discovery
 from Vision.Utilities.Discovery import Discover_Scenes, Select_Background, Discovery_Error_Cls
+#   ../Reporting/Core
+from Reporting.Core import Screen_Understanding
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 
@@ -189,27 +191,21 @@ def _Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, 
     return mask_image
 
 
-def _Write_Descriptions(path: str, objects: tp.List[Detection_Str]) -> None:
+def _Write_Descriptions(path: str, result: Analysis_Str) -> None:
     """
     Description:
-        Write one line per object — the model's caption — to a descriptions file. This
-        is the pre-formatting view of the text (the Screen-Understanding format with a
-        single background line and the object count, plus the tightened
-        background-stripping, is a later step); here the raw caption is written so it
-        can be judged before the stripping is tuned.
+        Write the Screen-Understanding text — the background stated once on the first
+        line with the object count, then one background-stripped line per object — via
+        the SAME Reporting.Screen_Understanding the application panel renders from, so
+        the file and the view can never drift apart.
 
     Args:
         (1) path [string]: The descriptions file path.
-        (2) objects [Vector<Detection_Str(object)>]: The described objects, in order.
+        (2) result [Analysis_Str(object)]: The finished analysis.
     """
 
-    if objects:
-        lines = ['Obj. %d - %s' % (i + 1, det.Detail or det.Label)
-                 for i, det in enumerate(objects)]
-    else:
-        lines = ['No objects were detected on it.']
     with open(path, 'w') as handle:
-        handle.write('\n'.join(lines) + '\n')
+        handle.write(Screen_Understanding(result.Objects, result.Background) + '\n')
 
 
 def _Montage(enhanced_crops: tp.List[tp.Any], cols: int = 3) -> tp.Optional[tp.Any]:
@@ -330,7 +326,7 @@ def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: st
                 _Draw_Annotated(scene_bgr, result.Objects))
     cv2.imwrite(os.path.join(output_dir, '%s_mask.png' % stem),
                 _Draw_Label_Mask(result.Objects, scene_bgr.shape))
-    _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result.Objects)
+    _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result)
     if write_montage:
         montage = _Montage([det.Enhanced_Crop for det in result.Objects])
         if montage is not None:
@@ -398,8 +394,14 @@ def main() -> int:
         rows.append((stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms))
         print('[INFO] %s: %d object(s)  raw FastSAM=%d  cues=%s  (%d ms)'
               % (stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms))
+        if result.Background:
+            print('[INFO]     background = %s' % result.Background)
         for i, det in enumerate(result.Objects, 1):
-            print('[INFO]     Obj. %d [%s] - %s' % (i, det.Cue, det.Detail or det.Label))
+            print('[INFO]     Obj. %d [%s] - %s' % (i, det.Cue, det.Sentence))
+        # The post-processing audit: every background strip and substance substitution,
+        # so over-stripping surfaces here instead of passing silently.
+        for level, message in result.Audit:
+            print('[%s]     %s' % (level.upper(), message))
 
     print('\n[INFO] %-14s %8s %12s   %s' % ('frame', 'objects', 'raw FastSAM', 'cues'))
     for stem, count, raw, cues, _ in rows:

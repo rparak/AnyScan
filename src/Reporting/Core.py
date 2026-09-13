@@ -23,6 +23,8 @@
 # File Name: ../Reporting/Core.py
 ## =========================================================================== ##
 
+# System (Default)
+import re
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures
@@ -94,6 +96,46 @@ CONST_LABEL_BOUNDARIES = (
 
 # The most words the distilled label keeps.
 CONST_LABEL_MAX_WORDS = 4
+
+# ---- Background stripping (§ object lines never mention the background) --------- #
+# The background NOUNS. A sentence is dropped only when it is ABOUT the background,
+# which requires one of these nouns — NEVER a colour word. Florence misreads the
+# green table as 'red' as readily as 'green' (Image_006/007), so a colour list is
+# worthless; the noun list carries the whole load. 'surface' is deliberately here
+# even though it also appears in a legitimate object phrase ('the surface of the
+# plate is machined') — that pair is what makes this a noun-BINDING rule, not a word
+# match: a background noun bound to an object by 'of' does not count (see Is_Bare).
+CONST_BG_NOUNS = ('background', 'backdrop', 'table', 'tablecloth', 'cloth', 'felt',
+                  'surface', 'mat', 'desk', 'floor', 'sheet')
+_BG_ALT = '(?:%s)' % '|'.join(CONST_BG_NOUNS)
+
+# A trailing locative background phrase: an optional linking verb / gerund, a
+# locative preposition, then a background noun to the end of the sentence. This is
+# what turns 'A metal washer on a green surface' into 'A metal washer'.
+CONST_BG_TRAIL = re.compile(
+    r'\s*(?:\b(?:is|are|was|were|it\s+is)\b\s*)?'
+    r'(?:\b(?:sitting|lying|resting|laying|placed|standing|scattered|sits|lies|rests)\b\s*)?'
+    r'\b(?:on|in|against|over|upon|atop|inside|beneath|under)\b\s+'
+    r'[^.]*?\b(%s)\b[^.]*$' % _BG_ALT, re.IGNORECASE)
+
+# A BARE background noun — one NOT bound to an object by a following 'of' ('surface
+# of the plate' is bound and does not match). A sentence with a bare background noun
+# is about the background and is dropped.
+CONST_BG_BARE = re.compile(r'\b(%s)\b(?!\s+of\b)' % _BG_ALT, re.IGNORECASE)
+
+# A connective the trailing-phrase trim can leave dangling at the end ('The ring is
+# shiny and' -> 'The ring is shiny'), peeled off after the trim.
+CONST_BG_DANGLE = re.compile(
+    r'[\s,]+(?:and|with|on|in|is|are|was|were|that|of|the|a|an|it|sitting)?\s*$', re.IGNORECASE)
+
+# ---- Substance substitution (machined parts are never wood/paper) --------------- #
+# Florence occasionally reads the concentric machining marks as wood or the plate as
+# cardboard/paper; these parts are always machined metal/plastic, so the impossible
+# substance guess is neutralised. Whole words only, so 'cardboard' is replaced but a
+# word merely containing the letters is not. Every substitution is logged — rewriting
+# what the model said is a domain assumption and must be auditable.
+CONST_SUBSTANCE_WORDS = re.compile(r'\b(wood|woods|wooden|cardboard|paper)\b', re.IGNORECASE)
+CONST_SUBSTANCE_REPLACEMENT = 'metal'
 
 
 def Count_Word(n: int) -> str:
@@ -201,19 +243,165 @@ def Caption_Sentence(caption: str) -> str:
     return Clean_Detail(text)
 
 
+def Substitute_Substance(text: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
+    """
+    Description:
+        Replace an impossible substance guess (wood / cardboard / paper) with 'metal'
+        at word boundaries only, and return every substitution made. These parts are
+        always machined metal/plastic, so the guess is neutralised — but rewriting
+        what the model said is a domain assumption, so each substitution is returned
+        for the audit log rather than done silently.
+
+    Args:
+        (1) text [string]: The caption text.
+
+    Returns:
+        (1) parameter [Tuple]: (the substituted text, a Vector of (level, message)
+                               audit records, one 'info' per substitution).
+    """
+
+    records = []
+
+    def _Replace(match: tp.Any) -> str:
+        """
+        Description:
+            Record one substitution and return the replacement word.
+
+        Args:
+            (1) match [re.Match]: The matched substance word.
+
+        Returns:
+            (1) parameter [string]: CONST_SUBSTANCE_REPLACEMENT.
+        """
+
+        records.append(('info', "substituted '%s' -> '%s'"
+                        % (match.group(0), CONST_SUBSTANCE_REPLACEMENT)))
+        return CONST_SUBSTANCE_REPLACEMENT
+
+    return CONST_SUBSTANCE_WORDS.sub(_Replace, text), records
+
+
+def __Strip_Sentence(core: str) -> tp.Tuple[tp.Optional[str], tp.Optional[str]]:
+    """
+    Description:
+        Decide one sentence's fate under the background rule. `core` is the sentence
+        without terminal punctuation. A trailing locative background phrase is trimmed
+        ('A washer on a green surface' -> 'A washer'); if what remains still holds a
+        BARE background noun (one not bound to an object by 'of'), the whole sentence
+        is about the background and is dropped. A sentence with no bare background
+        noun is kept untouched — this is what keeps 'the surface of the plate is
+        machined' (surface bound by 'of') while dropping 'the surface is smooth'.
+
+    Args:
+        (1) core [string]: One sentence, without its terminal punctuation.
+
+    Returns:
+        (1) parameter [Tuple]: (the kept text or None to drop, the matched background
+                               noun or None).
+    """
+
+    trail = CONST_BG_TRAIL.search(core)
+    if trail:
+        trimmed = core[:trail.start()].strip()
+        previous = None
+        while trimmed != previous:
+            previous = trimmed
+            trimmed = CONST_BG_DANGLE.sub('', trimmed).strip()
+        if (not trimmed) or CONST_BG_BARE.search(trimmed):
+            return None, trail.group(1)
+        return trimmed, trail.group(1)
+    bare = CONST_BG_BARE.search(core)
+    if bare:
+        return None, bare.group(1)
+    return core, None
+
+
+def Strip_Background(text: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
+    """
+    Description:
+        Remove the background from an object caption so the object is described on its
+        own — the background is stated once, globally (Screen_Understanding), never per
+        object. A sentence is dropped only when it is ABOUT the background (a bare
+        background noun), and a trailing locative background phrase is trimmed from an
+        otherwise-object sentence. If stripping would empty the caption, the original is
+        returned and a WARNING is recorded rather than leaving the object with no
+        description.
+
+        Every dropped sentence and trimmed phrase is returned with the background noun
+        that matched, so over-stripping surfaces in the audit log instead of silently.
+
+    Args:
+        (1) text [string]: The object caption (lead-ins already peeled).
+
+    Returns:
+        (1) parameter [Tuple]: (the cleaned caption, a Vector of (level, message)
+                               audit records).
+    """
+
+    kept, records = [], []
+    for sentence in re.split(r'(?<=[.!?])\s+', text.strip()):
+        core = sentence.strip()
+        if not core:
+            continue
+        core_np = core.rstrip('.!?').rstrip()
+        out, noun = __Strip_Sentence(core_np)
+        if out is None:
+            records.append(('info', "stripped background sentence (%s): '%s'" % (noun, core)))
+            continue
+        cleaned = out if out.endswith(('.', '!', '?')) else out + '.'
+        if out != core_np:
+            records.append(('info', "trimmed background phrase (%s): '%s' -> '%s'"
+                            % (noun, core, cleaned)))
+        kept.append(cleaned)
+
+    result = ' '.join(kept).strip()
+    if not result:
+        records.append(('warning', "kept the original caption unchanged; stripping the "
+                        "background would have left it empty: '%s'" % text.strip()))
+        return text.strip(), records
+    return result, records
+
+
+def Object_Description(det: Detection_Str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
+    """
+    Description:
+        The object's line and its audit trail. The model caption is peeled of the
+        Florence template (Caption_Sentence), its impossible substance guesses are
+        neutralised (Substitute_Substance), and the background is stripped
+        (Strip_Background) so the line describes the object alone. When no usable
+        caption remains, the short 'A <label>.' stands in; a reading, if any, is
+        appended.
+
+    Args:
+        (1) det [Detection_Str(object)]: The detection to describe.
+
+    Returns:
+        (1) parameter [Tuple]: (the object's line, a Vector of (level, message)
+                               audit records for this object).
+    """
+
+    audit = []
+    sentence = Caption_Sentence(det.Detail) if CONST_SHOW_OBJECT_DETAIL else ''
+    if sentence:
+        sentence, subs = Substitute_Substance(sentence)
+        sentence, strips = Strip_Background(sentence)
+        audit = subs + strips
+    if not sentence:
+        article = 'An' if det.Label[:1].lower() in 'aeiou' else 'A'
+        sentence = '%s %s.' % (article, det.Label)
+    if det.Text:
+        sentence = sentence.rstrip('.') + ', reading “%s”.' % det.Text
+    return sentence, audit
+
+
 def Describe_Object(det: Detection_Str, size: tp.Tuple[int, int]) -> str:
     """
     Description:
-        One line for one detection — what the object is, not where it is.
-
-        With CONST_SHOW_OBJECT_DETAIL the line is the model's full description,
-        cleaned into the console's voice; otherwise it is the short 'A <label>.'
-        Position is deliberately not stated: the operator reads the number off the
-        coloured box on the frame, so a coarse location in words earns nothing.
-        (`size` is unused now that the zone is gone; kept so the call site is
-        unchanged.) The index is not repeated here either; the list prints
-        'Object N:' in the box's colour, and duplicating the number reads as a
-        stutter.
+        One line for one detection — what the object is, not where it is (the operator
+        reads the number off the coloured box, so a location in words earns nothing).
+        Delegates to Object_Description and drops the audit; use Object_Description
+        directly when the audit is wanted. (`size` is unused now that the zone is gone;
+        kept so the call site is unchanged.)
 
     Args:
         (1) det [Detection_Str(object)]: The detection to describe.
@@ -223,13 +411,7 @@ def Describe_Object(det: Detection_Str, size: tp.Tuple[int, int]) -> str:
         (1) parameter [string]: The object's line of text.
     """
 
-    sentence = Caption_Sentence(det.Detail) if CONST_SHOW_OBJECT_DETAIL else ''
-    if not sentence:
-        article = 'An' if det.Label[:1].lower() in 'aeiou' else 'A'
-        sentence = '%s %s.' % (article, det.Label)
-    if det.Text:
-        sentence = sentence.rstrip('.') + ', reading “%s”.' % det.Text
-    return sentence
+    return Object_Description(det)[0]
 
 
 def Summarise(objects: tp.List[Detection_Str]) -> str:
@@ -299,13 +481,54 @@ def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tupl
     return '%d found' % len(objects), 'ok'
 
 
+def Screen_Understanding(objects: tp.List[Detection_Str], background_sentence: str) -> str:
+    """
+    Description:
+        The Screen-Understanding text: the ONE rendering shared by the file the
+        validation harness writes and the panel the application shows. The background
+        is stated exactly once, on the first line, and that line carries the object
+        count; every line below describes an object alone (each det.Sentence was
+        already stripped of the background by Compose).
+
+        The count is len(objects) — the same list used to number the lines, never
+        recomputed — so the header and the lines cannot disagree. Singular and plural
+        read correctly, and the zero case reads 'no objects were detected on it', not
+        '0 objects'.
+
+    Args:
+        (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (2) background_sentence [string]: The one global background description
+                                          (generated from the reference frame).
+
+    Returns:
+        (1) parameter [string]: The full Screen-Understanding text.
+    """
+
+    background = (background_sentence or '').strip()
+    if background and background[-1] not in '.!?':
+        background += '.'
+    lead = (background + ' ') if background else ''
+
+    count = len(objects)
+    if count == 0:
+        return lead + 'No objects were detected on it.'
+    verb = 'is' if count == 1 else 'are'
+    noun = 'object' if count == 1 else 'objects'
+    header = lead + 'There %s %d %s on it, described below.' % (verb, count, noun)
+    lines = ['Obj. %d - %s' % (i + 1, det.Sentence) for i, det in enumerate(objects)]
+    return header + '\n\n' + '\n'.join(lines)
+
+
 def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
-            caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str, str]:
+            caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str, str, tp.List[tp.Tuple[str, str]]]:
     """
     Description:
         Write the line for every object (into det.Sentence) and return the objects
-        alongside the summary and the note. The objects are never reordered here —
-        their order is the operator-visible index contract.
+        alongside the summary, the note and the post-processing audit. Each line is
+        stripped of the background and has its impossible substance guesses
+        neutralised; the audit records every strip and substitution, tagged with the
+        object index, so nothing the composer rewrote is silent. The objects are never
+        reordered here — their order is the operator-visible index contract.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
@@ -313,9 +536,12 @@ def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
         (3) caption [string]: An optional leading explanation for the note.
 
     Returns:
-        (1) parameter [Tuple]: (objects, summary, note).
+        (1) parameter [Tuple]: (objects, summary, note, audit), where audit is a
+                               Vector of (level, message) records.
     """
 
-    for det in objects:
-        det.Sentence = Describe_Object(det, size)
-    return objects, Summarise(objects), Scene_Note(objects, size, caption)
+    audit = []
+    for i, det in enumerate(objects):
+        det.Sentence, records = Object_Description(det)
+        audit.extend(('%s' % level, 'Obj. %d: %s' % (i + 1, message)) for level, message in records)
+    return objects, Summarise(objects), Scene_Note(objects, size, caption), audit

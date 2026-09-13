@@ -32,7 +32,7 @@ import typing as tp
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
-from Reporting.Core import Compose, Verdict, CONST_EMPTY_SCENE_EXPLANATION
+from Reporting.Core import Compose, Verdict, Caption_Sentence, CONST_EMPTY_SCENE_EXPLANATION
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import Background_Foreground
 #   ../Vision/Utilities/Fusion
@@ -102,6 +102,11 @@ CONST_VISION_DEVICE = 'auto'
 
 # The human-readable task name shown in the reading panel's meta row.
 CONST_VISION_TASK_LABEL = 'detailed caption'
+
+# The reference is centre-cropped by this margin (fraction per side) before the
+# background is described, so the dark vignette at the frame edge does not leak into
+# the description of the surface itself.
+CONST_BG_CROP_MARGIN = 0.12
 
 # Who writes each object's caption. 'florence' is the Florence-2 VLM; 'fallback' is
 # the model-free describer (size / position / aspect / solidity / HSV colour), which
@@ -257,8 +262,10 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         self.__cv2 = None
         self.__np = None
         self.__pil = None
-        # Cached BGR reference array.
+        # Cached BGR reference array, and the one global background sentence derived
+        # from it (computed once, on the first Florence analysis).
         self.__background = None
+        self.__background_sentence = None
         # The stage-2 segmenter. Constructing it is cheap — ultralytics loads lazily
         # on the first Segment, so this keeps the window and the tests light.
         self.__segmenter = Fast_Sam_Cls()
@@ -375,6 +382,37 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             )
         return self.__background
 
+    def __Describe_Background(self, bg_bgr: tp.List[tp.List[int]]) -> str:
+        """
+        Description:
+            The one global background sentence, generated from the reference frame
+            (not from any crop) and cached, so it is unaffected by what Florence
+            hallucinates inside individual object crops. The reference is centre-cropped
+            (CONST_BG_CROP_MARGIN) to skip the dark vignette, captioned once, and cleaned
+            into the panel's voice. Empty when the Florence model is not loaded (the
+            fallback describer writes no scene caption).
+
+        Args:
+            (1) bg_bgr [Matrix<uint8> HxWx3]: The empty-surface reference (BGR).
+
+        Returns:
+            (1) parameter [string]: The background sentence, or '' when unavailable.
+        """
+
+        if self.__background_sentence is not None:
+            return self.__background_sentence
+        if self.__model is None:
+            self.__background_sentence = ''
+            return ''
+        cv2 = self.__cv2
+        h, w = bg_bgr.shape[:2]
+        margin = CONST_BG_CROP_MARGIN
+        crop = bg_bgr[int(h * margin):int(h * (1 - margin)), int(w * margin):int(w * (1 - margin))]
+        caption = Describe(self.__model, self.__processor, self.__device, self.__dtype,
+                           crop, cv2, self.__np, self.__torch, self.__pil)
+        self.__background_sentence = Caption_Sentence(caption)
+        return self.__background_sentence
+
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
                 stage_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
         """
@@ -426,7 +464,9 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         # surroundings kept; the stretch is estimated from the object's own pixels).
         self.__Describe_Objects(objects, frame_bgr, progress_cb, stage_cb)
 
-        return self.__Compose_Result(objects, size, t0, len(masks))
+        # The one global background sentence, from the reference (cached across frames).
+        background_sentence = self.__Describe_Background(bg_bgr)
+        return self.__Compose_Result(objects, size, t0, len(masks), background_sentence)
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            progress_cb: tp.Optional[tp.Callable], stage_cb: tp.Optional[tp.Callable]) -> None:
@@ -473,27 +513,30 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             progress_cb(total, total)
 
     def __Compose_Result(self, objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
-                         t0: float, raw_mask_count: int) -> Analysis_Str:
+                         t0: float, raw_mask_count: int, background_sentence: str) -> Analysis_Str:
         """
         Description:
             Compose the panel's reading from the described objects: the per-object
-            sentences, the summary, the note, the verdict badge and the latency. The
-            objects are never reordered here — their order is the index contract.
+            sentences, the summary, the note, the verdict badge, the latency, the global
+            background sentence and the post-processing audit. The objects are never
+            reordered here — their order is the index contract.
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The described objects, in order.
             (2) size [Vector<int> 1x2]: The frame size as (width, height).
             (3) t0 [float]: The analysis start time (perf_counter).
             (4) raw_mask_count [int]: The raw segmenter mask count (a diagnostic).
+            (5) background_sentence [string]: The one global background description.
 
         Returns:
             (1) parameter [Analysis_Str(object)]: The finished scene reading.
         """
 
         caption = '' if objects else CONST_EMPTY_SCENE_EXPLANATION
-        objects, summary, note = Compose(objects, size, caption=caption)
+        objects, summary, note, audit = Compose(objects, size, caption=caption)
         badge, level = Verdict(objects)
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return Analysis_Str(Summary=summary, Objects=objects, Note=note,
                             Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
-                            Task=CONST_VISION_TASK_LABEL, Raw_Mask_Count=raw_mask_count)
+                            Task=CONST_VISION_TASK_LABEL, Raw_Mask_Count=raw_mask_count,
+                            Background=background_sentence, Audit=audit)

@@ -262,7 +262,7 @@ def main() -> None:
     lines.append('-- report composer --')
 
     # 1) Empty scene: the analyze() empty path passes EMPTY_SCENE_EXPLANATION.
-    empty_objs, empty_summary, empty_note = Reporting.Compose([], CONST_FRAME_SIZE,
+    empty_objs, empty_summary, empty_note, _empty_audit = Reporting.Compose([], CONST_FRAME_SIZE,
                                                         caption=Reporting.CONST_EMPTY_SCENE_EXPLANATION)
     e_badge, e_level = Reporting.Verdict(empty_objs)
     lines.append('[scene: empty]')
@@ -273,7 +273,7 @@ def main() -> None:
     # 2) One object, verbose caption exercising the lead-in stripping.
     one = [_Make_Detection('hex bolt', (100, 120, 80, 80),
                            detail='In this image we can see a hex bolt on a green surface.')]
-    one_objs, one_summary, one_note = Reporting.Compose(one, CONST_FRAME_SIZE, caption='')
+    one_objs, one_summary, one_note, _one_audit = Reporting.Compose(one, CONST_FRAME_SIZE, caption='')
     o_badge, o_level = Reporting.Verdict(one_objs)
     lines.append('[scene: one object]')
     lines.append(f'  summary = {one_summary}')
@@ -289,7 +289,7 @@ def main() -> None:
                         confidence=0.20, text='M6'),
         _Make_Detection('nut', (300, 300, 60, 60), detail=''),
     ]
-    many_objs, many_summary, many_note = Reporting.Compose(many, CONST_FRAME_SIZE, caption='')
+    many_objs, many_summary, many_note, _many_audit = Reporting.Compose(many, CONST_FRAME_SIZE, caption='')
     m_badge, m_level = Reporting.Verdict(many_objs)
     lines.append('[scene: several objects]')
     lines.append(f'  summary = {many_summary}')

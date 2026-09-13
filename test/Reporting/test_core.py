@@ -118,8 +118,9 @@ def test_describe_object_detail_reading_and_fallback() -> None:
         falls back to 'A <label>.'.
     """
 
+    # The background phrase 'on a green surface' is stripped from the object line.
     verbose = _Detection('hex bolt', detail='In this image we can see a hex bolt on a green surface.')
-    assert Reporting.Describe_Object(verbose, CONST_SIZE) == 'A hex bolt on a green surface.'
+    assert Reporting.Describe_Object(verbose, CONST_SIZE) == 'A hex bolt.'
 
     reading = _Detection('screw', detail='A close-up of a screw.', text='M6')
     assert Reporting.Describe_Object(reading, CONST_SIZE) == 'A screw, reading “M6”.'
@@ -137,13 +138,14 @@ def test_compose_sets_sentence_and_never_reorders() -> None:
 
     objects = [_Detection('washer', detail='A metal washer.'),
                _Detection('nut', detail='')]
-    returned, summary, note = Reporting.Compose(objects, CONST_SIZE)
+    returned, summary, note, audit = Reporting.Compose(objects, CONST_SIZE)
 
     assert returned is objects
     assert objects[0].Sentence == 'A metal washer.'
     assert objects[1].Sentence == 'A nut.'
     assert summary == 'The frame contains two objects, which are described as follows:'
     assert note == ''
+    assert audit == []                      # nothing stripped or substituted here
 
 
 def test_scene_note_empty_scene_carries_caption_and_advice() -> None:
@@ -168,3 +170,107 @@ def test_module_is_qt_free() -> None:
     assert 'PyQt' not in source
     assert 'import cv2' not in source
     assert 'import torch' not in source
+
+
+def test_strip_background_noun_binding() -> None:
+    """
+    Description:
+        The background rule is a noun-BINDING rule, not a word match. A background
+        noun bound to an object by 'of' survives ('the surface of the plate is
+        machined'); an object colour survives ('a green plastic terminal block'); a
+        bare background noun is dropped; a trailing locative background phrase is
+        trimmed off the object; and if stripping empties the caption the original is
+        returned with a warning.
+    """
+
+    # Kept: 'surface' bound to the plate by 'of', and an object-colour phrase.
+    assert Reporting.Strip_Background(
+        'The surface of the plate is machined with concentric marks.')[0] == \
+        'The surface of the plate is machined with concentric marks.'
+    assert Reporting.Strip_Background('A green plastic terminal block.')[0] == \
+        'A green plastic terminal block.'
+
+    # Trimmed: the trailing background phrase goes, the object stays — and the colour
+    # word does not matter, only the background noun.
+    assert Reporting.Strip_Background('A metal washer on a green surface.')[0] == 'A metal washer.'
+    assert Reporting.Strip_Background('A square shaped maze is on a red surface.')[0] == \
+        'A square shaped maze.'
+
+    # Dropped: a genuine background sentence is removed when other object sentences remain.
+    kept, records = Reporting.Strip_Background('A metal washer. The surface is smooth and flat.')
+    assert kept == 'A metal washer.'
+    assert any(level == 'info' and 'surface' in message for level, message in records)
+
+    # Fallback: a caption that is ALL background returns unchanged, with a warning.
+    only_bg = 'The surface is smooth and flat.'
+    kept, records = Reporting.Strip_Background(only_bg)
+    assert kept == only_bg
+    assert any(level == 'warning' for level, message in records)
+
+
+def test_substitute_substance_word_boundaries() -> None:
+    """
+    Description:
+        The impossible-substance guess is replaced with 'metal' at word boundaries
+        only, and every substitution is recorded. A word merely containing the letters
+        (plywood) is left alone.
+    """
+
+    out, records = Reporting.Substitute_Substance('A wooden block with a cardboard edge.')
+    assert out == 'A metal block with a metal edge.'
+    assert len(records) == 2 and all(level == 'info' for level, message in records)
+
+    # No substring damage: 'plywood' contains 'wood' but is not the word 'wood'.
+    out, records = Reporting.Substitute_Substance('The plywood sheet is thick.')
+    assert out == 'The plywood sheet is thick.'
+    assert records == []
+
+
+def _Line(sentence: str, label: str = 'object') -> Detection_Str:
+    """
+    Description:
+        A detection whose composed Sentence is preset, for the assembly tests.
+
+    Args:
+        (1) sentence [string]: The object's already-composed line.
+        (2) label [string]: The label (unused by the assembler).
+
+    Returns:
+        (1) parameter [Detection_Str(object)]: The fixture.
+    """
+
+    det = _Detection(label)
+    det.Sentence = sentence
+    return det
+
+
+def test_screen_understanding_assembly() -> None:
+    """
+    Description:
+        The Screen-Understanding text states the background once on the first line
+        with the object count, then one numbered line per object. Singular and plural
+        read correctly, the count is len(objects) (never recomputed), the lines are
+        numbered from 1, and the zero case reads 'no objects were detected on it'.
+    """
+
+    bg = 'The background is a plain green table.'
+
+    # Zero objects: the count sentence, no object lines.
+    assert Reporting.Screen_Understanding([], bg) == \
+        'The background is a plain green table. No objects were detected on it.'
+
+    # One object: singular verb and noun, one numbered line.
+    one = Reporting.Screen_Understanding([_Line('A washer.')], bg)
+    assert one == ('The background is a plain green table. There is 1 object on it, '
+                   'described below.\n\nObj. 1 - A washer.')
+
+    # Several objects: plural, numbered from 1, in list order.
+    several = Reporting.Screen_Understanding(
+        [_Line('A washer.'), _Line('A bolt.'), _Line('A nut.')], bg)
+    header, _, body = several.partition('\n\n')
+    assert header.endswith('There are 3 objects on it, described below.')
+    assert body == 'Obj. 1 - A washer.\nObj. 2 - A bolt.\nObj. 3 - A nut.'
+
+    # An empty background sentence just omits the lead; the count sentence still holds.
+    assert Reporting.Screen_Understanding([_Line('A washer.')], '') == \
+        'There is 1 object on it, described below.\n\nObj. 1 - A washer.'

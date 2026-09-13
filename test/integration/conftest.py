@@ -97,12 +97,12 @@ class Fake_Vision_Cls(Vision_Backend_Cls):
             Detection_Str(Label='washer', Bbox=(200, 120, 50, 50),
                           Detail='A metal washer.', Confidence=0.2),
         ]
-        objects, summary, note = Compose(objects, size)
+        objects, summary, note, audit = Compose(objects, size)
         badge, level = Verdict(objects)
         if progress_cb:
             progress_cb(len(objects), len(objects))
         return Analysis_Str(Summary=summary, Objects=objects, Note=note,
-                            Verdict=badge, Verdict_Level=level, Task='fake')
+                            Verdict=badge, Verdict_Level=level, Task='fake', Audit=audit)
 
 
 @pytest.fixture

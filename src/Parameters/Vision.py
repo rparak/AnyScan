@@ -147,3 +147,13 @@ class Analysis_Str(object):
     # object count, never shown to the operator.
     #   Unit [int]
     Raw_Mask_Count: int = 0
+    # The one global background description, generated once from the reference frame
+    # (not from any crop), shown as the first line of the Screen-Understanding text.
+    #   Unit [string]
+    Background: str = ''
+    # The post-processing audit: one (level, message) record per background strip and
+    # substance substitution the composer made, each tagged with the object index. The
+    # UI logs these to the session log; the harness prints them, so nothing the
+    # composer rewrote is silent. 'level' is 'info' or 'warning'.
+    #   Unit [Vector<Tuple<string> 1x2>]
+    Audit: tp.List[tp.Tuple[str, str]] = field(default_factory=list)

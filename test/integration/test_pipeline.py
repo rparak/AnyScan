@@ -71,8 +71,9 @@ def test_pipeline_camera_to_reporting(reference_background_path, fake_backend) -
 
     assert isinstance(result, Analysis_Str)
     assert len(result.Objects) == 2
-    # Reporting composed each sentence, stripping the Florence lead-in.
-    assert result.Objects[0].Sentence == 'A hex bolt on a green surface.'
+    # Reporting composed each sentence, stripping the Florence lead-in and the
+    # 'on a green surface' background phrase (§ object lines never mention the background).
+    assert result.Objects[0].Sentence == 'A hex bolt.'
     assert all(o.Sentence for o in result.Objects)
     assert result.Summary == 'The frame contains two objects, which are described as follows:'
     # The 0.2-confidence object drives the verdict.
