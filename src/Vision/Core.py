@@ -108,7 +108,7 @@ CONST_USE_MASKED_CROP = True
 
 # The model name presented to the operator. The weights are Florence-2, MIT
 # licensed — keep Microsoft's notice with the project.
-CONST_MODEL_NAME = 'JIC-AnyScan-VLM-v1'
+CONST_MODEL_NAME = 'JIC-AnyScan-v1'
 
 
 class Vision_Error_Cls(RuntimeError):
@@ -166,7 +166,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
     """
     Description:
         The vision backend. It orchestrates the four-stage pipeline and owns the
-        Florence-2 describer; the model is presented as JIC-AnyScan-VLM-v1 and the
+        Florence-2 describer; the model is presented as JIC-AnyScan-v1 and the
         weights are Florence-2, MIT licensed — keep Microsoft's notice with the project.
 
         Pipeline of Analyze(). Read top to bottom; each stage delegates to the

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="818" height="174" viewBox="40 44 818 174" role="img" aria-label="AnyScan — The camera sees, the model describes.">
+  <title>AnyScan</title>
+  <desc>AnyScan logo: inside a camera scan frame, an object is located by a magenta bounding box with an index tag and its generated text description; beside it the AnyScan wordmark and the tagline "The camera sees, the model describes."</desc>
+
+  <defs>
+    <style>
+      .wm  { font-family: 'Inter','Helvetica Neue',Arial,sans-serif; font-weight: 700; }
+      .tag { font-family: 'JetBrains Mono','SFMono-Regular',Menlo,Consolas,monospace; font-weight: 500; }
+      .idx { font-family: 'Inter','Helvetica Neue',Arial,sans-serif; font-weight: 700; }
+    </style>
+    <marker id="tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 1 L9 5 L0 9" fill="none" stroke="#D6006E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- ===== Mark: locate the object (box) -> describe it (text) ===== -->
+  <g transform="translate(40,44)">
+    <!-- camera scan frame: corner brackets -->
+    <g fill="none" stroke="#0F172A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 34 V12 A6 6 0 0 1 12 6 H34"/>
+      <path d="M158 6 H180 A6 6 0 0 1 186 12 V34"/>
+      <path d="M186 138 V160 A6 6 0 0 1 180 166 H158"/>
+      <path d="M34 166 H12 A6 6 0 0 1 6 160 V138"/>
+    </g>
+
+    <!-- the located OBJECT: a machined part with drilled holes -->
+    <path fill-rule="evenodd" fill="#0F172A" stroke="#0F172A" stroke-width="2.5" stroke-linejoin="round"
+          d="M40 108 L40 78 A6 6 0 0 1 46 72 L60 72 L60 58 A6 6 0 0 1 66 52 L78 52 A6 6 0 0 1 84 58 L84 108 A6 6 0 0 1 78 114 L46 114 A6 6 0 0 1 40 108 Z
+             M51 96 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0 Z
+             M69 96 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0 Z
+             M68 62 a4 4 0 1 0 8 0 a4 4 0 1 0 -8 0 Z"/>
+
+    <!-- BOUNDING BOX locating the object -->
+    <rect x="30" y="44" width="66" height="78" rx="3" fill="none" stroke="#D6006E" stroke-width="3"/>
+    <!-- index tag on the box -->
+    <rect x="30" y="28" width="20" height="18" rx="3" fill="#D6006E"/>
+    <text x="40" y="42" text-anchor="middle" class="idx" font-size="13" fill="#FFFFFF">1</text>
+
+    <!-- flows to the description -->
+    <line x1="100" y1="83" x2="116" y2="83" stroke="#D6006E" stroke-width="3" stroke-linecap="round" marker-end="url(#tip)"/>
+
+    <!-- the DESCRIPTION: generated lines of text -->
+    <g fill="#D6006E">
+      <rect x="126" y="66" width="46" height="6" rx="3"/>
+      <rect x="126" y="80" width="38" height="6" rx="3"/>
+      <rect x="126" y="94" width="30" height="6" rx="3"/>
+    </g>
+  </g>
+
+  <!-- ===== Wordmark ===== -->
+  <text x="268" y="132" class="wm" font-size="87" fill="#0F172A">Any<tspan fill="#D6006E">Scan</tspan></text>
+
+  <!-- tagline -->
+  <text x="270" y="184" class="tag" font-size="36" fill="#475569">The camera sees, the model describes.</text>
+</svg>
