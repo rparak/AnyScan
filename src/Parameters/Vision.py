@@ -142,3 +142,8 @@ class Analysis_Str(object):
     # The human-readable name of the model task that produced the reading.
     #   Unit [string]
     Task: str = 'detailed caption'
+    # The number of raw segmenter masks the frame produced before fusion — a
+    # diagnostic (like Latency_Ms) the validation harness reports alongside the
+    # object count, never shown to the operator.
+    #   Unit [int]
+    Raw_Mask_Count: int = 0

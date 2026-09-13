@@ -27,7 +27,6 @@
 import sys
 import os
 import argparse
-import json
 # Resolve the project folder from this file's own location (Example/Vision -> ..),
 # so the script runs the same whether launched from Example/Vision/ or the repo root.
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -41,85 +40,86 @@ import cv2
 import numpy as np
 # Typing (Support for type hints)
 import typing as tp
-# Custom Lib.: AnyScan vision — the pipeline, its errors, and stage 1 for the debug view
+# Custom Lib.: AnyScan vision — the pipeline, its errors, and data-file discovery
 #   ../Vision/Core
 import Vision.Core as Vision_Core
 from Vision.Core import Florence_Vision_Cls, Vision_Error_Cls
 #   ../Vision/Segmenter
 import Vision.Segmenter as Vision_Segmenter
 from Vision.Segmenter import Segmenter_Error_Cls
-#   ../Vision/Utilities/Segmentation
-from Vision.Utilities.Segmentation import Background_Foreground
+#   ../Vision/Utilities/Discovery
+from Vision.Utilities.Discovery import Discover_Scenes, Select_Background, Discovery_Error_Cls
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str
+from Parameters.Vision import Detection_Str, Analysis_Str
 
 """
 Description:
     Initialization of constants.
 
-    End-to-end demonstration of the four-stage FastSAM pipeline: read a background
-    and a scene, run background subtraction -> FastSAM segmentation -> mask filtering
-    -> description, and write an annotated result, a change-mask debug view, per-object
-    crops / masks / descriptions and a summary.json. A real (reference, scene) image
-    pair is required (see --input-dir / --background); the script fails with a clear
-    message if none is found.
+    The validation harness for the ported vision pipeline. It runs EVERY committed
+    Data/Camera/Image_[0-9]*.png frame through the application's own Vision.Core.Analyze
+    (never a second copy of the pipeline) against the empty-surface reference, and for
+    each frame writes the three artefacts of §1c to Data/Camera/Results/:
 
-    CONST_* below are the defaults; the flags override them (see main).
+        <stem>_annotated.png     the frame with each object's fill, contour, box, index
+        <stem>_mask.png          the label mask: black ground, each object its own colour
+        <stem>_descriptions.txt  one line per object (the model's caption)
+
+    Then it reports the per-frame object count, the raw FastSAM mask count and the
+    per-cue attribution, so the detection can be judged against the known inventory.
+
+    Note:
+        The drawing here is deliberately throwaway (a fixed BGR palette, Hershey text)
+        — the themed, resolution-scaled renderer that makes the annotated image look
+        like the PyQt application is a later step. The single job of this phase is to
+        make the DETECTION visible so it can be checked before any UI is built on it.
 """
-# Committed inputs live here; outputs are written here (git-ignored) by default.
+# Committed inputs live here; the three per-frame artefacts are written here
+# (git-ignored) by default.
 #   Unit [string]
 CONST_INPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera')
 CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Results')
 
-# A filename containing one of these marks the reference (empty-surface) image; the
-# other image in the directory is the scene.
-#   Unit [Vector<string>]
-CONST_REFERENCE_MARKERS = ('background', 'reference', 'empty', 'bg')
-CONST_IMAGE_EXTS = ('.png', '.jpg', '.jpeg')
-
-# Box / label colours for the annotated result, one per object index (BGR).
+# Throwaway per-object colours (BGR), one per index, cycled past the tenth object.
+# Ten distinct hues, enough for the ten-object frame; the themed palette that keys
+# these to the UI accents and scales with resolution is a later step (§1d).
 #   Unit [Vector<tuple>]
-CONST_RESULT_COLORS = ((230, 70, 200), (70, 200, 230), (120, 220, 120),
-                       (80, 130, 240), (210, 160, 70), (170, 120, 230))
+CONST_OBJECT_COLORS = (
+    (60, 76, 231), (219, 152, 52), (94, 185, 113), (43, 57, 192), (182, 89, 155),
+    (60, 172, 240), (140, 120, 75), (128, 62, 200), (85, 200, 200), (200, 130, 90))
+
+# Fill opacity for the translucent object overlay on the annotated image.
+#   Unit [float]
+CONST_ANNOTATE_FILL_ALPHA = 0.40
+
+# The montage cell size (px) for the optional enhanced-crop debug view.
+#   Unit [int]
+CONST_MONTAGE_CELL = 260
 
 
-def _Discover_Images(input_dir: str, background_override: tp.Optional[str]) -> tp.Optional[tp.Tuple[str, str]]:
+def _Object_Color(index: int) -> tp.Tuple[int, int, int]:
     """
     Description:
-        Find the reference and scene image paths in a directory. The reference is the
-        file whose name carries a CONST_REFERENCE_MARKERS mark (or the explicit
-        override); the scene is the first other image. Returns None when the directory
-        has no usable pair, so the caller fails with a clear message.
+        The BGR colour for an object index (0-based), cycled through the throwaway
+        palette. The same index maps to the same colour in the annotated image and the
+        label mask, so an object can be compared between the two files.
 
     Args:
-        (1) input_dir [string]: The directory to search.
-        (2) background_override [string]: An explicit reference path, or None.
+        (1) index [int]: The 0-based object index.
 
     Returns:
-        (1) parameter [Tuple<string> 1x2 or None]: (reference path, scene path), or None.
+        (1) parameter [Vector<int> 1x3]: The BGR colour.
     """
 
-    if not os.path.isdir(input_dir):
-        return None
-    images = [os.path.join(input_dir, name) for name in sorted(os.listdir(input_dir))
-              if os.path.splitext(name)[1].lower() in CONST_IMAGE_EXTS]
-    if background_override:
-        scenes = [p for p in images if os.path.abspath(p) != os.path.abspath(background_override)]
-        return (background_override, scenes[0]) if scenes else None
-
-    reference = next((p for p in images
-                      if any(mark in os.path.basename(p).lower() for mark in CONST_REFERENCE_MARKERS)), None)
-    scenes = [p for p in images if p != reference]
-    if reference is None or not scenes:
-        return None
-    return reference, scenes[0]
+    return CONST_OBJECT_COLORS[index % len(CONST_OBJECT_COLORS)]
 
 
-def _Draw_Result(scene_bgr: tp.Any, objects: tp.List[Detection_Str]) -> tp.Any:
+def _Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str]) -> tp.Any:
     """
     Description:
-        The scene with each object's box and index drawn, colour-keyed by index. Only
-        ASCII is passed to cv2.putText — Hershey fonts render non-ASCII as '?'.
+        The scene with each object drawn: a translucent mask fill, the mask contour,
+        the tight bounding box and the index, colour-keyed by index. Only ASCII is
+        passed to cv2.putText — Hershey fonts render non-ASCII as '?'.
 
     Args:
         (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
@@ -129,85 +129,127 @@ def _Draw_Result(scene_bgr: tp.Any, objects: tp.List[Detection_Str]) -> tp.Any:
         (1) parameter [Matrix<uint8> HxWx3]: The annotated scene (BGR).
     """
 
-    annotated = scene_bgr.copy()
+    base = scene_bgr.copy()
+    overlay = scene_bgr.copy()
     for i, det in enumerate(objects):
-        color = CONST_RESULT_COLORS[i % len(CONST_RESULT_COLORS)]
+        color = _Object_Color(i)
+        if det.Mask is not None:
+            mask = det.Mask.astype(np.uint8)
+            overlay[det.Mask.astype(bool)] = color
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(base, contours, -1, color, 3)
+    blended = cv2.addWeighted(overlay, CONST_ANNOTATE_FILL_ALPHA, base, 1.0 - CONST_ANNOTATE_FILL_ALPHA, 0.0)
+
+    for i, det in enumerate(objects):
+        color = _Object_Color(i)
         x, y, w, h = det.Bbox
-        cv2.rectangle(annotated, (x, y), (x + w, y + h), color, 2)
-        label = 'Object %d' % (i + 1)                # ASCII only
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+        cv2.rectangle(blended, (x, y), (x + w, y + h), color, 2)
+        label = 'Obj %d' % (i + 1)
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
         top = max(0, y - th - 8)
-        cv2.rectangle(annotated, (x, top), (x + tw + 8, top + th + 8), color, thickness=-1)
-        cv2.putText(annotated, label, (x + 4, top + th + 2),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-    return annotated
+        cv2.rectangle(blended, (x, top), (x + tw + 8, top + th + 8), color, thickness=-1)
+        cv2.putText(blended, label, (x + 4, top + th + 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+    return blended
 
 
-def _Draw_Change_Mask(change_mask: tp.Any, regions: tp.List[tp.Tuple[int, int, int, int]]) -> tp.Any:
+def _Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, int]) -> tp.Any:
     """
     Description:
-        The change mask as a BGR image with the stage-1 candidate regions boxed — the
-        debug view of what stage 1 handed the segmenter.
+        The segmentation result as a LABEL mask, not a bare binary mask: a pure-black
+        ground with each accepted object filled in its own colour (the same index
+        colour as the annotated image) and its index drawn on it. On black the object
+        colours separate cleanly, so under-segmentation (two parts one colour) and
+        over-segmentation (one part split across two) are visible at a glance.
+
+        The black ground is deliberate and is NOT a themed surface colour — the mask
+        is a diagnostic image, not a UI element.
 
     Args:
-        (1) change_mask [Matrix<uint8> HxW]: The stage-1 change mask (0 or 255).
-        (2) regions [Vector<Tuple<int> 1x4>]: Candidate regions as (x1, y1, x2, y2).
+        (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (2) shape [Tuple<int>]: The source frame's (h, w, c) shape.
 
     Returns:
-        (1) parameter [Matrix<uint8> HxWx3]: The debug view (BGR).
+        (1) parameter [Matrix<uint8> HxWx3]: The label mask (BGR) at the source size.
     """
 
-    view = cv2.cvtColor(change_mask, cv2.COLOR_GRAY2BGR)
-    for (x1, y1, x2, y2) in regions:
-        cv2.rectangle(view, (x1, y1), (x2, y2), (60, 200, 60), 2)
-    return view
+    h, w = shape[:2]
+    mask_image = np.zeros((h, w, 3), dtype=np.uint8)
+    for i, det in enumerate(objects):
+        if det.Mask is None:
+            continue
+        color = _Object_Color(i)
+        mask_image[det.Mask.astype(bool)] = color
+        x, y, bw, bh = det.Bbox
+        cx, cy = x + bw // 2, y + bh // 2
+        label = str(i + 1)
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
+        cv2.putText(mask_image, label, (cx - tw // 2, cy + th // 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+    return mask_image
 
 
-def _Write_Outputs(output_dir: str, scene_bgr: tp.Any, objects: tp.List[Detection_Str],
-                   change_mask: tp.Any, regions: tp.List, metadata: tp.Dict) -> None:
+def _Write_Descriptions(path: str, objects: tp.List[Detection_Str]) -> None:
     """
     Description:
-        Write the annotated result, the change-mask debug view, one crop / mask /
-        description per object, and summary.json into the output directory.
+        Write one line per object — the model's caption — to a descriptions file. This
+        is the pre-formatting view of the text (the Screen-Understanding format with a
+        single background line and the object count, plus the tightened
+        background-stripping, is a later step); here the raw caption is written so it
+        can be judged before the stripping is tuned.
 
     Args:
-        (1) output_dir [string]: The directory to write into (created if absent).
-        (2) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
-        (3) objects [Vector<Detection_Str(object)>]: The located objects, in order.
-        (4) change_mask [Matrix<uint8> HxW]: The stage-1 change mask.
-        (5) regions [Vector<Tuple<int> 1x4>]: The stage-1 candidate regions.
-        (6) metadata [dict]: The run metadata for summary.json.
+        (1) path [string]: The descriptions file path.
+        (2) objects [Vector<Detection_Str(object)>]: The described objects, in order.
     """
 
-    os.makedirs(output_dir, exist_ok=True)
-    # Clear the per-object files from any previous run, so a run that finds fewer
-    # objects never leaves a stale object_NN_* behind to contradict summary.json.
-    for name in os.listdir(output_dir):
-        if name.startswith('object_'):
-            os.remove(os.path.join(output_dir, name))
-    cv2.imwrite(os.path.join(output_dir, 'result.png'), _Draw_Result(scene_bgr, objects))
-    cv2.imwrite(os.path.join(output_dir, 'change_mask.png'), _Draw_Change_Mask(change_mask, regions))
+    if objects:
+        lines = ['Obj. %d - %s' % (i + 1, det.Detail or det.Label)
+                 for i, det in enumerate(objects)]
+    else:
+        lines = ['No objects were detected on it.']
+    with open(path, 'w') as handle:
+        handle.write('\n'.join(lines) + '\n')
 
-    summary = dict(metadata)
-    summary['object_count'] = len(objects)
-    summary['objects'] = []
-    for i, det in enumerate(objects):
-        x, y, w, h = det.Bbox
-        crop = scene_bgr[y:y + h, x:x + w]
-        cv2.imwrite(os.path.join(output_dir, 'object_%02d_crop.png' % (i + 1)), crop)
-        if det.Mask is not None:
-            mask_u8 = (det.Mask[y:y + h, x:x + w].astype(np.uint8)) * 255
-            cv2.imwrite(os.path.join(output_dir, 'object_%02d_mask.png' % (i + 1)), mask_u8)
-        with open(os.path.join(output_dir, 'object_%02d_description.txt' % (i + 1)), 'w') as handle:
-            handle.write(det.Sentence + '\n')
-        summary['objects'].append({
-            'index': i + 1, 'label': det.Label, 'bbox': [int(v) for v in det.Bbox],
-            'change_coverage': round(float(det.Change_Coverage), 4),
-            'segmenter_score': None if det.Segmenter_Score is None else round(float(det.Segmenter_Score), 4),
-            'sentence': det.Sentence,
-        })
-    with open(os.path.join(output_dir, 'summary.json'), 'w') as handle:
-        json.dump(summary, handle, indent=2)
+
+def _Montage(enhanced_crops: tp.List[tp.Any], cols: int = 3) -> tp.Optional[tp.Any]:
+    """
+    Description:
+        Tile the already-enhanced object crops into a single inspection image. This is
+        PURE rendering: it tiles the crops the pipeline produced (Detection_Str.Enhanced_Crop)
+        and does not re-enhance them, so the montage shows exactly what Florence-2
+        received. It is a debug view, off by default, and is not one of the three
+        standard per-frame artefacts.
+
+    Args:
+        (1) enhanced_crops [Vector<Matrix<uint8> hxwx3>]: The enhanced crops, in order.
+        (2) cols [int]: The number of columns in the tiling.
+
+    Returns:
+        (1) parameter [Matrix<uint8> HxWx3 or None]: The montage, or None when empty.
+    """
+
+    crops = [crop for crop in enhanced_crops if crop is not None]
+    if not crops:
+        return None
+    cell = CONST_MONTAGE_CELL
+    tiles = []
+    for crop in crops:
+        ch, cw = crop.shape[:2]
+        scale = min(cell / cw, cell / ch)
+        resized = cv2.resize(crop, (max(1, int(cw * scale)), max(1, int(ch * scale))))
+        canvas = np.full((cell, cell, 3), 40, np.uint8)
+        rh, rw = resized.shape[:2]
+        y0, x0 = (cell - rh) // 2, (cell - rw) // 2
+        canvas[y0:y0 + rh, x0:x0 + rw] = resized
+        tiles.append(canvas)
+    rows = []
+    for i in range(0, len(tiles), cols):
+        row = tiles[i:i + cols]
+        while len(row) < cols:
+            row.append(np.full((cell, cell, 3), 40, np.uint8))
+        rows.append(np.hstack(row))
+    return np.vstack(rows)
 
 
 def _Banner(title: str, lines: tp.List[str]) -> None:
@@ -250,104 +292,120 @@ def _Configure(args: argparse.Namespace) -> None:
         Vision_Core.CONST_DESCRIBER = 'fallback'
 
 
+def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: str,
+                   write_montage: bool) -> tp.Optional[Analysis_Str]:
+    """
+    Description:
+        Run one scene through the application pipeline and write its three artefacts
+        (annotated, label mask, descriptions) — and the enhanced-crop montage when
+        requested — into the output directory. Returns the analysis, or None on a
+        vision error (already reported through a banner).
+
+    Args:
+        (1) backend [Florence_Vision_Cls(object)]: The vision backend.
+        (2) scene_path [string]: The scene image path.
+        (3) output_dir [string]: The directory to write the artefacts into.
+        (4) write_montage [bool]: Also write the enhanced-crop debug montage.
+
+    Returns:
+        (1) parameter [Analysis_Str(object) or None]: The analysis, or None on failure.
+    """
+
+    stem = os.path.splitext(os.path.basename(scene_path))[0]
+    scene_bgr = cv2.imread(scene_path)
+    if scene_bgr is None:
+        _Banner('SCENE UNREADABLE', ['Could not read the scene image: %s' % scene_path])
+        return None
+    scene_rgb = cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB)
+    try:
+        result = backend.Analyze(scene_rgb)
+    except Segmenter_Error_Cls as error:
+        _Banner('FASTSAM WEIGHTS NOT VERIFIED - segmentation could not run', [str(error)])
+        return None
+    except Vision_Error_Cls as error:
+        _Banner('VISION RUNTIME ERROR - the pipeline could not run', [str(error)])
+        return None
+
+    cv2.imwrite(os.path.join(output_dir, '%s_annotated.png' % stem),
+                _Draw_Annotated(scene_bgr, result.Objects))
+    cv2.imwrite(os.path.join(output_dir, '%s_mask.png' % stem),
+                _Draw_Label_Mask(result.Objects, scene_bgr.shape))
+    _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result.Objects)
+    if write_montage:
+        montage = _Montage([det.Enhanced_Crop for det in result.Objects])
+        if montage is not None:
+            cv2.imwrite(os.path.join(output_dir, '%s_enhanced.png' % stem), montage)
+    return result
+
+
 def main() -> int:
     """
     Description:
-        Parse the arguments, obtain the (reference, scene) pair from --input-dir (or
-        --background), run the four-stage pipeline, write the outputs, and report. The
-        exit code is non-zero when the pair is missing/unreadable, the weights are
-        missing, or fewer than --expect-objects are found, so the script gates a CI check.
+        Discover every scene and the reference in the input directory, run each scene
+        through the application pipeline, write its three artefacts, and report the
+        per-frame object count, raw FastSAM mask count and per-cue attribution plus the
+        total. The exit code is non-zero when the inputs cannot be resolved or the
+        weights/runtime are missing, so the script gates a CI check.
 
     Returns:
         (1) parameter [int]: The process exit code (0 on success).
     """
 
-    parser = argparse.ArgumentParser(description='Run the AnyScan FastSAM vision pipeline on an image pair.')
-    parser.add_argument('--input-dir', default=CONST_INPUT_DIR, help='directory holding the reference and scene images')
-    parser.add_argument('--output-dir', default=CONST_OUTPUT_DIR, help='where to write result.png, crops and summary.json')
-    parser.add_argument('--background', default=None, help='explicit reference-image path (overrides discovery)')
+    parser = argparse.ArgumentParser(description='Run the AnyScan vision pipeline over every Data/Camera frame.')
+    parser.add_argument('--input-dir', default=CONST_INPUT_DIR, help='directory holding the scene frames and the reference')
+    parser.add_argument('--output-dir', default=CONST_OUTPUT_DIR, help='where to write the per-frame artefacts')
+    parser.add_argument('--background', default=None, help='explicit reference filename (overrides the highest-index rule)')
     parser.add_argument('--weights', default=None, help='FastSAM weights path (overrides the default)')
     parser.add_argument('--device', default=None, help="compute device: 'cpu', 'cuda', 'mps' or 'auto'")
     parser.add_argument('--no-describe', action='store_true', help='use the model-free fallback describer (no VLM)')
-    parser.add_argument('--expect-objects', type=int, default=0, help='exit non-zero if fewer than N objects are found')
-    parser.add_argument('--verbose', action='store_true', help='print per-object coverage and score')
+    parser.add_argument('--montage', action='store_true', help='also write the enhanced-crop debug montage (off by default)')
     args = parser.parse_args()
 
     _Configure(args)
 
-    # Obtain the (reference, scene) pair from the input directory. A real pair is
-    # required; there is no synthetic fallback.
-    discovered = _Discover_Images(args.input_dir, args.background)
-    if discovered is None:
-        _Banner('NO INPUT IMAGE PAIR FOUND',
-                ['A real (reference, scene) image pair is required.',
-                 'Searched: %s' % os.path.abspath(args.input_dir),
-                 'Provide a reference image (name containing one of: %s)'
-                 % ', '.join(CONST_REFERENCE_MARKERS),
-                 'and a scene image in --input-dir, or pass --background explicitly.'])
-        return 1
-    reference_path, scene_path = discovered
-    print('[INFO] Reference: %s' % reference_path)
-    print('[INFO] Scene    : %s' % scene_path)
-    reference_bgr = cv2.imread(reference_path)
-    scene_bgr = cv2.imread(scene_path)
-    if reference_bgr is None or scene_bgr is None:
-        _Banner('INPUT IMAGE UNREADABLE',
-                ['One of the input images could not be read as an image.',
-                 'Reference: %s' % reference_path, 'Scene: %s' % scene_path])
-        return 1
-
-    # The pipeline differences the scene against CONST_BACKGROUND_REF, so point it at
-    # this run's reference (the same mechanism the app's --background flag uses).
-    Vision_Core.CONST_BACKGROUND_REF = os.path.abspath(reference_path)
-
-    # Stage 1 again here, only to draw the background-foreground debug view; Analyze
-    # runs its own copy internally. Cheap and deterministic, so the two agree. The
-    # mask is 0/1; scale to 0/255 for the grayscale debug image. (The full harness
-    # rework — glob discovery and the three §1c artefacts — lands in a later phase.)
-    change_mask = Background_Foreground(reference_bgr, scene_bgr, cv2, np) * 255
-    regions = []
-
-    scene_rgb = cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB)
-    print('[INFO] Running the pipeline (describer=%s, segmenter=%s)...'
-          % (Vision_Core.CONST_DESCRIBER, Vision_Segmenter.CONST_SEGMENTER_PROMPT_MODE))
+    # Resolve the scenes and the reference by the documented discovery rules.
     try:
-        result = Florence_Vision_Cls().Analyze(scene_rgb)
-    except Segmenter_Error_Cls as error:
-        _Banner('FASTSAM WEIGHTS NOT VERIFIED - segmentation could not run', [str(error)])
+        scenes = Discover_Scenes(args.input_dir)
+        reference_path = Select_Background(args.input_dir, args.background)
+    except Discovery_Error_Cls as error:
+        _Banner('INPUT DISCOVERY FAILED', [str(error)])
         return 1
-    except Vision_Error_Cls as error:
-        _Banner('VISION RUNTIME ERROR - the pipeline could not run', [str(error)])
+    if not scenes:
+        _Banner('NO SCENE FRAMES FOUND',
+                ['No Image_[0-9]*.png scene frames were found in: %s' % os.path.abspath(args.input_dir)])
         return 1
 
-    objects = result.Objects
-    metadata = {
-        'reference': os.path.abspath(reference_path),
-        'scene': os.path.abspath(scene_path),
-        'device': Vision_Core.CONST_VISION_DEVICE,
-        'segmenter_prompt_mode': Vision_Segmenter.CONST_SEGMENTER_PROMPT_MODE,
-        'describer': Vision_Core.CONST_DESCRIBER,
-        'fastsam_weights': Vision_Segmenter.CONST_SEGMENTER_WEIGHTS,
-        'florence_weights': Vision_Core.CONST_MODEL_DIR,
-        'verdict': result.Verdict,
-        'latency_ms': result.Latency_Ms,
-    }
-    _Write_Outputs(args.output_dir, scene_bgr, objects, change_mask, regions, metadata)
+    # Point the pipeline at this run's reference (the same mechanism the app's
+    # --background flag uses), and describe once through the application backend.
+    Vision_Core.CONST_BACKGROUND_REF = reference_path
+    os.makedirs(args.output_dir, exist_ok=True)
+    print('[INFO] Reference: %s' % reference_path)
+    print('[INFO] Scenes   : %d frame(s) in %s' % (len(scenes), os.path.abspath(args.input_dir)))
+    print('[INFO] Describer: %s\n' % Vision_Core.CONST_DESCRIBER)
 
-    print('[INFO] Found %d object(s) in %d candidate region(s); verdict: %s (%d ms).'
-          % (len(objects), len(regions), result.Verdict, result.Latency_Ms))
-    for i, det in enumerate(objects):
-        if args.verbose:
-            print('[INFO]   Object %d: coverage=%.3f score=%s bbox=%s'
-                  % (i + 1, det.Change_Coverage,
-                     'n/a' if det.Segmenter_Score is None else '%.3f' % det.Segmenter_Score, det.Bbox))
-        print('[INFO]   Object %d: %s' % (i + 1, det.Sentence))
-    print('[INFO] Outputs written to: %s' % os.path.abspath(args.output_dir))
+    backend = Florence_Vision_Cls()
+    total_objects = 0
+    rows = []
+    for scene_path in scenes:
+        stem = os.path.splitext(os.path.basename(scene_path))[0]
+        result = _Analyze_Frame(backend, scene_path, args.output_dir, args.montage)
+        if result is None:
+            return 1
+        cues = {}
+        for det in result.Objects:
+            cues[det.Cue] = cues.get(det.Cue, 0) + 1
+        total_objects += len(result.Objects)
+        rows.append((stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms))
+        print('[INFO] %s: %d object(s)  raw FastSAM=%d  cues=%s  (%d ms)'
+              % (stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms))
+        for i, det in enumerate(result.Objects, 1):
+            print('[INFO]     Obj. %d [%s] - %s' % (i, det.Cue, det.Detail or det.Label))
 
-    if args.expect_objects and len(objects) < args.expect_objects:
-        _Banner('OBJECT COUNT BELOW EXPECTED',
-                ['Expected at least %d object(s); found %d.' % (args.expect_objects, len(objects))])
-        return 1
+    print('\n[INFO] %-14s %8s %12s   %s' % ('frame', 'objects', 'raw FastSAM', 'cues'))
+    for stem, count, raw, cues, _ in rows:
+        print('[INFO] %-14s %8d %12d   %s' % (stem, count, raw, cues))
+    print('[INFO] %-14s %8d' % ('TOTAL', total_objects))
+    print('[INFO] Artefacts written to: %s' % os.path.abspath(args.output_dir))
     return 0
 
 

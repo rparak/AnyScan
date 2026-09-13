@@ -426,7 +426,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         # surroundings kept; the stretch is estimated from the object's own pixels).
         self.__Describe_Objects(objects, frame_bgr, progress_cb, stage_cb)
 
-        return self.__Compose_Result(objects, size, t0)
+        return self.__Compose_Result(objects, size, t0, len(masks))
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            progress_cb: tp.Optional[tp.Callable], stage_cb: tp.Optional[tp.Callable]) -> None:
@@ -473,7 +473,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             progress_cb(total, total)
 
     def __Compose_Result(self, objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
-                         t0: float) -> Analysis_Str:
+                         t0: float, raw_mask_count: int) -> Analysis_Str:
         """
         Description:
             Compose the panel's reading from the described objects: the per-object
@@ -484,6 +484,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             (1) objects [Vector<Detection_Str(object)>]: The described objects, in order.
             (2) size [Vector<int> 1x2]: The frame size as (width, height).
             (3) t0 [float]: The analysis start time (perf_counter).
+            (4) raw_mask_count [int]: The raw segmenter mask count (a diagnostic).
 
         Returns:
             (1) parameter [Analysis_Str(object)]: The finished scene reading.
@@ -495,4 +496,4 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return Analysis_Str(Summary=summary, Objects=objects, Note=note,
                             Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
-                            Task=CONST_VISION_TASK_LABEL)
+                            Task=CONST_VISION_TASK_LABEL, Raw_Mask_Count=raw_mask_count)
