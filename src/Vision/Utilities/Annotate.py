@@ -56,13 +56,22 @@ Description:
 #   Unit [int]
 CONST_ANNOTATE_REF_DIM = 1000
 
-# Drawing weights at the reference dimension (scaled up on a larger frame).
-#   Unit [int/float]
+# Line weights at the reference dimension (scaled up on a larger frame), so a stroke
+# tuned for a preview is not a hairline on a 1920x1200 export.
+#   Unit [int]
 CONST_ANNOTATE_CONTOUR_W = 3      # object contour stroke
 CONST_ANNOTATE_BOX_W = 2          # bounding-box stroke
-CONST_ANNOTATE_FONT = 1.1         # cv2 font scale
-CONST_ANNOTATE_FONT_W = 2         # cv2 font thickness
-CONST_ANNOTATE_CHIP_PAD = 8       # padding inside the index chip
+
+# The index chip's numeral. Its font scales only gently with resolution and is capped
+# (CONST_ANNOTATE_CHIP_FONT_MIN/MAX), so the chip stays a small tab — legible at 100%
+# zoom and no larger — rather than growing with the frame until it dwarfs a small
+# part. The chip itself is then sized from the numeral's text extent plus this padding.
+#   Unit [float/int]
+CONST_ANNOTATE_CHIP_FONT = 0.5    # cv2 font scale per unit __Scale
+CONST_ANNOTATE_CHIP_FONT_MIN = 0.6
+CONST_ANNOTATE_CHIP_FONT_MAX = 1.1
+CONST_ANNOTATE_CHIP_FONT_W = 2    # cv2 font thickness
+CONST_ANNOTATE_CHIP_PAD = 6       # padding (px, at font scale 1) around the numeral
 
 # The translucent fill opacity of the object overlay. A blend ratio, not a pixel
 # measure, so it does not scale with resolution.
@@ -155,38 +164,65 @@ def __Stroke_Color(box_bgr: tp.Tuple[int, int, int], region_mean: tp.Any,
     return Hex_To_Bgr(CONST_CARD) if __Luminance(region) < 0.5 else Hex_To_Bgr(CONST_INK)
 
 
-def __Draw_Index_Chip(image: tp.Any, top_left: tp.Tuple[int, int], index: int,
-                      box_bgr: tp.Tuple[int, int, int], scale: float, cv2: tp.Any) -> None:
+def __Chip_Font_Scale(scale: float) -> float:
     """
     Description:
-        Draw the index chip: a filled rounded-ish rectangle in the object's colour with
-        the 1-based index in white, so the number is legible wherever it lands — on the
-        green table or on a bright machined surface. The chip is a theme accent (an
-        Index_Color), not a raw surface colour, because a white chip disappears on a
-        bright plate; white text on the accent stays readable on either.
+        The chip numeral's font scale: it tracks the drawing scale only gently and is
+        clamped, so the chip stays a small legible tab instead of growing with the
+        frame until it dwarfs a small part.
+
+    Args:
+        (1) scale [float]: The drawing scale (from __Scale).
+
+    Returns:
+        (1) parameter [float]: The clamped cv2 font scale.
+    """
+
+    return min(CONST_ANNOTATE_CHIP_FONT_MAX,
+               max(CONST_ANNOTATE_CHIP_FONT_MIN, CONST_ANNOTATE_CHIP_FONT * scale))
+
+
+def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: int,
+                      chip_bgr: tp.Tuple[int, int, int], scale: float, cv2: tp.Any) -> None:
+    """
+    Description:
+        Draw the index chip as a tab on the object's box: a filled rectangle in the
+        SAME colour as the box and contour (chip_bgr is the object's stroke colour, so
+        it follows the contrast fallback — if the box goes white on a low-contrast
+        part, so does the chip, and the label never stops matching its box). The chip
+        is sized from the numeral's text extent plus a small padding, and seated flush
+        against the box's top-left corner — its bottom on the box's top edge, left
+        edges aligned — so it reads as a tab, not a floating marker. When the box is
+        too near the top of the frame for the tab to sit above it, the chip flips
+        INSIDE the box rather than clipping off-frame. The numeral takes whichever
+        theme foreground (white or ink) contrasts with the chip's own colour, so a
+        pale-variant chip gets dark text, not unreadable white.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
-        (2) top_left [Vector<int> 1x2]: The object box's (x, y) top-left corner.
+        (2) bbox [Vector<int> 1x4]: The object's box as (x, y, w, h).
         (3) index [int]: The 0-based object index.
-        (4) box_bgr [Vector<int> 1x3]: The object's box colour (B, G, R).
+        (4) chip_bgr [Vector<int> 1x3]: The chip colour — the object's stroke colour.
         (5) scale [float]: The drawing scale.
         (6) cv2 [module]: The OpenCV module, injected by the caller.
     """
 
     label = str(index + 1)
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = CONST_ANNOTATE_FONT * scale
-    thickness = max(1, int(round(CONST_ANNOTATE_FONT_W * scale)))
-    pad = int(round(CONST_ANNOTATE_CHIP_PAD * scale))
+    font_scale = __Chip_Font_Scale(scale)
+    thickness = max(1, int(round(CONST_ANNOTATE_CHIP_FONT_W * font_scale)))
+    pad = max(2, int(round(CONST_ANNOTATE_CHIP_PAD * font_scale)))
     (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+    chip_w, chip_h = tw + 2 * pad, th + baseline + 2 * pad
 
-    x, y = top_left
-    chip_h = th + baseline + 2 * pad
-    top = max(0, y - chip_h)
-    cv2.rectangle(image, (x, top), (x + tw + 2 * pad, top + chip_h), box_bgr, thickness=-1)
+    x, y, _, _ = bbox
+    top = y - chip_h                     # a tab whose bottom sits on the box's top edge
+    if top < 0:                          # box near the top: flip the tab inside the box
+        top = y
+    text_bgr = Hex_To_Bgr(CONST_CARD) if __Luminance(chip_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
+    cv2.rectangle(image, (x, top), (x + chip_w, top + chip_h), chip_bgr, thickness=-1)
     cv2.putText(image, label, (x + pad, top + pad + th), font, font_scale,
-                Hex_To_Bgr(CONST_CARD), thickness, cv2.LINE_AA)
+                text_bgr, thickness, cv2.LINE_AA)
 
 
 def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
@@ -225,6 +261,9 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
     for i, det in enumerate(objects):
         box_bgr = Hex_To_Bgr(Index_Color(i)[0])
         x, y, w, h = det.Bbox
+        # One colour per object for the contour, box AND chip. It is the object's box
+        # colour unless that is too low-contrast against the part, in which case all
+        # three fall back together — so the label and its box can never disagree.
         if det.Mask is not None:
             mask_u8 = det.Mask.astype(np.uint8)
             region_mean = scene_bgr[det.Mask.astype(bool)].mean(axis=0) if int(mask_u8.sum()) else (0, 0, 0)
@@ -234,7 +273,7 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
         else:
             stroke = box_bgr
         cv2.rectangle(annotated, (x, y), (x + w, y + h), stroke, box_w)
-        __Draw_Index_Chip(annotated, (x, y), i, box_bgr, scale, cv2)
+        __Draw_Index_Chip(annotated, det.Bbox, i, stroke, scale, cv2)
     return annotated
 
 
@@ -266,16 +305,19 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
     mask_image[:] = CONST_ANNOTATE_MASK_GROUND
 
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = CONST_ANNOTATE_FONT * scale
-    thickness = max(1, int(round(CONST_ANNOTATE_FONT_W * scale)))
+    font_scale = __Chip_Font_Scale(scale)
+    thickness = max(1, int(round(CONST_ANNOTATE_CHIP_FONT_W * font_scale)))
     for i, det in enumerate(objects):
         if det.Mask is None:
             continue
-        mask_image[det.Mask.astype(bool)] = Hex_To_Bgr(Index_Color(i)[0])
+        fill_bgr = Hex_To_Bgr(Index_Color(i)[0])
+        mask_image[det.Mask.astype(bool)] = fill_bgr
         x, y, bw, bh = det.Bbox
         label = str(i + 1)
         (tw, th), _ = cv2.getTextSize(label, font, font_scale, thickness)
         cx, cy = x + bw // 2 - tw // 2, y + bh // 2 + th // 2
-        cv2.putText(mask_image, label, (cx, cy), font, font_scale,
-                    Hex_To_Bgr(CONST_CARD), thickness, cv2.LINE_AA)
+        # The numeral takes whichever theme foreground contrasts with the object's own
+        # fill colour, so a pale-variant object gets dark text, not unreadable white.
+        text_bgr = Hex_To_Bgr(CONST_CARD) if __Luminance(fill_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
+        cv2.putText(mask_image, label, (cx, cy), font, font_scale, text_bgr, thickness, cv2.LINE_AA)
     return mask_image

@@ -106,25 +106,19 @@ def test_annotated_uses_the_same_index_colours_as_the_mask() -> None:
         np.linalg.norm(np.array([70, 150, 70], dtype=float) - box_bgr)
 
 
-def test_drawing_scales_with_resolution() -> None:
+def test_chip_numeral_font_is_capped() -> None:
     """
     Description:
-        Line widths and font scale with the frame's larger side, so the same object at
-        a higher resolution is drawn more boldly — a small render and a 4x render of the
-        same object differ in how many pixels the stroke and chip cover.
+        The chip numeral scales only gently with resolution and is clamped, so a 4x
+        frame does not get a 4x numeral that would dwarf a small part. (Line widths
+        still scale off the raw resolution; only the numeral is capped.)
     """
 
-    small = Annotate.Draw_Label_Mask([__Object(150, 250)], (CONST_H, CONST_W, 3), cv2, np)
-    small_text = int(np.count_nonzero(np.all(small == Theme.Hex_To_Bgr(Theme.CONST_CARD), axis=2)))
-
-    big_shape = (CONST_H * 4, CONST_W * 4, 3)
-    big_obj = Detection_Str(Label='block', Bbox=(1000, 600, 320, 320),
-                            Mask=np.zeros(big_shape[:2], dtype=bool))
-    big_obj.Mask[600:920, 1000:1320] = True
-    big = Annotate.Draw_Label_Mask([big_obj], big_shape, cv2, np)
-    big_text = int(np.count_nonzero(np.all(big == Theme.Hex_To_Bgr(Theme.CONST_CARD), axis=2)))
-
-    assert big_text > small_text * 4   # the index numeral scaled up, not a fixed size
+    chip_font = getattr(Annotate, '__Chip_Font_Scale')
+    assert chip_font(0.1) == Annotate.CONST_ANNOTATE_CHIP_FONT_MIN     # clamped at the floor
+    assert chip_font(50.0) == Annotate.CONST_ANNOTATE_CHIP_FONT_MAX    # clamped at the cap
+    # A 4x resolution gives well under 4x the numeral (it is capped, not proportional).
+    assert chip_font(4.0) < chip_font(1.0) * 4
 
 
 def test_empty_objects_render_cleanly() -> None:
