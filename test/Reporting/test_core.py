@@ -175,34 +175,39 @@ def test_module_is_qt_free() -> None:
 def test_strip_background_noun_binding() -> None:
     """
     Description:
-        The background rule is a noun-BINDING rule, not a word match. A background
-        noun bound to an object by 'of' survives ('the surface of the plate is
-        machined'); an object colour survives ('a green plastic terminal block'); a
-        bare background noun is dropped; a trailing locative background phrase is
-        trimmed off the object; and if stripping empties the caption the original is
-        returned with a warning.
+        The background rule is a noun-BINDING rule, not a word match. A STRONG
+        background noun (table, cloth, …) drops a sentence when bare; the WEAK
+        'surface' drops one only when bound to the background (a colour before it),
+        never standing alone or bound to the object. A trailing locative background
+        phrase is trimmed off an object sentence, and an all-background caption is
+        returned unchanged with a warning.
     """
 
-    # Kept: 'surface' bound to the plate by 'of', and an object-colour phrase.
-    assert Reporting.Strip_Background(
-        'The surface of the plate is machined with concentric marks.')[0] == \
-        'The surface of the plate is machined with concentric marks.'
-    assert Reporting.Strip_Background('A green plastic terminal block.')[0] == \
-        'A green plastic terminal block.'
+    # Kept: 'surface' as object detail — bare, bound to the object by 'of', or possessive.
+    for keep in ('The surface of the plate is machined with concentric marks.',
+                 'The surface is shiny and reflective.',
+                 'The surface of the plate is machined.',
+                 'Its surface has concentric marks.',
+                 'A green plastic terminal block.'):
+        assert Reporting.Strip_Background(keep)[0] == keep, keep
 
-    # Trimmed: the trailing background phrase goes, the object stays — and the colour
-    # word does not matter, only the background noun.
+    # Trimmed: the trailing locative background phrase goes, the object stays.
     assert Reporting.Strip_Background('A metal washer on a green surface.')[0] == 'A metal washer.'
     assert Reporting.Strip_Background('A square shaped maze is on a red surface.')[0] == \
         'A square shaped maze.'
 
-    # Dropped: a genuine background sentence is removed when other object sentences remain.
-    kept, records = Reporting.Strip_Background('A metal washer. The surface is smooth and flat.')
-    assert kept == 'A metal washer.'
-    assert any(level == 'info' and 'surface' in message for level, message in records)
+    # Dropped, with an object sentence kept alongside: a bare STRONG noun ('table'),
+    # a colour-bound weak 'surface', and the boundary sentence that names BOTH the
+    # background and the object but is still about the ground.
+    for drop in ('The surface of the table is smooth.',
+                 'The green surface is very smooth.',
+                 'The green table under the metal has a smooth surface.'):
+        kept, records = Reporting.Strip_Background('A metal washer. ' + drop)
+        assert kept == 'A metal washer.', drop
+        assert any(level == 'info' for level, message in records), drop
 
     # Fallback: a caption that is ALL background returns unchanged, with a warning.
-    only_bg = 'The surface is smooth and flat.'
+    only_bg = 'The green table under the metal has a smooth surface.'
     kept, records = Reporting.Strip_Background(only_bg)
     assert kept == only_bg
     assert any(level == 'warning' for level, message in records)

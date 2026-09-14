@@ -98,30 +98,42 @@ CONST_LABEL_BOUNDARIES = (
 CONST_LABEL_MAX_WORDS = 4
 
 # ---- Background stripping (§ object lines never mention the background) --------- #
-# The background NOUNS. A sentence is dropped only when it is ABOUT the background,
-# which requires one of these nouns — NEVER a colour word. Florence misreads the
-# green table as 'red' as readily as 'green' (Image_006/007), so a colour list is
-# worthless; the noun list carries the whole load. 'surface' is deliberately here
-# even though it also appears in a legitimate object phrase ('the surface of the
-# plate is machined') — that pair is what makes this a noun-BINDING rule, not a word
-# match: a background noun bound to an object by 'of' does not count (see Is_Bare).
-CONST_BG_NOUNS = ('background', 'backdrop', 'table', 'tablecloth', 'cloth', 'felt',
-                  'surface', 'mat', 'desk', 'floor', 'sheet')
-_BG_ALT = '(?:%s)' % '|'.join(CONST_BG_NOUNS)
+# STRONG background nouns — unambiguously the ground. A bare one (not bound to an
+# object by 'of') makes a sentence about the background and drops it. A colour word is
+# NEVER the trigger: Florence misreads the green table as 'red' as readily as 'green'
+# (Image_006/007), so a colour match is worthless and the noun carries the load.
+CONST_BG_NOUNS_STRONG = ('background', 'backdrop', 'table', 'tablecloth', 'cloth',
+                         'felt', 'mat', 'desk', 'floor', 'sheet')
+
+# 'surface' is a WEAK background noun: it is as often the OBJECT's surface ('the
+# surface of the plate is machined', 'the surface is shiny and reflective') as the
+# ground's. It counts as background ONLY when BOUND to the background — a colour word
+# before it ('green surface') or a locative phrase ('on a surface', caught by the
+# trailing trim) — never standing alone or bound to the object. This is what keeps
+# object detail that merely says 'surface' while still dropping 'a green surface'.
+CONST_BG_SURFACE_COLOURS = ('green', 'red', 'teal', 'turquoise', 'blue', 'cyan',
+                            'grey', 'gray', 'brown', 'white', 'black', 'tan', 'olive')
 
 # A trailing locative background phrase: an optional linking verb / gerund, a
-# locative preposition, then a background noun to the end of the sentence. This is
-# what turns 'A metal washer on a green surface' into 'A metal washer'.
+# locative preposition, then a background noun (strong OR 'surface' — a trailing 'on
+# a … surface' is always the ground) to the end of the sentence. This is what turns
+# 'A metal washer on a green surface' into 'A metal washer'.
+_BG_ALL = '(?:%s)' % '|'.join(CONST_BG_NOUNS_STRONG + ('surface',))
 CONST_BG_TRAIL = re.compile(
     r'\s*(?:\b(?:is|are|was|were|it\s+is)\b\s*)?'
     r'(?:\b(?:sitting|lying|resting|laying|placed|standing|scattered|sits|lies|rests)\b\s*)?'
     r'\b(?:on|in|against|over|upon|atop|inside|beneath|under)\b\s+'
-    r'[^.]*?\b(%s)\b[^.]*$' % _BG_ALT, re.IGNORECASE)
+    r'[^.]*?\b(%s)\b[^.]*$' % _BG_ALL, re.IGNORECASE)
 
-# A BARE background noun — one NOT bound to an object by a following 'of' ('surface
-# of the plate' is bound and does not match). A sentence with a bare background noun
-# is about the background and is dropped.
-CONST_BG_BARE = re.compile(r'\b(%s)\b(?!\s+of\b)' % _BG_ALT, re.IGNORECASE)
+# A bare STRONG background noun — one NOT bound to an object by a following 'of'
+# ('the surface of the table' still matches on 'table', which is not followed by 'of').
+CONST_BG_BARE = re.compile(
+    r'\b(%s)\b(?!\s+of\b)' % ('(?:%s)' % '|'.join(CONST_BG_NOUNS_STRONG)), re.IGNORECASE)
+
+# A colour-bound 'surface' (the weak noun in a background binding): a colour word,
+# optionally one word, then 'surface' — 'green surface', 'bright green surface'.
+CONST_BG_SURFACE = re.compile(
+    r'\b(?:%s)\b\s+(?:\w+\s+)?surface\b' % '|'.join(CONST_BG_SURFACE_COLOURS), re.IGNORECASE)
 
 # A connective the trailing-phrase trim can leave dangling at the end ('The ring is
 # shiny and' -> 'The ring is shiny'), peeled off after the trim.
@@ -290,16 +302,38 @@ def Substitute_Substance(text: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]
     return CONST_SUBSTANCE_WORDS.sub(_Replace, text), records
 
 
+def __Background_Trigger(text: str) -> tp.Optional[str]:
+    """
+    Description:
+        The background noun that makes a sentence about the background, or None. A bare
+        STRONG background noun triggers it; the weak 'surface' triggers it only when
+        colour-bound ('green surface'), never standing alone — so 'the surface is
+        shiny' and 'the surface of the plate is machined' are kept while 'a green
+        surface' and 'the surface of the table' (the latter on its bare 'table') go.
+
+    Args:
+        (1) text [string]: The sentence (or its object-side remainder) to test.
+
+    Returns:
+        (1) parameter [string]: The matched background noun, or None.
+    """
+
+    strong = CONST_BG_BARE.search(text)
+    if strong:
+        return strong.group(1)
+    if CONST_BG_SURFACE.search(text):
+        return 'surface'
+    return None
+
+
 def __Strip_Sentence(core: str) -> tp.Tuple[tp.Optional[str], tp.Optional[str]]:
     """
     Description:
         Decide one sentence's fate under the background rule. `core` is the sentence
         without terminal punctuation. A trailing locative background phrase is trimmed
-        ('A washer on a green surface' -> 'A washer'); if what remains still holds a
-        BARE background noun (one not bound to an object by 'of'), the whole sentence
-        is about the background and is dropped. A sentence with no bare background
-        noun is kept untouched — this is what keeps 'the surface of the plate is
-        machined' (surface bound by 'of') while dropping 'the surface is smooth'.
+        ('A washer on a green surface' -> 'A washer'); if what remains is still about
+        the background (see __Background_Trigger), the whole sentence is dropped. A
+        sentence with no background trigger is kept untouched.
 
     Args:
         (1) core [string]: One sentence, without its terminal punctuation.
@@ -316,12 +350,12 @@ def __Strip_Sentence(core: str) -> tp.Tuple[tp.Optional[str], tp.Optional[str]]:
         while trimmed != previous:
             previous = trimmed
             trimmed = CONST_BG_DANGLE.sub('', trimmed).strip()
-        if (not trimmed) or CONST_BG_BARE.search(trimmed):
+        if (not trimmed) or __Background_Trigger(trimmed):
             return None, trail.group(1)
         return trimmed, trail.group(1)
-    bare = CONST_BG_BARE.search(core)
-    if bare:
-        return None, bare.group(1)
+    trigger = __Background_Trigger(core)
+    if trigger:
+        return None, trigger
     return core, None
 
 
