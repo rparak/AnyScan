@@ -77,28 +77,30 @@ CONST_BAND_TEXT     = '#b9b2d6'   # lavender text/disclaimer on the band
 # One colour pair per detection index, shared by the frame overlay and the text.
 # `box` is the stroke on the dark viewport; `ink` is a darkened twin of the same hue
 # for type on white, because a saturated stroke colour set as 14.5px text falls below
-# readable contrast. Green, red and amber are deliberately ABSENT: here they mean
-# pass, fail and degraded (see the verdict tokens above). An object numbered 3 is not
-# 'the good one'.
+# readable contrast. Green, amber AND the red-through-magenta wedge are deliberately
+# ABSENT: green/amber are the pass/degraded verdicts, and the whole red-magenta wedge
+# reads as 'fail' at a glance — including the brand magenta (#ff005c), which is a
+# verdict-lookalike, so it stays the brand accent elsewhere but is NOT an object
+# colour. An object's colour must never be mistakable for a verdict.
 #   Unit [Vector<Tuple<string> 1x2>]
 CONST_INDEX_COLORS = [
-    ('#ff005c', '#b3003f'),
-    ('#0ea5e9', '#0369a1'),
-    ('#7c3aed', '#5b21b6'),
-    ('#14b8a6', '#0f766e'),
-    ('#6366f1', '#4338ca'),
-    ('#d946ef', '#a21caf'),
+    ('#0ea5e9', '#0369a1'),   # cyan-blue
+    ('#7c3aed', '#5b21b6'),   # violet
+    ('#14b8a6', '#0f766e'),   # teal
+    ('#6366f1', '#4338ca'),   # indigo
+    ('#d946ef', '#a21caf'),   # magenta-purple (distinct from the red-magenta wedge)
 ]
 
 # Reserved hue bands (fraction of the wheel, 0..1) an object colour must avoid: an
-# object painted in the pass/fail/degraded hues would misread as a verdict. Guards
-# both the base palette and every generated variant (__Assert_No_Reserved_Hue).
+# object in a verdict hue would misread as pass/fail/degraded. The red end is the
+# WHOLE red-through-magenta wedge, not just true red, because a rose/crimson reads as
+# fail at a glance even though its hue is not 0. Guards both the base palette and every
+# generated variant (__Assert_No_Reserved_Hue).
 #   Unit [Vector<Tuple<float> 1x2>]
 CONST_RESERVED_HUE_BANDS = [
-    (0.97, 1.00), (0.00, 0.03),   # true red (~0deg)   — fail (NOT the brand magenta,
-                                  #                      hue ~0.94, which is object 1)
-    (0.06, 0.15),                 # amber    (~40deg)  — degraded
-    (0.25, 0.42),                 # green    (~120deg) — pass
+    (0.83, 1.00), (0.00, 0.05),   # red through magenta (~300..360deg) — fail
+    (0.05, 0.18),                 # amber / orange      (~20..65deg)   — degraded
+    (0.22, 0.45),                 # green               (~80..160deg)  — pass
 ]
 
 # The lightness/saturation steps (delta_l, delta_s) that extend the six base pairs
@@ -233,10 +235,13 @@ def Index_Color(index: int) -> tp.Tuple[str, str]:
 
     base = len(CONST_INDEX_COLORS)
     box_hex, ink_hex = CONST_INDEX_COLORS[index % base]
-    cycle = index // base
-    if cycle == 0:
+    if index < base:
         return box_hex, ink_hex
-    delta_l, delta_s = CONST_INDEX_VARIANT_STEPS[(cycle - 1) % len(CONST_INDEX_VARIANT_STEPS)]
+    # A variant of a base colour. Index the shade step by the ABSOLUTE index, not the
+    # cycle, so consecutive variants take DIFFERENT steps (one darker, the next lighter
+    # and desaturated) — otherwise every variant lightens by the same amount and two
+    # adjacent base hues (violet and indigo) converge on the same pale lavender.
+    delta_l, delta_s = CONST_INDEX_VARIANT_STEPS[index % len(CONST_INDEX_VARIANT_STEPS)]
     box = __Shade(box_hex, delta_l, delta_s)
     # The ink twin: the same variant, darkened for readable text on white.
     ink = __Shade(box, -0.22, 0.05)
