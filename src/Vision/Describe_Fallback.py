@@ -36,18 +36,25 @@ Description:
     stub — it lets stages 1-3 run and be judged end to end without loading
     Florence-2, and it stands in when the weights are absent.
 
-    Colour is classified in HSV, never by nearest-neighbour in BGR. A mid-dark
-    saturated red is close to a 'brown' anchor in BGR (its B/G/R triple sits near
-    brown's) but its HUE is unambiguously red; classifying on hue keeps it red.
+    Colour is a per-pixel MAJORITY VOTE over the masked pixels, classified in HSV.
+    The vote is deliberate, not an average: OpenCV hue wraps at 0/180, and red sits at
+    BOTH ends (a real red part scatters pixels near hue 0 AND near hue 179), so the
+    median or mean hue of a red object lands halfway between the two lobes — around
+    109, which reads as blue. Voting on each pixel's colour name instead lets both red
+    lobes count as 'red', so a red object votes red. Neutrals (low saturation) skip
+    the hue entirely and are unaffected, which is why only red mis-read before.
 
     Note:
         OpenCV (cv2) and NumPy (np) are injected, the Qt-free vision-domain contract.
 """
-# Colour is decided from the median HSV of the masked pixels. Below this value it is
-# 'black'; below this saturation it is greyscale ('white' above the light cutoff,
-# else 'grey'). OpenCV hue is 0..179.
+# Colour is voted per masked pixel. Below this value a pixel is 'black'; below this
+# saturation it is greyscale ('white' above the light cutoff, else 'grey'); otherwise
+# its hue names it. OpenCV hue is 0..179. The saturation cutoff is set for machined
+# metal: bare steel under the green-lit rig carries a genuine but weak colour cast
+# (median saturation ~70-100), which a low cutoff mis-reads as blue, while a real
+# coloured part sits far higher (~180+) — so the cutoff sits in that gap.
 CONST_COLOR_VALUE_MIN = 40
-CONST_COLOR_SAT_MIN = 40
+CONST_COLOR_SAT_MIN = 120
 CONST_COLOR_LIGHT_MIN = 180
 # Hue upper bounds (OpenCV 0..179) mapped to a colour name; red wraps both ends.
 CONST_COLOR_HUE_BANDS = ((10, 'red'), (20, 'orange'), (33, 'yellow'), (85, 'green'),
@@ -84,7 +91,7 @@ def Describe_Fallback(image: tp.List[tp.List[int]], mask: tp.List[tp.List[int]],
         (1) parameter [Tuple<string> 1x2]: The (Label, Detail) pair.
     """
 
-    colour = __Colour_Name(__Dominant_Hsv(image, mask, bbox, cv2, np))
+    colour = __Dominant_Colour(image, mask, bbox, cv2, np)
     size = __Size_Word(bbox, frame_shape)
     position = __Position_Phrase(bbox, frame_shape)
     shape = __Shape_Word(mask, bbox, cv2, np)
@@ -95,13 +102,20 @@ def Describe_Fallback(image: tp.List[tp.List[int]], mask: tp.List[tp.List[int]],
     return label, detail
 
 
-def __Dominant_Hsv(image: tp.List[tp.List[int]], mask: tp.List[tp.List[int]],
-                   bbox: tp.Tuple[int, int, int, int], cv2: tp.Any, np: tp.Any) -> tp.Optional[tp.Any]:
+def __Dominant_Colour(image: tp.List[tp.List[int]], mask: tp.List[tp.List[int]],
+                      bbox: tp.Tuple[int, int, int, int], cv2: tp.Any, np: tp.Any) -> str:
     """
     Description:
-        The median HSV of the object's masked pixels within its box, or None when the
-        mask is empty there. The median, not the mean, so a few edge pixels of the
-        surrounding surface do not drag the colour.
+        The dominant colour name of the object's masked pixels, by per-pixel majority
+        vote. Each masked pixel is named: below CONST_COLOR_VALUE_MIN value it is
+        'black'; below CONST_COLOR_SAT_MIN saturation it is 'white' (light) or 'grey';
+        otherwise its hue band names it. The most common name wins.
+
+        The vote — not a median or mean of the hue — is what makes red robust: red
+        scatters across BOTH ends of the 0..179 hue circle, so averaging its hue lands
+        between the two lobes (~109, a false blue), while voting lets both lobes count
+        as 'red'. It also shrugs off the minority of surface pixels the filled mask
+        includes at drilled holes.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The full frame (BGR).
@@ -111,45 +125,34 @@ def __Dominant_Hsv(image: tp.List[tp.List[int]], mask: tp.List[tp.List[int]],
         (5) np [module]: The NumPy module, injected by the caller.
 
     Returns:
-        (1) parameter [Vector<float> 1x3 or None]: Median (H, S, V), H in 0..179.
+        (1) parameter [string]: The dominant colour name, or '' when the mask is empty.
     """
 
     x, y, w, h = bbox
     sub_image = image[y:y + h, x:x + w]
     sub_mask = mask[y:y + h, x:x + w]
-    hsv = cv2.cvtColor(sub_image, cv2.COLOR_BGR2HSV)
-    pixels = hsv[sub_mask]
+    pixels = cv2.cvtColor(sub_image, cv2.COLOR_BGR2HSV)[sub_mask]
     if pixels.size == 0:
-        return None
-    return np.median(pixels, axis=0)
-
-
-def __Colour_Name(hsv: tp.Optional[tp.Any]) -> str:
-    """
-    Description:
-        A colour name from a median HSV. Value and saturation decide black / white /
-        grey first; otherwise the hue band names the colour. Classifying on HUE is
-        the point: a dark saturated red keeps its red hue where a BGR distance would
-        pull it toward brown.
-
-    Args:
-        (1) hsv [Vector<float> 1x3 or None]: Median (H, S, V), H in 0..179, or None.
-
-    Returns:
-        (1) parameter [string]: The colour name, or '' when unknown.
-    """
-
-    if hsv is None:
         return ''
-    hue, saturation, value = float(hsv[0]), float(hsv[1]), float(hsv[2])
-    if value < CONST_COLOR_VALUE_MIN:
-        return 'black'
-    if saturation < CONST_COLOR_SAT_MIN:
-        return 'white' if value >= CONST_COLOR_LIGHT_MIN else 'grey'
-    for upper, name in CONST_COLOR_HUE_BANDS:
-        if hue < upper:
-            return name
-    return 'red'
+
+    hue, saturation, value = pixels[:, 0], pixels[:, 1], pixels[:, 2]
+    names = np.empty(len(pixels), dtype=object)
+    black = value < CONST_COLOR_VALUE_MIN
+    neutral = (~black) & (saturation < CONST_COLOR_SAT_MIN)
+    chromatic = (~black) & (~neutral)
+    names[black] = 'black'
+    names[neutral & (value >= CONST_COLOR_LIGHT_MIN)] = 'white'
+    names[neutral & (value < CONST_COLOR_LIGHT_MIN)] = 'grey'
+
+    # Chromatic pixels: the hue band each falls in. searchsorted on the band upper
+    # bounds names both red lobes (< 10 and >= 160) 'red', so red survives the vote.
+    uppers = np.array([upper for upper, _ in CONST_COLOR_HUE_BANDS])
+    band_names = [name for _, name in CONST_COLOR_HUE_BANDS]
+    idx = np.clip(np.searchsorted(uppers, hue[chromatic], side='right'), 0, len(band_names) - 1)
+    names[chromatic] = [band_names[i] for i in idx]
+
+    values, counts = np.unique(names.astype(str), return_counts=True)
+    return str(values[counts.argmax()])
 
 
 def __Size_Word(bbox: tp.Tuple[int, int, int, int], frame_shape: tp.Tuple[int, int, int]) -> str:
