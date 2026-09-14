@@ -49,10 +49,12 @@ import Vision.Segmenter as Vision_Segmenter
 from Vision.Segmenter import Segmenter_Error_Cls
 #   ../Vision/Utilities/Discovery
 from Vision.Utilities.Discovery import Discover_Scenes, Select_Background, Discovery_Error_Cls
+#   ../Vision/Utilities/Annotate
+from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 #   ../Reporting/Core
 from Reporting.Core import Screen_Understanding
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Analysis_Str
+from Parameters.Vision import Analysis_Str
 
 """
 Description:
@@ -83,112 +85,9 @@ CONST_INPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera')
 CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Results')
 
 # Throwaway per-object colours (BGR), one per index, cycled past the tenth object.
-# Ten distinct hues, enough for the ten-object frame; the themed palette that keys
-# these to the UI accents and scales with resolution is a later step (§1d).
-#   Unit [Vector<tuple>]
-CONST_OBJECT_COLORS = (
-    (60, 76, 231), (219, 152, 52), (94, 185, 113), (43, 57, 192), (182, 89, 155),
-    (60, 172, 240), (140, 120, 75), (128, 62, 200), (85, 200, 200), (200, 130, 90))
-
-# Fill opacity for the translucent object overlay on the annotated image.
-#   Unit [float]
-CONST_ANNOTATE_FILL_ALPHA = 0.40
-
 # The montage cell size (px) for the optional enhanced-crop debug view.
 #   Unit [int]
 CONST_MONTAGE_CELL = 260
-
-
-def _Object_Color(index: int) -> tp.Tuple[int, int, int]:
-    """
-    Description:
-        The BGR colour for an object index (0-based), cycled through the throwaway
-        palette. The same index maps to the same colour in the annotated image and the
-        label mask, so an object can be compared between the two files.
-
-    Args:
-        (1) index [int]: The 0-based object index.
-
-    Returns:
-        (1) parameter [Vector<int> 1x3]: The BGR colour.
-    """
-
-    return CONST_OBJECT_COLORS[index % len(CONST_OBJECT_COLORS)]
-
-
-def _Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str]) -> tp.Any:
-    """
-    Description:
-        The scene with each object drawn: a translucent mask fill, the mask contour,
-        the tight bounding box and the index, colour-keyed by index. Only ASCII is
-        passed to cv2.putText — Hershey fonts render non-ASCII as '?'.
-
-    Args:
-        (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
-        (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
-
-    Returns:
-        (1) parameter [Matrix<uint8> HxWx3]: The annotated scene (BGR).
-    """
-
-    base = scene_bgr.copy()
-    overlay = scene_bgr.copy()
-    for i, det in enumerate(objects):
-        color = _Object_Color(i)
-        if det.Mask is not None:
-            mask = det.Mask.astype(np.uint8)
-            overlay[det.Mask.astype(bool)] = color
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(base, contours, -1, color, 3)
-    blended = cv2.addWeighted(overlay, CONST_ANNOTATE_FILL_ALPHA, base, 1.0 - CONST_ANNOTATE_FILL_ALPHA, 0.0)
-
-    for i, det in enumerate(objects):
-        color = _Object_Color(i)
-        x, y, w, h = det.Bbox
-        cv2.rectangle(blended, (x, y), (x + w, y + h), color, 2)
-        label = 'Obj %d' % (i + 1)
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-        top = max(0, y - th - 8)
-        cv2.rectangle(blended, (x, top), (x + tw + 8, top + th + 8), color, thickness=-1)
-        cv2.putText(blended, label, (x + 4, top + th + 2),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
-    return blended
-
-
-def _Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, int]) -> tp.Any:
-    """
-    Description:
-        The segmentation result as a LABEL mask, not a bare binary mask: a pure-black
-        ground with each accepted object filled in its own colour (the same index
-        colour as the annotated image) and its index drawn on it. On black the object
-        colours separate cleanly, so under-segmentation (two parts one colour) and
-        over-segmentation (one part split across two) are visible at a glance.
-
-        The black ground is deliberate and is NOT a themed surface colour — the mask
-        is a diagnostic image, not a UI element.
-
-    Args:
-        (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
-        (2) shape [Tuple<int>]: The source frame's (h, w, c) shape.
-
-    Returns:
-        (1) parameter [Matrix<uint8> HxWx3]: The label mask (BGR) at the source size.
-    """
-
-    h, w = shape[:2]
-    mask_image = np.zeros((h, w, 3), dtype=np.uint8)
-    for i, det in enumerate(objects):
-        if det.Mask is None:
-            continue
-        color = _Object_Color(i)
-        mask_image[det.Mask.astype(bool)] = color
-        x, y, bw, bh = det.Bbox
-        cx, cy = x + bw // 2, y + bh // 2
-        label = str(i + 1)
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
-        cv2.putText(mask_image, label, (cx - tw // 2, cy + th // 2),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
-    return mask_image
 
 
 def _Write_Descriptions(path: str, result: Analysis_Str) -> None:
@@ -323,9 +222,9 @@ def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: st
         return None
 
     cv2.imwrite(os.path.join(output_dir, '%s_annotated.png' % stem),
-                _Draw_Annotated(scene_bgr, result.Objects))
+                Draw_Annotated(scene_bgr, result.Objects, cv2, np))
     cv2.imwrite(os.path.join(output_dir, '%s_mask.png' % stem),
-                _Draw_Label_Mask(result.Objects, scene_bgr.shape))
+                Draw_Label_Mask(result.Objects, scene_bgr.shape, cv2, np))
     _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result)
     if write_montage:
         montage = _Montage([det.Enhanced_Crop for det in result.Objects])
