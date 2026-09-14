@@ -574,10 +574,13 @@ def Screen_Understanding(objects: tp.List[Detection_Str], background_sentence: s
         (1) parameter [string]: The full Screen-Understanding text.
     """
 
-    background = (background_sentence or '').strip()
-    if background and background[-1] not in '.!?':
+    # The background is stated on the first line, always: an empty sentence would
+    # leave the count line headless ('There are 3 objects on it' with no 'it'), so a
+    # missing background falls back to the neutral string here too.
+    background = (background_sentence or '').strip() or CONST_BACKGROUND_FALLBACK
+    if background[-1] not in '.!?':
         background += '.'
-    lead = (background + ' ') if background else ''
+    lead = background + ' '
 
     count = len(objects)
     if count == 0:

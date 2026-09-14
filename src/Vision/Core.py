@@ -34,7 +34,7 @@ import typing as tp
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
 from Reporting.Core import (Compose, Verdict, Background_Sentence,
-                            CONST_EMPTY_SCENE_EXPLANATION)
+                            CONST_EMPTY_SCENE_EXPLANATION, CONST_BACKGROUND_FALLBACK)
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import Background_Foreground
 #   ../Vision/Utilities/Fusion
@@ -404,8 +404,9 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
 
             The result is cached against the reference image's content hash: the same
             reference never re-runs Florence, and a changed reference re-describes.
-            Returns an empty sentence and no records when the Florence model is not
-            loaded (the fallback describer writes no scene caption).
+            When no scene model is loaded (the fallback describer) it returns the
+            neutral CONST_BACKGROUND_FALLBACK with a warning, never an empty sentence,
+            so the reading always has a background line before the count.
 
         Args:
             (1) bg_bgr [Matrix<uint8> HxWx3]: The empty-surface reference (BGR).
@@ -417,7 +418,11 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         """
 
         if self.__model is None:
-            return '', []
+            # The fallback describer loads no scene model, so there is no caption —
+            # but the reading must never show the count line without a background line
+            # first. Use the neutral fallback and record why.
+            return CONST_BACKGROUND_FALLBACK, [('warning',
+                    'no scene model (fallback describer); used the neutral background sentence')]
         key = hashlib.md5(bg_bgr.tobytes()).hexdigest()
         if key == self.__background_key:
             return self.__background_sentence, []

@@ -188,19 +188,25 @@ def _Configure(args: argparse.Namespace) -> None:
 
 
 def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: str,
-                   write_montage: bool) -> tp.Optional[Analysis_Str]:
+                   write_descriptions: bool, write_montage: bool) -> tp.Optional[Analysis_Str]:
     """
     Description:
-        Run one scene through the application pipeline and write its three artefacts
-        (annotated, label mask, descriptions) — and the enhanced-crop montage when
+        Run one scene through the application pipeline and write its artefacts — the
+        annotated image and the label mask always; the descriptions file ONLY when the
+        real describer ran (write_descriptions); the enhanced-crop montage when
         requested — into the output directory. Returns the analysis, or None on a
         vision error (already reported through a banner).
+
+        The descriptions file is skipped under the fallback describer: its placeholder
+        captions are not the real reading, and silently overwriting a Florence
+        *_descriptions.txt with them is how a stale artefact ends up looking finished.
 
     Args:
         (1) backend [Florence_Vision_Cls(object)]: The vision backend.
         (2) scene_path [string]: The scene image path.
         (3) output_dir [string]: The directory to write the artefacts into.
-        (4) write_montage [bool]: Also write the enhanced-crop debug montage.
+        (4) write_descriptions [bool]: Write the descriptions file (real describer only).
+        (5) write_montage [bool]: Also write the enhanced-crop debug montage.
 
     Returns:
         (1) parameter [Analysis_Str(object) or None]: The analysis, or None on failure.
@@ -225,7 +231,8 @@ def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: st
                 Draw_Annotated(scene_bgr, result.Objects, cv2, np))
     cv2.imwrite(os.path.join(output_dir, '%s_mask.png' % stem),
                 Draw_Label_Mask(result.Objects, scene_bgr.shape, cv2, np))
-    _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result)
+    if write_descriptions:
+        _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result)
     if write_montage:
         montage = _Montage([det.Enhanced_Crop for det in result.Objects])
         if montage is not None:
@@ -252,7 +259,8 @@ def main() -> int:
     parser.add_argument('--background', default=None, help='explicit reference filename (overrides the highest-index rule)')
     parser.add_argument('--weights', default=None, help='FastSAM weights path (overrides the default)')
     parser.add_argument('--device', default=None, help="compute device: 'cpu', 'cuda', 'mps' or 'auto'")
-    parser.add_argument('--no-describe', action='store_true', help='use the model-free fallback describer (no VLM)')
+    parser.add_argument('--no-describe', action='store_true',
+                        help='use the model-free fallback describer (no VLM); does NOT write descriptions files')
     parser.add_argument('--montage', action='store_true', help='also write the enhanced-crop debug montage (off by default)')
     args = parser.parse_args()
 
@@ -283,7 +291,8 @@ def main() -> int:
     rows = []
     for scene_path in scenes:
         stem = os.path.splitext(os.path.basename(scene_path))[0]
-        result = _Analyze_Frame(backend, scene_path, args.output_dir, args.montage)
+        result = _Analyze_Frame(backend, scene_path, args.output_dir,
+                                not args.no_describe, args.montage)
         if result is None:
             return 1
         cues = {}

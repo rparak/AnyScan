@@ -276,9 +276,11 @@ def test_screen_understanding_assembly() -> None:
     assert header.endswith('There are 3 objects on it, described below.')
     assert body == 'Obj. 1 - A washer.\nObj. 2 - A bolt.\nObj. 3 - A nut.'
 
-    # An empty background sentence just omits the lead; the count sentence still holds.
+    # An empty background sentence falls back to the neutral string — never a headless
+    # count line ('There is 1 object on it' with no background named).
     assert Reporting.Screen_Understanding([_Line('A washer.')], '') == \
-        'There is 1 object on it, described below.\n\nObj. 1 - A washer.'
+        (Reporting.CONST_BACKGROUND_FALLBACK
+         + ' There is 1 object on it, described below.\n\nObj. 1 - A washer.')
 
 
 def test_background_sentence_validation() -> None:
