@@ -23,6 +23,8 @@
 # File Name: ../test/Parameters/test_theme.py
 ## =========================================================================== ##
 
+# System (Default)
+import itertools
 # Custom Lib.: AnyScan domain — the Qt-free colour palette
 #   ../Parameters/Theme
 import Parameters.Theme as Theme
@@ -83,6 +85,21 @@ def test_no_index_colour_is_a_reserved_verdict_hue() -> None:
         hue = Theme.Hue_Of(box)
         assert not any(low <= hue <= high for low, high in Theme.CONST_RESERVED_HUE_BANDS), \
             'Index_Color(%d)=%s hue=%.3f is reserved' % (i, box, hue)
+
+
+def test_twelve_index_colours_are_perceptually_distinct() -> None:
+    """
+    Description:
+        Every pair of the first twelve index colours is at least a clear perceptual
+        distance apart (CIE76 ΔE), not merely a different hex — a dense frame leans on
+        the generated variants, and the colour coding is worthless if two objects read
+        as the same colour. Checked in Lab, not RGB, which does not match the eye.
+    """
+
+    for a, b in itertools.combinations(range(12), 2):
+        distance = Theme.Delta_E(Theme.Index_Color(a)[0], Theme.Index_Color(b)[0])
+        assert distance >= 12.0, \
+            'index %d and %d are too close (ΔE=%.1f)' % (a, b, distance)
 
 
 def test_hex_conversions_match_opencv_order() -> None:

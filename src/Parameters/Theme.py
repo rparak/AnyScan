@@ -103,13 +103,16 @@ CONST_RESERVED_HUE_BANDS = [
     (0.22, 0.45),                 # green               (~80..160deg)  — pass
 ]
 
-# The lightness/saturation steps (delta_l, delta_s) that extend the six base pairs
-# past the sixth object. Applied to a base colour with its HUE HELD FIXED, so a
-# variant can never drift into a reserved hue; only the shade changes. Enough steps
-# to keep a ten-object frame (Image_006's successor, Image_001) distinct.
+# The lightness LEVELS (delta_l, delta_s) that extend the five base pairs past the
+# fifth object, applied to a base colour with its HUE HELD FIXED (so a variant never
+# drifts into a reserved hue — only the shade changes). Each hue gets three well-
+# separated lightness levels — base (medium), dark, then light — so twelve objects are
+# five hues at distinct lightnesses rather than near-repeats of one another. A dark
+# and a light teal read as clearly different colours; two whites do not.
 #   Unit [Vector<Tuple<float> 1x2>]
 CONST_INDEX_VARIANT_STEPS = [
-    (0.16, -0.18), (-0.16, -0.10), (0.26, -0.30), (-0.24, -0.04),
+    (-0.30, -0.05),   # level 1 — dark
+    (0.30, -0.15),    # level 2 — light
 ]
 
 
@@ -177,6 +180,77 @@ def Hue_Of(hex_color: str) -> float:
     return colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)[0]
 
 
+def __Lab(hex_color: str) -> tp.Tuple[float, float, float]:
+    """
+    Description:
+        A colour as CIE L*a*b* (D65), the space perceptual distance is measured in.
+
+    Args:
+        (1) hex_color [string]: The colour as '#rrggbb'.
+
+    Returns:
+        (1) parameter [Vector<float> 1x3]: The (L, a, b) coordinates.
+    """
+
+    def _Linear(channel: float) -> float:
+        """
+        Description:
+            Undo the sRGB gamma for one 0..255 channel, giving linear light 0..1.
+
+        Args:
+            (1) channel [float]: The channel value (0..255).
+
+        Returns:
+            (1) parameter [float]: The linear-light value (0..1).
+        """
+
+        channel /= 255.0
+        return ((channel + 0.055) / 1.055) ** 2.4 if channel > 0.04045 else channel / 12.92
+
+    r, g, b = (_Linear(c) for c in Hex_To_Rgb(hex_color))
+    x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
+    y = (0.2126 * r + 0.7152 * g + 0.0722 * b)
+    z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
+
+    def _F(t: float) -> float:
+        """
+        Description:
+            The CIELAB nonlinearity applied to a normalised XYZ component.
+
+        Args:
+            (1) t [float]: The normalised component.
+
+        Returns:
+            (1) parameter [float]: The transformed component.
+        """
+
+        return t ** (1.0 / 3.0) if t > 0.008856 else 7.787 * t + 16.0 / 116.0
+
+    fx, fy, fz = _F(x), _F(y), _F(z)
+    return (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+
+
+def Delta_E(hex_a: str, hex_b: str) -> float:
+    """
+    Description:
+        The CIE76 perceptual distance (ΔE) between two colours — the Euclidean distance
+        in L*a*b*, which tracks the eye far better than an RGB distance. A ΔE below ~10
+        is hard to tell apart; the palette and the rendered strokes are kept well above
+        that so no two objects read as the same colour.
+
+    Args:
+        (1) hex_a [string]: The first colour as '#rrggbb'.
+        (2) hex_b [string]: The second colour as '#rrggbb'.
+
+    Returns:
+        (1) parameter [float]: The ΔE76 distance.
+    """
+
+    la, aa, ba = __Lab(hex_a)
+    lb, ab, bb = __Lab(hex_b)
+    return ((la - lb) ** 2 + (aa - ab) ** 2 + (ba - bb) ** 2) ** 0.5
+
+
 def __Is_Reserved_Hue(hue: float) -> bool:
     """
     Description:
@@ -235,13 +309,13 @@ def Index_Color(index: int) -> tp.Tuple[str, str]:
 
     base = len(CONST_INDEX_COLORS)
     box_hex, ink_hex = CONST_INDEX_COLORS[index % base]
-    if index < base:
+    level = index // base
+    if level == 0:
         return box_hex, ink_hex
-    # A variant of a base colour. Index the shade step by the ABSOLUTE index, not the
-    # cycle, so consecutive variants take DIFFERENT steps (one darker, the next lighter
-    # and desaturated) — otherwise every variant lightens by the same amount and two
-    # adjacent base hues (violet and indigo) converge on the same pale lavender.
-    delta_l, delta_s = CONST_INDEX_VARIANT_STEPS[index % len(CONST_INDEX_VARIANT_STEPS)]
+    # A variant of a base colour at a distinct lightness level (dark, then light),
+    # hue held fixed — so the same hue's base, dark and light variants are three
+    # clearly different shades.
+    delta_l, delta_s = CONST_INDEX_VARIANT_STEPS[(level - 1) % len(CONST_INDEX_VARIANT_STEPS)]
     box = __Shade(box_hex, delta_l, delta_s)
     # The ink twin: the same variant, darkened for readable text on white.
     ink = __Shade(box, -0.22, 0.05)

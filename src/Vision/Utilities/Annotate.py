@@ -23,11 +23,13 @@
 # File Name: ../Vision/Utilities/Annotate.py
 ## =========================================================================== ##
 
+# System (Default)
+import colorsys
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
-from Parameters.Theme import (Index_Color, Hex_To_Bgr, CONST_CARD, CONST_INK)
+from Parameters.Theme import (Index_Color, Hex_To_Bgr, Delta_E, CONST_CARD, CONST_INK)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -79,9 +81,16 @@ CONST_ANNOTATE_CHIP_PAD = 6       # padding (px, at font scale 1) around the num
 CONST_ANNOTATE_FILL_ALPHA = 0.40
 
 # The minimum luminance-contrast ratio a stroke colour must clear against the object
-# it outlines; below it the stroke falls back to a contrasting theme foreground.
+# it outlines; below it the stroke is re-lit (see __Candidate_Strokes).
 #   Unit [float]
 CONST_ANNOTATE_CONTRAST_MIN = 1.7
+
+# The minimum perceptual distance (CIE76 ΔE) between any two objects' rendered stroke
+# colours. No two objects may render in colours closer than this — the colour coding
+# is worthless if two objects look alike — so stroke selection is coordinated to keep
+# every pair at least this far apart, after the contrast fallback.
+#   Unit [float]
+CONST_ANNOTATE_MIN_DELTA_E = 12.0
 
 # The black ground of the label mask. Deliberately NOT a theme surface colour: the
 # mask is a diagnostic image, and on black the object colours separate cleanly and
@@ -140,28 +149,131 @@ def __Contrast(a: tp.Tuple[float, float, float], b: tp.Tuple[float, float, float
     return (hi + 0.05) / (lo + 0.05)
 
 
-def __Stroke_Color(box_bgr: tp.Tuple[int, int, int], region_mean: tp.Any,
-                   np: tp.Any) -> tp.Tuple[int, int, int]:
+def __Relight(box_bgr: tp.Tuple[int, int, int], lightness: float) -> tp.Tuple[int, int, int]:
     """
     Description:
-        The stroke colour for one object: its box colour, unless that is too low in
-        contrast against the object's own pixels (a dark accent on a dark part), in
-        which case it falls back to the theme's contrasting foreground — white on a
-        dark object, ink on a light one — rather than inventing a colour.
+        The colour with its HUE and saturation held but its lightness set to `lightness`
+        — a lighter or darker shade of the same colour.
+
+    Args:
+        (1) box_bgr [Vector<int> 1x3]: The colour (B, G, R).
+        (2) lightness [float]: The target lightness (0..1).
+
+    Returns:
+        (1) parameter [Vector<int> 1x3]: The re-lit colour (B, G, R).
+    """
+
+    b, g, r = box_bgr[0] / 255.0, box_bgr[1] / 255.0, box_bgr[2] / 255.0
+    hue, _, sat = colorsys.rgb_to_hls(r, g, b)
+    nr, ng, nb = colorsys.hls_to_rgb(hue, lightness, sat)
+    return (int(round(nb * 255)), int(round(ng * 255)), int(round(nr * 255)))
+
+
+def __Bgr_Hex(bgr: tp.Tuple[int, int, int]) -> str:
+    """
+    Description:
+        A (B, G, R) colour as a '#rrggbb' string, for the ΔE distance check.
+
+    Args:
+        (1) bgr [Vector<int> 1x3]: The colour (B, G, R).
+
+    Returns:
+        (1) parameter [string]: The colour as '#rrggbb'.
+    """
+
+    return '#%02x%02x%02x' % (int(bgr[2]), int(bgr[1]), int(bgr[0]))
+
+
+def __Candidate_Strokes(box_bgr: tp.Tuple[int, int, int],
+                        region_mean: tp.Any) -> tp.List[tp.Tuple[int, int, int]]:
+    """
+    Description:
+        Every shade of the object's colour that clears the contrast against its part,
+        ordered by nearness to the object's own lightness — the box colour itself first
+        if it already clears. Keeping the hue and saturation and only moving the
+        lightness means a re-lit stroke is still recognisably the object's colour, so
+        the coordinated assignment can pick a distinct one without discarding identity.
 
     Args:
         (1) box_bgr [Vector<int> 1x3]: The object's box colour (B, G, R).
         (2) region_mean [Vector<float> 1x3]: The mean BGR of the object's pixels.
-        (3) np [module]: The NumPy module, injected by the caller.
 
     Returns:
-        (1) parameter [Vector<int> 1x3]: The stroke colour (B, G, R).
+        (1) parameter [Vector<Tuple<int> 1x3>]: The contrast-clearing shades, nearest first.
     """
 
     region = tuple(float(c) for c in region_mean)
+    own_lightness = colorsys.rgb_to_hls(box_bgr[2] / 255.0, box_bgr[1] / 255.0, box_bgr[0] / 255.0)[1]
+    passing = []
     if __Contrast(box_bgr, region) >= CONST_ANNOTATE_CONTRAST_MIN:
-        return box_bgr
-    return Hex_To_Bgr(CONST_CARD) if __Luminance(region) < 0.5 else Hex_To_Bgr(CONST_INK)
+        passing.append((0.0, tuple(int(c) for c in box_bgr)))
+    for step in range(3, 98, 2):
+        candidate = __Relight(box_bgr, step / 100.0)
+        if __Contrast(candidate, region) >= CONST_ANNOTATE_CONTRAST_MIN:
+            passing.append((abs(step / 100.0 - own_lightness) + 1e-3, candidate))
+    passing.sort(key=lambda item: item[0])
+    return [colour for _, colour in passing]
+
+
+def Stroke_Colors(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
+                  cv2: tp.Any, np: tp.Any) -> tp.List[tp.Tuple[int, int, int]]:
+    """
+    Description:
+        The stroke colour (B, G, R) each object is rendered in — the colour its contour,
+        box and chip share, after the contrast fallback and the distinctness coordination.
+        Exposed so the invariant (no two objects render within CONST_ANNOTATE_MIN_DELTA_E)
+        can be checked on a real frame, since the fallback is what could collapse two
+        distinct colours.
+
+    Args:
+        (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
+        (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (3) cv2 [module]: The OpenCV module, injected by the caller.
+        (4) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [Vector<Tuple<int> 1x3>]: One stroke colour per object.
+    """
+
+    return [colour for colour, _ in __Assign_Strokes(scene_bgr, objects, np)]
+
+
+def __Assign_Strokes(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
+                     np: tp.Any) -> tp.List[tp.Tuple[tp.Tuple[int, int, int], bool]]:
+    """
+    Description:
+        Assign every object a stroke colour that both clears the contrast against its
+        part AND stays at least CONST_ANNOTATE_MIN_DELTA_E from every already-assigned
+        stroke, so no two objects ever render in near-identical colours. Each object
+        takes the nearest contrast-clearing shade of its own colour that is still
+        distinct from those placed before it; only when no shade is both is it forced to
+        flat white (flagged, so the caller can log how often the palette is overridden).
+
+    Args:
+        (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
+        (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (3) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [Vector<Tuple>]: One (colour (B, G, R), forced_white [bool]) per object.
+    """
+
+    assigned, result = [], []
+    for index, det in enumerate(objects):
+        box_bgr = tuple(int(c) for c in Hex_To_Bgr(Index_Color(index)[0]))
+        if det.Mask is None or int(np.count_nonzero(det.Mask)) == 0:
+            candidates = [box_bgr]
+        else:
+            candidates = __Candidate_Strokes(box_bgr, scene_bgr[det.Mask.astype(bool)].mean(axis=0))
+        chosen = next((colour for colour in candidates
+                       if all(Delta_E(__Bgr_Hex(colour), __Bgr_Hex(other)) >= CONST_ANNOTATE_MIN_DELTA_E
+                              for other in assigned)), None)
+        forced = chosen is None
+        if forced:
+            chosen = tuple(int(c) for c in Hex_To_Bgr(CONST_CARD))
+        assigned.append(chosen)
+        result.append((chosen, forced))
+    return result
 
 
 def __Chip_Font_Scale(scale: float) -> float:
@@ -258,20 +370,20 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
     annotated = cv2.addWeighted(overlay, CONST_ANNOTATE_FILL_ALPHA, scene_bgr,
                                 1.0 - CONST_ANNOTATE_FILL_ALPHA, 0.0)
 
+    # One coordinated colour per object for the contour, box AND chip (the shared
+    # stroke), so the label and its box can never disagree, no two objects collapse to
+    # the same colour, and identity survives the contrast fallback.
+    strokes = __Assign_Strokes(scene_bgr, objects, np)
     for i, det in enumerate(objects):
-        box_bgr = Hex_To_Bgr(Index_Color(i)[0])
         x, y, w, h = det.Bbox
-        # One colour per object for the contour, box AND chip. It is the object's box
-        # colour unless that is too low-contrast against the part, in which case all
-        # three fall back together — so the label and its box can never disagree.
+        stroke, forced_white = strokes[i]
+        if forced_white:
+            print('[WARNING] Annotate: object %d stroke forced to flat white — no shade '
+                  'of its colour clears the contrast and stays distinct from the others.' % (i + 1))
         if det.Mask is not None:
-            mask_u8 = det.Mask.astype(np.uint8)
-            region_mean = scene_bgr[det.Mask.astype(bool)].mean(axis=0) if int(mask_u8.sum()) else (0, 0, 0)
-            stroke = __Stroke_Color(box_bgr, region_mean, np)
-            contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(det.Mask.astype(np.uint8), cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE)
             cv2.drawContours(annotated, contours, -1, stroke, contour_w)
-        else:
-            stroke = box_bgr
         cv2.rectangle(annotated, (x, y), (x + w, y + h), stroke, box_w)
         __Draw_Index_Chip(annotated, det.Bbox, i, stroke, scale, cv2)
     return annotated
