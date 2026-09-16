@@ -27,6 +27,10 @@
 import sys
 import os
 import argparse
+# Provenance stamping: a content fingerprint of each source file and a run timestamp,
+# so an artefact left over from an earlier or failed run is identifiable on sight.
+import hashlib
+import datetime
 # Resolve the project folder from this file's own location (Example/Vision -> ..),
 # so the script runs the same whether launched from Example/Vision/ or the repo root.
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -89,21 +93,103 @@ CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Results
 #   Unit [int]
 CONST_MONTAGE_CELL = 260
 
+# The provenance stamp footer band (px tall) and its text scale. EVERY artefact carries
+# the run timestamp and the source frame's content fingerprint on this band, so a file
+# left over from an earlier or failed run is identifiable by looking at it, instead of
+# masquerading as current output — the failure mode that let a stale montage and .txt,
+# written before the reference went missing, pass review as if they were fresh.
+#   Unit [int]
+CONST_STAMP_BAND_H = 26
+#   Unit [float]
+CONST_STAMP_FONT_SCALE = 0.5
+# The number of leading hex digits taken from a file's MD5 digest as its fingerprint.
+#   Unit [int]
+CONST_FINGERPRINT_LEN = 10
 
-def _Write_Descriptions(path: str, result: Analysis_Str) -> None:
+
+def _Fingerprint(path: str) -> str:
+    """
+    Description:
+        The short content fingerprint of a file: the first CONST_FINGERPRINT_LEN hex
+        digits of its MD5 digest. Two runs over the same bytes stamp the same value, so
+        an artefact whose fingerprint no longer matches its source frame is stale on
+        sight. This is provenance, not security — MD5 is used only as a fast digest.
+
+    Args:
+        (1) path [string]: The file to fingerprint.
+
+    Returns:
+        (1) parameter [string]: The short hex fingerprint.
+    """
+
+    with open(path, 'rb') as handle:
+        return hashlib.md5(handle.read()).hexdigest()[:CONST_FINGERPRINT_LEN]
+
+
+def _Stamp_Line(stem: str, scene_path: str, run_stamp: str, reference_hash: str,
+                describer: str) -> str:
+    """
+    Description:
+        The one-line provenance stamp shared by every artefact of a frame: the run
+        timestamp, the frame's stem and content fingerprint, the reference's
+        fingerprint, and the describer that wrote the captions. It is written into the
+        descriptions header and drawn onto each image, so a stale file names the run and
+        the exact inputs that produced it.
+
+    Args:
+        (1) stem [string]: The frame stem (e.g. 'Image_001').
+        (2) scene_path [string]: The source frame path (fingerprinted here).
+        (3) run_stamp [string]: The run timestamp, ISO-8601 to the second.
+        (4) reference_hash [string]: The empty-surface reference's fingerprint.
+        (5) describer [string]: The describer that wrote the captions.
+
+    Returns:
+        (1) parameter [string]: The provenance line.
+    """
+
+    return ('%s | frame %s %s | ref %s | describer %s'
+            % (run_stamp, stem, _Fingerprint(scene_path), reference_hash, describer))
+
+
+def _Stamp_Image(image: tp.Any, text: str) -> tp.Any:
+    """
+    Description:
+        Return the image with the provenance stamp on a slim footer band below it. The
+        band is appended, never drawn over the content, so it marks the artefact
+        without occluding anything under review.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The artefact image (BGR).
+        (2) text [string]: The provenance line (see _Stamp_Line).
+
+    Returns:
+        (1) parameter [Matrix<uint8> (H+band)xWx3]: The stamped image.
+    """
+
+    width = image.shape[1]
+    band = np.full((CONST_STAMP_BAND_H, width, 3), 24, np.uint8)
+    cv2.putText(band, text, (8, CONST_STAMP_BAND_H - 9), cv2.FONT_HERSHEY_SIMPLEX,
+                CONST_STAMP_FONT_SCALE, (210, 210, 210), 1, cv2.LINE_AA)
+    return np.vstack([image, band])
+
+
+def _Write_Descriptions(path: str, result: Analysis_Str, stamp: str) -> None:
     """
     Description:
         Write the Screen-Understanding text — the background stated once on the first
         line with the object count, then one background-stripped line per object — via
         the SAME Reporting.Screen_Understanding the application panel renders from, so
-        the file and the view can never drift apart.
+        the file and the view can never drift apart. The provenance stamp is written as
+        a leading comment line, so a stale descriptions file is identifiable on opening.
 
     Args:
         (1) path [string]: The descriptions file path.
         (2) result [Analysis_Str(object)]: The finished analysis.
+        (3) stamp [string]: The provenance line (see _Stamp_Line).
     """
 
     with open(path, 'w') as handle:
+        handle.write('# ' + stamp + '\n')
         handle.write(Screen_Understanding(result.Objects, result.Background) + '\n')
 
 
@@ -188,14 +274,17 @@ def _Configure(args: argparse.Namespace) -> None:
 
 
 def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: str,
-                   write_descriptions: bool, write_montage: bool) -> tp.Optional[Analysis_Str]:
+                   write_descriptions: bool, write_montage: bool,
+                   run_stamp: str, reference_hash: str) -> tp.Optional[Analysis_Str]:
     """
     Description:
         Run one scene through the application pipeline and write its artefacts — the
         annotated image and the label mask always; the descriptions file ONLY when the
         real describer ran (write_descriptions); the enhanced-crop montage when
-        requested — into the output directory. Returns the analysis, or None on a
-        vision error (already reported through a banner).
+        requested — into the output directory. Every artefact carries the provenance
+        stamp (run timestamp, frame fingerprint, reference fingerprint, describer), so
+        a file from an earlier or failed run is identifiable on sight. Returns the
+        analysis, or None on a vision error (already reported through a banner).
 
         The descriptions file is skipped under the fallback describer: its placeholder
         captions are not the real reading, and silently overwriting a Florence
@@ -207,6 +296,8 @@ def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: st
         (3) output_dir [string]: The directory to write the artefacts into.
         (4) write_descriptions [bool]: Write the descriptions file (real describer only).
         (5) write_montage [bool]: Also write the enhanced-crop debug montage.
+        (6) run_stamp [string]: The run timestamp shared by every artefact of this run.
+        (7) reference_hash [string]: The empty-surface reference's fingerprint.
 
     Returns:
         (1) parameter [Analysis_Str(object) or None]: The analysis, or None on failure.
@@ -227,16 +318,17 @@ def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: st
         _Banner('VISION RUNTIME ERROR - the pipeline could not run', [str(error)])
         return None
 
+    stamp = _Stamp_Line(stem, scene_path, run_stamp, reference_hash, Vision_Core.CONST_DESCRIBER)
     cv2.imwrite(os.path.join(output_dir, '%s_annotated.png' % stem),
-                Draw_Annotated(scene_bgr, result.Objects, cv2, np))
+                _Stamp_Image(Draw_Annotated(scene_bgr, result.Objects, cv2, np), stamp))
     cv2.imwrite(os.path.join(output_dir, '%s_mask.png' % stem),
-                Draw_Label_Mask(result.Objects, scene_bgr.shape, cv2, np))
+                _Stamp_Image(Draw_Label_Mask(result.Objects, scene_bgr.shape, cv2, np), stamp))
     if write_descriptions:
-        _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result)
+        _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result, stamp)
     if write_montage:
         montage = _Montage([det.Enhanced_Crop for det in result.Objects])
         if montage is not None:
-            cv2.imwrite(os.path.join(output_dir, '%s_enhanced.png' % stem), montage)
+            cv2.imwrite(os.path.join(output_dir, '%s_enhanced.png' % stem), _Stamp_Image(montage, stamp))
     return result
 
 
@@ -278,13 +370,28 @@ def main() -> int:
                 ['No Image_[0-9]*.png scene frames were found in: %s' % os.path.abspath(args.input_dir)])
         return 1
 
+    # Fail loudly and EARLY: every frame is differenced against the reference, so a
+    # missing or unreadable reference means no caption is real. Verify it is readable
+    # before a single artefact is written, so a failed run never leaves output that
+    # looks finished (the reference had been cleaned out from under an earlier run).
+    if cv2.imread(reference_path) is None:
+        _Banner('BACKGROUND REFERENCE UNREADABLE',
+                ['The empty-surface reference could not be read: %s' % reference_path,
+                 'Every frame is differenced against it, so without it no caption is real.',
+                 'Refusing to write artefacts that would look finished. Restore the reference.'])
+        return 1
+    reference_hash = _Fingerprint(reference_path)
+
     # Point the pipeline at this run's reference (the same mechanism the app's
-    # --background flag uses), and describe once through the application backend.
+    # --background flag uses), and describe once through the application backend. One
+    # timestamp stamps every artefact of this run.
     Vision_Core.CONST_BACKGROUND_REF = reference_path
+    run_stamp = datetime.datetime.now().isoformat(timespec='seconds')
     os.makedirs(args.output_dir, exist_ok=True)
-    print('[INFO] Reference: %s' % reference_path)
+    print('[INFO] Reference: %s (%s)' % (reference_path, reference_hash))
     print('[INFO] Scenes   : %d frame(s) in %s' % (len(scenes), os.path.abspath(args.input_dir)))
-    print('[INFO] Describer: %s\n' % Vision_Core.CONST_DESCRIBER)
+    print('[INFO] Describer: %s' % Vision_Core.CONST_DESCRIBER)
+    print('[INFO] Run stamp: %s\n' % run_stamp)
 
     backend = Florence_Vision_Cls()
     total_objects = 0
@@ -292,7 +399,7 @@ def main() -> int:
     for scene_path in scenes:
         stem = os.path.splitext(os.path.basename(scene_path))[0]
         result = _Analyze_Frame(backend, scene_path, args.output_dir,
-                                not args.no_describe, args.montage)
+                                not args.no_describe, args.montage, run_stamp, reference_hash)
         if result is None:
             return 1
         cues = {}
