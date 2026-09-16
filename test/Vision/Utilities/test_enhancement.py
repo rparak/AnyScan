@@ -109,6 +109,47 @@ def test_enhance_masked_sample_differs_from_unmasked() -> None:
     assert not np.array_equal(masked, unmasked)
 
 
+def test_isolate_crop_replaces_neighbours_with_background() -> None:
+    """
+    Description:
+        Isolate_Crop keeps the object's own pixels and the bare table, but replaces the
+        pixels of OTHER objects with the empty-surface reference — so a large object's
+        crop holds one part plus table, not its neighbours.
+    """
+
+    table = (70, 140, 70)
+    frame = np.full((60, 60, 3), table, np.uint8)
+    frame[10:30, 10:30] = (200, 50, 50)                  # own object
+    frame[40:55, 40:55] = (50, 50, 200)                  # a neighbouring object
+    background = np.full((60, 60, 3), table, np.uint8)   # empty table reference
+    own = np.zeros((60, 60), dtype=bool); own[10:30, 10:30] = True
+    others = np.zeros((60, 60), dtype=bool); others[40:55, 40:55] = True
+
+    out = Enhancement.Isolate_Crop(frame, background, own, others, np)
+    assert tuple(int(c) for c in out[20, 20]) == (200, 50, 50)   # own object kept
+    assert tuple(int(c) for c in out[47, 47]) == table           # neighbour -> table
+    assert tuple(int(c) for c in out[5, 5]) == table             # bare table kept
+
+
+def test_enhance_leaves_the_surround_as_the_natural_table() -> None:
+    """
+    Description:
+        With the gain estimated from a dark object, the surround is left as the natural
+        table rather than pushed to a garish colour — the object is stretched, the table
+        it sits on is not.
+    """
+
+    table = (94, 103, 34)
+    crop = np.full((60, 60, 3), table, np.uint8)
+    crop[20:30, 20:40] = (60, 30, 20)                    # a dark object, two tones so it
+    crop[30:40, 20:40] = (95, 60, 45)                    # has a range to stretch
+    mask = np.zeros((60, 60), dtype=bool); mask[20:40, 20:40] = True
+
+    out = Enhancement.Enhance_Crop(crop, mask, Enhancement.CONST_ENHANCE_CLIP_LIMIT, cv2, np)
+    assert tuple(int(c) for c in out[5, 5]) == table    # surround unchanged from the table
+    assert not np.array_equal(out[20:40, 20:40], crop[20:40, 20:40])   # object was stretched
+
+
 def test_enhance_flat_crop_is_unchanged() -> None:
     """
     Description:

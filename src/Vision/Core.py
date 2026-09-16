@@ -40,7 +40,8 @@ from Vision.Utilities.Segmentation import Background_Foreground
 #   ../Vision/Utilities/Fusion
 from Vision.Utilities.Fusion import Fuse_Objects
 #   ../Vision/Utilities/Enhancement
-from Vision.Utilities.Enhancement import Padded_Bbox, Crop, Enhance_Crop, CONST_ENHANCE_CLIP_LIMIT
+from Vision.Utilities.Enhancement import (Padded_Bbox, Crop, Enhance_Crop, Isolate_Crop,
+                                          CONST_ENHANCE_CLIP_LIMIT, CONST_ENHANCE_NEIGHBOUR_DILATE)
 #   ../Vision/Segmenter
 from Vision.Segmenter import Fast_Sam_Cls
 #   ../Vision/Describe_Fallback
@@ -485,9 +486,10 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         objects = Fuse_Objects(masks, scores, background_fg, cv2, np)
 
         # ---- Stage 4 - description (Vision.Utilities.Caption / Vision.Describe_Fallback) ----
-        # One caption per object, from the alpha/beta-enhanced padded crop (natural
-        # surroundings kept; the stretch is estimated from the object's own pixels).
-        self.__Describe_Objects(objects, frame_bgr, progress_cb, stage_cb)
+        # One caption per object, from the alpha/beta-enhanced padded crop: neighbours
+        # are masked out (filled from the reference) so the crop holds one object plus
+        # table, and the stretch is estimated from the object's own pixels.
+        self.__Describe_Objects(objects, frame_bgr, bg_bgr, progress_cb, stage_cb)
 
         # The one global background sentence, from the reference (cached across frames).
         background_sentence, background_audit = self.__Describe_Background(bg_bgr)
@@ -495,38 +497,54 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
                                      background_sentence, background_audit)
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
-                           progress_cb: tp.Optional[tp.Callable], stage_cb: tp.Optional[tp.Callable]) -> None:
+                           bg_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],
+                           stage_cb: tp.Optional[tp.Callable]) -> None:
         """
         Description:
-            Stage 4: fill each object's Label and Detail from its crop. The padded
-            crop is contrast/brightness-stretched (the gain/bias estimated from the
-            object's own pixels, applied to the whole crop so the natural surroundings
-            are kept) and the stretched crop is fed to the describer — Florence-2 or
-            the model-free fallback (CONST_DESCRIBER). The stretched crop is retained
-            on the object (Enhanced_Crop) so the debug montage shows exactly what the
-            model received, without re-enhancing it.
+            Stage 4: fill each object's Label and Detail from its crop. The padded crop
+            has every OTHER object's pixels replaced by the empty-surface reference, so
+            it holds one object plus the table and no neighbours, then it is contrast/
+            brightness-stretched (the gain/bias estimated from the object's own pixels,
+            the surround blended most of the way back to natural) and fed to the
+            describer — Florence-2 or the model-free fallback (CONST_DESCRIBER). The
+            enhanced crop is retained on the object (Enhanced_Crop) so the debug montage
+            shows exactly what the model received, without re-enhancing it.
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The stage-3 objects (mutated).
             (2) frame_bgr [Matrix<uint8> HxWx3]: The frame (BGR).
-            (3) progress_cb [function]: Optional (done, total) progress hook.
-            (4) stage_cb [function]: Optional (text) phase hook.
+            (3) bg_bgr [Matrix<uint8> HxWx3]: The empty-surface reference (BGR).
+            (4) progress_cb [function]: Optional (done, total) progress hook.
+            (5) stage_cb [function]: Optional (text) phase hook.
         """
 
         cv2, np = self.__cv2, self.__np
         if stage_cb and objects:
             stage_cb('Describing…')
 
+        # The union of every object's mask, so each crop can subtract its neighbours.
+        all_mask = np.zeros(frame_bgr.shape[:2], dtype=bool)
+        for det in objects:
+            all_mask |= det.Mask.astype(bool)
+        dilate_kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (CONST_ENHANCE_NEIGHBOUR_DILATE, CONST_ENHANCE_NEIGHBOUR_DILATE))
+
         total = len(objects)
         for i, det in enumerate(objects):
             if progress_cb:
                 progress_cb(i, total)
-            # The padded crop, and the object's mask within it, so the stretch is
-            # estimated from object pixels only but applied to the whole crop.
+            # The padded crop with neighbours removed (filled from the reference), and
+            # the object's mask within it, so the stretch is estimated from object
+            # pixels and the surround is a clean table, not another part. Each other
+            # object's mask is grown before subtracting, so its bright edge goes too.
+            own = det.Mask.astype(bool)
+            others = cv2.dilate((all_mask & ~own).astype(np.uint8), dilate_kernel).astype(bool) & ~own
             padded = Padded_Bbox(det.Bbox, frame_bgr.shape)
-            crop = Crop(frame_bgr, padded)
             mask_crop = Crop(det.Mask, padded)
-            enhanced = Enhance_Crop(crop, mask_crop, CONST_ENHANCE_CLIP_LIMIT, cv2, np)
+            others_crop = Crop(others, padded)
+            isolated = Isolate_Crop(Crop(frame_bgr, padded), Crop(bg_bgr, padded),
+                                    mask_crop, others_crop, np)
+            enhanced = Enhance_Crop(isolated, mask_crop, CONST_ENHANCE_CLIP_LIMIT, cv2, np)
             det.Enhanced_Crop = enhanced
             if CONST_DESCRIBER == 'fallback':
                 det.Label, det.Detail = Describe_Fallback(
