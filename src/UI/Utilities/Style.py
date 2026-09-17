@@ -80,6 +80,14 @@ CONST_TAGLINE = 'The camera sees, the model describes.'
 FONT_UI = 'Inter'       # resolved in Load_Fonts
 FONT_MONO = 'Consolas'  # resolved in Load_Fonts
 
+# The Scene-Understanding object type scale. Each object is a two-level block: the label
+# ('Obj. N') on its own line, larger and bold, and the description beneath it, smaller and
+# regular. The hierarchy is size and weight only — both lines are CONST_INK. The sizes are
+# named here so the panel reads them from the theme rather than hard-coding literals.
+#   Unit [float] (point size)
+CONST_TYPE_OBJECT_LABEL = 15.5
+CONST_TYPE_OBJECT_BODY = 12.5
+
 
 def Load_Fonts() -> None:
     """

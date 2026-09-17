@@ -39,7 +39,7 @@ import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline, Load_Logo
 # Custom Lib.: AnyScan domain — the shared Scene-Understanding formatter
 #   ../Reporting/Core
-from Reporting.Core import Object_Line
+from Reporting.Core import Object_Label
 
 """
 Description:
@@ -667,25 +667,26 @@ class View_Toggle_Cls(QWidget):
 class Object_List_Cls(QWidget):
     """
     Description:
-        The numbered object lines. Exposes `box`, the vertical layout the lines are
-        rebuilt into. Every line's TEXT comes from the shared Reporting.Object_Line — the
-        same source the Screen-Understanding file uses — so the panel and the file cannot
-        number or word an object differently; this widget only styles it. The panel is a
-        SINGLE colour (Style.CONST_INK): no per-object colours in the text — the object's
-        colour lives on the frame, not here — with the 'Obj. N' label in bold and the
-        description after it in regular weight, the only differentiation.
+        The numbered objects, each a two-level block: the label ('Obj. N') on its own
+        line, larger and bold, and the description beneath it, smaller and regular, with
+        vertical space between objects. The label comes from the shared
+        Reporting.Object_Label and the description from the object's own sentence — the
+        same source the Screen-Understanding file joins with Object_Line — so the panel
+        and the file cannot number or word an object differently. Everything is one colour
+        (Style.CONST_INK): the object's colour lives on the frame, not here, and the
+        hierarchy is size and weight, not colour. The type sizes come from the theme.
     """
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.box = QVBoxLayout(self)
         self.box.setContentsMargins(0, 0, 0, 0)
-        self.box.setSpacing(13)
+        self.box.setSpacing(16)                          # vertical space between objects
 
     def Set_Objects(self, objects: tp.List) -> None:
         """
         Description:
-            Rebuild the numbered lines from the located objects.
+            Rebuild the two-level object blocks from the located objects.
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The located objects.
@@ -697,16 +698,38 @@ class Object_List_Cls(QWidget):
                 item.widget().deleteLater()
 
         for i, det in enumerate(objects):
-            # The line text (number and wording) is the shared formatter's; the widget
-            # only styles it — the 'Obj. N' label bold, the sentence regular weight, both
-            # in the one panel colour — splitting on the formatter's ' - ' separator.
-            prefix, _, sentence = Object_Line(i, det).partition(' - ')
-            line = QLabel('<b>%s</b> %s' % (prefix, sentence))
-            line.setFont(Font(15))
-            line.setWordWrap(True)
-            line.setTextFormat(Qt.RichText)
-            line.setStyleSheet('color: %s;' % Style.CONST_INK)
-            self.box.addWidget(line)
+            self.box.addWidget(self.__Object_Block(i, det))
+
+    def __Object_Block(self, index: int, det: tp.Any) -> QWidget:
+        """
+        Description:
+            One object's two-level block: the shared label above, its description below,
+            both Style.CONST_INK, differentiated only by the theme's type sizes and weight.
+
+        Args:
+            (1) index [int]: The object's 0-based position.
+            (2) det [Detection_Str(object)]: The object.
+
+        Returns:
+            (1) parameter [QWidget(object)]: The block widget.
+        """
+
+        block = QWidget()
+        column = QVBoxLayout(block)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(3)                             # tight label -> description
+
+        label = QLabel(Object_Label(index))
+        label.setFont(Font(Style.CONST_TYPE_OBJECT_LABEL, QFont.DemiBold))
+        label.setStyleSheet('color: %s;' % Style.CONST_INK)
+        column.addWidget(label)
+
+        description = QLabel(det.Sentence)
+        description.setFont(Font(Style.CONST_TYPE_OBJECT_BODY))
+        description.setWordWrap(True)
+        description.setStyleSheet('color: %s;' % Style.CONST_INK)
+        column.addWidget(description)
+        return block
 
 
 class Stat_Cell_Cls(QWidget):

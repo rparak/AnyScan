@@ -597,13 +597,31 @@ def Screen_Header(objects: tp.List[Detection_Str], background_sentence: str) -> 
     return lead + 'There %s %d %s on it, described below.' % (verb, count, noun)
 
 
+def Object_Label(index: int) -> str:
+    """
+    Description:
+        The numbered label of an object ('Obj. N', 1-based). The SINGLE source of the
+        label for both the descriptions file (via Object_Line) and the application panel,
+        which renders the label and the description on separate lines — so the two share
+        one label string and cannot number an object differently.
+
+    Args:
+        (1) index [int]: The object's 0-based position in the list.
+
+    Returns:
+        (1) parameter [string]: The label ('Obj. N').
+    """
+
+    return 'Obj. %d' % (index + 1)
+
+
 def Object_Line(index: int, det: Detection_Str) -> str:
     """
     Description:
-        One numbered object line ('Obj. N - <sentence>'), the single source of the
-        per-object line for BOTH the file and the panel, so the numbering and wording
-        live in one place and cannot be copied out of step. The number is 1-based and
-        the sentence is det.Sentence (already stripped of the background by Compose).
+        One numbered object line ('Obj. N - <sentence>') for the descriptions file — the
+        label from Object_Label joined to the description, so the file keeps its one-line
+        form while the panel renders the same label and description on two lines. The
+        sentence is det.Sentence (already stripped of the background by Compose).
 
     Args:
         (1) index [int]: The object's 0-based position in the list.
@@ -613,7 +631,7 @@ def Object_Line(index: int, det: Detection_Str) -> str:
         (1) parameter [string]: The numbered line.
     """
 
-    return 'Obj. %d - %s' % (index + 1, det.Sentence)
+    return '%s - %s' % (Object_Label(index), det.Sentence)
 
 
 def Yolo_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int]) -> tp.List[str]:

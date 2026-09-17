@@ -39,7 +39,7 @@ from Camera.Core import File_Camera_Cls
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
-from Reporting.Core import Screen_Header, Object_Line
+from Reporting.Core import Screen_Header, Object_Line, Object_Label
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
 
@@ -82,10 +82,16 @@ def _Window_With(reference_background_path, result: Analysis_Str) -> AnyScan_Win
 
 
 def _Line_Texts(window) -> list:
-    """The rendered object-line label texts, in order."""
+    """The (label, description) text pair of each object block, in order."""
     layout = _Private(window, '__object_list').box
-    return [layout.itemAt(i).widget().text()
-            for i in range(layout.count()) if isinstance(layout.itemAt(i).widget(), QLabel)]
+    pairs = []
+    for i in range(layout.count()):
+        block = layout.itemAt(i).widget()
+        inner = block.layout()
+        labels = [inner.itemAt(j).widget() for j in range(inner.count())
+                  if isinstance(inner.itemAt(j).widget(), QLabel)]
+        pairs.append((labels[0].text(), labels[1].text()))
+    return pairs
 
 
 def test_lead_is_the_shared_screen_header(qt_app, reference_background_path) -> None:
@@ -108,12 +114,12 @@ def test_lead_is_the_shared_screen_header(qt_app, reference_background_path) -> 
     assert 'There are 2 objects on it, described below.' in lead.text()
 
 
-def test_object_lines_carry_the_shared_numbering(qt_app, reference_background_path) -> None:
+def test_object_blocks_carry_the_shared_label_and_description(qt_app, reference_background_path) -> None:
     """
     Description:
-        Each object line's text is the shared Object_Line, numbered from 1 and matching
-        the object list, so the panel cannot number or word an object differently from
-        the file.
+        Each object is a two-level block whose label is the shared Object_Label and whose
+        second line is the object's own sentence — the same values Object_Line joins for
+        the file — so the panel cannot number or word an object differently from the file.
     """
 
     objects = [_Object('A silver ring.'), _Object('A blue bracket.'), _Object('A hex nut.')]
@@ -121,21 +127,22 @@ def test_object_lines_carry_the_shared_numbering(qt_app, reference_background_pa
                           Analysis_Str(Objects=objects, Background='A plain surface.',
                                        Verdict='3 found', Verdict_Level='ok', Task='caption'))
 
-    texts = _Line_Texts(window)
-    assert len(texts) == len(objects)
+    pairs = _Line_Texts(window)
+    assert len(pairs) == len(objects)
     for i, det in enumerate(objects):
-        prefix, _, sentence = Object_Line(i, det).partition(' - ')
-        assert prefix in texts[i]           # 'Obj. N', from the shared formatter
-        assert sentence in texts[i]         # the object's own sentence
+        label, description = pairs[i]
+        assert label == Object_Label(i)                 # 'Obj. N', the shared label
+        assert description == det.Sentence
+        # The file's one-line form is the two joined, so the panel and file cannot drift.
+        assert Object_Line(i, det) == '%s - %s' % (label, description)
 
 
-def test_object_lines_are_single_colour_with_bold_labels(qt_app, reference_background_path) -> None:
+def test_object_blocks_are_single_colour_two_level(qt_app, reference_background_path) -> None:
     """
     Description:
-        The panel is a SINGLE colour (Style.CONST_INK = '#2b2455') with the 'Obj. N'
-        label bold and the description after it in regular weight — no per-object colours
-        in the text (the object's colour lives on the frame). Each line styles the shared
-        Object_Line, so the numbering is still the shared formatter's.
+        Each object block is a SINGLE colour (Style.CONST_INK = '#2b2455') on two levels —
+        the label larger and bold, the description smaller and regular — the hierarchy is
+        size and weight, not colour, and there is no per-object colour on the text.
     """
 
     objects = [_Object('A silver ring.'), _Object('A blue bracket.')]
@@ -144,15 +151,16 @@ def test_object_lines_are_single_colour_with_bold_labels(qt_app, reference_backg
                                        Verdict='2 found', Verdict_Level='ok', Task='caption'))
 
     layout = _Private(window, '__object_list').box
-    labels = [layout.itemAt(i).widget() for i in range(layout.count())]
-    assert len(labels) == len(objects)
-    for i, (label, det) in enumerate(zip(labels, objects)):
-        prefix = Object_Line(i, det).partition(' - ')[0]
-        # The label is bold, the sentence follows outside the bold span (regular weight).
-        assert ('<b>%s</b>' % prefix) in label.text()
-        # One colour only: the panel ink, no per-object colour literal on the line.
-        assert Style.CONST_INK in label.styleSheet()
+    for i in range(layout.count()):
+        inner = layout.itemAt(i).widget().layout()
+        label = inner.itemAt(0).widget()
+        description = inner.itemAt(1).widget()
+        # Both lines are the one panel colour, and neither carries a per-object colour.
+        assert Style.CONST_INK in label.styleSheet() and Style.CONST_INK in description.styleSheet()
         assert 'border-left' not in label.styleSheet()
+        # The label is larger and bold than the description (size and weight, from the theme).
+        assert label.font().pointSizeF() > description.font().pointSizeF()
+        assert label.font().weight() > description.font().weight()
 
 
 def test_zero_objects_reads_sensibly(qt_app, reference_background_path) -> None:
