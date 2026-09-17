@@ -52,6 +52,8 @@ from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
 from Vision.Core import Florence_Vision_Cls
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
+#   ../Reporting/Core
+from Reporting.Core import Screen_Header
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
 # Custom Lib.: AnyScan — the session logger
@@ -741,7 +743,11 @@ class AnyScan_Window_Cls(QMainWindow):
 
         self.__showing_error = False
         self.__reading_empty.hide()
-        self.__reading_lead.setText(result.Summary)
+        # The lead is the shared Screen-Understanding header — the background stated once
+        # with the object count — the SAME first line the descriptions file carries, so
+        # the view and the file cannot drift. The per-object lines below come from the
+        # same shared formatter (via Object_List_Cls).
+        self.__reading_lead.setText(Screen_Header(result.Objects, result.Background))
         self.__reading_lead.show()
         self.__object_list.Set_Objects(result.Objects)
         self.__reading_note.setText(result.Note)

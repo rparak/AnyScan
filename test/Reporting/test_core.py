@@ -283,6 +283,26 @@ def test_screen_understanding_assembly() -> None:
          + ' There is 1 object on it, described below.\n\nObj. 1 - A washer.')
 
 
+def test_screen_understanding_is_built_from_the_shared_pieces() -> None:
+    """
+    Description:
+        The file and the application panel share ONE source for the first line and the
+        per-object lines: Screen_Understanding is exactly Screen_Header followed by the
+        Object_Line of each object. The panel renders from the same two functions, so it
+        cannot number or word an object differently from the file.
+    """
+
+    bg = 'The background is a plain green table.'
+    objects = [_Line('A washer.'), _Line('A bolt.')]
+
+    assert Reporting.Screen_Understanding(objects, bg) == (
+        Reporting.Screen_Header(objects, bg) + '\n\n'
+        + '\n'.join(Reporting.Object_Line(i, det) for i, det in enumerate(objects)))
+    # The zero case is the header alone (no lines), and it names no object count as '0'.
+    assert Reporting.Screen_Understanding([], bg) == Reporting.Screen_Header([], bg)
+    assert Reporting.Object_Line(0, _Line('A washer.')) == 'Obj. 1 - A washer.'
+
+
 def test_background_sentence_validation() -> None:
     """
     Description:

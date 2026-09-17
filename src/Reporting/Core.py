@@ -574,9 +574,36 @@ def Screen_Understanding(objects: tp.List[Detection_Str], background_sentence: s
         (1) parameter [string]: The full Screen-Understanding text.
     """
 
-    # The background is stated on the first line, always: an empty sentence would
-    # leave the count line headless ('There are 3 objects on it' with no 'it'), so a
-    # missing background falls back to the neutral string here too.
+    header = Screen_Header(objects, background_sentence)
+    if not objects:
+        return header
+    lines = [Object_Line(i, det) for i, det in enumerate(objects)]
+    return header + '\n\n' + '\n'.join(lines)
+
+
+def Screen_Header(objects: tp.List[Detection_Str], background_sentence: str) -> str:
+    """
+    Description:
+        The Screen-Understanding first line: the background stated once, then the object
+        count. It is the single source of that sentence for BOTH the file (via
+        Screen_Understanding) and the application's Scene-Understanding lead, so the two
+        cannot disagree on the wording or the count.
+
+        The count is len(objects) — the same list the lines are numbered from. Singular
+        and plural read correctly, and the zero case reads 'no objects were detected on
+        it', not '0 objects'.
+
+    Args:
+        (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (2) background_sentence [string]: The one global background description.
+
+    Returns:
+        (1) parameter [string]: The header line.
+    """
+
+    # The background is stated first, always: an empty sentence would leave the count
+    # line headless ('There are 3 objects on it' with no 'it'), so a missing background
+    # falls back to the neutral string here too.
     background = (background_sentence or '').strip() or CONST_BACKGROUND_FALLBACK
     if background[-1] not in '.!?':
         background += '.'
@@ -587,9 +614,26 @@ def Screen_Understanding(objects: tp.List[Detection_Str], background_sentence: s
         return lead + 'No objects were detected on it.'
     verb = 'is' if count == 1 else 'are'
     noun = 'object' if count == 1 else 'objects'
-    header = lead + 'There %s %d %s on it, described below.' % (verb, count, noun)
-    lines = ['Obj. %d - %s' % (i + 1, det.Sentence) for i, det in enumerate(objects)]
-    return header + '\n\n' + '\n'.join(lines)
+    return lead + 'There %s %d %s on it, described below.' % (verb, count, noun)
+
+
+def Object_Line(index: int, det: Detection_Str) -> str:
+    """
+    Description:
+        One numbered object line ('Obj. N - <sentence>'), the single source of the
+        per-object line for BOTH the file and the panel, so the numbering and wording
+        live in one place and cannot be copied out of step. The number is 1-based and
+        the sentence is det.Sentence (already stripped of the background by Compose).
+
+    Args:
+        (1) index [int]: The object's 0-based position in the list.
+        (2) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [string]: The numbered line.
+    """
+
+    return 'Obj. %d - %s' % (index + 1, det.Sentence)
 
 
 def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],

@@ -37,6 +37,9 @@ from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup,
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline, Load_Logo
+# Custom Lib.: AnyScan domain — the shared Scene-Understanding formatter
+#   ../Reporting/Core
+from Reporting.Core import Object_Line
 
 """
 Description:
@@ -665,7 +668,10 @@ class Object_List_Cls(QWidget):
     """
     Description:
         The numbered object lines, each keyed by colour to its box on the frame.
-        Exposes `box`, the vertical layout the lines are rebuilt into.
+        Exposes `box`, the vertical layout the lines are rebuilt into. Every line's
+        TEXT comes from the shared Reporting.Object_Line — the same source the
+        Screen-Understanding file uses — so the panel and the file cannot number or
+        word an object differently; this widget only adds the colour keying.
     """
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
@@ -690,9 +696,13 @@ class Object_List_Cls(QWidget):
 
         for i, det in enumerate(objects):
             ink = Style.CONST_INDEX_COLORS[i % len(Style.CONST_INDEX_COLORS)][1]
+            # The line text (number and wording) is the shared formatter's; the widget
+            # only styles it — the 'Obj. N' label in the object's colour, the sentence
+            # in soft ink — splitting on the formatter's ' - ' separator.
+            prefix, _, sentence = Object_Line(i, det).partition(' - ')
             line = QLabel(
-                '<span style="color:%s"><b>Object %d:</b></span> '
-                '<span style="color:%s">%s</span>' % (ink, i + 1, Style.CONST_INK_SOFT, det.Sentence)
+                '<span style="color:%s"><b>%s</b></span> '
+                '<span style="color:%s">%s</span>' % (ink, prefix, Style.CONST_INK_SOFT, sentence)
             )
             line.setFont(Font(15))
             line.setWordWrap(True)
