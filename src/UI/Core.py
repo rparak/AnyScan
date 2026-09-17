@@ -25,6 +25,7 @@
 
 # System (Default)
 import typing as tp
+import statistics
 from datetime import datetime
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
 import cv2
@@ -117,6 +118,10 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__frame = None
         self.__analyses = 0
         self.__objects_found = 0
+        # The per-analysis latencies of this session, for the rolling MEDIAN inference
+        # time in the status strip — a median so a single slow frame does not swing the
+        # figure the operator reads. Reset with the counters on Clear.
+        self.__latencies = []
         # The Camera View's remembered annotated/mask choice (§2b): it persists across
         # analyses in a session, so an operator working in mask view is not thrown back
         # to annotated by the next Analyze.
@@ -781,6 +786,33 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__status.images.Set_Value(str(self.__analyses))
         self.__status.objects.Set_Value(str(self.__objects_found))
         self.__status.updated.Set_Value(datetime.now().strftime('%H:%M:%S'))
+        self.__Update_Performance_Stats(result)
+
+    def __Update_Performance_Stats(self, result: Analysis_Str) -> None:
+        """
+        Description:
+            Update the two performance cells from a completed analysis: the rolling
+            MEDIAN inference latency across the session's analyses (not per object, and a
+            median so one slow frame does not swing it), and the MEAN detector confidence
+            over the objects that carry a score. Only FastSAM supplies scores; objects the
+            background cue alone found (Segmenter_Score None) have none, so the mean is
+            shown WITH its coverage — '87% (5/9)' — never averaged silently over a partial
+            set, and '—' when no object has a score.
+
+        Args:
+            (1) result [Analysis_Str(object)]: The scene reading.
+        """
+
+        self.__latencies.append(result.Latency_Ms)
+        self.__status.inference.Set_Value('%d ms' % int(statistics.median(self.__latencies)))
+
+        scores = [det.Segmenter_Score for det in result.Objects if det.Segmenter_Score is not None]
+        if scores:
+            mean_pct = int(round(100.0 * sum(scores) / len(scores)))
+            self.__status.confidence.Set_Value('%d%% (%d/%d)'
+                                               % (mean_pct, len(scores), len(result.Objects)))
+        else:
+            self.__status.confidence.Set_Value(Style.CONST_NO_VALUE)
 
     def __Render_Views(self, result: Analysis_Str) -> tp.Tuple[tp.Any, tp.Any]:
         """
@@ -845,11 +877,14 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__frame = None
         self.__analyses = 0
         self.__objects_found = 0
+        self.__latencies = []
         self.__viewport.Clear()
         self.__frame_badge.setText('No frame')
         self.__status.images.Set_Value('0')
         self.__status.objects.Set_Value('0')
         self.__status.updated.Set_Value(Style.CONST_NO_VALUE)
+        self.__status.inference.Set_Value(Style.CONST_NO_VALUE)
+        self.__status.confidence.Set_Value(Style.CONST_NO_VALUE)
         self.__Clear_Reading()
         self.__Sync_Controls()
 

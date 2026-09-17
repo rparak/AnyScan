@@ -747,6 +747,17 @@ class Stat_Cell_Cls(QWidget):
         col.addWidget(self.__value)
         col.addStretch(1)
 
+    def Value(self) -> str:
+        """
+        Description:
+            The cell's current value text (without any status-dot markup).
+
+        Returns:
+            (1) parameter [string]: The value text.
+        """
+
+        return self.__value.text()
+
     def Set_Value(self, text: str, color: tp.Optional[str] = None,
                   dot_color: tp.Optional[str] = None) -> None:
         """
@@ -773,9 +784,11 @@ class Stat_Cell_Cls(QWidget):
 class Status_Strip_Cls(Card_Cls):
     """
     Description:
-        Six hairline-divided cells across the full width. The cells (camera,
-        resolution, system, updated, images, objects) are public so the window can
-        drive them.
+        Hairline-divided cells across the full width. The cells (camera, resolution,
+        inference, confidence, system, updated, images, objects) are public so the window
+        can drive them. Inference is the rolling median analysis latency and confidence
+        the mean detector score with its coverage — how the machine is performing, next
+        to what it is connected to.
     """
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
@@ -786,13 +799,15 @@ class Status_Strip_Cls(Card_Cls):
 
         self.camera = Stat_Cell_Cls('Camera', 'Disconnected', dot=True)
         self.resolution = Stat_Cell_Cls('Resolution', Style.CONST_NO_VALUE, mono=True)
+        self.inference = Stat_Cell_Cls('Inference (median)', Style.CONST_NO_VALUE, mono=True)
+        self.confidence = Stat_Cell_Cls('Confidence (mean)', Style.CONST_NO_VALUE, mono=True)
         self.system = Stat_Cell_Cls('System', 'Ready', dot=True)
         self.updated = Stat_Cell_Cls('Last update', Style.CONST_NO_VALUE, mono=True)
         self.images = Stat_Cell_Cls('Images analysed', '0', big=True)
         self.objects = Stat_Cell_Cls('Objects detected', '0', big=True)
 
-        for i, cell in enumerate([self.camera, self.resolution, self.system,
-                                  self.updated, self.images, self.objects]):
+        for i, cell in enumerate([self.camera, self.resolution, self.inference, self.confidence,
+                                  self.system, self.updated, self.images, self.objects]):
             if i:
                 row.addWidget(Hairline(vertical=True))
             row.addWidget(cell, 1)
