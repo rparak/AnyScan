@@ -86,12 +86,13 @@ def __Has_Bgr(image: np.ndarray, bgr: tp.Tuple[int, int, int]) -> bool:
     return bool(np.any(np.all(image == np.array(bgr, dtype=np.uint8), axis=-1)))
 
 
-def test_label_mask_is_white_fill_verdict_contour_dark_numeral() -> None:
+def test_label_mask_is_white_fill_with_the_same_verdict_boxes() -> None:
     """
     Description:
-        The default label mask: a pure-black ground, each object filled WHITE, outlined
-        in its VERDICT colour and numbered with the dark theme ink on the white fill. An
-        OK object is outlined in the OK colour, a NOK object in the NOK colour.
+        The default label mask: a pure-black ground, each object filled WHITE (its
+        silhouette), with the SAME verdict-coloured bounding box as the annotated view —
+        no contour on the fill. An OK object's box is the OK colour, a NOK object's the
+        NOK colour, and the white is the fill and nothing else.
     """
 
     objects = [__Object(40, 40, verdict='OK'), __Object(200, 300, verdict='NOK')]
@@ -102,13 +103,11 @@ def test_label_mask_is_white_fill_verdict_contour_dark_numeral() -> None:
 
     # A corner far from either block is pure black.
     assert tuple(int(c) for c in mask[5, 5]) == (0, 0, 0)
-    # Each block's interior is WHITE fill (sampled inside, away from border and numeral).
-    assert tuple(int(c) for c in mask[55, 55]) == white
-    assert tuple(int(c) for c in mask[215, 315]) == white
-    # Each object's contour carries its own verdict colour, unshifted.
+    # Each block's interior is WHITE fill (sampled inside, away from the box edge).
+    assert tuple(int(c) for c in mask[70, 70]) == white
+    assert tuple(int(c) for c in mask[240, 340]) == white
+    # Each object's box carries its own verdict colour, unshifted.
     assert __Has_Bgr(mask, ok_bgr) and __Has_Bgr(mask, nok_bgr)
-    # The dark numeral ink appears (on the white fill).
-    assert __Has_Bgr(mask, Theme.Hex_To_Bgr(Theme.CONST_INK))
 
 
 def test_verdict_colour_drives_the_stroke_in_both_renderers() -> None:
@@ -231,29 +230,23 @@ def test_coordinated_strokes_stay_distinct_after_fallback() -> None:
                                                                 strokes[a], strokes[b])
 
 
-def test_casing_is_derived_by_luminance_and_preserves_hue() -> None:
+def test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour() -> None:
     """
     Description:
-        The contrast casing is DERIVED per stroke colour by luminance — a light casing
-        under a dark stroke, a dark casing under a light one — never fixed, so a future
-        light verdict colour cannot render an invisible outline. And the stroke's own hue
-        is NEVER shifted for contrast: the exact verdict colour appears in the render on
-        both a dark and a bright ground; only the casing changes.
+        The annotated view marks each object with its bounding box and index chip ONLY —
+        no mask fill and no contour on the real frame — in the exact verdict colour,
+        unshifted (there is no casing to alter it). On a green scene the object's interior
+        still shows the scene (not a fill), and the verdict colour appears (the box/chip).
     """
 
-    casing = Annotate.__dict__[[k for k in Annotate.__dict__ if 'Casing_Bgr' in k][0]]
-    white = Theme.Hex_To_Bgr(Theme.CONST_CARD)
-    ink = Theme.Hex_To_Bgr(Theme.CONST_INK)
-    assert casing(Theme.Hex_To_Bgr('#6C63B5')) == white     # dark OK stroke -> light casing
-    assert casing(Theme.Hex_To_Bgr('#ff005c')) == white     # dark NOK stroke -> light casing
-    assert casing(Theme.Hex_To_Bgr('#d9d2ff')) == ink       # a light stroke -> dark casing
-
-    # The verdict colour is drawn unshifted on both a dark plate and bright steel.
+    scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)   # green table
+    annotated = Annotate.Draw_Annotated(scene, [__Object(150, 250, size=80, verdict='OK')], cv2, np)
     ok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0])
-    for ground in ((40, 40, 40), (210, 210, 210)):
-        scene = np.full((CONST_H, CONST_W, 3), ground, np.uint8)
-        annotated = Annotate.Draw_Annotated(scene, [__Object(150, 250, verdict='OK')], cv2, np)
-        assert __Has_Bgr(annotated, ok_bgr)
+
+    # The verdict colour appears (the box and chip), unshifted.
+    assert __Has_Bgr(annotated, ok_bgr)
+    # The object's interior is NOT filled — it still shows the scene, unchanged.
+    assert tuple(int(c) for c in annotated[185, 285]) == (70, 150, 70)
 
 
 def test_index_fill_mask_mode_is_reachable_by_one_constant() -> None:
