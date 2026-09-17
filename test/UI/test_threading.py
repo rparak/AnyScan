@@ -47,7 +47,7 @@ from Camera.Core import File_Camera_Cls
 #   ../Vision/Core
 from Vision.Core import Vision_Backend_Cls
 #   ../Parameters/Vision
-from Parameters.Vision import Analysis_Str
+from Parameters.Vision import Analysis_Str, Detection_Str
 
 """
 Description:
@@ -148,6 +148,48 @@ def test_analysis_worker_runs_off_thread(qt_app) -> None:
     # Analyze ran on the worker thread, not the GUI thread.
     assert vision.ran_on is not None
     assert vision.ran_on != threading.current_thread().name
+
+
+def test_detection_verdict_survives_the_worker_boundary(qt_app) -> None:
+    """
+    Description:
+        The new per-object Verdict must cross the worker->GUI thread handoff intact. A
+        verdict that silently reset to OK is the worst failure for this field, so a
+        backend returning a NOK detection is run on a real QThread and the delivered
+        result must still carry Verdict == 'NOK' (and an OK one stays OK).
+    """
+
+    class _Verdict_Vision_Cls(Vision_Backend_Cls):
+        """A backend returning one NOK and one OK detection."""
+
+        Name = 'Verdict'
+
+        def Analyze(self, image, progress_cb=None, stage_cb=None) -> Analysis_Str:
+            return Analysis_Str(Objects=[
+                Detection_Str(Label='a', Bbox=(0, 0, 4, 4), Verdict='NOK'),
+                Detection_Str(Label='b', Bbox=(4, 4, 4, 4), Verdict='OK')],
+                Verdict='2 found', Verdict_Level='ok', Task='v')
+
+    thread = QThread()
+    worker = Analysis_Worker_Cls(_Verdict_Vision_Cls(), np.zeros((8, 8, 3), dtype=np.uint8))
+    worker.moveToThread(thread)
+    captured = {'result': None}
+    worker.Analysis_Finished.connect(lambda r: captured.__setitem__('result', r))
+    thread.started.connect(worker.Run)
+
+    loop = QEventLoop()
+    worker.Analysis_Finished.connect(loop.quit)
+    worker.Analysis_Failed.connect(loop.quit)
+    QTimer.singleShot(5000, loop.quit)
+    thread.start()
+    loop.exec_()
+    thread.quit()
+    assert thread.wait(2000)
+
+    result = captured['result']
+    assert result is not None
+    # The verdicts crossed the thread intact — not dropped, not defaulted back to OK.
+    assert [det.Verdict for det in result.Objects] == ['NOK', 'OK']
 
 
 def test_connect_worker_runs_off_thread(qt_app, reference_background_path) -> None:
