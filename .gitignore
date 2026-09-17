@@ -11,8 +11,9 @@ env/
 .DS_Store
 
 # Model weights — the app loads Florence-2 from models/florence2-large-ft/
-# (~GBs, MIT-licensed upstream). Fetched separately, never committed.
-models/
+# (~GBs, MIT-licensed upstream). Fetched separately, never committed. Anchored to the
+# repo root so it cannot also swallow a nested directory that happens to be named 'models'.
+/models/
 
 # Vision analysis outputs — Example/Vision/analyze.py writes the per-image annotated
 # image, label mask and descriptions here; the inputs (Image_00*.png and the
@@ -23,6 +24,9 @@ Data/Camera/Results/
 # window images here; they are regenerated on demand, not committed.
 Data/Screenshots/
 
-# Session logs — one plain-text file per application run, written by Logger/Core.py.
-# A per-run artifact, never committed.
-logger/
+# Session logs and per-analysis captures — written by Logger/Core.py and UI/Capture.py
+# under the repo-root logger/ directory. A per-run artifact, never committed. Anchored to
+# the ROOT with a leading slash: an unanchored 'logger/' matches a directory of that name
+# ANYWHERE, so on a case-insensitive filesystem it also ignored the tracked source in
+# src/Logger/ and test/Logger/ — 'git add .' skipped them silently.
+/logger/
