@@ -90,8 +90,10 @@ class _Blocking_Vision_Cls(Vision_Backend_Cls):
     def __init__(self, seconds: float) -> None:
         super().__init__()
         self.__seconds = seconds
+        self.calls = 0
 
     def Analyze(self, image, progress_cb=None, stage_cb=None) -> Analysis_Str:
+        self.calls += 1
         time.sleep(self.__seconds)
         return Analysis_Str(Summary='blocked', Objects=[], Verdict='Empty',
                             Verdict_Level='idle', Task='block')
@@ -223,3 +225,77 @@ def test_closeevent_stops_a_running_analysis_thread(qt_app, reference_background
 
     # Secondary guard: Qt never logged a destroyed-while-running warning.
     assert not any('Destroyed while thread is still running' in m for m in messages), messages
+
+
+def _Wait_Idle(qt_app, window, seconds: float = 3.0) -> None:
+    """Pump the GUI event loop until the analysis worker is no longer running."""
+    deadline = time.time() + seconds
+    while _Private(window, '__worker_running') and time.time() < deadline:
+        qt_app.processEvents()
+        time.sleep(0.01)
+    qt_app.processEvents()
+
+
+def test_view_toggle_available_only_after_the_worker_delivers(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        The §2b threading contract: while the analysis runs off the GUI thread the toggle
+        is not available (the previous run's renders are dropped on start), and it becomes
+        available only once the completion slot has delivered both renders on the UI
+        thread — never mid-flight.
+    """
+
+    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    setattr(window, CONST_MANGLE + '__vision', _Blocking_Vision_Cls(0.2))
+    camera = _Private(window, '__camera')
+    camera.Connect()
+    setattr(window, CONST_MANGLE + '__frame', camera.Capture())
+    toggle = _Private(window, '__view_toggle')
+    viewport = _Private(window, '__viewport')
+
+    _Private(window, '__On_Analyze_Button_Clicked')()
+    qt_app.processEvents()
+    time.sleep(0.05)
+    qt_app.processEvents()
+
+    # Mid-run: the worker has not delivered, so there is nothing to toggle.
+    assert _Private(window, '__worker_running')
+    assert not viewport.Has_Views()
+    assert not toggle.isEnabled()
+
+    _Wait_Idle(qt_app, window)
+
+    # Delivered on the UI thread: both renders are held and the toggle is available.
+    assert not _Private(window, '__worker_running')
+    assert viewport.Has_Views()
+    assert toggle.isEnabled() and not toggle.isHidden()
+
+
+def test_two_analyses_in_quick_succession_do_not_mix(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        Pressing Analyze twice in quick succession must not leave the view showing a mix
+        of two runs. The second press, arriving while the first run is still off-thread,
+        is ignored (a single run is serviced), so both held renders come from one run.
+    """
+
+    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    vision = _Blocking_Vision_Cls(0.2)
+    setattr(window, CONST_MANGLE + '__vision', vision)
+    camera = _Private(window, '__camera')
+    camera.Connect()
+    setattr(window, CONST_MANGLE + '__frame', camera.Capture())
+    viewport = _Private(window, '__viewport')
+
+    _Private(window, '__On_Analyze_Button_Clicked')()   # run 1 starts, off-thread
+    qt_app.processEvents()
+    time.sleep(0.03)
+    _Private(window, '__On_Analyze_Button_Clicked')()   # second press while run 1 runs
+    qt_app.processEvents()
+
+    _Wait_Idle(qt_app, window)
+
+    # Only one run was serviced — the second press could not start a concurrent run — so
+    # the annotated and mask renders both come from that one run.
+    assert vision.calls == 1
+    assert viewport.Has_Views()
