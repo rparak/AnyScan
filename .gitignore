@@ -19,6 +19,10 @@ models/
 # Image_Background_*.png reference) are committed, the regenerated outputs are not.
 Data/Camera/Results/
 
+# Review renders — Example/UI/screenshot.py writes the stamped Camera-View, mask and
+# window images here; they are regenerated on demand, not committed.
+Data/Screenshots/
+
 # Session logs — one plain-text file per application run, written by Logger/Core.py.
 # A per-run artifact, never committed.
 logger/
