@@ -27,6 +27,8 @@
 import os
 # Typing (Support for type hints)
 import typing as tp
+# Numpy (Array computing) [pip3 install numpy]
+import numpy as np
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QFontDatabase, QIcon, QImage, QPixmap, QPainter
@@ -280,3 +282,21 @@ def Rgb_To_Qimage(rgb: tp.List[tp.List[int]]) -> QImage:
     h, w = rgb.shape[:2]
     image = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888)
     return image.copy()
+
+
+def Bgr_To_Qimage(bgr: tp.List[tp.List[int]]) -> QImage:
+    """
+    Description:
+        A BGR ndarray (H, W, 3) as a QImage. The vision renderers (Draw_Annotated,
+        Draw_Label_Mask) emit BGR, OpenCV's order; this is the crossing that lets the
+        viewport show exactly the images the harness exports. The channels are reversed
+        into a contiguous RGB buffer, then handed to Rgb_To_Qimage, which detaches it.
+
+    Args:
+        (1) bgr [Matrix<uint8> HxWx3]: The image (BGR).
+
+    Returns:
+        (1) parameter [QImage(object)]: A detached QImage of the image.
+    """
+
+    return Rgb_To_Qimage(np.ascontiguousarray(bgr[..., ::-1]))

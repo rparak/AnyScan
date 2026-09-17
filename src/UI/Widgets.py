@@ -28,11 +28,11 @@ import os
 # Typing (Support for type hints)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint
+from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, pyqtSignal
 from PyQt5.QtGui import (QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap,
                          QPaintEvent)
-from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QVBoxLayout,
-                             QHBoxLayout, QSizePolicy, QApplication)
+from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup,
+                             QVBoxLayout, QHBoxLayout, QSizePolicy, QApplication)
 # Custom Lib.: AnyScan UI — design tokens and style helpers
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
@@ -189,19 +189,21 @@ class Card_Head_Cls(QWidget):
     def __init__(self, icon_kind: str, title: str, badge_text: tp.Optional[str] = None,
                  parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        row = QHBoxLayout(self)
-        row.setContentsMargins(2, 2, 2, 14)
-        row.setSpacing(10)
-        row.addWidget(Icon_Cls(icon_kind))
+        # `box` is exposed so the window can add a right-aligned control (e.g. the
+        # Camera View's annotated/mask toggle) into the head after the badge.
+        self.box = QHBoxLayout(self)
+        self.box.setContentsMargins(2, 2, 2, 14)
+        self.box.setSpacing(10)
+        self.box.addWidget(Icon_Cls(icon_kind))
         label = QLabel(title)
         label.setFont(Font(15.5, QFont.Bold, tracking=-2))
         label.setStyleSheet('color: %s;' % Style.CONST_INK)
-        row.addWidget(label)
-        row.addStretch(1)
+        self.box.addWidget(label)
+        self.box.addStretch(1)
         self.badge = None
         if badge_text is not None:
             self.badge = Badge_Cls(badge_text)
-            row.addWidget(self.badge)
+            self.box.addWidget(self.badge)
 
 
 class Viewport_Cls(QWidget):
@@ -218,7 +220,14 @@ class Viewport_Cls(QWidget):
 
         # << PRIVATE >> #
         self.__image = None
-        self.__detections = []
+        # The two analysis renders (§2b): the annotated image and the label mask, both
+        # produced from the completed result and held here so the toggle swaps them in
+        # place — never re-analysing and never re-reading from disk. __view selects which
+        # one paints. They are the SAME resolution as the frame, so the letterbox rect is
+        # identical across the switch and the operator compares the same region.
+        self.__annotated = None
+        self.__mask = None
+        self.__view = 'annotated'
         # Busy overlay. __busy shows the scrim and step text; __animated adds the
         # turning arc, driven by __timer, which runs ONLY while the analysis worker
         # is busy — a timer left running repaints a static screen forever.
@@ -239,36 +248,111 @@ class Viewport_Cls(QWidget):
     def Show_Frame(self, image: QImage) -> None:
         """
         Description:
-            Show a captured frame and clear any prior detections.
+            Show a captured frame and drop any analysis renders. A new frame makes the
+            previous frame's annotations stale — showing them over a different scene is
+            the one genuinely misleading failure — so they are cleared here, and the
+            window disables the view toggle to match.
 
         Args:
             (1) image [QImage(object)]: The frame to paint.
         """
 
         self.__image = image
-        self.__detections = []
+        self.__annotated = None
+        self.__mask = None
         self.update()
 
-    def Show_Detections(self, detections: tp.List) -> None:
+    def Show_Views(self, annotated: QImage, mask: QImage, view: str) -> None:
         """
         Description:
-            Draw the detection boxes over the current frame.
+            Hold both analysis renders from the completed result and paint the selected
+            one. The two images are swapped in place by Set_View with no re-analysis and
+            no disk read.
 
         Args:
-            (1) detections [Vector<Detection_Str(object)>]: The located objects.
+            (1) annotated [QImage(object)]: The annotated image.
+            (2) mask [QImage(object)]: The label mask image.
+            (3) view [string]: The view to show now ('annotated' or 'mask').
         """
 
-        self.__detections = detections
+        self.__annotated = annotated
+        self.__mask = mask
+        self.__view = view
+        self.update()
+
+    def Set_View(self, view: str) -> None:
+        """
+        Description:
+            Swap the displayed analysis render. Instant: it only selects which held
+            image paints, so the letterbox rect (and thus the on-screen region) is
+            unchanged.
+
+        Args:
+            (1) view [string]: 'annotated' or 'mask'.
+        """
+
+        if view != self.__view:
+            self.__view = view
+            self.update()
+
+    def Has_Views(self) -> bool:
+        """
+        Description:
+            Whether an analysis render is currently held — the toggle is meaningful only
+            then.
+
+        Returns:
+            (1) parameter [bool]: True once both renders are held.
+        """
+
+        return self.__annotated is not None
+
+    def Current_View(self) -> str:
+        """
+        Description:
+            The view currently selected ('annotated' or 'mask').
+
+        Returns:
+            (1) parameter [string]: The selected view.
+        """
+
+        return self.__view
+
+    def __Displayed(self) -> tp.Optional[QImage]:
+        """
+        Description:
+            The image to paint: the selected analysis render when one is held, otherwise
+            the bare frame.
+
+        Returns:
+            (1) parameter [QImage(object) or None]: The image, or None for the empty state.
+        """
+
+        if self.__annotated is not None:
+            return self.__mask if self.__view == 'mask' else self.__annotated
+        return self.__image
+
+    def Clear_Views(self) -> None:
+        """
+        Description:
+            Drop the analysis renders but keep the frame. A new run supersedes the old,
+            so its renders are cleared the moment it starts — the toggle cannot show, and
+            two runs in quick succession cannot leave a mixed annotated/mask pair.
+        """
+
+        self.__annotated = None
+        self.__mask = None
         self.update()
 
     def Clear(self) -> None:
         """
         Description:
-            Drop the frame and detections, returning to the empty state.
+            Drop the frame and both analysis renders, returning to the empty state.
         """
 
         self.__image = None
-        self.__detections = []
+        self.__annotated = None
+        self.__mask = None
         self.update()
 
     def Set_Empty_Text(self, text: str) -> None:
@@ -362,12 +446,13 @@ class Viewport_Cls(QWidget):
             (1) parameter [QRect(object)]: The image's draw rectangle.
         """
 
-        if self.__image is None:
+        displayed = self.__Displayed()
+        if displayed is None:
             return QRect()
-        scale = min(self.width() / self.__image.width(),
-                    self.height() / self.__image.height())
-        w = self.__image.width() * scale
-        h = self.__image.height() * scale
+        scale = min(self.width() / displayed.width(),
+                    self.height() / displayed.height())
+        w = displayed.width() * scale
+        h = displayed.height() * scale
         return QRect(int((self.width() - w) / 2), int((self.height() - h) / 2),
                      int(w), int(h))
 
@@ -388,12 +473,11 @@ class Viewport_Cls(QWidget):
         p.setClipPath(path)
         p.fillRect(self.rect(), QColor(Style.CONST_VIEWPORT))
 
-        if self.__image is None:
+        displayed = self.__Displayed()
+        if displayed is None:
             self.__Paint_Empty(p)
         else:
-            target = self.__Draw_Rect()
-            p.drawImage(target, self.__image)
-            self.__Paint_Boxes(p, target)
+            p.drawImage(self.__Draw_Rect(), displayed)
 
         if self.__busy:
             self.__Paint_Busy(p)
@@ -409,7 +493,7 @@ class Viewport_Cls(QWidget):
             (1) p [QPainter(object)]: The active painter.
         """
 
-        p.fillRect(self.rect(), QColor(24, 25, 27, 158))
+        p.fillRect(self.rect(), QColor(43, 36, 85, 158))
         cx, cy = self.width() / 2.0, self.height() / 2.0
 
         if self.__animated:
@@ -453,7 +537,6 @@ class Viewport_Cls(QWidget):
             draw_h = int(scaled.height() / dpr)
             p.setOpacity(0.92)
             p.drawPixmap((self.width() - draw_w) // 2, cy - draw_h // 2 - 20, scaled)
-            p.setOpacity(1.0)
             text_top = cy + draw_h // 2 - 8
         else:
             text_top = cy
@@ -462,46 +545,13 @@ class Viewport_Cls(QWidget):
         p.drawText(QRect(0, text_top, self.width(), 60), Qt.AlignHCenter | Qt.AlignTop,
                    self.__empty_text)
 
-    def __Paint_Boxes(self, p: QPainter, target: QRect) -> None:
-        """
-        Description:
-            Draw the numbered, colour-keyed detection boxes over the frame.
-
-        Args:
-            (1) p [QPainter(object)]: The active painter.
-            (2) target [QRect(object)]: The frame's draw rectangle.
-        """
-
-        if not self.__detections or self.__image is None:
-            return
-        scale = target.width() / float(self.__image.width())
-        p.setFont(Font(9.5, QFont.DemiBold))
-        metrics = p.fontMetrics()
-        for i, det in enumerate(self.__detections):
-            box_color = QColor(Style.CONST_INDEX_COLORS[i % len(Style.CONST_INDEX_COLORS)][0])
-            x, y, w, h = det.Bbox
-            bx = target.x() + x * scale
-            by = target.y() + y * scale
-            p.setPen(QPen(box_color, 2.5))
-            p.setBrush(Qt.NoBrush)
-            p.drawRect(QRectF(bx, by, w * scale, h * scale))
-
-            label = 'Object %d' % (i + 1)
-            tw = metrics.horizontalAdvance(label) + 12
-            top = max(0, by - 19)
-            p.setPen(Qt.NoPen)
-            p.setBrush(box_color)
-            p.drawRect(QRectF(bx, top, tw, 19))
-            p.setPen(QColor('#ffffff'))
-            p.drawText(QRectF(bx + 6, top, tw, 19), Qt.AlignVCenter, label)
-
 
 class Tool_Button_Cls(QPushButton):
     """
     Description:
-        48px tall, uppercase, tracked. Exactly one is primary. The primary is black
-        rather than magenta: the strongest control reads as structural, leaving
-        magenta to mean one thing only — a detected object.
+        48px tall, uppercase, tracked. Exactly one is primary. The primary is the
+        deep-indigo brand ink rather than magenta: the strongest control reads as
+        structural, leaving magenta to mean one thing only — a detected object.
     """
 
     def __init__(self, text: str, primary: bool = False,
@@ -515,18 +565,100 @@ class Tool_Button_Cls(QPushButton):
             self.setStyleSheet("""
                 QPushButton { background: %s; border: 1px solid %s; color: #fff;
                               border-radius: %dpx; }
-                QPushButton:hover:enabled { background: #2c3038; border-color: #2c3038; }
-                QPushButton:pressed:enabled { background: #000; border-color: #000; }
-                QPushButton:disabled { background: #c9cacd; border-color: #c9cacd;
-                                       color: #f2f2f3; }
+                QPushButton:hover:enabled { background: #3a3270; border-color: #3a3270; }
+                QPushButton:pressed:enabled { background: #1f1a3f; border-color: #1f1a3f; }
+                QPushButton:disabled { background: #cbc8db; border-color: #cbc8db;
+                                       color: #f2f1f6; }
             """ % (Style.CONST_INK, Style.CONST_INK, Style.CONST_RADIUS_BTN))
         else:
             self.setStyleSheet("""
-                QPushButton { background: #fff; border: 1px solid #e4e5e7; color: %s;
+                QPushButton { background: #fff; border: 1px solid #e3e0ee; color: %s;
                               border-radius: %dpx; }
-                QPushButton:hover:enabled { background: #f7f7f8; border-color: #d8d9dc; }
-                QPushButton:disabled { color: #b9bbbf; border-color: #eceded; }
+                QPushButton:hover:enabled { background: #f6f5fa; border-color: #d5d1e6; }
+                QPushButton:disabled { color: #b6b2ca; border-color: #ecebf2; }
             """ % (Style.CONST_INK, Style.CONST_RADIUS_BTN))
+
+
+class View_Toggle_Cls(QWidget):
+    """
+    Description:
+        The Camera View's annotated/mask selector (§2b): two mutually-exclusive,
+        checkable segments styled as one control. It emits View_Changed with the chosen
+        key ('annotated' or 'mask') only on a user click, so restoring a remembered
+        choice (Set_View) never re-emits and never loops. The window hides it until an
+        analysis has completed — there is nothing to toggle before then.
+    """
+
+    # << SIGNAL >> #
+    View_Changed = pyqtSignal(str)
+
+    # The segments, in order, as (key, label).
+    CONST_SEGMENTS = (('annotated', 'Annotated'), ('mask', 'Mask'))
+
+    def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+        self.__group = QButtonGroup(self)
+        self.__group.setExclusive(True)
+        # << PRIVATE >> #
+        self.__buttons = {}
+        for index, (key, label) in enumerate(self.CONST_SEGMENTS):
+            button = QPushButton(label)
+            button.setCheckable(True)
+            button.setCursor(Qt.PointingHandCursor)
+            button.setFont(Font(9, QFont.DemiBold, tracking=2))
+            button.setFixedHeight(30)
+            button.setStyleSheet(self.__Segment_Style(index, len(self.CONST_SEGMENTS)))
+            button.clicked.connect(lambda _checked, k=key: self.View_Changed.emit(k))
+            self.__group.addButton(button)
+            self.__buttons[key] = button
+            row.addWidget(button)
+        self.__buttons['annotated'].setChecked(True)
+
+    def __Segment_Style(self, index: int, total: int) -> str:
+        """
+        Description:
+            The stylesheet for one segment: only the outer corners are rounded, so the
+            two buttons read as a single segmented control, and the checked segment
+            carries the brand ink.
+
+        Args:
+            (1) index [int]: The segment's position.
+            (2) total [int]: The number of segments.
+
+        Returns:
+            (1) parameter [string]: The Qt stylesheet.
+        """
+
+        radius = Style.CONST_RADIUS_BTN
+        left = radius if index == 0 else 0
+        right = radius if index == total - 1 else 0
+        return ("""
+            QPushButton { background: #fff; border: 1px solid #e3e0ee; color: %s;
+                          padding: 0 16px;
+                          border-top-left-radius: %dpx; border-bottom-left-radius: %dpx;
+                          border-top-right-radius: %dpx; border-bottom-right-radius: %dpx; }
+            QPushButton:hover:enabled { background: #f6f5fa; }
+            QPushButton:checked { background: %s; border-color: %s; color: #fff; }
+            QPushButton:disabled { color: #b6b2ca; border-color: #ecebf2; }
+        """ % (Style.CONST_INK, left, left, right, right, Style.CONST_INK, Style.CONST_INK))
+
+    def Set_View(self, view: str) -> None:
+        """
+        Description:
+            Reflect a view choice on the control WITHOUT emitting View_Changed — used to
+            restore the operator's remembered choice when a new analysis completes.
+
+        Args:
+            (1) view [string]: 'annotated' or 'mask'.
+        """
+
+        button = self.__buttons.get(view)
+        if button is not None and not button.isChecked():
+            button.setChecked(True)
 
 
 class Object_List_Cls(QWidget):
@@ -665,16 +797,19 @@ class Status_Strip_Cls(Card_Cls):
 class Funding_Row_Cls(Card_Cls):
     """
     Description:
-        The project and funding obligation, as part of the product. Logo heights are
-        set per logo, never globally: a wordmark and a three-line institutional
-        block cannot share one height and stay optically equal.
+        The project and funding obligation, as part of the product — and the console's
+        strongest EDIH-DIGIMAT statement: a deep-indigo brand band carrying the white
+        institutional logos. Logo heights are set per logo, never globally: a wordmark
+        and a two-line institutional block cannot share one height and stay optically
+        equal, and the white lockups are proportioned differently from the old dark
+        ones, so the heights are re-tuned for the band.
     """
 
     LOGOS = [
-        ('edih-digimat-dark.png', 21),
+        ('edih-digimat-white.png', 20),
         (None, 0),                       # hairline divider
-        ('partner-ministry.png', 34),
-        ('funder-eu.png', 31),
+        ('partner-ministry-white.png', 36),
+        ('funder-eu-white.png', 30),
     ]
 
     DISCLAIMER = (
@@ -686,12 +821,19 @@ class Funding_Row_Cls(Card_Cls):
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(padding=16, parent=parent)
+        # Repaint the card as the deep-indigo band. The border is the band colour
+        # itself, so the block reads as one solid indigo surface on the light page
+        # rather than the light violet outline the white cards carry.
+        self.setStyleSheet(
+            '#card { background: %s; border: 1px solid %s; border-radius: %dpx; }'
+            % (Style.CONST_BAND, Style.CONST_BAND, Style.CONST_RADIUS_CARD)
+        )
         row = QHBoxLayout()
         row.setSpacing(32)
         row.addStretch(1)
         for name, height in self.LOGOS:
             if name is None:
-                row.addWidget(Hairline(vertical=True, length=30))
+                row.addWidget(Hairline(vertical=True, length=30, color=Style.CONST_BAND_LINE))
                 continue
             pix = Load_Logo(name, height)
             label = QLabel()
@@ -699,19 +841,19 @@ class Funding_Row_Cls(Card_Cls):
                 label.setPixmap(pix)
             else:
                 label.setText(name)  # a missing asset should be visible, not silent
-                label.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
+                label.setStyleSheet('color: %s;' % Style.CONST_BAND_TEXT)
             row.addWidget(label)
         row.addStretch(1)
         self.box.addLayout(row)
 
         self.box.addSpacing(13)
-        self.box.addWidget(Hairline(vertical=False))
+        self.box.addWidget(Hairline(vertical=False, color=Style.CONST_BAND_LINE))
 
         # The disclaimer runs the full width rather than wrapping into a four-line
-        # block: the same words, a third of the height.
+        # block: the same words, a third of the height. Lavender on the indigo band.
         note = QLabel(self.DISCLAIMER)
         note.setFont(Font(8))
         note.setWordWrap(True)
         note.setAlignment(Qt.AlignCenter)
-        note.setStyleSheet('color: %s; padding-top: 10px;' % Style.CONST_INK_MUTE)
+        note.setStyleSheet('color: %s; padding-top: 10px;' % Style.CONST_BAND_TEXT)
         self.box.addWidget(note)

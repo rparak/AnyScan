@@ -26,6 +26,10 @@
 # System (Default)
 import typing as tp
 from datetime import datetime
+# OpenCV library for computer vision tasks [pip3 install opencv-python]
+import cv2
+# Numpy (Array computing) [pip3 install numpy]
+import numpy as np
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QThread, QTimer
 from PyQt5.QtGui import QFont, QKeyEvent, QCloseEvent
@@ -34,19 +38,25 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLay
 # Custom Lib.: AnyScan UI — style, widgets and workers
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
-from UI.Utilities.Style import Font, Load_Logo, Rgb_To_Qimage, Hairline
+from UI.Utilities.Style import (Font, Load_Svg, Load_Logo, Rgb_To_Qimage, Bgr_To_Qimage,
+                                Hairline)
 #   ../UI/Widgets
 from UI.Widgets import (Card_Cls, Card_Head_Cls, Icon_Cls, Viewport_Cls, Tool_Button_Cls,
-                        Object_List_Cls, Status_Strip_Cls, Funding_Row_Cls)
+                        View_Toggle_Cls, Object_List_Cls, Status_Strip_Cls, Funding_Row_Cls)
 #   ../UI/Workers
 from UI.Workers import Analysis_Worker_Cls, Connect_Worker_Cls
-# Custom Lib.: AnyScan domain — backends and the result structure
+# Custom Lib.: AnyScan domain — backends, renderers and the result structure
 #   ../Camera/Core
 from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
 #   ../Vision/Core
 from Vision.Core import Florence_Vision_Cls
+#   ../Vision/Utilities/Annotate
+from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
+# Custom Lib.: AnyScan — the session logger
+#   ../Logger/Core
+from Logger.Core import Session_Logger_Cls
 
 
 class AnyScan_Window_Cls(QMainWindow):
@@ -83,7 +93,8 @@ class AnyScan_Window_Cls(QMainWindow):
     CONST_READING_HAS_FRAME = ('Frame captured. Press Analyze to read the scene. The result '
                                'appears here as plain English text.')
 
-    def __init__(self, camera: tp.Optional[tp.Any] = None) -> None:
+    def __init__(self, camera: tp.Optional[tp.Any] = None,
+                 logger: tp.Optional[Session_Logger_Cls] = None) -> None:
         super().__init__()
         self.setWindowTitle('AnyScan  ·  %s' % Style.CONST_TAGLINE)
 
@@ -92,10 +103,22 @@ class AnyScan_Window_Cls(QMainWindow):
         # --frame path can supply a File_Camera_Cls; production is the Basler.
         self.__camera = camera if camera is not None else Basler_Camera_Cls()
         self.__vision = Florence_Vision_Cls()
+        # The session logger is injected by the launcher; None disables logging so the
+        # window still builds under test and in the screenshot harness.
+        self.__logger = logger
+        # The open camera/scan/analysis error ids, so the next matching success can
+        # resolve them (e.g. a scan timeout resolved by the next successful scan).
+        self.__camera_error_id = None
+        self.__scan_error_id = None
+        self.__analysis_error_id = None
 
         self.__frame = None
         self.__analyses = 0
         self.__objects_found = 0
+        # The Camera View's remembered annotated/mask choice (§2b): it persists across
+        # analyses in a session, so an operator working in mask view is not thrown back
+        # to annotated by the next Analyze.
+        self.__view_choice = 'annotated'
         # While an error is on screen, the prompts must not overwrite it.
         self.__showing_error = False
         # Analysis worker plumbing; None when idle.
@@ -107,6 +130,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__conn_worker = None
         # Widgets, populated by __Build_Ui.
         self.__viewport = None
+        self.__view_toggle = None
         self.__status = None
         self.__frame_badge = None
         self.__stage_badge = None
@@ -171,8 +195,12 @@ class AnyScan_Window_Cls(QMainWindow):
     def __Build_Topbar(self) -> QWidget:
         """
         Description:
-            The top bar: JIC mark, the AnyScan name, the tagline, the camera pill and
-            the model pill.
+            The top bar: the AnyScan brand lockup, the JIC mark, the camera pill and
+            the model pill. The lockup is the `anyscan-logo.svg` — the mark, the
+            wordmark and the tagline. The "developed by JIC" attribution is no longer
+            set as words in the logo; the JIC mark itself carries it, divided off to
+            the right and tinted the muted-violet CONST_INK_MUTE so it reads as quiet
+            attribution on the console's own palette.
 
         Returns:
             (1) parameter [QWidget(object)]: The top-bar widget.
@@ -184,21 +212,14 @@ class AnyScan_Window_Cls(QMainWindow):
         row.setSpacing(16)
 
         logo = QLabel()
-        logo.setPixmap(Load_Logo('brand-jic.png', 26))
+        logo.setPixmap(Load_Svg('anyscan-logo.svg', 54))
         row.addWidget(logo)
-        row.addWidget(self.__Rule(26))
 
-        name = QLabel('AnyScan')
-        name.setFont(Font(15.5, QFont.Bold, tracking=-3.5))
-        name.setStyleSheet('color: %s;' % Style.CONST_INK)
-        row.addWidget(name)
+        row.addWidget(Hairline(vertical=True, length=34, color='#c9c5d8'))
 
-        row.addWidget(self.__Rule(24))
-
-        tag = QLabel(Style.CONST_TAGLINE)
-        tag.setFont(Font(12.5))
-        tag.setStyleSheet('color: %s;' % Style.CONST_INK_SOFT)
-        row.addWidget(tag)
+        jic = QLabel()
+        jic.setPixmap(Load_Logo('brand-jic-mute.png', 26))
+        row.addWidget(jic)
 
         row.addStretch(1)
 
@@ -220,20 +241,6 @@ class AnyScan_Window_Cls(QMainWindow):
         pill_row.addWidget(model_label)
         row.addWidget(model_pill)
         return bar
-
-    def __Rule(self, height: int) -> QWidget:
-        """
-        Description:
-            A short vertical divider for the top bar.
-
-        Args:
-            (1) height [int]: The rule height.
-
-        Returns:
-            (1) parameter [QWidget(object)]: The rule widget.
-        """
-
-        return Hairline(vertical=True, length=height, color='#d9dadd')
 
     def __Pill(self, text: str, dot: bool = False) -> QLabel:
         """
@@ -270,6 +277,11 @@ class AnyScan_Window_Cls(QMainWindow):
         card = Card_Cls()
         head = Card_Head_Cls('camera', 'Camera View', 'No frame')
         self.__frame_badge = head.badge
+        # The annotated/mask selector lives in the head, right-aligned: it belongs to the
+        # view, not the action row. Hidden until an analysis has produced both renders.
+        self.__view_toggle = View_Toggle_Cls()
+        self.__view_toggle.setVisible(False)
+        head.box.addWidget(self.__view_toggle)
         card.box.addWidget(head)
 
         self.__viewport = Viewport_Cls()
@@ -344,15 +356,15 @@ class AnyScan_Window_Cls(QMainWindow):
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setMinimumHeight(320)
         scroll.setStyleSheet("""
-            QScrollArea { border: 1px solid #ececee; border-radius: 10px;
+            QScrollArea { border: 1px solid %s; border-radius: 10px;
                           background: %s; }
             QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
-            QScrollBar::handle:vertical { background: #c9cacd; border-radius: 4px;
+            QScrollBar::handle:vertical { background: #c7c3d9; border-radius: 4px;
                                           min-height: 30px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
                 background: transparent; }
-        """ % Style.CONST_CARD)
+        """ % (Style.CONST_LINE, Style.CONST_CARD))
         card.box.addWidget(scroll, 1)
 
         meta = QVBoxLayout()
@@ -410,6 +422,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_scan.clicked.connect(self.__On_Scan_Button_Clicked)
         self.__button_analyze.clicked.connect(self.__On_Analyze_Button_Clicked)
         self.__button_clear.clicked.connect(self.__On_Clear_Button_Clicked)
+        self.__view_toggle.View_Changed.connect(self.__On_View_Toggle)
 
     # ----------------------------------------------------------------- actions
 
@@ -455,6 +468,13 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_analyze.setEnabled(self.__frame is not None and not running)
         self.__button_clear.setEnabled(not running)
 
+        # The annotated/mask toggle is meaningful only once an analysis has delivered
+        # both renders, and never while a worker runs. Its visibility follows the held
+        # renders, so a stale frame (which drops them) hides it in the same breath.
+        has_views = self.__viewport.Has_Views()
+        self.__view_toggle.setVisible(has_views)
+        self.__view_toggle.setEnabled(has_views and not running)
+
         if connected:
             self.__pill_camera.setText('●  Camera live')
             self.__pill_camera.setStyleSheet(
@@ -497,6 +517,9 @@ class AnyScan_Window_Cls(QMainWindow):
         if self.__worker_running or self.__camera.Connected:
             return
 
+        if self.__logger is not None:
+            self.__logger.Log_Camera_Connection_Attempt()
+
         self.__worker_running = True
         self.__showing_error = False
         self.__status.camera.Set_Value('Connecting…', Style.CONST_WARN, Style.CONST_WARN)
@@ -532,6 +555,12 @@ class AnyScan_Window_Cls(QMainWindow):
         w, h = self.__camera.Resolution
         self.__status.camera.Set_Value('Connected', Style.CONST_OK, Style.CONST_OK)
         self.__status.resolution.Set_Value('%d × %d' % (w, h))
+        if self.__logger is not None:
+            # A successful connection resolves a pending connect error, then opens a session.
+            if self.__camera_error_id is not None:
+                self.__logger.Log_Error_Resolved(self.__camera_error_id)
+                self.__camera_error_id = None
+            self.__logger.Log_Camera_Connected('%d × %d' % (w, h))
         self.__Sync_Controls()
 
     def __On_Connect_Failed(self, message: str) -> None:
@@ -548,6 +577,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__conn_worker = None
         self.__viewport.Stop_Busy()
         self.__status.camera.Set_Value('Disconnected', Style.CONST_INK_MUTE, Style.CONST_INK_MUTE)
+        if self.__logger is not None:
+            self.__camera_error_id = self.__logger.Log_Error(message)
         self.__Fail(message)
         self.__Sync_Controls()
 
@@ -563,6 +594,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__frame_badge.setText('No frame')
         self.__status.camera.Set_Value('Disconnected', Style.CONST_INK_MUTE, Style.CONST_INK_MUTE)
         self.__status.resolution.Set_Value(Style.CONST_NO_VALUE)
+        if self.__logger is not None:
+            self.__logger.Log_Camera_Disconnected()
         self.__Sync_Controls()
 
     def __On_Scan_Button_Clicked(self) -> None:
@@ -572,16 +605,27 @@ class AnyScan_Window_Cls(QMainWindow):
             reset the reading panel.
         """
 
+        if self.__logger is not None:
+            self.__logger.Log_Scan_Started()
+
         try:
             self.__viewport.Set_Busy('Capturing frame…')
             self.__frame = self.__camera.Capture()
         except Camera_Error_Cls as exc:
+            if self.__logger is not None:
+                self.__scan_error_id = self.__logger.Log_Error(str(exc))
             self.__Fail(str(exc))
         else:
             self.__viewport.Show_Frame(Rgb_To_Qimage(self.__frame))
             self.__frame_badge.setText('%d × %d · RGB'
                                        % (self.__frame.shape[1], self.__frame.shape[0]))
             self.__status.updated.Set_Value(datetime.now().strftime('%H:%M:%S'))
+            if self.__logger is not None:
+                # A successful scan resolves a pending scan error, then reports itself.
+                if self.__scan_error_id is not None:
+                    self.__logger.Log_Error_Resolved(self.__scan_error_id)
+                    self.__scan_error_id = None
+                self.__logger.Log_Scan_Ended()
             self.__Clear_Reading()
         finally:
             self.__viewport.Set_Busy('')
@@ -597,8 +641,15 @@ class AnyScan_Window_Cls(QMainWindow):
         if self.__frame is None or self.__worker_running:
             return
 
+        if self.__logger is not None:
+            self.__logger.Log_Analysis_Started()
+
         self.__worker_running = True
         self.__showing_error = False
+        # Drop any previous run's renders before this one starts: the toggle hides for
+        # the duration, and two Analyze presses in quick succession cannot leave the view
+        # showing a mix of two runs.
+        self.__viewport.Clear_Views()
         self.__viewport.Start_Busy('Preparing…')
         self.__Sync_Controls()
 
@@ -648,6 +699,16 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__worker = None
         self.__viewport.Stop_Busy()
         self.__Show_Analysis(result)
+        if self.__logger is not None:
+            # A successful analysis resolves a pending analysis error, then reports the
+            # analyzed image, every located object, and the inference time.
+            if self.__analysis_error_id is not None:
+                self.__logger.Log_Error_Resolved(self.__analysis_error_id)
+                self.__analysis_error_id = None
+            self.__logger.Log_Image_Analyzed(self.__analyses, len(result.Objects))
+            for det in result.Objects:
+                self.__logger.Log_Object_Detected(det.Label, det.Confidence, det.Bbox, det.Sentence)
+            self.__logger.Log_Analysis_Ended(result.Latency_Ms)
         self.__Sync_Controls()
 
     def __On_Analysis_Failed(self, message: str) -> None:
@@ -663,6 +724,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__thread = None
         self.__worker = None
         self.__viewport.Stop_Busy()
+        if self.__logger is not None:
+            self.__analysis_error_id = self.__logger.Log_Error(message)
         self.__Fail(message)
         self.__Sync_Controls()
 
@@ -684,7 +747,13 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__reading_note.setText(result.Note)
         self.__reading_note.setVisible(bool(result.Note))
 
-        self.__viewport.Show_Detections(result.Objects)
+        # Produce both Camera View renders from the completed result via the SAME shared
+        # renderers the harness exports, so the on-screen annotated view is exactly the
+        # exported image. Both are held for the instant annotated/mask swap (§2b); the
+        # remembered view choice is restored so a mask-view session stays in mask view.
+        annotated, mask = self.__Render_Views(result)
+        self.__viewport.Show_Views(annotated, mask, self.__view_choice)
+        self.__view_toggle.Set_View(self.__view_choice)
         self.__stage_badge.Set_State(result.Verdict, result.Verdict_Level)
 
         self.__meta_task.setText(result.Task)
@@ -696,6 +765,41 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__status.images.Set_Value(str(self.__analyses))
         self.__status.objects.Set_Value(str(self.__objects_found))
         self.__status.updated.Set_Value(datetime.now().strftime('%H:%M:%S'))
+
+    def __Render_Views(self, result: Analysis_Str) -> tp.Tuple[tp.Any, tp.Any]:
+        """
+        Description:
+            Render the annotated image and the label mask for the current frame from the
+            completed result, as QImages ready for the viewport. Both go through the
+            shared Vision renderers (Draw_Annotated, Draw_Label_Mask) — the same code the
+            validation harness exports — so the view and the file cannot drift, and both
+            are the frame's resolution so the toggle swaps them in place.
+
+        Args:
+            (1) result [Analysis_Str(object)]: The scene reading.
+
+        Returns:
+            (1) parameter [Tuple<QImage>]: (annotated, mask).
+        """
+
+        frame_bgr = cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR)
+        annotated = Draw_Annotated(frame_bgr, result.Objects, cv2, np)
+        mask = Draw_Label_Mask(result.Objects, frame_bgr.shape, cv2, np)
+        return Bgr_To_Qimage(annotated), Bgr_To_Qimage(mask)
+
+    def __On_View_Toggle(self, view: str) -> None:
+        """
+        Description:
+            Switch the Camera View between the annotated image and the mask. This only
+            swaps the held render in place — it never re-runs analysis and never reads
+            from disk — and remembers the choice for the next analysis.
+
+        Args:
+            (1) view [string]: 'annotated' or 'mask'.
+        """
+
+        self.__view_choice = view
+        self.__viewport.Set_View(view)
 
     def __Clear_Reading(self) -> None:
         """
@@ -720,6 +824,8 @@ class AnyScan_Window_Cls(QMainWindow):
             Clear the frame, the counters and the reading panel.
         """
 
+        if self.__logger is not None:
+            self.__logger.Log_Info('Cleared the frame, the counters and the reading panel')
         self.__frame = None
         self.__analyses = 0
         self.__objects_found = 0
@@ -764,4 +870,8 @@ class AnyScan_Window_Cls(QMainWindow):
             if thread is not None:
                 thread.quit()
                 thread.wait(5000)
+        # Write the run summary and close the log file on a normal window close. Close
+        # is idempotent, so the launcher's try/finally may safely run it again.
+        if self.__logger is not None:
+            self.__logger.Close()
         super().closeEvent(event)
