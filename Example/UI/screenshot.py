@@ -55,6 +55,8 @@ from UI.Core import AnyScan_Window_Cls
 from Camera.Core import File_Camera_Cls
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
+#   ../Vision/Utilities/Provenance
+import Vision.Utilities.Provenance as Provenance
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 
@@ -74,12 +76,6 @@ Description:
     the stamp identifies the scene by NAME rather than by a frame hash — the analogue of
     the harness's frame fingerprint for a scene that has no source file.
 """
-# The stamp footer band (px tall) and its text scale — matched to the harness stamp.
-#   Unit [int]
-CONST_STAMP_BAND_H = 26
-#   Unit [float]
-CONST_STAMP_FONT_SCALE = 0.5
-
 # Where the stamped review renders are written (git-ignored).
 #   Unit [string]
 CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Screenshots')
@@ -100,10 +96,7 @@ def _Stamp(image: tp.Any, text: str) -> tp.Any:
         (1) parameter [Matrix<uint8> (H+band)xWx3]: The stamped render.
     """
 
-    band = np.full((CONST_STAMP_BAND_H, image.shape[1], 3), 24, np.uint8)
-    cv2.putText(band, text, (8, CONST_STAMP_BAND_H - 9), cv2.FONT_HERSHEY_SIMPLEX,
-                CONST_STAMP_FONT_SCALE, (210, 210, 210), 1, cv2.LINE_AA)
-    return np.vstack([image, band])
+    return Provenance.Stamp_Image(image, text, cv2, np)
 
 
 def _Grab_Bgr(window: AnyScan_Window_Cls) -> tp.Any:

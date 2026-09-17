@@ -25,6 +25,7 @@
 
 # System (Default)
 import typing as tp
+import os
 import statistics
 from datetime import datetime
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
@@ -52,14 +53,17 @@ from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
 #   ../Vision/Core
 from Vision.Core import Florence_Vision_Cls
 #   ../Vision/Utilities/Annotate
+import Vision.Utilities.Annotate as Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 #   ../Reporting/Core
-from Reporting.Core import Screen_Header
+from Reporting.Core import Screen_Header, Screen_Understanding
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
-# Custom Lib.: AnyScan — the session logger
+# Custom Lib.: AnyScan — the session logger and the per-analysis capture writer
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
+#   ../UI/Capture
+from UI.Capture import Capture_Writer_Cls
 
 
 class AnyScan_Window_Cls(QMainWindow):
@@ -109,6 +113,21 @@ class AnyScan_Window_Cls(QMainWindow):
         # The session logger is injected by the launcher; None disables logging so the
         # window still builds under test and in the screenshot harness.
         self.__logger = logger
+        # The per-analysis capture writer (four artefacts per analysis under
+        # logger/captures/, retention-bounded). Only when a logger is present, since the
+        # captures live beside its log; None disables capture entirely.
+        self.__capture_writer = None
+        log_path = getattr(logger, 'Path', None)
+        if log_path is not None:
+            self.__capture_writer = Capture_Writer_Cls(
+                os.path.join(os.path.dirname(log_path), 'captures'))
+        # The camera emits its events (frame drops, config) through this sink; the Qt-free
+        # camera never holds the logger.
+        self.__camera.Set_Log_Callback(self.__Log_Event)
+        # The per-session analysis index (for the capture-set id) and the current
+        # analysis's set id, set when an analysis starts and reused when it finishes.
+        self.__session_analyses = 0
+        self.__current_set_id = None
         # The open camera/scan/analysis error ids, so the next matching success can
         # resolve them (e.g. a scan timeout resolved by the next successful scan).
         self.__camera_error_id = None
@@ -559,6 +578,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__conn_thread = None
         self.__conn_worker = None
         self.__viewport.Stop_Busy()
+        # A new camera session: the per-session analysis index (capture-set <n>) restarts.
+        self.__session_analyses = 0
         w, h = self.__camera.Resolution
         self.__status.camera.Set_Value('Connected', Style.CONST_OK, Style.CONST_OK)
         self.__status.resolution.Set_Value('%d × %d' % (w, h))
@@ -620,10 +641,22 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__frame = self.__camera.Capture()
         except Camera_Error_Cls as exc:
             if self.__logger is not None:
-                self.__scan_error_id = self.__logger.Log_Error(str(exc))
+                # A capture that failed AND left the camera disconnected is a mid-session
+                # connection LOST (ERROR, closes the session); a failure while still
+                # connected is a transient capture error (tracked ERROR that a later scan
+                # can resolve).
+                if not self.__camera.Connected:
+                    self.__logger.Log_Camera_Connection_Lost(str(exc))
+                else:
+                    self.__scan_error_id = self.__logger.Log_Error(str(exc))
             self.__Fail(str(exc))
         else:
             self.__viewport.Show_Frame(Rgb_To_Qimage(self.__frame))
+            # A dropped-frame count from the driver's retries is reported as one line, not
+            # one per retry (the count is attached to the capture, not streamed).
+            if self.__logger is not None and self.__camera.Last_Capture_Retries > 0:
+                self.__logger.Log_Warning('%d frame(s) dropped during capture (retried)'
+                                          % self.__camera.Last_Capture_Retries)
             self.__frame_badge.setText('%d × %d · RGB'
                                        % (self.__frame.shape[1], self.__frame.shape[0]))
             self.__status.updated.Set_Value(datetime.now().strftime('%H:%M:%S'))
@@ -645,11 +678,23 @@ class AnyScan_Window_Cls(QMainWindow):
             indicator. Nothing blocks the GUI thread, so the arc turns throughout.
         """
 
-        if self.__frame is None or self.__worker_running:
+        if self.__frame is None:
+            return
+        if self.__worker_running:
+            # A re-analysis requested while one is still in flight is dropped, not queued;
+            # record it so the ignored press is visible rather than silent (§WARNING).
+            if self.__logger is not None:
+                self.__logger.Log_Warning('Analyze pressed while an analysis is in flight; ignored')
             return
 
+        # Form this analysis's capture-set id up front, so every log line for the analysis
+        # (started, ended, per object, the audit, the capture) carries the same id and an
+        # error points straight at the frame that produced it.
+        self.__session_analyses += 1
+        self.__current_set_id = '%s_%d' % (datetime.now().strftime('%Y%m%d-%H%M%S'),
+                                           self.__session_analyses)
         if self.__logger is not None:
-            self.__logger.Log_Analysis_Started()
+            self.__logger.Log_Analysis_Started(set_id=self.__current_set_id)
 
         self.__worker_running = True
         self.__showing_error = False
@@ -667,6 +712,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__thread.started.connect(self.__worker.Run)
         self.__worker.Stage_Changed.connect(self.__viewport.Set_Busy_Text)
         self.__worker.Progress_Changed.connect(self.__On_Analysis_Progress)
+        self.__worker.Log_Event.connect(self.__Log_Event)
         self.__worker.Analysis_Finished.connect(self.__On_Analysis_Finished)
         self.__worker.Analysis_Failed.connect(self.__On_Analysis_Failed)
 
@@ -705,28 +751,106 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__thread = None
         self.__worker = None
         self.__viewport.Stop_Busy()
-        self.__Show_Analysis(result)
+
+        # Render the two views once, in BGR, then share them: the viewport shows them and
+        # the capture writer writes them, so the on-screen and on-disk images are identical.
+        frame_bgr = cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR)
+        annotated_bgr = Draw_Annotated(frame_bgr, result.Objects, cv2, np)
+        mask_bgr = Draw_Label_Mask(result.Objects, frame_bgr.shape, cv2, np)
+        self.__Show_Analysis(result, annotated_bgr, mask_bgr)
+
+        set_id = self.__current_set_id
         if self.__logger is not None:
             # A successful analysis resolves a pending analysis error, then reports the
-            # analyzed image, every located object, and the inference time.
+            # analyzed image, every located object, and the inference time — all tagged
+            # with the capture-set id so the log points at the files.
             if self.__analysis_error_id is not None:
                 self.__logger.Log_Error_Resolved(self.__analysis_error_id)
                 self.__analysis_error_id = None
-            self.__logger.Log_Image_Analyzed(self.__analyses, len(result.Objects))
+            self.__logger.Log_Image_Analyzed(self.__analyses, len(result.Objects), set_id=set_id)
             for det in result.Objects:
-                self.__logger.Log_Object_Detected(det.Label, det.Confidence, det.Bbox, det.Sentence)
+                self.__logger.Log_Object_Detected(det.Label, det.Confidence, det.Bbox,
+                                                  det.Sentence, set_id=set_id)
             # The post-processing audit: every background sentence the composer stripped
             # and every substance substitution it made, each already tagged with the
             # object index. Rewriting what the model said is a domain assumption, so it is
             # recorded — a warning when stripping had to fall back, otherwise info — never
             # silent (§3). The view switch, by contrast, is not worth a log line.
+            suffix = ' (set=%s)' % set_id if set_id else ''
             for level, message in result.Audit:
                 if level == 'warning':
-                    self.__logger.Log_Warning(message)
+                    self.__logger.Log_Warning(message + suffix)
                 else:
-                    self.__logger.Log_Info(message)
-            self.__logger.Log_Analysis_Ended(result.Latency_Ms)
+                    self.__logger.Log_Info(message + suffix)
+            # Objects the background cue alone found carry no confidence; note the partial
+            # coverage so it is not a silent gap (§WARNING).
+            unscored = sum(1 for det in result.Objects if det.Segmenter_Score is None)
+            if unscored:
+                self.__logger.Log_Warning('%d of %d object(s) had no confidence score%s'
+                                          % (unscored, len(result.Objects), suffix))
+            # Which renderer produced the artefacts, so the log says so even when the
+            # diagnostic index-fill mask mode is active (§C2).
+            if Annotate.CONST_ANNOTATE_MASK_FILL != 'verdict':
+                self.__logger.Log_Info("label mask rendered in diagnostic '%s' mode%s"
+                                       % (Annotate.CONST_ANNOTATE_MASK_FILL, suffix))
+            self.__logger.Log_Analysis_Ended(result.Latency_Ms, set_id=set_id)
+            self.__Write_Capture(set_id, result, frame_bgr, annotated_bgr, mask_bgr)
         self.__Sync_Controls()
+
+    def __Write_Capture(self, set_id: str, result: Analysis_Str, frame_bgr: tp.Any,
+                        annotated_bgr: tp.Any, mask_bgr: tp.Any) -> None:
+        """
+        Description:
+            Write this analysis's four capture artefacts (raw frame, annotated image,
+            label mask, Scene-Understanding text) and enforce the retention bound,
+            logging what was written and what was evicted. Writing must never break the
+            analysis: a full disk or a permission failure is caught, logged as an ERROR,
+            and the UI carries on.
+
+        Args:
+            (1) set_id [string]: The capture-set id (filename stem).
+            (2) result [Analysis_Str(object)]: The scene reading.
+            (3) frame_bgr [Matrix<uint8> HxWx3]: The raw frame (BGR).
+            (4) annotated_bgr [Matrix<uint8> HxWx3]: The annotated image (BGR).
+            (5) mask_bgr [Matrix<uint8> HxWx3]: The label mask (BGR).
+        """
+
+        if self.__capture_writer is None:
+            return
+        # The '.txt' is exactly the panel's text — the shared formatter, not a second path.
+        understanding = Screen_Understanding(result.Objects, result.Background)
+        stamp = 'set %s | %s' % (set_id, datetime.now().isoformat(timespec='seconds'))
+        try:
+            evicted = self.__capture_writer.Write(set_id, frame_bgr, annotated_bgr, mask_bgr,
+                                                  understanding, stamp, cv2, np)
+        except Exception as exc:                          # noqa: BLE001
+            self.__logger.Log_Error('failed to write capture set %s: %s' % (set_id, exc))
+            return
+        self.__logger.Log_Info('Capture set written (set=%s)' % set_id)
+        for old in evicted:
+            self.__logger.Log_Info('Evicted oldest capture set %s (retention: keep %d)'
+                                   % (old, self.__capture_writer.Retention))
+
+    def __Log_Event(self, level: str, message: str) -> None:
+        """
+        Description:
+            Route a (level, message) event from the Qt-free camera or vision layer to the
+            session logger by level. The single sink both layers emit through, so their
+            events reach the log without either holding the logger.
+
+        Args:
+            (1) level [string]: 'INFO', 'WARNING' or 'ERROR'.
+            (2) message [string]: The event text.
+        """
+
+        if self.__logger is None:
+            return
+        if level == 'ERROR':
+            self.__logger.Log_Error(message)
+        elif level == 'WARNING':
+            self.__logger.Log_Warning(message)
+        else:
+            self.__logger.Log_Info(message)
 
     def __On_Analysis_Failed(self, message: str) -> None:
         """
@@ -741,19 +865,58 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__thread = None
         self.__worker = None
         self.__viewport.Stop_Busy()
+        set_id = self.__current_set_id
         if self.__logger is not None:
-            self.__analysis_error_id = self.__logger.Log_Error(message)
+            # The error belongs to THIS analysis, so it carries the set id — the raw frame
+            # that caused the failure is in the capture directory under that id, and this
+            # is the case where the link matters most.
+            suffix = ' (set=%s)' % set_id if set_id else ''
+            self.__analysis_error_id = self.__logger.Log_Error(message + suffix)
+            # A failed analysis renders no annotated image or mask (rendering is on the
+            # success path), but the raw frame exists — write a PARTIAL set (raw + a note)
+            # so the crash leaves evidence rather than nothing.
+            self.__Write_Partial_Capture(set_id, message)
         self.__Fail(message)
+
+    def __Write_Partial_Capture(self, set_id: str, message: str) -> None:
+        """
+        Description:
+            Write the partial capture for a failed analysis — the raw frame and a note —
+            and log that it is partial. Like the full capture, a write failure here is
+            caught and logged, never raised, so it cannot mask the analysis failure.
+
+        Args:
+            (1) set_id [string]: The capture-set id, or None when no analysis was in flight.
+            (2) message [string]: The failure sentence, recorded in the note.
+        """
+
+        if self.__capture_writer is None or set_id is None or self.__frame is None:
+            return
+        frame_bgr = cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR)
+        note = ('Analysis FAILED — partial capture (raw frame only, no annotated image or '
+                'mask). Failure: %s' % message)
+        stamp = 'set %s (partial) | %s' % (set_id, datetime.now().isoformat(timespec='seconds'))
+        try:
+            self.__capture_writer.Write_Partial(set_id, frame_bgr, note, stamp, cv2, np)
+        except Exception as exc:                          # noqa: BLE001
+            self.__logger.Log_Error('failed to write partial capture set %s: %s' % (set_id, exc))
+            return
+        self.__logger.Log_Warning('Partial capture set written (analysis failed): raw frame '
+                                  'only (set=%s)' % set_id)
         self.__Sync_Controls()
 
-    def __Show_Analysis(self, result: Analysis_Str) -> None:
+    def __Show_Analysis(self, result: Analysis_Str, annotated_bgr: tp.Any, mask_bgr: tp.Any) -> None:
         """
         Description:
             Render the reading: the summary lead, the object lines, the note, the
-            box overlay, the verdict badge, the meta rows and the counters.
+            box overlay, the verdict badge, the meta rows and the counters. The two Camera
+            View images are rendered by the caller (once, in BGR, shared with the capture
+            writer), so the on-screen and on-disk images are identical.
 
         Args:
             (1) result [Analysis_Str(object)]: The scene reading.
+            (2) annotated_bgr [Matrix<uint8> HxWx3]: The annotated image (BGR).
+            (3) mask_bgr [Matrix<uint8> HxWx3]: The label mask (BGR).
         """
 
         self.__showing_error = False
@@ -768,12 +931,10 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__reading_note.setText(result.Note)
         self.__reading_note.setVisible(bool(result.Note))
 
-        # Produce both Camera View renders from the completed result via the SAME shared
-        # renderers the harness exports, so the on-screen annotated view is exactly the
-        # exported image. Both are held for the instant annotated/mask swap (§2b); the
-        # remembered view choice is restored so a mask-view session stays in mask view.
-        annotated, mask = self.__Render_Views(result)
-        self.__viewport.Show_Views(annotated, mask, self.__view_choice)
+        # Both are held for the instant annotated/mask swap (§2b); the remembered view
+        # choice is restored so a mask-view session stays in mask view.
+        self.__viewport.Show_Views(Bgr_To_Qimage(annotated_bgr), Bgr_To_Qimage(mask_bgr),
+                                   self.__view_choice)
         self.__view_toggle.Set_View(self.__view_choice)
         self.__stage_badge.Set_State(result.Verdict, result.Verdict_Level)
 
@@ -813,27 +974,6 @@ class AnyScan_Window_Cls(QMainWindow):
                                                % (mean_pct, len(scores), len(result.Objects)))
         else:
             self.__status.confidence.Set_Value(Style.CONST_NO_VALUE)
-
-    def __Render_Views(self, result: Analysis_Str) -> tp.Tuple[tp.Any, tp.Any]:
-        """
-        Description:
-            Render the annotated image and the label mask for the current frame from the
-            completed result, as QImages ready for the viewport. Both go through the
-            shared Vision renderers (Draw_Annotated, Draw_Label_Mask) — the same code the
-            validation harness exports — so the view and the file cannot drift, and both
-            are the frame's resolution so the toggle swaps them in place.
-
-        Args:
-            (1) result [Analysis_Str(object)]: The scene reading.
-
-        Returns:
-            (1) parameter [Tuple<QImage>]: (annotated, mask).
-        """
-
-        frame_bgr = cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR)
-        annotated = Draw_Annotated(frame_bgr, result.Objects, cv2, np)
-        mask = Draw_Label_Mask(result.Objects, frame_bgr.shape, cv2, np)
-        return Bgr_To_Qimage(annotated), Bgr_To_Qimage(mask)
 
     def __On_View_Toggle(self, view: str) -> None:
         """

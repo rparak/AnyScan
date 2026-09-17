@@ -29,7 +29,6 @@ import os
 import argparse
 # Provenance stamping: a content fingerprint of each source file and a run timestamp,
 # so an artefact left over from an earlier or failed run is identifiable on sight.
-import hashlib
 import datetime
 # Resolve the project folder from this file's own location (Example/Vision -> ..),
 # so the script runs the same whether launched from Example/Vision/ or the repo root.
@@ -53,6 +52,8 @@ import Vision.Segmenter as Vision_Segmenter
 from Vision.Segmenter import Segmenter_Error_Cls
 #   ../Vision/Utilities/Discovery
 from Vision.Utilities.Discovery import Discover_Scenes, Select_Background, Discovery_Error_Cls
+#   ../Vision/Utilities/Provenance
+import Vision.Utilities.Provenance as Provenance
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 #   ../Reporting/Core
@@ -93,27 +94,26 @@ CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Results
 #   Unit [int]
 CONST_MONTAGE_CELL = 260
 
-# The provenance stamp footer band (px tall) and its text scale. EVERY artefact carries
-# the run timestamp and the source frame's content fingerprint on this band, so a file
+# The provenance stamp constants live in the shared Vision.Utilities.Provenance module,
+# re-exported here so this harness's own names keep working. EVERY artefact carries the
+# run timestamp and the source frame's content fingerprint on a footer band, so a file
 # left over from an earlier or failed run is identifiable by looking at it, instead of
 # masquerading as current output — the failure mode that let a stale montage and .txt,
 # written before the reference went missing, pass review as if they were fresh.
 #   Unit [int]
-CONST_STAMP_BAND_H = 26
+CONST_STAMP_BAND_H = Provenance.CONST_STAMP_BAND_H
 #   Unit [float]
-CONST_STAMP_FONT_SCALE = 0.5
-# The number of leading hex digits taken from a file's MD5 digest as its fingerprint.
+CONST_STAMP_FONT_SCALE = Provenance.CONST_STAMP_FONT_SCALE
 #   Unit [int]
-CONST_FINGERPRINT_LEN = 10
+CONST_FINGERPRINT_LEN = Provenance.CONST_FINGERPRINT_LEN
 
 
 def _Fingerprint(path: str) -> str:
     """
     Description:
-        The short content fingerprint of a file: the first CONST_FINGERPRINT_LEN hex
-        digits of its MD5 digest. Two runs over the same bytes stamp the same value, so
-        an artefact whose fingerprint no longer matches its source frame is stale on
-        sight. This is provenance, not security — MD5 is used only as a fast digest.
+        The short content fingerprint of a file — delegated to the shared
+        Provenance.Fingerprint, so the harness and the capture writer fingerprint the
+        same way.
 
     Args:
         (1) path [string]: The file to fingerprint.
@@ -122,8 +122,7 @@ def _Fingerprint(path: str) -> str:
         (1) parameter [string]: The short hex fingerprint.
     """
 
-    with open(path, 'rb') as handle:
-        return hashlib.md5(handle.read()).hexdigest()[:CONST_FINGERPRINT_LEN]
+    return Provenance.Fingerprint(path)
 
 
 def _Stamp_Line(stem: str, scene_path: str, run_stamp: str, reference_hash: str,
@@ -154,9 +153,8 @@ def _Stamp_Line(stem: str, scene_path: str, run_stamp: str, reference_hash: str,
 def _Stamp_Image(image: tp.Any, text: str) -> tp.Any:
     """
     Description:
-        Return the image with the provenance stamp on a slim footer band below it. The
-        band is appended, never drawn over the content, so it marks the artefact
-        without occluding anything under review.
+        Return the image with the provenance stamp on a slim footer band below it —
+        delegated to the shared Provenance.Stamp_Image so every writer stamps alike.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The artefact image (BGR).
@@ -166,11 +164,7 @@ def _Stamp_Image(image: tp.Any, text: str) -> tp.Any:
         (1) parameter [Matrix<uint8> (H+band)xWx3]: The stamped image.
     """
 
-    width = image.shape[1]
-    band = np.full((CONST_STAMP_BAND_H, width, 3), 24, np.uint8)
-    cv2.putText(band, text, (8, CONST_STAMP_BAND_H - 9), cv2.FONT_HERSHEY_SIMPLEX,
-                CONST_STAMP_FONT_SCALE, (210, 210, 210), 1, cv2.LINE_AA)
-    return np.vstack([image, band])
+    return Provenance.Stamp_Image(image, text, cv2, np)
 
 
 def _Write_Descriptions(path: str, result: Analysis_Str, stamp: str) -> None:
