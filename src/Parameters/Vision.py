@@ -93,6 +93,13 @@ class Detection_Str(object):
     # it is what the validation harness reports per-cue and never affects the reading.
     #   Unit [string]
     Cue: str = ''
+    # The per-object verdict — 'OK' (pass) or 'NOK' (fail) — that drives this object's
+    # render colour in BOTH views (Parameters.Theme.Verdict_Color). Defaults to 'OK':
+    # classification is not in use yet, so every object is OK and renders in the OK
+    # colour. When classification lands it sets this field — a data change, not a
+    # rendering change.
+    #   Unit [string]
+    Verdict: str = 'OK'
     # The alpha/beta-stretched padded crop that was fed to the describer (BGR), kept
     # only so the debug montage can tile exactly what the model received — not
     # re-enhanced downstream. Excluded from repr and equality: it is a large array,

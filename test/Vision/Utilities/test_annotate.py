@@ -25,6 +25,7 @@
 
 # System (Default)
 import itertools
+import typing as tp
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
 import cv2
 # Numpy (Array computing) [pip3 install numpy]
@@ -49,14 +50,15 @@ CONST_H = 400
 CONST_W = 600
 
 
-def __Object(top: int, left: int, size: int = 80) -> Detection_Str:
+def __Object(top: int, left: int, size: int = 80, verdict: str = 'OK') -> Detection_Str:
     """
     Description:
-        A detection with a filled square block mask and its tight box.
+        A detection with a filled square block mask, its tight box and a verdict.
 
     Args:
         (1 - 2) top, left [int]: The block's top-left corner.
         (3) size [int]: The block's side length.
+        (4) verdict [string]: The per-object verdict ('OK' or 'NOK').
 
     Returns:
         (1) parameter [Detection_Str(object)]: The detection.
@@ -64,48 +66,95 @@ def __Object(top: int, left: int, size: int = 80) -> Detection_Str:
 
     mask = np.zeros((CONST_H, CONST_W), dtype=bool)
     mask[top:top + size, left:left + size] = True
-    return Detection_Str(Label='block', Bbox=(left, top, size, size), Mask=mask)
+    return Detection_Str(Label='block', Bbox=(left, top, size, size), Mask=mask, Verdict=verdict)
 
 
-def test_label_mask_ground_is_black_and_objects_are_index_colours() -> None:
+def __Has_Bgr(image: np.ndarray, bgr: tp.Tuple[int, int, int]) -> bool:
     """
     Description:
-        The label mask is a pure-black ground with each object filled in its
-        Index_Color box colour — the black ground is the §1c diagnostic exception, and
-        the colours are the shared palette so they match the annotated image.
+        Whether any pixel of the image is exactly the given BGR colour — used to assert
+        a verdict stroke is present, unshifted.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The image (BGR).
+        (2) bgr [Vector<int> 1x3]: The colour (B, G, R).
+
+    Returns:
+        (1) parameter [bool]: True when the colour appears.
     """
 
-    objects = [__Object(40, 40), __Object(200, 300)]
+    return bool(np.any(np.all(image == np.array(bgr, dtype=np.uint8), axis=-1)))
+
+
+def test_label_mask_is_white_fill_verdict_contour_dark_numeral() -> None:
+    """
+    Description:
+        The default label mask: a pure-black ground, each object filled WHITE, outlined
+        in its VERDICT colour and numbered with the dark theme ink on the white fill. An
+        OK object is outlined in the OK colour, a NOK object in the NOK colour.
+    """
+
+    objects = [__Object(40, 40, verdict='OK'), __Object(200, 300, verdict='NOK')]
     mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np)
+    white = Theme.Hex_To_Bgr(Theme.CONST_CARD)
+    ok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0])
+    nok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
 
     # A corner far from either block is pure black.
     assert tuple(int(c) for c in mask[5, 5]) == (0, 0, 0)
-    # Each block's interior is that index's box colour (BGR).
-    assert tuple(int(c) for c in mask[70, 70]) == Theme.Hex_To_Bgr(Theme.Index_Color(0)[0])
-    assert tuple(int(c) for c in mask[230, 330]) == Theme.Hex_To_Bgr(Theme.Index_Color(1)[0])
+    # Each block's interior is WHITE fill (sampled inside, away from border and numeral).
+    assert tuple(int(c) for c in mask[55, 55]) == white
+    assert tuple(int(c) for c in mask[215, 315]) == white
+    # Each object's contour carries its own verdict colour, unshifted.
+    assert __Has_Bgr(mask, ok_bgr) and __Has_Bgr(mask, nok_bgr)
+    # The dark numeral ink appears (on the white fill).
+    assert __Has_Bgr(mask, Theme.Hex_To_Bgr(Theme.CONST_INK))
 
 
-def test_annotated_uses_the_same_index_colours_as_the_mask() -> None:
+def test_verdict_colour_drives_the_stroke_in_both_renderers() -> None:
     """
     Description:
-        An object's fill in the annotated image is the same Index_Color as its region
-        in the label mask, so object N is one colour across the pair. (The annotated
-        fill is translucent, so the tint leans toward the box colour rather than equals it.)
+        The verdict, not the index, drives an object's colour in BOTH the annotated frame
+        and the label mask: an OK object renders in the OK colour and never the NOK
+        colour, and a NOK object the reverse — the same colour across the pair.
     """
 
-    objects = [__Object(150, 250)]
-    scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)   # green table
-    annotated = Annotate.Draw_Annotated(scene, objects, cv2, np)
-    mask = Annotate.Draw_Label_Mask(objects, scene.shape, cv2, np)
+    scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)
+    ok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0])
+    nok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
 
-    box_bgr = np.array(Theme.Hex_To_Bgr(Theme.Index_Color(0)[0]), dtype=float)
-    # Sample near the block's top-left, away from the white index numeral at its centre.
-    row, col = 160, 260
-    # The label mask is exactly the box colour there.
-    assert tuple(int(c) for c in mask[row, col]) == tuple(int(c) for c in box_bgr)
-    # The annotated fill has moved the green pixel toward the box colour.
-    assert np.linalg.norm(annotated[row, col].astype(float) - box_bgr) < \
-        np.linalg.norm(np.array([70, 150, 70], dtype=float) - box_bgr)
+    ok_only = [__Object(150, 250, verdict='OK')]
+    ann_ok = Annotate.Draw_Annotated(scene, ok_only, cv2, np)
+    mask_ok = Annotate.Draw_Label_Mask(ok_only, scene.shape, cv2, np)
+    assert __Has_Bgr(ann_ok, ok_bgr) and __Has_Bgr(mask_ok, ok_bgr)
+    assert not __Has_Bgr(ann_ok, nok_bgr) and not __Has_Bgr(mask_ok, nok_bgr)
+
+    nok_only = [__Object(150, 250, verdict='NOK')]
+    ann_nok = Annotate.Draw_Annotated(scene, nok_only, cv2, np)
+    mask_nok = Annotate.Draw_Label_Mask(nok_only, scene.shape, cv2, np)
+    assert __Has_Bgr(ann_nok, nok_bgr) and __Has_Bgr(mask_nok, nok_bgr)
+    assert not __Has_Bgr(ann_nok, ok_bgr) and not __Has_Bgr(mask_nok, ok_bgr)
+
+
+def test_mask_separates_near_but_distinct_objects() -> None:
+    """
+    Description:
+        Two objects that sit close together but do NOT touch stay separate: each is its
+        own white component with its own outline, and the black ground still runs between
+        them — the mask reads as two objects, not one.
+    """
+
+    objects = [__Object(150, 250, size=60), __Object(150, 330, size=60)]   # a 20px gap
+    mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np)
+    white = Theme.Hex_To_Bgr(Theme.CONST_CARD)
+
+    # Each block has its own white fill (sampled inside, clear of border and numeral).
+    assert tuple(int(c) for c in mask[165, 260]) == white
+    assert tuple(int(c) for c in mask[165, 340]) == white
+    # The full-height strip through the middle of the gap is black ground — no fill or
+    # contour bridges the two, so they are two separate outlined shapes, not one merged.
+    gap = mask[150:210, 318:323]
+    assert int(np.count_nonzero(np.any(gap != 0, axis=-1))) == 0
 
 
 def test_chip_numeral_font_is_capped() -> None:
@@ -152,16 +201,16 @@ def __Bgr_Hex(bgr) -> str:
     return '#%02x%02x%02x' % (int(bgr[2]), int(bgr[1]), int(bgr[0]))
 
 
-def test_rendered_strokes_stay_distinct_after_fallback() -> None:
+def test_coordinated_strokes_stay_distinct_after_fallback() -> None:
     """
     Description:
-        The invariant that matters: for a frame of N objects, no two RENDERED stroke
-        colours may fall below the perceptual-distance threshold — checked over ALL
-        pairs, not just neighbours, and AFTER the contrast fallback, which is what
-        collapsed two objects onto one white before. Twelve objects are placed on a
-        mid-grey part (the worst case: many need the fallback), and every pair must
-        stay at least CONST_ANNOTATE_MIN_DELTA_E apart. The same colour is used for an
-        object's contour, box and chip, so one stroke per object is the whole story.
+        RETAINED — guards the ALTERNATE per-object palette (Stroke_Colors /
+        __Assign_Strokes), NOT the default render. The default now draws every object in
+        its verdict colour, where two OK objects are deliberately identical; this
+        invariant is kept for the diagnostic index-fill mask and any future per-object
+        render, so the coordinated assignment is proven still to keep all pairs distinct.
+        Twelve objects on a mid-grey part (the worst case: many need the contrast
+        fallback), and every pair must stay at least CONST_ANNOTATE_MIN_DELTA_E apart.
     """
 
     n = 12
@@ -180,6 +229,50 @@ def test_rendered_strokes_stay_distinct_after_fallback() -> None:
         assert distance >= Annotate.CONST_ANNOTATE_MIN_DELTA_E, \
             'objects %d and %d collapse (ΔE=%.1f): %s vs %s' % (a + 1, b + 1, distance,
                                                                 strokes[a], strokes[b])
+
+
+def test_casing_is_derived_by_luminance_and_preserves_hue() -> None:
+    """
+    Description:
+        The contrast casing is DERIVED per stroke colour by luminance — a light casing
+        under a dark stroke, a dark casing under a light one — never fixed, so a future
+        light verdict colour cannot render an invisible outline. And the stroke's own hue
+        is NEVER shifted for contrast: the exact verdict colour appears in the render on
+        both a dark and a bright ground; only the casing changes.
+    """
+
+    casing = Annotate.__dict__[[k for k in Annotate.__dict__ if 'Casing_Bgr' in k][0]]
+    white = Theme.Hex_To_Bgr(Theme.CONST_CARD)
+    ink = Theme.Hex_To_Bgr(Theme.CONST_INK)
+    assert casing(Theme.Hex_To_Bgr('#6C63B5')) == white     # dark OK stroke -> light casing
+    assert casing(Theme.Hex_To_Bgr('#ff005c')) == white     # dark NOK stroke -> light casing
+    assert casing(Theme.Hex_To_Bgr('#d9d2ff')) == ink       # a light stroke -> dark casing
+
+    # The verdict colour is drawn unshifted on both a dark plate and bright steel.
+    ok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0])
+    for ground in ((40, 40, 40), (210, 210, 210)):
+        scene = np.full((CONST_H, CONST_W, 3), ground, np.uint8)
+        annotated = Annotate.Draw_Annotated(scene, [__Object(150, 250, verdict='OK')], cv2, np)
+        assert __Has_Bgr(annotated, ok_bgr)
+
+
+def test_index_fill_mask_mode_is_reachable_by_one_constant() -> None:
+    """
+    Description:
+        The diagnostic label-mask variant is reachable by the single constant
+        CONST_ANNOTATE_MASK_FILL: set to 'index' it fills each object in its own
+        Index_Color (to reveal a merge), instead of the default white fill.
+    """
+
+    objects = [__Object(40, 40), __Object(200, 300)]
+    previous = Annotate.CONST_ANNOTATE_MASK_FILL
+    try:
+        Annotate.CONST_ANNOTATE_MASK_FILL = 'index'
+        mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np)
+        assert tuple(int(c) for c in mask[70, 70]) == Theme.Hex_To_Bgr(Theme.Index_Color(0)[0])
+        assert tuple(int(c) for c in mask[230, 330]) == Theme.Hex_To_Bgr(Theme.Index_Color(1)[0])
+    finally:
+        Annotate.CONST_ANNOTATE_MASK_FILL = previous
 
 
 def test_module_is_qt_free() -> None:

@@ -29,7 +29,8 @@ import colorsys
 import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
-from Parameters.Theme import (Index_Color, Hex_To_Bgr, Delta_E, CONST_CARD, CONST_INK)
+from Parameters.Theme import (Index_Color, Verdict_Color, Hex_To_Bgr, Delta_E,
+                              CONST_CARD, CONST_INK)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -85,18 +86,37 @@ CONST_ANNOTATE_FILL_ALPHA = 0.40
 #   Unit [float]
 CONST_ANNOTATE_CONTRAST_MIN = 1.7
 
-# The minimum perceptual distance (CIE76 ΔE) between any two objects' rendered stroke
-# colours. No two objects may render in colours closer than this — the colour coding
-# is worthless if two objects look alike — so stroke selection is coordinated to keep
-# every pair at least this far apart, after the contrast fallback.
+# RETAINED (alternate mode). The minimum perceptual distance (CIE76 ΔE) between any two
+# objects' coordinated stroke colours in the diagnostic index-fill mask mode. It no
+# longer describes the default render, where every object is drawn in its verdict colour
+# and two OK objects are deliberately identical; it guards Index_Color / __Assign_Strokes,
+# kept for CONST_ANNOTATE_MASK_FILL == 'index'.
 #   Unit [float]
 CONST_ANNOTATE_MIN_DELTA_E = 12.0
 
+# The half-width (px at the reference dimension, scaled) of the contrasting CASING drawn
+# under every verdict stroke — a thin outline in the opposite luminance (white under a
+# dark stroke, ink under a light one) so the stroke's edge stays defined on bright steel,
+# on a dark plate, on the mask's white fill and on its black ground. The casing NEVER
+# shifts the stroke's hue: a verdict colour that changed colour to gain contrast would
+# stop reading as a verdict. Only the casing changes; the verdict colour is untouched.
+#   Unit [int]
+CONST_ANNOTATE_CASING_W = 1
+
 # The black ground of the label mask. Deliberately NOT a theme surface colour: the
-# mask is a diagnostic image, and on black the object colours separate cleanly and
-# every silhouette edge stays sharp (§1c).
+# mask is a diagnostic image, and on black the white object fills and their verdict
+# contours separate cleanly and every silhouette edge stays sharp (§1c).
 #   Unit [Vector<int> 1x3]
 CONST_ANNOTATE_MASK_GROUND = (0, 0, 0)
+
+# The label-mask fill mode. 'verdict' (default): every object is filled WHITE with a
+# verdict-coloured contour and a dark numeral — the operator-facing result, coloured by
+# pass/fail. 'index': the diagnostic variant that fills each object in its own
+# Index_Color instead, so a merge (two parts sharing one colour) or an over-segmentation
+# (one part in two colours) is visible; this is the one constant that switches the mask
+# back to the per-object palette (see KNOWN_ISSUES.md).
+#   Unit [string]
+CONST_ANNOTATE_MASK_FILL = 'verdict'
 
 
 def __Scale(shape: tp.Tuple[int, int, int]) -> float:
@@ -184,6 +204,69 @@ def __Bgr_Hex(bgr: tp.Tuple[int, int, int]) -> str:
     return '#%02x%02x%02x' % (int(bgr[2]), int(bgr[1]), int(bgr[0]))
 
 
+def __Casing_Bgr(stroke_bgr: tp.Tuple[int, int, int]) -> tp.Tuple[int, int, int]:
+    """
+    Description:
+        The casing colour drawn UNDER a verdict stroke: white when the stroke is dark,
+        the theme ink when the stroke is light — the opposite luminance, so the stroke is
+        always bounded by an edge that separates it from any ground. It is a neutral,
+        never the verdict colour, and never a hue shift of the stroke: the casing carries
+        no verdict meaning, only the stroke does.
+
+    Args:
+        (1) stroke_bgr [Vector<int> 1x3]: The verdict stroke colour (B, G, R).
+
+    Returns:
+        (1) parameter [Vector<int> 1x3]: The casing colour (B, G, R).
+    """
+
+    return Hex_To_Bgr(CONST_CARD) if __Luminance(stroke_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
+
+
+def __Draw_Cased_Contours(image: tp.Any, contours: tp.Any, stroke_bgr: tp.Tuple[int, int, int],
+                          width: int, casing_w: int, cv2: tp.Any) -> None:
+    """
+    Description:
+        Draw contours as a verdict stroke over a thin contrasting casing: the casing
+        first, wider by casing_w on each side, then the stroke on top. The stroke keeps
+        its exact hue; the casing gives its edge local contrast on any ground.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
+        (2) contours [Vector]: The OpenCV contours.
+        (3) stroke_bgr [Vector<int> 1x3]: The verdict stroke colour (B, G, R).
+        (4) width [int]: The stroke width (px).
+        (5) casing_w [int]: The casing half-width added on each side (px).
+        (6) cv2 [module]: The OpenCV module, injected by the caller.
+    """
+
+    cv2.drawContours(image, contours, -1, __Casing_Bgr(stroke_bgr), width + 2 * casing_w)
+    cv2.drawContours(image, contours, -1, stroke_bgr, width)
+
+
+def __Draw_Cased_Rect(image: tp.Any, p1: tp.Tuple[int, int], p2: tp.Tuple[int, int],
+                      stroke_bgr: tp.Tuple[int, int, int], width: int, casing_w: int,
+                      cv2: tp.Any) -> None:
+    """
+    Description:
+        Draw a rectangle as a verdict stroke over a thin contrasting casing — the casing
+        wider by casing_w on each side, then the stroke on top — so the box edge stays
+        defined on any ground without shifting the stroke's hue.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
+        (2) p1 [Vector<int> 1x2]: The top-left corner (x, y).
+        (3) p2 [Vector<int> 1x2]: The bottom-right corner (x, y).
+        (4) stroke_bgr [Vector<int> 1x3]: The verdict stroke colour (B, G, R).
+        (5) width [int]: The stroke width (px).
+        (6) casing_w [int]: The casing half-width added on each side (px).
+        (7) cv2 [module]: The OpenCV module, injected by the caller.
+    """
+
+    cv2.rectangle(image, p1, p2, __Casing_Bgr(stroke_bgr), width + 2 * casing_w)
+    cv2.rectangle(image, p1, p2, stroke_bgr, width)
+
+
 def __Candidate_Strokes(box_bgr: tp.Tuple[int, int, int],
                         region_mean: tp.Any) -> tp.List[tp.Tuple[int, int, int]]:
     """
@@ -219,11 +302,13 @@ def Stroke_Colors(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
                   cv2: tp.Any, np: tp.Any) -> tp.List[tp.Tuple[int, int, int]]:
     """
     Description:
-        The stroke colour (B, G, R) each object is rendered in — the colour its contour,
-        box and chip share, after the contrast fallback and the distinctness coordination.
-        Exposed so the invariant (no two objects render within CONST_ANNOTATE_MIN_DELTA_E)
-        can be checked on a real frame, since the fallback is what could collapse two
-        distinct colours.
+        RETAINED (alternate mode) — NOT the default render, which draws every object in
+        its verdict colour (Draw_Annotated). This is the per-object coordinated palette
+        kept for the diagnostic index-fill mask (CONST_ANNOTATE_MASK_FILL == 'index') and
+        any future per-object render: the colour its contour, box and chip would share,
+        after the contrast fallback and the distinctness coordination. Exposed so the
+        invariant (no two objects within CONST_ANNOTATE_MIN_DELTA_E) can be checked on a
+        real frame, since the fallback is what could collapse two distinct colours.
 
     Args:
         (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
@@ -333,6 +418,10 @@ def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: 
         top = y
     text_bgr = Hex_To_Bgr(CONST_CARD) if __Luminance(chip_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
     cv2.rectangle(image, (x, top), (x + chip_w, top + chip_h), chip_bgr, thickness=-1)
+    # A thin casing outline around the chip, so its edge is defined on any ground the box
+    # lands on — the same contrasting-casing rule the contour and box use.
+    casing_w = max(1, int(round(CONST_ANNOTATE_CASING_W * scale)))
+    cv2.rectangle(image, (x, top), (x + chip_w, top + chip_h), __Casing_Bgr(chip_bgr), casing_w)
     cv2.putText(image, label, (x + pad, top + pad + th), font, font_scale,
                 text_bgr, thickness, cv2.LINE_AA)
 
@@ -341,11 +430,13 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
                    cv2: tp.Any, np: tp.Any) -> tp.Any:
     """
     Description:
-        The scene with each object drawn in the console palette: a translucent fill,
-        the mask contour, the bounding box and the index chip, colour-keyed by index
-        with Index_Color (the same colours the label mask and the UI use). Line widths,
-        font and chip scale with the frame's resolution, and a low-contrast stroke
-        falls back to a contrasting theme foreground.
+        The scene with each object drawn in its VERDICT colour (Theme.Verdict_Color):
+        a translucent fill, the mask contour, the bounding box and the index chip, all in
+        the one colour that its verdict decides — pass or fail — never a per-object or
+        literal colour. Every object is OK until classification lands, so today they all
+        render in the OK colour. Line widths, font and chip scale with the frame's
+        resolution, and every stroke is drawn over a thin contrasting casing so it stays
+        visible on bright steel and on the dark 003/005 plates WITHOUT shifting its hue.
 
     Args:
         (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
@@ -360,31 +451,29 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
     scale = __Scale(scene_bgr.shape)
     contour_w = max(1, int(round(CONST_ANNOTATE_CONTOUR_W * scale)))
     box_w = max(1, int(round(CONST_ANNOTATE_BOX_W * scale)))
+    casing_w = max(1, int(round(CONST_ANNOTATE_CASING_W * scale)))
 
-    # The translucent fill on its own layer, blended once at the end.
+    # The translucent fill on its own layer, blended once at the end — in each object's
+    # verdict colour.
     overlay = scene_bgr.copy()
-    for i, det in enumerate(objects):
+    for det in objects:
         if det.Mask is None:
             continue
-        overlay[det.Mask.astype(bool)] = Hex_To_Bgr(Index_Color(i)[0])
+        overlay[det.Mask.astype(bool)] = Hex_To_Bgr(Verdict_Color(det.Verdict)[0])
     annotated = cv2.addWeighted(overlay, CONST_ANNOTATE_FILL_ALPHA, scene_bgr,
                                 1.0 - CONST_ANNOTATE_FILL_ALPHA, 0.0)
 
-    # One coordinated colour per object for the contour, box AND chip (the shared
-    # stroke), so the label and its box can never disagree, no two objects collapse to
-    # the same colour, and identity survives the contrast fallback.
-    strokes = __Assign_Strokes(scene_bgr, objects, np)
+    # The verdict colour drives the contour, box AND chip together, so an object's outline
+    # and its label can never disagree, and its pass/fail reads the same in every part of
+    # the annotation. Each is cased for contrast (see __Draw_Cased_*).
     for i, det in enumerate(objects):
         x, y, w, h = det.Bbox
-        stroke, forced_white = strokes[i]
-        if forced_white:
-            print('[WARNING] Annotate: object %d stroke forced to flat white — no shade '
-                  'of its colour clears the contrast and stays distinct from the others.' % (i + 1))
+        stroke = Hex_To_Bgr(Verdict_Color(det.Verdict)[0])
         if det.Mask is not None:
             contours, _ = cv2.findContours(det.Mask.astype(np.uint8), cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(annotated, contours, -1, stroke, contour_w)
-        cv2.rectangle(annotated, (x, y), (x + w, y + h), stroke, box_w)
+            __Draw_Cased_Contours(annotated, contours, stroke, contour_w, casing_w, cv2)
+        __Draw_Cased_Rect(annotated, (x, y), (x + w, y + h), stroke, box_w, casing_w, cv2)
         __Draw_Index_Chip(annotated, det.Bbox, i, stroke, scale, cv2)
     return annotated
 
@@ -393,13 +482,19 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
                     cv2: tp.Any, np: tp.Any) -> tp.Any:
     """
     Description:
-        The segmentation result as a LABEL mask: a pure-black ground with each accepted
-        object filled in its own Index_Color (the same colour as the annotated image,
-        so object 3 matches between the two) and its 1-based index drawn on it. On black
-        the object colours separate cleanly, so under-segmentation (two parts one
-        colour) and over-segmentation (one part two colours) are visible at a glance.
-        Written from the final component masks, so it shows exactly what the
-        descriptions were generated from.
+        The segmentation result as a LABEL mask on a pure-black ground. In the default
+        'verdict' mode each accepted object is filled WHITE, outlined with its
+        verdict-coloured contour (over a contrasting casing) and numbered with a dark
+        1-based index on the white fill. Each object is drawn from its OWN component mask,
+        so two parts that sit close together but do not touch stay separate white shapes,
+        each with its own outline — the mask reads as distinct objects. Two parts that
+        TOUCH are already one component by the time they arrive here (Fuse_Objects), so
+        they render as one shape with one contour; see KNOWN_ISSUES.md.
+
+        The diagnostic 'index' mode (CONST_ANNOTATE_MASK_FILL == 'index') instead fills
+        each object in its own Index_Color, so a merge (two parts one colour) or an
+        over-segmentation (one part two colours) is visible at a glance — the one constant
+        that switches the mask back to the per-object palette.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
@@ -413,23 +508,35 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
 
     h, w = shape[:2]
     scale = __Scale(shape)
+    contour_w = max(1, int(round(CONST_ANNOTATE_CONTOUR_W * scale)))
+    casing_w = max(1, int(round(CONST_ANNOTATE_CASING_W * scale)))
     mask_image = np.zeros((h, w, 3), dtype=np.uint8)
     mask_image[:] = CONST_ANNOTATE_MASK_GROUND
 
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = __Chip_Font_Scale(scale)
     thickness = max(1, int(round(CONST_ANNOTATE_CHIP_FONT_W * font_scale)))
+    white = Hex_To_Bgr(CONST_CARD)
     for i, det in enumerate(objects):
         if det.Mask is None:
             continue
-        fill_bgr = Hex_To_Bgr(Index_Color(i)[0])
-        mask_image[det.Mask.astype(bool)] = fill_bgr
+        boolean = det.Mask.astype(bool)
+        if CONST_ANNOTATE_MASK_FILL == 'index':
+            # Diagnostic: fill each object in its own colour; the numeral contrasts it.
+            fill_bgr = Hex_To_Bgr(Index_Color(i)[0])
+            mask_image[boolean] = fill_bgr
+            numeral_bgr = white if __Luminance(fill_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
+        else:
+            # Default: white fill, a verdict-coloured cased contour, a dark numeral.
+            mask_image[boolean] = white
+            contours, _ = cv2.findContours(det.Mask.astype(np.uint8), cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE)
+            __Draw_Cased_Contours(mask_image, contours, Hex_To_Bgr(Verdict_Color(det.Verdict)[0]),
+                                  contour_w, casing_w, cv2)
+            numeral_bgr = Hex_To_Bgr(CONST_INK)
         x, y, bw, bh = det.Bbox
         label = str(i + 1)
         (tw, th), _ = cv2.getTextSize(label, font, font_scale, thickness)
         cx, cy = x + bw // 2 - tw // 2, y + bh // 2 + th // 2
-        # The numeral takes whichever theme foreground contrasts with the object's own
-        # fill colour, so a pale-variant object gets dark text, not unreadable white.
-        text_bgr = Hex_To_Bgr(CONST_CARD) if __Luminance(fill_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
-        cv2.putText(mask_image, label, (cx, cy), font, font_scale, text_bgr, thickness, cv2.LINE_AA)
+        cv2.putText(mask_image, label, (cx, cy), font, font_scale, numeral_bgr, thickness, cv2.LINE_AA)
     return mask_image

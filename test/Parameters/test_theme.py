@@ -90,16 +90,37 @@ def test_no_index_colour_is_a_reserved_verdict_hue() -> None:
 def test_twelve_index_colours_are_perceptually_distinct() -> None:
     """
     Description:
-        Every pair of the first twelve index colours is at least a clear perceptual
-        distance apart (CIE76 ΔE), not merely a different hex — a dense frame leans on
-        the generated variants, and the colour coding is worthless if two objects read
-        as the same colour. Checked in Lab, not RGB, which does not match the eye.
+        The ΔE distinctness invariant, targeted at Index_Color DIRECTLY — the object
+        rendering is now keyed by verdict colour, so this no longer describes the default
+        mask; it guards the RETAINED per-object palette (used by the diagnostic index-fill
+        mask). Every pair of the first twelve index colours is at least a clear perceptual
+        distance apart (CIE76 ΔE), not merely a different hex — a dense frame leans on the
+        generated variants, and the diagnostic colour coding is worthless if two objects
+        read as the same colour. Checked in Lab, not RGB, which does not match the eye.
     """
 
     for a, b in itertools.combinations(range(12), 2):
         distance = Theme.Delta_E(Theme.Index_Color(a)[0], Theme.Index_Color(b)[0])
         assert distance >= 12.0, \
             'index %d and %d are too close (ΔE=%.1f)' % (a, b, distance)
+
+
+def test_verdict_colour_comes_from_the_one_constant() -> None:
+    """
+    Description:
+        Verdict_Color reads the (box, ink) pair for a verdict from the single
+        CONST_VERDICT_COLORS definition, and an unknown or empty verdict falls back to
+        the default (OK) rather than raising — so a detection with no verdict still
+        renders, and the fail colour lives in exactly one place.
+    """
+
+    assert Theme.Verdict_Color('OK') == Theme.CONST_VERDICT_COLORS['OK']
+    assert Theme.Verdict_Color('NOK') == Theme.CONST_VERDICT_COLORS['NOK']
+    assert Theme.Verdict_Color('OK')[0] == '#6C63B5'
+    assert Theme.Verdict_Color('NOK')[0] == '#ff005c'
+    # An unknown/empty verdict falls back to OK, never raises.
+    assert Theme.Verdict_Color('') == Theme.CONST_VERDICT_COLORS['OK']
+    assert Theme.Verdict_Color('bogus') == Theme.CONST_VERDICT_COLORS[Theme.CONST_VERDICT_DEFAULT]
 
 
 def test_hex_conversions_match_opencv_order() -> None:

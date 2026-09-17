@@ -91,6 +91,30 @@ CONST_INDEX_COLORS = [
     ('#d946ef', '#a21caf'),   # magenta-purple (distinct from the red-magenta wedge)
 ]
 
+# The two per-object VERDICT colours, as (box, ink) pairs like CONST_INDEX_COLORS. The
+# box is the stroke drawn on the frame and the mask contour; the ink is the darkened
+# twin for verdict text on the white card. These DRIVE the object rendering in both
+# views (via Verdict_Color) — every object is drawn in its verdict colour, replacing the
+# per-index palette there. Until classification lands every object is OK, so everything
+# renders in the OK box.
+#
+#   NOTE on '#ff005c': this is the EDIH-DIGIMAT brand magenta that was deliberately
+#   REMOVED from the object palette (see CONST_INDEX_COLORS) because it reads as a fail
+#   marker at a glance. As the actual NOK marker it is now exactly right — do NOT
+#   "restore" it to the object palette or swap it for a calmer red; its fail-lookalike
+#   quality is the whole reason it belongs here.
+#   The OK box '#6C63B5' is a deliberately LIGHTER tint than its ink twin '#4a4180':
+#   '#4a4180' alone is too dark to read against the dark plates in Image_003/005, so the
+#   box carries the lighter value and the ink is reserved for text on the white card.
+#   Unit [Dict<string, Tuple<string> 1x2>]
+CONST_VERDICT_COLORS = {
+    'OK':  ('#6C63B5', '#4a4180'),   # pass
+    'NOK': ('#ff005c', '#d1004a'),   # fail — the brand magenta, now correctly the fail marker
+}
+# The verdict a detection carries until classification sets one; every object is OK today.
+#   Unit [string]
+CONST_VERDICT_DEFAULT = 'OK'
+
 # Reserved hue bands (fraction of the wheel, 0..1) an object colour must avoid: an
 # object in a verdict hue would misread as pass/fail/degraded. The red end is the
 # WHOLE red-through-magenta wedge, not just true red, because a rose/crimson reads as
@@ -289,9 +313,34 @@ def __Shade(hex_color: str, delta_l: float, delta_s: float) -> str:
     return __Rgb_To_Hex(int(round(nr * 255)), int(round(ng * 255)), int(round(nb * 255)))
 
 
+def Verdict_Color(verdict: str) -> tp.Tuple[str, str]:
+    """
+    Description:
+        The (box, ink) colour pair for a per-object verdict, from the ONE
+        CONST_VERDICT_COLORS definition — the object rendering reads this, never a colour
+        literal at the call site, so the pass/fail colours are changed in one place. An
+        unknown or empty verdict falls back to the default (OK), so a detection carrying
+        no verdict still renders.
+
+    Args:
+        (1) verdict [string]: The verdict key ('OK' or 'NOK').
+
+    Returns:
+        (1) parameter [Tuple<string> 1x2]: The (box, ink) hex colours.
+    """
+
+    return CONST_VERDICT_COLORS.get(verdict, CONST_VERDICT_COLORS[CONST_VERDICT_DEFAULT])
+
+
 def Index_Color(index: int) -> tp.Tuple[str, str]:
     """
     Description:
+        RETAINED (not on the default render path). The object rendering is now keyed by
+        VERDICT colour, not by index; Index_Color, the coordinated-stroke assignment in
+        Vision.Utilities.Annotate and the ΔE distinctness test are kept for the diagnostic
+        label-mask variant reachable by one constant (Annotate.CONST_ANNOTATE_MASK_FILL =
+        'index'), which fills each object in its own colour to reveal a merge.
+
         The (box, ink) colour pair for a detection index (0-based), stable across runs
         and shared by the frame overlay and the label mask, so the same object is the
         same colour everywhere. The first six indices are the hand-tuned base pairs;

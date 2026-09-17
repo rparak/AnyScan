@@ -250,3 +250,54 @@ for a reason that has nothing to do with the application code.
   coordinates from the pinned output (assert box *count* and ordering instead of
   pixels), or split the log into a version-independent "behaviour" section that
   gates and a separate informational "environment" section that does not.
+
+## The label mask reveals near-but-distinct objects, not merged touching ones
+
+The exported label mask (`Vision.Utilities.Annotate.Draw_Label_Mask`, default
+`CONST_ANNOTATE_MASK_FILL == 'verdict'`) fills each object white and outlines it
+in its verdict colour from that object's **own** component mask. Two parts that
+sit close together but do not touch are separate components, so they render as
+two white shapes with two outlines and black ground between them — the mask reads
+as two objects. Two parts that **touch**, however, are already a single component
+by the time they reach the renderer: `Vision.Utilities.Fusion.Fuse_Objects`
+closes and connected-components the fused cues *before* anything is drawn, so a
+merge collapses into one blob upstream. The mask draws one shape with one
+contour and cannot reveal that it was two parts — the merge is not a rendering
+question.
+
+- **Impact:** a genuine merge (two touching parts read as one object) is invisible
+  in the default mask; the per-object contour only distinguishes objects that were
+  already separate components.
+- **Detection route:** the object **count** against expectation is the first signal
+  (a merge lowers the count by one). To see it in the mask, switch the one constant
+  `CONST_ANNOTATE_MASK_FILL = 'index'`: the diagnostic mode fills each object in its
+  own `Index_Color`, so a single blob carrying one colour where two were expected
+  shows the merge, and one part in two colours shows an over-segmentation.
+- **Pinned by:** `test/Vision/Utilities/test_annotate.py::test_mask_separates_near_but_distinct_objects`
+  and `::test_index_fill_mask_mode_is_reachable_by_one_constant`.
+
+## The confidence status metric is partial — only the FastSAM cue is scored
+
+The status strip's `Confidence (mean)` averages `Detection_Str.Segmenter_Score`,
+which only the FastSAM cue supplies. An object found by background subtraction
+alone (`Cue == 'background'`) carries `Segmenter_Score is None` and no confidence
+of its own — on `Image_001` that was four of nine objects. The field therefore
+reports the mean over **exactly** the scored objects and shows the coverage
+(`87% (5/9)`), never averaging over the partial set silently, and reads `—` when
+no object has a score.
+
+- **Why not route every object through FastSAM:** the fusion exists because neither
+  cue is sufficient, and a single run proves it in both directions — objects the
+  background cue missed were carried by FastSAM (`cov=0.00`), and the `Cue ==
+  'background'` objects had no FastSAM mask at all. Forcing them through means
+  either lowering thresholds until FastSAM sees them (which admits false
+  detections) or a second region-prompted pass (which roughly doubles time on the
+  slowest stage). Either changes *detection* behaviour to populate a *status*
+  field — not worth it.
+- **Honest fix later (do not build now):** give the background-subtraction cue its
+  own confidence — a normalised change magnitude or a mask-edge sharpness — so every
+  object carries a score from whichever cue found it, and the mean covers the whole
+  set. Until then the coverage fraction is the honest disclosure that it does not.
+- **Pinned by:** `test/UI/test_status_metrics.py::test_confidence_is_the_mean_over_scored_objects_with_coverage`,
+  `::test_confidence_denominator_is_the_scored_count_not_the_total` and
+  `::test_confidence_is_no_value_when_no_object_has_a_score`.
