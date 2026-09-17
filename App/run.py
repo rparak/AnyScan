@@ -132,7 +132,7 @@ def main() -> int:
     # summary is written even if the event loop raises; a normal window close and the
     # logger's own atexit/signal hooks are the other, idempotent, shutdown paths.
     logger = Session_Logger_Cls()
-    logger.Log_Info('Application started')
+    logger.Log_Info('Application started.')
 
     # A File_Camera_Cls (developer --frame) or the real Basler_Camera_Cls.
     camera = File_Camera_Cls(os.path.abspath(args.frame)) if args.frame else Basler_Camera_Cls()

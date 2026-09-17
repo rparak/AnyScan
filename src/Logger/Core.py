@@ -577,11 +577,11 @@ class Session_Logger_Cls(object):
             now = self.__clock()
             Error_Str_i = self.__errors_by_id.get(error_id)
             if Error_Str_i is None:
-                self.__Write_Line(f'error resolution without a matching error '
-                                  f'(error_id={error_id})', now, CONST_LEVEL_WARNING)
+                self.__Write_Line(f'An error resolution arrived with no matching error '
+                                  f'(error_id={error_id}).', now, CONST_LEVEL_WARNING)
                 return
             if Error_Str_i.Resolved:
-                self.__Write_Line(f'error already resolved (error_id={error_id})',
+                self.__Write_Line(f'That error was already resolved (error_id={error_id}).',
                                   now, CONST_LEVEL_WARNING)
                 return
             Error_Str_i.End = now
@@ -589,8 +589,8 @@ class Session_Logger_Cls(object):
             downtime = Format_HMS((now - Error_Str_i.Start).total_seconds())
             # INFO: it is the RESOLUTION being reported, not the fault — the fault was
             # logged as ERROR when it happened.
-            self.__Write_Line(f'Error resolved: {Error_Str_i.Message} '
-                              f'(error_id={error_id}, downtime={downtime})', now, CONST_LEVEL_INFO)
+            self.__Write_Line(f'Error {error_id} resolved after {downtime}: {Error_Str_i.Message}',
+                              now, CONST_LEVEL_INFO)
 
     def Log_Camera_Connection_Attempt(self, info: str = '') -> None:
         """
@@ -603,7 +603,7 @@ class Session_Logger_Cls(object):
 
         with self.__lock:
             detail = f' ({info})' if info else ''
-            self.__Write_Line(f'Connecting to camera{detail}', self.__clock())
+            self.__Write_Line(f'Connecting to the camera{detail}.', self.__clock())
 
     def Log_Camera_Connected(self, info: str = '') -> int:
         """
@@ -623,15 +623,15 @@ class Session_Logger_Cls(object):
             now = self.__clock()
             if self.__open_session is not None:
                 self.__open_session.End = now
-                self.__Write_Line(f'camera connected while session '
-                                  f'{self.__open_session.Index} was still open; closing it',
+                self.__Write_Line(f'Camera connected while session '
+                                  f'{self.__open_session.Index} was still open. Closed it.',
                                   now, CONST_LEVEL_WARNING)
                 self.__open_session = None
             Session_Str_i = Session_Str(Index=len(self.__sessions) + 1, Start=now)
             self.__sessions.append(Session_Str_i)
             self.__open_session = Session_Str_i
-            detail = f' — {info}' if info else ''
-            self.__Write_Line(f'Camera connected — session {Session_Str_i.Index} started{detail}', now)
+            detail = f' {info}.' if info else '.'
+            self.__Write_Line(f'Camera connected{detail} Session {Session_Str_i.Index} started.', now)
             return Session_Str_i.Index
 
     def Log_Camera_Disconnected(self, info: str = '') -> None:
@@ -647,16 +647,16 @@ class Session_Logger_Cls(object):
         with self.__lock:
             now = self.__clock()
             if self.__open_session is None:
-                self.__Write_Line('camera disconnected without an open session',
+                self.__Write_Line('Camera disconnected, but no session was open.',
                                   now, CONST_LEVEL_WARNING)
                 return
             Session_Str_i = self.__open_session
             Session_Str_i.End = now
             self.__open_session = None
             duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
-            detail = f' — {info}' if info else ''
-            self.__Write_Line(f'Camera disconnected — session {Session_Str_i.Index} ended '
-                              f'(duration={duration}){detail}', now)
+            detail = f' {info}.' if info else ''
+            self.__Write_Line(f'Camera disconnected. Session {Session_Str_i.Index} ended after '
+                              f'{duration}.{detail}', now)
 
     def Log_Camera_Connection_Lost(self, info: str = '') -> None:
         """
@@ -672,14 +672,13 @@ class Session_Logger_Cls(object):
         with self.__lock:
             now = self.__clock()
             detail = f' ({info})' if info else ''
-            self.__Write_Line(f'camera connection lost{detail}', now, CONST_LEVEL_ERROR)
+            self.__Write_Line(f'The camera connection was lost{detail}.', now, CONST_LEVEL_ERROR)
             if self.__open_session is not None:
                 Session_Str_i = self.__open_session
                 Session_Str_i.End = now
                 self.__open_session = None
                 duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
-                self.__Write_Line(f'Camera disconnected — session {Session_Str_i.Index} ended '
-                                  f'(duration={duration})', now)
+                self.__Write_Line(f'Session {Session_Str_i.Index} ended after {duration}.', now)
 
     def Log_Scan_Started(self, scan_id: tp.Optional[int] = None) -> None:
         """
@@ -691,8 +690,8 @@ class Session_Logger_Cls(object):
         """
 
         with self.__lock:
-            detail = f' (scan_id={scan_id})' if scan_id is not None else ''
-            self.__Write_Line(f'Scan started{detail}', self.__clock())
+            detail = f' (scan {scan_id})' if scan_id is not None else ''
+            self.__Write_Line(f'Frame scan started{detail}.', self.__clock())
 
     def Log_Scan_Ended(self, scan_id: tp.Optional[int] = None) -> None:
         """
@@ -704,103 +703,90 @@ class Session_Logger_Cls(object):
         """
 
         with self.__lock:
-            detail = f' (scan_id={scan_id})' if scan_id is not None else ''
-            self.__Write_Line(f'Scan ended{detail}', self.__clock())
+            detail = f' (scan {scan_id})' if scan_id is not None else ''
+            self.__Write_Line(f'Frame scan finished{detail}.', self.__clock())
 
-    def __Set_Suffix(self, set_id: tp.Optional[str]) -> str:
+    def Log_Analysis_Started(self, index: int, set_id: tp.Optional[str] = None) -> None:
         """
         Description:
-            The ' (set=<id>)' suffix that links an analysis-related line to its capture
-            set on disk, so an ERROR at a time points straight at the frame that produced
-            it. Empty when no set id is given.
+            Log the start of an analysis as a sentence, naming its capture set so the log
+            points at the files.
 
         Args:
-            (1) set_id [string]: The capture-set identifier, or None.
-
-        Returns:
-            (1) parameter [string]: The suffix, or ''.
-        """
-
-        return f' (set={set_id})' if set_id else ''
-
-    def Log_Analysis_Started(self, set_id: tp.Optional[str] = None) -> None:
-        """
-        Description:
-            Log the start of an analysis, tagged with its capture-set id.
-
-        Args:
-            (1) set_id [string]: The capture-set identifier for this analysis.
-        """
-
-        with self.__lock:
-            self.__Write_Line(f'Analysis started{self.__Set_Suffix(set_id)}', self.__clock())
-
-    def Log_Analysis_Ended(self, latency_ms: tp.Optional[int] = None,
-                           set_id: tp.Optional[str] = None) -> None:
-        """
-        Description:
-            Log the end of an analysis, tagged with its capture-set id.
-
-        Args:
-            (1) latency_ms [int]: Optional inference time in milliseconds.
+            (1) index [int]: The 1-based analysis index within the session.
             (2) set_id [string]: The capture-set identifier for this analysis.
         """
 
         with self.__lock:
-            detail = f' (latency={latency_ms} ms)' if latency_ms is not None else ''
-            self.__Write_Line(f'Analysis ended{detail}{self.__Set_Suffix(set_id)}', self.__clock())
+            line = 'Analysis %d started.' % index
+            if set_id:
+                line += ' Capture set %s.' % set_id
+            self.__Write_Line(line, self.__clock())
 
-    def Log_Image_Analyzed(self, image_id: tp.Any, objects: int,
-                           set_id: tp.Optional[str] = None) -> None:
+    def Log_Analysis_Finished(self, index: int, latency_ms: int, objects: int, scored: int,
+                              mean_confidence: tp.Optional[int],
+                              set_id: tp.Optional[str] = None) -> None:
         """
         Description:
-            Log one analyzed image and advance the counters: the run-wide image and
-            object totals, and the open session's per-session counters.
+            Log a finished analysis as a sentence, and advance the counters (the run-wide
+            image and object totals and the open session's). It carries the inference time
+            and the mean detector confidence WITH its coverage — how many of the objects
+            were scored — because the log is the forensic record and a mean over a partial
+            set must say so; the short percentage-only form belongs in the UI, not here.
 
         Args:
-            (1) image_id [any]: The image identifier.
-            (2) objects [int]: The number of objects found in the image.
-            (3) set_id [string]: The capture-set identifier for this analysis.
+            (1) index [int]: The 1-based analysis index within the session.
+            (2) latency_ms [int]: The inference time in milliseconds.
+            (3) objects [int]: The number of objects detected.
+            (4) scored [int]: How many of them carry a confidence score.
+            (5) mean_confidence [int]: The mean confidence percentage over the scored
+                                       objects, or None when none are scored.
+            (6) set_id [string]: The capture-set identifier for this analysis.
         """
 
         with self.__lock:
-            now = self.__clock()
             self.__images_total += 1
             self.__objects_total += objects
             if self.__open_session is not None:
                 self.__open_session.Images += 1
                 self.__open_session.Objects += objects
-            self.__Write_Line(f'Image analyzed (image_id={image_id}, objects={objects}, '
-                              f'total_objects={self.__objects_total})'
-                              f'{self.__Set_Suffix(set_id)}', now)
+            if objects == 0:
+                count_clause = 'No objects detected'
+            else:
+                count_clause = '%d object%s detected' % (objects, '' if objects == 1 else 's')
+                if scored:
+                    count_clause += (', mean confidence %d%% over %d of %d scored'
+                                     % (mean_confidence, scored, objects))
+                else:
+                    count_clause += ', none scored for confidence'
+            line = 'Analysis %d finished in %d ms. %s.' % (index, latency_ms, count_clause)
+            if set_id:
+                line += ' Capture set %s.' % set_id
+            self.__Write_Line(line, self.__clock())
 
-    def Log_Object_Detected(self, label: str, confidence: tp.Optional[float] = None,
-                            bbox: tp.Optional[tp.Tuple[int, int, int, int]] = None,
-                            sentence: str = '', set_id: tp.Optional[str] = None) -> None:
+    def Log_Object_Detected(self, label: str, confidence: tp.Optional[int] = None,
+                            bbox: tp.Optional[tp.Tuple[int, int, int, int]] = None) -> None:
         """
         Description:
-            Log the textual information about one analyzed object. The fields mirror the
-            analysis result structure (Parameters/Vision.py, Detection_Str): the label,
-            the optional confidence, the bounding box and the generated sentence.
+            Log one detected object: its type, its confidence as a percentage (omitted for
+            a background-cue object with no score), and its bounding box. The generated
+            description is NOT logged here — it lives in the '_understanding.txt' of the
+            same capture set, and repeating it makes the log unreadable at nine objects a
+            frame.
 
         Args:
             (1) label [string]: The object's noun-phrase label.
-            (2) confidence [float]: Optional detector confidence.
-            (3) bbox [Vector<int> 1x4]: Optional bounding box (x, y, w, h).
-            (4) sentence [string]: Optional generated description.
-            (5) set_id [string]: The capture-set identifier for this analysis.
+            (2) confidence [int]: The confidence percentage, or None when unscored.
+            (3) bbox [Vector<int> 1x4]: The bounding box (x, y, w, h).
         """
 
         with self.__lock:
-            parts = [f'type={label}']
+            parts = ['type=%s' % label]
             if confidence is not None:
-                parts.append(f'confidence={confidence:.2f}')
+                parts.append('confidence=%d%%' % confidence)
             if bbox is not None:
                 parts.append('bbox=(' + ','.join(str(int(v)) for v in bbox) + ')')
-            if sentence:
-                parts.append(f'text="{sentence}"')
-            self.__Write_Line('Object detected: ' + ', '.join(parts)
-                              + self.__Set_Suffix(set_id), self.__clock())
+            self.__Write_Line('Object detected: ' + ', '.join(parts) + '.', self.__clock())
 
     # -------------------------------------------------------------------- shutdown
 
@@ -967,9 +953,9 @@ class Session_Logger_Cls(object):
                 if not write_header:
                     existing_header = self.__Read_Existing_Header()
                     if existing_header is not None and existing_header != CONST_CSV_COLUMNS:
-                        self.__Write_Line('run-summary CSV header does not match the '
-                                          'current columns; the row is aligned to the existing '
-                                          f'header ({self.__csv_path})', now, CONST_LEVEL_WARNING)
+                        self.__Write_Line('The run-summary CSV header does not match the current '
+                                          'columns. Aligned the row to the existing header '
+                                          f'({self.__csv_path}).', now, CONST_LEVEL_WARNING)
                         row = self.__Align_Row_To_Header(existing_header, row)
 
                 writer = csv.writer(csv_file, delimiter=self.__csv_delimiter)
@@ -1013,8 +999,8 @@ class Session_Logger_Cls(object):
                 Session_Str_i.Closed_At_Shutdown = True
                 self.__open_session = None
                 duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
-                self.__Write_Line(f'Camera disconnected — session {Session_Str_i.Index} ended '
-                                  f'(duration={duration}) (closed at shutdown)', now)
+                self.__Write_Line(f'Session {Session_Str_i.Index} ended after {duration} '
+                                  f'(closed at shutdown).', now)
 
             # Append the run summary as one CSV row while the '.txt' handle is still
             # open, so a header-mismatch warning or a write failure can be reported into
@@ -1024,10 +1010,10 @@ class Session_Logger_Cls(object):
             try:
                 self.__Append_Csv_Summary(self.Compute_Summary(now), now)
             except Exception as error:  # noqa: BLE001 - shutdown must not raise
-                self.__Write_Line(f'failed to write the run summary CSV row: {error}',
+                self.__Write_Line(f'Failed to write the run-summary CSV row: {error}.',
                                   now, CONST_LEVEL_ERROR)
 
-            self.__Write_Line('Application stopped', now)
+            self.__Write_Line('Application stopped.', now)
 
             if self.__file is not None and not self.__file.closed:
                 self.__file.flush()

@@ -149,12 +149,13 @@ def test_analysis_writes_a_capture_set_linked_by_id(qt_app, tmp_path) -> None:
     assert txt.split('\n', 1)[1].rstrip('\n') == Screen_Understanding(objects, 'A plain surface.')
 
     content = _Log_Text(logger)
-    assert '(set=20260912-143202_1)' in content
-    assert 'Image analyzed' in content and 'Analysis ended' in content
-    assert 'Created capture directory for session 20260912-143000_s1' in content
-    assert 'Capture set written (set=20260912-143202_1)' in content
-    # One object was unscored, so the partial-confidence coverage is warned, tagged.
-    assert '[WARNING] 1 of 2 object(s) had no confidence score (set=20260912-143202_1)' in content
+    # The set id links the log to the files, as prose on the started/finished lines.
+    assert 'Capture set 20260912-143202_1.' in content
+    assert 'finished in' in content
+    assert 'Created the capture directory for session 20260912-143000_s1.' in content
+    assert 'Capture set 20260912-143202_1 written.' in content
+    # The finished-analysis line carries the confidence coverage (1 of 2 scored).
+    assert 'mean confidence' in content and 'over 1 of 2 scored' in content
 
 
 def test_capture_write_failure_logs_error_and_does_not_raise(qt_app, tmp_path) -> None:
@@ -207,7 +208,7 @@ def test_mid_analysis_failure_tags_the_error_and_writes_a_partial_set(qt_app, tm
     # The failure error carries the set id.
     assert '[ERROR  ] the segmenter failed to process the frame (set=20260912-143202_1)' in content
     # A partial set is announced and the raw frame lands in the right session directory.
-    assert '[WARNING] Partial capture set written (analysis failed): raw frame only (set=20260912-143202_1)' in content
+    assert '[WARNING] Wrote a partial capture set 20260912-143202_1 for the failed analysis. It holds the raw frame only.' in content
     session = tmp_path / 'captures' / '20260912-143000_s1'
     assert (session / '20260912-143202_1_raw.png').exists()
     txt = (session / '20260912-143202_1_understanding.txt').read_text()
@@ -230,7 +231,7 @@ def test_reanalysis_in_flight_is_warned(qt_app, tmp_path) -> None:
 
     _Private(window, '__On_Analyze_Button_Clicked')()
     logger.Close()
-    assert '[WARNING] Analyze pressed while an analysis is in flight; ignored' in _Log_Text(logger)
+    assert '[WARNING] Analyze was pressed while an analysis was already running. The request was ignored.' in _Log_Text(logger)
 
 
 def test_each_session_gets_a_distinct_capture_id_across_reconnects(qt_app, tmp_path) -> None:
@@ -290,12 +291,12 @@ def test_mid_session_connection_loss_is_an_error(qt_app, tmp_path) -> None:
     _Private(window, '__camera').Connect()
     _Private(window, '__On_Scan_Button_Clicked')()
     logger.Close()
-    assert '[ERROR  ] camera connection lost' in _Log_Text(logger)
+    assert '[ERROR  ] The camera connection was lost' in _Log_Text(logger)
 
     window2, logger2 = _Window(tmp_path / 'b', camera=_Transient_Camera_Cls())
     _Private(window2, '__camera').Connect()
     _Private(window2, '__On_Scan_Button_Clicked')()
     logger2.Close()
     content = _Log_Text(logger2)
-    assert 'camera connection lost' not in content
+    assert 'The camera connection was lost' not in content
     assert '[ERROR  ] capture timeout (error_id=' in content

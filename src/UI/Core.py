@@ -691,9 +691,10 @@ class AnyScan_Window_Cls(QMainWindow):
             return
         if self.__worker_running:
             # A re-analysis requested while one is still in flight is dropped, not queued;
-            # record it so the ignored press is visible rather than silent (§WARNING).
+            # record it so the ignored press is visible rather than silent.
             if self.__logger is not None:
-                self.__logger.Log_Warning('Analyze pressed while an analysis is in flight; ignored')
+                self.__logger.Log_Warning('Analyze was pressed while an analysis was already '
+                                          'running. The request was ignored.')
             return
 
         # Form this analysis's capture-set id up front, so every log line for the analysis
@@ -703,7 +704,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__current_set_id = '%s_%d' % (datetime.now().strftime('%Y%m%d-%H%M%S'),
                                            self.__session_analyses)
         if self.__logger is not None:
-            self.__logger.Log_Analysis_Started(set_id=self.__current_set_id)
+            self.__logger.Log_Analysis_Started(self.__session_analyses, self.__current_set_id)
 
         self.__worker_running = True
         self.__showing_error = False
@@ -770,39 +771,36 @@ class AnyScan_Window_Cls(QMainWindow):
 
         set_id = self.__current_set_id
         if self.__logger is not None:
-            # A successful analysis resolves a pending analysis error, then reports the
-            # analyzed image, every located object, and the inference time — all tagged
-            # with the capture-set id so the log points at the files.
+            # A successful analysis resolves a pending analysis error, then reports each
+            # located object and the finished-analysis summary (inference time and the mean
+            # confidence with its coverage). The started and finished lines carry the set
+            # id, so the object lines between them need not repeat it.
             if self.__analysis_error_id is not None:
                 self.__logger.Log_Error_Resolved(self.__analysis_error_id)
                 self.__analysis_error_id = None
-            self.__logger.Log_Image_Analyzed(self.__analyses, len(result.Objects), set_id=set_id)
             for det in result.Objects:
-                self.__logger.Log_Object_Detected(det.Label, det.Confidence, det.Bbox,
-                                                  det.Sentence, set_id=set_id)
+                confidence = (int(round(100.0 * det.Segmenter_Score))
+                              if det.Segmenter_Score is not None else None)
+                self.__logger.Log_Object_Detected(det.Label, confidence, det.Bbox)
             # The post-processing audit: every background sentence the composer stripped
-            # and every substance substitution it made, each already tagged with the
-            # object index. Rewriting what the model said is a domain assumption, so it is
-            # recorded — a warning when stripping had to fall back, otherwise info — never
-            # silent (§3). The view switch, by contrast, is not worth a log line.
-            suffix = ' (set=%s)' % set_id if set_id else ''
+            # and every substance substitution it made, each tagged with the object index.
+            # Rewriting what the model said is a domain assumption, so it is recorded — a
+            # warning when stripping had to fall back, otherwise info — never silent.
             for level, message in result.Audit:
                 if level == 'warning':
-                    self.__logger.Log_Warning(message + suffix)
+                    self.__logger.Log_Warning(message)
                 else:
-                    self.__logger.Log_Info(message + suffix)
-            # Objects the background cue alone found carry no confidence; note the partial
-            # coverage so it is not a silent gap (§WARNING).
-            unscored = sum(1 for det in result.Objects if det.Segmenter_Score is None)
-            if unscored:
-                self.__logger.Log_Warning('%d of %d object(s) had no confidence score%s'
-                                          % (unscored, len(result.Objects), suffix))
+                    self.__logger.Log_Info(message)
             # Which renderer produced the artefacts, so the log says so even when the
-            # diagnostic index-fill mask mode is active (§C2).
+            # diagnostic index-fill mask mode is active.
             if Annotate.CONST_ANNOTATE_MASK_FILL != 'verdict':
-                self.__logger.Log_Info("label mask rendered in diagnostic '%s' mode%s"
-                                       % (Annotate.CONST_ANNOTATE_MASK_FILL, suffix))
-            self.__logger.Log_Analysis_Ended(result.Latency_Ms, set_id=set_id)
+                self.__logger.Log_Info("The label mask was rendered in the diagnostic '%s' mode."
+                                       % Annotate.CONST_ANNOTATE_MASK_FILL)
+            # The finished-analysis summary: object count, mean confidence and coverage.
+            scores = [d.Segmenter_Score for d in result.Objects if d.Segmenter_Score is not None]
+            mean = int(round(100.0 * sum(scores) / len(scores))) if scores else None
+            self.__logger.Log_Analysis_Finished(self.__session_analyses, result.Latency_Ms,
+                                                len(result.Objects), len(scores), mean, set_id)
             self.__Write_Capture(set_id, result, frame_bgr, annotated_bgr, mask_bgr)
         self.__Sync_Controls()
 
@@ -841,7 +839,7 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__logger.Log_Error('failed to write capture set %s: %s' % (set_id, exc))
             return
         self.__Log_Capture_Side_Effects(created)
-        self.__logger.Log_Info('Capture set written (set=%s)' % set_id)
+        self.__logger.Log_Info('Capture set %s written.' % set_id)
         self.__Log_Capture_Evictions(evicted)
 
     def __Log_Capture_Side_Effects(self, created_session: tp.Optional[str]) -> None:
@@ -856,7 +854,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         if created_session is not None:
-            self.__logger.Log_Info('Created capture directory for session %s' % created_session)
+            self.__logger.Log_Info('Created the capture directory for session %s.' % created_session)
 
     def __Log_Capture_Evictions(self, evicted: tp.List[str]) -> None:
         """
@@ -869,8 +867,9 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         for old in evicted:
-            self.__logger.Log_Info('Evicted oldest capture set %s (retention: keep %d across '
-                                   'sessions)' % (old, self.__capture_writer.Retention))
+            self.__logger.Log_Info('Evicted the oldest capture set %s to stay within the '
+                                   'retention limit of %d across sessions.'
+                                   % (old, self.__capture_writer.Retention))
 
     def __Log_Event(self, level: str, message: str) -> None:
         """
@@ -945,8 +944,8 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__logger.Log_Error('failed to write partial capture set %s: %s' % (set_id, exc))
             return
         self.__Log_Capture_Side_Effects(created)
-        self.__logger.Log_Warning('Partial capture set written (analysis failed): raw frame '
-                                  'only (set=%s)' % set_id)
+        self.__logger.Log_Warning('Wrote a partial capture set %s for the failed analysis. It '
+                                  'holds the raw frame only.' % set_id)
         self.__Log_Capture_Evictions(evicted)
 
     def __Show_Analysis(self, result: Analysis_Str, annotated_bgr: tp.Any, mask_bgr: tp.Any) -> None:
@@ -999,10 +998,11 @@ class AnyScan_Window_Cls(QMainWindow):
             Update the two performance cells from a completed analysis: the rolling
             MEDIAN inference latency across the session's analyses (not per object, and a
             median so one slow frame does not swing it), and the MEAN detector confidence
-            over the objects that carry a score. Only FastSAM supplies scores; objects the
-            background cue alone found (Segmenter_Score None) have none, so the mean is
-            shown WITH its coverage — '87% (5/9)' — never averaged silently over a partial
-            set, and '—' when no object has a score.
+            over the objects that carry a score, as a percentage only. Only FastSAM
+            supplies scores; objects the background cue alone found (Segmenter_Score None)
+            have none, so the mean is over exactly the scored objects (never averaged
+            silently over a partial set) and reads '—' when none is scored. The coverage
+            figure is kept for the log, not the status bar.
 
         Args:
             (1) result [Analysis_Str(object)]: The scene reading.
@@ -1013,9 +1013,10 @@ class AnyScan_Window_Cls(QMainWindow):
 
         scores = [det.Segmenter_Score for det in result.Objects if det.Segmenter_Score is not None]
         if scores:
-            mean_pct = int(round(100.0 * sum(scores) / len(scores)))
-            self.__status.confidence.Set_Value('%d%% (%d/%d)'
-                                               % (mean_pct, len(scores), len(result.Objects)))
+            # The status bar shows the percentage only — a number at a glance. The coverage
+            # (how many of the objects were scored) lives in the log, where it can be
+            # examined; '—' still stands for nothing scored.
+            self.__status.confidence.Set_Value('%d%%' % int(round(100.0 * sum(scores) / len(scores))))
         else:
             self.__status.confidence.Set_Value(Style.CONST_NO_VALUE)
 

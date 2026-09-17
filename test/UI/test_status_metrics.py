@@ -120,8 +120,8 @@ def test_confidence_is_the_mean_over_scored_objects_with_coverage(qt_app, refere
         the coverage shown so a partial set is never averaged silently: the mean's
         denominator is the number of scored objects (not the total), the summed set is
         exactly those objects (an unscored object is not counted as zero), and the
-        coverage fraction is scored-over-total. Scores [0.90, 0.80, None] read
-        '85% (2/3)'.
+        coverage fraction is scored-over-total. Scores [0.90, 0.80, None] read '85%'
+        (the coverage 2/3 is kept for the log, not the status bar).
     """
 
     window = _Window(reference_background_path)
@@ -129,7 +129,7 @@ def test_confidence_is_the_mean_over_scored_objects_with_coverage(qt_app, refere
     _Private(window, '__On_Analysis_Finished')(_Result(100, [0.90, 0.80, None]))
 
     # 85% = mean(0.90, 0.80) — denominator 2 (the scored count), NOT 3; coverage 2/3.
-    assert status.confidence.Value() == '85% (2/3)'
+    assert status.confidence.Value() == '85%'
 
 
 def test_confidence_denominator_is_the_scored_count_not_the_total(qt_app, reference_background_path) -> None:
@@ -137,14 +137,13 @@ def test_confidence_denominator_is_the_scored_count_not_the_total(qt_app, refere
     Description:
         Guards the exact fault the coverage exists to prevent — averaging over the whole
         set. With one high score and two unscored objects, the mean must be the single
-        score (100%), not that score divided by three; the coverage makes the partial
-        set explicit as (1/3).
+        score (100%), not that score divided by three; the status bar shows the percentage only (the coverage is in the log).
     """
 
     window = _Window(reference_background_path)
     status = _Private(window, '__status')
     _Private(window, '__On_Analysis_Finished')(_Result(100, [1.0, None, None]))
-    assert status.confidence.Value() == '100% (1/3)'
+    assert status.confidence.Value() == '100%'
 
 
 def test_confidence_is_no_value_when_no_object_has_a_score(qt_app, reference_background_path) -> None:

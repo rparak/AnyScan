@@ -68,14 +68,12 @@ class _Spy_Logger_Cls(object):
         self.warnings.append(info)
 
     # The other lifecycle calls the finished slot makes are recorded as no-ops.
-    def Log_Image_Analyzed(self, *args, **kwargs) -> None:
+    def Log_Analysis_Finished(self, *args, **kwargs) -> None:
         pass
 
     def Log_Object_Detected(self, *args, **kwargs) -> None:
         pass
 
-    def Log_Analysis_Ended(self, *args, **kwargs) -> None:
-        pass
 
 
 @pytest.fixture(scope='module')

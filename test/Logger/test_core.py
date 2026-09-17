@@ -168,13 +168,13 @@ def _Build_Reference_Run(tmp_path: tp.Any) -> tp.Tuple[Session_Logger_Cls, Clock
     Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
 
     clock.now = _T('14:37:12'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('14:37:21'); Session_Logger.Log_Image_Analyzed(14, 3)
-    clock.now = _T('14:37:25'); Session_Logger.Log_Image_Analyzed(15, 2)
+    clock.now = _T('14:37:21'); Session_Logger.Log_Analysis_Finished(14, 1000, 3, 0, None)
+    clock.now = _T('14:37:25'); Session_Logger.Log_Analysis_Finished(15, 1000, 2, 0, None)
     clock.now = _T('14:37:34'); error_id = Session_Logger.Log_Error('camera timeout')
     clock.now = _T('14:37:49'); Session_Logger.Log_Error_Resolved(error_id)
     clock.now = _T('14:40:02'); Session_Logger.Log_Camera_Disconnected()
     clock.now = _T('14:52:30'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('15:05:00'); Session_Logger.Log_Image_Analyzed(42, 4)
+    clock.now = _T('15:05:00'); Session_Logger.Log_Analysis_Finished(42, 1000, 4, 0, None)
     clock.now = _T('15:20:01'); Session_Logger.Log_Error('analysis failed on image 233')
 
     return (Session_Logger, clock, _T('16:12:44'))
@@ -275,8 +275,8 @@ def test_levels_are_a_fixed_width_column_chosen_by_the_call_site(tmp_path: tp.An
     assert ' [INFO   ] an info line' in content
     assert ' [WARNING] a warning line' in content
     assert ' [ERROR  ] an error line (error_id=' in content
-    assert ' [INFO   ] Error resolved:' in content          # the resolution is INFO
-    assert ' [ERROR  ] camera connection lost' in content   # the loss is ERROR
+    assert ' [INFO   ] Error ' in content and 'resolved after' in content   # resolution is INFO
+    assert ' [ERROR  ] The camera connection was lost' in content   # the loss is ERROR
     # The bracket sits at the same offset on every line (the level is one fixed column
     # after the 19-character 'YYYY-MM-DD HH:MM:SS' timestamp and a space).
     for line in (item for item in content.splitlines() if item):
@@ -310,8 +310,8 @@ def test_image_and_object_counters(tmp_path: tp.Any) -> None:
     clock = Clock_Cls(_T('08:00:00'))
     Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('08:00:01'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('08:00:05'); Session_Logger.Log_Image_Analyzed(1, 3)
-    clock.now = _T('08:00:09'); Session_Logger.Log_Image_Analyzed(2, 2)
+    clock.now = _T('08:00:05'); Session_Logger.Log_Analysis_Finished(1, 1000, 3, 0, None)
+    clock.now = _T('08:00:09'); Session_Logger.Log_Analysis_Finished(2, 1000, 2, 0, None)
 
     assert Session_Logger.Analyzed_Images == 2
     assert Session_Logger.Analyzed_Objects == 5
@@ -335,8 +335,8 @@ def test_orphan_events_are_warnings(tmp_path: tp.Any) -> None:
     assert len(Session_Logger.Sessions) == 0
     assert len(Session_Logger.Errors) == 0
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
-    assert '[WARNING] camera disconnected without an open session' in content
-    assert '[WARNING] error resolution without a matching error (error_id=999)' in content
+    assert '[WARNING] Camera disconnected, but no session was open.' in content
+    assert '[WARNING] An error resolution arrived with no matching error (error_id=999).' in content
     Session_Logger.Close()
 
 
@@ -613,7 +613,7 @@ def test_csv_row_written_on_exception_exit(tmp_path: tp.Any) -> None:
                                 install_handlers=False) as Session_Logger:
             csv_holder['path'] = Session_Logger.Csv_Path
             clock.now = _T('11:00:05'); Session_Logger.Log_Camera_Connected()
-            clock.now = _T('11:00:10'); Session_Logger.Log_Image_Analyzed(1, 2)
+            clock.now = _T('11:00:10'); Session_Logger.Log_Analysis_Finished(1, 1000, 2, 0, None)
             raise RuntimeError('boom')
 
     rows = _Read_Rows(csv_holder['path'])
@@ -644,8 +644,8 @@ def test_csv_write_failure_is_logged_and_not_raised(tmp_path: tp.Any) -> None:
 
     assert not os.path.exists(unreachable_csv)
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
-    assert '[ERROR  ] failed to write the run summary CSV row' in content
-    assert content.rstrip().endswith('Application stopped')
+    assert '[ERROR  ] Failed to write the run-summary CSV row' in content
+    assert content.rstrip().endswith('Application stopped.')
 
 
 def test_header_mismatch_row_is_aligned_and_warned(tmp_path: tp.Any) -> None:
@@ -678,7 +678,7 @@ def test_header_mismatch_row_is_aligned_and_warned(tmp_path: tp.Any) -> None:
     assert row['bogus_column'] == ''                    # named but not provided -> empty
 
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
-    assert '[WARNING] run-summary CSV header does not match the current columns' in content
+    assert '[WARNING] The run-summary CSV header does not match the current columns' in content
 
 
 def test_txt_has_no_run_summary_block(tmp_path: tp.Any) -> None:
@@ -693,5 +693,5 @@ def test_txt_has_no_run_summary_block(tmp_path: tp.Any) -> None:
 
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
     assert 'RUN SUMMARY' not in content
-    assert 'Camera connected — session 1 started' in content
-    assert content.rstrip().endswith('Application stopped')
+    assert 'Camera connected. Session 1 started.' in content
+    assert content.rstrip().endswith('Application stopped.')
