@@ -667,11 +667,13 @@ class View_Toggle_Cls(QWidget):
 class Object_List_Cls(QWidget):
     """
     Description:
-        The numbered object lines, each keyed by colour to its box on the frame.
-        Exposes `box`, the vertical layout the lines are rebuilt into. Every line's
-        TEXT comes from the shared Reporting.Object_Line — the same source the
-        Screen-Understanding file uses — so the panel and the file cannot number or
-        word an object differently; this widget only adds the colour keying.
+        The numbered object lines. Exposes `box`, the vertical layout the lines are
+        rebuilt into. Every line's TEXT comes from the shared Reporting.Object_Line — the
+        same source the Screen-Understanding file uses — so the panel and the file cannot
+        number or word an object differently; this widget only styles it. The panel is a
+        SINGLE colour (Style.CONST_INK): no per-object colours in the text — the object's
+        colour lives on the frame, not here — with the 'Obj. N' label in bold and the
+        description after it in regular weight, the only differentiation.
     """
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
@@ -695,19 +697,15 @@ class Object_List_Cls(QWidget):
                 item.widget().deleteLater()
 
         for i, det in enumerate(objects):
-            ink = Style.CONST_INDEX_COLORS[i % len(Style.CONST_INDEX_COLORS)][1]
             # The line text (number and wording) is the shared formatter's; the widget
-            # only styles it — the 'Obj. N' label in the object's colour, the sentence
-            # in soft ink — splitting on the formatter's ' - ' separator.
+            # only styles it — the 'Obj. N' label bold, the sentence regular weight, both
+            # in the one panel colour — splitting on the formatter's ' - ' separator.
             prefix, _, sentence = Object_Line(i, det).partition(' - ')
-            line = QLabel(
-                '<span style="color:%s"><b>%s</b></span> '
-                '<span style="color:%s">%s</span>' % (ink, prefix, Style.CONST_INK_SOFT, sentence)
-            )
+            line = QLabel('<b>%s</b> %s' % (prefix, sentence))
             line.setFont(Font(15))
             line.setWordWrap(True)
             line.setTextFormat(Qt.RichText)
-            line.setStyleSheet('border-left: 2px solid %s; padding-left: 13px;' % ink)
+            line.setStyleSheet('color: %s;' % Style.CONST_INK)
             self.box.addWidget(line)
 
 

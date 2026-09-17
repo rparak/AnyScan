@@ -40,6 +40,8 @@ from Camera.Core import File_Camera_Cls
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header, Object_Line
+#   ../UI/Utilities/Style
+import UI.Utilities.Style as Style
 
 """
 Description:
@@ -125,6 +127,32 @@ def test_object_lines_carry_the_shared_numbering(qt_app, reference_background_pa
         prefix, _, sentence = Object_Line(i, det).partition(' - ')
         assert prefix in texts[i]           # 'Obj. N', from the shared formatter
         assert sentence in texts[i]         # the object's own sentence
+
+
+def test_object_lines_are_single_colour_with_bold_labels(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        The panel is a SINGLE colour (Style.CONST_INK = '#2b2455') with the 'Obj. N'
+        label bold and the description after it in regular weight — no per-object colours
+        in the text (the object's colour lives on the frame). Each line styles the shared
+        Object_Line, so the numbering is still the shared formatter's.
+    """
+
+    objects = [_Object('A silver ring.'), _Object('A blue bracket.')]
+    window = _Window_With(reference_background_path,
+                          Analysis_Str(Objects=objects, Background='A plain surface.',
+                                       Verdict='2 found', Verdict_Level='ok', Task='caption'))
+
+    layout = _Private(window, '__object_list').box
+    labels = [layout.itemAt(i).widget() for i in range(layout.count())]
+    assert len(labels) == len(objects)
+    for i, (label, det) in enumerate(zip(labels, objects)):
+        prefix = Object_Line(i, det).partition(' - ')[0]
+        # The label is bold, the sentence follows outside the bold span (regular weight).
+        assert ('<b>%s</b>' % prefix) in label.text()
+        # One colour only: the panel ink, no per-object colour literal on the line.
+        assert Style.CONST_INK in label.styleSheet()
+        assert 'border-left' not in label.styleSheet()
 
 
 def test_zero_objects_reads_sensibly(qt_app, reference_background_path) -> None:
