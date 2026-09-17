@@ -110,3 +110,37 @@ substitution is logged to the audit, so over-stripping is visible, not silent. *
 if** captions show a background noun the list misses (extend the list, with a kept/stripped
 test pair) — never by widening back to bare word-matching.
 Commit `47be425`; test `test/Reporting/test_core.py::test_strip_background_noun_binding`.
+
+## A failed analysis writes a PARTIAL capture set, on purpose
+
+On a completed analysis the capture set is the raw frame, the annotated image, the label
+mask, the Scene-Understanding `.txt` and the YOLO `.txt`. When an analysis FAILS — the
+segmenter raises, the weights are missing, the pipeline throws — the annotated image, the
+mask and the YOLO records do not exist, because they are produced only *after* a
+successful analysis. But the raw frame does exist, and it is the most useful artefact in a
+failure (it is the frame that caused it). So a failure writes a **partial set**: the raw
+frame plus an `_understanding.txt` note saying the analysis failed and only the raw frame
+is present, and the failure is logged as an ERROR tagged with the set id that names the
+directory. The missing annotated/mask/YOLO files are therefore expected for a partial set,
+not an incomplete implementation — reading them as a bug is the mistake this note exists to
+prevent. **Revisit if** a future pipeline renders the annotation before it can fail, in
+which case a failed set could carry the annotation too.
+Commit `44be4a6`; tests `test/UI/test_logging_coverage.py::test_mid_analysis_failure_tags_the_error_and_writes_a_partial_set`, `test/UI/test_capture.py::test_a_write_failure_raises`.
+
+## The YOLO `<set>.txt` ids are per-frame indices, NOT classes — do not train on them
+
+Each analysis writes a YOLO region file, `<set_id>.txt`, one line per object
+(`<class_id> <x_center> <y_center> <width> <height>`, normalised 0–1). The boxes come from
+the same ordered detection list that drives the numbering, the mask and the
+Scene-Understanding text, so all artefacts describe the same objects in the same order. The
+`class_id` is the object's **0-based index in that list** (object 1 in the text → id 0): a
+per-frame **handle** for finding the object in the text and hand-correcting it, not a class.
+This is the kind of file someone will point a training script at, so state it plainly:
+**these files must not be used for training as-is.** The same id means a *different* part in
+every frame, so a class built from them is an arbitrary mix; a `classes.txt` beside the
+captures lists the ids in order (currently the per-frame object indices) and carries the
+same warning in its own header, so the caution travels with the data. They become a real
+dataset only once ids are reassigned by actual class. **Revisit when** classification
+exists: the id then comes from the class, and this note is rewritten — the id stops being a
+per-frame handle and becomes a real label.
+Commit `44be4a6`; tests `test/Reporting/test_core.py::test_yolo_lines_are_normalised_and_indexed_from_the_object_list`, `test/UI/test_capture.py::test_yolo_file_holds_the_given_lines_and_classes_has_a_header`.
