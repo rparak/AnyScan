@@ -710,6 +710,16 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__logger.Log_Image_Analyzed(self.__analyses, len(result.Objects))
             for det in result.Objects:
                 self.__logger.Log_Object_Detected(det.Label, det.Confidence, det.Bbox, det.Sentence)
+            # The post-processing audit: every background sentence the composer stripped
+            # and every substance substitution it made, each already tagged with the
+            # object index. Rewriting what the model said is a domain assumption, so it is
+            # recorded — a warning when stripping had to fall back, otherwise info — never
+            # silent (§3). The view switch, by contrast, is not worth a log line.
+            for level, message in result.Audit:
+                if level == 'warning':
+                    self.__logger.Log_Warning(message)
+                else:
+                    self.__logger.Log_Info(message)
             self.__logger.Log_Analysis_Ended(result.Latency_Ms)
         self.__Sync_Controls()
 
