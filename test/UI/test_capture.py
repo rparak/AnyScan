@@ -75,7 +75,7 @@ def test_a_complete_set_is_written_into_the_session_directory(tmp_path) -> None:
     session = tmp_path / '20260912-143202_s1'
     for suffix in ('_raw.png', '_annotated.png', '_mask.png', '_understanding.txt', '.txt'):
         assert (session / ('20260912-143722_1' + suffix)).exists()
-    assert (tmp_path / 'classes.txt').exists()
+    assert (session / 'classes.txt').exists()
 
     # A second write into the same session does not re-report the directory.
     _, created2 = _Write(writer, '20260912-143202_s1', '20260912-143725_2')
@@ -94,7 +94,7 @@ def test_yolo_file_holds_the_given_lines_and_classes_has_a_header(tmp_path) -> N
     _Write(writer, 's', 'set1', yolo=yolo)
 
     assert (tmp_path / 's' / 'set1.txt').read_text() == '\n'.join(yolo) + '\n'
-    classes = (tmp_path / 'classes.txt').read_text()
+    classes = (tmp_path / 's' / 'classes.txt').read_text()
     assert classes.startswith('#') and 'not be used for training' in classes.lower()
     assert [line for line in classes.splitlines() if not line.startswith('#')] == ['0', '1']
 

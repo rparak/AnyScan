@@ -27,9 +27,6 @@
 import os
 # Typing (Support for type hints)
 import typing as tp
-# Custom Lib.: AnyScan — the shared provenance stamp
-#   ../Vision/Utilities/Provenance
-import Vision.Utilities.Provenance as Provenance
 
 """
 Description:
@@ -44,8 +41,11 @@ Description:
         <set_id>_understanding.txt  the Scene-Understanding text (shared formatter)
         <set_id>.txt                the YOLO region records, one line per object
 
-    — each named so a set is obviously one analysis, each PNG stamped with the shared
-    provenance stamp. A classes.txt beside the captures lists the region ids in order.
+    — each named so a set is obviously one analysis. The images carry NO provenance band:
+    they are the image and nothing else (a band would corrupt the raw frame as a record of
+    what the camera saw), and the set id already lives in the filename and in every related
+    log line. The '_understanding.txt' keeps a one-line stamp header. A classes.txt inside
+    the session directory lists the region ids in order.
 
     Retention is enforced ON WRITE and counts sets GLOBALLY across sessions: the oldest
     are evicted first regardless of which session they belong to (so one long session
@@ -162,16 +162,16 @@ class Capture_Writer_Cls(object):
 
         session_dir, created = self.__Ensure_Session_Dir(session_id)
         if self.__keep_raw:
-            self.__Write_Png(session_dir, set_id + CONST_CAPTURE_RAW_SUFFIX, raw_bgr, stamp, cv2, np)
-        self.__Write_Png(session_dir, set_id + '_annotated.png', annotated_bgr, stamp, cv2, np)
-        self.__Write_Png(session_dir, set_id + '_mask.png', mask_bgr, stamp, cv2, np)
+            self.__Write_Png(session_dir, set_id + CONST_CAPTURE_RAW_SUFFIX, raw_bgr, cv2)
+        self.__Write_Png(session_dir, set_id + '_annotated.png', annotated_bgr, cv2)
+        self.__Write_Png(session_dir, set_id + '_mask.png', mask_bgr, cv2)
         # The Scene-Understanding text carries the stamp as a leading comment; the YOLO
         # file is a bare region record (its provenance is the set id in its filename).
         self.__Write_Text(session_dir, set_id + '_understanding.txt', '# ' + stamp + '\n'
                           + understanding_text + '\n')
         self.__Write_Text(session_dir, set_id + '.txt',
                           ''.join(line + '\n' for line in yolo_lines))
-        self.__Refresh_Classes(len(yolo_lines))
+        self.__Refresh_Classes(session_dir, len(yolo_lines))
         return self.__Evict(), (session_id if created else None)
 
     def Write_Partial(self, session_id: str, set_id: str, raw_bgr: tp.Any, note: str,
@@ -201,7 +201,7 @@ class Capture_Writer_Cls(object):
 
         session_dir, created = self.__Ensure_Session_Dir(session_id)
         if self.__keep_raw:
-            self.__Write_Png(session_dir, set_id + CONST_CAPTURE_RAW_SUFFIX, raw_bgr, stamp, cv2, np)
+            self.__Write_Png(session_dir, set_id + CONST_CAPTURE_RAW_SUFFIX, raw_bgr, cv2)
         self.__Write_Text(session_dir, set_id + '_understanding.txt', '# ' + stamp + '\n'
                           + note + '\n')
         return self.__Evict(), (session_id if created else None)
@@ -224,25 +224,22 @@ class Capture_Writer_Cls(object):
         os.makedirs(session_dir, exist_ok=True)
         return session_dir, created
 
-    def __Write_Png(self, session_dir: str, name: str, image_bgr: tp.Any, stamp: str,
-                    cv2: tp.Any, np: tp.Any) -> None:
+    def __Write_Png(self, session_dir: str, name: str, image_bgr: tp.Any, cv2: tp.Any) -> None:
         """
         Description:
-            Write one stamped PNG, raising if the write does not land (a full disk or a
-            permission failure returns False from cv2.imwrite, which must not pass as a
-            success).
+            Write one PNG — the image and nothing else, no provenance band — raising if the
+            write does not land (a full disk or a permission failure returns False from
+            cv2.imwrite, which must not pass as a success).
 
         Args:
             (1) session_dir [string]: The session directory to write into.
             (2) name [string]: The file name.
             (3) image_bgr [Matrix<uint8> HxWx3]: The image (BGR).
-            (4) stamp [string]: The provenance stamp.
-            (5) cv2 [module]: The OpenCV module, injected by the caller.
-            (6) np [module]: The NumPy module, injected by the caller.
+            (4) cv2 [module]: The OpenCV module, injected by the caller.
         """
 
         path = os.path.join(session_dir, name)
-        if not cv2.imwrite(path, Provenance.Stamp_Image(image_bgr, stamp, cv2, np)):
+        if not cv2.imwrite(path, image_bgr):
             raise OSError('cv2.imwrite reported failure for %s' % path)
 
     def __Write_Text(self, session_dir: str, name: str, content: str) -> None:
@@ -259,19 +256,21 @@ class Capture_Writer_Cls(object):
         with open(os.path.join(session_dir, name), 'w') as handle:
             handle.write(content)
 
-    def __Refresh_Classes(self, count: int) -> None:
+    def __Refresh_Classes(self, session_dir: str, count: int) -> None:
         """
         Description:
-            Ensure the classes file beside the captures lists at least `count` region ids
+            Ensure the session's classes file lists at least `count` region ids
             (0..count-1) under its header — the ids grow monotonically as frames with more
-            objects arrive. The header, in the file, warns the ids are per-frame indices,
-            not classes.
+            objects arrive. The file lives INSIDE the session directory, so each capture
+            session is self-describing; its header, in the file, warns the ids are
+            per-frame indices, not classes.
 
         Args:
-            (1) count [int]: The number of objects in the frame just written.
+            (1) session_dir [string]: The session directory to write the classes file into.
+            (2) count [int]: The number of objects in the frame just written.
         """
 
-        path = os.path.join(self.__dir, CONST_CAPTURE_CLASSES_FILE)
+        path = os.path.join(session_dir, CONST_CAPTURE_CLASSES_FILE)
         have = 0
         if os.path.isfile(path):
             with open(path, 'r') as handle:
@@ -312,15 +311,20 @@ class Capture_Writer_Cls(object):
     def __Remove_If_Empty(self, session_dir: str) -> None:
         """
         Description:
-            Remove a session directory if it holds no more capture sets. Best-effort.
+            Remove a session directory once it holds no more capture sets — the per-session
+            classes file, being the only non-set artefact, is removed with it so an empty
+            session leaves nothing behind. Best-effort.
 
         Args:
             (1) session_dir [string]: The session directory.
         """
 
         try:
-            if not any(self.__Set_Id(name) is not None for name in os.listdir(session_dir)):
-                os.rmdir(session_dir)
+            if any(self.__Set_Id(name) is not None for name in os.listdir(session_dir)):
+                return
+            for name in os.listdir(session_dir):            # only the classes file remains, if any
+                os.remove(os.path.join(session_dir, name))
+            os.rmdir(session_dir)
         except OSError:
             pass
 
@@ -384,6 +388,8 @@ class Capture_Writer_Cls(object):
             (1) parameter [string]: The set id, or None.
         """
 
+        if name == CONST_CAPTURE_CLASSES_FILE:               # the per-session classes file is not a set
+            return None
         for suffix in CONST_CAPTURE_SUFFIXES:
             if name.endswith(suffix):
                 return name[:-len(suffix)]
