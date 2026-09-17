@@ -56,7 +56,7 @@ from Vision.Core import Florence_Vision_Cls
 import Vision.Utilities.Annotate as Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 #   ../Reporting/Core
-from Reporting.Core import Screen_Header, Screen_Understanding
+from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
 # Custom Lib.: AnyScan — the session logger and the per-analysis capture writer
@@ -128,6 +128,10 @@ class AnyScan_Window_Cls(QMainWindow):
         # analysis's set id, set when an analysis starts and reused when it finishes.
         self.__session_analyses = 0
         self.__current_set_id = None
+        # The capture-session id — the logger's session (connect to disconnect) as its
+        # start timestamp plus index, so a log line and a capture directory name the same
+        # session, and ids stay distinguishable across runs.
+        self.__session_id = None
         # The open camera/scan/analysis error ids, so the next matching success can
         # resolve them (e.g. a scan timeout resolved by the next successful scan).
         self.__camera_error_id = None
@@ -588,7 +592,12 @@ class AnyScan_Window_Cls(QMainWindow):
             if self.__camera_error_id is not None:
                 self.__logger.Log_Error_Resolved(self.__camera_error_id)
                 self.__camera_error_id = None
-            self.__logger.Log_Camera_Connected('%d × %d' % (w, h))
+            session_index = self.__logger.Log_Camera_Connected('%d × %d' % (w, h))
+            # The capture-session id matches the logger's session — its start timestamp
+            # plus the index — so its directory and the log refer to the same session, and
+            # reconnecting in the same run yields a distinct session (and directory).
+            self.__session_id = '%s_s%d' % (datetime.now().strftime('%Y%m%d-%H%M%S'),
+                                            session_index)
         self.__Sync_Controls()
 
     def __On_Connect_Failed(self, message: str) -> None:
@@ -801,11 +810,12 @@ class AnyScan_Window_Cls(QMainWindow):
                         annotated_bgr: tp.Any, mask_bgr: tp.Any) -> None:
         """
         Description:
-            Write this analysis's four capture artefacts (raw frame, annotated image,
-            label mask, Scene-Understanding text) and enforce the retention bound,
-            logging what was written and what was evicted. Writing must never break the
-            analysis: a full disk or a permission failure is caught, logged as an ERROR,
-            and the UI carries on.
+            Write this analysis's capture set into the current session's directory — the
+            raw frame, the annotated image, the label mask, the Scene-Understanding text
+            and the YOLO region records — refresh the classes file, and enforce the global
+            retention bound, logging the session-directory creation, what was written and
+            what was evicted. Writing must never break the analysis: a full disk or a
+            permission failure is caught, logged as an ERROR, and the UI carries on.
 
         Args:
             (1) set_id [string]: The capture-set id (filename stem).
@@ -815,21 +825,52 @@ class AnyScan_Window_Cls(QMainWindow):
             (5) mask_bgr [Matrix<uint8> HxWx3]: The label mask (BGR).
         """
 
-        if self.__capture_writer is None:
+        if self.__capture_writer is None or self.__session_id is None:
             return
         # The '.txt' is exactly the panel's text — the shared formatter, not a second path.
+        # The YOLO boxes come from the same object list, normalised against the frame.
         understanding = Screen_Understanding(result.Objects, result.Background)
+        height, width = frame_bgr.shape[:2]
+        yolo = Yolo_Lines(result.Objects, (width, height))
         stamp = 'set %s | %s' % (set_id, datetime.now().isoformat(timespec='seconds'))
         try:
-            evicted = self.__capture_writer.Write(set_id, frame_bgr, annotated_bgr, mask_bgr,
-                                                  understanding, stamp, cv2, np)
+            evicted, created = self.__capture_writer.Write(
+                self.__session_id, set_id, frame_bgr, annotated_bgr, mask_bgr,
+                understanding, yolo, stamp, cv2, np)
         except Exception as exc:                          # noqa: BLE001
             self.__logger.Log_Error('failed to write capture set %s: %s' % (set_id, exc))
             return
+        self.__Log_Capture_Side_Effects(created)
         self.__logger.Log_Info('Capture set written (set=%s)' % set_id)
+        self.__Log_Capture_Evictions(evicted)
+
+    def __Log_Capture_Side_Effects(self, created_session: tp.Optional[str]) -> None:
+        """
+        Description:
+            Log a session-directory creation (once per session, so a fresh directory on
+            disk is never a surprise).
+
+        Args:
+            (1) created_session [string]: The session id whose directory was just created,
+                                          or None when it already existed.
+        """
+
+        if created_session is not None:
+            self.__logger.Log_Info('Created capture directory for session %s' % created_session)
+
+    def __Log_Capture_Evictions(self, evicted: tp.List[str]) -> None:
+        """
+        Description:
+            Log every eviction, so a set the operator was about to open is never deleted
+            silently.
+
+        Args:
+            (1) evicted [Vector<string>]: The evicted set ids, oldest first.
+        """
+
         for old in evicted:
-            self.__logger.Log_Info('Evicted oldest capture set %s (retention: keep %d)'
-                                   % (old, self.__capture_writer.Retention))
+            self.__logger.Log_Info('Evicted oldest capture set %s (retention: keep %d across '
+                                   'sessions)' % (old, self.__capture_writer.Retention))
 
     def __Log_Event(self, level: str, message: str) -> None:
         """
@@ -890,20 +931,23 @@ class AnyScan_Window_Cls(QMainWindow):
             (2) message [string]: The failure sentence, recorded in the note.
         """
 
-        if self.__capture_writer is None or set_id is None or self.__frame is None:
+        if self.__capture_writer is None or set_id is None or self.__frame is None \
+                or self.__session_id is None:
             return
         frame_bgr = cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR)
         note = ('Analysis FAILED — partial capture (raw frame only, no annotated image or '
                 'mask). Failure: %s' % message)
         stamp = 'set %s (partial) | %s' % (set_id, datetime.now().isoformat(timespec='seconds'))
         try:
-            self.__capture_writer.Write_Partial(set_id, frame_bgr, note, stamp, cv2, np)
+            evicted, created = self.__capture_writer.Write_Partial(
+                self.__session_id, set_id, frame_bgr, note, stamp, cv2, np)
         except Exception as exc:                          # noqa: BLE001
             self.__logger.Log_Error('failed to write partial capture set %s: %s' % (set_id, exc))
             return
+        self.__Log_Capture_Side_Effects(created)
         self.__logger.Log_Warning('Partial capture set written (analysis failed): raw frame '
                                   'only (set=%s)' % set_id)
-        self.__Sync_Controls()
+        self.__Log_Capture_Evictions(evicted)
 
     def __Show_Analysis(self, result: Analysis_Str, annotated_bgr: tp.Any, mask_bgr: tp.Any) -> None:
         """

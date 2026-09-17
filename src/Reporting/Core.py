@@ -616,6 +616,39 @@ def Object_Line(index: int, det: Detection_Str) -> str:
     return 'Obj. %d - %s' % (index + 1, det.Sentence)
 
 
+def Yolo_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int]) -> tp.List[str]:
+    """
+    Description:
+        One YOLO-format region line per object — '<class_id> <x_center> <y_center>
+        <width> <height>' — geometry normalised to 0..1 against the frame (width, height)
+        at six decimals. The boxes come from the SAME ordered object list that drives the
+        numbering, the mask and the Screen-Understanding text, so every artefact describes
+        the same objects in the same order.
+
+        The class id is the object's 0-BASED index in that list (object 1 in the text ->
+        id 0), NOT a class: it is a per-frame handle for finding the object in the text
+        and correcting it by hand. The same id means a different part in every frame, so
+        these files must not be used for training as-is — see docs/design-decisions.md.
+
+    Args:
+        (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (2) size [Vector<int> 1x2]: The frame size as (width, height).
+
+    Returns:
+        (1) parameter [Vector<string>]: One YOLO line per object, in order.
+    """
+
+    width, height = float(size[0]), float(size[1])
+    lines = []
+    for index, det in enumerate(objects):
+        x, y, w, h = det.Bbox
+        x_center = (x + w / 2.0) / width
+        y_center = (y + h / 2.0) / height
+        lines.append('%d %.6f %.6f %.6f %.6f'
+                     % (index, x_center, y_center, w / width, h / height))
+    return lines
+
+
 def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
             caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str, tp.List[tp.Tuple[str, str]]]:
     """

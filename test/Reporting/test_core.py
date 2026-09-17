@@ -288,6 +288,42 @@ def test_screen_understanding_is_built_from_the_shared_pieces() -> None:
     assert Reporting.Object_Line(0, _Line('A washer.')) == 'Obj. 1 - A washer.'
 
 
+def test_yolo_lines_are_normalised_and_indexed_from_the_object_list() -> None:
+    """
+    Description:
+        Yolo_Lines emits one '<class_id> <xc> <yc> <w> <h>' line per object, geometry
+        normalised 0..1 against the frame at six decimals, from the SAME ordered object
+        list as the numbering — the class id is the object's 0-based index (object 1 in the
+        text is id 0), a per-frame handle, not a class. It lists every object and nothing
+        else.
+    """
+
+    # A 200x100 frame (width x height); a box at (x=20,y=10,w=40,h=20) has centre
+    # (40,20) -> (0.2, 0.2) and size (0.2, 0.2).
+    objects = [_Line('A ring.'), _Line('A nut.')]
+    objects[0].Bbox = (20, 10, 40, 20)
+    objects[1].Bbox = (100, 50, 20, 10)
+    lines = Reporting.Yolo_Lines(objects, (200, 100))
+
+    assert len(lines) == len(objects)
+    assert lines[0] == '0 0.200000 0.200000 0.200000 0.200000'
+    assert lines[1] == '1 0.550000 0.550000 0.100000 0.100000'
+    # The ids run 0..n-1 in list order (object 1 -> id 0), matching the numbering.
+    assert [line.split()[0] for line in lines] == ['0', '1']
+    # Every value is normalised into 0..1.
+    for line in lines:
+        assert all(0.0 <= float(v) <= 1.0 for v in line.split()[1:])
+
+
+def test_yolo_lines_empty_when_no_objects() -> None:
+    """
+    Description:
+        No objects yields no lines — the file lists every detected object and nothing else.
+    """
+
+    assert Reporting.Yolo_Lines([], (200, 100)) == []
+
+
 def test_background_sentence_validation() -> None:
     """
     Description:

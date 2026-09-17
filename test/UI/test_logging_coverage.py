@@ -133,6 +133,7 @@ def test_analysis_writes_a_capture_set_linked_by_id(qt_app, tmp_path) -> None:
     window, logger = _Window(tmp_path)
     setattr(window, CONST_MANGLE + '__frame', np.zeros((40, 60, 3), dtype=np.uint8))
     setattr(window, CONST_MANGLE + '__current_set_id', '20260912-143202_1')
+    setattr(window, CONST_MANGLE + '__session_id', '20260912-143000_s1')
     objects = _Objects()
     result = Analysis_Str(Objects=objects, Background='A plain surface.', Latency_Ms=100,
                           Verdict='2 found', Verdict_Level='ok', Task='caption')
@@ -140,16 +141,17 @@ def test_analysis_writes_a_capture_set_linked_by_id(qt_app, tmp_path) -> None:
     _Private(window, '__On_Analysis_Finished')(result)
     logger.Close()
 
-    captures = tmp_path / 'captures'
-    for suffix in ('_raw.png', '_annotated.png', '_mask.png', '_understanding.txt'):
-        assert (captures / ('20260912-143202_1' + suffix)).exists()
-    # The '.txt' is exactly the shared formatter's text (what the panel renders from).
-    txt = (captures / '20260912-143202_1_understanding.txt').read_text()
+    session = tmp_path / 'captures' / '20260912-143000_s1'
+    for suffix in ('_raw.png', '_annotated.png', '_mask.png', '_understanding.txt', '.txt'):
+        assert (session / ('20260912-143202_1' + suffix)).exists()
+    # The '_understanding.txt' is exactly the shared formatter's text (the panel's text).
+    txt = (session / '20260912-143202_1_understanding.txt').read_text()
     assert txt.split('\n', 1)[1].rstrip('\n') == Screen_Understanding(objects, 'A plain surface.')
 
     content = _Log_Text(logger)
     assert '(set=20260912-143202_1)' in content
     assert 'Image analyzed' in content and 'Analysis ended' in content
+    assert 'Created capture directory for session 20260912-143000_s1' in content
     assert 'Capture set written (set=20260912-143202_1)' in content
     # One object was unscored, so the partial-confidence coverage is warned, tagged.
     assert '[WARNING] 1 of 2 object(s) had no confidence score (set=20260912-143202_1)' in content
@@ -165,6 +167,7 @@ def test_capture_write_failure_logs_error_and_does_not_raise(qt_app, tmp_path) -
     window, logger = _Window(tmp_path)
     setattr(window, CONST_MANGLE + '__frame', np.zeros((40, 60, 3), dtype=np.uint8))
     setattr(window, CONST_MANGLE + '__current_set_id', '20260912-143202_1')
+    setattr(window, CONST_MANGLE + '__session_id', '20260912-143000_s1')
 
     class _Failing_Writer_Cls(object):
         """A capture writer whose Write always fails, to exercise the error path."""
@@ -195,6 +198,7 @@ def test_mid_analysis_failure_tags_the_error_and_writes_a_partial_set(qt_app, tm
     window, logger = _Window(tmp_path)
     setattr(window, CONST_MANGLE + '__frame', np.zeros((40, 60, 3), dtype=np.uint8))
     setattr(window, CONST_MANGLE + '__current_set_id', '20260912-143202_1')
+    setattr(window, CONST_MANGLE + '__session_id', '20260912-143000_s1')
 
     _Private(window, '__On_Analysis_Failed')('the segmenter failed to process the frame')
     logger.Close()
@@ -202,14 +206,15 @@ def test_mid_analysis_failure_tags_the_error_and_writes_a_partial_set(qt_app, tm
     content = _Log_Text(logger)
     # The failure error carries the set id.
     assert '[ERROR  ] the segmenter failed to process the frame (set=20260912-143202_1)' in content
-    # A partial set is announced and the raw frame is on disk.
+    # A partial set is announced and the raw frame lands in the right session directory.
     assert '[WARNING] Partial capture set written (analysis failed): raw frame only (set=20260912-143202_1)' in content
-    captures = tmp_path / 'captures'
-    assert (captures / '20260912-143202_1_raw.png').exists()
-    txt = (captures / '20260912-143202_1_understanding.txt').read_text()
+    session = tmp_path / 'captures' / '20260912-143000_s1'
+    assert (session / '20260912-143202_1_raw.png').exists()
+    txt = (session / '20260912-143202_1_understanding.txt').read_text()
     assert 'Analysis FAILED' in txt and 'partial capture' in txt
-    # No annotated/mask were rendered for a failed analysis.
-    assert not (captures / '20260912-143202_1_annotated.png').exists()
+    # No annotated/mask/YOLO were rendered for a failed analysis.
+    assert not (session / '20260912-143202_1_annotated.png').exists()
+    assert not (session / '20260912-143202_1.txt').exists()
 
 
 def test_reanalysis_in_flight_is_warned(qt_app, tmp_path) -> None:
@@ -226,6 +231,31 @@ def test_reanalysis_in_flight_is_warned(qt_app, tmp_path) -> None:
     _Private(window, '__On_Analyze_Button_Clicked')()
     logger.Close()
     assert '[WARNING] Analyze pressed while an analysis is in flight; ignored' in _Log_Text(logger)
+
+
+def test_each_session_gets_a_distinct_capture_id_across_reconnects(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The capture-session id matches the logger's session (its start plus index), so
+        reconnecting in the same run yields a DISTINCT session — the second directory does
+        not collide with the first, and ids stay distinguishable across sessions.
+    """
+
+    window, logger = _Window(tmp_path)
+    camera = _Private(window, '__camera')
+
+    camera.Connect()
+    _Private(window, '__On_Connect_Finished')()
+    first = _Private(window, '__session_id')
+
+    _Private(window, '__On_Disconnect_Button_Clicked')()
+    camera.Connect()
+    _Private(window, '__On_Connect_Finished')()
+    second = _Private(window, '__session_id')
+    logger.Close()
+
+    assert first is not None and second is not None and first != second
+    assert first.endswith('_s1') and second.endswith('_s2')     # the logger's session index
 
 
 def test_camera_events_reach_the_log_through_the_sink(qt_app, tmp_path) -> None:
