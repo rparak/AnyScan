@@ -86,6 +86,12 @@ CONST_OUTPUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ch
 #   Unit [Vector<int> 1x2]
 CONST_FRAME_SIZE = (1920, 1200)
 
+# A fixed background sentence for pinning the shared Screen-Understanding header (the
+# panel's first line) in the baseline. Any stable string works — it only has to be
+# deterministic, not real.
+#   Unit [string]
+CONST_BASELINE_BACKGROUND = 'The background is a plain green table.'
+
 # Captions fed to the label distiller, chosen to exercise the lead-in stripping,
 # the clause boundaries and the word cap.
 #   Unit [Vector<string>]
@@ -248,7 +254,7 @@ def main() -> None:
                  f'text={det.Text} detail={det.Detail!r} sentence={det.Sentence!r}')
     analysis = Analysis_Str()
     lines.append('Analysis defaults: '
-                 f'summary={analysis.Summary!r} objects={analysis.Objects} note={analysis.Note!r} '
+                 f'objects={analysis.Objects} note={analysis.Note!r} '
                  f'latency_ms={analysis.Latency_Ms} verdict={analysis.Verdict!r} '
                  f'verdict_level={analysis.Verdict_Level!r} task={analysis.Task!r}')
     lines.append('')
@@ -262,21 +268,21 @@ def main() -> None:
     lines.append('-- report composer --')
 
     # 1) Empty scene: the analyze() empty path passes EMPTY_SCENE_EXPLANATION.
-    empty_objs, empty_summary, empty_note, _empty_audit = Reporting.Compose([], CONST_FRAME_SIZE,
+    empty_objs, empty_note, _empty_audit = Reporting.Compose([], CONST_FRAME_SIZE,
                                                         caption=Reporting.CONST_EMPTY_SCENE_EXPLANATION)
     e_badge, e_level = Reporting.Verdict(empty_objs)
     lines.append('[scene: empty]')
-    lines.append(f'  summary = {empty_summary}')
+    lines.append(f'  header  = {Reporting.Screen_Header(empty_objs, CONST_BASELINE_BACKGROUND)}')
     lines.append(f'  note    = {empty_note}')
     lines.append(f'  verdict = {e_badge} ({e_level})')
 
     # 2) One object, verbose caption exercising the lead-in stripping.
     one = [_Make_Detection('hex bolt', (100, 120, 80, 80),
                            detail='In this image we can see a hex bolt on a green surface.')]
-    one_objs, one_summary, one_note, _one_audit = Reporting.Compose(one, CONST_FRAME_SIZE, caption='')
+    one_objs, one_note, _one_audit = Reporting.Compose(one, CONST_FRAME_SIZE, caption='')
     o_badge, o_level = Reporting.Verdict(one_objs)
     lines.append('[scene: one object]')
-    lines.append(f'  summary = {one_summary}')
+    lines.append(f'  header  = {Reporting.Screen_Header(one_objs, CONST_BASELINE_BACKGROUND)}')
     lines.append(f'  object1 = {one_objs[0].Sentence}')
     lines.append(f'  note    = {one_note!r}')
     lines.append(f'  verdict = {o_badge} ({o_level})')
@@ -289,10 +295,10 @@ def main() -> None:
                         confidence=0.20, text='M6'),
         _Make_Detection('nut', (300, 300, 60, 60), detail=''),
     ]
-    many_objs, many_summary, many_note, _many_audit = Reporting.Compose(many, CONST_FRAME_SIZE, caption='')
+    many_objs, many_note, _many_audit = Reporting.Compose(many, CONST_FRAME_SIZE, caption='')
     m_badge, m_level = Reporting.Verdict(many_objs)
     lines.append('[scene: several objects]')
-    lines.append(f'  summary = {many_summary}')
+    lines.append(f'  header  = {Reporting.Screen_Header(many_objs, CONST_BASELINE_BACKGROUND)}')
     for i, obj in enumerate(many_objs, start=1):
         lines.append(f'  object{i} = {obj.Sentence}')
     lines.append(f'  note    = {many_note!r}')

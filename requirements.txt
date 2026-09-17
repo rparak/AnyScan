@@ -23,6 +23,9 @@ opencv-python>=4.10
 # ultralytics WITH this pin held — `pip install -r requirements.txt` does that.
 numpy>=2.2
 Pillow>=10.0
+# The camera configuration (with calibration) is read from and written back to
+# Configuration/*.yaml by Camera.Utilities.Configuration.
+PyYAML>=6.0
 pypylon>=3.0          # only needed for the live camera; --frame runs without it
 
 # ---- the local Florence-2 model (FlorenceVision) --------------------------

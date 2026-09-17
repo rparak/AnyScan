@@ -20,7 +20,7 @@
 # Author   : Roman Parak
 # Email    : Roman.Parak@outlook.com
 # Github   : https://github.com/rparak
-# File Name: Core.py
+# File Name: ../Calibration/Core.py
 ## =========================================================================== ##
 
 # OpenCV library for computer vision tasks
@@ -30,8 +30,8 @@ import numpy as np
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.:
-#   ../Calibration/Parameters
-from Calibration.Parameters import Camera_Calibration_Parameters_Str
+#   ../Parameters/Camera
+from Parameters.Camera import Camera_Calibration_Parameters_Str
 
 class Checkerboard_Calibration_Cls:
     """

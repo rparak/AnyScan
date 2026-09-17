@@ -50,6 +50,9 @@ import Vision.Core as Vision_Core
 import UI.Utilities.Style as Style
 #   ../UI/Core
 from UI.Core import AnyScan_Window_Cls
+# Custom Lib.: AnyScan — the session logger
+#   ../Logger/Core
+from Logger.Core import Session_Logger_Cls
 
 # The Windows AppUserModelID: without it the taskbar groups the app under
 # python.exe's identity, so the title bar shows the AnyScan icon while the taskbar
@@ -124,13 +127,23 @@ def main() -> int:
         except Exception:  # noqa: BLE001 - cosmetic only, never worth a crash
             pass
 
+    # One session logger per application start. It records the run to ../logger/ and
+    # writes the statistical summary when the run ends. The try/finally guarantees the
+    # summary is written even if the event loop raises; a normal window close and the
+    # logger's own atexit/signal hooks are the other, idempotent, shutdown paths.
+    logger = Session_Logger_Cls()
+    logger.Log_Info('Application started')
+
     # A File_Camera_Cls (developer --frame) or the real Basler_Camera_Cls.
     camera = File_Camera_Cls(os.path.abspath(args.frame)) if args.frame else Basler_Camera_Cls()
-    window = AnyScan_Window_Cls(camera=camera)
+    window = AnyScan_Window_Cls(camera=camera, logger=logger)
     window.setWindowIcon(icon)
     window.resize(1720, 1020)
     window.showMaximized()   # F11 toggles fullscreen, Esc closes
-    return app.exec_()
+    try:
+        return app.exec_()
+    finally:
+        logger.Close()
 
 
 if __name__ == '__main__':

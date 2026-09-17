@@ -37,10 +37,8 @@ import os
 # Custom Lib.:
 #   ../Camera/Basler
 from Camera.Basler import Basler_Cls
-#   ../Parameters/Scene
-import Parameters.Scene
-#   ../Calibration/Parameters
-from Calibration.Parameters import Basler_Calib_Param_Str
+#   ../Camera/Utilities/Configuration
+from Camera.Utilities.Configuration import Read_Configuration, CONST_BASLER_CONFIG_FILE
 
 """
 Description:
@@ -64,8 +62,11 @@ def main():
     # Locate the path to the project folder.
     project_folder = os.getcwd().split('anyscan-pyqt')[0] + 'anyscan-pyqt'
 
+    # Read the camera configuration (with calibration) from the *.yaml file.
+    Basler_Cfg_Str = Read_Configuration(CONST_BASLER_CONFIG_FILE)
+
     # Initialize and configure the Basler camera.
-    Basler_Cam_Id_1 = Basler_Cls(config=Parameters.Scene.Basler_Cam_Str.Custom_Cfg)
+    Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
 
     # Capture a single image.
     image = Basler_Cam_Id_1.Capture()
@@ -80,10 +81,10 @@ def main():
 
     # Undistort the image using camera calibration parameters.
     h, w = image.shape[:2]
-    coeffs = np.array(list(Basler_Calib_Param_Str.Coefficients.values()), dtype=np.float64)
-    new_camera_matrix, _ = cv2.getOptimalNewCameraMatrix(Basler_Calib_Param_Str.K, coeffs,
+    coeffs = np.array(list(Basler_Cfg_Str.Calibration.Coefficients.values()), dtype=np.float64)
+    new_camera_matrix, _ = cv2.getOptimalNewCameraMatrix(Basler_Cfg_Str.Calibration.K, coeffs,
                                                          (w, h), 1, (w, h))
-    image_undistorted = cv2.undistort(image, Basler_Calib_Param_Str.K, coeffs, None, new_camera_matrix)
+    image_undistorted = cv2.undistort(image, Basler_Cfg_Str.Calibration.K, coeffs, None, new_camera_matrix)
 
     # Save the image with bounding boxes.
     cv2.imwrite(output_path, image_undistorted)

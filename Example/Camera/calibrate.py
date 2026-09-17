@@ -37,8 +37,8 @@ import cv2
 import Camera.Utilities.Image_Processing
 #   ../Camera/Basler
 from Camera.Basler import Basler_Cls
-#   ../Parameters/Scene
-import Parameters.Scene
+#   ../Camera/Utilities/Configuration
+from Camera.Utilities.Configuration import Read_Configuration, Write_Calibration, CONST_BASLER_CONFIG_FILE
 #   ../Calibration/Core
 import Calibration.Core
 
@@ -67,16 +67,11 @@ def main():
     # Locate the path to the project folder.
     project_folder = os.getcwd().split('anyscan-pyqt')[0] + 'anyscan-pyqt'
 
-    # Custom camera configuration.
-    custom_cfg = {
-        'exposure_time': 10000,
-        'gain': 10,
-        'balance_ratios': {'Red': 0.95, 'Green': 0.9, 'Blue': 1.2},
-        'pixel_format': 'BayerRG8'
-    }
+    # Read the camera configuration (with calibration) from the *.yaml file.
+    Basler_Cfg_Str = Read_Configuration(CONST_BASLER_CONFIG_FILE)
 
     # Initialize and configure the Basler camera.
-    Basler_Cam_Id_1 = Basler_Cls(config=custom_cfg)
+    Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
 
     # Capture a single image.
     image_raw = Basler_Cam_Id_1.Capture()
@@ -87,7 +82,7 @@ def main():
     del Basler_Cam_Id_1
 
     # The camera's calibration folder, and the output image path within it.
-    camera_folder = f'{project_folder}/Data/Camera/{Parameters.Scene.Basler_Cam_Str.Name}'
+    camera_folder = f'{project_folder}/Data/Camera/{Basler_Cfg_Str.Name}'
     output_path = os.path.join(f'{camera_folder}/', f'Image_Checkerboard_{(CONST_INIT_INDEX):03}.png')
 
     # Initialize the class for custom image processing.
@@ -117,6 +112,13 @@ def main():
         print(f'[INFO] Intrinsic Matrix (K):\n{x.K}')
         print(f'[INFO] Distortion Coefficients:\n{x.Coefficients}')
         print(f'[INFO] Pixel-to-mm Conversion Factor:\n{x.Conversion_Factor}')
+
+        # Re-write the 'Calibration' block of the *.yaml configuration file so the freshly
+        # solved result becomes the project's single source of truth (used by the camera backend).
+        if Write_Calibration(x, CONST_BASLER_CONFIG_FILE):
+            print(f'[INFO] Calibration parameters written to: {CONST_BASLER_CONFIG_FILE}')
+        else:
+            print('[WARNING] Calibration parameters could not be written to the configuration file.')
 
         # Save the image after successful calibration to the specified output path.
         cv2.imwrite(output_path, image_out)

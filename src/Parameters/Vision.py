@@ -107,23 +107,23 @@ class Analysis_Str(object):
         The structure of a completed scene analysis — everything the Scene
         Understanding panel renders from a single backend call.
 
+        The lead line is NOT a field here: the panel and the descriptions file both
+        render it from the shared Reporting.Screen_Header, so there is one source for it.
+
     Initialization of the Class:
         Args:
-            (1) Summary [string]: The lead sentence introducing the objects.
+            (1) Objects [Vector<Detection_Str(object)>]: The located objects, in order.
 
         Example:
             Initialization:
                 # Initialization of the structure.
-                Cls = Analysis_Str(Summary='The frame contains one object...')
+                Cls = Analysis_Str(Objects=[], Verdict='Empty')
 
             Features:
                 # Access the fields of the structure.
                 Cls.Objects; Cls.Note; Cls.Verdict; Cls.Verdict_Level; Cls.Task
     """
 
-    # The lead sentence introducing the objects (or the empty-scene statement).
-    #   Unit [string]
-    Summary: str = ''
     # The located objects, in the order the operator reads them.
     #   Unit [Vector<Detection_Str(object)>]
     Objects: tp.List[Detection_Str] = field(default_factory=list)

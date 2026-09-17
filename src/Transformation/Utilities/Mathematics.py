@@ -20,7 +20,7 @@
 # Author   : Roman Parak
 # Email    : Roman.Parak@outlook.com
 # Github   : https://github.com/rparak
-# File Name: Mathematics.py
+# File Name: ../Transformation/Utilities/Mathematics.py
 ## =========================================================================== ##
 
 # Numpy (Array computing)

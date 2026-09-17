@@ -484,26 +484,6 @@ def Describe_Object(det: Detection_Str, size: tp.Tuple[int, int]) -> str:
     return Object_Description(det)[0]
 
 
-def Summarise(objects: tp.List[Detection_Str]) -> str:
-    """
-    Description:
-        The lead sentence introducing the located objects.
-
-    Args:
-        (1) objects [Vector<Detection_Str(object)>]: The located objects.
-
-    Returns:
-        (1) parameter [string]: The summary sentence.
-    """
-
-    n = len(objects)
-    if n == 0:
-        return 'No objects were located in this frame.'
-    if n == 1:
-        return 'The frame contains one object, described as follows:'
-    return 'The frame contains %s objects, which are described as follows:' % Count_Word(n)
-
-
 def Scene_Note(objects: tp.List[Detection_Str], size: tp.Tuple[int, int], caption: str = '') -> str:
     """
     Description:
@@ -637,15 +617,19 @@ def Object_Line(index: int, det: Detection_Str) -> str:
 
 
 def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
-            caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str, str, tp.List[tp.Tuple[str, str]]]:
+            caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str, tp.List[tp.Tuple[str, str]]]:
     """
     Description:
         Write the line for every object (into det.Sentence) and return the objects
-        alongside the summary, the note and the post-processing audit. Each line is
-        stripped of the background and has its impossible substance guesses
-        neutralised; the audit records every strip and substitution, tagged with the
-        object index, so nothing the composer rewrote is silent. The objects are never
-        reordered here — their order is the operator-visible index contract.
+        alongside the note and the post-processing audit. Each line is stripped of the
+        background and has its impossible substance guesses neutralised; the audit
+        records every strip and substitution, tagged with the object index, so nothing
+        the composer rewrote is silent. The objects are never reordered here — their
+        order is the operator-visible index contract.
+
+        The lead line is NOT built here: the view and the descriptions file both render
+        it from the shared Screen_Header, so there is one source for it and no second
+        copy to drift.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
@@ -653,12 +637,12 @@ def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
         (3) caption [string]: An optional leading explanation for the note.
 
     Returns:
-        (1) parameter [Tuple]: (objects, summary, note, audit), where audit is a
-                               Vector of (level, message) records.
+        (1) parameter [Tuple]: (objects, note, audit), where audit is a Vector of
+                               (level, message) records.
     """
 
     audit = []
     for i, det in enumerate(objects):
         det.Sentence, records = Object_Description(det)
         audit.extend(('%s' % level, 'Obj. %d: %s' % (i + 1, message)) for level, message in records)
-    return objects, Summarise(objects), Scene_Note(objects, size, caption), audit
+    return objects, Scene_Note(objects, size, caption), audit

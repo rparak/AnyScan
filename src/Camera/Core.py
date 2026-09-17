@@ -44,19 +44,8 @@ Description:
         with no pylon and this module imports with none of them present.
 """
 # Absolute path to the project's src/ directory (this file lives in src/Camera/),
-# holding Camera.Basler, Camera.Utilities.Image_Processing and Calibration.Parameters.
+# holding Camera.Basler, Camera.Utilities.Image_Processing and Camera.Utilities.Configuration.
 CONST_BASLER_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-
-# The single source of truth for the Basler camera settings. Passed straight to
-# Camera.Basler.Basler_Cls, which also uses it as its own default — there is no
-# second, disagreeing copy. The keys are capitalized to match Basler_Cls.__Configure
-# exactly; lower-case keys are read by nothing.
-CONST_BASLER_CONFIG = {
-    'Exposure_Time': 10000,                                # microseconds
-    'Gain': 10,
-    'Balance_Ratios': {'Red': 0.95, 'Green': 0.9, 'Blue': 1.2},
-    'Pixel_Format': 'BayerRG8',
-}
 
 # Which Camera.Utilities.Image_Processing.Process_Image_Cls profile is applied to each
 # raw frame. 'real' is the profile written for the physical camera.
@@ -362,7 +351,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
             import numpy as np
             from Camera.Basler import Basler_Cls
             import Camera.Utilities.Image_Processing as Image_Processing
-            from Calibration.Parameters import Basler_Calib_Param_Str
+            from Camera.Utilities.Configuration import Read_Configuration, CONST_BASLER_CONFIG_FILE
         except ImportError as exc:
             raise Camera_Error_Cls(
                 'The Basler libraries could not be loaded from "%s". Check that '
@@ -370,10 +359,19 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                 "the project's src directory." % CONST_BASLER_SRC
             ) from exc
 
+        # The acquisition settings and the calibration are read from the project's
+        # single *.yaml configuration source, not hard-coded here. Reading it first
+        # means a missing or invalid configuration fails before the device is touched.
+        Basler_Cfg_Str = Read_Configuration(CONST_BASLER_CONFIG_FILE)
+        if Basler_Cfg_Str is None:
+            raise Camera_Error_Cls(
+                'The camera configuration could not be read from "%s".' % CONST_BASLER_CONFIG_FILE)
+
         # Basler_Cls connects inside its constructor and raises if no device is
-        # found, so a failure here is a connection failure.
+        # found, so a failure here is a connection failure. The image settings come
+        # straight from the configuration's Custom_Cfg block.
         try:
-            self.__cam = Basler_Cls(config=CONST_BASLER_CONFIG)
+            self.__cam = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
         except Exception as exc:                          # noqa: BLE001
             self.__cam = None
             raise Camera_Error_Cls(
@@ -392,7 +390,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         self.__cv2 = cv2
         self.__np = np
         self.__processor = Image_Processing.Process_Image_Cls(CONST_BASLER_IMAGE_PROFILE)
-        self.__calib = Basler_Calib_Param_Str
+        self.__calib = Basler_Cfg_Str.Calibration
         self.__undistort_cache = {}
 
         # Report the device's actual sensor size straight away, so the status strip

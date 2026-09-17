@@ -38,6 +38,8 @@ from Vision.Core import Florence_Vision_Cls
 import Vision.Segmenter as Vision_Segmenter
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
+#   ../Reporting/Core
+from Reporting.Core import Screen_Header
 
 """
 Description:
@@ -75,7 +77,8 @@ def test_pipeline_camera_to_reporting(reference_background_path, fake_backend) -
     # 'on a green surface' background phrase (§ object lines never mention the background).
     assert result.Objects[0].Sentence == 'A hex bolt.'
     assert all(o.Sentence for o in result.Objects)
-    assert result.Summary == 'The frame contains two objects, which are described as follows:'
+    # The shared Screen_Header states the count, agreeing with the object list.
+    assert 'There are 2 objects on it, described below.' in Screen_Header(result.Objects, result.Background)
     # The 0.2-confidence object drives the verdict.
     assert (result.Verdict, result.Verdict_Level) == ('Low confidence', 'warn')
 
@@ -151,7 +154,7 @@ def test_pipeline_real_florence_smoke(request, reference_background, make_synthe
         assert x + bw <= w and y + bh <= h
         # A described object always has a sentence; its exact words are not asserted.
         assert obj.Sentence
-    assert result.Summary
+    assert result.Objects
     assert result.Latency_Ms >= 0
 
 

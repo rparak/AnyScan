@@ -172,13 +172,15 @@ What is committed, and what you must supply:
 App/
   run.py                  the application (entry point)
   assets/                 UI images, committed
-    brand-jic.png           header mark
-    edih-digimat-dark.png   project wordmark, footer
-    partner-ministry.png    Ministry of Industry and Trade
-    funder-eu.png           Co-funded by the European Union
-    anyscan-mark.png        the AI mark shown in the empty viewport
-    icon.png / icon.ico     window icon; multi-size Windows icon
-    fonts/                  optional: drop Inter.ttf and JetBrainsMono.ttf here
+    anyscan-logo.svg          the AnyScan brand lockup (topbar)
+    brand-jic-mute.png        the JIC mark beside the lockup
+    edih-digimat-white.png    project wordmark, funding band
+    partner-ministry-white.png  Ministry of Industry and Trade
+    funder-eu-white.png       Funded by the European Union
+    anyscan-mark.png          the mark shown in the empty viewport
+    anyscan-mark-white.ico    the window / taskbar icon (multi-size, rounded)
+    icon.png                  fallback window icon
+    fonts/                    optional: drop Inter.ttf and JetBrainsMono.ttf here
 src/                      Qt-free domain modules + the UI (see "Source layout")
 Example/                  runnable scripts (scan, calibrate, the vision harness)
 Data/                     runtime INPUT consumed by the app — committed
@@ -209,7 +211,9 @@ than silently leaving a gap, so a broken asset path is visible immediately.
   caption utilities.
 - `Reporting/` — the report composer, the panel's one voice.
 - `UI/` — the widgets, the window, the threaded workers and the style helpers.
-- `Parameters/Vision.py` — the app's data structures (`Detection_Str`, `Analysis_Str`).
+- `Parameters/Vision.py` — the app's data structures (`Detection_Str`, `Analysis_Str`);
+  `Parameters/Camera.py` — the camera / calibration structures, populated from
+  `Configuration/*.yaml` by `Camera/Utilities/Configuration.py` (the camera backend reads it).
 
 These are the Qt-free domain modules plus the Qt UI; `App/run.py` imports only
 these, and the domain half imports with PyQt5 unavailable (a tested contract).
@@ -219,18 +223,18 @@ application; reached only from `Example/`:
 
 - `Transformation/` — homogeneous transforms, Euler angles, quaternions.
 - `Calibration/` — checkerboard camera calibration.
-- `Parameters/Scene.py` — the Basler camera / lighting scene presets.
 
 `Example/Camera/scan.py` and `calibrate.py` use both halves — they drive the real
-camera and calibrate it — but the app itself never imports `Transformation/`,
-`Calibration/` or `Parameters/Scene.py`. That is why those modules are held to a
-lighter style touch than the app.
+camera and calibrate it — but the app itself never imports `Transformation/` or
+`Calibration/`. That is why those modules are held to a lighter style touch than
+the app. The camera setup itself lives in `Configuration/*.yaml`, read and written
+through `Camera/Utilities/Configuration.py`.
 
 ## Packaging for Windows
 
 ```bash
 pip install pyinstaller
-pyinstaller --noconsole --icon App/assets/icon.ico \
+pyinstaller --noconsole --icon App/assets/anyscan-mark-white.ico \
     --add-data "App/assets;assets" App/run.py
 ```
 
@@ -269,5 +273,5 @@ classes — read them before starting, not after.
 
 ## Licence note
 
-The model is presented as `JIC-AnyScan-VLM-v1`. The weights are Florence-2,
+The model is presented as `JIC-AnyScan-v1`. The weights are Florence-2,
 MIT licensed — keep Microsoft's copyright notice with the project.

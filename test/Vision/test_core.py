@@ -104,5 +104,4 @@ def test_analyze_end_to_end(reference_background, make_synthetic_frame) -> None:
 
     assert isinstance(result, Analysis_Str)
     assert len(result.Objects) == 2
-    assert result.Summary
     assert result.Latency_Ms >= 0

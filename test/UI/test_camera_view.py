@@ -66,7 +66,7 @@ class _Counting_Vision_Cls(Vision_Backend_Cls):
 
     def Analyze(self, image, progress_cb=None, stage_cb=None) -> Analysis_Str:
         self.calls += 1
-        return Analysis_Str(Summary='ok', Objects=[], Verdict='Empty',
+        return Analysis_Str(Objects=[], Verdict='Empty',
                             Verdict_Level='idle', Task='count')
 
 
@@ -93,7 +93,7 @@ def _Scanned_Window(reference_background_path):
 
 def _Result() -> Analysis_Str:
     """An empty finished reading (both renders are valid for zero objects)."""
-    return Analysis_Str(Summary='ok', Objects=[], Verdict='Empty',
+    return Analysis_Str(Objects=[], Verdict='Empty',
                         Verdict_Level='idle', Task='t')
 
 

@@ -79,7 +79,6 @@ def test_analysis_str_defaults() -> None:
 
     analysis = Analysis_Str()
 
-    assert analysis.Summary == ''
     assert analysis.Objects == []
     assert analysis.Note == ''
     assert analysis.Latency_Ms == 0
@@ -118,6 +117,6 @@ def test_field_names_are_pascal_snake_case() -> None:
     assert detection_field_order == ['Label', 'Bbox', 'Confidence', 'Text', 'Detail',
                                      'Sentence', 'Mask', 'Change_Coverage', 'Segmenter_Score',
                                      'Cue', 'Enhanced_Crop']
-    assert analysis_fields == {'Summary', 'Objects', 'Note', 'Latency_Ms',
+    assert analysis_fields == {'Objects', 'Note', 'Latency_Ms',
                                'Verdict', 'Verdict_Level', 'Task', 'Raw_Mask_Count',
                                'Background', 'Audit'}

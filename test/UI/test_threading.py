@@ -78,7 +78,7 @@ class _Recording_Vision_Cls(Vision_Backend_Cls):
         if progress_cb:
             progress_cb(0, 1)
             progress_cb(1, 1)
-        return Analysis_Str(Summary='off-thread ok', Objects=[], Verdict='Empty',
+        return Analysis_Str(Objects=[], Verdict='Empty',
                             Verdict_Level='idle', Task='rec')
 
 
@@ -95,7 +95,7 @@ class _Blocking_Vision_Cls(Vision_Backend_Cls):
     def Analyze(self, image, progress_cb=None, stage_cb=None) -> Analysis_Str:
         self.calls += 1
         time.sleep(self.__seconds)
-        return Analysis_Str(Summary='blocked', Objects=[], Verdict='Empty',
+        return Analysis_Str(Objects=[], Verdict='Empty',
                             Verdict_Level='idle', Task='block')
 
 
@@ -141,7 +141,7 @@ def test_analysis_worker_runs_off_thread(qt_app) -> None:
 
     assert captured['failed'] is None
     assert isinstance(captured['result'], Analysis_Str)
-    assert captured['result'].Summary == 'off-thread ok'
+    assert captured['result'].Task == 'rec'
     # The queued cross-thread signals were delivered, in order.
     assert captured['progress'] == [(0, 1), (1, 1)]
     assert captured['stages'] == ['working']

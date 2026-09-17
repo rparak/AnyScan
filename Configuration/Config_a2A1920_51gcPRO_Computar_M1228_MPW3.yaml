@@ -1,0 +1,54 @@
+## =========================================================================== ##
+#   Description:
+#     Configuration of the machine-vision camera: sensor identity, resolution,
+#     vendor-specific acquisition settings, and intrinsic calibration.
+#
+#   Hardware setup:
+#     - Camera : Basler a2A1920-51gcPRO
+#     - Lens   : Computar M1228-MPW3
+#     - Light  : Effilux EFFI-FD-200-200-000
+## =========================================================================== ##
+
+Camera:
+  # Name of the camera (sensor + lens identifier).
+  Name: Basler_a2A1920_51gcPRO_Computar_M1228_MPW3
+
+  # Camera resolution in pixels (x, y) and resolution percentage.
+  Resolution:
+    x: 1920
+    y: 1200
+
+  # Custom camera configuration (vendor / API specific).
+  Custom_Cfg:
+    # How long the sensor is exposed to light during acquisition [us].
+    Exposure_Time: 10000
+    # Increases the brightness of the images output by the camera.
+    Gain: 10
+    # Manual white-balance correction so white objects appear white.
+    Balance_Ratios:
+      Red: 0.95
+      Green: 0.9
+      Blue: 1.2
+    # Sensor pixel format.
+    Pixel_Format: BayerRG8
+
+  # Calibration of the camera above.
+  #   Solved and (re)written by Example/Camera/calibrate.py
+  #   via Camera.Utilities.Configuration.Write_Calibration.
+  Calibration:
+    # Camera calibration (intrinsic) matrix K, 3 x 3, row-major.
+    K:
+      - [3.88598795e+03, 0.00000000e+00, 1.60700960e+02]
+      - [0.00000000e+00, 3.89857482e+03, 3.55549173e+02]
+      - [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]
+    # Distortion coefficients: [k1, k2, p1, p2, k3].
+    Coefficients:
+      k1: -0.18579372777320677
+      k2: 0.5423357370141956
+      p1: 0.0033749787534304047
+      p2: 0.018164117051808436
+      k3: -0.8791801691519703
+    # Pixel-to-millimeter conversion factors for the x and y axes [mm/px].
+    Conversion_Factor:
+      x: 0.09797791724417174
+      y: 0.0979737427598743

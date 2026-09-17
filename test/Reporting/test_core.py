@@ -74,20 +74,6 @@ def test_count_word() -> None:
     assert Reporting.Count_Word(11) == '11'
 
 
-def test_summarise_counts() -> None:
-    """
-    Description:
-        The lead sentence agrees with the object count in words.
-    """
-
-    assert Reporting.Summarise([]) == 'No objects were located in this frame.'
-    assert Reporting.Summarise([_Detection('a')]) == \
-        'The frame contains one object, described as follows:'
-    three = [_Detection('a'), _Detection('b'), _Detection('c')]
-    assert Reporting.Summarise(three) == \
-        'The frame contains three objects, which are described as follows:'
-
-
 def test_verdict_levels() -> None:
     """
     Description:
@@ -133,17 +119,16 @@ def test_compose_sets_sentence_and_never_reorders() -> None:
     """
     Description:
         Compose writes each object's Sentence and returns the objects in the same
-        order (the index contract), plus the summary and note.
+        order (the index contract), plus the note and the audit.
     """
 
     objects = [_Detection('washer', detail='A metal washer.'),
                _Detection('nut', detail='')]
-    returned, summary, note, audit = Reporting.Compose(objects, CONST_SIZE)
+    returned, note, audit = Reporting.Compose(objects, CONST_SIZE)
 
     assert returned is objects
     assert objects[0].Sentence == 'A metal washer.'
     assert objects[1].Sentence == 'A nut.'
-    assert summary == 'The frame contains two objects, which are described as follows:'
     assert note == ''
     assert audit == []                      # nothing stripped or substituted here
 

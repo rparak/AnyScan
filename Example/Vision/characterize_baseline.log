@@ -6,20 +6,20 @@ detail-sentences (SHOW_OBJECT_DETAIL) = True
 
 -- dataclasses --
 Detection: label='hex bolt' bbox=(10, 20, 30, 40) confidence=None text=None detail='a hex bolt on a green surface' sentence=''
-Analysis defaults: summary='' objects=[] note='' latency_ms=0 verdict='Idle' verdict_level='idle' task='detailed caption'
+Analysis defaults: objects=[] note='' latency_ms=0 verdict='Idle' verdict_level='idle' task='detailed caption'
 
 -- report composer --
 [scene: empty]
-  summary = No objects were located in this frame.
+  header  = The background is a plain green table. No objects were detected on it.
   note    = Either nothing is on the surface, or the model did not recognise what is there. Check the lighting and the focus, then scan again.
   verdict = Empty (idle)
 [scene: one object]
-  summary = The frame contains one object, described as follows:
-  object1 = A hex bolt on a green surface.
+  header  = The background is a plain green table. There is 1 object on it, described below.
+  object1 = A hex bolt.
   note    = ''
   verdict = 1 found (ok)
 [scene: several objects]
-  summary = The frame contains three objects, which are described as follows:
+  header  = The background is a plain green table. There are 3 objects on it, described below.
   object1 = A metal washer.
   object2 = A screw, reading “M6”.
   object3 = A nut.
@@ -38,11 +38,11 @@ reference 001 shape = (1200, 1920, 3)
 [pair: 001 vs 001 (identical -> expect no objects)]
   frame = 001 (identical to reference)
   foreground pixels = 0
-  candidate regions = 0
+  foreground components = 0
 [pair: 001 vs synthetic(001 + two rectangles)]
   frame = 001 with CONST_SYNTHETIC_RECTS drawn
-  foreground pixels = 151519
-  candidate regions = 2
-    box[00] = (  277,   276,   585,   585)
-    box[01] = ( 1175,   675,  1506,  1006)
+  foreground pixels = 149226
+  foreground components = 2
+    box[00] = (  299,   299,   562,   562)
+    box[01] = ( 1199,   699,  1482,   982)
 

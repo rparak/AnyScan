@@ -29,9 +29,6 @@ from pypylon import pylon
 import time
 # Typing (Support for type hints)
 import typing as tp
-# Custom Lib.: AnyScan domain — the camera configuration (single source of truth)
-#   ../Camera/Core
-from Camera.Core import CONST_BASLER_CONFIG
 
 
 ## =========================================================================== ##
@@ -94,32 +91,37 @@ class Basler_Cls:
 
     Initialization of the Class:
         Args:
-            (1) config [dict]: Image parameters (exposure time, gain, balance ratios).
+            (1) config [dict]: Required image parameters (Exposure_Time, Gain,
+                Balance_Ratios, Pixel_Format). Read from the *.yaml configuration by
+                Camera.Utilities.Configuration.Read_Configuration, which validates that
+                every required key is present.
             (2) max_retries [int]: Maximum number of connection attempts.
             (3) retry_delay [int]: Delay in seconds between attempts.
 
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = Basler_Cls(config={'Exposure_Time': 10000, 'Gain': 10})
+                Cls = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
 
             Features:
                 # Functions of the class.
                 Cls.Capture(); Cls.Is_Grabbing(); Cls.Print_Statistics()
     """
 
-    def __init__(self, config: tp.Optional[tp.Dict[str, tp.Any]] = None, max_retries: int = 10,
+    def __init__(self, config: tp.Dict[str, tp.Any], max_retries: int = 10,
                  retry_delay: int = 1) -> None:
         self.camera = None; self.tl_factory = None
         self.devices = None
 
-        # Image configuration. CONST_BASLER_CONFIG (../Camera/Core.py) is the single
-        # source of truth; a caller may override individual keys. Transport tuning
-        # lives in the module constants above (a property of the network hardware,
-        # not of the scene being captured).
-        self.config = dict(CONST_BASLER_CONFIG)
-        if config:
-            self.config.update(config)
+        # Image configuration is required: a camera started with unset exposure/gain
+        # must fail loudly, not silently. The values come from the *.yaml configuration
+        # (its required keys are validated by Read_Configuration). Transport tuning
+        # lives in the module constants above (a property of the network hardware, not
+        # of the scene being captured).
+        if not config:
+            raise ValueError('Basler_Cls requires a non-empty image configuration '
+                             '(Exposure_Time, Gain, Balance_Ratios, Pixel_Format).')
+        self.config = dict(config)
 
         # Attempt to connect to the camera.
         self.__Connect(max_retries, retry_delay)

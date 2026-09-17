@@ -28,9 +28,9 @@ segmentation behind a swappable seam, keeping Florence-2 for description.
   stages; masked crop fed to the describer by default; describer is Florence-2 or
   the new model-free `Describe_Fallback` (HSV colour classification).
   `Detection_Str` gained `Mask`, `Change_Coverage`, `Segmenter_Score`.
-- **Example** (`Example/Vision/analyze.py`, new): runs the whole pipeline, with
-  `--synthesize` and the full flag set, and writes `result.png`, `change_mask.png`,
-  per-object crop/mask/description files and `summary.json`.
+- **Example** (`Example/Vision/analyze.py`, new): runs the whole pipeline on a real
+  (reference, scene) image pair with the full flag set, and writes `result.png`,
+  `change_mask.png`, per-object crop/mask/description files and `summary.json`.
 - **Removed:** the `<REGION_PROPOSAL>` no-background detector, `Crop_With_Pad`, and
   orphaned constants. Dependencies gained `ultralytics`; the numpy floor was raised
   to 2.2 so a fresh install is not dragged down to numpy 1.x / opencv 4.x.
@@ -64,8 +64,8 @@ the flat green reference), never against hardware. See `KNOWN_ISSUES.md`.
 
 1. **Low-contrast parts.** FastSAM missed a mid-grey box and a near-black plate in
    synthetic scenes; grey / metallic / dark parts are exactly what this inspects.
-   The `analyze.py` demo uses saturated colours *because* of this, so a passing
-   `--synthesize` run shows the wiring works, not that all parts are found.
+   Saturated-colour scenes were used *because* of this, so a passing demo run shows
+   the wiring works, not that all parts are found.
 2. **Coverage gate + dilation.** Set them from real-object coverage numbers, not
    synthetic 1.0s. Watch for real objects sitting just above 0.35 (dilation too
    small).

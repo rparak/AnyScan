@@ -579,10 +579,10 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         """
 
         caption = '' if objects else CONST_EMPTY_SCENE_EXPLANATION
-        objects, summary, note, audit = Compose(objects, size, caption=caption)
+        objects, note, audit = Compose(objects, size, caption=caption)
         badge, level = Verdict(objects)
         latency_ms = int((time.perf_counter() - t0) * 1000)
-        return Analysis_Str(Summary=summary, Objects=objects, Note=note,
+        return Analysis_Str(Objects=objects, Note=note,
                             Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
                             Task=CONST_VISION_TASK_LABEL, Raw_Mask_Count=raw_mask_count,
                             Background=background_sentence, Audit=background_audit + audit)
