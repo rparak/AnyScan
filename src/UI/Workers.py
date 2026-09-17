@@ -75,6 +75,7 @@ class Analysis_Worker_Cls(QObject):
     Progress_Changed = pyqtSignal(int, int)  # (objects done, total)
     Analysis_Finished = pyqtSignal(object)   # the Analysis_Str
     Analysis_Failed = pyqtSignal(str)        # an actionable sentence for the panel
+    Log_Event = pyqtSignal(str, str)         # (level, message) from the Qt-free pipeline
 
     def __init__(self, vision: tp.Any, image: tp.List[tp.List[int]]) -> None:
         super().__init__()
@@ -97,6 +98,7 @@ class Analysis_Worker_Cls(QObject):
                 self.__image,
                 progress_cb=lambda done, total: self.Progress_Changed.emit(done, total),
                 stage_cb=lambda text: self.Stage_Changed.emit(text),
+                log_cb=lambda level, message: self.Log_Event.emit(level, message),
             )
         except Exception as exc:                          # noqa: BLE001
             # Every failure is a sentence the operator can act on; the panel prints

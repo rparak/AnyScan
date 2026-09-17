@@ -160,7 +160,8 @@ class Vision_Backend_Cls(object):
     Name = CONST_MODEL_NAME
 
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
-                stage_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
+                stage_cb: tp.Optional[tp.Callable] = None,
+                log_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
         """
         Description:
             Analyse one RGB frame and return the finished reading.
@@ -169,6 +170,9 @@ class Vision_Backend_Cls(object):
             (1) image [Matrix<uint8> HxWx3]: The frame as a contiguous RGB array.
             (2) progress_cb [function]: Optional (done, total) progress hook.
             (3) stage_cb [function]: Optional (text) phase hook.
+            (4) log_cb [function]: Optional (level, message) log sink for events worth
+                                   recording (e.g. a segmenter mode fallback). The Qt-free
+                                   layer emits through it rather than holding the logger.
 
         Returns:
             (1) parameter [Analysis_Str(object)]: The scene reading.
@@ -440,7 +444,8 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         return sentence, records
 
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
-                stage_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
+                stage_cb: tp.Optional[tp.Callable] = None,
+                log_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
         """
         Description:
             Analyse one RGB frame and return the finished reading. The default path is
@@ -452,6 +457,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             (1) image [Matrix<uint8> HxWx3]: The frame as a contiguous RGB array.
             (2) progress_cb [function]: Optional (done, total) progress hook.
             (3) stage_cb [function]: Optional (text) phase hook.
+            (4) log_cb [function]: Optional (level, message) log sink.
 
         Returns:
             (1) parameter [Analysis_Str(object)]: The finished scene reading.
@@ -477,7 +483,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         # FastSAM in everything-mode behind the Segmenter_Backend_Cls seam: the other
         # fused cue. In its own module so the lazy ultralytics import keeps a bare Core
         # import Qt-free and cheap. No region prompts — everything-mode separates parts.
-        masks, scores = self.__segmenter.Segment(frame_bgr, [], stage_cb)
+        masks, scores = self.__segmenter.Segment(frame_bgr, [], stage_cb, log_cb)
 
         # ---- Stage 3 - fusion (Vision.Utilities.Fusion) ----
         # The objects: the FastSAM union OR the background mask, closed, split into

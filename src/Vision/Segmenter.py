@@ -260,7 +260,8 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
         self.__device = device
 
     def __Predict(self, image: tp.List[tp.List[int]],
-                  regions: tp.List[tp.Tuple[int, int, int, int]]) -> tp.Tuple[tp.Any, bool]:
+                  regions: tp.List[tp.Tuple[int, int, int, int]],
+                  log_cb: tp.Optional[tp.Callable] = None) -> tp.Tuple[tp.Any, bool]:
         """
         Description:
             Run FastSAM once. Prefers box-prompting with the candidate regions; if
@@ -270,6 +271,7 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
         Args:
             (1) image [Matrix<uint8> HxWx3]: The frame (BGR).
             (2) regions [Vector<Tuple<int> 1x4>]: Candidate boxes as (x1, y1, x2, y2).
+            (3) log_cb [function]: Optional (level, message) log sink for the fallback.
 
         Returns:
             (1) parameter [Tuple]: (the ultralytics results, was_box_prompted [bool]).
@@ -291,14 +293,22 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
                 # bboxes= unsupported on this ultralytics, or the prompt failed:
                 # degrade to everything-mode rather than crash (and stop retrying).
                 self.__box_prompt_ok = False
-                print('[WARN] FastSAM box-prompt unavailable (%s); using everything-mode.'
-                      % type(exc).__name__)
+                message = ('FastSAM box-prompt unavailable (%s); using everything-mode'
+                           % type(exc).__name__)
+                if log_cb is not None:
+                    try:
+                        log_cb('WARNING', message)
+                    except Exception:                     # noqa: BLE001
+                        pass
+                else:
+                    print('[WARN] ' + message)
 
         results = self.__model(image, **common)
         return results, False
 
     def Segment(self, image: tp.List[tp.List[int]], regions: tp.List[tp.Tuple[int, int, int, int]],
-                stage_cb: tp.Optional[tp.Callable] = None) -> tp.Tuple[tp.List, tp.List[tp.Optional[float]]]:
+                stage_cb: tp.Optional[tp.Callable] = None,
+                log_cb: tp.Optional[tp.Callable] = None) -> tp.Tuple[tp.List, tp.List[tp.Optional[float]]]:
         """
         Description:
             Segment one frame into per-instance boolean masks at the frame resolution,
@@ -309,6 +319,7 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
             (1) image [Matrix<uint8> HxWx3]: The frame (BGR), full resolution.
             (2) regions [Vector<Tuple<int> 1x4>]: Candidate boxes as (x1, y1, x2, y2).
             (3) stage_cb [function]: Optional (text) phase hook.
+            (4) log_cb [function]: Optional (level, message) log sink for a mode fallback.
 
         Returns:
             (1) parameter [Tuple]: (masks as a Vector<Matrix<bool> HxW>, confidences
@@ -322,7 +333,7 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
 
         h, w = image.shape[:2]
         try:
-            results, was_box = self.__Predict(image, regions)
+            results, was_box = self.__Predict(image, regions, log_cb)
         except Exception as exc:                          # noqa: BLE001
             raise Segmenter_Error_Cls(
                 'The segmenter failed to process the frame. Check the device setting '

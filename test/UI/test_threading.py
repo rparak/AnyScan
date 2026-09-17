@@ -71,7 +71,7 @@ class _Recording_Vision_Cls(Vision_Backend_Cls):
         super().__init__()
         self.ran_on = None
 
-    def Analyze(self, image, progress_cb=None, stage_cb=None) -> Analysis_Str:
+    def Analyze(self, image, progress_cb=None, stage_cb=None, log_cb=None) -> Analysis_Str:
         self.ran_on = threading.current_thread().name
         if stage_cb:
             stage_cb('working')
@@ -92,7 +92,7 @@ class _Blocking_Vision_Cls(Vision_Backend_Cls):
         self.__seconds = seconds
         self.calls = 0
 
-    def Analyze(self, image, progress_cb=None, stage_cb=None) -> Analysis_Str:
+    def Analyze(self, image, progress_cb=None, stage_cb=None, log_cb=None) -> Analysis_Str:
         self.calls += 1
         time.sleep(self.__seconds)
         return Analysis_Str(Objects=[], Verdict='Empty',
@@ -164,7 +164,7 @@ def test_detection_verdict_survives_the_worker_boundary(qt_app) -> None:
 
         Name = 'Verdict'
 
-        def Analyze(self, image, progress_cb=None, stage_cb=None) -> Analysis_Str:
+        def Analyze(self, image, progress_cb=None, stage_cb=None, log_cb=None) -> Analysis_Str:
             return Analysis_Str(Objects=[
                 Detection_Str(Label='a', Bbox=(0, 0, 4, 4), Verdict='NOK'),
                 Detection_Str(Label='b', Bbox=(4, 4, 4, 4), Verdict='OK')],

@@ -114,3 +114,49 @@ def test_module_is_qt_free() -> None:
     source = open(Camera_Core.__file__).read()
     assert 'PyQt' not in source
     assert 'QImage' not in source
+
+
+class _Sink_Camera_Cls(Camera_Backend_Cls):
+    """A minimal backend for exercising the log sink."""
+
+    def _Open(self) -> None:
+        pass
+
+    def _Close(self) -> None:
+        pass
+
+    def _Grab(self):
+        return None
+
+    @property
+    def Resolution(self):
+        return (0, 0)
+
+
+def test_log_sink_delivers_level_and_message_and_never_raises() -> None:
+    """
+    Description:
+        The Qt-free camera emits (level, message) events through the injected sink — a
+        level plus a message, not a formatted line. The emit is wrapped so a sink that
+        raises can never break capture or connection: logging is not load-bearing.
+        Last_Capture_Retries defaults to 0 (the first grab succeeded).
+    """
+
+    camera = _Sink_Camera_Cls()
+    assert camera.Last_Capture_Retries == 0
+
+    received = []
+    camera.Set_Log_Callback(lambda level, message: received.append((level, message)))
+    camera._Log('WARNING', 'frame dropped')
+    assert received == [('WARNING', 'frame dropped')]
+
+    # A raising sink is swallowed — the camera keeps working.
+    def _Raising(level, message):
+        raise RuntimeError('sink is broken')
+
+    camera.Set_Log_Callback(_Raising)
+    camera._Log('ERROR', 'this must not propagate')     # no exception
+
+    # Clearing the sink is a no-op emit.
+    camera.Set_Log_Callback(None)
+    camera._Log('INFO', 'nothing wired')
