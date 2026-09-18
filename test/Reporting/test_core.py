@@ -249,23 +249,25 @@ def test_screen_understanding_assembly() -> None:
     assert Reporting.Screen_Understanding([], bg) == \
         'The background is a plain green table. No objects were detected on it.'
 
-    # One object: singular verb and noun, one numbered line.
+    # One object: singular verb and noun, one numbered line. The unscored fixture's label
+    # carries the 'Confidence —' suffix, since every label keeps the same shape.
     one = Reporting.Screen_Understanding([_Line('A washer.')], bg)
     assert one == ('The background is a plain green table. There is 1 object on it, '
-                   'described below.\n\nObj. 1 - A washer.')
+                   'described below.\n\nObject 1 · Confidence — - A washer.')
 
     # Several objects: plural, numbered from 1, in list order.
     several = Reporting.Screen_Understanding(
         [_Line('A washer.'), _Line('A bolt.'), _Line('A nut.')], bg)
     header, _, body = several.partition('\n\n')
     assert header.endswith('There are 3 objects on it, described below.')
-    assert body == 'Obj. 1 - A washer.\nObj. 2 - A bolt.\nObj. 3 - A nut.'
+    assert body == ('Object 1 · Confidence — - A washer.\nObject 2 · Confidence — - A bolt.'
+                    '\nObject 3 · Confidence — - A nut.')
 
     # An empty background sentence falls back to the neutral string — never a headless
     # count line ('There is 1 object on it' with no background named).
     assert Reporting.Screen_Understanding([_Line('A washer.')], '') == \
         (Reporting.CONST_BACKGROUND_FALLBACK
-         + ' There is 1 object on it, described below.\n\nObj. 1 - A washer.')
+         + ' There is 1 object on it, described below.\n\nObject 1 · Confidence — - A washer.')
 
 
 def test_screen_understanding_is_built_from_the_shared_pieces() -> None:
@@ -285,7 +287,35 @@ def test_screen_understanding_is_built_from_the_shared_pieces() -> None:
         + '\n'.join(Reporting.Object_Line(i, det) for i, det in enumerate(objects)))
     # The zero case is the header alone (no lines), and it names no object count as '0'.
     assert Reporting.Screen_Understanding([], bg) == Reporting.Screen_Header([], bg)
-    assert Reporting.Object_Line(0, _Line('A washer.')) == 'Obj. 1 - A washer.'
+    assert Reporting.Object_Line(0, _Line('A washer.')) == 'Object 1 · Confidence — - A washer.'
+
+
+def test_object_label_carries_the_confidence_suffix() -> None:
+    """
+    Description:
+        The object label is the name and the object's OWN confidence, from one source:
+        Object_Label is the bare name, Object_Confidence the score suffix (or '—' when the
+        object carries no score), and Object_Label_Full joins them with the shared separator
+        — the exact string Object_Line writes to the file and the panel renders in two
+        weights. A scored object reads its rounded percentage; an unscored one keeps the
+        field with an em dash so a missing score stays visible.
+    """
+
+    scored = _Detection('ring')
+    scored.Segmenter_Score = 0.906
+    unscored = _Detection('nut')                       # no Segmenter_Score
+
+    assert Reporting.Object_Label(0) == 'Object 1'
+    assert Reporting.Object_Confidence(scored) == 'Confidence 91%'   # rounded from 90.6%
+    assert Reporting.Object_Confidence(unscored) == 'Confidence —'
+
+    # The full label is the name and the suffix joined by the one shared separator.
+    assert Reporting.Object_Label_Full(0, scored) == 'Object 1 · Confidence 91%'
+    assert Reporting.Object_Label_Full(3, unscored) == 'Object 4 · Confidence —'
+
+    # The file line is the full label (confidence included) joined to the sentence.
+    scored.Sentence = 'A silver ring.'
+    assert Reporting.Object_Line(0, scored) == 'Object 1 · Confidence 91% - A silver ring.'
 
 
 def test_yolo_lines_are_normalised_and_indexed_from_the_object_list() -> None:

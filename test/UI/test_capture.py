@@ -120,7 +120,8 @@ def test_understanding_txt_is_the_given_text_under_a_stamp(tmp_path) -> None:
     """
 
     writer = Capture_Writer_Cls(str(tmp_path))
-    text = 'A green background. There are 2 objects on it, described below.\n\nObj. 1 - A ring.'
+    text = ('A green background. There are 2 objects on it, described below.'
+            '\n\nObject 1 · Confidence 91% - A ring.')
     _Write(writer, 's', 'set1', text=text)
     body = (tmp_path / 's' / 'set1_understanding.txt').read_text()
     assert body == '# stamp set1\n' + text + '\n'

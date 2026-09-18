@@ -58,7 +58,7 @@ from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines
 #   ../Parameters/Vision
-from Parameters.Vision import Analysis_Str
+from Parameters.Vision import Analysis_Str, Detection_Str
 # Custom Lib.: AnyScan — the session logger and the per-analysis capture writer
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
@@ -145,6 +145,11 @@ class AnyScan_Window_Cls(QMainWindow):
         # time in the status strip — a median so a single slow frame does not swing the
         # figure the operator reads. Reset with the counters on Clear.
         self.__latencies = []
+        # Every scored object's confidence across the WHOLE session, for the session MEAN
+        # in the status strip. Kept distinct from the per-frame mean the panel table shows:
+        # the status figure is the mean over every object in every analysis since the
+        # session began, the table figure the mean over one frame's objects. Reset on Clear.
+        self.__session_scores = []
         # The Camera View's remembered annotated/mask choice (§2b): it persists across
         # analyses in a session, so an operator working in mask view is not thrown back
         # to annotated by the next Analyze.
@@ -170,8 +175,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__reading_note = None
         self.__object_list = None
         self.__meta_task = None
-        self.__meta_objects = None
         self.__meta_latency = None
+        self.__meta_confidence = None
         self.__button_connect = None
         self.__button_disconnect = None
         self.__button_scan = None
@@ -335,7 +340,9 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             The Scene Understanding card: head, the scrolling reading body, and the
-            meta rows (task, objects, inference time).
+            meta rows (task, inference time, confidence mean) — every value for the
+            current frame. The object count is NOT among them: the lead sentence above
+            already states it, so a table row would only repeat it.
 
         Returns:
             (1) parameter [Card_Cls(object)]: The reading card.
@@ -400,9 +407,13 @@ class AnyScan_Window_Cls(QMainWindow):
         meta = QVBoxLayout()
         meta.setContentsMargins(0, 10, 0, 0)
         meta.setSpacing(0)
+        # Every value here is for the CURRENT frame — the whole panel describes one frame,
+        # so the labels carry no scope qualifier. 'Inference time' is this analysis's
+        # latency and 'Confidence (mean)' the mean across this frame's objects, distinct
+        # from the session median/mean in the status strip below.
         self.__meta_task = self.__Meta_Row(meta, 'Task', first=True)
-        self.__meta_objects = self.__Meta_Row(meta, 'Objects found')
         self.__meta_latency = self.__Meta_Row(meta, 'Inference time', mono=True)
+        self.__meta_confidence = self.__Meta_Row(meta, 'Confidence (mean)', mono=True)
         card.box.addLayout(meta)
         return card
 
@@ -982,8 +993,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__stage_badge.Set_State(result.Verdict, result.Verdict_Level)
 
         self.__meta_task.setText(result.Task)
-        self.__meta_objects.setText(str(len(result.Objects)))
         self.__meta_latency.setText('%d ms' % result.Latency_Ms)
+        self.__meta_confidence.setText(self.__Frame_Confidence_Text(result.Objects))
 
         self.__analyses += 1
         self.__objects_found += len(result.Objects)
@@ -995,14 +1006,16 @@ class AnyScan_Window_Cls(QMainWindow):
     def __Update_Performance_Stats(self, result: Analysis_Str) -> None:
         """
         Description:
-            Update the two performance cells from a completed analysis: the rolling
-            MEDIAN inference latency across the session's analyses (not per object, and a
-            median so one slow frame does not swing it), and the MEAN detector confidence
-            over the objects that carry a score, as a percentage only. Only FastSAM
-            supplies scores; objects the background cue alone found (Segmenter_Score None)
-            have none, so the mean is over exactly the scored objects (never averaged
-            silently over a partial set) and reads '—' when none is scored. The coverage
-            figure is kept for the log, not the status bar.
+            Update the two status-strip aggregate cells from a completed analysis, both over
+            the WHOLE session: the rolling MEDIAN inference latency across the session's
+            analyses (not per object, and a median so one slow frame does not swing it), and
+            the MEAN detector confidence over every scored object in every analysis since the
+            session began. This session mean is deliberately distinct from the per-frame mean
+            the panel table shows — they cover different scopes and will read different
+            numbers at the same time. Only FastSAM supplies scores; objects the background cue
+            alone found (Segmenter_Score None) have none, so the mean is over exactly the
+            scored objects (never averaged silently over a partial set) and reads '—' until
+            one object anywhere in the session is scored.
 
         Args:
             (1) result [Analysis_Str(object)]: The scene reading.
@@ -1011,14 +1024,39 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__latencies.append(result.Latency_Ms)
         self.__status.inference.Set_Value('%d ms' % int(statistics.median(self.__latencies)))
 
-        scores = [det.Segmenter_Score for det in result.Objects if det.Segmenter_Score is not None]
-        if scores:
-            # The status bar shows the percentage only — a number at a glance. The coverage
-            # (how many of the objects were scored) lives in the log, where it can be
-            # examined; '—' still stands for nothing scored.
-            self.__status.confidence.Set_Value('%d%%' % int(round(100.0 * sum(scores) / len(scores))))
+        self.__session_scores.extend(det.Segmenter_Score for det in result.Objects
+                                     if det.Segmenter_Score is not None)
+        if self.__session_scores:
+            mean = sum(self.__session_scores) / len(self.__session_scores)
+            self.__status.confidence.Set_Value('%d%%' % int(round(100.0 * mean)))
         else:
             self.__status.confidence.Set_Value(Style.CONST_NO_VALUE)
+
+    def __Frame_Confidence_Text(self, objects: tp.List[Detection_Str]) -> str:
+        """
+        Description:
+            The panel table's per-frame confidence: the MEAN detector score over exactly the
+            objects in THIS frame that carry a score. When some objects were found by the
+            background cue alone the coverage is shown alongside ('87% over 5 of 9'), since
+            the object list directly below marks which objects lack a score and the two
+            reconcile against each other; a fully scored frame needs no coverage and shows
+            the percentage alone. With nothing scored it reads '—' rather than '0%', which
+            would misstate an absent measurement as a zero confidence.
+
+        Args:
+            (1) objects [Vector<Detection_Str(object)>]: This frame's located objects.
+
+        Returns:
+            (1) parameter [string]: The frame confidence ('N%', 'N% over K of M' or '—').
+        """
+
+        scores = [det.Segmenter_Score for det in objects if det.Segmenter_Score is not None]
+        if not scores:
+            return Style.CONST_NO_VALUE
+        mean = int(round(100.0 * sum(scores) / len(scores)))
+        if len(scores) < len(objects):
+            return '%d%% over %d of %d' % (mean, len(scores), len(objects))
+        return '%d%%' % mean
 
     def __On_View_Toggle(self, view: str) -> None:
         """
@@ -1048,8 +1086,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__object_list.Set_Objects([])
         self.__stage_badge.Set_State('Idle', 'idle')
         self.__meta_task.setText(Style.CONST_NO_VALUE)
-        self.__meta_objects.setText(Style.CONST_NO_VALUE)
         self.__meta_latency.setText(Style.CONST_NO_VALUE)
+        self.__meta_confidence.setText(Style.CONST_NO_VALUE)
 
     def __On_Clear_Button_Clicked(self) -> None:
         """
@@ -1063,6 +1101,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__analyses = 0
         self.__objects_found = 0
         self.__latencies = []
+        self.__session_scores = []
         self.__viewport.Clear()
         self.__frame_badge.setText('No frame')
         self.__status.images.Set_Value('0')

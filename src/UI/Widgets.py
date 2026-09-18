@@ -39,7 +39,7 @@ import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline, Load_Logo
 # Custom Lib.: AnyScan domain — the shared Scene-Understanding formatter
 #   ../Reporting/Core
-from Reporting.Core import Object_Label
+from Reporting.Core import Object_Label, Object_Confidence, CONST_LABEL_SEPARATOR
 
 """
 Description:
@@ -667,14 +667,16 @@ class View_Toggle_Cls(QWidget):
 class Object_List_Cls(QWidget):
     """
     Description:
-        The numbered objects, each a two-level block: the label ('Obj. N') on its own
-        line, larger and bold, and the description beneath it, smaller and regular, with
-        vertical space between objects. The label comes from the shared
-        Reporting.Object_Label and the description from the object's own sentence — the
-        same source the Screen-Understanding file joins with Object_Line — so the panel
-        and the file cannot number or word an object differently. Everything is one colour
-        (Style.CONST_INK): the object's colour lives on the frame, not here, and the
-        hierarchy is size and weight, not colour. The type sizes come from the theme.
+        The numbered objects, each a two-level block: the label line ('Object N · Confidence
+        91%') on its own line, larger and bold, and the description beneath it, smaller and
+        regular, with vertical space between objects. The label line is the object name
+        (Reporting.Object_Label) leading and heavier and its own confidence
+        (Reporting.Object_Confidence) trailing and lighter, joined by the shared
+        CONST_LABEL_SEPARATOR — the same words the Screen-Understanding file writes as one
+        string (Object_Label_Full via Object_Line), so the panel and the file cannot number,
+        word or score an object differently. Everything is one colour (Style.CONST_INK): the
+        object's colour lives on the frame, not here, and the hierarchy is size and weight,
+        not colour. The type sizes come from the theme.
     """
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
@@ -703,8 +705,9 @@ class Object_List_Cls(QWidget):
     def __Object_Block(self, index: int, det: tp.Any) -> QWidget:
         """
         Description:
-            One object's two-level block: the shared label above, its description below,
-            both Style.CONST_INK, differentiated only by the theme's type sizes and weight.
+            One object's two-level block: the label line above (the name leading and heavier,
+            its confidence trailing and lighter), its description below, all Style.CONST_INK,
+            differentiated only by the theme's type sizes and weight.
 
         Args:
             (1) index [int]: The object's 0-based position.
@@ -719,10 +722,7 @@ class Object_List_Cls(QWidget):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(3)                             # tight label -> description
 
-        label = QLabel(Object_Label(index))
-        label.setFont(Font(Style.CONST_TYPE_OBJECT_LABEL, QFont.DemiBold))
-        label.setStyleSheet('color: %s;' % Style.CONST_INK)
-        column.addWidget(label)
+        column.addWidget(self.__Label_Line(index, det))
 
         description = QLabel(det.Sentence)
         description.setFont(Font(Style.CONST_TYPE_OBJECT_BODY))
@@ -730,6 +730,45 @@ class Object_List_Cls(QWidget):
         description.setStyleSheet('color: %s;' % Style.CONST_INK)
         column.addWidget(description)
         return block
+
+    def __Label_Line(self, index: int, det: tp.Any) -> QWidget:
+        """
+        Description:
+            One object's label line: the shared name (Object_Label) leading — the label size
+            and heavier — then its own confidence (Object_Confidence) trailing as secondary
+            metadata: one step down in the theme's type scale AND a lighter weight, so the
+            two do not read as one continuous run of text. Both come from the theme, never
+            colour, and the two rendered together spell exactly the file's Object_Label_Full,
+            one source in two renderings.
+
+        Args:
+            (1) index [int]: The object's 0-based position.
+            (2) det [Detection_Str(object)]: The object.
+
+        Returns:
+            (1) parameter [QWidget(object)]: The label-line widget.
+        """
+
+        line = QWidget()
+        row = QHBoxLayout(line)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+
+        name = QLabel(Object_Label(index))
+        name.setFont(Font(Style.CONST_TYPE_OBJECT_LABEL, QFont.DemiBold))
+        name.setStyleSheet('color: %s;' % Style.CONST_INK)
+        row.addWidget(name)
+
+        # The same separator the file's Object_Label_Full uses, so the two spellings match.
+        confidence = QLabel(CONST_LABEL_SEPARATOR + Object_Confidence(det))
+        # One step down from the name and a lighter weight — secondary metadata, not a
+        # continuation of the heading.
+        confidence.setFont(Font(Style.CONST_TYPE_OBJECT_CONFIDENCE))
+        confidence.setStyleSheet('color: %s;' % Style.CONST_INK)
+        row.addWidget(confidence)
+
+        row.addStretch(1)
+        return line
 
 
 class Stat_Cell_Cls(QWidget):
@@ -807,11 +846,14 @@ class Stat_Cell_Cls(QWidget):
 class Status_Strip_Cls(Card_Cls):
     """
     Description:
-        Hairline-divided cells across the full width. The cells (camera, resolution,
-        inference, confidence, system, updated, images, objects) are public so the window
-        can drive them. Inference is the rolling median analysis latency and confidence
-        the mean detector score with its coverage — how the machine is performing, next
-        to what it is connected to.
+        Hairline-divided cells across the full width. The cells (camera, resolution, system,
+        updated, images, objects, inference, confidence) are public so the window can drive
+        them. The order runs device state first (what the console is connected to), then the
+        session counts, then the two derived aggregates last, since those cover every frame
+        checked so far: inference is the session MEDIAN analysis latency (a median so one
+        slow frame does not swing it) and confidence the session MEAN detector score. Both
+        aggregate labels name their scope and their statistic — the two differ deliberately,
+        so flattening them to one word would misname them.
     """
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
@@ -822,15 +864,15 @@ class Status_Strip_Cls(Card_Cls):
 
         self.camera = Stat_Cell_Cls('Camera', 'Disconnected', dot=True)
         self.resolution = Stat_Cell_Cls('Resolution', Style.CONST_NO_VALUE, mono=True)
-        self.inference = Stat_Cell_Cls('Inference (median)', Style.CONST_NO_VALUE, mono=True)
-        self.confidence = Stat_Cell_Cls('Confidence (mean)', Style.CONST_NO_VALUE, mono=True)
         self.system = Stat_Cell_Cls('System', 'Ready', dot=True)
         self.updated = Stat_Cell_Cls('Last update', Style.CONST_NO_VALUE, mono=True)
         self.images = Stat_Cell_Cls('Images analysed', '0', big=True)
         self.objects = Stat_Cell_Cls('Objects detected', '0', big=True)
+        self.inference = Stat_Cell_Cls('Inference (session median)', Style.CONST_NO_VALUE, mono=True)
+        self.confidence = Stat_Cell_Cls('Confidence (session mean)', Style.CONST_NO_VALUE, mono=True)
 
-        for i, cell in enumerate([self.camera, self.resolution, self.inference, self.confidence,
-                                  self.system, self.updated, self.images, self.objects]):
+        for i, cell in enumerate([self.camera, self.resolution, self.system, self.updated,
+                                  self.images, self.objects, self.inference, self.confidence]):
             if i:
                 row.addWidget(Hairline(vertical=True))
             row.addWidget(cell, 1)

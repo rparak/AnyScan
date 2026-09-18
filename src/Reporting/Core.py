@@ -55,6 +55,18 @@ CONST_NUMBER_WORDS = {0: 'no', 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'fi
 #   False — a short 'A <label>.' distilled from the caption.
 CONST_SHOW_OBJECT_DETAIL = True
 
+# The middot that joins an object's name and its confidence in the label ('Object 1 ·
+# Confidence 91%'). One definition, so the panel (which renders the two parts in different
+# weights) and the descriptions file (which writes the label as one string) put the SAME
+# separator between them and cannot drift.
+CONST_LABEL_SEPARATOR = ' · '
+
+# What the confidence suffix shows when an object carries no score — the background cue
+# found it, so FastSAM emitted none. The field is kept rather than omitted so every
+# object's label reads the same shape and a missing score stays visible. It is the panel's
+# em dash, defined here (not imported from the Qt style) so this module stays Qt-free.
+CONST_NO_CONFIDENCE = '—'
+
 # What the panel says when the model finds nothing. It names both honest
 # possibilities; Scene_Note supplies the next action ('Check the lighting and the
 # focus, then scan again.'), so this is only the explanation and carries no
@@ -600,28 +612,74 @@ def Screen_Header(objects: tp.List[Detection_Str], background_sentence: str) -> 
 def Object_Label(index: int) -> str:
     """
     Description:
-        The numbered label of an object ('Obj. N', 1-based). The SINGLE source of the
-        label for both the descriptions file (via Object_Line) and the application panel,
-        which renders the label and the description on separate lines — so the two share
-        one label string and cannot number an object differently.
+        The numbered NAME of an object ('Object N', 1-based) — the part of the label the
+        object name occupies, without its confidence. The panel renders this leading and
+        heavier so the name leads; the confidence follows from Object_Confidence. The full
+        one-line label (name and confidence joined) is Object_Label_Full, the SINGLE source
+        the descriptions file and the panel both build from, so the two cannot number an
+        object differently.
 
     Args:
         (1) index [int]: The object's 0-based position in the list.
 
     Returns:
-        (1) parameter [string]: The label ('Obj. N').
+        (1) parameter [string]: The object name ('Object N').
     """
 
-    return 'Obj. %d' % (index + 1)
+    return 'Object %d' % (index + 1)
+
+
+def Object_Confidence(det: Detection_Str) -> str:
+    """
+    Description:
+        The confidence suffix of an object's label ('Confidence 91%'), from the object's
+        OWN score (det.Segmenter_Score) — the per-object figure, distinct from the frame
+        mean in the panel table and the session mean in the status bar. An object the
+        background cue alone found carries no score, and then the field reads 'Confidence
+        —' rather than being omitted, so every label keeps the same shape and a missing
+        score stays visible.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [string]: The confidence suffix ('Confidence N%' or 'Confidence —').
+    """
+
+    if det.Segmenter_Score is None:
+        return 'Confidence %s' % CONST_NO_CONFIDENCE
+    return 'Confidence %d%%' % int(round(100.0 * det.Segmenter_Score))
+
+
+def Object_Label_Full(index: int, det: Detection_Str) -> str:
+    """
+    Description:
+        The whole one-line label of an object — the name and its confidence joined by the
+        one CONST_LABEL_SEPARATOR ('Object 1 · Confidence 91%'). This is the SINGLE source
+        of the label text for both the descriptions file (via Object_Line) and the panel,
+        which renders the two parts (Object_Label and Object_Confidence) in different
+        weights so the name leads. Both renderings carry the same words and the same
+        separator, so they cannot drift.
+
+    Args:
+        (1) index [int]: The object's 0-based position in the list.
+        (2) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [string]: The full label ('Object N · Confidence …').
+    """
+
+    return '%s%s%s' % (Object_Label(index), CONST_LABEL_SEPARATOR, Object_Confidence(det))
 
 
 def Object_Line(index: int, det: Detection_Str) -> str:
     """
     Description:
-        One numbered object line ('Obj. N - <sentence>') for the descriptions file — the
-        label from Object_Label joined to the description, so the file keeps its one-line
-        form while the panel renders the same label and description on two lines. The
-        sentence is det.Sentence (already stripped of the background by Compose).
+        One numbered object line ('Object N · Confidence … - <sentence>') for the
+        descriptions file — the full label from Object_Label_Full joined to the
+        description, so the file keeps its one-line form while the panel renders the same
+        label and description on two levels. The sentence is det.Sentence (already stripped
+        of the background by Compose).
 
     Args:
         (1) index [int]: The object's 0-based position in the list.
@@ -631,7 +689,7 @@ def Object_Line(index: int, det: Detection_Str) -> str:
         (1) parameter [string]: The numbered line.
     """
 
-    return '%s - %s' % (Object_Label(index), det.Sentence)
+    return '%s - %s' % (Object_Label_Full(index, det), det.Sentence)
 
 
 def Yolo_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int]) -> tp.List[str]:

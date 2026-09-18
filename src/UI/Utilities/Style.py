@@ -80,13 +80,27 @@ CONST_TAGLINE = 'The camera sees, the model describes.'
 FONT_UI = 'Inter'       # resolved in Load_Fonts
 FONT_MONO = 'Consolas'  # resolved in Load_Fonts
 
-# The Scene-Understanding object type scale. Each object is a two-level block: the label
-# ('Obj. N') on its own line, larger and bold, and the description beneath it, smaller and
-# regular. The hierarchy is size and weight only — both lines are CONST_INK. The sizes are
-# named here so the panel reads them from the theme rather than hard-coding literals.
+# The console's modular type scale (point sizes), smallest to largest. The Scene-
+# Understanding tokens below name a STEP in this scale rather than a literal, so a size
+# change is 'move to the next step down', a real and uniform operation, and never a fresh
+# number at the call site.
+#   Unit [Vector<float>] (point sizes)
+CONST_TYPE_SCALE = (11.5, 12.5, 14.0, 15.5, 16.5, 18.0)
+
+# The Scene-Understanding type steps. The panel is a two-level block per object: the label
+# line ('Object N · Confidence …') larger and heavier, the description beneath it smaller
+# and regular; above them the background paragraph leads the panel. The hierarchy is size
+# and weight only — everything is CONST_INK. Each is one step DOWN from where it was: the
+# background paragraph and the object label came down one step together, and the label must
+# stay clearly larger and heavier than the description below it (14.0 DemiBold over 12.5
+# regular). The confidence suffix is one step DOWN from the name AND a lighter weight, so the
+# name is unmistakably the heading and the confidence reads as secondary metadata attached
+# to it — not one continuous run of text.
 #   Unit [float] (point size)
-CONST_TYPE_OBJECT_LABEL = 15.5
-CONST_TYPE_OBJECT_BODY = 12.5
+CONST_TYPE_SCENE_BACKGROUND = CONST_TYPE_SCALE[3]   # 15.5 — one step down from 16.5
+CONST_TYPE_OBJECT_LABEL = CONST_TYPE_SCALE[2]       # 14.0 — one step down from 15.5
+CONST_TYPE_OBJECT_CONFIDENCE = CONST_TYPE_SCALE[1]  # 12.5 — one step down from the label
+CONST_TYPE_OBJECT_BODY = CONST_TYPE_SCALE[1]        # 12.5 — unchanged, the description
 
 
 def Load_Fonts() -> None:

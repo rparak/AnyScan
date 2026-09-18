@@ -144,3 +144,33 @@ dataset only once ids are reassigned by actual class. **Revisit when** classific
 exists: the id then comes from the class, and this note is rewritten — the id stops being a
 per-frame handle and becomes a real label.
 Commit `44be4a6`; tests `test/Reporting/test_core.py::test_yolo_lines_are_normalised_and_indexed_from_the_object_list`, `test/UI/test_capture.py::test_yolo_file_holds_the_given_lines_and_classes_has_a_header`.
+
+## The three confidence figures have one home each, at three different scopes
+
+Confidence appears in three places, and they will show different numbers at the same time,
+so each has exactly one home and one scope:
+
+1. **Per object** — the object's own score (`Detection_Str.Segmenter_Score`), on its label
+   in the Scene-Understanding panel (`Object 1 · Confidence 91%`) and in the descriptions
+   `.txt` (both from the shared `Reporting.Object_Confidence`).
+2. **Per frame** — the mean over *this frame's* scored objects, in the panel's foot table
+   (`Confidence (mean)`), with coverage shown when the frame is only partly scored
+   (`87% over 5 of 9`) so it reconciles against the object list directly below it
+   (`AnyScan_Window_Cls.__Frame_Confidence_Text`).
+3. **Per session** — the mean over *every scored object in every analysis* since the session
+   began, in the status strip (`Confidence (session mean)`), beside the session-median
+   inference time.
+
+The status figure **accumulates individual object scores across analyses**
+(`AnyScan_Window_Cls.__session_scores`) and divides by their count — it does **not**
+recompute the current frame, and it is **not** the mean of the per-frame means. Per-object
+weighting is deliberate: a nine-object frame and a one-object frame must not count equally,
+which the mean of frame means would do. The status labels name both the scope and the
+statistic (`session median`, `session mean`) precisely because these scopes differ — a
+label that implied "session" while computing the frame is the class of bug where the UI
+looks right and quietly says something false (it existed: the status confidence recomputed
+the frame mean under a session label). Coverage stays out of the status bar (it lives in the
+log and the frame table). **Revisit if** a fourth scope is wanted (e.g. a rolling window of
+the last N analyses): add it as its own cell with its own scope in the label, never overload
+an existing one.
+Commit `b6922a7`; tests `test/UI/test_status_metrics.py::test_frame_mean_and_session_mean_are_over_their_own_scopes`, `::test_session_mean_weights_each_object_equally_not_each_frame`, `test/UI/test_reading_view.py::test_object_blocks_carry_the_shared_label_and_description`.

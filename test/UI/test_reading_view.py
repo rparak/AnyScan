@@ -39,7 +39,8 @@ from Camera.Core import File_Camera_Cls
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
-from Reporting.Core import Screen_Header, Object_Line, Object_Label
+from Reporting.Core import (Screen_Header, Object_Line, Object_Label, Object_Confidence,
+                           Object_Label_Full, CONST_LABEL_SEPARATOR)
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
 
@@ -66,9 +67,10 @@ def _Private(window, name: str):
     return getattr(window, CONST_MANGLE + name)
 
 
-def _Object(sentence: str) -> Detection_Str:
-    """A detection whose composed Sentence is preset."""
-    return Detection_Str(Label='part', Bbox=(0, 0, 8, 8), Sentence=sentence, Cue='both')
+def _Object(sentence: str, score=None) -> Detection_Str:
+    """A detection whose composed Sentence is preset, with an optional FastSAM score."""
+    return Detection_Str(Label='part', Bbox=(0, 0, 8, 8), Sentence=sentence, Cue='both',
+                         Segmenter_Score=score)
 
 
 def _Window_With(reference_background_path, result: Analysis_Str) -> AnyScan_Window_Cls:
@@ -81,17 +83,25 @@ def _Window_With(reference_background_path, result: Analysis_Str) -> AnyScan_Win
     return window
 
 
+def _Label_Line_Widgets(block):
+    """The (name, confidence, description) QLabels of one object block, in order."""
+    column = block.layout()
+    label_line = column.itemAt(0).widget()             # the label-line widget (name + conf)
+    description = column.itemAt(1).widget()            # the description QLabel
+    row = label_line.layout()
+    name = row.itemAt(0).widget()
+    confidence = row.itemAt(1).widget()
+    return name, confidence, description
+
+
 def _Line_Texts(window) -> list:
-    """The (label, description) text pair of each object block, in order."""
+    """The (name, confidence, description) text triple of each object block, in order."""
     layout = _Private(window, '__object_list').box
-    pairs = []
+    triples = []
     for i in range(layout.count()):
-        block = layout.itemAt(i).widget()
-        inner = block.layout()
-        labels = [inner.itemAt(j).widget() for j in range(inner.count())
-                  if isinstance(inner.itemAt(j).widget(), QLabel)]
-        pairs.append((labels[0].text(), labels[1].text()))
-    return pairs
+        name, confidence, description = _Label_Line_Widgets(layout.itemAt(i).widget())
+        triples.append((name.text(), confidence.text(), description.text()))
+    return triples
 
 
 def test_lead_is_the_shared_screen_header(qt_app, reference_background_path) -> None:
@@ -117,50 +127,68 @@ def test_lead_is_the_shared_screen_header(qt_app, reference_background_path) -> 
 def test_object_blocks_carry_the_shared_label_and_description(qt_app, reference_background_path) -> None:
     """
     Description:
-        Each object is a two-level block whose label is the shared Object_Label and whose
-        second line is the object's own sentence — the same values Object_Line joins for
-        the file — so the panel cannot number or word an object differently from the file.
+        Each object is a two-level block whose label line is the shared name
+        (Object_Label) plus its own confidence (Object_Confidence), joined by the shared
+        separator, and whose second line is the object's own sentence. The panel's two
+        label parts spell exactly the file's Object_Label_Full, and Object_Line joins that
+        full label to the same sentence — so the panel cannot number, word or score an
+        object differently from the file. A mix of scored and unscored objects exercises
+        both the '%' suffix and the '—' suffix.
     """
 
-    objects = [_Object('A silver ring.'), _Object('A blue bracket.'), _Object('A hex nut.')]
+    objects = [_Object('A silver ring.', 0.91), _Object('A blue bracket.', 0.83),
+               _Object('A hex nut.')]
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=objects, Background='A plain surface.',
                                        Verdict='3 found', Verdict_Level='ok', Task='caption'))
 
-    pairs = _Line_Texts(window)
-    assert len(pairs) == len(objects)
+    triples = _Line_Texts(window)
+    assert len(triples) == len(objects)
     for i, det in enumerate(objects):
-        label, description = pairs[i]
-        assert label == Object_Label(i)                 # 'Obj. N', the shared label
+        name, confidence, description = triples[i]
+        assert name == Object_Label(i)                  # 'Object N', the shared name
+        # The confidence part is the separator plus the shared confidence suffix.
+        assert confidence == CONST_LABEL_SEPARATOR + Object_Confidence(det)
+        # The two panel parts spell exactly the file's one-line full label.
+        assert name + confidence == Object_Label_Full(i, det)
         assert description == det.Sentence
-        # The file's one-line form is the two joined, so the panel and file cannot drift.
-        assert Object_Line(i, det) == '%s - %s' % (label, description)
+        # The file's one-line form is the full label and the sentence joined.
+        assert Object_Line(i, det) == '%s - %s' % (Object_Label_Full(i, det), description)
+
+    # The confidence suffix carries the object's own score, or '—' when it has none.
+    assert _Line_Texts(window)[0][1].endswith('Confidence 91%')
+    assert _Line_Texts(window)[2][1].endswith('Confidence —')
 
 
 def test_object_blocks_are_single_colour_two_level(qt_app, reference_background_path) -> None:
     """
     Description:
         Each object block is a SINGLE colour (Style.CONST_INK = '#2b2455') on two levels —
-        the label larger and bold, the description smaller and regular — the hierarchy is
-        size and weight, not colour, and there is no per-object colour on the text.
+        the label line larger and heavier, the description smaller and regular — the
+        hierarchy is size and weight, not colour, and there is no per-object colour on the
+        text. Within the label line the name leads: it is heavier than its confidence, which
+        shares the name's size but a lighter weight.
     """
 
-    objects = [_Object('A silver ring.'), _Object('A blue bracket.')]
+    objects = [_Object('A silver ring.', 0.91), _Object('A blue bracket.')]
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=objects, Background='A plain surface.',
                                        Verdict='2 found', Verdict_Level='ok', Task='caption'))
 
     layout = _Private(window, '__object_list').box
     for i in range(layout.count()):
-        inner = layout.itemAt(i).widget().layout()
-        label = inner.itemAt(0).widget()
-        description = inner.itemAt(1).widget()
-        # Both lines are the one panel colour, and neither carries a per-object colour.
-        assert Style.CONST_INK in label.styleSheet() and Style.CONST_INK in description.styleSheet()
-        assert 'border-left' not in label.styleSheet()
-        # The label is larger and bold than the description (size and weight, from the theme).
-        assert label.font().pointSizeF() > description.font().pointSizeF()
-        assert label.font().weight() > description.font().weight()
+        name, confidence, description = _Label_Line_Widgets(layout.itemAt(i).widget())
+        # All three lines are the one panel colour, and none carries a per-object colour.
+        for widget in (name, confidence, description):
+            assert Style.CONST_INK in widget.styleSheet()
+            assert 'border-left' not in widget.styleSheet()
+        # The label is larger and heavier than the description (size and weight, from the theme).
+        assert name.font().pointSizeF() > description.font().pointSizeF()
+        assert name.font().weight() > description.font().weight()
+        # The name is unmistakably the heading: its confidence is BOTH smaller and lighter,
+        # so the two do not read as one continuous run of text.
+        assert name.font().pointSizeF() > confidence.font().pointSizeF()
+        assert name.font().weight() > confidence.font().weight()
 
 
 def test_zero_objects_reads_sensibly(qt_app, reference_background_path) -> None:

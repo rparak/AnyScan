@@ -45,11 +45,14 @@ from Parameters.Vision import Detection_Str, Analysis_Str
 
 """
 Description:
-    Headless (offscreen) tests for the two status-strip performance fields (item 3): the
-    rolling MEDIAN inference latency and the MEAN detector confidence with its coverage.
-    They assert the empty-session state, the median rolling across analyses, the mean
-    computed over EXACTLY the scored objects with the coverage shown, the no-confidence
-    case, and the reset on Clear. No camera and no weights needed.
+    Headless (offscreen) tests for the status-strip aggregate fields and the panel table's
+    per-frame confidence. The status strip carries the SESSION figures — the rolling MEDIAN
+    inference latency and the MEAN detector confidence over every scored object in every
+    analysis; the panel table carries the FRAME figures — this analysis's latency and the
+    mean over this frame's objects. These tests assert the empty-session state, the median
+    rolling across analyses, the mean computed over EXACTLY the scored objects, the no-
+    confidence case, that the frame mean and the session mean are computed over their own
+    scopes (and so can differ), and the reset on Clear. No camera and no weights needed.
 """
 
 # The window's name-mangling prefix, for reaching its private state.
@@ -113,31 +116,29 @@ def test_inference_is_a_rolling_median_across_analyses(qt_app, reference_backgro
     assert status.inference.Value() == '200 ms'
 
 
-def test_confidence_is_the_mean_over_scored_objects_with_coverage(qt_app, reference_background_path) -> None:
+def test_status_confidence_is_the_session_mean_over_scored_objects(qt_app, reference_background_path) -> None:
     """
     Description:
-        The confidence cell is the mean over EXACTLY the objects that carry a score, with
-        the coverage shown so a partial set is never averaged silently: the mean's
-        denominator is the number of scored objects (not the total), the summed set is
-        exactly those objects (an unscored object is not counted as zero), and the
-        coverage fraction is scored-over-total. Scores [0.90, 0.80, None] read '85%'
-        (the coverage 2/3 is kept for the log, not the status bar).
+        The status confidence cell is the SESSION mean over EXACTLY the objects that carry a
+        score — a partial set is never averaged silently: the mean's denominator is the
+        number of scored objects (not the total) and the summed set is exactly those objects
+        (an unscored object is not counted as zero). For one analysis of [0.90, 0.80, None]
+        the session mean is 85% = mean(0.90, 0.80), denominator 2.
     """
 
     window = _Window(reference_background_path)
     status = _Private(window, '__status')
     _Private(window, '__On_Analysis_Finished')(_Result(100, [0.90, 0.80, None]))
 
-    # 85% = mean(0.90, 0.80) — denominator 2 (the scored count), NOT 3; coverage 2/3.
+    # 85% = mean(0.90, 0.80) — denominator 2 (the scored count), NOT 3.
     assert status.confidence.Value() == '85%'
 
 
-def test_confidence_denominator_is_the_scored_count_not_the_total(qt_app, reference_background_path) -> None:
+def test_status_confidence_denominator_is_the_scored_count_not_the_total(qt_app, reference_background_path) -> None:
     """
     Description:
-        Guards the exact fault the coverage exists to prevent — averaging over the whole
-        set. With one high score and two unscored objects, the mean must be the single
-        score (100%), not that score divided by three; the status bar shows the percentage only (the coverage is in the log).
+        Guards averaging over the whole set. With one high score and two unscored objects,
+        the mean must be the single score (100%), not that score divided by three.
     """
 
     window = _Window(reference_background_path)
@@ -146,12 +147,12 @@ def test_confidence_denominator_is_the_scored_count_not_the_total(qt_app, refere
     assert status.confidence.Value() == '100%'
 
 
-def test_confidence_is_no_value_when_no_object_has_a_score(qt_app, reference_background_path) -> None:
+def test_status_confidence_is_no_value_when_no_object_has_a_score(qt_app, reference_background_path) -> None:
     """
     Description:
-        When every object was found by the background cue alone (no FastSAM score), the
-        confidence cell is the no-value placeholder — never '0%', which would misstate an
-        absent measurement as a zero confidence.
+        When every object across the session was found by the background cue alone (no
+        FastSAM score), the confidence cell is the no-value placeholder — never '0%', which
+        would misstate an absent measurement as a zero confidence.
     """
 
     window = _Window(reference_background_path)
@@ -160,11 +161,77 @@ def test_confidence_is_no_value_when_no_object_has_a_score(qt_app, reference_bac
     assert status.confidence.Value() == Style.CONST_NO_VALUE
 
 
+def test_frame_mean_and_session_mean_are_over_their_own_scopes(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        The panel table's per-frame confidence and the status strip's per-session confidence
+        are computed over DIFFERENT scopes and read different numbers at the same time — the
+        fixture's two analyses carry different confidence so the two figures cannot
+        coincidentally agree and hide a wiring error. After analyses of [0.90] then [0.50]:
+        the frame table shows the last frame alone (50%), the status strip the session mean
+        (70% = mean(0.90, 0.50)).
+    """
+
+    window = _Window(reference_background_path)
+    status = _Private(window, '__status')
+    meta = _Private(window, '__meta_confidence')
+
+    _Private(window, '__On_Analysis_Finished')(_Result(100, [0.90]))
+    _Private(window, '__On_Analysis_Finished')(_Result(100, [0.50]))
+
+    assert meta.text() == '50%'                 # the frame: the last analysis alone
+    assert status.confidence.Value() == '70%'   # the session: every scored object
+    assert meta.text() != status.confidence.Value()
+
+
+def test_session_mean_weights_each_object_equally_not_each_frame(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        The session mean is over every scored OBJECT across all analyses, not the mean of the
+        per-frame means — the two differ whenever frames hold different object counts, and a
+        nine-object frame must not count the same as a one-object frame. A three-object frame
+        of [0.90, 0.90, 0.90] then a one-object frame of [0.30]: per object the mean is
+        (0.90·3 + 0.30) / 4 = 0.75 → 75%; the mean of frame means would be (0.90 + 0.30) / 2
+        = 0.60 → 60%. The cell must read 75%.
+    """
+
+    window = _Window(reference_background_path)
+    status = _Private(window, '__status')
+    _Private(window, '__On_Analysis_Finished')(_Result(100, [0.90, 0.90, 0.90]))
+    _Private(window, '__On_Analysis_Finished')(_Result(100, [0.30]))
+
+    assert status.confidence.Value() == '75%'   # per object; the mean-of-means 60% is wrong
+    assert _Private(window, '__session_scores') == [0.90, 0.90, 0.90, 0.30]
+
+
+def test_frame_confidence_shows_coverage_when_partial_and_dash_when_none(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        The panel table's frame confidence shows the coverage when the frame is only
+        partially scored ('X% over K of M'), the percentage alone when every object is
+        scored, and the no-value placeholder when nothing is scored — never '0%'. The object
+        list directly below shows which objects lack a score, so the coverage reconciles.
+    """
+
+    window = _Window(reference_background_path)
+    meta = _Private(window, '__meta_confidence')
+
+    _Private(window, '__On_Analysis_Finished')(_Result(100, [0.90, 0.80, None]))
+    assert meta.text() == '85% over 2 of 3'       # partial: coverage shown
+
+    _Private(window, '__On_Analysis_Finished')(_Result(100, [0.90, 0.80]))
+    assert meta.text() == '85%'                    # fully scored: percentage alone
+
+    _Private(window, '__On_Analysis_Finished')(_Result(100, [None, None]))
+    assert meta.text() == Style.CONST_NO_VALUE     # nothing scored: '—', not '0%'
+
+
 def test_clear_resets_the_performance_fields(qt_app, reference_background_path) -> None:
     """
     Description:
-        Clear resets the rolling median and the confidence, consistent with the session
-        counters it already resets — a new session starts from a clean slate.
+        Clear resets the rolling median, the session confidence and its accumulator, and the
+        frame table's confidence — consistent with the session counters it already resets, so
+        a new session starts from a clean slate.
     """
 
     window = _Window(reference_background_path)
@@ -175,4 +242,6 @@ def test_clear_resets_the_performance_fields(qt_app, reference_background_path) 
     _Private(window, '__On_Clear_Button_Clicked')()
     assert status.inference.Value() == Style.CONST_NO_VALUE
     assert status.confidence.Value() == Style.CONST_NO_VALUE
+    assert _Private(window, '__meta_confidence').text() == Style.CONST_NO_VALUE
     assert _Private(window, '__latencies') == []
+    assert _Private(window, '__session_scores') == []
