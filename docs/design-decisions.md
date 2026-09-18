@@ -173,4 +173,4 @@ the frame mean under a session label). Coverage stays out of the status bar (it 
 log and the frame table). **Revisit if** a fourth scope is wanted (e.g. a rolling window of
 the last N analyses): add it as its own cell with its own scope in the label, never overload
 an existing one.
-Commit `b6922a7`; tests `test/UI/test_status_metrics.py::test_frame_mean_and_session_mean_are_over_their_own_scopes`, `::test_session_mean_weights_each_object_equally_not_each_frame`, `test/UI/test_reading_view.py::test_object_blocks_carry_the_shared_label_and_description`.
+Commit `5191b73`; tests `test/UI/test_status_metrics.py::test_frame_mean_and_session_mean_are_over_their_own_scopes`, `::test_session_mean_weights_each_object_equally_not_each_frame`, `test/UI/test_reading_view.py::test_object_blocks_carry_the_shared_label_and_description`.
