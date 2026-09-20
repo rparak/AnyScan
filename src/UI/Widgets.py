@@ -777,16 +777,29 @@ class Object_List_Cls(QWidget):
         A `selectable` list (History) makes each block clickable — it emits Object_Selected
         with the object index and paints the chosen block — so a reviewer can investigate one
         object. The default (Live) is inert, where the operator only glances.
+
+        The three type sizes (label, description, confidence) are taken from the theme and
+        default to the LIVE Scene-Understanding tokens; a caller reading up close (the History
+        Info panel) passes the smaller Info tokens instead, so the same widget serves both
+        distances without either set of sizes moving the other.
     """
 
     # << SIGNAL >> #
     Object_Selected = pyqtSignal(int)
 
-    def __init__(self, selectable: bool = False, parent: tp.Optional[QWidget] = None) -> None:
+    def __init__(self, selectable: bool = False, label_size: tp.Optional[float] = None,
+                 body_size: tp.Optional[float] = None, confidence_size: tp.Optional[float] = None,
+                 parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         # << PRIVATE >> #
         self.__selectable = selectable
+        # The type sizes, from the theme (defaults are the Live tokens); a caller may pass the
+        # smaller Info-panel tokens.
+        self.__label_size = label_size if label_size is not None else Style.CONST_TYPE_OBJECT_LABEL
+        self.__body_size = body_size if body_size is not None else Style.CONST_TYPE_OBJECT_BODY
+        self.__confidence_size = (confidence_size if confidence_size is not None
+                                  else Style.CONST_TYPE_OBJECT_CONFIDENCE)
         self.__blocks = []
 
         self.box = QVBoxLayout(self)
@@ -862,7 +875,7 @@ class Object_List_Cls(QWidget):
         column.addWidget(self.__Label_Line(index, det))
 
         description = QLabel(det.Sentence)
-        description.setFont(Font(Style.CONST_TYPE_OBJECT_BODY))
+        description.setFont(Font(self.__body_size))
         description.setWordWrap(True)
         description.setStyleSheet('color: %s; background: transparent;' % Style.CONST_INK)
         column.addWidget(description)
@@ -892,15 +905,15 @@ class Object_List_Cls(QWidget):
         row.setSpacing(0)
 
         name = QLabel(Object_Label(index))
-        name.setFont(Font(Style.CONST_TYPE_OBJECT_LABEL, QFont.DemiBold))
+        name.setFont(Font(self.__label_size, QFont.DemiBold))
         name.setStyleSheet('color: %s;' % Style.CONST_INK)
         row.addWidget(name)
 
         # The same separator the file's Object_Label_Full uses, so the two spellings match.
         confidence = QLabel(CONST_LABEL_SEPARATOR + Object_Confidence(det))
-        # One step down from the name and a lighter weight — secondary metadata, not a
-        # continuation of the heading.
-        confidence.setFont(Font(Style.CONST_TYPE_OBJECT_CONFIDENCE))
+        # Smaller than the name and a lighter weight — secondary metadata, not a continuation
+        # of the heading.
+        confidence.setFont(Font(self.__confidence_size))
         confidence.setStyleSheet('color: %s;' % Style.CONST_INK)
         row.addWidget(confidence)
 

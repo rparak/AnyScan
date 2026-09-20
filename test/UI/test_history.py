@@ -371,6 +371,54 @@ def test_info_panel_opens_closes_and_narrows_without_covering(qt_app, tmp_path) 
     assert not view.Is_Info_Open()
 
 
+def test_info_panel_type_hierarchy_heading_is_largest(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The Info panel's type hierarchy is strictly largest → smallest: heading > object label >
+        body (the background paragraph AND the descriptions, one size) > the confidence suffix and
+        the unscored-object note. The heading is larger than everything beneath it, so an inverted
+        hierarchy (the old bug, where the background paragraph outran the heading) fails here.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'set1')
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+
+    heading = _Private(view, '__info_title').font().pointSizeF()
+    lead = _Private(view, '__info_lead').font().pointSizeF()
+    note = _Private(view, '__score_note').font().pointSizeF()
+
+    block = _Private(view, '__object_list').box.itemAt(0).widget()
+    label_line = block.layout().itemAt(0).widget().layout()
+    label_size = label_line.itemAt(0).widget().font().pointSizeF()
+    confidence_size = label_line.itemAt(1).widget().font().pointSizeF()
+    description_size = block.layout().itemAt(1).widget().font().pointSizeF()
+
+    # Strict descending hierarchy: heading > label > body > meta.
+    assert heading > label_size > description_size > confidence_size
+    # Everything sits below the heading.
+    assert heading > lead and heading > note
+    # Background paragraph and descriptions are one consistent body size.
+    assert lead == description_size
+    # Confidence suffix and the unscored note are the same smallest tier.
+    assert note == confidence_size
+
+
+def test_info_panel_text_is_smaller_than_the_live_panel(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The Info panel (read up close) uses smaller tokens than the Live Scene-Understanding block
+        (glanced at across a workbench) — separate tokens, so one cannot move the other.
+    """
+
+    import UI.Utilities.Style as Style
+    assert Style.CONST_TYPE_INFO_BODY < Style.CONST_TYPE_OBJECT_BODY
+    assert Style.CONST_TYPE_INFO_LABEL < Style.CONST_TYPE_OBJECT_LABEL
+    assert Style.CONST_TYPE_INFO_HEADING < Style.CONST_TYPE_SCENE_BACKGROUND
+
+
 def test_info_text_matches_the_shared_formatter(qt_app, tmp_path) -> None:
     """
     Description:

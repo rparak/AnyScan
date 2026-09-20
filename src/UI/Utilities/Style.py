@@ -81,33 +81,46 @@ CONST_TAGLINE = 'The camera sees, the model describes.'
 FONT_UI = 'Inter'       # resolved in Load_Fonts
 FONT_MONO = 'Consolas'  # resolved in Load_Fonts
 
-# The console's modular type scale (point sizes), smallest to largest. The Scene-
-# Understanding tokens below name a STEP in this scale rather than a literal, so a size
-# change is 'move to the next step down', a real and uniform operation, and never a fresh
-# number at the call site.
+# The console's modular type scale (point sizes), smallest to largest. Every type token below
+# names a STEP in this scale rather than a literal, so a size change is 'move to the next step',
+# a real and uniform operation, and never a fresh number at the call site.
 #   Unit [Vector<float>] (point sizes)
-CONST_TYPE_SCALE = (11.5, 12.5, 14.0, 15.5, 16.5, 18.0)
+CONST_TYPE_SCALE = (9.5, 10.5, 11.5, 12.5, 14.0, 15.5, 16.5, 18.0)
 
-# The Scene-Understanding type steps. The panel is a two-level block per object: the label
-# line ('Object N · Confidence …') larger and heavier, the description beneath it smaller
-# and regular; above them the background paragraph leads the panel. The hierarchy is size
-# and weight only — everything is CONST_INK. Each is one step DOWN from where it was: the
-# background paragraph and the object label came down one step together, and the label must
-# stay clearly larger and heavier than the description below it (14.0 DemiBold over 12.5
-# regular). The confidence suffix is one step DOWN from the name AND a lighter weight, so the
-# name is unmistakably the heading and the confidence reads as secondary metadata attached
-# to it — not one continuous run of text.
+# The LIVE Scene-Understanding type steps. The panel is a two-level block per object: the label
+# line ('Object N · Confidence …') larger and heavier, the description beneath it smaller and
+# regular; above them the background paragraph leads the panel. The hierarchy is size and weight
+# only — everything is CONST_INK. The label stays clearly larger and heavier than the description
+# below it (14.0 DemiBold over 12.5 regular); the confidence suffix is one step DOWN from the
+# name AND a lighter weight, so it reads as secondary metadata attached to the name.
+#
+# These are the LIVE sizes: the Scene-Understanding block is glanced at across a workbench, so it
+# runs large. The History Info panel (below) uses SEPARATE, smaller tokens because it is read up
+# close while comparing two images — keeping them apart means adjusting one distance cannot move
+# the other.
 #   Unit [float] (point size)
-CONST_TYPE_SCENE_BACKGROUND = CONST_TYPE_SCALE[3]   # 15.5 — one step down from 16.5
-CONST_TYPE_OBJECT_LABEL = CONST_TYPE_SCALE[2]       # 14.0 — one step down from 15.5
-CONST_TYPE_OBJECT_CONFIDENCE = CONST_TYPE_SCALE[1]  # 12.5 — one step down from the label
-CONST_TYPE_OBJECT_BODY = CONST_TYPE_SCALE[1]        # 12.5 — unchanged, the description
+CONST_TYPE_SCENE_BACKGROUND = CONST_TYPE_SCALE[5]   # 15.5
+CONST_TYPE_OBJECT_LABEL = CONST_TYPE_SCALE[4]       # 14.0
+CONST_TYPE_OBJECT_CONFIDENCE = CONST_TYPE_SCALE[3]  # 12.5 — one step down from the label
+CONST_TYPE_OBJECT_BODY = CONST_TYPE_SCALE[3]        # 12.5 — the description
 
-# The Log-view row type size — the smallest scale step, so a long session stays legible at
-# length. The timestamp and level render at this size in the monospace family (fixed-width,
-# so the message column starts at a consistent x); the message at this size in the UI family.
+# The HISTORY INFO-PANEL type steps. Read up close, so smaller than the Live sizes, and ordered
+# strictly largest → smallest: heading, then the object label (bold, for list structure), then
+# the body (the background paragraph AND the descriptions, one consistent size), then the
+# smallest tier (the confidence suffix and the unscored-object note). The heading is the largest
+# thing in the panel — everything sits below it. Separate from the Live tokens on purpose (see
+# above), so the two cannot drift into each other.
 #   Unit [float] (point size)
-CONST_TYPE_LOG = CONST_TYPE_SCALE[0]                # 11.5 — the log row size
+CONST_TYPE_INFO_HEADING = CONST_TYPE_SCALE[3]       # 12.5 — the panel heading, largest
+CONST_TYPE_INFO_LABEL = CONST_TYPE_SCALE[2]         # 11.5 — object labels (bold), under heading
+CONST_TYPE_INFO_BODY = CONST_TYPE_SCALE[1]          # 10.5 — background paragraph + descriptions
+CONST_TYPE_INFO_META = CONST_TYPE_SCALE[0]          # 9.5  — confidence suffix + unscored note
+
+# The Log-view row type size, so a long session stays legible at length. The timestamp and level
+# render at this size in the monospace family (fixed-width, so the message column starts at a
+# consistent x); the message at this size in the UI family.
+#   Unit [float] (point size)
+CONST_TYPE_LOG = CONST_TYPE_SCALE[2]                # 11.5 — the log row size
 
 
 def Load_Fonts() -> None:

@@ -567,26 +567,32 @@ class History_View_Cls(QWidget):
         column.setContentsMargins(14, 0, 2, 0)
         column.setSpacing(10)
 
-        title = QLabel('Scene understanding')
-        title.setFont(Font(11, QFont.DemiBold, tracking=-1))
-        title.setStyleSheet('color: %s;' % Style.CONST_INK)
-        column.addWidget(title)
+        self.__info_title = QLabel('Scene understanding')
+        self.__info_title.setFont(Font(Style.CONST_TYPE_INFO_HEADING, QFont.DemiBold, tracking=-1))
+        self.__info_title.setStyleSheet('color: %s;' % Style.CONST_INK)
+        column.addWidget(self.__info_title)
 
         body = QWidget()
         body.setStyleSheet('background: transparent;')
         body_col = QVBoxLayout(body)
         body_col.setContentsMargins(0, 0, 0, 0)
         body_col.setSpacing(12)
+        # The background paragraph is body text — the same size as the object descriptions, and
+        # below the object labels and the heading (read up close, so the Info tokens, not the
+        # larger Live ones).
         self.__info_lead = QLabel()
-        self.__info_lead.setFont(Font(Style.CONST_TYPE_SCENE_BACKGROUND, QFont.DemiBold, tracking=-1))
+        self.__info_lead.setFont(Font(Style.CONST_TYPE_INFO_BODY))
         self.__info_lead.setWordWrap(True)
         self.__info_lead.setStyleSheet('color: %s;' % Style.CONST_INK)
         body_col.addWidget(self.__info_lead)
-        self.__object_list = Object_List_Cls(selectable=True)
+        self.__object_list = Object_List_Cls(selectable=True,
+                                             label_size=Style.CONST_TYPE_INFO_LABEL,
+                                             body_size=Style.CONST_TYPE_INFO_BODY,
+                                             confidence_size=Style.CONST_TYPE_INFO_META)
         self.__object_list.Object_Selected.connect(self.__On_Object_Selected)
         body_col.addWidget(self.__object_list)
         self.__score_note = QLabel()
-        self.__score_note.setFont(Font(9))
+        self.__score_note.setFont(Font(Style.CONST_TYPE_INFO_META))
         self.__score_note.setWordWrap(True)
         self.__score_note.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
         self.__score_note.hide()
