@@ -947,6 +947,27 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__logger.Log_Info('Capture set %s written.' % set_id)
         self.__Log_Seg_Points(seg)
         self.__Log_Capture_Evictions(evicted)
+        self.__Refresh_History(evicted)
+
+    def __Refresh_History(self, evicted: tp.List[str]) -> None:
+        """
+        Description:
+            Keep History current with the rolling window after a capture write: if the set the
+            operator is viewing in History was just evicted, log that at INFO (so the reason is
+            findable), then rebuild the grid — which makes a newly written set appear while the
+            operator sits in History, and clears the detail with a note if the viewed set is gone.
+
+        Args:
+            (1) evicted [Vector<string>]: The set ids evicted by this write.
+        """
+
+        if self.__history_view is None:
+            return
+        selected = self.__history_view.Selected_Set_Id()
+        if selected is not None and selected in evicted and self.__logger is not None:
+            self.__logger.Log_Info('The capture set shown in History (%s) was evicted to stay '
+                                   'within the retention limit; History cleared it.' % selected)
+        self.__history_view.Refresh()
 
     def __Log_Seg_Points(self, seg_lines: tp.List[str]) -> None:
         """
@@ -1071,6 +1092,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__logger.Log_Warning('Wrote a partial capture set %s for the failed analysis. It '
                                   'holds the raw frame only.' % set_id)
         self.__Log_Capture_Evictions(evicted)
+        self.__Refresh_History(evicted)
 
     def __Show_Analysis(self, result: Analysis_Str, annotated_bgr: tp.Any, mask_bgr: tp.Any) -> None:
         """

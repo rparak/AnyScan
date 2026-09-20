@@ -135,9 +135,111 @@ def test_selecting_a_full_set_renders_the_object_list(qt_app, tmp_path) -> None:
     # Refresh selects the first (only) set.
     assert _Private(view, '__object_list').box.count() == 2
     assert _Private(view, '__banner').isHidden()
+    assert _Private(view, '__identity_id').text() == 'set1'
+    assert _Private(view, '__meta_session').text() == 'sessionA'
+    assert _Private(view, '__meta_objects').text() == '2'
     assert _Private(view, '__meta_task').text() == 'caption'
     assert _Private(view, '__meta_latency').text() == '1180 ms'
     assert _Private(view, '__meta_confidence').text() == '91%'
+
+
+def test_clicking_an_object_highlights_it_in_the_image(qt_app, tmp_path) -> None:
+    """
+    Description:
+        History is for investigating, so an object row is selectable: clicking one marks the row
+        and highlights that object's box in the image (mapped through the image fit). Object 2's
+        box is the highlight after selecting index 1.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'set1')
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    cap = _Private(view, '__detail_cap')
+    _Private(view, '__On_Object_Selected')(1)
+
+    image = _Private(view, '__image')
+    assert getattr(image, '_History_Image_Cls__highlight') == tuple(cap.Objects[1].Bbox)
+
+
+def test_missing_score_note_explains_unscored_objects(qt_app, tmp_path) -> None:
+    """
+    Description:
+        An object with no FastSAM score shows 'Confidence —'; a single foot note (not per row)
+        explains that such objects were found by background subtraction. The note appears only
+        when at least one object is unscored.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    # One scored + one unscored object.
+    scored = Detection_Str(Label='a', Bbox=(1, 1, 5, 5), Segmenter_Score=0.9, Sentence='A.',
+                           Verdict='OK', Cue='both')
+    unscored = Detection_Str(Label='b', Bbox=(7, 7, 5, 5), Segmenter_Score=None, Sentence='B.',
+                             Verdict='OK', Cue='background')
+    raw = np.full((40, 60, 3), 30, np.uint8)
+    md = Build_Set_Metadata('sessionA', 'set1', '2026-09-20T10:00:00', [scored, unscored],
+                            (60, 40), 'caption', 1000, 90)
+    writer.Write('sessionA', 'set1', raw, raw, np.zeros((40, 60, 3), np.uint8), 'text',
+                 ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np)
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    note = _Private(view, '__score_note')
+    assert not note.isHidden()
+    assert 'background subtraction' in note.text()
+
+
+def test_evicting_the_selected_set_clears_the_detail_with_a_note(qt_app, tmp_path) -> None:
+    """
+    Description:
+        Retention can delete the set the operator is viewing. When a Refresh finds the selected
+        set gone (evicted), the view clears the detail with a note saying it fell outside the
+        retention window and drops the selection — never pointing at deleted files, never
+        raising.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'keep')
+    _Write_Full(writer, 'sessionA', 'gone')
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    getattr(view, '_History_View_Cls__Select')(
+        next(c for c in _Private(view, '__sets') if c.Set_Id == 'gone'))
+    assert view.Selected_Set_Id() == 'gone'
+
+    # Simulate eviction: remove the selected set's files, then refresh.
+    for name in os.listdir(str(tmp_path / 'sessionA')):
+        if name.startswith('gone'):
+            os.remove(str(tmp_path / 'sessionA' / name))
+    view.Refresh()
+
+    assert view.Selected_Set_Id() is None                 # selection dropped
+    assert not _Private(view, '__banner').isHidden()
+    assert 'retention window' in _Private(view, '__banner').text()
+
+
+def test_a_new_set_appears_on_refresh_keeping_the_selection(qt_app, tmp_path) -> None:
+    """
+    Description:
+        A set analysed while the operator sits in History appears on the next Refresh (the window
+        refreshes History on every write), and the current selection is preserved rather than
+        being reset to the newest.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'first')
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    assert len(_Private(view, '__cards')) == 1
+    assert view.Selected_Set_Id() == 'first'
+
+    _Write_Full(writer, 'sessionA', 'second')             # a new analysis lands
+    view.Refresh()
+    assert len(_Private(view, '__cards')) == 2             # it appears
+    assert view.Selected_Set_Id() == 'first'              # selection kept
 
 
 def test_partial_set_renders_without_error(qt_app, tmp_path) -> None:

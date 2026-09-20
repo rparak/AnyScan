@@ -713,6 +713,53 @@ class View_Toggle_Cls(Segmented_Control_Cls):
         self.Set_Selection(view)
 
 
+class Object_Block_Cls(QWidget):
+    """
+    Description:
+        One object's two-level block inside Object_List_Cls. It carries its object index and,
+        when the list is selectable (History), emits Clicked on a left click and paints a
+        selection tint. In the non-selectable list (Live) it is an inert container.
+    """
+
+    # << SIGNAL >> #
+    Clicked = pyqtSignal(int)
+
+    def __init__(self, index: int, selectable: bool, parent: tp.Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+
+        # << PRIVATE >> #
+        self.__index = index
+        self.__selectable = selectable
+
+        self.setObjectName('objBlock')
+        if selectable:
+            self.setCursor(Qt.PointingHandCursor)
+        self.Set_Selected(False)
+
+    def Set_Selected(self, selected: bool) -> None:
+        """
+        Description:
+            Paint (or clear) the selection tint. Only a selectable block ever shows it.
+
+        Args:
+            (1) selected [bool]: Whether this block is the selected one.
+        """
+
+        tint = Style.CONST_LINE if (selected and self.__selectable) else 'transparent'
+        self.setStyleSheet('#objBlock { background: %s; border-radius: 7px; }' % tint)
+
+    # << QT OVERRIDE >> #
+    def mousePressEvent(self, event: tp.Any) -> None:
+        """
+        Description:
+            Emit Clicked with this block's index on a left click, when selectable.
+        """
+
+        if self.__selectable and event.button() == Qt.LeftButton:
+            self.Clicked.emit(self.__index)
+        super().mousePressEvent(event)
+
+
 class Object_List_Cls(QWidget):
     """
     Description:
@@ -726,10 +773,22 @@ class Object_List_Cls(QWidget):
         word or score an object differently. Everything is one colour (Style.CONST_INK): the
         object's colour lives on the frame, not here, and the hierarchy is size and weight,
         not colour. The type sizes come from the theme.
+
+        A `selectable` list (History) makes each block clickable — it emits Object_Selected
+        with the object index and paints the chosen block — so a reviewer can investigate one
+        object. The default (Live) is inert, where the operator only glances.
     """
 
-    def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
+    # << SIGNAL >> #
+    Object_Selected = pyqtSignal(int)
+
+    def __init__(self, selectable: bool = False, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
+
+        # << PRIVATE >> #
+        self.__selectable = selectable
+        self.__blocks = []
+
         self.box = QVBoxLayout(self)
         self.box.setContentsMargins(0, 0, 0, 0)
         self.box.setSpacing(16)                          # vertical space between objects
@@ -737,7 +796,8 @@ class Object_List_Cls(QWidget):
     def Set_Objects(self, objects: tp.List) -> None:
         """
         Description:
-            Rebuild the two-level object blocks from the located objects.
+            Rebuild the two-level object blocks from the located objects, clearing any
+            selection.
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The located objects.
@@ -745,18 +805,39 @@ class Object_List_Cls(QWidget):
 
         while self.box.count():
             item = self.box.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            widget = item.widget()
+            if widget:
+                # Unparent NOW (not just deleteLater): takeAt removes the layout item but leaves
+                # the widget a child, still painted at its old spot until the deferred delete
+                # runs — a rapid rebuild then shows the previous rows behind the new ones.
+                widget.setParent(None)
+                widget.deleteLater()
+        self.__blocks = []
 
         for i, det in enumerate(objects):
-            self.box.addWidget(self.__Object_Block(i, det))
+            block = self.__Object_Block(i, det)
+            self.__blocks.append(block)
+            self.box.addWidget(block)
+
+    def Set_Selected(self, index: tp.Optional[int]) -> None:
+        """
+        Description:
+            Paint the block at `index` as selected and clear the rest (None clears all).
+
+        Args:
+            (1) index [int or None]: The selected object index, or None.
+        """
+
+        for i, block in enumerate(self.__blocks):
+            block.Set_Selected(i == index)
 
     def __Object_Block(self, index: int, det: tp.Any) -> QWidget:
         """
         Description:
             One object's two-level block: the label line above (the name leading and heavier,
             its confidence trailing and lighter), its description below, all Style.CONST_INK,
-            differentiated only by the theme's type sizes and weight.
+            differentiated only by the theme's type sizes and weight. A selectable block relays
+            its click as Object_Selected(index).
 
         Args:
             (1) index [int]: The object's 0-based position.
@@ -766,9 +847,16 @@ class Object_List_Cls(QWidget):
             (1) parameter [QWidget(object)]: The block widget.
         """
 
-        block = QWidget()
+        block = Object_Block_Cls(index, self.__selectable)
+        # Never let a layout shrink a block below its content: a 'Minimum' vertical policy makes
+        # the block's sizeHint its floor, so in a tight scroll the list scrolls rather than
+        # compressing the rows on top of each other.
+        block.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        if self.__selectable:
+            block.Clicked.connect(self.Object_Selected)
         column = QVBoxLayout(block)
-        column.setContentsMargins(0, 0, 0, 0)
+        pad = 8 if self.__selectable else 0              # room for the selection tint
+        column.setContentsMargins(pad, pad // 2, pad, pad // 2)
         column.setSpacing(3)                             # tight label -> description
 
         column.addWidget(self.__Label_Line(index, det))
@@ -776,7 +864,7 @@ class Object_List_Cls(QWidget):
         description = QLabel(det.Sentence)
         description.setFont(Font(Style.CONST_TYPE_OBJECT_BODY))
         description.setWordWrap(True)
-        description.setStyleSheet('color: %s;' % Style.CONST_INK)
+        description.setStyleSheet('color: %s; background: transparent;' % Style.CONST_INK)
         column.addWidget(description)
         return block
 

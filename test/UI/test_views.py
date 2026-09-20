@@ -186,3 +186,24 @@ def test_log_view_seeds_from_the_file_and_then_follows_the_sink(qt_app, referenc
 
     logger.Set_Line_Sink(None)                           # detach before the tmp logger is gone
     logger.Close()
+
+
+def test_evicting_the_displayed_history_set_is_logged(qt_app, reference_background_path, tmp_path) -> None:
+    """
+    Description:
+        When retention evicts the set currently shown in History, the reason is findable: the
+        window logs the eviction of the displayed set at INFO (and refreshes History, which
+        clears it). Here the History selection is set and __Refresh_History is told that set was
+        evicted; the log must record it by id.
+    """
+
+    logger = Session_Logger_Cls(log_dir=str(tmp_path), install_handlers=False)
+    window = _Framed_Window(reference_background_path, logger=logger)
+    history = _Private(window, '__history_view')
+    setattr(history, '_History_View_Cls__selected_id', 'setX')   # pretend it is on display
+
+    _Private(window, '__Refresh_History')(['setX', 'setY'])      # setX was evicted
+    logger.Close()
+
+    content = open(logger.Path, 'r', encoding='utf-8').read()
+    assert 'shown in History (setX) was evicted' in content
