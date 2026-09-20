@@ -934,7 +934,8 @@ class AnyScan_Window_Cls(QMainWindow):
         frame_mean = int(round(100.0 * sum(scores) / len(scores))) if scores else None
         timestamp = datetime.now().isoformat(timespec='seconds')
         metadata = Build_Set_Metadata(self.__session_id, set_id, timestamp, result.Objects,
-                                      size, result.Task, result.Latency_Ms, frame_mean)
+                                      size, result.Task, result.Latency_Ms, frame_mean,
+                                      result.Background)
         stamp = 'set %s | %s' % (set_id, timestamp)
         try:
             evicted, created = self.__capture_writer.Write(

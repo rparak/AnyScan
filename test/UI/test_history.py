@@ -25,6 +25,7 @@
 
 # System (Default)
 import os
+import time
 # Qt must render headless; set the platform before any QApplication is constructed.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
@@ -34,6 +35,8 @@ import numpy as np
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
+from PyQt5.QtCore import Qt, QEvent
+from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtWidgets import QApplication, QLabel
 # Custom Lib.: AnyScan UI — the History view; the writer/metadata; the detection structure
 #   ../UI/Views/History
@@ -90,6 +93,14 @@ def _Set_Filter(view, key: str) -> None:
     _Private(view, '__Rebuild_List')()
 
 
+def _Settle(app, milliseconds: int = 300) -> None:
+    """Pump the event loop over real time, so a running slide animation completes."""
+    deadline = time.time() + milliseconds / 1000.0
+    while time.time() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+
+
 def test_filter_including_the_always_empty_nok_case(qt_app, tmp_path) -> None:
     """
     Description:
@@ -143,12 +154,52 @@ def test_selecting_a_full_set_renders_the_object_list(qt_app, tmp_path) -> None:
     assert _Private(view, '__meta_confidence').text() == '91%'
 
 
-def test_clicking_an_object_highlights_it_in_the_image(qt_app, tmp_path) -> None:
+def test_the_browser_panel_is_labelled_captures(qt_app, tmp_path) -> None:
     """
     Description:
-        History is for investigating, so an object row is selectable: clicking one marks the row
-        and highlights that object's box in the image (mapped through the image fit). Object 2's
-        box is the highlight after selecting index 1.
+        The left browser is 'Captures', not 'History' — so the same word does not name both the
+        main switch and this panel.
+    """
+
+    view = History_View_Cls(str(tmp_path))
+    titles = [w.text() for w in view.findChildren(QLabel) if w.text() in ('Captures', 'History')]
+    assert 'Captures' in titles and 'History' not in titles
+
+
+def test_two_panes_are_equal_size_and_scale_together(qt_app, tmp_path) -> None:
+    """
+    Description:
+        A full set shows the Annotated and Mask panes side by side, both visible, captioned, and
+        of equal size — comparing them is impossible if one is larger. (They hold the same-
+        resolution images, so equal size means an equal scale.)
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'set1')
+
+    view = History_View_Cls(str(tmp_path))
+    view.resize(1400, 780)
+    view.show()
+    view.Refresh()
+    for _ in range(4):
+        qt_app.processEvents()
+
+    pane_a = _Private(view, '__pane_a')
+    pane_b = _Private(view, '__pane_b')
+    assert pane_a.isVisible() and pane_b.isVisible()
+    assert _Private(view, '__caption_a').text() == 'Annotated'
+    assert _Private(view, '__caption_b').text() == 'Mask'
+    # Equal width and height -> they scale together.
+    assert abs(pane_a.width() - pane_b.width()) <= 1
+    assert _Private(view, '__image_a').height() == _Private(view, '__image_b').height()
+
+
+def test_clicking_an_object_highlights_the_annotated_pane_with_info_open(qt_app, tmp_path) -> None:
+    """
+    Description:
+        With the Info panel open, clicking an object row highlights that object's box in the
+        Annotated pane (not the mask), and both stay visible — the Info panel narrows the images
+        rather than covering them.
     """
 
     writer = Capture_Writer_Cls(str(tmp_path))
@@ -156,11 +207,14 @@ def test_clicking_an_object_highlights_it_in_the_image(qt_app, tmp_path) -> None
 
     view = History_View_Cls(str(tmp_path))
     view.Refresh()
+    _Private(view, '__Open_Info')()
     cap = _Private(view, '__detail_cap')
     _Private(view, '__On_Object_Selected')(1)
 
-    image = _Private(view, '__image')
-    assert getattr(image, '_History_Image_Cls__highlight') == tuple(cap.Objects[1].Bbox)
+    assert view.Is_Info_Open()
+    assert getattr(_Private(view, '__image_a'), '_History_Image_Cls__highlight') == \
+        tuple(cap.Objects[1].Bbox)
+    assert getattr(_Private(view, '__image_b'), '_History_Image_Cls__highlight') is None
 
 
 def test_missing_score_note_explains_unscored_objects(qt_app, tmp_path) -> None:
@@ -242,12 +296,13 @@ def test_a_new_set_appears_on_refresh_keeping_the_selection(qt_app, tmp_path) ->
     assert view.Selected_Set_Id() == 'first'              # selection kept
 
 
-def test_partial_set_renders_without_error(qt_app, tmp_path) -> None:
+def test_partial_set_renders_raw_full_width_with_the_banner(qt_app, tmp_path) -> None:
     """
     Description:
-        A partial set (a failed analysis, raw frame only) renders without error: the failure
-        banner names the failure and the set id (so it can be found in the log), the object list
-        is empty, and the set is shown, not hidden.
+        A partial set (a failed analysis, raw frame only) renders its raw frame across the full
+        width: the second (mask) pane is hidden so there is never an empty pane, the visible pane
+        is captioned 'Raw', the failure banner names the failure and the set id, and the object
+        list is empty. The set is shown, not hidden.
     """
 
     writer = Capture_Writer_Cls(str(tmp_path))
@@ -257,6 +312,7 @@ def test_partial_set_renders_without_error(qt_app, tmp_path) -> None:
                          'stamp', cv2, np)
 
     view = History_View_Cls(str(tmp_path))
+    view.show()
     view.Refresh()
 
     partial = next(cap for cap in _Private(view, '__sets') if cap.Set_Id == 'failset')
@@ -265,6 +321,89 @@ def test_partial_set_renders_without_error(qt_app, tmp_path) -> None:
     assert not banner.isHidden()
     assert 'failset' in banner.text() and 'failed' in banner.text().lower()
     assert _Private(view, '__object_list').box.count() == 0
+    # Raw full-width: the mask pane is hidden, the visible pane is captioned 'Raw'.
+    assert _Private(view, '__pane_a').isVisible()
+    assert _Private(view, '__pane_b').isHidden()
+    assert _Private(view, '__caption_a').text() == 'Raw'
+    # No Scene-Understanding to show: the Info control is disabled.
+    assert not _Private(view, '__info_button').isEnabled()
+
+
+def test_info_panel_opens_closes_and_narrows_without_covering(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The Info panel opens (Info button), narrows the images rather than covering them (it is a
+        sibling in the same row, both visible), and closes with Info again or Escape.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'set1')
+
+    view = History_View_Cls(str(tmp_path))
+    view.resize(1400, 780)
+    view.show()
+    view.Refresh()
+    for _ in range(4):
+        qt_app.processEvents()
+
+    images = _Private(view, '__images_row')
+    info = _Private(view, '__info_panel')
+    wide = images.width()
+
+    _Private(view, '__Toggle_Info')()                     # open
+    _Settle(qt_app)
+    assert view.Is_Info_Open()
+    assert info.isVisible() and images.isVisible()        # side by side, not covering
+    assert images.width() < wide                          # the images narrowed
+    assert info.width() > 0
+
+    _Private(view, '__Toggle_Info')()                     # close via Info again
+    _Settle(qt_app)
+    assert not view.Is_Info_Open()
+    assert images.width() == wide                         # width given back to the images
+
+    # Escape closes it too.
+    _Private(view, '__Open_Info')()
+    _Settle(qt_app)
+    assert view.Is_Info_Open()
+    view.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier))
+    _Settle(qt_app)
+    assert not view.Is_Info_Open()
+
+
+def test_info_text_matches_the_shared_formatter(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The Info panel's text is the shared formatter's output, from '_objects.json' — the lead is
+        Screen_Header (the background stated once with the count) and the rows are the shared
+        object labels, the same as Scene Understanding and the '.txt'. Nothing parses the prose.
+    """
+
+    from Reporting.Core import Screen_Header, Object_Label, Object_Confidence, CONST_LABEL_SEPARATOR
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    objects = _Objects()
+    md = Build_Set_Metadata('sessionA', 'set1', '2026-09-20T10:00:00', objects, (60, 40),
+                            'caption', 1180, 91, 'A green background.')
+    raw = np.full((40, 60, 3), 30, np.uint8)
+    writer.Write('sessionA', 'set1', raw, raw, np.zeros((40, 60, 3), np.uint8), 'text',
+                 ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np)
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    cap = _Private(view, '__detail_cap')
+    detections = _Private(view, '__Detections')(cap)
+
+    # The lead is exactly Screen_Header over the reconstructed objects and the stored background.
+    assert _Private(view, '__info_lead').text() == Screen_Header(detections, cap.Background)
+    assert _Private(view, '__info_lead').text().startswith('A green background.')
+
+    # The rows are the shared labels (name + confidence), in order.
+    layout = _Private(view, '__object_list').box
+    for i, det in enumerate(objects):
+        block = layout.itemAt(i).widget()
+        name = block.layout().itemAt(0).widget().layout().itemAt(0).widget()
+        assert name.text() == Object_Label(i)
 
 
 def test_malformed_metadata_does_not_crash_the_view(qt_app, tmp_path) -> None:

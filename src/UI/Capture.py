@@ -164,6 +164,8 @@ class Capture_Set_Str:
     Task: str = ''
     Inference_Ms: int = 0
     Frame_Mean_Confidence: tp.Optional[int] = None
+    # The one global background sentence (for the Scene-Understanding lead), empty when absent.
+    Background: str = ''
     # The objects, in order.
     Objects: tp.List[Capture_Object_Str] = field(default_factory=list)
     # The absolute paths of the artefacts that exist (None when absent).
@@ -218,8 +220,8 @@ def Set_Id_From_Name(name: str) -> tp.Optional[str]:
 
 def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                        objects: tp.List[Detection_Str], size: tp.Tuple[int, int], task: str,
-                       inference_ms: int,
-                       frame_mean_confidence: tp.Optional[int]) -> tp.Dict[str, tp.Any]:
+                       inference_ms: int, frame_mean_confidence: tp.Optional[int],
+                       background: str = '') -> tp.Dict[str, tp.Any]:
     """
     Description:
         Build the machine-readable metadata for one set from the SAME detection list that
@@ -238,6 +240,9 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
         (6) task [string]: The model task that produced the reading.
         (7) inference_ms [int]: The analysis latency in milliseconds.
         (8) frame_mean_confidence [int]: The frame mean confidence percentage, or None.
+        (9) background [string]: The one global background sentence, so a reader can render the
+                                 full Scene-Understanding lead from the JSON alone (never the
+                                 prose '_understanding.txt').
 
     Returns:
         (1) parameter [Dict]: The metadata, ready to serialise as '_objects.json'.
@@ -253,7 +258,7 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
     return {'session_id': session_id, 'set_id': set_id, 'timestamp': timestamp,
             'frame_width': int(size[0]), 'frame_height': int(size[1]), 'task': task,
             'inference_ms': int(inference_ms), 'frame_mean_confidence': frame_mean_confidence,
-            'objects': records}
+            'background': background, 'objects': records}
 
 
 def __Existing_Path(session_dir: str, set_id: str, suffix: str) -> tp.Optional[str]:
@@ -374,6 +379,7 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
         cap.Inference_Ms = int(data.get('inference_ms', 0))
         mean = data.get('frame_mean_confidence', None)
         cap.Frame_Mean_Confidence = int(mean) if mean is not None else None
+        cap.Background = str(data.get('background', ''))
         cap.Objects = [Capture_Object_Str(
             Index=int(record.get('index', i)),
             Bbox=tuple(int(v) for v in record.get('bbox', (0, 0, 0, 0))),

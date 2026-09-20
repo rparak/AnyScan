@@ -26,10 +26,10 @@
 # System (Default)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import Qt, QRect, QRectF, QPoint, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, QRect, QRectF, QPoint, QTimer, QPropertyAnimation, QEasingCurve, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
-from PyQt5.QtWidgets import (QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout,
-                             QScrollArea, QSizePolicy)
+from PyQt5.QtWidgets import (QWidget, QLabel, QFrame, QPushButton, QVBoxLayout, QHBoxLayout,
+                             QGridLayout, QScrollArea, QSizePolicy)
 # Custom Lib.: AnyScan UI — design tokens, style helpers and shared widgets
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
@@ -39,36 +39,47 @@ from UI.Widgets import Card_Cls, Card_Head_Cls, Segmented_Control_Cls, Object_Li
 # Custom Lib.: AnyScan — the Qt-free capture-set reader (the view never re-reads or parses)
 #   ../UI/Capture
 from UI.Capture import Discover_Capture_Sets, CONST_CAPTURE_RETENTION_SETS
-# Custom Lib.: AnyScan domain — the detection structure and the verdict palette
+# Custom Lib.: AnyScan domain — the detection structure, the shared formatter, the palette
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
+#   ../Reporting/Core
+from Reporting.Core import Screen_Header
 #   ../Parameters/Theme
 from Parameters.Theme import Verdict_Color
 
 """
 Description:
     The History view — a browser of the capture sets on disk. It reads them through the Qt-free
-    Discover_Capture_Sets (the view never parses a file itself), and lays them out as master and
-    detail: a scrollable thumbnail grid on the left, newest-first and grouped by session, and the
-    selected set on the right. The detail is built around what someone REVIEWING a past analysis
-    wants — the set's identity (id, session, timestamp — the id links to the log), the image with
-    a Raw/Annotated/Mask control, and a SELECTABLE object list (click an object to highlight it in
-    the image) with the set-level record beneath it — rather than mirroring Live, where the
-    operator only glances.
+    Discover_Capture_Sets (the view never parses a file itself), as master and detail. The LEFT
+    panel ('Captures') is a compact, scrollable thumbnail grid — newest-first, grouped by session,
+    with the filter and the retention note; the thumbnails only have to be recognisable, so they
+    are small and the panel is narrow, giving the width back to the detail.
 
-    History is a ROLLING WINDOW, not an archive: retention keeps the newest sets and evicts the
-    oldest on every write, so the view states its bound, refreshes when a set is written, and — if
-    the set being viewed is evicted — clears the detail with a note rather than pointing at files
-    that no longer exist. A filter (All/OK/NOK) narrows the grid; nothing assigns NOK yet, so NOK
-    is always empty and says so explicitly. A partial set (a failed analysis, raw frame only) is
-    shown, not hidden, marked as a failure. A missing or malformed file degrades to a partial set;
-    it never crashes the view.
+    The DETAIL panel shows the two result images — Annotated and Mask — SIDE BY SIDE at equal
+    size, so they can be compared (there is no Raw/Annotated/Mask toggle). Raw is not shown for a
+    successful set (it is still written to disk); a PARTIAL set — a failed analysis with only a raw
+    frame — instead renders that raw frame across the full width under a failure banner, because
+    that frame is the thing worth looking at. The set identity (id, date, time) and the set-level
+    record (session, objects, task, inference time, frame mean confidence) are always visible.
+
+    The object text lives behind an INFO control, not inline: pressing Info slides a panel in from
+    the right with the full Scene-Understanding text as it stood at analysis time — the background
+    sentence, the object list with confidences, and the unscored-object note — built from the
+    '_objects.json' through the SAME shared formatter as the Live panel and the '.txt' file. It
+    narrows the images rather than covering them, dismisses with Escape or Info, and keeps object
+    selection working: clicking a row highlights that object's box in the Annotated pane.
 """
-# The thumbnail grid: columns per session group and the thumbnail's drawn size (px).
+# The thumbnail grid: columns per session group and the thumbnail's drawn size (px) — small, so
+# more sets are visible at once and the panel stays narrow.
 #   Unit [int]
 CONST_THUMB_COLUMNS = 2
-CONST_THUMB_W = 190
-CONST_THUMB_H = 120
+CONST_THUMB_W = 128
+CONST_THUMB_H = 80
+
+# The Info side panel's open width (px), and its slide duration (ms).
+#   Unit [int]
+CONST_INFO_PANEL_WIDTH = 330
+CONST_INFO_SLIDE_MS = 160
 
 # The retention note, stating the rolling-window bound so nobody assumes an archive.
 #   Unit [string]
@@ -79,10 +90,9 @@ CONST_RETENTION_NOTE = ('Rolling window — the newest %d sets are kept; older s
 CONST_REMOVED_NOTE = ('This capture set fell outside the retention window and was removed. '
                       'Select another set from the list.')
 
-# The filter segments and the image-mode segments, in order as (key, label).
+# The filter segments, in order as (key, label).
 #   Unit [Vector<Tuple<string> 1x2>]
 CONST_FILTER_SEGMENTS = (('all', 'All'), ('ok', 'OK'), ('nok', 'NOK'))
-CONST_IMAGE_SEGMENTS = (('raw', 'Raw'), ('annotated', 'Annotated'), ('mask', 'Mask'))
 
 # The empty-grid messages, per filter — the NOK one names why it is expected to be empty today.
 #   Unit [Dict<string, string>]
@@ -95,11 +105,10 @@ CONST_EMPTY_MESSAGES = {
 class History_Image_Cls(QWidget):
     """
     Description:
-        The detail image area. It draws the image at its own aspect ratio with only a hairline
-        border — no wide dark letterbox bands, which were the most wasted space on screen — and,
-        when an object is selected in the list, highlights that object's box mapped through the
-        same fit. With no image (a partial set's missing annotated/mask) it shows a centred
-        message.
+        One image pane. It draws the image at its own aspect ratio with a hairline border — no
+        wide dark letterbox bands — and, when an object is selected, highlights that object's box
+        mapped through the same fit. Two panes of equal size therefore scale identically. With no
+        image it shows a centred message.
     """
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
@@ -116,8 +125,7 @@ class History_Image_Cls(QWidget):
     def Set_Image(self, pixmap: tp.Optional[QPixmap], message: str = '') -> None:
         """
         Description:
-            Show a pixmap (fitted to aspect) or, when it is None, a centred message. The object
-            highlight is preserved across a mode switch (Set_Highlight owns it).
+            Show a pixmap (fitted to aspect) or, when it is None, a centred message.
 
         Args:
             (1) pixmap [QPixmap(object) or None]: The image, or None to show the message.
@@ -200,10 +208,9 @@ class History_Image_Cls(QWidget):
 class Thumb_Card_Cls(QFrame):
     """
     Description:
-        One capture set in the grid: its thumbnail, its time, and its object count — or, for a
-        partial set, a clear failure marker in the log's ERROR colour (it is the set most worth
-        opening, so it must not read as a muted 'no preview'). The thumbnail loads lazily, only
-        when Load is called as the card scrolls into view. Clicking emits Clicked; the selected
+        One capture set in the grid: a small thumbnail (recognisable, not readable), its time, and
+        its object count — or, for a partial set, a failure marker in the log's ERROR colour. The
+        thumbnail loads lazily as the card scrolls into view. Clicking emits Clicked; the selected
         card is outlined in the set's verdict colour.
     """
 
@@ -222,25 +229,25 @@ class Thumb_Card_Cls(QFrame):
         self.Set_Selected(False)
 
         column = QVBoxLayout(self)
-        column.setContentsMargins(6, 6, 6, 6)
-        column.setSpacing(5)
+        column.setContentsMargins(5, 5, 5, 5)
+        column.setSpacing(3)
 
         self.__thumb = QLabel()
         self.__thumb.setFixedSize(CONST_THUMB_W, CONST_THUMB_H)
         self.__thumb.setAlignment(Qt.AlignCenter)
         self.__thumb.setWordWrap(True)
-        self.__thumb.setStyleSheet('background: %s; border-radius: 6px; color: %s;'
+        self.__thumb.setStyleSheet('background: %s; border-radius: 5px; color: %s;'
                                    % (Style.CONST_VIEWPORT, Style.CONST_VIEWPORT_TEXT))
         self.__thumb.setText('…')
         column.addWidget(self.__thumb)
 
         time_label = QLabel(self.__Time_Text())
-        time_label.setFont(Font(8.5, mono=True))
+        time_label.setFont(Font(7.5, mono=True))
         time_label.setStyleSheet('color: %s;' % Style.CONST_INK)
         column.addWidget(time_label)
 
         count_label = QLabel(self.__Count_Text())
-        count_label.setFont(Font(8.5, QFont.DemiBold if cap.Partial else QFont.Normal))
+        count_label.setFont(Font(7.5, QFont.DemiBold if cap.Partial else QFont.Normal))
         count_label.setStyleSheet('color: %s;'
                                   % (Style.CONST_LOG_ERROR if cap.Partial else Style.CONST_INK_MUTE))
         column.addWidget(count_label)
@@ -285,10 +292,10 @@ class Thumb_Card_Cls(QFrame):
                                                      Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 return
         # No thumbnail — a failed analysis. Mark it as an error, not a bland placeholder.
-        self.__thumb.setStyleSheet('background: %s; border-radius: 6px; color: %s;'
+        self.__thumb.setStyleSheet('background: %s; border-radius: 5px; color: %s;'
                                    % (Style.CONST_VIEWPORT, Style.CONST_LOG_ERROR))
         self.__thumb.setText('ANALYSIS\nFAILED')
-        self.__thumb.setFont(Font(9, QFont.DemiBold, tracking=2))
+        self.__thumb.setFont(Font(7.5, QFont.DemiBold, tracking=1))
 
     def Set_Selected(self, selected: bool, color: tp.Optional[str] = None) -> None:
         """
@@ -304,7 +311,7 @@ class Thumb_Card_Cls(QFrame):
         border = (color or Style.CONST_INK) if selected else Style.CONST_CARD_BORDER
         width = 2 if selected else 1
         self.setStyleSheet('#thumbCard { background: %s; border: %dpx solid %s;'
-                           ' border-radius: 10px; }' % (Style.CONST_CARD, width, border))
+                           ' border-radius: 9px; }' % (Style.CONST_CARD, width, border))
 
     def __Time_Text(self) -> str:
         """
@@ -349,9 +356,10 @@ class Thumb_Card_Cls(QFrame):
 class History_View_Cls(QWidget):
     """
     Description:
-        The History view: the thumbnail grid on the left, the selected set on the right. It is
-        given the captures root and reads it on Refresh (the window calls Refresh when History is
-        shown and whenever a set is written). Everything it renders comes from the Qt-free reader.
+        The History view: the compact 'Captures' grid on the left, the selected set on the right.
+        It is given the captures root and reads it on Refresh (the window calls Refresh when
+        History is shown and whenever a set is written). Everything it renders comes from the
+        Qt-free reader.
     """
 
     def __init__(self, captures_root: tp.Optional[str] = None,
@@ -365,14 +373,16 @@ class History_View_Cls(QWidget):
         self.__selected_id = None
         self.__detail_cap = None
         self.__detail_pixmaps = {}
+        self.__info_open = False
+        self.__info_anim = None
 
         grid = QGridLayout(self)
         grid.setSpacing(Style.CONST_GAP)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.addWidget(self.__Build_List_Panel(), 0, 0)
         grid.addWidget(self.__Build_Detail_Panel(), 0, 1)
-        grid.setColumnStretch(0, 34)
-        grid.setColumnStretch(1, 66)
+        grid.setColumnStretch(0, 25)          # narrow browser
+        grid.setColumnStretch(1, 75)          # the reclaimed width goes to the images
         grid.setRowStretch(0, 1)
 
     # ------------------------------------------------------------------ construction
@@ -380,7 +390,7 @@ class History_View_Cls(QWidget):
     def __Build_List_Panel(self) -> Card_Cls:
         """
         Description:
-            The left card: the head with the OK/NOK filter, the retention note, and the
+            The left 'Captures' card: the head with the OK/NOK filter, the retention note, and the
             scrollable, session-grouped thumbnail grid.
 
         Returns:
@@ -388,7 +398,7 @@ class History_View_Cls(QWidget):
         """
 
         card = Card_Cls()
-        head = Card_Head_Cls('reading', 'History')
+        head = Card_Head_Cls('reading', 'Captures')
         self.__filter = Segmented_Control_Cls(CONST_FILTER_SEGMENTS)
         self.__filter.Segment_Selected.connect(lambda _key: self.__Rebuild_List())
         head.box.addWidget(self.__filter)
@@ -419,10 +429,8 @@ class History_View_Cls(QWidget):
     def __Build_Detail_Panel(self) -> Card_Cls:
         """
         Description:
-            The right card: the head with the Raw/Annotated/Mask control, the set identity, the
-            failure banner, the image, the SELECTABLE object list with a missing-score note, and
-            the set-level record table. The list is guaranteed room for a few objects and scrolls
-            beyond; the image takes the rest and keeps its aspect.
+            The right card: the head (title + Info toggle), the set identity, the failure banner,
+            the two image panes beside the Info side panel, and the always-visible set-level table.
 
         Returns:
             (1) parameter [Card_Cls(object)]: The detail card.
@@ -430,9 +438,20 @@ class History_View_Cls(QWidget):
 
         card = Card_Cls()
         head = Card_Head_Cls('camera', 'Capture set')
-        self.__image_toggle = Segmented_Control_Cls(CONST_IMAGE_SEGMENTS)
-        self.__image_toggle.Segment_Selected.connect(self.__On_Image_Mode)
-        head.box.addWidget(self.__image_toggle)
+        self.__info_button = QPushButton('ⓘ  Info')
+        self.__info_button.setCheckable(True)
+        self.__info_button.setCursor(Qt.PointingHandCursor)
+        self.__info_button.setFont(Font(9, QFont.DemiBold, tracking=2))
+        self.__info_button.setFixedHeight(30)
+        self.__info_button.setStyleSheet(
+            'QPushButton { background: #fff; border: 1px solid #e3e0ee; color: %s;'
+            ' padding: 0 14px; border-radius: %dpx; }'
+            'QPushButton:hover:enabled { background: #f6f5fa; }'
+            'QPushButton:checked { background: %s; border-color: %s; color: #fff; }'
+            'QPushButton:disabled { color: #b6b2ca; border-color: #ecebf2; }'
+            % (Style.CONST_INK, Style.CONST_RADIUS_BTN, Style.CONST_INK, Style.CONST_INK))
+        self.__info_button.clicked.connect(self.__Toggle_Info)
+        head.box.addWidget(self.__info_button)
         card.box.addWidget(head)
 
         # The set identity, prominently: the id (which links to the log) and the timestamp.
@@ -458,34 +477,14 @@ class History_View_Cls(QWidget):
         self.__banner.hide()
         card.box.addWidget(self.__banner)
 
-        self.__image = History_Image_Cls()
-        card.box.addWidget(self.__image, 3)
-
-        # The selectable object list — click an object to highlight it in the image — with a
-        # foot note explaining any object that carries no score.
-        self.__detail_body = QWidget()
-        self.__detail_body.setStyleSheet('background: transparent;')
-        body_col = QVBoxLayout(self.__detail_body)
-        body_col.setContentsMargins(2, 10, 2, 2)
-        body_col.setSpacing(10)
-        self.__object_list = Object_List_Cls(selectable=True)
-        self.__object_list.Object_Selected.connect(self.__On_Object_Selected)
-        body_col.addWidget(self.__object_list)
-        self.__score_note = QLabel()
-        self.__score_note.setFont(Font(9))
-        self.__score_note.setWordWrap(True)
-        self.__score_note.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
-        self.__score_note.hide()
-        body_col.addWidget(self.__score_note)
-        body_col.addStretch(1)
-
-        self.__detail_scroll = QScrollArea()
-        self.__detail_scroll.setWidget(self.__detail_body)
-        self.__detail_scroll.setWidgetResizable(True)
-        self.__detail_scroll.setFrameShape(QFrame.NoFrame)
-        self.__detail_scroll.setMinimumHeight(180)
-        self.__detail_scroll.setStyleSheet(self.__Scroll_Style())
-        card.box.addWidget(self.__detail_scroll, 2)
+        # The images and the Info side panel share one row: opening Info narrows the images.
+        content = QWidget()
+        content_row = QHBoxLayout(content)
+        content_row.setContentsMargins(0, 0, 0, 0)
+        content_row.setSpacing(Style.CONST_GAP)
+        content_row.addWidget(self.__Build_Images(), 1)
+        content_row.addWidget(self.__Build_Info_Panel())
+        card.box.addWidget(content, 1)
 
         meta = QVBoxLayout()
         meta.setContentsMargins(0, 8, 0, 0)
@@ -498,12 +497,119 @@ class History_View_Cls(QWidget):
         card.box.addLayout(meta)
         return card
 
+    def __Build_Images(self) -> QWidget:
+        """
+        Description:
+            The two image panes side by side, equal size (equal stretch) so they scale together.
+            Each is a captioned History_Image_Cls; the captions and images are reassigned per set
+            (Annotated/Mask for a full set, Raw full-width for a partial one).
+
+        Returns:
+            (1) parameter [QWidget(object)]: The images row widget.
+        """
+
+        self.__images_row = QWidget()
+        row = QHBoxLayout(self.__images_row)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(Style.CONST_GAP)
+
+        self.__pane_a, self.__caption_a, self.__image_a = self.__Build_Pane()
+        self.__pane_b, self.__caption_b, self.__image_b = self.__Build_Pane()
+        row.addWidget(self.__pane_a, 1)
+        row.addWidget(self.__pane_b, 1)
+        return self.__images_row
+
+    def __Build_Pane(self) -> tp.Tuple[QWidget, QLabel, History_Image_Cls]:
+        """
+        Description:
+            One captioned image pane: a small caption above the image.
+
+        Returns:
+            (1) parameter [Tuple]: (the pane widget, its caption label, its image widget).
+        """
+
+        pane = QWidget()
+        column = QVBoxLayout(pane)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(6)
+        caption = QLabel('')
+        caption.setFont(Font(8.5, QFont.Bold, tracking=6))
+        caption.setAlignment(Qt.AlignHCenter)
+        caption.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
+        column.addWidget(caption)
+        image = History_Image_Cls()
+        column.addWidget(image, 1)
+        return pane, caption, image
+
+    def __Build_Info_Panel(self) -> QWidget:
+        """
+        Description:
+            The Info side panel: a fixed-width content column inside a clip widget whose width the
+            slide animates (0 ↔ CONST_INFO_PANEL_WIDTH). It holds the full Scene-Understanding
+            text — the background lead, the selectable object list, and the unscored-object note —
+            built from the shared formatter, so it matches the Live panel and the '.txt'.
+
+        Returns:
+            (1) parameter [QWidget(object)]: The clip widget (starts collapsed and hidden).
+        """
+
+        clip = QWidget()
+        clip.setMaximumWidth(0)                          # collapsed; the slide animates this
+        clip.setMinimumWidth(0)
+        clip_row = QHBoxLayout(clip)
+        clip_row.setContentsMargins(0, 0, 0, 0)
+
+        inner = QWidget()
+        inner.setFixedWidth(CONST_INFO_PANEL_WIDTH)
+        inner.setObjectName('infoPanel')
+        inner.setStyleSheet('#infoPanel { border-left: 1px solid %s; }' % Style.CONST_LINE)
+        column = QVBoxLayout(inner)
+        column.setContentsMargins(14, 0, 2, 0)
+        column.setSpacing(10)
+
+        title = QLabel('Scene understanding')
+        title.setFont(Font(11, QFont.DemiBold, tracking=-1))
+        title.setStyleSheet('color: %s;' % Style.CONST_INK)
+        column.addWidget(title)
+
+        body = QWidget()
+        body.setStyleSheet('background: transparent;')
+        body_col = QVBoxLayout(body)
+        body_col.setContentsMargins(0, 0, 0, 0)
+        body_col.setSpacing(12)
+        self.__info_lead = QLabel()
+        self.__info_lead.setFont(Font(Style.CONST_TYPE_SCENE_BACKGROUND, QFont.DemiBold, tracking=-1))
+        self.__info_lead.setWordWrap(True)
+        self.__info_lead.setStyleSheet('color: %s;' % Style.CONST_INK)
+        body_col.addWidget(self.__info_lead)
+        self.__object_list = Object_List_Cls(selectable=True)
+        self.__object_list.Object_Selected.connect(self.__On_Object_Selected)
+        body_col.addWidget(self.__object_list)
+        self.__score_note = QLabel()
+        self.__score_note.setFont(Font(9))
+        self.__score_note.setWordWrap(True)
+        self.__score_note.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
+        self.__score_note.hide()
+        body_col.addWidget(self.__score_note)
+        body_col.addStretch(1)
+
+        scroll = QScrollArea()
+        scroll.setWidget(body)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet(self.__Scroll_Style())
+        column.addWidget(scroll, 1)
+
+        clip_row.addWidget(inner)
+        self.__info_panel = clip
+        self.__info_panel.hide()
+        return clip
+
     def __Meta_Row(self, parent_layout: QVBoxLayout, key: str, mono: bool = False,
                    first: bool = False) -> QLabel:
         """
         Description:
-            One key/value record row, in the same style as the Live reading card's table but
-            compact (History carries more rows).
+            One key/value record row, compact (History carries several).
 
         Args:
             (1) parent_layout [QVBoxLayout(object)]: The layout to add the row to.
@@ -535,21 +641,21 @@ class History_View_Cls(QWidget):
     def __Scroll_Style(self) -> str:
         """
         Description:
-            The console's scroll-area stylesheet, shared by both panels so History matches Live.
+            The console's scroll-area stylesheet, shared so History matches Live.
 
         Returns:
             (1) parameter [string]: The Qt stylesheet.
         """
 
         return ("""
-            QScrollArea { border: 1px solid %s; border-radius: 10px; background: %s; }
+            QScrollArea { border: none; background: transparent; }
             QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
             QScrollBar::handle:vertical { background: #c7c3d9; border-radius: 4px;
                                           min-height: 30px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
                 background: transparent; }
-        """ % (Style.CONST_LINE, Style.CONST_CARD))
+        """)
 
     # -------------------------------------------------------------------- public API
 
@@ -557,9 +663,9 @@ class History_View_Cls(QWidget):
         """
         Description:
             Rediscover the sets on disk and rebuild the grid. Called when History is shown and
-            whenever a set is written or evicted. If the set that was being viewed is gone
-            (evicted), the detail is cleared with a note rather than pointing at deleted files;
-            otherwise the current selection is kept, or the first set is selected.
+            whenever a set is written or evicted. If the set being viewed is gone (evicted), the
+            detail is cleared with a note; otherwise the current selection is kept, or the first
+            set is selected.
         """
 
         prior = self.__selected_id
@@ -578,6 +684,17 @@ class History_View_Cls(QWidget):
         """
 
         return self.__selected_id
+
+    def Is_Info_Open(self) -> bool:
+        """
+        Description:
+            Whether the Info side panel is open.
+
+        Returns:
+            (1) parameter [bool]: True while the Info panel is open.
+        """
+
+        return self.__info_open
 
     # --------------------------------------------------------------------- the grid
 
@@ -598,8 +715,7 @@ class History_View_Cls(QWidget):
             widget = item.widget()
             if widget:
                 # Unparent now, not just deleteLater — a deferred delete leaves the old cards
-                # painted behind the new grid on a rapid rebuild (e.g. a set written while
-                # History is open).
+                # painted behind the new grid on a rapid rebuild.
                 widget.setParent(None)
                 widget.deleteLater()
         self.__cards = []
@@ -632,10 +748,10 @@ class History_View_Cls(QWidget):
         """
 
         message = QLabel(CONST_EMPTY_MESSAGES.get(self.__filter.Selection() or 'all', ''))
-        message.setFont(Font(10))
+        message.setFont(Font(9.5))
         message.setWordWrap(True)
         message.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        message.setStyleSheet('color: %s; padding: 24px 10px;' % Style.CONST_INK_MUTE)
+        message.setStyleSheet('color: %s; padding: 24px 8px;' % Style.CONST_INK_MUTE)
         return message
 
     def __Group_By_Session(self, caps: tp.List) -> tp.List[tp.Tuple[str, tp.List]]:
@@ -678,12 +794,12 @@ class History_View_Cls(QWidget):
         row.setContentsMargins(2, 4, 2, 0)
         row.setSpacing(8)
         label = QLabel('Session %s' % session_id)
-        label.setFont(Font(9, tracking=1))
+        label.setFont(Font(8.5, tracking=1))
         label.setStyleSheet('color: %s;' % Style.CONST_INK_SOFT)
         row.addWidget(label)
         row.addWidget(Hairline(vertical=False), 1)
         count_label = QLabel('%d' % count)
-        count_label.setFont(Font(9, mono=True))
+        count_label.setFont(Font(8.5, mono=True))
         count_label.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
         row.addWidget(count_label)
         return header
@@ -740,7 +856,7 @@ class History_View_Cls(QWidget):
         """
         Description:
             Load the thumbnails of the cards currently in the viewport, once each — lazy loading
-            as the operator scrolls, so a full grid never decodes every image at once.
+            as the operator scrolls.
         """
 
         viewport = self.__list_scroll.viewport()
@@ -757,10 +873,9 @@ class History_View_Cls(QWidget):
     def __Select(self, cap: tp.Optional[tp.Any]) -> None:
         """
         Description:
-            Render the detail panel for a set (or clear it when None). Built from the reader's
-            structure: identity, image, the selectable object list from the shared formatter, the
-            missing-score note, and the set-level record. A partial set shows its failure banner
-            and raw frame; a full set shows its objects.
+            Render the detail panel for a set (or clear it when None): identity, the two image
+            panes (or a partial set's raw frame full-width), the set-level record, and the Info
+            panel's Scene-Understanding text. Object selection and the Info panel are reset.
 
         Args:
             (1) cap [Capture_Set_Str(object) or None]: The set to show, or None.
@@ -769,7 +884,7 @@ class History_View_Cls(QWidget):
         self.__detail_cap = cap
         self.__detail_pixmaps = {}
         self.__selected_id = cap.Set_Id if cap is not None else None
-        self.__image.Set_Highlight(None)
+        self.__image_a.Set_Highlight(None)
         self.__object_list.Set_Selected(None)
         self.__Mark_Selected()
 
@@ -782,46 +897,93 @@ class History_View_Cls(QWidget):
         self.__meta_session.setText(cap.Session_Id or Style.CONST_NO_VALUE)
 
         if cap.Partial:
-            self.__banner.setText('Analysis failed for set %s — only the raw frame was captured. '
-                                  '%s (Find set %s in the session log.)'
-                                  % (cap.Set_Id, cap.Note, cap.Set_Id))
-            self.__banner.show()
-            self.__object_list.Set_Objects([])
-            self.__score_note.hide()
-            self.__meta_objects.setText(Style.CONST_NO_VALUE)
-            self.__meta_task.setText(Style.CONST_NO_VALUE)
-            self.__meta_latency.setText(Style.CONST_NO_VALUE)
-            self.__meta_confidence.setText(Style.CONST_NO_VALUE)
+            self.__Show_Partial(cap)
         else:
-            self.__banner.hide()
-            self.__object_list.Set_Objects(self.__Detections(cap))
-            self.__Update_Score_Note(cap)
-            self.__meta_objects.setText('%d' % len(cap.Objects))
-            self.__meta_task.setText(cap.Task or Style.CONST_NO_VALUE)
-            self.__meta_latency.setText('%d ms' % cap.Inference_Ms)
-            self.__meta_confidence.setText('%d%%' % cap.Frame_Mean_Confidence
-                                           if cap.Frame_Mean_Confidence is not None
-                                           else Style.CONST_NO_VALUE)
+            self.__Show_Full(cap)
 
-        default = 'annotated' if cap.Annotated_Path else 'raw'
-        self.__image_toggle.Set_Selection(default)
-        self.__Show_Image(default)
+    def __Show_Full(self, cap: tp.Any) -> None:
+        """
+        Description:
+            A successful set: the Annotated and Mask panes side by side, the set-level record, and
+            the Info panel's text. The Info control is enabled.
+
+        Args:
+            (1) cap [Capture_Set_Str(object)]: The set.
+        """
+
+        self.__banner.hide()
+        self.__info_button.setEnabled(True)
+
+        self.__pane_b.show()
+        self.__caption_a.setText('Annotated')
+        self.__caption_b.setText('Mask')
+        self.__image_a.Set_Image(self.__Pixmap(cap.Annotated_Path),
+                                 'No annotated image for this set.')
+        self.__image_b.Set_Image(self.__Pixmap(cap.Mask_Path), 'No mask for this set.')
+
+        detections = self.__Detections(cap)
+        self.__info_lead.setText(Screen_Header(detections, cap.Background))
+        self.__object_list.Set_Objects(detections)
+        self.__Update_Score_Note(cap)
+
+        self.__meta_objects.setText('%d' % len(cap.Objects))
+        self.__meta_task.setText(cap.Task or Style.CONST_NO_VALUE)
+        self.__meta_latency.setText('%d ms' % cap.Inference_Ms)
+        self.__meta_confidence.setText('%d%%' % cap.Frame_Mean_Confidence
+                                       if cap.Frame_Mean_Confidence is not None
+                                       else Style.CONST_NO_VALUE)
+
+    def __Show_Partial(self, cap: tp.Any) -> None:
+        """
+        Description:
+            A failed set: there is no annotated image and no mask, so the raw frame is shown across
+            the full width (the mask pane is hidden) under the failure banner. There is no
+            Scene-Understanding text, so the Info control is closed and disabled.
+
+        Args:
+            (1) cap [Capture_Set_Str(object)]: The set.
+        """
+
+        self.__Close_Info()
+        self.__info_button.setEnabled(False)
+
+        self.__banner.setText('Analysis failed for set %s — only the raw frame was captured. '
+                              '%s (Find set %s in the session log.)'
+                              % (cap.Set_Id, cap.Note, cap.Set_Id))
+        self.__banner.show()
+
+        self.__pane_b.hide()                             # one pane -> the raw frame fills the width
+        self.__caption_a.setText('Raw')
+        self.__image_a.Set_Image(self.__Pixmap(cap.Raw_Path), 'No raw frame for this set.')
+
+        self.__object_list.Set_Objects([])
+        self.__info_lead.setText('')
+        self.__score_note.hide()
+        self.__meta_objects.setText(Style.CONST_NO_VALUE)
+        self.__meta_task.setText(Style.CONST_NO_VALUE)
+        self.__meta_latency.setText(Style.CONST_NO_VALUE)
+        self.__meta_confidence.setText(Style.CONST_NO_VALUE)
 
     def __Clear_Detail(self, image_message: str) -> None:
         """
         Description:
-            Empty the detail panel — used for no selection and for a set removed by eviction.
+            Empty the detail panel — used for no selection.
 
         Args:
             (1) image_message [string]: The message shown in the image area.
         """
 
+        self.__Close_Info()
+        self.__info_button.setEnabled(False)
         self.__identity_id.setText('')
         self.__identity_time.setText('')
         self.__banner.hide()
+        self.__pane_b.hide()
+        self.__caption_a.setText('')
+        self.__image_a.Set_Image(None, image_message)
         self.__object_list.Set_Objects([])
+        self.__info_lead.setText('')
         self.__score_note.hide()
-        self.__image.Set_Image(None, image_message)
         for value in (self.__meta_session, self.__meta_objects, self.__meta_task,
                       self.__meta_latency, self.__meta_confidence):
             value.setText(Style.CONST_NO_VALUE)
@@ -829,29 +991,40 @@ class History_View_Cls(QWidget):
     def __Show_Removed(self) -> None:
         """
         Description:
-            Clear the detail with the retention note when the viewed set was evicted, and drop
-            the selection (no card is highlighted).
+            Clear the detail with the retention note when the viewed set was evicted, and drop the
+            selection (no card is highlighted).
         """
 
         self.__selected_id = None
         self.__detail_cap = None
         self.__Mark_Selected()
+        self.__Clear_Detail('This set is no longer available.')
         self.__banner.setText(CONST_REMOVED_NOTE)
         self.__banner.show()
-        self.__identity_id.setText('')
-        self.__identity_time.setText('')
-        self.__object_list.Set_Objects([])
-        self.__score_note.hide()
-        self.__image.Set_Image(None, 'This set is no longer available.')
-        for value in (self.__meta_session, self.__meta_objects, self.__meta_task,
-                      self.__meta_latency, self.__meta_confidence):
-            value.setText(Style.CONST_NO_VALUE)
+
+    def __Pixmap(self, path: tp.Optional[str]) -> tp.Optional[QPixmap]:
+        """
+        Description:
+            Load and cache a set image by path, or None when the path is absent/unreadable.
+
+        Args:
+            (1) path [string or None]: The image path.
+
+        Returns:
+            (1) parameter [QPixmap(object) or None]: The pixmap, or None.
+        """
+
+        if not path:
+            return None
+        if path not in self.__detail_pixmaps:
+            pixmap = QPixmap(path)
+            self.__detail_pixmaps[path] = pixmap if not pixmap.isNull() else None
+        return self.__detail_pixmaps[path]
 
     def __Timestamp_Text(self, cap: tp.Any) -> str:
         """
         Description:
-            The set's capture timestamp, formatted for the identity line (a space for the 'T'),
-            or an empty string when absent.
+            The set's capture timestamp for the identity line (a middot for the 'T'), or empty.
 
         Args:
             (1) cap [Capture_Set_Str(object)]: The set.
@@ -865,10 +1038,8 @@ class History_View_Cls(QWidget):
     def __Detections(self, cap: tp.Any) -> tp.List[Detection_Str]:
         """
         Description:
-            Rebuild Detection_Str objects from the set's metadata so the object list renders
-            through the SHARED formatter, identical to Scene Understanding — the confidence
-            percentage becomes a segmenter score (Object_Confidence rounds it straight back), and
-            the description is the object's own sentence.
+            Rebuild Detection_Str objects from the set's metadata so the object list and the lead
+            render through the SHARED formatter, identical to Scene Understanding.
 
         Args:
             (1) cap [Capture_Set_Str(object)]: The set.
@@ -888,8 +1059,7 @@ class History_View_Cls(QWidget):
     def __Update_Score_Note(self, cap: tp.Any) -> None:
         """
         Description:
-            Explain any object showing 'Confidence —' with a single foot note (not per row): it
-            was found by background subtraction and carries no FastSAM score.
+            Explain any object showing 'Confidence —' with a single foot note.
 
         Args:
             (1) cap [Capture_Set_Str(object)]: The set.
@@ -908,7 +1078,8 @@ class History_View_Cls(QWidget):
     def __On_Object_Selected(self, index: int) -> None:
         """
         Description:
-            Highlight the clicked object in the image and mark its row.
+            Highlight the clicked object's box in the Annotated pane and mark its row — both stay
+            visible, since the Info panel narrows the images rather than covering them.
 
         Args:
             (1) index [int]: The object index.
@@ -917,43 +1088,68 @@ class History_View_Cls(QWidget):
         if self.__detail_cap is None or index >= len(self.__detail_cap.Objects):
             return
         self.__object_list.Set_Selected(index)
-        self.__image.Set_Highlight(tuple(self.__detail_cap.Objects[index].Bbox))
+        self.__image_a.Set_Highlight(tuple(self.__detail_cap.Objects[index].Bbox))
 
-    def __On_Image_Mode(self, key: str) -> None:
+    # ------------------------------------------------------------------ the info panel
+
+    def __Toggle_Info(self) -> None:
         """
         Description:
-            Switch the detail image between raw, annotated and mask.
-
-        Args:
-            (1) key [string]: 'raw', 'annotated' or 'mask'.
+            Open or close the Info side panel.
         """
 
-        self.__Show_Image(key)
-
-    def __Show_Image(self, mode: str) -> None:
-        """
-        Description:
-            Show the selected image mode for the current set, loading its pixmap once and caching
-            it. When that mode's file does not exist, a message says so rather than a broken image.
-
-        Args:
-            (1) mode [string]: 'raw', 'annotated' or 'mask'.
-        """
-
-        if self.__detail_cap is None:
-            return
-        path = {'raw': self.__detail_cap.Raw_Path, 'annotated': self.__detail_cap.Annotated_Path,
-                'mask': self.__detail_cap.Mask_Path}.get(mode)
-        if not path:
-            self.__image.Set_Image(None, 'No %s image for this set.' % mode)
-            return
-        if mode not in self.__detail_pixmaps:
-            self.__detail_pixmaps[mode] = QPixmap(path)
-        pixmap = self.__detail_pixmaps[mode]
-        if pixmap.isNull():
-            self.__image.Set_Image(None, 'The %s image could not be read.' % mode)
+        if self.__info_open:
+            self.__Close_Info()
         else:
-            self.__image.Set_Image(pixmap)
+            self.__Open_Info()
+
+    def __Open_Info(self) -> None:
+        """
+        Description:
+            Slide the Info panel in from the right (narrowing the images), unless the set is
+            partial or nothing is selected.
+        """
+
+        if self.__detail_cap is None or self.__detail_cap.Partial:
+            return
+        self.__info_open = True
+        self.__info_button.setChecked(True)
+        self.__info_panel.setVisible(True)
+        self.__Animate_Info(CONST_INFO_PANEL_WIDTH)
+
+    def __Close_Info(self) -> None:
+        """
+        Description:
+            Slide the Info panel closed, giving the width back to the images.
+        """
+
+        if not self.__info_open and self.__info_panel.maximumWidth() == 0:
+            return
+        self.__info_open = False
+        self.__info_button.setChecked(False)
+        self.__Animate_Info(0)
+
+    def __Animate_Info(self, target: int) -> None:
+        """
+        Description:
+            Animate the Info clip width to a target (the slide). On collapse the panel is hidden
+            when the animation finishes, so it never steals a click at width zero.
+
+        Args:
+            (1) target [int]: The target maximum width in px.
+        """
+
+        anim = QPropertyAnimation(self.__info_panel, b'maximumWidth', self)
+        anim.setDuration(CONST_INFO_SLIDE_MS)
+        anim.setStartValue(self.__info_panel.maximumWidth())
+        anim.setEndValue(target)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        if target == 0:
+            anim.finished.connect(lambda: self.__info_panel.setVisible(False))
+        anim.start()
+        self.__info_anim = anim                          # keep a reference so it is not collected
+
+    # -------------------------------------------------------------------- selection paint
 
     def __Mark_Selected(self) -> None:
         """
@@ -971,8 +1167,7 @@ class History_View_Cls(QWidget):
         """
         Description:
             The set's verdict colour for its selection outline: the NOK colour when any object is
-            NOK, the OK colour otherwise, and the muted tone for a partial set (which failed, so
-            has no verdict).
+            NOK, the OK colour otherwise, and the muted tone for a partial set.
 
         Args:
             (1) cap [Capture_Set_Str(object)]: The set.
@@ -984,6 +1179,18 @@ class History_View_Cls(QWidget):
         if cap.Partial:
             return Style.CONST_INK_MUTE
         return Verdict_Color('NOK' if cap.Is_Nok() else 'OK')[0]
+
+    # << QT OVERRIDE >> #
+    def keyPressEvent(self, event: tp.Any) -> None:
+        """
+        Description:
+            Escape closes the Info panel when it is open.
+        """
+
+        if event.key() == Qt.Key_Escape and self.__info_open:
+            self.__Close_Info()
+            return
+        super().keyPressEvent(event)
 
     # << QT OVERRIDE >> #
     def resizeEvent(self, event: tp.Any) -> None:
