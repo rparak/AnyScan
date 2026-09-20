@@ -38,8 +38,8 @@ from UI.Views.Log import Log_View_Cls
 from Parameters.Theme import (Log_Level_Color, CONST_LOG_INFO, CONST_LOG_WARNING,
                               CONST_LOG_ERROR)
 #   ../Logger/Core
-from Logger.Core import (Log_Line_Str, CONST_LEVEL_INFO, CONST_LEVEL_WARNING,
-                         CONST_LEVEL_ERROR)
+from Logger.Core import (Session_Logger_Cls, Log_Line_Str, CONST_LEVEL_INFO,
+                         CONST_LEVEL_WARNING, CONST_LEVEL_ERROR)
 
 """
 Description:
@@ -82,6 +82,15 @@ def _Set_Filter(view, key: str) -> None:
     """Select a filter key and apply it, exactly as a user click on the segment would."""
     _Private(view, '__filter').Set_Selection(key)
     _Private(view, '__Apply_Filter')()
+
+
+def _Row_Text(view):
+    """The text tuple of every rendered row (3 cells for a parsed row, 1 for a raw row)."""
+    out = []
+    for _level, row in _Private(view, '__rows'):
+        cells = [row.layout().itemAt(i).widget() for i in range(row.layout().count())]
+        out.append(tuple(cell.text() for cell in cells))
+    return out
 
 
 def test_renders_the_four_fields_in_columns(qt_app) -> None:
@@ -233,6 +242,42 @@ def test_new_line_after_filter_respects_the_active_filter(qt_app) -> None:
     assert view.Shown_Count() == 0
     view.Append_Line(_Line('08:00:03', CONST_LEVEL_ERROR, 'Now shown.'))
     assert view.Shown_Count() == 1
+
+
+def test_seed_from_file_reproduces_the_live_view(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The real invariant: reloading a file shows the same log the user was watching. A live
+        view is fed a session's worth of events through the logger sink; a fresh view is then
+        seeded from the same file. The rendered rows — and the shown-count — must be identical,
+        including for an event whose message contained newlines (escaped at the write end to
+        one line, so it seeds as the one row the sink delivered, not orphaned continuations).
+    """
+
+    logger = Session_Logger_Cls(log_dir=str(tmp_path), install_handlers=False)
+    live = Log_View_Cls()
+    logger.Set_Line_Sink(live.Sink)
+
+    logger.Log_Info('Application started.')
+    logger.Log_Camera_Connected('a2A1920-51gcPRO @ 1920 x 1200')
+    logger.Log_Warning('Frame dropped by the transport; retrying.')
+    logger.Log_Object_Detected('ring', 91, (300, 200, 240, 240))
+    logger.Log_Error('backend failed:\nstack line one\nstack line two')   # multi-line source
+    logger.Log_Info('Frame scan finished.')
+    for _ in range(2):
+        qt_app.processEvents()
+
+    seed = Log_View_Cls()
+    seed.Seed_From_File(logger.Path)
+
+    # Same rows, same count — the reloaded file is the log the user watched live.
+    assert _Row_Text(seed) == _Row_Text(live)
+    assert seed.Shown_Count() == live.Shown_Count()
+    # The multi-line event is a single row on both paths (escaped at the write end).
+    assert len(_Row_Text(live)) == 6
+
+    logger.Set_Line_Sink(None)
+    logger.Close()
 
 
 def test_tail_following_suspended_on_manual_scroll(qt_app) -> None:

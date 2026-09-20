@@ -822,19 +822,46 @@ def test_parse_line_never_mis_splits_hostile_messages() -> None:
     assert not cont.Parsed and cont.Message == '    ...continued stack frame with no timestamp'
 
 
-def test_multi_line_message_seeds_as_a_parsed_head_and_raw_continuations() -> None:
+def test_parse_line_handles_a_stray_continuation_line_defensively() -> None:
     """
     Description:
-        A message containing newlines is written as several physical lines; on seeding, the
-        first is a normal parsed line and each continuation is kept whole with Parsed=False.
-        The view renders the head as a level row and the continuations raw and muted — nothing
-        is dropped or mis-attributed.
+        The logger no longer emits multi-line entries — a newline in a message is escaped at
+        the write end so one event is one file line (see the escaping test) — but Parse_Line
+        still handles a stray timestamp-less line defensively, for a hand-edited or pre-escape
+        legacy file: it is kept whole with Parsed=False so the view renders it raw rather than
+        mis-splitting or dropping it.
     """
 
-    written = '2026-09-12 10:00:00 [ERROR  ] first line\nsecond line\nthird line'
-    physical = written.split('\n')
-    head = Parse_Line(physical[0])
-    assert head.Parsed and head.Level == CONST_LEVEL_ERROR and head.Message == 'first line'
-    for continuation in physical[1:]:
-        parsed = Parse_Line(continuation)
-        assert not parsed.Parsed and parsed.Message == continuation
+    stray = Parse_Line('second line of some older, unescaped entry')
+    assert not stray.Parsed and stray.Message == 'second line of some older, unescaped entry'
+
+
+def test_newline_in_message_is_escaped_to_one_file_line(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A message containing line breaks is written as ONE physical file line: the breaks are
+        escaped to the visible '\\n' / '\\r' at the write end (the single choke point), so a
+        newline from any source cannot orphan a continuation line on reload. The sink is handed
+        the SAME escaped, single-line text, so a seeded line reproduces the live record exactly
+        — Parse_Line of the file line equals the record the sink received.
+    """
+
+    clock = Clock_Cls(_T('11:00:00'))
+    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
+                                        install_handlers=False)
+    received = []
+    Session_Logger.Set_Line_Sink(lambda record, line: received.append((record, line)))
+    Session_Logger.Log_Error('driver failed:\nstack line one\r\nstack line two')
+
+    # One event -> one physical line, with the breaks escaped visibly.
+    lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()
+    assert len(lines) == 1
+    assert '\\n' in lines[0] and '\\r' in lines[0]
+    assert 'stack line one' in lines[0] and 'stack line two' in lines[0]
+
+    # The sink got the same escaped, single-line text; and Parse_Line of the file line
+    # reproduces the record exactly — the seed will match the live view.
+    record, line = received[0]
+    assert '\n' not in record.Message and '\r' not in record.Message
+    assert line == lines[0]
+    assert Parse_Line(lines[0]) == record

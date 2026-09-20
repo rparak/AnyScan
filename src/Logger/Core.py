@@ -196,6 +196,27 @@ def Parse_Line(line: str) -> Log_Line_Str:
     return Log_Line_Str(Message=line, Parsed=False)
 
 
+def Escape_Message(text: str) -> str:
+    """
+    Description:
+        Make a message safe for the line-oriented log: a carriage return or newline becomes
+        the two visible characters '\\r' / '\\n', so ONE logged event is always ONE physical
+        file line. This is decided at the write end, not the read end — the same escaped text
+        goes to the file and to the live sink, so a reloaded file reproduces the live view
+        exactly, with no orphaned continuation line to reunite. Only line breaks are touched;
+        backslashes are left as-is (the text is never turned back into a real newline, so the
+        escape need not be invertible, and file paths stay readable).
+
+    Args:
+        (1) text [string]: The raw message, possibly multi-line.
+
+    Returns:
+        (1) parameter [string]: The message with its line breaks escaped to visible sequences.
+    """
+
+    return text.replace('\r', '\\r').replace('\n', '\\n')
+
+
 def Format_HMS(total_seconds: float) -> str:
     """
     Description:
@@ -605,6 +626,11 @@ class Session_Logger_Cls(object):
 
         if self.__file is None or self.__file.closed:
             return
+        # Escape line breaks so one event is always one file line — decided here, the single
+        # write choke point, so a newline from ANY source (an exception message, a driver
+        # error string) is neutralised without auditing every call site. The escaped text is
+        # what goes to both the file and the sink, so the seed reproduces the live view.
+        info = Escape_Message(info)
         date = now.strftime(self.__date_format)
         time = now.strftime(self.__time_format)
         line = '%s %s [%-*s] %s\n' % (date, time, CONST_LEVEL_WIDTH, level, info)
