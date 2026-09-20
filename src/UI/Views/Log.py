@@ -1,0 +1,466 @@
+## =========================================================================== ##
+# MIT License
+# Copyright (c) 2025 Roman Parak
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+## =========================================================================== ##
+# Author   : Roman Parak
+# Email    : Roman.Parak@outlook.com
+# Github   : https://github.com/rparak
+# File Name: ../UI/Views/Log.py
+## =========================================================================== ##
+
+# System (Default)
+import typing as tp
+# PyQt5 (Qt bindings) [pip3 install PyQt5]
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFontMetrics
+from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
+                             QScrollArea, QFrame)
+# Custom Lib.: AnyScan UI — design tokens, style helpers and shared widgets
+#   ../UI/Utilities/Style
+import UI.Utilities.Style as Style
+from UI.Utilities.Style import Font
+#   ../UI/Widgets
+from UI.Widgets import Card_Cls, Card_Head_Cls, Segmented_Control_Cls
+# Custom Lib.: AnyScan — the logger's ONE line parser (format and inverse live together)
+#   ../Logger/Core
+from Logger.Core import Parse_Line, CONST_LEVEL_INFO, CONST_LEVEL_WARNING, CONST_LEVEL_ERROR
+
+"""
+Description:
+    The Log view — the session log shown live in the central area. Its source of truth is the
+    logger: the logger emits each formatted line to a sink as it writes it, and this view
+    renders from that sink, seeded once from the file at startup. The view NEVER formats a
+    line and never re-derives the fields on its own — it calls the logger's one Parse_Line to
+    split the already-written line into date, time, level and message, then lays those four in
+    columns. Same formatted string in both places, so the file and the view cannot drift.
+
+    Reading concerns that belong to the view, not the file: the timestamp and level are
+    monospace and fixed-width so the message column starts at a consistent x; the level and
+    message are coloured by severity (the timestamp stays muted, so the eye lands on severity
+    first); a filter hides lines by level WITHOUT touching the file, and a count of the lines
+    currently shown makes an empty filter read as 'none occurred'; and the view follows the
+    tail unless the operator has scrolled up, in which case it holds their position and shows
+    that new lines have arrived rather than yanking them back down.
+"""
+# The filter segments, in order, as (key, label). 'all' is first, so it is the default
+# selection of the segmented control.
+#   Unit [Vector<Tuple<string> 1x2>]
+CONST_FILTER_SEGMENTS = (('all', 'All'), ('info', 'Info'), ('warning', 'Warning'),
+                         ('error', 'Error'))
+# The filter key -> level string mapping. 'all' is absent: it matches every level and is
+# handled as the no-filter case, never by a lookup here.
+#   Unit [Dict<string, string>]
+CONST_FILTER_TO_LEVEL = {'info': CONST_LEVEL_INFO, 'warning': CONST_LEVEL_WARNING,
+                         'error': CONST_LEVEL_ERROR}
+# The widest sample of each fixed-width column, measured once to set the column widths so the
+# message starts at the same x on every row regardless of content.
+#   Unit [string]
+CONST_TS_SAMPLE = '0000-00-00 00:00:00'
+CONST_LEVEL_SAMPLE = CONST_LEVEL_WARNING          # the longest level word
+# The gap between the timestamp, level and message columns, and the top/bottom padding of a
+# row (px).
+#   Unit [int]
+CONST_COL_GAP = 14
+CONST_ROW_PAD = 2
+# How close to the bottom (px) still counts as 'at the bottom' for tail-following, so a
+# rounding of the scrollbar range never leaves the view one pixel short and stops following.
+#   Unit [int]
+CONST_TAIL_EPSILON = 4
+
+
+class Log_View_Cls(Card_Cls):
+    """
+    Description:
+        The session-log view. It renders from the logger's line sink (Sink) — plus a one-off
+        seed from the file (Seed_From_File) — and never formats a line itself. Rows are laid
+        in three columns (timestamp, level, message); the filter and the tail-follow behaviour
+        are view concerns that never touch the file.
+
+        Thread-safety: Sink is called from whichever thread logged the event, so it only emits
+        a Qt signal (Line_Received); the actual widget work runs on the GUI thread in the
+        connected slot. Emitting a signal is safe across threads, and the logger wraps the
+        Sink call, so a render fault here can never stop a line reaching disk.
+    """
+
+    # << SIGNAL >> #
+    # Internal plumbing: the sink emits this (thread-safe) and the GUI-thread slot renders it.
+    Line_Received = pyqtSignal(str)
+
+    def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
+        super().__init__(parent=parent)
+
+        # << PRIVATE >> #
+        # One (level, row_widget) per rendered line, in order, for filtering.
+        self.__rows = []
+        # The count of lines currently shown under the active filter.
+        self.__shown = 0
+        # Tail-follow state: True while the view sticks to the bottom; the count of lines that
+        # arrived while the operator was scrolled up.
+        self.__follow = True
+        self.__new_count = 0
+
+        # Fixed column widths, from the monospace metrics of the widest sample — so the
+        # message column starts at the same x on every row.
+        metrics = QFontMetrics(Font(Style.CONST_TYPE_LOG, mono=True))
+        self.__ts_width = metrics.horizontalAdvance(CONST_TS_SAMPLE)
+        self.__level_width = metrics.horizontalAdvance(CONST_LEVEL_SAMPLE)
+
+        self.__Build_Head()
+        self.__Build_Body()
+
+        # Live lines arrive on the GUI thread through this slot; the sink only emits the signal.
+        self.Line_Received.connect(self.__On_Line_Received)
+
+    # ------------------------------------------------------------------ construction
+
+    def __Build_Head(self) -> None:
+        """
+        Description:
+            Build the card head: the title, the tail 'new lines' indicator, the shown-count,
+            and the level filter (the console's one segmented-control look).
+        """
+
+        head = Card_Head_Cls('reading', 'Session log')
+
+        # The 'new lines' indicator — shown only while scrolled up; clicking it jumps to the
+        # bottom and resumes following.
+        self.__new_indicator = QPushButton('')
+        self.__new_indicator.setCursor(Qt.PointingHandCursor)
+        self.__new_indicator.setFont(Font(9, tracking=2))
+        self.__new_indicator.setStyleSheet(
+            'QPushButton { border: 1px solid %s; background: %s; color: %s;'
+            'border-radius: 12px; padding: 3px 12px; }'
+            'QPushButton:hover { background: #f6f5fa; }'
+            % (Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK))
+        self.__new_indicator.clicked.connect(self.__Scroll_To_Bottom)
+        self.__new_indicator.hide()
+        head.box.addWidget(self.__new_indicator)
+        head.box.addSpacing(12)
+
+        self.__count = QLabel('')
+        self.__count.setFont(Font(9))
+        self.__count.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
+        head.box.addWidget(self.__count)
+        head.box.addSpacing(12)
+
+        self.__filter = Segmented_Control_Cls(CONST_FILTER_SEGMENTS)
+        self.__filter.Segment_Selected.connect(lambda _key: self.__Apply_Filter())
+        head.box.addWidget(self.__filter)
+
+        self.box.addWidget(head)
+        self.__Set_Count(0)
+
+    def __Build_Body(self) -> None:
+        """
+        Description:
+            Build the scrolling rows area and wire the tail-follow signals. Rows are added to
+            a top-aligned column inside a scroll area; the scrollbar's range/value changes
+            drive the follow behaviour.
+        """
+
+        container = QWidget()
+        container.setStyleSheet('background: transparent;')
+        self.__rows_box = QVBoxLayout(container)
+        self.__rows_box.setContentsMargins(14, 12, 14, 12)
+        self.__rows_box.setSpacing(0)
+        self.__rows_box.setAlignment(Qt.AlignTop)
+
+        self.__scroll = QScrollArea()
+        self.__scroll.setWidget(container)
+        self.__scroll.setWidgetResizable(True)
+        self.__scroll.setFrameShape(QFrame.NoFrame)
+        self.__scroll.setStyleSheet("""
+            QScrollArea { border: 1px solid %s; border-radius: 10px; background: %s; }
+            QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
+            QScrollBar::handle:vertical { background: #c7c3d9; border-radius: 4px;
+                                          min-height: 30px; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: transparent; }
+        """ % (Style.CONST_LINE, Style.CONST_CARD))
+        self.box.addWidget(self.__scroll, 1)
+
+        bar = self.__scroll.verticalScrollBar()
+        # rangeChanged fires after a row is added and laid out: jump to the new bottom only
+        # while following. valueChanged tracks whether the operator is at the bottom.
+        bar.rangeChanged.connect(self.__On_Range_Changed)
+        bar.valueChanged.connect(self.__On_Value_Changed)
+
+    # -------------------------------------------------------------------- public API
+
+    def Sink(self, line: str) -> None:
+        """
+        Description:
+            The logger's line sink. It is called from whichever thread logged the event, so it
+            does no widget work: it only emits Line_Received, which delivers the line to the
+            GUI thread. Emitting is safe across threads, and the logger wraps this call, so
+            nothing here can stop a line reaching disk.
+
+        Args:
+            (1) line [string]: The formatted line, without its trailing newline.
+        """
+
+        self.Line_Received.emit(line)
+
+    def Seed_From_File(self, path: str) -> None:
+        """
+        Description:
+            Seed the view once from the log file — the lines written before the sink was
+            attached (e.g. the application-start line). Each line is rendered through the same
+            Append_Line path as a live line, so there is one rendering route. A missing or
+            unreadable file seeds nothing rather than raising.
+
+        Args:
+            (1) path [string]: The log file to read.
+        """
+
+        try:
+            with open(path, 'r', encoding='utf-8') as handle:
+                lines = handle.read().splitlines()
+        except OSError:
+            return
+        for line in lines:
+            if line:
+                self.Append_Line(line)
+
+    def Append_Line(self, line: str) -> None:
+        """
+        Description:
+            Render one already-formatted log line: split it into its four fields with the
+            logger's Parse_Line (never a second formatter here), build its row, apply the
+            active filter to it, update the shown-count, and either follow the tail or note a
+            new line if the operator has scrolled up.
+
+        Args:
+            (1) line [string]: The formatted line, without its trailing newline.
+        """
+
+        record = Parse_Line(line)
+        row = self.__Build_Row(record)
+        self.__rows.append((record.Level, row))
+        self.__rows_box.addWidget(row)
+
+        visible = self.__Filter_Matches(record.Level, self.__filter.Selection() or 'all')
+        row.setVisible(visible)
+        if visible:
+            self.__shown += 1
+            self.__Set_Count(self.__shown)
+            if not self.__follow:
+                self.__new_count += 1
+                self.__Show_New_Indicator()
+
+    def Is_Following(self) -> bool:
+        """
+        Description:
+            Whether the view is following the tail (stuck to the bottom).
+
+        Returns:
+            (1) parameter [bool]: True while following.
+        """
+
+        return self.__follow
+
+    def Shown_Count(self) -> int:
+        """
+        Description:
+            The number of lines currently shown under the active filter.
+
+        Returns:
+            (1) parameter [int]: The shown-line count.
+        """
+
+        return self.__shown
+
+    def New_Line_Count(self) -> int:
+        """
+        Description:
+            The number of lines that have arrived while the operator was scrolled up and has
+            not yet returned to the bottom.
+
+        Returns:
+            (1) parameter [int]: The pending new-line count.
+        """
+
+        return self.__new_count
+
+    # ------------------------------------------------------------------- rendering
+
+    def __Build_Row(self, record: tp.Any) -> QWidget:
+        """
+        Description:
+            One log row: the timestamp (muted, monospace, fixed width), the level (coloured by
+            severity, monospace, fixed width), and the message (coloured by severity, wrapping)
+            — so the message starts at a consistent x and the eye lands on severity first. The
+            colour is the theme's per-level token, never a literal here.
+
+        Args:
+            (1) record [Log_Line_Str(object)]: The parsed line fields.
+
+        Returns:
+            (1) parameter [QWidget(object)]: The row widget.
+        """
+
+        color = Style.Log_Level_Color(record.Level)
+
+        row = QWidget()
+        line = QHBoxLayout(row)
+        line.setContentsMargins(0, CONST_ROW_PAD, 0, CONST_ROW_PAD)
+        line.setSpacing(CONST_COL_GAP)
+
+        stamp = QLabel(('%s %s' % (record.Date, record.Time)).strip())
+        stamp.setFont(Font(Style.CONST_TYPE_LOG, mono=True))
+        stamp.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
+        stamp.setFixedWidth(self.__ts_width)
+        line.addWidget(stamp, 0, Qt.AlignTop)
+
+        level = QLabel(record.Level)
+        level.setFont(Font(Style.CONST_TYPE_LOG, mono=True))
+        level.setStyleSheet('color: %s;' % color)
+        level.setFixedWidth(self.__level_width)
+        line.addWidget(level, 0, Qt.AlignTop)
+
+        message = QLabel(record.Message)
+        message.setFont(Font(Style.CONST_TYPE_LOG))
+        message.setWordWrap(True)
+        message.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        message.setStyleSheet('color: %s;' % color)
+        line.addWidget(message, 1)
+        return row
+
+    def __Set_Count(self, count: int) -> None:
+        """
+        Description:
+            Show the count of lines currently displayed, so filtering to a level with no lines
+            reads as 'none occurred' rather than a broken filter.
+
+        Args:
+            (1) count [int]: The number of shown lines.
+        """
+
+        self.__count.setText('%d %s' % (count, 'line' if count == 1 else 'lines'))
+
+    # --------------------------------------------------------------------- filtering
+
+    def __Filter_Matches(self, level: str, key: str) -> bool:
+        """
+        Description:
+            Whether a line of the given level is shown under the active filter key. 'all'
+            matches every level; any other key matches only its one level.
+
+        Args:
+            (1) level [string]: The line's severity level.
+            (2) key [string]: The active filter key ('all', 'info', 'warning', 'error').
+
+        Returns:
+            (1) parameter [bool]: True when the line is shown.
+        """
+
+        return key == 'all' or level == CONST_FILTER_TO_LEVEL.get(key)
+
+    def __Apply_Filter(self) -> None:
+        """
+        Description:
+            Re-apply the active filter to every row — a VIEW operation that hides and shows
+            rows and never touches the file — and refresh the shown-count. If the filter change
+            leaves the view at the bottom, it keeps following.
+        """
+
+        key = self.__filter.Selection() or 'all'
+        shown = 0
+        for level, row in self.__rows:
+            visible = self.__Filter_Matches(level, key)
+            row.setVisible(visible)
+            if visible:
+                shown += 1
+        self.__shown = shown
+        self.__Set_Count(shown)
+
+    # ------------------------------------------------------------------- tail follow
+
+    def __On_Range_Changed(self, _minimum: int, _maximum: int) -> None:
+        """
+        Description:
+            The scroll range changed (a row was added and laid out). Jump to the new bottom
+            only while following, so new lines stay in view without yanking a scrolled-up
+            operator back down.
+
+        Args:
+            (1) _minimum [int]: The new range minimum (unused).
+            (2) _maximum [int]: The new range maximum (unused).
+        """
+
+        if self.__follow:
+            self.__Scroll_To_Bottom()
+
+    def __On_Value_Changed(self, value: int) -> None:
+        """
+        Description:
+            The scrollbar moved (by the operator or by a jump-to-bottom). Following is simply
+            'the value is at the bottom'; returning to the bottom clears the new-lines
+            indicator, and scrolling up suspends following.
+
+        Args:
+            (1) value [int]: The new scrollbar value.
+        """
+
+        bar = self.__scroll.verticalScrollBar()
+        self.__follow = value >= bar.maximum() - CONST_TAIL_EPSILON
+        if self.__follow:
+            self.__Clear_New_Indicator()
+
+    def __Scroll_To_Bottom(self) -> None:
+        """
+        Description:
+            Move the scrollbar to the bottom (and, via the value-changed handler, resume
+            following and clear the new-lines indicator).
+        """
+
+        bar = self.__scroll.verticalScrollBar()
+        bar.setValue(bar.maximum())
+
+    def __Show_New_Indicator(self) -> None:
+        """
+        Description:
+            Show the 'new lines' indicator with the pending count, so an operator reading
+            older lines sees that the log has advanced without being pulled to the bottom.
+        """
+
+        self.__new_indicator.setText('↓  %d new' % self.__new_count)
+        self.__new_indicator.show()
+
+    def __Clear_New_Indicator(self) -> None:
+        """
+        Description:
+            Clear the pending new-line count and hide the indicator — the operator is at the
+            bottom and current again.
+        """
+
+        self.__new_count = 0
+        self.__new_indicator.hide()
+
+    def __On_Line_Received(self, line: str) -> None:
+        """
+        Description:
+            GUI-thread slot for a line delivered through the sink signal — render it through
+            the same Append_Line path as a seeded line.
+
+        Args:
+            (1) line [string]: The formatted line.
+        """
+
+        self.Append_Line(line)

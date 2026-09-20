@@ -36,7 +36,7 @@ import numpy as np
 from PyQt5.QtCore import Qt, QThread, QTimer
 from PyQt5.QtGui import QFont, QKeyEvent, QCloseEvent
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-                             QGridLayout, QScrollArea, QFrame)
+                             QGridLayout, QScrollArea, QFrame, QStackedWidget)
 # Custom Lib.: AnyScan UI — style, widgets and workers
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
@@ -44,7 +44,12 @@ from UI.Utilities.Style import (Font, Load_Svg, Load_Logo, Rgb_To_Qimage, Bgr_To
                                 Hairline)
 #   ../UI/Widgets
 from UI.Widgets import (Card_Cls, Card_Head_Cls, Icon_Cls, Viewport_Cls, Tool_Button_Cls,
-                        View_Toggle_Cls, Object_List_Cls, Status_Strip_Cls, Funding_Row_Cls)
+                        View_Toggle_Cls, Segmented_Control_Cls, Object_List_Cls,
+                        Status_Strip_Cls, Funding_Row_Cls)
+#   ../UI/Views/History
+from UI.Views.History import History_View_Cls
+#   ../UI/Views/Log
+from UI.Views.Log import Log_View_Cls
 #   ../UI/Workers
 from UI.Workers import Analysis_Worker_Cls, Connect_Worker_Cls
 # Custom Lib.: AnyScan domain — backends, renderers and the result structure
@@ -97,6 +102,13 @@ class AnyScan_Window_Cls(QMainWindow):
                                   'plain English text.')
     CONST_READING_NO_FRAME = ('Press Scan to capture a frame, then Analyze. The model’s '
                               'reading of the scene appears here as plain English text.')
+    # The central-view switch segments, in order, as (key, label) — the stack pages line up
+    # with these by index (live=0, history=1, log=2). 'live' is first, so it is selected at
+    # startup.
+    CONST_VIEW_SEGMENTS = (('live', 'Live'), ('history', 'History'), ('log', 'Log'))
+    # The switch keys mapped to their stack index.
+    CONST_VIEW_INDEX = {'live': 0, 'history': 1, 'log': 2}
+
     CONST_READING_HAS_FRAME = ('Frame captured. Press Analyze to read the scene. The result '
                                'appears here as plain English text.')
 
@@ -164,6 +176,13 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__conn_thread = None
         self.__conn_worker = None
         # Widgets, populated by __Build_Ui.
+        # The central view stack (Live / History / Log) and the header switch that drives it.
+        # The header, status strip and funding row sit OUTSIDE the stack, so they stay fixed
+        # and keep updating whichever view is shown.
+        self.__stack = None
+        self.__view_switch = None
+        self.__history_view = None
+        self.__log_view = None
         self.__viewport = None
         self.__view_toggle = None
         self.__status = None
@@ -185,6 +204,7 @@ class AnyScan_Window_Cls(QMainWindow):
 
         self.__Build_Ui()
         self.__Connect_Signals()
+        self.__Attach_Log_View()
         self.__Sync_Controls()
         # Nudge a first repaint once the event loop starts, so the viewport paints
         # its empty state immediately.
@@ -212,7 +232,43 @@ class AnyScan_Window_Cls(QMainWindow):
 
         outer.addWidget(self.__Build_Topbar())
 
+        # Only the central area changes when the view switch is used: the topbar (above), the
+        # status strip and the funding row (below) stay fixed and keep updating regardless of
+        # which view is shown. The three views live in a stack; switching is a page change, so
+        # each view keeps its state and an analysis still drives the status strip and the Live
+        # cards while another view is on top.
+        self.__stack = QStackedWidget()
+        self.__stack.addWidget(self.__Build_Live_View())    # index 0 — Live
+        self.__history_view = History_View_Cls()
+        self.__stack.addWidget(self.__history_view)          # index 1 — History
+        self.__log_view = Log_View_Cls()
+        self.__stack.addWidget(self.__log_view)              # index 2 — Log
+
         grid = QGridLayout()
+        grid.setSpacing(Style.CONST_GAP)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.addWidget(self.__stack, 0, 0)
+        grid.setRowStretch(0, 1)       # spare height goes to the central view
+
+        self.__status = Status_Strip_Cls()
+        grid.addWidget(self.__status, 1, 0)
+        grid.addWidget(Funding_Row_Cls(), 2, 0)
+
+        outer.addLayout(grid, 1)
+
+    def __Build_Live_View(self) -> QWidget:
+        """
+        Description:
+            The Live view — the two cards the console has always shown, Camera View and Scene
+            Understanding, side by side. It is one page of the central stack; nothing about the
+            cards changes, only that they now live inside a switchable view.
+
+        Returns:
+            (1) parameter [QWidget(object)]: The Live view widget.
+        """
+
+        view = QWidget()
+        grid = QGridLayout(view)
         grid.setSpacing(Style.CONST_GAP)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.addWidget(self.__Build_Camera_Card(), 0, 0)
@@ -220,12 +276,7 @@ class AnyScan_Window_Cls(QMainWindow):
         grid.setColumnStretch(0, 55)   # the frame is always the widest element
         grid.setColumnStretch(1, 45)
         grid.setRowStretch(0, 1)       # spare height goes to the reading panel
-
-        self.__status = Status_Strip_Cls()
-        grid.addWidget(self.__status, 1, 0, 1, 2)
-        grid.addWidget(Funding_Row_Cls(), 2, 0, 1, 2)
-
-        outer.addLayout(grid, 1)
+        return view
 
     def __Build_Topbar(self) -> QWidget:
         """
@@ -255,6 +306,15 @@ class AnyScan_Window_Cls(QMainWindow):
         jic = QLabel()
         jic.setPixmap(Load_Logo('brand-jic-mute.png', 26))
         row.addWidget(jic)
+
+        row.addStretch(1)
+
+        # The central-view switch, in the same segmented-control language as the Camera View's
+        # annotated/mask toggle, centred in the header. Live is selected at startup (the first
+        # segment). It only changes which central view is shown — never the header, status strip
+        # or footer.
+        self.__view_switch = Segmented_Control_Cls(self.CONST_VIEW_SEGMENTS)
+        row.addWidget(self.__view_switch)
 
         row.addStretch(1)
 
@@ -464,6 +524,28 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_analyze.clicked.connect(self.__On_Analyze_Button_Clicked)
         self.__button_clear.clicked.connect(self.__On_Clear_Button_Clicked)
         self.__view_toggle.View_Changed.connect(self.__On_View_Toggle)
+        self.__view_switch.Segment_Selected.connect(self.__On_View_Selected)
+
+    def __Attach_Log_View(self) -> None:
+        """
+        Description:
+            Wire the Log view to the session logger, when one is present: seed the view once
+            from the log file (the lines written before this point, e.g. the application-start
+            line), then follow live by registering the view's sink. Seeding before attaching
+            the sink is race-free here — this runs during construction on the GUI thread, with
+            no worker logging yet — so no line is missed or doubled. With no logger, or a
+            minimal logger that exposes neither a file path nor the sink hook (a test spy),
+            the view simply stays empty.
+        """
+
+        if self.__logger is None:
+            return
+        log_path = getattr(self.__logger, 'Path', None)
+        if log_path is not None:
+            self.__log_view.Seed_From_File(log_path)
+        set_sink = getattr(self.__logger, 'Set_Line_Sink', None)
+        if callable(set_sink):
+            set_sink(self.__log_view.Sink)
 
     # ----------------------------------------------------------------- actions
 
@@ -1071,6 +1153,22 @@ class AnyScan_Window_Cls(QMainWindow):
 
         self.__view_choice = view
         self.__viewport.Set_View(view)
+
+    def __On_View_Selected(self, key: str) -> None:
+        """
+        Description:
+            Switch the central area to the selected view (Live / History / Log). Only the stack
+            page changes; the header, status strip and footer stay fixed, and every view keeps
+            its state — so an analysis started on another view still shows its result when Live
+            is selected again, and the status strip keeps updating throughout.
+
+        Args:
+            (1) key [string]: The view key ('live', 'history' or 'log').
+        """
+
+        index = self.CONST_VIEW_INDEX.get(key)
+        if index is not None:
+            self.__stack.setCurrentIndex(index)
 
     def __Clear_Reading(self) -> None:
         """

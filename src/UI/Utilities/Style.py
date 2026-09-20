@@ -41,7 +41,8 @@ from Parameters.Theme import (                                             # noq
     CONST_INK_MUTE, CONST_LINE, CONST_BRAND, CONST_OK, CONST_OK_INK,
     CONST_OK_SOFT, CONST_OK_BORDER, CONST_WARN, CONST_WARN_INK, CONST_WARN_SOFT,
     CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_BAND,
-    CONST_BAND_LINE, CONST_BAND_TEXT, CONST_INDEX_COLORS)
+    CONST_BAND_LINE, CONST_BAND_TEXT, CONST_INDEX_COLORS,
+    CONST_LOG_INFO, CONST_LOG_WARNING, CONST_LOG_ERROR, Log_Level_Color)
 
 """
 Description:
@@ -101,6 +102,12 @@ CONST_TYPE_SCENE_BACKGROUND = CONST_TYPE_SCALE[3]   # 15.5 — one step down fro
 CONST_TYPE_OBJECT_LABEL = CONST_TYPE_SCALE[2]       # 14.0 — one step down from 15.5
 CONST_TYPE_OBJECT_CONFIDENCE = CONST_TYPE_SCALE[1]  # 12.5 — one step down from the label
 CONST_TYPE_OBJECT_BODY = CONST_TYPE_SCALE[1]        # 12.5 — unchanged, the description
+
+# The Log-view row type size — the smallest scale step, so a long session stays legible at
+# length. The timestamp and level render at this size in the monospace family (fixed-width,
+# so the message column starts at a consistent x); the message at this size in the UI family.
+#   Unit [float] (point size)
+CONST_TYPE_LOG = CONST_TYPE_SCALE[0]                # 11.5 — the log row size
 
 
 def Load_Fonts() -> None:

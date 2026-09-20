@@ -100,6 +100,61 @@ CONST_CSV_DETAIL_SEPARATOR = ' | '
 CONST_CSV_BOM = '﻿'
 
 
+@dataclass
+class Log_Line_Str:
+    """
+    Description:
+        One parsed log line — the four fields a reader (the UI log view) renders in
+        columns: date, time, level and message. This is the structured form of a line the
+        logger already wrote; Parse_Line produces it and nothing re-derives the fields by a
+        second route, so the file and the view cannot drift.
+    """
+
+    # The date field, exactly as written (default CONST_DATE_FORMAT, '2026-09-12').
+    #   Unit [string]
+    Date: str = ''
+    # The time field, exactly as written (default CONST_TIME_FORMAT, '12:16:04').
+    #   Unit [string]
+    Time: str = ''
+    # The severity level, unpadded ('INFO', 'WARNING' or 'ERROR').
+    #   Unit [string]
+    Level: str = ''
+    # The human-readable message that follows the level field.
+    #   Unit [string]
+    Message: str = ''
+
+
+def Parse_Line(line: str) -> Log_Line_Str:
+    """
+    Description:
+        Split one already-written log line back into its four fields — the exact inverse of
+        the '<date> <time> [LEVEL  ] message' shape __Write_Line produces. It lives beside
+        that one formatter so the format and its inverse cannot drift, and it is the ONLY
+        parser: the log view calls this rather than interpreting the string itself, so there
+        is no second reader to disagree. A line that does not match the shape (an unexpected
+        or wrapped line) is returned whole as the message, so nothing is dropped.
+
+    Args:
+        (1) line [string]: One formatted log line, without its trailing newline.
+
+    Returns:
+        (1) parameter [Log_Line_Str(object)]: The parsed (date, time, level, message).
+    """
+
+    # The timestamp ends at the first ' [' — the level bracket. A date/time field never
+    # contains '[', and levels never contain ']', so the first ' [' and the first '] ' are
+    # unambiguously the level delimiters.
+    stamp, sep, rest = line.partition(' [')
+    if not sep:
+        return Log_Line_Str(Message=line)
+    level, closed, message = rest.partition('] ')
+    if not closed:
+        # '[LEVEL]' with nothing after it — an empty message.
+        level, message = rest.rstrip(']'), ''
+    date, _, time = stamp.partition(' ')
+    return Log_Line_Str(Date=date, Time=time, Level=level.strip(), Message=message)
+
+
 def Format_HMS(total_seconds: float) -> str:
     """
     Description:
@@ -372,6 +427,12 @@ class Session_Logger_Cls(object):
         self.__lock = threading.RLock()
         self.__closed = False
 
+        # An optional sink that receives each formatted line as it is written, so a live
+        # reader (the UI log view) shows exactly what went to disk without a second
+        # formatter. It is set after construction (Set_Line_Sink); the call is wrapped so a
+        # failing sink can never stop a line reaching the file.
+        self.__line_sink = None
+
         # Open the file for this run. The directory is created if it does not exist.
         self.__log_dir = os.path.abspath(log_dir) if log_dir is not None else CONST_DEFAULT_LOG_DIR
         os.makedirs(self.__log_dir, exist_ok=True)
@@ -512,8 +573,50 @@ class Session_Logger_Cls(object):
         except (OSError, ValueError):
             # fsync is best-effort; a flush already went out.
             pass
+        # Feed the live sink AFTER the line is safely on disk, so a sink failure can never
+        # cost the write. The line goes without its trailing newline — that terminates the
+        # file line, not the log content.
+        self.__Emit_To_Sink(line[:-1] if line.endswith('\n') else line)
+
+    def __Emit_To_Sink(self, line: str) -> None:
+        """
+        Description:
+            Hand one formatted line to the optional live sink, wrapped so any failure in the
+            sink (a rendering error in the UI, a disconnected view) is swallowed and never
+            propagates back into the write path. Assumes the lock is held; the disk write has
+            already completed by the time this is called.
+
+        Args:
+            (1) line [string]: The formatted line, without its trailing newline.
+        """
+
+        sink = self.__line_sink
+        if sink is None:
+            return
+        try:
+            sink(line)
+        except Exception:  # noqa: BLE001 - a sink failure must never break logging to disk
+            pass
 
     # ------------------------------------------------------------------ public API
+
+    def Set_Line_Sink(self, sink: tp.Optional[tp.Callable[[str], None]]) -> None:
+        """
+        Description:
+            Register (or clear, with None) an optional sink that receives each formatted line
+            as it is written to disk — the seam a live reader (the UI log view) renders from,
+            so it shows exactly what the file holds with no second formatter. The sink is
+            called after the disk write and is fully wrapped, so nothing it does can prevent a
+            line reaching the file. The view seeds itself from the file once, then follows via
+            this sink.
+
+        Args:
+            (1) sink [function or None]: A one-argument callable taking the formatted line
+                                         (without its trailing newline), or None to detach.
+        """
+
+        with self.__lock:
+            self.__line_sink = sink
 
     def Log_Info(self, info: str) -> None:
         """

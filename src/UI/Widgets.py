@@ -582,23 +582,22 @@ class Tool_Button_Cls(QPushButton):
             """ % (Style.CONST_INK, Style.CONST_RADIUS_BTN))
 
 
-class View_Toggle_Cls(QWidget):
+class Segmented_Control_Cls(QWidget):
     """
     Description:
-        The Camera View's annotated/mask selector (§2b): two mutually-exclusive,
-        checkable segments styled as one control. It emits View_Changed with the chosen
-        key ('annotated' or 'mask') only on a user click, so restoring a remembered
-        choice (Set_View) never re-emits and never loops. The window hides it until an
-        analysis has completed — there is nothing to toggle before then.
+        The console's ONE segmented control: a row of mutually-exclusive, checkable segments
+        styled as a single pill, so every selector (the Camera View's annotated/mask toggle,
+        the header's Live/History/Log switch) shares one visual language. It emits
+        Segment_Selected with the chosen key only on a USER click; Set_Selection reflects a
+        choice programmatically without re-emitting, so restoring a remembered choice never
+        loops. The first segment is selected at construction.
     """
 
     # << SIGNAL >> #
-    View_Changed = pyqtSignal(str)
+    Segment_Selected = pyqtSignal(str)
 
-    # The segments, in order, as (key, label).
-    CONST_SEGMENTS = (('annotated', 'Annotated'), ('mask', 'Mask'))
-
-    def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
+    def __init__(self, segments: tp.Sequence[tp.Tuple[str, str]], height: int = 30,
+                 parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         row = QHBoxLayout(self)
@@ -608,25 +607,26 @@ class View_Toggle_Cls(QWidget):
         self.__group.setExclusive(True)
         # << PRIVATE >> #
         self.__buttons = {}
-        for index, (key, label) in enumerate(self.CONST_SEGMENTS):
+        for index, (key, label) in enumerate(segments):
             button = QPushButton(label)
             button.setCheckable(True)
             button.setCursor(Qt.PointingHandCursor)
             button.setFont(Font(9, QFont.DemiBold, tracking=2))
-            button.setFixedHeight(30)
-            button.setStyleSheet(self.__Segment_Style(index, len(self.CONST_SEGMENTS)))
-            button.clicked.connect(lambda _checked, k=key: self.View_Changed.emit(k))
+            button.setFixedHeight(height)
+            button.setStyleSheet(self.__Segment_Style(index, len(segments)))
+            button.clicked.connect(lambda _checked, k=key: self.Segment_Selected.emit(k))
             self.__group.addButton(button)
             self.__buttons[key] = button
             row.addWidget(button)
-        self.__buttons['annotated'].setChecked(True)
+        if self.__buttons:
+            next(iter(self.__buttons.values())).setChecked(True)
 
     def __Segment_Style(self, index: int, total: int) -> str:
         """
         Description:
             The stylesheet for one segment: only the outer corners are rounded, so the
-            two buttons read as a single segmented control, and the checked segment
-            carries the brand ink.
+            buttons read as a single segmented control, and the checked segment carries the
+            brand ink.
 
         Args:
             (1) index [int]: The segment's position.
@@ -649,19 +649,68 @@ class View_Toggle_Cls(QWidget):
             QPushButton:disabled { color: #b6b2ca; border-color: #ecebf2; }
         """ % (Style.CONST_INK, left, left, right, right, Style.CONST_INK, Style.CONST_INK))
 
+    def Set_Selection(self, key: str) -> None:
+        """
+        Description:
+            Reflect a selection on the control WITHOUT emitting Segment_Selected — used to
+            restore a remembered choice. A programmatic setChecked does not raise `clicked`,
+            so the signal stays reserved for genuine user clicks.
+
+        Args:
+            (1) key [string]: The segment key to select.
+        """
+
+        button = self.__buttons.get(key)
+        if button is not None and not button.isChecked():
+            button.setChecked(True)
+
+    def Selection(self) -> tp.Optional[str]:
+        """
+        Description:
+            The key of the currently selected segment, or None when the control is empty.
+
+        Returns:
+            (1) parameter [string or None]: The selected key.
+        """
+
+        for key, button in self.__buttons.items():
+            if button.isChecked():
+                return key
+        return None
+
+
+class View_Toggle_Cls(Segmented_Control_Cls):
+    """
+    Description:
+        The Camera View's annotated/mask selector (§2b) — a Segmented_Control_Cls fixed to
+        two segments, so it shares the console's one segmented-control look. It re-exposes
+        the control under its domain names: View_Changed (a user click) and Set_View
+        (restore a remembered choice without re-emitting). The window hides it until an
+        analysis has completed — there is nothing to toggle before then.
+    """
+
+    # << SIGNAL >> #
+    View_Changed = pyqtSignal(str)
+
+    # The segments, in order, as (key, label).
+    CONST_SEGMENTS = (('annotated', 'Annotated'), ('mask', 'Mask'))
+
+    def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
+        super().__init__(self.CONST_SEGMENTS, parent=parent)
+        # Relay the generic selection under this control's domain name.
+        self.Segment_Selected.connect(self.View_Changed)
+
     def Set_View(self, view: str) -> None:
         """
         Description:
-            Reflect a view choice on the control WITHOUT emitting View_Changed — used to
-            restore the operator's remembered choice when a new analysis completes.
+            Reflect a view choice WITHOUT emitting View_Changed — restore the operator's
+            remembered annotated/mask choice when a new analysis completes.
 
         Args:
             (1) view [string]: 'annotated' or 'mask'.
         """
 
-        button = self.__buttons.get(view)
-        if button is not None and not button.isChecked():
-            button.setChecked(True)
+        self.Set_Selection(view)
 
 
 class Object_List_Cls(QWidget):

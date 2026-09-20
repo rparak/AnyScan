@@ -34,7 +34,8 @@ import typing as tp
 import pytest
 # Custom Lib.: AnyScan — the session logger
 #   ../Logger/Core
-from Logger.Core import Session_Logger_Cls, Format_HMS, CONST_CSV_COLUMNS
+from Logger.Core import (Session_Logger_Cls, Format_HMS, Parse_Line, CONST_CSV_COLUMNS,
+                         CONST_LEVEL_INFO, CONST_LEVEL_WARNING, CONST_LEVEL_ERROR)
 
 """
 Description:
@@ -695,3 +696,91 @@ def test_txt_has_no_run_summary_block(tmp_path: tp.Any) -> None:
     assert 'RUN SUMMARY' not in content
     assert 'Camera connected. Session 1 started.' in content
     assert content.rstrip().endswith('Application stopped.')
+
+
+def test_line_sink_receives_the_same_formatted_line_as_the_file(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The optional line sink receives each formatted line as it is written, and it is the
+        SAME string the file holds (minus the trailing newline) — one formatter, so the live
+        view and the file cannot drift. A line logged before the sink is attached does not
+        reach it (the file is the seed for those); every line after does.
+    """
+
+    clock = Clock_Cls(_T('08:00:00'))
+    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
+                                        install_handlers=False)
+    received = []
+
+    Session_Logger.Log_Info('Before the sink is attached.')      # seeds the file only
+    Session_Logger.Set_Line_Sink(received.append)
+    Session_Logger.Log_Info('After the sink is attached.')
+    Session_Logger.Log_Warning('A warning.')
+    Session_Logger.Log_Error('An error.')
+
+    # The sink saw exactly the post-attachment lines, in order.
+    assert received == ['2026-09-12 08:00:00 [INFO   ] After the sink is attached.',
+                        '2026-09-12 08:00:00 [WARNING] A warning.',
+                        '2026-09-12 08:00:00 [ERROR  ] An error. (error_id=1)']
+
+    # Each sink line equals its file line without the trailing newline — the same string.
+    file_lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()
+    for line in received:
+        assert line in file_lines
+
+
+def test_a_sink_failure_never_prevents_the_write_to_disk(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The sink is wrapped: a sink that raises on every call must not stop the line reaching
+        the file. This is the guarantee that a rendering fault in the live view can never cost
+        a logged line on disk.
+    """
+
+    clock = Clock_Cls(_T('09:15:00'))
+    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
+                                        install_handlers=False)
+
+    def _Explode(_line: str) -> None:
+        raise RuntimeError('the view blew up')
+
+    Session_Logger.Set_Line_Sink(_Explode)
+    Session_Logger.Log_Info('This must still reach the file.')   # must not raise
+    Session_Logger.Log_Error('And so must this.')               # must not raise
+
+    content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
+    assert 'This must still reach the file.' in content
+    assert 'And so must this.' in content
+
+
+def test_parse_line_is_the_inverse_of_the_written_format(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Parse_Line splits a written line back into its four fields — the exact inverse of the
+        one formatter, so the view reads what the logger wrote with no second parser. It is
+        checked against real lines the logger produced (round-trip), and a non-conforming line
+        is returned whole as the message so nothing is dropped.
+    """
+
+    clock = Clock_Cls(_T('10:20:30'))
+    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
+                                        install_handlers=False)
+    Session_Logger.Log_Info('A plain event.')
+    Session_Logger.Log_Warning('Careful now.')
+    Session_Logger.Close()
+
+    lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()
+    info = Parse_Line(lines[0])
+    assert (info.Date, info.Time, info.Level, info.Message) == \
+        ('2026-09-12', '10:20:30', CONST_LEVEL_INFO, 'A plain event.')
+    warning = Parse_Line(lines[1])
+    assert warning.Level == CONST_LEVEL_WARNING and warning.Message == 'Careful now.'
+
+    # An error line keeps the level and the whole message (the error id included).
+    error = Parse_Line('2026-09-12 10:20:31 [ERROR  ] Backend timed out (error_id=7)')
+    assert error.Level == CONST_LEVEL_ERROR
+    assert error.Message == 'Backend timed out (error_id=7)'
+
+    # A line that does not match the shape is returned whole as the message, nothing dropped.
+    stray = Parse_Line('a wrapped continuation line with no timestamp')
+    assert stray.Level == '' and stray.Message == 'a wrapped continuation line with no timestamp'

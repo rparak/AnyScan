@@ -115,6 +115,47 @@ CONST_VERDICT_COLORS = {
 #   Unit [string]
 CONST_VERDICT_DEFAULT = 'OK'
 
+# The Log-view severity text colours, one named semantic token per level. The log view
+# colours the level field and the message by these (the timestamp stays muted); a level
+# colour is NEVER a literal at the call site. INFO reuses the Scene-Understanding ink;
+# WARNING and ERROR are the palette's darker amber/red inks, chosen to read clearly as small
+# text on the white card (CONST_CARD).
+#
+#   NOTE on CONST_LOG_ERROR vs '#ff005c': the log ERROR colour is DELIBERATELY not the NOK
+#   verdict magenta (CONST_VERDICT_COLORS['NOK'] = '#ff005c'). NOK means "this part is
+#   faulty"; a log ERROR means "the application failed". Painting them the same colour would
+#   conflate an inspection result with a software fault, so the two reds are kept distinct —
+#   #b91c1c is a deep, true red (the red sibling of the OK green and WARNING amber inks),
+#   clearly not the neon pink-magenta of the verdict. Do NOT unify them.
+#   Unit [string] (hex colour)
+CONST_LOG_INFO    = CONST_INK      # '#2b2455' — the Scene-Understanding text colour
+CONST_LOG_WARNING = CONST_WARN_INK # '#b45309' — deep amber, readable as text on the card
+CONST_LOG_ERROR   = '#b91c1c'      # deep true red — NOT the NOK verdict '#ff005c' (see note)
+
+# The severity-to-colour mapping the log view reads, from the tokens above — keyed by the
+# Logger's level strings, with INFO the fallback for an unknown level so a line always
+# renders. Qt-free and pure, so the mapping is unit-testable without a widget.
+#   Unit [Dict<string, string>]
+CONST_LOG_LEVEL_COLORS = {'INFO': CONST_LOG_INFO, 'WARNING': CONST_LOG_WARNING,
+                          'ERROR': CONST_LOG_ERROR}
+
+
+def Log_Level_Color(level: str) -> str:
+    """
+    Description:
+        The text colour for a log severity level, from the one CONST_LOG_LEVEL_COLORS
+        mapping — the log view reads this, never a colour literal at the call site. An
+        unknown or empty level falls back to the INFO colour, so a line always renders.
+
+    Args:
+        (1) level [string]: The severity level ('INFO', 'WARNING' or 'ERROR').
+
+    Returns:
+        (1) parameter [string]: The token hex colour for that level.
+    """
+
+    return CONST_LOG_LEVEL_COLORS.get(level, CONST_LOG_INFO)
+
 # Reserved hue bands (fraction of the wheel, 0..1) an object colour must avoid: an
 # object in a verdict hue would misread as pass/fail/degraded. The red end is the
 # WHOLE red-through-magenta wedge, not just true red, because a rose/crimson reads as
