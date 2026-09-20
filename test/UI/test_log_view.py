@@ -38,7 +38,8 @@ from UI.Views.Log import Log_View_Cls
 from Parameters.Theme import (Log_Level_Color, CONST_LOG_INFO, CONST_LOG_WARNING,
                               CONST_LOG_ERROR)
 #   ../Logger/Core
-from Logger.Core import CONST_LEVEL_INFO, CONST_LEVEL_WARNING, CONST_LEVEL_ERROR
+from Logger.Core import (Log_Line_Str, CONST_LEVEL_INFO, CONST_LEVEL_WARNING,
+                         CONST_LEVEL_ERROR)
 
 """
 Description:
@@ -108,6 +109,63 @@ def test_renders_the_four_fields_in_columns(qt_app) -> None:
 
     # Fixed, equal column widths -> the message starts at a consistent x.
     assert ts0.width() == ts1.width() and lvl0.width() == lvl1.width()
+
+
+def test_append_record_renders_fields_without_parsing(qt_app) -> None:
+    """
+    Description:
+        The live path renders a record's already-separated fields directly — no parsing. A
+        Log_Line_Str handed straight to Append_Record produces a row with exactly those
+        fields, so the live path cannot mis-split (there is nothing to split).
+    """
+
+    view = Log_View_Cls()
+    view.Append_Record(Log_Line_Str(Date='2026-09-12', Time='08:00:05',
+                                    Level=CONST_LEVEL_WARNING, Message='Careful.', Parsed=True))
+    (ts, lvl, msg), = _Row_Labels(view)
+    assert ts.text() == '2026-09-12 08:00:05'
+    assert lvl.text() == CONST_LEVEL_WARNING
+    assert msg.text() == 'Careful.'
+    assert CONST_LOG_WARNING in lvl.styleSheet()
+
+
+def test_unparsable_line_renders_raw_and_muted_not_mis_split(qt_app) -> None:
+    """
+    Description:
+        A seeded line that is not a real log line (a wrapped continuation, foreign text) is
+        rendered RAW across one column in the muted tone — never mis-split into fields, never
+        dropped, and never coloured as a severity it does not have.
+    """
+
+    view = Log_View_Cls()
+    raw = 'a continuation line with no timestamp [ERROR] inside it'
+    view.Append_Line(raw)
+
+    _level, row = _Private(view, '__rows')[0]
+    cells = [row.layout().itemAt(i).widget() for i in range(row.layout().count())]
+    assert len(cells) == 1                               # one full-width cell, not three
+    assert cells[0].text() == raw                        # verbatim, not split
+    from Parameters.Theme import CONST_INK_MUTE
+    assert CONST_INK_MUTE in cells[0].styleSheet()       # muted, not a level colour
+    assert _level == ''                                  # no severity attributed
+
+
+def test_level_field_weight_ramps_with_severity(qt_app) -> None:
+    """
+    Description:
+        Severity is not carried by colour alone: the level field's weight ramps INFO < WARNING
+        < ERROR, so the two long-wavelength colours (amber and red, which collapse together
+        under a red-green deficiency) stay distinguishable by weight as well as by the level
+        word.
+    """
+
+    view = Log_View_Cls()
+    view.Append_Line(_Line('08:00:01', CONST_LEVEL_INFO, 'i'))
+    view.Append_Line(_Line('08:00:02', CONST_LEVEL_WARNING, 'w'))
+    view.Append_Line(_Line('08:00:03', CONST_LEVEL_ERROR, 'e'))
+
+    (_ts_i, lvl_i, _m_i), (_ts_w, lvl_w, _m_w), (_ts_e, lvl_e, _m_e) = _Row_Labels(view)
+    assert lvl_i.font().weight() < lvl_w.font().weight() < lvl_e.font().weight()
 
 
 def test_level_to_colour_mapping(qt_app) -> None:

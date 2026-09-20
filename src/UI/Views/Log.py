@@ -27,7 +27,7 @@
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFontMetrics
+from PyQt5.QtGui import QFont, QFontMetrics
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
                              QScrollArea, QFrame)
 # Custom Lib.: AnyScan UI — design tokens, style helpers and shared widgets
@@ -67,6 +67,14 @@ CONST_FILTER_SEGMENTS = (('all', 'All'), ('info', 'Info'), ('warning', 'Warning'
 #   Unit [Dict<string, string>]
 CONST_FILTER_TO_LEVEL = {'info': CONST_LEVEL_INFO, 'warning': CONST_LEVEL_WARNING,
                          'error': CONST_LEVEL_ERROR}
+# The level -> font weight ramp for the level field. Severity is carried by THREE channels,
+# not colour alone: the level word, its colour, and this weight — because #b45309 (WARNING)
+# and #b91c1c (ERROR) collapse to nearly the same colour under a red-green deficiency
+# (measured dE ~8 in deuteranopia), so a heavier weight for the more severe level keeps them
+# apart for a viewer who cannot rely on the colour.
+#   Unit [Dict<string, int>]
+CONST_LEVEL_WEIGHTS = {CONST_LEVEL_INFO: QFont.Normal, CONST_LEVEL_WARNING: QFont.DemiBold,
+                       CONST_LEVEL_ERROR: QFont.Bold}
 # The widest sample of each fixed-width column, measured once to set the column widths so the
 # message starts at the same x on every row regardless of content.
 #   Unit [string]
@@ -99,7 +107,8 @@ class Log_View_Cls(Card_Cls):
 
     # << SIGNAL >> #
     # Internal plumbing: the sink emits this (thread-safe) and the GUI-thread slot renders it.
-    Line_Received = pyqtSignal(str)
+    # It carries the Log_Line_Str the logger already built, so the live path never parses.
+    Record_Received = pyqtSignal(object)
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent=parent)
@@ -124,7 +133,7 @@ class Log_View_Cls(Card_Cls):
         self.__Build_Body()
 
         # Live lines arrive on the GUI thread through this slot; the sink only emits the signal.
-        self.Line_Received.connect(self.__On_Line_Received)
+        self.Record_Received.connect(self.__On_Record_Received)
 
     # ------------------------------------------------------------------ construction
 
@@ -203,19 +212,23 @@ class Log_View_Cls(Card_Cls):
 
     # -------------------------------------------------------------------- public API
 
-    def Sink(self, line: str) -> None:
+    def Sink(self, record: tp.Any, line: str) -> None:
         """
         Description:
-            The logger's line sink. It is called from whichever thread logged the event, so it
-            does no widget work: it only emits Line_Received, which delivers the line to the
-            GUI thread. Emitting is safe across threads, and the logger wraps this call, so
-            nothing here can stop a line reaching disk.
+            The logger's line sink. It is handed the line's fields ALREADY SEPARATED (a
+            Log_Line_Str), so the live path never parses — parsing is only ever the seed path's
+            job. It is called from whichever thread logged the event, so it does no widget
+            work: it only emits Record_Received, delivering the record to the GUI thread.
+            Emitting is safe across threads, and the logger wraps this call, so nothing here
+            can stop a line reaching disk. The formatted `line` is part of the sink protocol
+            (for a sink that wants the raw string); this view renders from the fields.
 
         Args:
-            (1) line [string]: The formatted line, without its trailing newline.
+            (1) record [Log_Line_Str(object)]: The line's fields, already separated.
+            (2) line [string]: The formatted line (unused here — the view renders fields).
         """
 
-        self.Line_Received.emit(line)
+        self.Record_Received.emit(record)
 
     def Seed_From_File(self, path: str) -> None:
         """
@@ -241,16 +254,27 @@ class Log_View_Cls(Card_Cls):
     def Append_Line(self, line: str) -> None:
         """
         Description:
-            Render one already-formatted log line: split it into its four fields with the
-            logger's Parse_Line (never a second formatter here), build its row, apply the
-            active filter to it, update the shown-count, and either follow the tail or note a
-            new line if the operator has scrolled up.
+            The SEED path: render one already-formatted line read back from the file. It is the
+            only place a line is parsed — with the logger's own Parse_Line, never a second
+            formatter — because the file holds text the application does not control. The live
+            path uses Append_Record instead and never parses.
 
         Args:
             (1) line [string]: The formatted line, without its trailing newline.
         """
 
-        record = Parse_Line(line)
+        self.Append_Record(Parse_Line(line))
+
+    def Append_Record(self, record: tp.Any) -> None:
+        """
+        Description:
+            The LIVE path: render one line from its already-separated fields (a Log_Line_Str),
+            with no parsing. Both paths funnel here; the seed path just parses first.
+
+        Args:
+            (1) record [Log_Line_Str(object)]: The line's fields.
+        """
+
         row = self.__Build_Row(record)
         self.__rows.append((record.Level, row))
         self.__rows_box.addWidget(row)
@@ -303,17 +327,23 @@ class Log_View_Cls(Card_Cls):
     def __Build_Row(self, record: tp.Any) -> QWidget:
         """
         Description:
-            One log row: the timestamp (muted, monospace, fixed width), the level (coloured by
-            severity, monospace, fixed width), and the message (coloured by severity, wrapping)
-            — so the message starts at a consistent x and the eye lands on severity first. The
-            colour is the theme's per-level token, never a literal here.
+            One log row. A parsed line lays three columns: the timestamp (muted, monospace,
+            fixed width), the level (coloured AND weighted by severity, monospace, fixed
+            width), and the message (coloured by severity, wrapping) — so the message starts at
+            a consistent x, the eye lands on severity first, and severity survives a red-green
+            deficiency through the level word and its weight, not colour alone. An UNPARSED
+            line (a wrapped continuation, or foreign text in the file) is rendered raw across
+            the full width in the muted tone — never mis-split, never dropped.
 
         Args:
-            (1) record [Log_Line_Str(object)]: The parsed line fields.
+            (1) record [Log_Line_Str(object)]: The line's fields.
 
         Returns:
             (1) parameter [QWidget(object)]: The row widget.
         """
+
+        if not record.Parsed:
+            return self.__Build_Raw_Row(record.Message)
 
         color = Style.Log_Level_Color(record.Level)
 
@@ -329,7 +359,8 @@ class Log_View_Cls(Card_Cls):
         line.addWidget(stamp, 0, Qt.AlignTop)
 
         level = QLabel(record.Level)
-        level.setFont(Font(Style.CONST_TYPE_LOG, mono=True))
+        weight = CONST_LEVEL_WEIGHTS.get(record.Level, QFont.Normal)
+        level.setFont(Font(Style.CONST_TYPE_LOG, weight, mono=True))
         level.setStyleSheet('color: %s;' % color)
         level.setFixedWidth(self.__level_width)
         line.addWidget(level, 0, Qt.AlignTop)
@@ -340,6 +371,34 @@ class Log_View_Cls(Card_Cls):
         message.setTextInteractionFlags(Qt.TextSelectableByMouse)
         message.setStyleSheet('color: %s;' % color)
         line.addWidget(message, 1)
+        return row
+
+    def __Build_Raw_Row(self, text: str) -> QWidget:
+        """
+        Description:
+            A row for an UNPARSED line: the raw text across the full width in the muted tone,
+            monospace and wrapping. It carries no severity (there is none to trust), so it is
+            never coloured as a level — the muted tone marks it as a continuation or foreign
+            line rather than mis-attributing a severity to it.
+
+        Args:
+            (1) text [string]: The raw line text, verbatim.
+
+        Returns:
+            (1) parameter [QWidget(object)]: The row widget.
+        """
+
+        row = QWidget()
+        line = QHBoxLayout(row)
+        line.setContentsMargins(0, CONST_ROW_PAD, 0, CONST_ROW_PAD)
+        line.setSpacing(0)
+
+        raw = QLabel(text)
+        raw.setFont(Font(Style.CONST_TYPE_LOG, mono=True))
+        raw.setWordWrap(True)
+        raw.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        raw.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
+        line.addWidget(raw, 1)
         return row
 
     def __Set_Count(self, count: int) -> None:
@@ -453,14 +512,14 @@ class Log_View_Cls(Card_Cls):
         self.__new_count = 0
         self.__new_indicator.hide()
 
-    def __On_Line_Received(self, line: str) -> None:
+    def __On_Record_Received(self, record: tp.Any) -> None:
         """
         Description:
-            GUI-thread slot for a line delivered through the sink signal — render it through
-            the same Append_Line path as a seeded line.
+            GUI-thread slot for a record delivered through the sink signal — render it directly
+            from its fields (the live path never parses).
 
         Args:
-            (1) line [string]: The formatted line.
+            (1) record [Log_Line_Str(object)]: The line's fields.
         """
 
-        self.Append_Line(line)
+        self.Append_Record(record)

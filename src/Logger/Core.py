@@ -51,6 +51,11 @@ CONST_DEFAULT_LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abs
 CONST_LEVEL_INFO = 'INFO'
 CONST_LEVEL_WARNING = 'WARNING'
 CONST_LEVEL_ERROR = 'ERROR'
+# The complete set of levels the logger ever writes. Parse_Line accepts a bracketed field as
+# a level ONLY when it is one of these, so a message that merely contains a '[WORD]' sequence
+# is never mistaken for a level field.
+#   Unit [Tuple<string>]
+CONST_LEVELS = (CONST_LEVEL_INFO, CONST_LEVEL_WARNING, CONST_LEVEL_ERROR)
 # The width the bracketed level is padded to — the longest level ('WARNING') — so the
 # message column starts at the same offset on every line.
 #   Unit [int]
@@ -104,10 +109,12 @@ CONST_CSV_BOM = '﻿'
 class Log_Line_Str:
     """
     Description:
-        One parsed log line — the four fields a reader (the UI log view) renders in
-        columns: date, time, level and message. This is the structured form of a line the
-        logger already wrote; Parse_Line produces it and nothing re-derives the fields by a
-        second route, so the file and the view cannot drift.
+        One log line's fields, as a reader (the UI log view) renders them: date, time, level
+        and message. On the LIVE path the logger builds this at the write site from the fields
+        it already has — before they are joined — and hands it to the sink, so the live view
+        never parses. On the SEED path the view rebuilds it from a file line with Parse_Line.
+        Either way it is the one structured form; nothing re-derives the fields by a second
+        route, so the file and the view cannot drift.
     """
 
     # The date field, exactly as written (default CONST_DATE_FORMAT, '2026-09-12').
@@ -116,43 +123,77 @@ class Log_Line_Str:
     # The time field, exactly as written (default CONST_TIME_FORMAT, '12:16:04').
     #   Unit [string]
     Time: str = ''
-    # The severity level, unpadded ('INFO', 'WARNING' or 'ERROR').
+    # The severity level, unpadded ('INFO', 'WARNING' or 'ERROR'); empty when a seeded line
+    # could not be parsed.
     #   Unit [string]
     Level: str = ''
-    # The human-readable message that follows the level field.
+    # The human-readable message that follows the level field. For an UNPARSED seed line this
+    # holds the whole raw line, so the view can render it verbatim.
     #   Unit [string]
     Message: str = ''
+    # Whether the fields are trustworthy. True on the live path (built from real fields) and
+    # for a file line that matched the format; False for a seed line that did not match (a
+    # wrapped continuation of a multi-line message, or foreign text), which the view renders
+    # raw in the muted tone rather than mis-splitting or dropping.
+    #   Unit [bool]
+    Parsed: bool = True
+
+
+def __Looks_Like_Stamp(stamp: str) -> bool:
+    """
+    Description:
+        Whether a candidate timestamp looks like '<date> <time-with-colon>' — a space between
+        two non-empty tokens, the date starting with a digit and the time containing a colon.
+        This rejects a message fragment that merely happens to sit before a '[WORD]' sequence,
+        so Parse_Line does not mis-split it.
+
+    Args:
+        (1) stamp [string]: The text before the first ' [' delimiter.
+
+    Returns:
+        (1) parameter [bool]: True when the text is timestamp-shaped.
+    """
+
+    date, space, time = stamp.partition(' ')
+    return bool(space) and bool(date) and date[0].isdigit() and ':' in time
 
 
 def Parse_Line(line: str) -> Log_Line_Str:
     """
     Description:
-        Split one already-written log line back into its four fields — the exact inverse of
-        the '<date> <time> [LEVEL  ] message' shape __Write_Line produces. It lives beside
-        that one formatter so the format and its inverse cannot drift, and it is the ONLY
-        parser: the log view calls this rather than interpreting the string itself, so there
-        is no second reader to disagree. A line that does not match the shape (an unexpected
-        or wrapped line) is returned whole as the message, so nothing is dropped.
+        Split one already-written log line back into its four fields — the inverse of the
+        '<date> <time> [LEVEL  ] message' shape __Write_Line produces. It lives beside that one
+        formatter so the format and its inverse cannot drift, and it is the ONLY parser: it is
+        used solely to SEED the view from the file (the live path is handed the fields directly
+        and never parses), and the file holds text the application does not control — Florence
+        captions, driver error strings, file paths, audit lines quoting arbitrary caption text.
+
+        So it never guesses: a bracketed field is treated as a level ONLY when it is a real
+        level (CONST_LEVELS) AND the text before it is timestamp-shaped. Anything else — a
+        message containing '[WARNING]', a path with a ' [' in it, a wrapped continuation line
+        of a multi-line message — is returned whole as the message with Parsed=False, so the
+        view renders it raw rather than mis-splitting it. Nothing is ever dropped.
 
     Args:
         (1) line [string]: One formatted log line, without its trailing newline.
 
     Returns:
-        (1) parameter [Log_Line_Str(object)]: The parsed (date, time, level, message).
+        (1) parameter [Log_Line_Str(object)]: The parsed fields, or the whole line as an
+            unparsed message (Parsed=False) when it does not match the format.
     """
 
-    # The timestamp ends at the first ' [' — the level bracket. A date/time field never
-    # contains '[', and levels never contain ']', so the first ' [' and the first '] ' are
-    # unambiguously the level delimiters.
+    # The timestamp ends at the first ' [' — the level bracket. A real timestamp never
+    # contains '[', and a real level never contains ']', so the first ' [' and the first '] '
+    # after it are the only candidate delimiters.
     stamp, sep, rest = line.partition(' [')
-    if not sep:
-        return Log_Line_Str(Message=line)
-    level, closed, message = rest.partition('] ')
-    if not closed:
-        # '[LEVEL]' with nothing after it — an empty message.
-        level, message = rest.rstrip(']'), ''
-    date, _, time = stamp.partition(' ')
-    return Log_Line_Str(Date=date, Time=time, Level=level.strip(), Message=message)
+    if sep:
+        level_field, closed, message = rest.partition('] ')
+        level = level_field.strip()
+        if closed and level in CONST_LEVELS and __Looks_Like_Stamp(stamp):
+            date, _, time = stamp.partition(' ')
+            return Log_Line_Str(Date=date, Time=time, Level=level, Message=message, Parsed=True)
+    # Not a well-formed line: keep it whole, marked unparsed, so nothing is lost or mis-split.
+    return Log_Line_Str(Message=line, Parsed=False)
 
 
 def Format_HMS(total_seconds: float) -> str:
@@ -564,8 +605,9 @@ class Session_Logger_Cls(object):
 
         if self.__file is None or self.__file.closed:
             return
-        stamp = '%s %s' % (now.strftime(self.__date_format), now.strftime(self.__time_format))
-        line = '%s [%-*s] %s\n' % (stamp, CONST_LEVEL_WIDTH, level, info)
+        date = now.strftime(self.__date_format)
+        time = now.strftime(self.__time_format)
+        line = '%s %s [%-*s] %s\n' % (date, time, CONST_LEVEL_WIDTH, level, info)
         self.__file.write(line)
         self.__file.flush()
         try:
@@ -573,28 +615,31 @@ class Session_Logger_Cls(object):
         except (OSError, ValueError):
             # fsync is best-effort; a flush already went out.
             pass
-        # Feed the live sink AFTER the line is safely on disk, so a sink failure can never
-        # cost the write. The line goes without its trailing newline — that terminates the
-        # file line, not the log content.
-        self.__Emit_To_Sink(line[:-1] if line.endswith('\n') else line)
+        # Feed the live sink AFTER the line is safely on disk, so a sink failure can never cost
+        # the write. The fields go SEPARATED — as they are here, before joining — so the live
+        # view renders what it was handed and never parses; the formatted line goes too (minus
+        # the trailing newline) for a sink that wants the raw string.
+        record = Log_Line_Str(Date=date, Time=time, Level=level, Message=info, Parsed=True)
+        self.__Emit_To_Sink(record, line[:-1] if line.endswith('\n') else line)
 
-    def __Emit_To_Sink(self, line: str) -> None:
+    def __Emit_To_Sink(self, record: Log_Line_Str, line: str) -> None:
         """
         Description:
-            Hand one formatted line to the optional live sink, wrapped so any failure in the
-            sink (a rendering error in the UI, a disconnected view) is swallowed and never
-            propagates back into the write path. Assumes the lock is held; the disk write has
-            already completed by the time this is called.
+            Hand one line's fields (and its formatted string) to the optional live sink,
+            wrapped so any failure in the sink (a rendering error in the UI, a disconnected
+            view) is swallowed and never propagates back into the write path. Assumes the lock
+            is held; the disk write has already completed by the time this is called.
 
         Args:
-            (1) line [string]: The formatted line, without its trailing newline.
+            (1) record [Log_Line_Str(object)]: The line's fields, already separated.
+            (2) line [string]: The formatted line, without its trailing newline.
         """
 
         sink = self.__line_sink
         if sink is None:
             return
         try:
-            sink(line)
+            sink(record, line)
         except Exception:  # noqa: BLE001 - a sink failure must never break logging to disk
             pass
 
@@ -611,8 +656,10 @@ class Session_Logger_Cls(object):
             this sink.
 
         Args:
-            (1) sink [function or None]: A one-argument callable taking the formatted line
-                                         (without its trailing newline), or None to detach.
+            (1) sink [function or None]: A callable taking (record, line) — the line's fields
+                                         as a Log_Line_Str (already separated, so the live view
+                                         never parses) and the formatted line without its
+                                         trailing newline — or None to detach.
         """
 
         with self.__lock:

@@ -28,6 +28,7 @@ import os
 # Qt must render headless; set the platform before any QApplication is constructed.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import sys
+import time
 import argparse
 import datetime
 # Resolve the project folder from this file's own location (Example/UI -> ..), so the
@@ -185,8 +186,15 @@ def _Render(output_dir: str, stamp: str) -> None:
     window.resize(1500, 950)
 
     mangle = '_AnyScan_Window_Cls'
-    getattr(window, mangle + '__camera').Connect()
-    getattr(window, mangle + '__Sync_Controls')()
+    # Connect through the SAME path the app uses — the Connect button, which runs a worker
+    # thread and lands in __On_Connect_Finished — so the demo shows the state the app actually
+    # shows (camera Connected, resolution set), not a half-updated bypass. Pump the event loop
+    # until the connect worker has finished (its thread is torn down to None).
+    getattr(window, mangle + '__On_Connect_Button_Clicked')()
+    deadline = time.time() + 10.0
+    while getattr(window, mangle + '__conn_thread') is not None and time.time() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
     getattr(window, mangle + '__On_Scan_Button_Clicked')()
     for _ in range(8):
         app.processEvents()

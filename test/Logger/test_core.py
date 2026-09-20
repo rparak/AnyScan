@@ -698,13 +698,15 @@ def test_txt_has_no_run_summary_block(tmp_path: tp.Any) -> None:
     assert content.rstrip().endswith('Application stopped.')
 
 
-def test_line_sink_receives_the_same_formatted_line_as_the_file(tmp_path: tp.Any) -> None:
+def test_line_sink_receives_separated_fields_and_the_matching_line(tmp_path: tp.Any) -> None:
     """
     Description:
-        The optional line sink receives each formatted line as it is written, and it is the
-        SAME string the file holds (minus the trailing newline) — one formatter, so the live
-        view and the file cannot drift. A line logged before the sink is attached does not
-        reach it (the file is the seed for those); every line after does.
+        The sink is handed each line's fields ALREADY SEPARATED (a Log_Line_Str) plus the
+        formatted line — so a live reader renders the fields it was given and never parses. The
+        record's fields are the real ones, Parsed is True, and the accompanying string equals
+        the file line without its trailing newline (one formatter, no drift). A line logged
+        before the sink is attached does not reach it (the file seeds those); every line after
+        does.
     """
 
     clock = Clock_Cls(_T('08:00:00'))
@@ -713,20 +715,20 @@ def test_line_sink_receives_the_same_formatted_line_as_the_file(tmp_path: tp.Any
     received = []
 
     Session_Logger.Log_Info('Before the sink is attached.')      # seeds the file only
-    Session_Logger.Set_Line_Sink(received.append)
+    Session_Logger.Set_Line_Sink(lambda record, line: received.append((record, line)))
     Session_Logger.Log_Info('After the sink is attached.')
     Session_Logger.Log_Warning('A warning.')
-    Session_Logger.Log_Error('An error.')
 
-    # The sink saw exactly the post-attachment lines, in order.
-    assert received == ['2026-09-12 08:00:00 [INFO   ] After the sink is attached.',
-                        '2026-09-12 08:00:00 [WARNING] A warning.',
-                        '2026-09-12 08:00:00 [ERROR  ] An error. (error_id=1)']
+    # The record carries the separated fields (not a string to be parsed), marked trustworthy.
+    (info_rec, info_line), (warn_rec, warn_line) = received
+    assert (info_rec.Date, info_rec.Time, info_rec.Level, info_rec.Message, info_rec.Parsed) == \
+        ('2026-09-12', '08:00:00', CONST_LEVEL_INFO, 'After the sink is attached.', True)
+    assert warn_rec.Level == CONST_LEVEL_WARNING and warn_rec.Message == 'A warning.'
 
-    # Each sink line equals its file line without the trailing newline — the same string.
+    # The accompanying line equals the file line without the trailing newline (same string).
     file_lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()
-    for line in received:
-        assert line in file_lines
+    assert info_line in file_lines and warn_line in file_lines
+    assert info_line == '2026-09-12 08:00:00 [INFO   ] After the sink is attached.'
 
 
 def test_a_sink_failure_never_prevents_the_write_to_disk(tmp_path: tp.Any) -> None:
@@ -741,7 +743,7 @@ def test_a_sink_failure_never_prevents_the_write_to_disk(tmp_path: tp.Any) -> No
     Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
                                         install_handlers=False)
 
-    def _Explode(_line: str) -> None:
+    def _Explode(_record, _line) -> None:
         raise RuntimeError('the view blew up')
 
     Session_Logger.Set_Line_Sink(_Explode)
@@ -753,13 +755,12 @@ def test_a_sink_failure_never_prevents_the_write_to_disk(tmp_path: tp.Any) -> No
     assert 'And so must this.' in content
 
 
-def test_parse_line_is_the_inverse_of_the_written_format(tmp_path: tp.Any) -> None:
+def test_parse_line_round_trips_real_lines(tmp_path: tp.Any) -> None:
     """
     Description:
-        Parse_Line splits a written line back into its four fields — the exact inverse of the
-        one formatter, so the view reads what the logger wrote with no second parser. It is
-        checked against real lines the logger produced (round-trip), and a non-conforming line
-        is returned whole as the message so nothing is dropped.
+        Parse_Line splits a written line back into its fields — the inverse of the one
+        formatter, used only to seed the view from the file. Checked against real lines the
+        logger produced, including an error line whose message carries its own '(error_id=N)'.
     """
 
     clock = Clock_Cls(_T('10:20:30'))
@@ -767,20 +768,73 @@ def test_parse_line_is_the_inverse_of_the_written_format(tmp_path: tp.Any) -> No
                                         install_handlers=False)
     Session_Logger.Log_Info('A plain event.')
     Session_Logger.Log_Warning('Careful now.')
+    Session_Logger.Log_Error('Backend timed out')
     Session_Logger.Close()
 
     lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()
     info = Parse_Line(lines[0])
-    assert (info.Date, info.Time, info.Level, info.Message) == \
-        ('2026-09-12', '10:20:30', CONST_LEVEL_INFO, 'A plain event.')
-    warning = Parse_Line(lines[1])
-    assert warning.Level == CONST_LEVEL_WARNING and warning.Message == 'Careful now.'
+    assert (info.Date, info.Time, info.Level, info.Message, info.Parsed) == \
+        ('2026-09-12', '10:20:30', CONST_LEVEL_INFO, 'A plain event.', True)
+    assert Parse_Line(lines[1]).Level == CONST_LEVEL_WARNING
+    error = Parse_Line(lines[2])
+    assert error.Level == CONST_LEVEL_ERROR and error.Message == 'Backend timed out (error_id=1)'
 
-    # An error line keeps the level and the whole message (the error id included).
-    error = Parse_Line('2026-09-12 10:20:31 [ERROR  ] Backend timed out (error_id=7)')
-    assert error.Level == CONST_LEVEL_ERROR
-    assert error.Message == 'Backend timed out (error_id=7)'
 
-    # A line that does not match the shape is returned whole as the message, nothing dropped.
-    stray = Parse_Line('a wrapped continuation line with no timestamp')
-    assert stray.Level == '' and stray.Message == 'a wrapped continuation line with no timestamp'
+def test_parse_line_never_mis_splits_hostile_messages() -> None:
+    """
+    Description:
+        The seed file holds text the application does not control — Florence captions, driver
+        error strings, file paths, audit lines quoting arbitrary caption text. Parse_Line must
+        never mis-split any of it. A real line's fields survive even when the MESSAGE contains
+        the delimiters or a level-shaped token; anything that is not a real line (no timestamp,
+        or a bracketed word that is not a real level) is returned whole with Parsed=False, so
+        the view renders it raw rather than guessing. Nothing is ever dropped.
+    """
+
+    # A real INFO line whose message itself contains a level-shaped bracket sequence and the
+    # '] ' delimiter: the split happens at the FIRST real delimiters, so the message survives.
+    record = Parse_Line('2026-09-12 10:00:00 [INFO   ] stripped "[WARNING] on a table" -> ok')
+    assert record.Parsed and record.Level == CONST_LEVEL_INFO
+    assert record.Message == 'stripped "[WARNING] on a table" -> ok'
+
+    # A message that is a bare bracketed level with no timestamp is NOT a line — Parsed False,
+    # kept whole, so it is never mistaken for an ERROR row.
+    hostile = Parse_Line('[ERROR] the caption literally said this')
+    assert not hostile.Parsed and hostile.Level == ''
+    assert hostile.Message == '[ERROR] the caption literally said this'
+
+    # A file path with a ' [' and a '] ' is not a line — kept whole, not split into fields.
+    path = Parse_Line('/var/log/cam [old] /backup.txt was rotated')
+    assert not path.Parsed and path.Message == '/var/log/cam [old] /backup.txt was rotated'
+
+    # A bracketed token that is not one of the real levels is not a level, even after a
+    # timestamp-shaped prefix — kept whole rather than inventing a 'DEBUG' severity.
+    unknown = Parse_Line('2026-09-12 10:00:00 [DEBUG  ] not a real level')
+    assert not unknown.Parsed and unknown.Level == ''
+
+    # An empty message on a real line stays a parsed line with an empty message.
+    empty = Parse_Line('2026-09-12 10:00:00 [INFO   ] ')
+    assert empty.Parsed and empty.Level == CONST_LEVEL_INFO and empty.Message == ''
+
+    # A wrapped continuation of a multi-line message (no timestamp) is kept whole and muted-
+    # rendered by the view; it is never dropped.
+    cont = Parse_Line('    ...continued stack frame with no timestamp')
+    assert not cont.Parsed and cont.Message == '    ...continued stack frame with no timestamp'
+
+
+def test_multi_line_message_seeds_as_a_parsed_head_and_raw_continuations() -> None:
+    """
+    Description:
+        A message containing newlines is written as several physical lines; on seeding, the
+        first is a normal parsed line and each continuation is kept whole with Parsed=False.
+        The view renders the head as a level row and the continuations raw and muted — nothing
+        is dropped or mis-attributed.
+    """
+
+    written = '2026-09-12 10:00:00 [ERROR  ] first line\nsecond line\nthird line'
+    physical = written.split('\n')
+    head = Parse_Line(physical[0])
+    assert head.Parsed and head.Level == CONST_LEVEL_ERROR and head.Message == 'first line'
+    for continuation in physical[1:]:
+        parsed = Parse_Line(continuation)
+        assert not parsed.Parsed and parsed.Message == continuation
