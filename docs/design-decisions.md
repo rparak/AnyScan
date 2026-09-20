@@ -199,4 +199,4 @@ any other reader use the JSON. A `<set>_thumb.jpg` (~320 px long edge) is writte
 annotated image so History never decodes full PNGs to fill its grid. **Revisit if** History needs
 a field the JSON does not carry — add it to `Build_Set_Metadata`, the single builder, so the file
 and the reader stay in step.
-Commit `_pending_`; tests `test/Vision/Utilities/test_annotate.py::test_seg_keeps_only_the_outer_contour_for_a_holed_object`, `test/UI/test_history_data.py::test_metadata_round_trips_and_matches_the_detection_list`.
+Commit `157eabe`; tests `test/Vision/Utilities/test_annotate.py::test_seg_keeps_only_the_outer_contour_for_a_holed_object`, `test/UI/test_history_data.py::test_metadata_round_trips_and_matches_the_detection_list`.
