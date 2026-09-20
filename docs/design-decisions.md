@@ -174,3 +174,29 @@ log and the frame table). **Revisit if** a fourth scope is wanted (e.g. a rollin
 the last N analyses): add it as its own cell with its own scope in the label, never overload
 an existing one.
 Commit `5191b73`; tests `test/UI/test_status_metrics.py::test_frame_mean_and_session_mean_are_over_their_own_scopes`, `::test_session_mean_weights_each_object_equally_not_each_frame`, `test/UI/test_reading_view.py::test_object_blocks_carry_the_shared_label_and_description`.
+
+## Segmentation polygons keep only the outer contour, and the set carries a JSON record
+
+Each analysis writes `<set>_seg.txt` (YOLO segmentation) beside `<set>.txt` (YOLO boxes): one
+line per object, `<class_id> x1 y1 …`, normalised 0–1, the class id the same per-frame object
+index as the box file (the same not-a-class caveat applies — do not train on it as-is). The
+polygon is the contour of the SAME per-object mask that fills the label mask, simplified with
+`approxPolyDP` at an epsilon proportional to the contour's own perimeter (`CONST_SEG_APPROX_EPS_FRAC`),
+so a raw 1920×1200 contour of thousands of points collapses to a few dozen — an unsimplified
+file is unusable. **Only the OUTER contour is kept** (`cv2.RETR_EXTERNAL`, largest component):
+an object with holes — a washer, the lattice bracket — is written as a single ring, its holes
+dropped, because YOLO segmentation is one ring per instance and the downstream consumers assume
+it. A maskless object (found by the background cue alone) falls back to its bounding box as a
+four-point rectangle, so the seg file has one line per object in the same order as the boxes.
+**Revisit if** a consumer needs holes (then emit multi-ring polygons and record the winding),
+or if the fixed epsilon fraction proves too coarse for the smallest parts.
+
+The set also carries `<set>_objects.json` — the one machine-readable record, built from the same
+detection list as everything else: per object the index, pixel box, confidence, cue, verdict and
+description; set-wide the session id, timestamp, frame size, task, inference time and frame mean
+confidence. **No view parses `_understanding.txt`** — that file is prose for humans; History and
+any other reader use the JSON. A `<set>_thumb.jpg` (~320 px long edge) is written once from the
+annotated image so History never decodes full PNGs to fill its grid. **Revisit if** History needs
+a field the JSON does not carry — add it to `Build_Set_Metadata`, the single builder, so the file
+and the reader stay in step.
+Commit `_pending_`; tests `test/Vision/Utilities/test_annotate.py::test_seg_keeps_only_the_outer_contour_for_a_holed_object`, `test/UI/test_history_data.py::test_metadata_round_trips_and_matches_the_detection_list`.

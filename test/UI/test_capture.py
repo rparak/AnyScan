@@ -51,12 +51,15 @@ def _Images():
             np.zeros((12, 16, 3), np.uint8))
 
 
-def _Write(writer, session_id, set_id, text='A plain surface.', yolo=None):
+def _Write(writer, session_id, set_id, text='A plain surface.', yolo=None, seg=None,
+           metadata=None):
     """Write one set with the injected real cv2/np; returns (evicted, created)."""
     raw, annotated, mask = _Images()
     return writer.Write(session_id, set_id, raw, annotated, mask, text,
-                        yolo if yolo is not None else ['0 0.5 0.5 0.1 0.1'], 'stamp %s' % set_id,
-                        cv2, np)
+                        yolo if yolo is not None else ['0 0.5 0.5 0.1 0.1'],
+                        seg if seg is not None else ['0 0.4 0.4 0.6 0.4 0.6 0.6 0.4 0.6'],
+                        metadata if metadata is not None else {'set_id': set_id, 'objects': []},
+                        'stamp %s' % set_id, cv2, np)
 
 
 def test_a_complete_set_is_written_into_the_session_directory(tmp_path) -> None:
@@ -80,6 +83,47 @@ def test_a_complete_set_is_written_into_the_session_directory(tmp_path) -> None:
     # A second write into the same session does not re-report the directory.
     _, created2 = _Write(writer, '20260912-143202_s1', '20260912-143725_2')
     assert created2 is None
+
+
+def test_seg_and_objects_json_are_written(tmp_path) -> None:
+    """
+    Description:
+        A write produces the segmentation '<set>_seg.txt' (the lines it was given) and the
+        machine-readable '<set>_objects.json' (the metadata it was given), alongside the box
+        file — so History has both geometry files and a structured record.
+    """
+
+    import json
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write(writer, 's', 'set1', seg=['0 0.100000 0.100000 0.200000 0.100000 0.200000 0.200000'],
+           metadata={'set_id': 'set1', 'task': 'caption', 'objects': [{'index': 0}]})
+
+    assert (tmp_path / 's' / 'set1_seg.txt').read_text() == \
+        '0 0.100000 0.100000 0.200000 0.100000 0.200000 0.200000\n'
+    data = json.loads((tmp_path / 's' / 'set1_objects.json').read_text())
+    assert data['set_id'] == 'set1' and data['task'] == 'caption'
+
+
+def test_thumbnail_is_written_and_bounded_to_the_long_edge(tmp_path) -> None:
+    """
+    Description:
+        A thumbnail JPEG is written from the annotated image with its long edge bounded to
+        CONST_CAPTURE_THUMB_LONG_EDGE (320), aspect preserved — so History fills its grid from
+        small images, not full-resolution PNGs. A 1920x1200 annotated image yields a 320x200
+        thumbnail.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    big = np.full((1200, 1920, 3), 60, np.uint8)
+    writer.Write('s', 'set1', big, big, np.zeros((1200, 1920, 3), np.uint8), 'text',
+                 ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], {'set_id': 'set1', 'objects': []},
+                 'stamp', cv2, np)
+
+    thumb_path = tmp_path / 's' / 'set1_thumb.jpg'
+    assert thumb_path.exists()
+    thumb = cv2.imread(str(thumb_path))
+    assert max(thumb.shape[:2]) == 320                   # long edge bounded
+    assert thumb.shape[1] == 320 and thumb.shape[0] == 200   # aspect preserved (1920x1200)
 
 
 def test_yolo_file_holds_the_given_lines_and_classes_has_a_header(tmp_path) -> None:
@@ -163,5 +207,5 @@ def test_a_write_failure_raises(tmp_path, monkeypatch) -> None:
     writer = Capture_Writer_Cls(str(tmp_path))
     raw, annotated, mask = _Images()
     with pytest.raises(OSError):
-        writer.Write('s', 'set1', raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'], 'stamp',
-                     cv2, np)
+        writer.Write('s', 'set1', raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
+                     ['0 0.4 0.4 0.6 0.6'], {'set_id': 'set1'}, 'stamp', cv2, np)

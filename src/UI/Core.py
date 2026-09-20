@@ -59,7 +59,7 @@ from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
 from Vision.Core import Florence_Vision_Cls
 #   ../Vision/Utilities/Annotate
 import Vision.Utilities.Annotate as Annotate
-from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
+from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask, Seg_Lines
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines
 #   ../Parameters/Vision
@@ -68,7 +68,7 @@ from Parameters.Vision import Analysis_Str, Detection_Str
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
 #   ../UI/Capture
-from UI.Capture import Capture_Writer_Cls
+from UI.Capture import Capture_Writer_Cls, Build_Set_Metadata
 
 
 class AnyScan_Window_Cls(QMainWindow):
@@ -129,10 +129,13 @@ class AnyScan_Window_Cls(QMainWindow):
         # logger/captures/, retention-bounded). Only when a logger is present, since the
         # captures live beside its log; None disables capture entirely.
         self.__capture_writer = None
+        # The captures root (per-session subdirectories live here) — also what the History
+        # view reads from. None disables both capture and history.
+        self.__captures_root = None
         log_path = getattr(logger, 'Path', None)
         if log_path is not None:
-            self.__capture_writer = Capture_Writer_Cls(
-                os.path.join(os.path.dirname(log_path), 'captures'))
+            self.__captures_root = os.path.join(os.path.dirname(log_path), 'captures')
+            self.__capture_writer = Capture_Writer_Cls(self.__captures_root)
         # The camera emits its events (frame drops, config) through this sink; the Qt-free
         # camera never holds the logger.
         self.__camera.Set_Log_Callback(self.__Log_Event)
@@ -239,7 +242,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # cards while another view is on top.
         self.__stack = QStackedWidget()
         self.__stack.addWidget(self.__Build_Live_View())    # index 0 — Live
-        self.__history_view = History_View_Cls()
+        self.__history_view = History_View_Cls(self.__captures_root)
         self.__stack.addWidget(self.__history_view)          # index 1 — History
         self.__log_view = Log_View_Cls()
         self.__stack.addWidget(self.__log_view)              # index 2 — Log
@@ -919,21 +922,49 @@ class AnyScan_Window_Cls(QMainWindow):
         if self.__capture_writer is None or self.__session_id is None:
             return
         # The '.txt' is exactly the panel's text — the shared formatter, not a second path.
-        # The YOLO boxes come from the same object list, normalised against the frame.
+        # The YOLO boxes and segmentation polygons come from the same object list (and the same
+        # per-object masks), normalised against the frame, so every artefact and both images
+        # describe identical objects in identical order.
         understanding = Screen_Understanding(result.Objects, result.Background)
         height, width = frame_bgr.shape[:2]
-        yolo = Yolo_Lines(result.Objects, (width, height))
-        stamp = 'set %s | %s' % (set_id, datetime.now().isoformat(timespec='seconds'))
+        size = (width, height)
+        yolo = Yolo_Lines(result.Objects, size)
+        seg = Seg_Lines(result.Objects, size, cv2, np)
+        scores = [d.Segmenter_Score for d in result.Objects if d.Segmenter_Score is not None]
+        frame_mean = int(round(100.0 * sum(scores) / len(scores))) if scores else None
+        timestamp = datetime.now().isoformat(timespec='seconds')
+        metadata = Build_Set_Metadata(self.__session_id, set_id, timestamp, result.Objects,
+                                      size, result.Task, result.Latency_Ms, frame_mean)
+        stamp = 'set %s | %s' % (set_id, timestamp)
         try:
             evicted, created = self.__capture_writer.Write(
                 self.__session_id, set_id, frame_bgr, annotated_bgr, mask_bgr,
-                understanding, yolo, stamp, cv2, np)
+                understanding, yolo, seg, metadata, stamp, cv2, np)
         except Exception as exc:                          # noqa: BLE001
             self.__logger.Log_Error('failed to write capture set %s: %s' % (set_id, exc))
             return
         self.__Log_Capture_Side_Effects(created)
         self.__logger.Log_Info('Capture set %s written.' % set_id)
+        self.__Log_Seg_Points(seg)
         self.__Log_Capture_Evictions(evicted)
+
+    def __Log_Seg_Points(self, seg_lines: tp.List[str]) -> None:
+        """
+        Description:
+            Report the typical polygon size — the median vertex count per object — so an
+            unsimplified contour (thousands of points, a useless file) is visible in the log.
+
+        Args:
+            (1) seg_lines [Vector<string>]: The segmentation lines, one per object.
+        """
+
+        if not seg_lines:
+            return
+        counts = sorted((len(line.split()) - 1) // 2 for line in seg_lines)
+        median = counts[len(counts) // 2]
+        self.__logger.Log_Info('Segmentation polygons written for %d object%s; median %d '
+                               'points per object.' % (len(counts), '' if len(counts) == 1
+                                                       else 's', median))
 
     def __Log_Capture_Side_Effects(self, created_session: tp.Optional[str]) -> None:
         """
@@ -1169,6 +1200,10 @@ class AnyScan_Window_Cls(QMainWindow):
         index = self.CONST_VIEW_INDEX.get(key)
         if index is not None:
             self.__stack.setCurrentIndex(index)
+        # History is a rolling window of what is on disk now — rediscover the sets each time it
+        # is shown, so a set written (or evicted) since last time is reflected.
+        if key == 'history':
+            self.__history_view.Refresh()
 
     def __Clear_Reading(self) -> None:
         """

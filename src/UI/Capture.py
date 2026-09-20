@@ -25,8 +25,14 @@
 
 # System (Default)
 import os
+import json
 # Typing (Support for type hints)
 import typing as tp
+# Dataclasses (Data Classes)
+from dataclasses import dataclass, field
+# Custom Lib.: AnyScan domain — the detection structure the metadata is built from
+#   ../Parameters/Vision
+from Parameters.Vision import Detection_Str
 
 """
 Description:
@@ -38,10 +44,18 @@ Description:
         <set_id>_raw.png            the raw captured frame          (optional, keep_raw)
         <set_id>_annotated.png      the annotated image
         <set_id>_mask.png           the label mask
+        <set_id>_thumb.jpg          a small thumbnail of the annotated image (for History)
         <set_id>_understanding.txt  the Scene-Understanding text (shared formatter)
-        <set_id>.txt                the YOLO region records, one line per object
+        <set_id>.txt                the YOLO box region records, one line per object
+        <set_id>_seg.txt            the YOLO segmentation polygons, one line per object
+        <set_id>_objects.json       the machine-readable per-object + set-level metadata
 
-    — each named so a set is obviously one analysis. The images carry NO provenance band:
+    — each named so a set is obviously one analysis. This module also READS a set back
+    (Read_Capture_Set) and discovers every set across sessions (Discover_Capture_Sets) into
+    plain structures, Qt-free, so the History view renders them without a second reader and
+    the reading is testable without a UI. The '_objects.json' is the ONE machine-readable
+    record; no view parses '_understanding.txt', which is prose for humans. The images carry
+    NO provenance band:
     they are the image and nothing else (a band would corrupt the raw frame as a record of
     what the camera saw), and the set id already lives in the filename and in every related
     log line. The '_understanding.txt' keeps a one-line stamp header. A classes.txt inside
@@ -75,8 +89,23 @@ CONST_CAPTURE_KEEP_RAW = True
 # suffix that matches ('_understanding.txt' before the bare YOLO '.txt').
 #   Unit [Vector<string>]
 CONST_CAPTURE_RAW_SUFFIX = '_raw.png'
-CONST_CAPTURE_SUFFIXES = ('_raw.png', '_annotated.png', '_mask.png',
-                          '_understanding.txt', '.txt')
+CONST_CAPTURE_SUFFIXES = ('_raw.png', '_annotated.png', '_mask.png', '_thumb.jpg',
+                          '_understanding.txt', '_objects.json', '_seg.txt', '.txt')
+
+# The thumbnail's long-edge target (px). A grid of History cards decodes one thumbnail each;
+# a fifty-card grid of full 4 MB PNGs would be unusable, so a small JPEG is written once at
+# capture time. The long edge is bounded to this; a smaller image is written as-is.
+#   Unit [int]
+CONST_CAPTURE_THUMB_LONG_EDGE = 320
+
+# The metadata and thumbnail artefact suffixes, named once.
+#   Unit [string]
+CONST_CAPTURE_THUMB_SUFFIX = '_thumb.jpg'
+CONST_CAPTURE_OBJECTS_SUFFIX = '_objects.json'
+CONST_CAPTURE_SEG_SUFFIX = '_seg.txt'
+CONST_CAPTURE_UNDERSTANDING_SUFFIX = '_understanding.txt'
+CONST_CAPTURE_ANNOTATED_SUFFIX = '_annotated.png'
+CONST_CAPTURE_MASK_SUFFIX = '_mask.png'
 
 # The classes file beside the captures. Its header says, in the file itself, that the ids
 # are per-frame object indices and not classes — the warning travels with the data.
@@ -88,6 +117,317 @@ CONST_CAPTURE_CLASSES_HEADER = (
     '# object. The SAME id means a DIFFERENT part in every frame, so the YOLO <set>.txt\n'
     '# files must NOT be used for training as-is (see docs/design-decisions.md). They\n'
     '# become a dataset only once ids are reassigned by real class.\n')
+
+
+@dataclass
+class Capture_Object_Str:
+    """
+    Description:
+        One object of a capture set, as read back from '_objects.json' — the machine-readable
+        record the History view renders, distinct from the human prose in '_understanding.txt'.
+    """
+
+    # The 0-based object index (its position in the ordered list, the number on the box).
+    Index: int = 0
+    # The bounding box in frame pixels as (x, y, w, h).
+    Bbox: tp.Tuple[int, int, int, int] = (0, 0, 0, 0)
+    # The confidence percentage, or None when the object carries no score.
+    Confidence: tp.Optional[int] = None
+    # Which fused cue located it ('fastsam' | 'background' | 'both').
+    Cue: str = ''
+    # The per-object verdict ('OK' | 'NOK').
+    Verdict: str = 'OK'
+    # The composed description sentence (the shared formatter's output for this object).
+    Description: str = ''
+
+
+@dataclass
+class Capture_Set_Str:
+    """
+    Description:
+        One capture set as read back from disk — the set-level fields, its objects, the paths
+        of the images that exist, and whether it is partial (a failed analysis that left only a
+        raw frame). This is the plain structure the History view renders; building it does no
+        Qt work, so it is testable without a UI.
+    """
+
+    # The session the set belongs to (its subdirectory name; matches the log lines).
+    Session_Id: str = ''
+    # The set identifier (<timestamp>_<n>), the filename stem.
+    Set_Id: str = ''
+    # The capture timestamp (ISO 8601) from the metadata, empty for a partial set.
+    Timestamp: str = ''
+    # The frame dimensions in pixels.
+    Frame_Width: int = 0
+    Frame_Height: int = 0
+    # The model task, the analysis latency and the frame mean confidence (or None).
+    Task: str = ''
+    Inference_Ms: int = 0
+    Frame_Mean_Confidence: tp.Optional[int] = None
+    # The objects, in order.
+    Objects: tp.List[Capture_Object_Str] = field(default_factory=list)
+    # The absolute paths of the artefacts that exist (None when absent).
+    Raw_Path: tp.Optional[str] = None
+    Annotated_Path: tp.Optional[str] = None
+    Mask_Path: tp.Optional[str] = None
+    Thumb_Path: tp.Optional[str] = None
+    # True when the set has no '_objects.json' — a failed analysis (raw frame only) or an
+    # unreadable metadata file. Note carries the reason, and the set is shown, never hidden.
+    Partial: bool = False
+    Note: str = ''
+    # The newest file mtime in the set, for sorting newest-first.
+    Mtime: float = 0.0
+
+    def Is_Nok(self) -> bool:
+        """
+        Description:
+            Whether the set is NOK — any object in it is NOK. A partial set has no objects and
+            is not NOK. (Nothing assigns NOK yet, so this is always False today; the History
+            NOK filter is built for the day classification lands.)
+
+        Returns:
+            (1) parameter [bool]: True when any object's verdict is 'NOK'.
+        """
+
+        return any(obj.Verdict == 'NOK' for obj in self.Objects)
+
+
+def Set_Id_From_Name(name: str) -> tp.Optional[str]:
+    """
+    Description:
+        The set id a capture filename belongs to — the name with its artefact suffix stripped —
+        or None when the name is not a capture artefact. Suffixes are tried longest-specific
+        first, so '<set>_understanding.txt', '<set>_seg.txt' and '<set>_objects.json' are
+        matched before the bare YOLO '<set>.txt'. The single source both the writer and the
+        reader use, so they agree on what one set's files are.
+
+    Args:
+        (1) name [string]: The file name.
+
+    Returns:
+        (1) parameter [string]: The set id, or None.
+    """
+
+    if name == CONST_CAPTURE_CLASSES_FILE:               # the per-session classes file is not a set
+        return None
+    for suffix in CONST_CAPTURE_SUFFIXES:
+        if name.endswith(suffix):
+            return name[:-len(suffix)]
+    return None
+
+
+def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
+                       objects: tp.List[Detection_Str], size: tp.Tuple[int, int], task: str,
+                       inference_ms: int,
+                       frame_mean_confidence: tp.Optional[int]) -> tp.Dict[str, tp.Any]:
+    """
+    Description:
+        Build the machine-readable metadata for one set from the SAME detection list that
+        drives every other artefact — so the JSON, the images and the YOLO files describe
+        identical objects in identical order, and no view need parse the prose. Per object it
+        records the index, the pixel bounding box, the confidence percentage (or None), the
+        cue, the verdict and the composed description; set-wide it records the session, set id,
+        timestamp, frame dimensions, model task, inference time and the frame mean confidence.
+
+    Args:
+        (1) session_id [string]: The session the set belongs to.
+        (2) set_id [string]: The set identifier.
+        (3) timestamp [string]: The capture timestamp (ISO 8601).
+        (4) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (5) size [Vector<int> 1x2]: The frame size as (width, height).
+        (6) task [string]: The model task that produced the reading.
+        (7) inference_ms [int]: The analysis latency in milliseconds.
+        (8) frame_mean_confidence [int]: The frame mean confidence percentage, or None.
+
+    Returns:
+        (1) parameter [Dict]: The metadata, ready to serialise as '_objects.json'.
+    """
+
+    records = []
+    for index, det in enumerate(objects):
+        confidence = (int(round(100.0 * det.Segmenter_Score))
+                      if det.Segmenter_Score is not None else None)
+        records.append({'index': index, 'bbox': [int(v) for v in det.Bbox],
+                        'confidence': confidence, 'cue': det.Cue, 'verdict': det.Verdict,
+                        'description': det.Sentence})
+    return {'session_id': session_id, 'set_id': set_id, 'timestamp': timestamp,
+            'frame_width': int(size[0]), 'frame_height': int(size[1]), 'task': task,
+            'inference_ms': int(inference_ms), 'frame_mean_confidence': frame_mean_confidence,
+            'objects': records}
+
+
+def __Existing_Path(session_dir: str, set_id: str, suffix: str) -> tp.Optional[str]:
+    """
+    Description:
+        The absolute path of one of a set's artefacts when it exists, else None.
+
+    Args:
+        (1) session_dir [string]: The session directory.
+        (2) set_id [string]: The set id.
+        (3) suffix [string]: The artefact suffix.
+
+    Returns:
+        (1) parameter [string or None]: The path, or None when the file is absent.
+    """
+
+    path = os.path.join(session_dir, set_id + suffix)
+    return path if os.path.isfile(path) else None
+
+
+def __Newest_Mtime(session_dir: str, set_id: str) -> float:
+    """
+    Description:
+        The newest modification time across a set's files, for newest-first sorting; 0.0 when
+        none can be read.
+
+    Args:
+        (1) session_dir [string]: The session directory.
+        (2) set_id [string]: The set id.
+
+    Returns:
+        (1) parameter [float]: The newest mtime, or 0.0.
+    """
+
+    newest = 0.0
+    try:
+        names = os.listdir(session_dir)
+    except OSError:
+        return newest
+    for name in names:
+        if Set_Id_From_Name(name) != set_id:
+            continue
+        try:
+            newest = max(newest, os.path.getmtime(os.path.join(session_dir, name)))
+        except OSError:
+            continue
+    return newest
+
+
+def __Partial_Note(session_dir: str, set_id: str, reason: str) -> str:
+    """
+    Description:
+        The note shown for a partial set: the reason, and the body of '_understanding.txt' when
+        it exists (the failure note the writer left), so the operator sees why the analysis
+        failed and can find the set id in the log.
+
+    Args:
+        (1) session_dir [string]: The session directory.
+        (2) set_id [string]: The set id.
+        (3) reason [string]: The fallback reason when no note file is present.
+
+    Returns:
+        (1) parameter [string]: The note text.
+    """
+
+    path = os.path.join(session_dir, set_id + CONST_CAPTURE_UNDERSTANDING_SUFFIX)
+    try:
+        with open(path, 'r') as handle:
+            # Drop the leading '# stamp …' comment line; the rest is the failure note.
+            body = ''.join(line for line in handle if not line.startswith('#')).strip()
+        if body:
+            return body
+    except OSError:
+        pass
+    return reason
+
+
+def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_Set_Str:
+    """
+    Description:
+        Read one capture set into a plain structure. When '_objects.json' is present and valid,
+        the set-level fields and the objects are populated from it; the image paths that exist
+        are recorded. When the metadata is absent (a failed analysis left only a raw frame) or
+        cannot be read/parsed, the set is marked partial with a note — never dropped, because a
+        failed set is the one an operator most wants to see. A missing or malformed field never
+        raises: every value is read defensively.
+
+    Args:
+        (1) session_dir [string]: The session directory holding the set's files.
+        (2) session_id [string]: The session id (its directory name).
+        (3) set_id [string]: The set identifier.
+
+    Returns:
+        (1) parameter [Capture_Set_Str(object)]: The read set.
+    """
+
+    cap = Capture_Set_Str(
+        Session_Id=session_id, Set_Id=set_id,
+        Raw_Path=__Existing_Path(session_dir, set_id, CONST_CAPTURE_RAW_SUFFIX),
+        Annotated_Path=__Existing_Path(session_dir, set_id, CONST_CAPTURE_ANNOTATED_SUFFIX),
+        Mask_Path=__Existing_Path(session_dir, set_id, CONST_CAPTURE_MASK_SUFFIX),
+        Thumb_Path=__Existing_Path(session_dir, set_id, CONST_CAPTURE_THUMB_SUFFIX),
+        Mtime=__Newest_Mtime(session_dir, set_id))
+
+    objects_path = __Existing_Path(session_dir, set_id, CONST_CAPTURE_OBJECTS_SUFFIX)
+    if objects_path is None:
+        cap.Partial = True
+        cap.Note = __Partial_Note(session_dir, set_id,
+                                  'The analysis failed; only the raw frame was captured.')
+        return cap
+    try:
+        with open(objects_path, 'r') as handle:
+            data = json.load(handle)
+        cap.Timestamp = str(data.get('timestamp', ''))
+        cap.Frame_Width = int(data.get('frame_width', 0))
+        cap.Frame_Height = int(data.get('frame_height', 0))
+        cap.Task = str(data.get('task', ''))
+        cap.Inference_Ms = int(data.get('inference_ms', 0))
+        mean = data.get('frame_mean_confidence', None)
+        cap.Frame_Mean_Confidence = int(mean) if mean is not None else None
+        cap.Objects = [Capture_Object_Str(
+            Index=int(record.get('index', i)),
+            Bbox=tuple(int(v) for v in record.get('bbox', (0, 0, 0, 0))),
+            Confidence=(int(record['confidence']) if record.get('confidence') is not None
+                        else None),
+            Cue=str(record.get('cue', '')), Verdict=str(record.get('verdict', 'OK')),
+            Description=str(record.get('description', '')))
+            for i, record in enumerate(data.get('objects', []))]
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        # A malformed or unreadable metadata file: show the set as partial rather than crash.
+        cap.Partial = True
+        cap.Objects = []
+        cap.Note = ('The set metadata could not be read (a malformed %s%s).'
+                    % (set_id, CONST_CAPTURE_OBJECTS_SUFFIX))
+    return cap
+
+
+def Discover_Capture_Sets(captures_root: str) -> tp.List[Capture_Set_Str]:
+    """
+    Description:
+        Every capture set under the captures root, across all session directories, read into
+        plain structures and ordered NEWEST-FIRST by the newest file each set holds. A missing
+        root, an unreadable directory or a stray file is skipped, never raised, so the History
+        view always gets a list.
+
+    Args:
+        (1) captures_root [string]: The captures root (per-session subdirectories live here).
+
+    Returns:
+        (1) parameter [Vector<Capture_Set_Str>]: The sets, newest first.
+    """
+
+    sets = []
+    try:
+        session_ids = os.listdir(captures_root)
+    except OSError:
+        return sets
+    for session_id in session_ids:
+        session_dir = os.path.join(captures_root, session_id)
+        if not os.path.isdir(session_dir):
+            continue
+        seen = set()
+        try:
+            names = os.listdir(session_dir)
+        except OSError:
+            continue
+        for name in names:
+            set_id = Set_Id_From_Name(name)
+            if set_id is None or set_id in seen:
+                continue
+            seen.add(set_id)
+            sets.append(Read_Capture_Set(session_dir, session_id, set_id))
+    sets.sort(key=lambda cap: cap.Mtime, reverse=True)   # newest first
+    return sets
 
 
 class Capture_Writer_Cls(object):
@@ -133,15 +473,17 @@ class Capture_Writer_Cls(object):
         return self.__retention
 
     def Write(self, session_id: str, set_id: str, raw_bgr: tp.Any, annotated_bgr: tp.Any,
-              mask_bgr: tp.Any, understanding_text: str, yolo_lines: tp.List[str], stamp: str,
+              mask_bgr: tp.Any, understanding_text: str, yolo_lines: tp.List[str],
+              seg_lines: tp.List[str], metadata: tp.Dict[str, tp.Any], stamp: str,
               cv2: tp.Any, np: tp.Any) -> tp.Tuple[tp.List[str], tp.Optional[str]]:
         """
         Description:
             Write one analysis set into the session's directory — the annotated image, the
-            label mask, the Scene-Understanding '.txt', the YOLO '<set>.txt' and (when
-            keep_raw) the raw frame — refresh the classes file, then enforce the global
-            retention bound. Raises on a write failure (the caller logs it and continues);
-            eviction is best-effort and never raises.
+            label mask, a small thumbnail of the annotated image, the Scene-Understanding
+            '.txt', the YOLO box '<set>.txt', the YOLO segmentation '<set>_seg.txt', the
+            machine-readable '<set>_objects.json' and (when keep_raw) the raw frame — refresh
+            the classes file, then enforce the global retention bound. Raises on a write failure
+            (the caller logs it and continues); eviction is best-effort and never raises.
 
         Args:
             (1) session_id [string]: The session the set belongs to (its subdirectory).
@@ -150,10 +492,12 @@ class Capture_Writer_Cls(object):
             (4) annotated_bgr [Matrix<uint8> HxWx3]: The annotated image (BGR).
             (5) mask_bgr [Matrix<uint8> HxWx3]: The label mask (BGR).
             (6) understanding_text [string]: The Scene-Understanding text (shared formatter).
-            (7) yolo_lines [Vector<string>]: The YOLO region lines, one per object, in order.
-            (8) stamp [string]: The provenance stamp appended to every image.
-            (9) cv2 [module]: The OpenCV module, injected by the caller.
-            (10) np [module]: The NumPy module, injected by the caller.
+            (7) yolo_lines [Vector<string>]: The YOLO box lines, one per object, in order.
+            (8) seg_lines [Vector<string>]: The YOLO segmentation lines, one per object.
+            (9) metadata [Dict]: The set metadata (Build_Set_Metadata), written as JSON.
+            (10) stamp [string]: The provenance stamp for the '_understanding.txt' header.
+            (11) cv2 [module]: The OpenCV module, injected by the caller.
+            (12) np [module]: The NumPy module, injected by the caller.
 
         Returns:
             (1) parameter [Tuple]: (evicted set ids oldest-first, the session id if its
@@ -163,14 +507,22 @@ class Capture_Writer_Cls(object):
         session_dir, created = self.__Ensure_Session_Dir(session_id)
         if self.__keep_raw:
             self.__Write_Png(session_dir, set_id + CONST_CAPTURE_RAW_SUFFIX, raw_bgr, cv2)
-        self.__Write_Png(session_dir, set_id + '_annotated.png', annotated_bgr, cv2)
-        self.__Write_Png(session_dir, set_id + '_mask.png', mask_bgr, cv2)
+        self.__Write_Png(session_dir, set_id + CONST_CAPTURE_ANNOTATED_SUFFIX, annotated_bgr, cv2)
+        self.__Write_Png(session_dir, set_id + CONST_CAPTURE_MASK_SUFFIX, mask_bgr, cv2)
+        # The thumbnail is generated once here (cheap) from the annotated image, so History
+        # never decodes a full PNG to fill a grid cell.
+        self.__Write_Thumbnail(session_dir, set_id + CONST_CAPTURE_THUMB_SUFFIX, annotated_bgr, cv2)
         # The Scene-Understanding text carries the stamp as a leading comment; the YOLO
-        # file is a bare region record (its provenance is the set id in its filename).
-        self.__Write_Text(session_dir, set_id + '_understanding.txt', '# ' + stamp + '\n'
-                          + understanding_text + '\n')
+        # files are bare region records (their provenance is the set id in the filename).
+        self.__Write_Text(session_dir, set_id + CONST_CAPTURE_UNDERSTANDING_SUFFIX,
+                          '# ' + stamp + '\n' + understanding_text + '\n')
         self.__Write_Text(session_dir, set_id + '.txt',
                           ''.join(line + '\n' for line in yolo_lines))
+        self.__Write_Text(session_dir, set_id + CONST_CAPTURE_SEG_SUFFIX,
+                          ''.join(line + '\n' for line in seg_lines))
+        # The one machine-readable record of the set; no view parses the prose '.txt'.
+        self.__Write_Text(session_dir, set_id + CONST_CAPTURE_OBJECTS_SUFFIX,
+                          json.dumps(metadata, indent=2, ensure_ascii=False) + '\n')
         self.__Refresh_Classes(session_dir, len(yolo_lines))
         return self.__Evict(), (session_id if created else None)
 
@@ -240,6 +592,35 @@ class Capture_Writer_Cls(object):
 
         path = os.path.join(session_dir, name)
         if not cv2.imwrite(path, image_bgr):
+            raise OSError('cv2.imwrite reported failure for %s' % path)
+
+    def __Write_Thumbnail(self, session_dir: str, name: str, image_bgr: tp.Any,
+                          cv2: tp.Any) -> None:
+        """
+        Description:
+            Write a small thumbnail of the annotated image — its long edge bounded to
+            CONST_CAPTURE_THUMB_LONG_EDGE, area-resampled for a clean downscale — so History
+            fills its grid from tiny JPEGs, not full PNGs. A smaller source is written as-is.
+            Raises if the write does not land, like the other artefacts.
+
+        Args:
+            (1) session_dir [string]: The session directory to write into.
+            (2) name [string]: The file name.
+            (3) image_bgr [Matrix<uint8> HxWx3]: The annotated image (BGR).
+            (4) cv2 [module]: The OpenCV module, injected by the caller.
+        """
+
+        height, width = image_bgr.shape[:2]
+        long_edge = max(height, width)
+        if long_edge > CONST_CAPTURE_THUMB_LONG_EDGE:
+            scale = CONST_CAPTURE_THUMB_LONG_EDGE / float(long_edge)
+            thumb = cv2.resize(image_bgr, (max(1, int(round(width * scale))),
+                                           max(1, int(round(height * scale)))),
+                               interpolation=cv2.INTER_AREA)
+        else:
+            thumb = image_bgr
+        path = os.path.join(session_dir, name)
+        if not cv2.imwrite(path, thumb):
             raise OSError('cv2.imwrite reported failure for %s' % path)
 
     def __Write_Text(self, session_dir: str, name: str, content: str) -> None:
@@ -376,10 +757,8 @@ class Capture_Writer_Cls(object):
     def __Set_Id(self, name: str) -> tp.Optional[str]:
         """
         Description:
-            The set id a capture filename belongs to — the name with its artefact suffix
-            stripped — or None when the name is not a capture artefact. Suffixes are tried
-            longest-first, so '<set>_understanding.txt' is matched before the bare YOLO
-            '<set>.txt'.
+            The set id a capture filename belongs to — delegated to the module-level
+            Set_Id_From_Name, so the writer and the reader strip suffixes by one rule.
 
         Args:
             (1) name [string]: The file name.
@@ -388,9 +767,4 @@ class Capture_Writer_Cls(object):
             (1) parameter [string]: The set id, or None.
         """
 
-        if name == CONST_CAPTURE_CLASSES_FILE:               # the per-session classes file is not a set
-            return None
-        for suffix in CONST_CAPTURE_SUFFIXES:
-            if name.endswith(suffix):
-                return name[:-len(suffix)]
-        return None
+        return Set_Id_From_Name(name)

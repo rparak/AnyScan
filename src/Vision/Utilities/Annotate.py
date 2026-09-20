@@ -94,6 +94,15 @@ CONST_ANNOTATE_MIN_DELTA_E = 12.0
 #   Unit [Vector<int> 1x3]
 CONST_ANNOTATE_MASK_GROUND = (0, 0, 0)
 
+# The segmentation-polygon simplification. approxPolyDP's epsilon is this FRACTION of the
+# contour's own perimeter, so the tolerance is proportional to the object's size — a big part
+# and a small part keep comparable relative fidelity, and a raw 1920x1200 contour of thousands
+# of points collapses to a few dozen. The coordinates are written normalised at this many
+# decimals, matching the YOLO box file.
+#   Unit [float/int]
+CONST_SEG_APPROX_EPS_FRAC = 0.01
+CONST_SEG_DECIMALS = 6
+
 # The label-mask fill mode. 'verdict' (default): every object is filled WHITE with a
 # verdict-coloured contour and a dark numeral — the operator-facing result, coloured by
 # pass/fail. 'index': the diagnostic variant that fills each object in its own
@@ -441,3 +450,76 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
     # Then the SAME boxes and index chips as the annotated view, in the verdict colour.
     __Draw_Boxes(mask_image, objects, scale, cv2)
     return mask_image
+
+
+def __Object_Polygon(det: Detection_Str, cv2: tp.Any, np: tp.Any) -> tp.List[tp.Tuple[int, int]]:
+    """
+    Description:
+        The simplified OUTER polygon of one object, in frame pixels. It comes from the
+        contour of the SAME per-object mask the label mask fills — not recomputed — so the
+        seg file, the YOLO file and both images describe identical objects. Only the outer
+        contour is kept: a washer or the lattice bracket has holes, and YOLO segmentation is a
+        single ring per instance, so the holes are dropped (documented in design-decisions).
+        The contour is simplified with approxPolyDP at an epsilon proportional to its own
+        perimeter, so a raw thousands-of-point contour becomes a few dozen. An object with no
+        mask (found by the background cue alone) falls back to its bounding box as a rectangle,
+        so every object still has a polygon in the same order as the boxes.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+        (2) cv2 [module]: The OpenCV module, injected by the caller.
+        (3) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [Vector<Tuple<int> 1x2>]: The polygon vertices (x, y) in pixels.
+    """
+
+    x, y, w, h = det.Bbox
+    box_polygon = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+    if det.Mask is None:
+        return box_polygon
+    contours, _ = cv2.findContours(det.Mask.astype(np.uint8), cv2.RETR_EXTERNAL,
+                                   cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return box_polygon
+    contour = max(contours, key=cv2.contourArea)         # the outer boundary; holes ignored
+    epsilon = CONST_SEG_APPROX_EPS_FRAC * cv2.arcLength(contour, True)
+    approx = cv2.approxPolyDP(contour, epsilon, True)
+    return [(int(point[0][0]), int(point[0][1])) for point in approx]
+
+
+def Seg_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
+              cv2: tp.Any, np: tp.Any) -> tp.List[str]:
+    """
+    Description:
+        One YOLO-segmentation line per object — '<class_id> <x1> <y1> <x2> <y2> … <xn> <yn>' —
+        the object's simplified outer polygon, normalised to 0..1 against the frame at six
+        decimals. The polygons come from the SAME ordered object list and the SAME per-object
+        masks that drive the numbering, the boxes, the label mask and the Screen-Understanding
+        text, so every artefact describes the same objects in the same order.
+
+        The class id is the object's 0-BASED index, exactly as in the box file (Yolo_Lines):
+        a per-frame handle, not a class — the same warning and caveat apply, so these files
+        must not be used for training as-is (see docs/design-decisions.md).
+
+    Args:
+        (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (2) size [Vector<int> 1x2]: The frame size as (width, height).
+        (3) cv2 [module]: The OpenCV module, injected by the caller.
+        (4) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [Vector<string>]: One segmentation line per object, in order.
+    """
+
+    width, height = float(size[0]), float(size[1])
+    lines = []
+    for index, det in enumerate(objects):
+        coordinates = []
+        for (px, py) in __Object_Polygon(det, cv2, np):
+            nx = min(1.0, max(0.0, px / width))
+            ny = min(1.0, max(0.0, py / height))
+            coordinates.append('%.*f' % (CONST_SEG_DECIMALS, nx))
+            coordinates.append('%.*f' % (CONST_SEG_DECIMALS, ny))
+        lines.append('%d %s' % (index, ' '.join(coordinates)))
+    return lines

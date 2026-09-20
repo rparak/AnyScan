@@ -278,3 +278,81 @@ def test_module_is_qt_free() -> None:
     source = open(Annotate.__file__).read()
     assert 'PyQt' not in source
     assert 'import cv2' not in source and 'import numpy' not in source
+
+
+def __Coords(line: str) -> tp.List[float]:
+    """The normalised coordinate floats of a seg line (everything after the class id)."""
+    return [float(v) for v in line.split()[1:]]
+
+
+def test_seg_lines_format_and_normalisation() -> None:
+    """
+    Description:
+        Each segmentation line is '<class_id> x1 y1 x2 y2 …', the class id the object's 0-based
+        index (as in the box file), the coordinates normalised to 0..1 at six decimals, and an
+        even number of them (whole x,y pairs). Objects are emitted in list order.
+    """
+
+    objects = [__Object(40, 60, 80), __Object(200, 300, 100)]
+    lines = Annotate.Seg_Lines(objects, (CONST_W, CONST_H), cv2, np)
+
+    assert len(lines) == 2
+    for index, line in enumerate(lines):
+        parts = line.split()
+        assert parts[0] == str(index)                    # class id is the object index
+        coords = __Coords(line)
+        assert len(coords) >= 6 and len(coords) % 2 == 0  # at least a triangle, whole pairs
+        assert all(0.0 <= value <= 1.0 for value in coords)
+        assert all(len(token.split('.')[1]) == 6 for token in parts[1:])  # six decimals
+
+
+def test_seg_polygon_is_simplified_not_thousands_of_points() -> None:
+    """
+    Description:
+        A curved contour is simplified with approxPolyDP so the file is usable: a filled circle,
+        whose raw contour is hundreds of points, collapses to a few dozen while staying a valid
+        polygon.
+    """
+
+    mask = np.zeros((CONST_H, CONST_W), dtype=np.uint8)
+    cv2.circle(mask, (300, 200), 150, 1, -1)
+    det = Detection_Str(Label='disc', Bbox=(150, 50, 300, 300), Mask=mask.astype(bool))
+
+    (line,) = Annotate.Seg_Lines([det], (CONST_W, CONST_H), cv2, np)
+    points = len(__Coords(line)) // 2
+    assert 3 <= points <= 40                              # simplified, not the raw contour
+
+
+def test_seg_keeps_only_the_outer_contour_for_a_holed_object() -> None:
+    """
+    Description:
+        An object with a hole (a washer, the lattice bracket) keeps ONLY its outer contour —
+        YOLO segmentation is one ring per instance. A square annulus yields a single polygon
+        whose bounding box is the OUTER square (the hole is not carved out).
+    """
+
+    mask = np.zeros((CONST_H, CONST_W), dtype=np.uint8)
+    mask[60:260, 60:260] = 1                              # outer 200x200 square
+    mask[120:200, 120:200] = 0                            # an 80x80 hole in the middle
+    det = Detection_Str(Label='washer', Bbox=(60, 60, 200, 200), Mask=mask.astype(bool))
+
+    (line,) = Annotate.Seg_Lines([det], (CONST_W, CONST_H), cv2, np)
+    coords = __Coords(line)
+    xs = [coords[i] * CONST_W for i in range(0, len(coords), 2)]
+    ys = [coords[i] * CONST_H for i in range(1, len(coords), 2)]
+    # The polygon spans the OUTER square, so the hole was not emitted as a second ring.
+    assert min(xs) <= 62 and max(xs) >= 258
+    assert min(ys) <= 62 and max(ys) >= 258
+
+
+def test_seg_falls_back_to_the_bbox_for_a_maskless_object() -> None:
+    """
+    Description:
+        An object found by the background cue alone (no mask) still gets a polygon — its
+        bounding box as a four-point rectangle — so the seg file has one line per object, in the
+        same order as the box file.
+    """
+
+    det = Detection_Str(Label='bg', Bbox=(30, 40, 120, 60))   # no Mask
+    (line,) = Annotate.Seg_Lines([det], (CONST_W, CONST_H), cv2, np)
+    assert len(__Coords(line)) // 2 == 4                  # a rectangle
