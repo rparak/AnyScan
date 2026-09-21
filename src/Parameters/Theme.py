@@ -119,15 +119,24 @@ CONST_VERDICT_DEFAULT = 'OK'
 # (General.Classification.Enabled = false): every object is drawn in this one colour, the box
 # and its darker ink twin, because there is no pass/fail to encode.
 #
-# It is deliberately OFF THE INDIGO AXIS — a desaturated cool grey (HSL saturation ~0.09), not a
+# It is deliberately OFF THE INDIGO AXIS — a desaturated cool grey (HSL saturation ~0.10), not a
 # quieter shade of the OK indigo #6C63B5 (saturation ~0.36). Recording the classification flag
 # per set exists so a MIXED history can show which sets were judged and which were not; that only
-# works if 'judged OK' and 'not judged' do not share a hue. Measured ΔE(CIE76) to the OK box is
-# ~46 (the earlier slate-indigo was ~26, same family and too close), while it stays calm — only
-# NOK (#ff005c) is loud. Still a DISTINCT token from the verdict colours, so the two can diverge.
-# The box reads on the dark viewport (~5:1) and the ink twin as text on the white card (~6.6:1).
+# works if 'judged OK' and 'not judged' do not share a hue. Still a DISTINCT token from the
+# verdict colours, so the two can diverge.
+#
+# The box is drawn INTO the frame — on the green table and on the parts — so it is measured
+# against the real annotation surfaces, not the UI chrome. The gate that matters there is
+# perceptual ΔE (CIE76), the project's distinctness floor of 12: a chromatic box rides on hue
+# (OK #6C63B5 has only ~1.1 luminance contrast on the table yet ΔE ~70), but a neutral grey has
+# no hue to lean on, so its worst case is grey-on-grey — the bright machined steel in sets
+# 003/005 (~(120,120,125)). The earlier #949AA6 sat at the steel's own lightness and collapsed
+# to ΔE ~10.7 there, under the floor. Lightening it along the grey axis (NOT back toward indigo,
+# which would undo the separation from OK) pulls it clear: measured ΔE is now ~23 vs bright steel
+# (~2x the floor), ~46 vs the table green, ~54 vs the dark plates, and ~53 to the OK box (up from
+# ~46). The darker ink twin is reserved for text on the white card.
 #   Unit [Tuple<string> 1x2] (box, ink)
-CONST_DETECTION_COLORS = ('#949AA6', '#585d68')
+CONST_DETECTION_COLORS = ('#B8BECA', '#5C6270')
 
 # The Log-view severity text colours, one named semantic token per level. The log view
 # colours the level field and the message by these (the timestamp stays muted); a level

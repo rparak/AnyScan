@@ -143,7 +143,9 @@ def test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis() -> None:
         classified set look the same and the per-set flag distinction cannot be seen. It is a
         distinct token, well separated from OK in perceptual distance (ΔE >> the ~26 of the old
         slate-indigo), off the indigo axis (a low-saturation grey), and calm — far from the loud
-        NOK magenta.
+        NOK magenta. Because the box is drawn INTO the frame, it must also clear the project's
+        distinctness floor against the real annotation surfaces — and its worst case, having no
+        hue to lean on, is grey-on-grey against bright machined steel.
     """
 
     import colorsys
@@ -156,8 +158,9 @@ def test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis() -> None:
     assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['OK']
     assert Theme.Detection_Color() == Theme.CONST_DETECTION_COLORS
 
-    # Clearly separated from OK, and much more so than the old same-axis slate-indigo (ΔE ~26).
-    assert Theme.Delta_E(neutral, ok) > 35
+    # Clearly separated from OK, and more so than before (lightening it along the grey axis to
+    # clear the steel also pushed it further from the medium-dark OK indigo, ΔE ~46 -> ~53).
+    assert Theme.Delta_E(neutral, ok) > 46
     # Off the indigo axis: a low-saturation grey, not a saturated indigo like OK.
     def _sat(hex_color):
         r, g, b = (v / 255.0 for v in Theme.Hex_To_Rgb(hex_color))
@@ -165,3 +168,10 @@ def test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis() -> None:
     assert _sat(neutral) < 0.20 < _sat(ok)
     # Still calm, and far from the loud NOK.
     assert Theme.Delta_E(neutral, nok) > 60
+
+    # Drawn into the frame, so it must clear the distinctness floor against the real annotation
+    # surfaces. The worst case is grey-on-grey against bright machined steel (sets 003/005),
+    # where the earlier #949AA6 sat at the steel's own lightness and collapsed under the floor.
+    from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
+    bright_steel = '#808083'  # ~(128,128,131), the machined-steel surface in sets 003/005
+    assert Theme.Delta_E(neutral, bright_steel) > CONST_ANNOTATE_MIN_DELTA_E
