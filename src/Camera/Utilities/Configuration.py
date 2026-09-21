@@ -34,6 +34,8 @@ import typing as tp
 # Custom Lib.: AnyScan — camera configuration structures
 #   ../Parameters/Camera
 from Parameters.Camera import Camera_Configuration_Str, Camera_Calibration_Parameters_Str
+#   ../Parameters/General — the single default for the classification flag
+from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
 
 """
 Description:
@@ -99,6 +101,32 @@ def Read_Configuration(file_path: str) -> tp.Optional[Camera_Configuration_Str]:
     except AssertionError as error:
         print(f'[ERROR] Information: {error}')
         print(f'[ERROR] The configuration file "{file_path}" is missing or invalid.')
+
+def Read_Classification_Enabled(file_path: str) -> bool:
+    """
+    Description:
+        Read the 'General.Classification.Enabled' flag from a *.yaml configuration file — does
+        this configuration perform OK/NOK classification, or only detect objects? It is read
+        through this ONE configuration layer (no module parses the YAML for itself), and it never
+        raises: a missing file, a missing 'General' block, or a malformed value all fall back to
+        the single default (CONST_CLASSIFICATION_ENABLED_DEFAULT = False), so a configuration that
+        does not mention classification simply does not classify.
+
+    Args:
+        (1) file_path [string]: The absolute path to the *.yaml configuration file.
+
+    Returns:
+        (1) parameter [bool]: True when classification is enabled, else the default (False).
+    """
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        value = (data or {}).get('General', {}).get('Classification', {}).get('Enabled')
+        return bool(value) if isinstance(value, bool) else CONST_CLASSIFICATION_ENABLED_DEFAULT
+    except (OSError, yaml.YAMLError, AttributeError):
+        return CONST_CLASSIFICATION_ENABLED_DEFAULT
+
 
 def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Parameters_Str,
                       file_path: str) -> bool:

@@ -42,6 +42,8 @@ if CONST_SRC not in sys.path:
 # Custom Lib.: AnyScan — camera backends
 #   ../Camera/Core
 from Camera.Core import File_Camera_Cls, Basler_Camera_Cls
+#   ../Camera/Utilities/Configuration — the one configuration layer (classification flag)
+from Camera.Utilities.Configuration import Read_Classification_Enabled, CONST_BASLER_CONFIG_FILE
 # Custom Lib.: AnyScan — vision backend (for the --background override)
 #   ../Vision/Core
 import Vision.Core as Vision_Core
@@ -91,6 +93,29 @@ def Parse_Args(argv: tp.List[str]) -> argparse.Namespace:
     return args
 
 
+def Config_Loaded_Log_Line(config_basename: str, classification_enabled: bool) -> str:
+    """
+    Description:
+        The one-line configuration-loaded message: which configuration was loaded and whether it
+        classifies. This is the answer when someone later asks why the UI shows (or does not show)
+        OK/NOK. Pure, so it is testable without launching the app.
+
+    Args:
+        (1) config_basename [string]: The configuration file name.
+        (2) classification_enabled [bool]: Whether classification is enabled.
+
+    Returns:
+        (1) parameter [string]: The log line.
+    """
+
+    if classification_enabled:
+        state = ('enabled — the UI shows OK/NOK verdicts (no classifier assigns NOK yet, so '
+                 'every object is OK)')
+    else:
+        state = 'disabled — the UI shows detected objects only, no OK/NOK verdicts'
+    return "Loaded configuration '%s'. Classification is %s." % (config_basename, state)
+
+
 def main() -> int:
     """
     Description:
@@ -134,9 +159,17 @@ def main() -> int:
     logger = Session_Logger_Cls()
     logger.Log_Info('Application started.')
 
+    # Read the classification flag ONCE, through the configuration layer, and log the state on
+    # the configuration-loaded line — when someone later asks why there is no OK/NOK in the UI,
+    # this line is the answer. The flag is then passed to the window; no other module reads it.
+    classification_enabled = Read_Classification_Enabled(CONST_BASLER_CONFIG_FILE)
+    logger.Log_Info(Config_Loaded_Log_Line(os.path.basename(CONST_BASLER_CONFIG_FILE),
+                                           classification_enabled))
+
     # A File_Camera_Cls (developer --frame) or the real Basler_Camera_Cls.
     camera = File_Camera_Cls(os.path.abspath(args.frame)) if args.frame else Basler_Camera_Cls()
-    window = AnyScan_Window_Cls(camera=camera, logger=logger)
+    window = AnyScan_Window_Cls(camera=camera, logger=logger,
+                                classification_enabled=classification_enabled)
     window.setWindowIcon(icon)
     window.resize(1720, 1020)
     window.showMaximized()   # F11 toggles fullscreen, Esc closes

@@ -45,7 +45,7 @@ from Parameters.Vision import Detection_Str
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header
 #   ../Parameters/Theme
-from Parameters.Theme import Verdict_Color
+from Parameters.Theme import Verdict_Color, Detection_Color
 
 """
 Description:
@@ -99,7 +99,7 @@ CONST_FILTER_SEGMENTS = (('all', 'All'), ('ok', 'OK'), ('nok', 'NOK'))
 CONST_EMPTY_MESSAGES = {
     'all': 'No capture sets yet. Analyse a frame in Live and it will appear here.',
     'ok': 'No OK results in the current history.',
-    'nok': 'No NOK results. Classification is not yet enabled, so every object is OK.'}
+    'nok': 'No NOK results — no classifier is running yet, so no object has been judged.'}
 
 
 class History_Image_Cls(QWidget):
@@ -716,6 +716,18 @@ class History_View_Cls(QWidget):
             (1) removed_prior [bool]: True when the previously selected set was evicted.
         """
 
+        # The OK/NOK filter is shown only when at least one discovered set was WRITTEN with
+        # classification on — its images carry verdict colours, so the filter must exist to
+        # explain and narrow them. When no visible set was classified there is no verdict state
+        # to filter, so the filter is removed (hidden) and forced to 'All', not merely disabled:
+        # nothing on screen then implies a feature this history does not contain. This is decided
+        # per set, not by the current config, so toggling the config never hides data already on
+        # disk (a set written with verdicts keeps them).
+        classified_present = any(cap.Classification for cap in self.__sets)
+        self.__filter.setVisible(classified_present)
+        if not classified_present:
+            self.__filter.Set_Selection('all')
+
         while self.__list_box.count():
             item = self.__list_box.takeAt(0)
             widget = item.widget()
@@ -1172,8 +1184,11 @@ class History_View_Cls(QWidget):
     def __Set_Color(self, cap: tp.Any) -> str:
         """
         Description:
-            The set's verdict colour for its selection outline: the NOK colour when any object is
-            NOK, the OK colour otherwise, and the muted tone for a partial set.
+            The selection-outline colour for a set, decided by how the set was WRITTEN (not the
+            current config): the muted tone for a partial set; the verdict colour (NOK when any
+            object is NOK, else OK) for a set written WITH classification; and the neutral
+            detection colour for a set written WITHOUT — so a verdict-coloured set and a
+            detect-only set read differently, matching their baked-in image colours.
 
         Args:
             (1) cap [Capture_Set_Str(object)]: The set.
@@ -1184,7 +1199,9 @@ class History_View_Cls(QWidget):
 
         if cap.Partial:
             return Style.CONST_INK_MUTE
-        return Verdict_Color('NOK' if cap.Is_Nok() else 'OK')[0]
+        if cap.Classification:
+            return Verdict_Color('NOK' if cap.Is_Nok() else 'OK')[0]
+        return Detection_Color()[0]
 
     # << QT OVERRIDE >> #
     def keyPressEvent(self, event: tp.Any) -> None:

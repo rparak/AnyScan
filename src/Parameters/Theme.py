@@ -115,6 +115,16 @@ CONST_VERDICT_COLORS = {
 #   Unit [string]
 CONST_VERDICT_DEFAULT = 'OK'
 
+# The NEUTRAL object colour, used when a configuration only DETECTS and does not classify
+# (General.Classification.Enabled = false): every object is drawn in this one colour, the box
+# and its darker ink twin, because there is no pass/fail to encode. It is a DISTINCT token, NOT
+# an alias of the OK verdict colour — the two mean different things ('detected, not judged' vs
+# 'passed') and must be free to diverge; keeping them separate stops a later change to one
+# silently moving the other. A calm slate-indigo: visible on the dark viewport, plainly not the
+# loud NOK magenta, and readable (its ink twin) as text on the white card.
+#   Unit [Tuple<string> 1x2] (box, ink)
+CONST_DETECTION_COLORS = ('#6E7BA6', '#464f70')
+
 # The Log-view severity text colours, one named semantic token per level. The log view
 # colours the level field and the message by these (the timestamp stays muted); a level
 # colour is NEVER a literal at the call site. INFO reuses the Scene-Understanding ink;
@@ -371,6 +381,21 @@ def Verdict_Color(verdict: str) -> tp.Tuple[str, str]:
     """
 
     return CONST_VERDICT_COLORS.get(verdict, CONST_VERDICT_COLORS[CONST_VERDICT_DEFAULT])
+
+
+def Detection_Color() -> tp.Tuple[str, str]:
+    """
+    Description:
+        The (box, ink) colour pair for a plain, unjudged detection — used when the configuration
+        only detects (classification off), so every object is one neutral colour. From the ONE
+        CONST_DETECTION_COLORS definition, a distinct token from the verdict colours ('detected,
+        not judged', never a pass/fail).
+
+    Returns:
+        (1) parameter [Tuple<string> 1x2]: The (box, ink) hex colours.
+    """
+
+    return CONST_DETECTION_COLORS
 
 
 def Index_Color(index: int) -> tp.Tuple[str, str]:

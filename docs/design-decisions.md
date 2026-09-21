@@ -200,3 +200,41 @@ annotated image so History never decodes full PNGs to fill its grid. **Revisit i
 a field the JSON does not carry — add it to `Build_Set_Metadata`, the single builder, so the file
 and the reader stay in step.
 Commit `157eabe`; tests `test/Vision/Utilities/test_annotate.py::test_seg_keeps_only_the_outer_contour_for_a_holed_object`, `test/UI/test_history_data.py::test_metadata_round_trips_and_matches_the_detection_list`.
+
+## Classification is a per-configuration switch that exposes the verdict UI, not one that creates it
+
+`General.Classification.Enabled` in the configuration file says whether a configuration performs
+OK/NOK classification or only detects objects. It defaults to **false**, because nothing
+classifies today — no code assigns NOK; `Detection_Str.Verdict` defaults to OK and nothing sets
+it otherwise. So enabling the switch does **not** make classification work: with it on, today's
+behaviour is filters visible, every object OK, the NOK filter permanently empty. That is a
+deliberate, shippable state — the config is ready for a classifier that does not exist yet.
+
+**Enabled** shows verdict state: the Captures OK/NOK filter, verdict colours on annotations, and
+the verdict per object wherever object detail is shown. **Disabled** removes all of it — the
+filter is not there (removed, not disabled, so nothing on screen implies a feature this
+configuration lacks), objects are annotated in a single neutral colour (`Theme.Detection_Color`,
+a distinct token from the verdict colours — 'detected, not judged'), and the UI speaks only of
+detected objects.
+
+The flag is read **once**, through the one configuration layer
+(`Camera.Utilities.Configuration.Read_Classification_Enabled`), with the single default living in
+`Parameters.General`; the launcher passes it to the window and logs it on the configuration-loaded
+line, which is the answer when someone asks why the UI has no OK/NOK. It governs what LIVE
+produces (annotation colours, and the flag recorded on each new capture set) — **not** History.
+
+History is driven **per set**: each `_objects.json` records the flag that was active when the set
+was written, so toggling the config never hides data already on disk. The Captures filter appears
+when **any visible set** was written with classification on (its images carry verdict colours, so
+the filter must exist to explain them), and each set's outline follows its own recorded flag
+(verdict colour vs neutral). Object rows always show the record — suppressing a captured verdict
+would lie about what was captured.
+
+**Two empty-NOK states are kept distinguishable:** config disabled ⇒ the filter is absent (its
+absence is the answer); config enabled with no classifier ⇒ the filter is present and says why it
+is empty ("no classifier is running yet, so no object has been judged"), the reason being the
+missing classifier, not the config.
+
+**Revisit when** a classifier lands: it sets `Detection_Str.Verdict`, the empty-NOK message stops
+being the normal state, and the switch starts gating a feature that actually runs.
+Commit `_pending_`; tests `test/Camera/test_configuration.py`, `test/UI/test_history.py::test_the_two_empty_nok_states_are_distinguishable`, `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`.

@@ -9,6 +9,19 @@
 #     - Light  : Effilux EFFI-FD-200-200-000
 ## =========================================================================== ##
 
+# General (non-hardware) settings for this configuration.
+General:
+  # Does this configuration perform OK/NOK classification, or only detect objects?
+  #   true  - the UI shows verdict state (the Captures OK/NOK filter, verdict colours on
+  #           annotations, the verdict per object). No classifier exists yet, so every object is
+  #           OK and the NOK filter stays empty until one does.
+  #   false - none of that appears: objects are annotated in a single neutral colour and the UI
+  #           speaks only of detected objects.
+  # Defaults to false when this block is absent. Enabling it exposes the verdict UI; it does not
+  # create classification.
+  Classification:
+    Enabled: false
+
 Camera:
   # Name of the camera (sensor + lens identifier).
   Name: Basler_a2A1920_51gcPRO_Computar_M1228_MPW3

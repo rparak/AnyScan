@@ -29,7 +29,7 @@ import colorsys
 import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
-from Parameters.Theme import (Index_Color, Verdict_Color, Hex_To_Bgr, Delta_E,
+from Parameters.Theme import (Index_Color, Verdict_Color, Detection_Color, Hex_To_Bgr, Delta_E,
                               CONST_CARD, CONST_INK)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
@@ -355,22 +355,23 @@ def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: 
 
 
 def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
-                   cv2: tp.Any, np: tp.Any) -> tp.Any:
+                   cv2: tp.Any, np: tp.Any, verdict_colored: bool = True) -> tp.Any:
     """
     Description:
         The scene with each object marked by its BOUNDING BOX and INDEX number ONLY — no
         mask fill and no contour on the real image, because the mask has its own view and
-        its own file (Draw_Label_Mask). The box and the index chip are drawn in the
-        object's VERDICT colour (Theme.Verdict_Color) — the one colour its verdict decides,
-        pass or fail — with only the numeral in a contrasting tone against its chip. Every
-        object is OK until classification lands, so today they all render in the OK colour.
-        Line widths and font scale with the frame's resolution.
+        its own file (Draw_Label_Mask). When verdict_colored, the box and chip are the object's
+        VERDICT colour (Theme.Verdict_Color) — pass or fail; when not (a configuration that only
+        DETECTS), every object is one NEUTRAL colour (Theme.Detection_Color), since there is no
+        pass/fail to encode. Only the numeral is a contrasting tone against its chip. Line widths
+        and font scale with the frame's resolution.
 
     Args:
         (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
         (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
         (3) cv2 [module]: The OpenCV module, injected by the caller.
         (4) np [module]: The NumPy module, injected by the caller.
+        (5) verdict_colored [bool]: True to colour by verdict, False for the neutral colour.
 
     Returns:
         (1) parameter [Matrix<uint8> HxWx3]: The annotated scene (BGR).
@@ -378,35 +379,38 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
 
     scale = __Scale(scene_bgr.shape)
     annotated = scene_bgr.copy()
-    __Draw_Boxes(annotated, objects, scale, cv2)
+    __Draw_Boxes(annotated, objects, scale, cv2, verdict_colored)
     return annotated
 
 
 def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
-                 cv2: tp.Any) -> None:
+                 cv2: tp.Any, verdict_colored: bool = True) -> None:
     """
     Description:
-        Draw each object's bounding box and index chip in its verdict colour, on the image
-        given — the SAME overlay for the annotated frame and the label mask, so the two
-        views carry identical boxes and labels and only differ in what lies beneath them.
+        Draw each object's bounding box and index chip on the image given — the SAME overlay for
+        the annotated frame and the label mask, so the two views carry identical boxes and labels
+        and only differ in what lies beneath them. The colour is each object's verdict colour
+        (verdict_colored) or the one neutral detection colour otherwise.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
         (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
         (3) scale [float]: The drawing scale (from __Scale).
         (4) cv2 [module]: The OpenCV module, injected by the caller.
+        (5) verdict_colored [bool]: True to colour by verdict, False for the neutral colour.
     """
 
     box_w = max(1, int(round(CONST_ANNOTATE_BOX_W * scale)))
+    neutral_bgr = Hex_To_Bgr(Detection_Color()[0])
     for i, det in enumerate(objects):
         x, y, w, h = det.Bbox
-        verdict_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[0])
-        cv2.rectangle(image, (x, y), (x + w, y + h), verdict_bgr, box_w)
-        __Draw_Index_Chip(image, det.Bbox, i, verdict_bgr, scale, cv2)
+        color_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[0]) if verdict_colored else neutral_bgr
+        cv2.rectangle(image, (x, y), (x + w, y + h), color_bgr, box_w)
+        __Draw_Index_Chip(image, det.Bbox, i, color_bgr, scale, cv2)
 
 
 def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, int],
-                    cv2: tp.Any, np: tp.Any) -> tp.Any:
+                    cv2: tp.Any, np: tp.Any, verdict_colored: bool = True) -> tp.Any:
     """
     Description:
         The segmentation result as a LABEL mask on a pure-black ground: each accepted
@@ -429,6 +433,8 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
         (2) shape [Tuple<int>]: The source frame's (h, w, c) shape.
         (3) cv2 [module]: The OpenCV module, injected by the caller.
         (4) np [module]: The NumPy module, injected by the caller.
+        (5) verdict_colored [bool]: True to colour the boxes by verdict, False for the neutral
+                                    detection colour.
 
     Returns:
         (1) parameter [Matrix<uint8> HxWx3]: The label mask (BGR) at the source size.
@@ -447,8 +453,9 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
         fill_bgr = Hex_To_Bgr(Index_Color(i)[0]) if CONST_ANNOTATE_MASK_FILL == 'index' else white
         mask_image[det.Mask.astype(bool)] = fill_bgr
 
-    # Then the SAME boxes and index chips as the annotated view, in the verdict colour.
-    __Draw_Boxes(mask_image, objects, scale, cv2)
+    # Then the SAME boxes and index chips as the annotated view, in the verdict (or neutral)
+    # colour, so the two views always agree.
+    __Draw_Boxes(mask_image, objects, scale, cv2, verdict_colored)
     return mask_image
 
 

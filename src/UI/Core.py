@@ -64,6 +64,8 @@ from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask, Seg_Lines
 from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str, Detection_Str
+#   ../Parameters/General — the single default for the classification flag
+from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
 # Custom Lib.: AnyScan — the session logger and the per-analysis capture writer
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
@@ -113,11 +115,18 @@ class AnyScan_Window_Cls(QMainWindow):
                                'appears here as plain English text.')
 
     def __init__(self, camera: tp.Optional[tp.Any] = None,
-                 logger: tp.Optional[Session_Logger_Cls] = None) -> None:
+                 logger: tp.Optional[Session_Logger_Cls] = None,
+                 classification_enabled: bool = CONST_CLASSIFICATION_ENABLED_DEFAULT) -> None:
         super().__init__()
         self.setWindowTitle('AnyScan  ·  %s' % Style.CONST_TAGLINE)
 
         # << PRIVATE >> #
+        # Whether this configuration classifies (OK/NOK) or only detects. Read once from the
+        # configuration by the launcher and passed in; it governs what LIVE produces — the
+        # annotation colours (verdict vs one neutral colour) and the flag recorded on each new
+        # capture set. It does NOT govern History, which reads how each set was written from that
+        # set's own metadata (a set written under a different flag keeps its own colours).
+        self.__classification_enabled = classification_enabled
         # One real implementation each. `camera` is injected so the developer
         # --frame path can supply a File_Camera_Cls; production is the Basler.
         self.__camera = camera if camera is not None else Basler_Camera_Cls()
@@ -861,8 +870,10 @@ class AnyScan_Window_Cls(QMainWindow):
         # Render the two views once, in BGR, then share them: the viewport shows them and
         # the capture writer writes them, so the on-screen and on-disk images are identical.
         frame_bgr = cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR)
-        annotated_bgr = Draw_Annotated(frame_bgr, result.Objects, cv2, np)
-        mask_bgr = Draw_Label_Mask(result.Objects, frame_bgr.shape, cv2, np)
+        annotated_bgr = Draw_Annotated(frame_bgr, result.Objects, cv2, np,
+                                       self.__classification_enabled)
+        mask_bgr = Draw_Label_Mask(result.Objects, frame_bgr.shape, cv2, np,
+                                   self.__classification_enabled)
         self.__Show_Analysis(result, annotated_bgr, mask_bgr)
 
         set_id = self.__current_set_id
@@ -935,7 +946,7 @@ class AnyScan_Window_Cls(QMainWindow):
         timestamp = datetime.now().isoformat(timespec='seconds')
         metadata = Build_Set_Metadata(self.__session_id, set_id, timestamp, result.Objects,
                                       size, result.Task, result.Latency_Ms, frame_mean,
-                                      result.Background)
+                                      result.Background, self.__classification_enabled)
         stamp = 'set %s | %s' % (set_id, timestamp)
         try:
             evicted, created = self.__capture_writer.Write(

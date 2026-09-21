@@ -356,3 +356,44 @@ def test_seg_falls_back_to_the_bbox_for_a_maskless_object() -> None:
     det = Detection_Str(Label='bg', Bbox=(30, 40, 120, 60))   # no Mask
     (line,) = Annotate.Seg_Lines([det], (CONST_W, CONST_H), cv2, np)
     assert len(__Coords(line)) // 2 == 4                  # a rectangle
+
+
+def test_verdict_colored_false_draws_one_neutral_colour_not_verdicts() -> None:
+    """
+    Description:
+        When classification is off (verdict_colored=False), every object — OK or NOK — is drawn in
+        the ONE neutral detection colour, and no verdict colour appears: not the OK indigo and,
+        crucially, not the NOK magenta. With it on, the NOK object is drawn in the verdict magenta.
+    """
+
+    neutral = tuple(Theme.Hex_To_Bgr(Theme.CONST_DETECTION_COLORS[0]))
+    nok = tuple(Theme.Hex_To_Bgr(Theme.CONST_VERDICT_COLORS['NOK'][0]))
+    ok = tuple(Theme.Hex_To_Bgr(Theme.CONST_VERDICT_COLORS['OK'][0]))
+    objects = [__Object(40, 60, 80, 'OK'), __Object(200, 300, 100, 'NOK')]
+
+    def _Has(image, bgr):
+        return bool((image == np.array(bgr, np.uint8)).all(axis=2).any())
+
+    # Off: neutral present; neither verdict colour present.
+    plain = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), 30, np.uint8), objects,
+                                    cv2, np, verdict_colored=False)
+    assert _Has(plain, neutral)
+    assert not _Has(plain, nok) and not _Has(plain, ok)
+
+    # On: the NOK object is drawn in the verdict magenta; the neutral colour is not used.
+    verdicted = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), 30, np.uint8), objects,
+                                        cv2, np, verdict_colored=True)
+    assert _Has(verdicted, nok)
+    assert not _Has(verdicted, neutral)
+
+
+def test_neutral_detection_colour_is_a_distinct_token_from_the_verdicts() -> None:
+    """
+    Description:
+        The neutral detection colour is its own token, not an alias of the OK verdict colour — the
+        two mean different things and must be free to diverge.
+    """
+
+    assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['OK']
+    assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['NOK']
+    assert Theme.Detection_Color() == Theme.CONST_DETECTION_COLORS

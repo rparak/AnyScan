@@ -75,14 +75,14 @@ def _Objects():
                           Sentence='A hex nut.', Verdict='OK', Cue='both')]
 
 
-def _Write_Full(writer, session_id, set_id):
-    """Write a full (successful) set through the real writer."""
+def _Write_Full(writer, session_id, set_id, classification=False):
+    """Write a full (successful) set through the real writer, recording the classification flag."""
     raw = np.full((40, 60, 3), 30, np.uint8)
     annotated = np.full((40, 60, 3), 60, np.uint8)
     mask = np.zeros((40, 60, 3), np.uint8)
     objects = _Objects()
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
-                                  'caption', 1180, 91)
+                                  'caption', 1180, 91, '', classification)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                  ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np)
 
@@ -104,17 +104,19 @@ def _Settle(app, milliseconds: int = 300) -> None:
 def test_filter_including_the_always_empty_nok_case(qt_app, tmp_path) -> None:
     """
     Description:
-        The filter narrows the grid by set verdict. Nothing assigns NOK today, so every set is
-        OK: 'All' and 'OK' show the sets, and 'NOK' shows none — with an explicit message naming
-        why it is empty (classification not enabled), not a blank panel that reads as broken.
+        For sets written WITH classification the filter is shown and narrows the grid by verdict.
+        No classifier assigns NOK, so every set is OK: 'All' and 'OK' show the sets, and 'NOK'
+        shows none — with an explicit message that blames the missing classifier (not the config),
+        not a blank panel that reads as broken.
     """
 
     writer = Capture_Writer_Cls(str(tmp_path))
-    _Write_Full(writer, 'sessionA', 'set1')
-    _Write_Full(writer, 'sessionA', 'set2')
+    _Write_Full(writer, 'sessionA', 'set1', classification=True)
+    _Write_Full(writer, 'sessionA', 'set2', classification=True)
 
     view = History_View_Cls(str(tmp_path))
     view.Refresh()
+    assert _Private(view, '__filter').isVisibleTo(view)   # a classified set -> filter present
     assert len(_Private(view, '__cards')) == 2            # All
 
     _Set_Filter(view, 'ok')
@@ -125,7 +127,7 @@ def test_filter_including_the_always_empty_nok_case(qt_app, tmp_path) -> None:
     body = _Private(view, '__list_box')
     message = body.itemAt(0).widget()
     assert isinstance(message, QLabel)
-    assert 'Classification is not yet enabled' in message.text()
+    assert 'no classifier is running yet' in message.text()
 
     _Set_Filter(view, 'all')
     assert len(_Private(view, '__cards')) == 2            # restored
@@ -152,6 +154,72 @@ def test_selecting_a_full_set_renders_the_object_list(qt_app, tmp_path) -> None:
     assert _Private(view, '__meta_task').text() == 'caption'
     assert _Private(view, '__meta_latency').text() == '1180 ms'
     assert _Private(view, '__meta_confidence').text() == '91%'
+
+
+def test_detect_only_sets_have_no_filter_and_a_neutral_outline(qt_app, tmp_path) -> None:
+    """
+    Description:
+        A history of only detect-only sets (written with classification off) shows NO OK/NOK
+        filter at all — its absence, not a disabled control, is the signal — and each set's
+        selection outline is the neutral detection colour, not a verdict colour.
+    """
+
+    from Parameters.Theme import Detection_Color, Verdict_Color
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'set1', classification=False)
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    assert not _Private(view, '__filter').isVisibleTo(view)   # the filter is removed
+    cap = _Private(view, '__detail_cap')
+    assert _Private(view, '__Set_Color')(cap) == Detection_Color()[0]
+    assert _Private(view, '__Set_Color')(cap) != Verdict_Color('OK')[0]
+
+
+def test_classified_sets_get_the_filter_and_a_verdict_outline(qt_app, tmp_path) -> None:
+    """
+    Description:
+        A set written WITH classification brings the filter back and takes a verdict-coloured
+        outline — even when the current config is off, the record is shown, not hidden.
+    """
+
+    from Parameters.Theme import Verdict_Color
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'set1', classification=True)
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    assert _Private(view, '__filter').isVisibleTo(view)
+    cap = _Private(view, '__detail_cap')
+    assert _Private(view, '__Set_Color')(cap) == Verdict_Color('OK')[0]
+
+
+def test_the_two_empty_nok_states_are_distinguishable(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The two reasons a NOK list can be empty must read differently. Detect-only sets: the filter
+        is not there at all (you cannot reach an empty NOK — its absence is the answer). Classified
+        sets with no NOK: the filter IS there and says why it is empty (no classifier yet). The two
+        cannot be confused.
+    """
+
+    off_root = tmp_path / 'off'
+    Capture_Writer_Cls(str(off_root))
+    _Write_Full(Capture_Writer_Cls(str(off_root)), 's', 'a', classification=False)
+    off = History_View_Cls(str(off_root))
+    off.Refresh()
+    assert not _Private(off, '__filter').isVisibleTo(off)     # no filter — the absence is the signal
+
+    on_root = tmp_path / 'on'
+    _Write_Full(Capture_Writer_Cls(str(on_root)), 's', 'a', classification=True)
+    on = History_View_Cls(str(on_root))
+    on.Refresh()
+    assert _Private(on, '__filter').isVisibleTo(on)          # filter present
+    _Set_Filter(on, 'nok')
+    message = _Private(on, '__list_box').itemAt(0).widget().text()
+    assert 'no classifier is running yet' in message         # says WHY, not that the config is off
 
 
 def test_the_browser_panel_is_labelled_captures(qt_app, tmp_path) -> None:

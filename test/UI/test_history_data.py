@@ -57,14 +57,15 @@ def _Detections():
                           Sentence='A small screw.', Verdict='OK', Cue='background')]
 
 
-def _Write_Set(writer, session_id, set_id, objects, task='caption', latency=1180, mean=91):
+def _Write_Set(writer, session_id, set_id, objects, task='caption', latency=1180, mean=91,
+               classification=False):
     """Write one full set through the real writer, with metadata built from the detections."""
     raw = np.full((40, 60, 3), 30, np.uint8)
     annotated = np.full((40, 60, 3), 60, np.uint8)
     mask = np.zeros((40, 60, 3), np.uint8)
     size = (60, 40)
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, size,
-                                  task, latency, mean)
+                                  task, latency, mean, '', classification)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                  ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np)
 
@@ -86,6 +87,7 @@ def test_metadata_round_trips_and_matches_the_detection_list(tmp_path) -> None:
     assert (cap.Session_Id, cap.Set_Id, cap.Task, cap.Inference_Ms) == \
         ('sessionA', 'set1', 'caption', 1180)
     assert (cap.Frame_Width, cap.Frame_Height, cap.Frame_Mean_Confidence) == (60, 40, 91)
+    assert cap.Classification is False                    # detect-only by default
     assert len(cap.Objects) == len(objects)
     for i, (read, det) in enumerate(zip(cap.Objects, objects)):
         expected_conf = (int(round(100.0 * det.Segmenter_Score))
@@ -96,6 +98,23 @@ def test_metadata_round_trips_and_matches_the_detection_list(tmp_path) -> None:
         assert read.Cue == det.Cue
         assert read.Verdict == det.Verdict
         assert read.Description == det.Sentence
+
+
+def test_classification_flag_round_trips_per_set(tmp_path) -> None:
+    """
+    Description:
+        Each set records whether classification was enabled when it was written, so History knows
+        how each set's colours were baked — a set written with classification reads back True, one
+        written without reads False. This is what lets a toggled config not hide old data.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path), retention_sets=10)
+    _Write_Set(writer, 'sessionA', 'classified', _Detections(), classification=True)
+    _Write_Set(writer, 'sessionA', 'detected', _Detections(), classification=False)
+
+    on = Read_Capture_Set(str(tmp_path / 'sessionA'), 'sessionA', 'classified')
+    off = Read_Capture_Set(str(tmp_path / 'sessionA'), 'sessionA', 'detected')
+    assert on.Classification is True and off.Classification is False
 
 
 def test_discovery_across_sessions_and_newest_first_sorting(tmp_path) -> None:

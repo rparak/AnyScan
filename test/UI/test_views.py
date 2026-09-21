@@ -207,3 +207,42 @@ def test_evicting_the_displayed_history_set_is_logged(qt_app, reference_backgrou
 
     content = open(logger.Path, 'r', encoding='utf-8').read()
     assert 'shown in History (setX) was evicted' in content
+
+
+def test_classification_flag_flows_to_the_written_set(qt_app, reference_background_path, tmp_path) -> None:
+    """
+    Description:
+        The window records the classification flag it was given on each new capture set, so
+        History later knows how the set was written. A window built with classification on writes
+        classification:true into the set's metadata; one built off writes false.
+    """
+
+    import json
+    for enabled in (True, False):
+        root = tmp_path / ('on' if enabled else 'off')
+        logger = Session_Logger_Cls(log_dir=str(root), install_handlers=False)
+        window = _Framed_Window(reference_background_path, logger=logger)
+        setattr(window, CONST_MANGLE + '__classification_enabled', enabled)
+        setattr(window, CONST_MANGLE + '__session_id', 'sess1')
+        setattr(window, CONST_MANGLE + '__current_set_id', 'set1')
+        _Private(window, '__On_Analysis_Finished')(_Result(objects=1))
+
+        path = os.path.join(os.path.dirname(logger.Path), 'captures', 'sess1',
+                            'set1_objects.json')
+        data = json.loads(open(path, 'r', encoding='utf-8').read())
+        assert data['classification'] is enabled
+        logger.Close()
+
+
+def test_config_loaded_log_line_carries_the_state() -> None:
+    """
+    Description:
+        The startup configuration-loaded line names the configuration and the classification state
+        in both directions — this is the line that answers 'why is there no OK/NOK in the UI?'.
+    """
+
+    import run
+    on = run.Config_Loaded_Log_Line('Config_x.yaml', True)
+    off = run.Config_Loaded_Log_Line('Config_x.yaml', False)
+    assert 'Config_x.yaml' in on and 'enabled' in on and 'OK/NOK' in on
+    assert 'Config_x.yaml' in off and 'disabled' in off and 'detected objects only' in off
