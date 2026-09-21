@@ -133,3 +133,35 @@ def test_hex_conversions_match_opencv_order() -> None:
     assert Theme.Hex_To_Rgb('#ff005c') == (255, 0, 92)
     assert Theme.Hex_To_Bgr('#ff005c') == (92, 0, 255)
     assert Theme.Hex_To_Bgr('#ffffff') == (255, 255, 255)
+
+
+def test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis() -> None:
+    """
+    Description:
+        The neutral detection colour ('detected, not judged') must be visibly different from the
+        OK verdict colour, not a quieter shade of it — otherwise a detect-only set and an all-OK
+        classified set look the same and the per-set flag distinction cannot be seen. It is a
+        distinct token, well separated from OK in perceptual distance (ΔE >> the ~26 of the old
+        slate-indigo), off the indigo axis (a low-saturation grey), and calm — far from the loud
+        NOK magenta.
+    """
+
+    import colorsys
+
+    neutral = Theme.CONST_DETECTION_COLORS[0]
+    ok = Theme.CONST_VERDICT_COLORS['OK'][0]
+    nok = Theme.CONST_VERDICT_COLORS['NOK'][0]
+
+    # A distinct token, not an alias.
+    assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['OK']
+    assert Theme.Detection_Color() == Theme.CONST_DETECTION_COLORS
+
+    # Clearly separated from OK, and much more so than the old same-axis slate-indigo (ΔE ~26).
+    assert Theme.Delta_E(neutral, ok) > 35
+    # Off the indigo axis: a low-saturation grey, not a saturated indigo like OK.
+    def _sat(hex_color):
+        r, g, b = (v / 255.0 for v in Theme.Hex_To_Rgb(hex_color))
+        return colorsys.rgb_to_hls(r, g, b)[2]
+    assert _sat(neutral) < 0.20 < _sat(ok)
+    # Still calm, and far from the loud NOK.
+    assert Theme.Delta_E(neutral, nok) > 60

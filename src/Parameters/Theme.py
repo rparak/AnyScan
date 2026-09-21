@@ -117,13 +117,17 @@ CONST_VERDICT_DEFAULT = 'OK'
 
 # The NEUTRAL object colour, used when a configuration only DETECTS and does not classify
 # (General.Classification.Enabled = false): every object is drawn in this one colour, the box
-# and its darker ink twin, because there is no pass/fail to encode. It is a DISTINCT token, NOT
-# an alias of the OK verdict colour — the two mean different things ('detected, not judged' vs
-# 'passed') and must be free to diverge; keeping them separate stops a later change to one
-# silently moving the other. A calm slate-indigo: visible on the dark viewport, plainly not the
-# loud NOK magenta, and readable (its ink twin) as text on the white card.
+# and its darker ink twin, because there is no pass/fail to encode.
+#
+# It is deliberately OFF THE INDIGO AXIS — a desaturated cool grey (HSL saturation ~0.09), not a
+# quieter shade of the OK indigo #6C63B5 (saturation ~0.36). Recording the classification flag
+# per set exists so a MIXED history can show which sets were judged and which were not; that only
+# works if 'judged OK' and 'not judged' do not share a hue. Measured ΔE(CIE76) to the OK box is
+# ~46 (the earlier slate-indigo was ~26, same family and too close), while it stays calm — only
+# NOK (#ff005c) is loud. Still a DISTINCT token from the verdict colours, so the two can diverge.
+# The box reads on the dark viewport (~5:1) and the ink twin as text on the white card (~6.6:1).
 #   Unit [Tuple<string> 1x2] (box, ink)
-CONST_DETECTION_COLORS = ('#6E7BA6', '#464f70')
+CONST_DETECTION_COLORS = ('#949AA6', '#585d68')
 
 # The Log-view severity text colours, one named semantic token per level. The log view
 # colours the level field and the message by these (the timestamp stays muted); a level

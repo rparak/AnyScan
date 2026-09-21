@@ -196,6 +196,61 @@ def test_classified_sets_get_the_filter_and_a_verdict_outline(qt_app, tmp_path) 
     assert _Private(view, '__Set_Color')(cap) == Verdict_Color('OK')[0]
 
 
+def test_ok_filter_excludes_never_judged_detect_only_sets(qt_app, tmp_path) -> None:
+    """
+    Description:
+        In a mixed history 'OK' means 'classified and passed'. A detect-only set was never judged —
+        it is neither OK nor NOK and belongs only under All. So filtering to OK returns only the
+        classified set, not the detect-only one; otherwise the filter would assert a judgement
+        nobody made.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'classified', classification=True)   # classified, all OK
+    _Write_Full(writer, 'sessionA', 'detected', classification=False)    # never judged
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    assert len(_Private(view, '__cards')) == 2                # All shows both
+
+    _Set_Filter(view, 'ok')
+    shown = [c.Cap().Set_Id for c in _Private(view, '__cards')]
+    assert shown == ['classified']                           # only the judged-OK set
+
+    _Set_Filter(view, 'nok')
+    assert len(_Private(view, '__cards')) == 0                # neither is NOK
+
+
+def test_detect_only_cards_are_marked_not_classified_in_a_mixed_list(qt_app, tmp_path) -> None:
+    """
+    Description:
+        In a mixed list the detect-only cards carry a 'not classified' marker, so a neutral card is
+        told from a classified-OK card by more than colour (two channels, not one). A classified
+        card carries no such marker. In an all-detect-only list (no classified set, no filter)
+        there is nothing to distinguish, so no marker is added.
+    """
+
+    def _Count_Text(view, set_id):
+        card = next(c for c in _Private(view, '__cards') if c.Cap().Set_Id == set_id)
+        return getattr(card, '_Thumb_Card_Cls__Count_Text')()
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'classified', classification=True)
+    _Write_Full(writer, 'sessionA', 'detected', classification=False)
+
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    assert 'not classified' in _Count_Text(view, 'detected')     # marked in the mixed list
+    assert 'not classified' not in _Count_Text(view, 'classified')
+
+    # An all-detect-only history: no classified set to confuse it with, so no marker.
+    plain_root = tmp_path / 'plain'
+    _Write_Full(Capture_Writer_Cls(str(plain_root)), 's', 'a', classification=False)
+    plain = History_View_Cls(str(plain_root))
+    plain.Refresh()
+    assert 'not classified' not in _Count_Text(plain, 'a')
+
+
 def test_the_two_empty_nok_states_are_distinguishable(qt_app, tmp_path) -> None:
     """
     Description:

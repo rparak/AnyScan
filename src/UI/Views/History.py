@@ -217,11 +217,16 @@ class Thumb_Card_Cls(QFrame):
     # << SIGNAL >> #
     Clicked = pyqtSignal(object)
 
-    def __init__(self, cap: tp.Any, parent: tp.Optional[QWidget] = None) -> None:
+    def __init__(self, cap: tp.Any, mark_unclassified: bool = False,
+                 parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         # << PRIVATE >> #
         self.__cap = cap
+        # In a MIXED list (some sets classified, some not) a detect-only card is marked 'not
+        # classified', so the distinction from a classified-OK card does not depend on colour
+        # alone — two channels, not one.
+        self.__mark_unclassified = mark_unclassified and not cap.Partial and not cap.Classification
         self.__loaded = False
 
         self.setObjectName('thumbCard')
@@ -339,7 +344,10 @@ class Thumb_Card_Cls(QFrame):
         if self.__cap.Partial:
             return 'Analysis failed'
         count = len(self.__cap.Objects)
-        return '%d object%s' % (count, '' if count == 1 else 's')
+        text = '%d object%s' % (count, '' if count == 1 else 's')
+        if self.__mark_unclassified:
+            text += '  ·  not classified'
+        return text
 
     # << QT OVERRIDE >> #
     def mousePressEvent(self, event: tp.Any) -> None:
@@ -370,6 +378,7 @@ class History_View_Cls(QWidget):
         self.__root = captures_root
         self.__sets = []
         self.__cards = []
+        self.__classified_present = False
         self.__selected_id = None
         self.__detail_cap = None
         self.__detail_pixmaps = {}
@@ -723,9 +732,9 @@ class History_View_Cls(QWidget):
         # nothing on screen then implies a feature this history does not contain. This is decided
         # per set, not by the current config, so toggling the config never hides data already on
         # disk (a set written with verdicts keeps them).
-        classified_present = any(cap.Classification for cap in self.__sets)
-        self.__filter.setVisible(classified_present)
-        if not classified_present:
+        self.__classified_present = any(cap.Classification for cap in self.__sets)
+        self.__filter.setVisible(self.__classified_present)
+        if not self.__classified_present:
             self.__filter.Set_Selection('all')
 
         while self.__list_box.count():
@@ -840,7 +849,9 @@ class History_View_Cls(QWidget):
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(8)
         for position, cap in enumerate(caps):
-            card = Thumb_Card_Cls(cap)
+            # Mark detect-only cards only when the list also holds classified sets — a mixed list,
+            # where a neutral card must be told apart from a classified-OK one by more than colour.
+            card = Thumb_Card_Cls(cap, mark_unclassified=self.__classified_present)
             card.Clicked.connect(self.__Select)
             grid.addWidget(card, position // CONST_THUMB_COLUMNS,
                            position % CONST_THUMB_COLUMNS)
@@ -852,9 +863,11 @@ class History_View_Cls(QWidget):
     def __Filter_Matches(self, cap: tp.Any) -> bool:
         """
         Description:
-            Whether a set passes the active filter: 'all' matches everything; 'ok' matches a set
-            with no NOK object (a partial set counts as OK — it failed, it did not fail an
-            inspection); 'nok' matches a set with any NOK object.
+            Whether a set passes the active filter. 'all' matches everything. 'ok' and 'nok' mean
+            a JUDGEMENT — 'classified and passed' / 'classified and failed' — so they match only a
+            set written WITH classification: a detect-only set was never judged and is neither OK
+            nor NOK, so it appears only under All. Filtering it under OK would assert a judgement
+            nobody made. (A partial set was never classified either, so it too is All-only.)
 
         Args:
             (1) cap [Capture_Set_Str(object)]: The set.
@@ -866,9 +879,9 @@ class History_View_Cls(QWidget):
         key = self.__filter.Selection() or 'all'
         if key == 'all':
             return True
-        if key == 'nok':
-            return cap.Is_Nok()
-        return not cap.Is_Nok()
+        if not cap.Classification:
+            return False                                 # never judged -> only under All
+        return cap.Is_Nok() if key == 'nok' else not cap.Is_Nok()
 
     def __Load_Visible(self) -> None:
         """
