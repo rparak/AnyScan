@@ -346,3 +346,25 @@ capture set's `_objects.json` carries, joining a row to its sets. `mean_confiden
 whether that 0 means "none failed" or "nothing was judged".
 Tests `test/Logger/test_csv_extension.py`, `test/UI/test_run_summary.py`.
 
+## `session_details` and `error_details` are JSON; older rows keep the colon encoding
+
+Both breakdown cells used to pack entries as `index:HH:MM:SS-HH:MM:SS:HH:MM:SS` (and
+`…:message` for errors), joined by ` | ` — colons separating timestamps that themselves contain
+colons. That is readable only by a positional regex that assumes every time is exactly
+`HH:MM:SS`; it breaks once a duration reaches 100 hours (`Format_HMS` widens the hour field),
+drops the date (a session crossing midnight is ambiguous), and required sanitising `|` and
+newlines out of error messages. Both cells are now compact JSON arrays with full datetimes —
+`[{"index":1,"start":"2026-09-22 14:37:12","end":"2026-09-22 14:40:02","duration":"00:02:50"}]`,
+errors adding `"id"` and a verbatim `"message"` — parsed with any JSON reader.
+
+**Where the change starts.** Old rows are not rewritten. The encoding is self-identifying: a JSON
+cell begins with `[`, a legacy cell with a digit, and an empty breakdown is an empty cell in both.
+It takes effect from the commit "Run-summary CSV: encode session_details and error_details as JSON" (the one after `fdc6edd`); the first real run after it writes the first JSON row,
+and that row also carries a `run_id`, the first run id in the file. To read a legacy cell, split on
+` | ` and match each entry with
+`^(\d+):(\d{2}:\d{2}:\d{2})-(\d{2}:\d{2}:\d{2}):(\d{2,}:\d{2}:\d{2})$` (sessions) or the same
+followed by `:(.*)$` (errors: id, start, end, duration, message) — verified against every legacy
+entry in `logger/log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv`.
+Tests `test/Logger/test_core.py::test_reference_run_row_values`,
+`::test_details_round_trip_with_commas_and_quotes`.
+

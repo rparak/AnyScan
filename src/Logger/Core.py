@@ -27,6 +27,7 @@
 import os
 import io
 import csv
+import json
 import statistics
 import atexit
 import signal
@@ -73,7 +74,6 @@ CONST_FILENAME_TIME_FORMAT = '%H-%M'
 # above, so the injected line formats never change the CSV layout.
 #   Unit [string]
 CONST_CSV_DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
-CONST_CSV_TIME_FORMAT = '%H:%M:%S'
 # The run-summary CSV is named after the LOADED configuration, never a constant here: the
 # configuration file is the one source of which camera + lens setup a run used, so a run on
 # 'Config_<id>.yaml' summarises into 'log_<id>.csv' and a different YAML starts its own file
@@ -109,11 +109,14 @@ CONST_CSV_COLUMNS = ['log_file', 'application_start', 'application_stop', 'cycle
                      'session_details', 'error_details',
                      'run_id', 'classification_enabled', 'failed_analyses', 'scored_objects',
                      'nok_objects', 'mean_confidence', 'median_inference_ms', 'clears_count']
-# The separator between the per-item entries packed into the 'session_details'
-# and 'error_details' cells. It is sanitised out of free-text error messages so
-# it can never be mistaken for a real boundary.
-#   Unit [string]
-CONST_CSV_DETAIL_SEPARATOR = ' | '
+# The per-item breakdowns in 'session_details' and 'error_details' are compact JSON arrays of
+# objects with full datetimes, e.g. [{"index":1,"start":"2026-09-22 14:37:12",...}], so a cell is
+# parsed with any JSON reader instead of by splitting timestamps that themselves contain colons.
+# Rows written before the change keep the legacy colon encoding; a JSON cell starts with '[' and a
+# legacy one with a digit, so each row identifies its own encoding (see docs/design-decisions.md).
+# An empty breakdown stays an empty cell in both.
+#   Unit [Dict]
+CONST_CSV_JSON_OPTIONS = {'separators': (',', ':'), 'ensure_ascii': False}
 # The byte-order mark written once at the head of a freshly created CSV, so Excel
 # opens the file as UTF-8. It is written explicitly (rather than via the
 # 'utf-8-sig' codec) because that codec re-emits the mark on every append, which
@@ -358,67 +361,53 @@ class Summary_Str:
     Median_Inference_Ms: tp.Optional[int] = None
 
 
-def Sanitize_Detail_Text(text: str) -> str:
-    """
-    Description:
-        Sanitize a free-text fragment (an error message) so it survives the compact
-        detail encoding: the entry separator is stripped out so it can never be read
-        as a real boundary, and newlines are collapsed to spaces so one entry stays
-        on one logical piece. Commas and quotes are left untouched — CSV quoting
-        preserves them.
-
-    Args:
-        (1) text [string]: The raw fragment.
-
-    Returns:
-        (1) parameter [string]: The sanitised fragment.
-    """
-
-    return (text.replace(CONST_CSV_DETAIL_SEPARATOR.strip(), '/')
-                .replace('\r', ' ').replace('\n', ' '))
-
-
 def Encode_Session_Details(Summary_Str: Summary_Str) -> str:
     """
     Description:
-        Encode the per-session breakdown into a single CSV cell. Each session is
-        'index:start-end:duration' (times HH:MM:SS), joined by the detail separator;
-        an empty string when there are no sessions.
+        Encode the per-session breakdown into a single CSV cell as a compact JSON array — one
+        {"index", "start", "end", "duration"} object per camera connection, with full datetimes
+        (so a session crossing midnight is unambiguous) and the duration as HH:MM:SS like the
+        other duration columns. An empty string when there were no sessions.
 
     Args:
         (1) Summary_Str [Summary_Str(object)]: The computed run statistics.
 
     Returns:
-        (1) parameter [string]: The compact 'session_details' cell.
+        (1) parameter [string]: The 'session_details' cell.
     """
 
-    parts = []
-    for (index, start, end, duration_seconds) in Summary_Str.Session_Details:
-        parts.append(f'{index}:{start.strftime(CONST_CSV_TIME_FORMAT)}-'
-                     f'{end.strftime(CONST_CSV_TIME_FORMAT)}:{Format_HMS(duration_seconds)}')
-    return CONST_CSV_DETAIL_SEPARATOR.join(parts)
+    if not Summary_Str.Session_Details:
+        return ''
+    return json.dumps([{'index': index, 'start': start.strftime(CONST_CSV_DATETIME_FORMAT),
+                        'end': end.strftime(CONST_CSV_DATETIME_FORMAT),
+                        'duration': Format_HMS(duration_seconds)}
+                       for (index, start, end, duration_seconds) in Summary_Str.Session_Details],
+                      **CONST_CSV_JSON_OPTIONS)
 
 
 def Encode_Error_Details(Summary_Str: Summary_Str) -> str:
     """
     Description:
-        Encode the per-error breakdown into a single CSV cell. Each error is
-        'id:start-end:duration:message' (times HH:MM:SS, message sanitised), joined
-        by the detail separator; an empty string when there are no errors.
+        Encode the per-error breakdown into a single CSV cell as a compact JSON array — one
+        {"id", "start", "end", "duration", "message"} object per tracked error. The message is kept
+        verbatim (JSON escapes quotes and newlines), so nothing is lost to sanitising. An empty
+        string when there were no errors.
 
     Args:
         (1) Summary_Str [Summary_Str(object)]: The computed run statistics.
 
     Returns:
-        (1) parameter [string]: The compact 'error_details' cell.
+        (1) parameter [string]: The 'error_details' cell.
     """
 
-    parts = []
-    for (error_id, start, end, duration_seconds, message) in Summary_Str.Error_Details:
-        parts.append(f'{error_id}:{start.strftime(CONST_CSV_TIME_FORMAT)}-'
-                     f'{end.strftime(CONST_CSV_TIME_FORMAT)}:{Format_HMS(duration_seconds)}:'
-                     f'{Sanitize_Detail_Text(message)}')
-    return CONST_CSV_DETAIL_SEPARATOR.join(parts)
+    if not Summary_Str.Error_Details:
+        return ''
+    return json.dumps([{'id': error_id, 'start': start.strftime(CONST_CSV_DATETIME_FORMAT),
+                        'end': end.strftime(CONST_CSV_DATETIME_FORMAT),
+                        'duration': Format_HMS(duration_seconds), 'message': message}
+                       for (error_id, start, end, duration_seconds, message)
+                       in Summary_Str.Error_Details],
+                      **CONST_CSV_JSON_OPTIONS)
 
 
 def Csv_Filename_For_Config(config_path: tp.Optional[str]) -> str:

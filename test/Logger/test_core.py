@@ -27,6 +27,7 @@
 import os
 import re
 import csv
+import json
 from datetime import datetime
 # Typing (Support for type hints)
 import typing as tp
@@ -475,9 +476,14 @@ def test_reference_run_row_values(tmp_path: tp.Any) -> None:
     assert row['idle_time'] == '00:12:38'
     assert row['errors_count'] == '2'
     assert row['total_error_time'] == '00:52:58'
-    assert row['session_details'] == '1:14:37:12-14:40:02:00:02:50 | 2:14:52:30-16:12:44:01:20:14'
-    assert row['error_details'] == ('1:14:37:34-14:37:49:00:00:15:camera timeout | '
-                                    '2:15:20:01-16:12:44:00:52:43:analysis failed on image 233')
+    assert json.loads(row['session_details']) == [
+        {'index': 1, 'start': '2026-09-12 14:37:12', 'end': '2026-09-12 14:40:02', 'duration': '00:02:50'},
+        {'index': 2, 'start': '2026-09-12 14:52:30', 'end': '2026-09-12 16:12:44', 'duration': '01:20:14'}]
+    assert json.loads(row['error_details']) == [
+        {'id': 1, 'start': '2026-09-12 14:37:34', 'end': '2026-09-12 14:37:49', 'duration': '00:00:15',
+         'message': 'camera timeout'},
+        {'id': 2, 'start': '2026-09-12 15:20:01', 'end': '2026-09-12 16:12:44', 'duration': '00:52:43',
+         'message': 'analysis failed on image 233'}]
 
 
 def test_zero_activity_row_is_complete(tmp_path: tp.Any) -> None:
@@ -523,7 +529,8 @@ def test_session_open_at_shutdown_is_counted(tmp_path: tp.Any) -> None:
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
     assert row['sessions_count'] == '1'
     assert row['total_session_time'] == '00:30:00'
-    assert row['session_details'] == '1:12:00:10-12:30:10:00:30:00'
+    assert json.loads(row['session_details']) == [
+        {'index': 1, 'start': '2026-09-12 12:00:10', 'end': '2026-09-12 12:30:10', 'duration': '00:30:00'}]
 
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
     assert '(closed at shutdown)' in content
@@ -567,8 +574,8 @@ def test_unresolved_error_counted_to_shutdown(tmp_path: tp.Any) -> None:
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
     assert row['errors_count'] == '2'
     assert row['total_error_time'] == '00:01:15'        # 15 + 60 = 75 s
-    assert row['error_details'] == ('1:13:00:10-13:00:25:00:00:15:camera timeout | '
-                                    '2:13:01:00-13:02:00:00:01:00:analysis failed')
+    assert [(e['id'], e['duration'], e['message']) for e in json.loads(row['error_details'])] == [
+        (1, '00:00:15', 'camera timeout'), (2, '00:01:00', 'analysis failed')]
 
 
 def test_idle_time_equals_cycle_minus_session(tmp_path: tp.Any) -> None:
@@ -588,20 +595,23 @@ def test_idle_time_equals_cycle_minus_session(tmp_path: tp.Any) -> None:
 def test_details_round_trip_with_commas_and_quotes(tmp_path: tp.Any) -> None:
     """
     Description:
-        A detail cell round-trips through csv.DictReader unchanged, preserving commas
-        and quotes inside an error message; the entry separator is sanitised out of the
-        message so it can never be read as a real boundary.
+        A detail cell round-trips through csv.DictReader and json.loads unchanged: commas,
+        quotes, colons, a pipe and a newline inside an error message all survive VERBATIM —
+        JSON escapes them, so nothing has to be sanitised away — and the times are full
+        datetimes, parsed as fields rather than split out of a colon-joined string.
     """
 
+    message = 'he said "wait, now" | really: 12:00\nsecond line'
     clock = Clock_Cls(_T('09:00:00'))
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
-    clock.now = _T('09:00:10'); Session_Logger.Log_Error('he said "wait, now" | really')
+    clock.now = _T('09:00:10'); Session_Logger.Log_Error(message)
     clock.now = _T('09:00:25'); Session_Logger.Close()
 
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
-    # The comma and the quotes survive; the ' | ' separator inside the message is
-    # sanitised to '/' so the packed cell stays unambiguous.
-    assert row['error_details'] == '1:09:00:10-09:00:25:00:00:15:he said "wait, now" / really'
+    assert row['error_details'].startswith('[')               # the JSON encoding identifies itself
+    assert json.loads(row['error_details']) == [
+        {'id': 1, 'start': '2026-09-12 09:00:10', 'end': '2026-09-12 09:00:25',
+         'duration': '00:00:15', 'message': message}]
 
 
 def test_semicolon_delimiter_is_configurable(tmp_path: tp.Any) -> None:
