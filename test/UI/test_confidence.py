@@ -81,6 +81,15 @@ class _Spy_Logger_Cls(object):
     def Log_Error(self, *args, **kwargs) -> None:
         pass
 
+    def Record_Run(self, *args, **kwargs) -> None:
+        pass
+
+    def Log_Analysis_Failed(self, *args, **kwargs) -> int:
+        return 0
+
+    def Log_Cleared(self, *args, **kwargs) -> None:
+        pass
+
     def Log_Analysis_Finished(self, *args, **kwargs) -> None:
         pass
 

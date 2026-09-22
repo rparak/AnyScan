@@ -25,7 +25,9 @@
 
 # System (Default)
 import os
+import io
 import csv
+import statistics
 import atexit
 import signal
 import threading
@@ -91,10 +93,22 @@ CONST_CSV_DEFAULT_DELIMITER = CONST_CSV_DELIMITER_COMMA
 # The run-summary CSV columns, in the exact order they are written. The header
 # row is this list; each data row is rendered one-to-one from a Summary_Str.
 #   Unit [Vector<string>]
+#
+# The columns after 'error_details' were APPENDED later (the run id onward); columns are only
+# ever appended, never renamed or reordered, so an older file's header is a strict prefix of this
+# list and is extended in place once (__Extend_Header), its rows left byte-identical. Every
+# figure is whole-run — Clear resets the UI's figures, not these; clears_count records how often
+# it did, which explains any difference from the status bar. mean_confidence and
+# median_inference_ms are blank, never 0, when nothing was scored / no analysis completed;
+# nok_objects is 0 until a classifier exists, and classification_enabled in the same row says
+# whether that 0 means 'none failed' or 'nothing was judged'.
+#   Unit [Vector<string>]
 CONST_CSV_COLUMNS = ['log_file', 'application_start', 'application_stop', 'cycle_time',
                      'cycle_hours', 'analyzed_images', 'analyzed_objects', 'sessions_count',
                      'total_session_time', 'idle_time', 'errors_count', 'total_error_time',
-                     'session_details', 'error_details']
+                     'session_details', 'error_details',
+                     'run_id', 'classification_enabled', 'failed_analyses', 'scored_objects',
+                     'nok_objects', 'mean_confidence', 'median_inference_ms', 'clears_count']
 # The separator between the per-item entries packed into the 'session_details'
 # and 'error_details' cells. It is sanitised out of free-text error messages so
 # it can never be mistaken for a real boundary.
@@ -106,6 +120,9 @@ CONST_CSV_DETAIL_SEPARATOR = ' | '
 # would corrupt the file mid-stream when a row is added to an existing file.
 #   Unit [string]
 CONST_CSV_BOM = '﻿'
+# The temporary file a header extension is written to before it atomically replaces the CSV.
+#   Unit [string]
+CONST_CSV_EXTEND_SUFFIX = '.extending'
 
 
 @dataclass
@@ -322,6 +339,23 @@ class Summary_Str:
     # The per-error breakdown: each entry is (id, start, end, duration_seconds, message).
     #   Unit [Vector<Tuple[int, datetime, datetime, float, string]>]
     Error_Details: tp.List[tp.Tuple[int, datetime, datetime, float, str]] = field(default_factory=list)
+    # The application-run id (the one written into every capture set's '_objects.json'), and the
+    # run's classification flag — None/'' when the window never recorded them.
+    #   Unit [string] / [bool]
+    Run_Id: str = ''
+    Classification_Enabled: tp.Optional[bool] = None
+    # Whole-run analysis figures beyond the image/object totals: failed analyses, objects that
+    # carry a confidence score, objects judged NOK, and the Clear presses.
+    #   Unit [int]
+    Failed_Analyses: int = 0
+    Scored_Objects: int = 0
+    Nok_Objects: int = 0
+    Clears_Count: int = 0
+    # The run mean confidence over every scored object (percent) and the median inference time
+    # over every completed analysis (ms) — None when nothing was scored / nothing completed.
+    #   Unit [int]
+    Mean_Confidence: tp.Optional[int] = None
+    Median_Inference_Ms: tp.Optional[int] = None
 
 
 def Sanitize_Detail_Text(text: str) -> str:
@@ -411,6 +445,49 @@ def Csv_Filename_For_Config(config_path: tp.Optional[str]) -> str:
     return CONST_CSV_FILENAME_TEMPLATE.format(config_id=stem)
 
 
+def Extend_Csv_Header(data: bytes, columns: tp.List[str],
+                      delimiter: str) -> tp.Optional[tp.Tuple[bytes, tp.List[str]]]:
+    """
+    Description:
+        The CSV's bytes with ONLY its header line extended, when the existing header is a strict
+        prefix of `columns` (columns are only ever appended). The byte-order mark and the header's
+        own line terminator are kept, and every byte after the header line — every existing row —
+        is carried over untouched, so old rows stay byte-identical; a reader then treats an old
+        row's missing trailing cells as empty. Returns None when there is nothing to extend: an
+        empty file, a header already equal to `columns`, or one that is not a prefix of it (that
+        case keeps the align-and-warn path). Pure: bytes in, bytes out.
+
+    Args:
+        (1) data [bytes]: The whole CSV file.
+        (2) columns [Vector<string>]: The current columns (CONST_CSV_COLUMNS).
+        (3) delimiter [string]: The CSV delimiter.
+
+    Returns:
+        (1) parameter [Tuple<bytes, Vector<string>> or None]: The new file bytes and the names
+                                                               added, or None.
+    """
+
+    bom = CONST_CSV_BOM.encode('utf-8')
+    has_bom = data.startswith(bom)
+    body = data[len(bom):] if has_bom else data
+    if not body:
+        return None
+    newline = body.find(b'\n')
+    if newline < 0:
+        header_bytes, rest, terminator = body, b'', '\r\n'
+    else:
+        terminator = '\r\n' if newline > 0 and body[newline - 1:newline] == b'\r' else '\n'
+        header_bytes, rest = body[:newline + 1 - len(terminator)], body[newline + 1:]
+    existing = next(csv.reader([header_bytes.decode('utf-8')], delimiter=delimiter), [])
+    if (not existing or len(existing) >= len(columns)
+            or list(columns[:len(existing)]) != existing):
+        return None
+    header = io.StringIO()
+    csv.writer(header, delimiter=delimiter, lineterminator=terminator).writerow(columns)
+    extended = (bom if has_bom else b'') + header.getvalue().encode('utf-8') + rest
+    return extended, list(columns[len(existing):])
+
+
 def Render_Summary_Csv_Row(Summary_Str: Summary_Str) -> tp.List[str]:
     """
     Description:
@@ -439,7 +516,16 @@ def Render_Summary_Csv_Row(Summary_Str: Summary_Str) -> tp.List[str]:
             str(Summary_Str.Errors_Count),
             Format_HMS(Summary_Str.Total_Error_Seconds),
             Encode_Session_Details(Summary_Str),
-            Encode_Error_Details(Summary_Str)]
+            Encode_Error_Details(Summary_Str),
+            Summary_Str.Run_Id,
+            ('' if Summary_Str.Classification_Enabled is None
+             else 'true' if Summary_Str.Classification_Enabled else 'false'),
+            str(Summary_Str.Failed_Analyses),
+            str(Summary_Str.Scored_Objects),
+            str(Summary_Str.Nok_Objects),
+            '' if Summary_Str.Mean_Confidence is None else str(Summary_Str.Mean_Confidence),
+            '' if Summary_Str.Median_Inference_Ms is None else str(Summary_Str.Median_Inference_Ms),
+            str(Summary_Str.Clears_Count)]
 
 
 class Session_Logger_Cls(object):
@@ -510,6 +596,16 @@ class Session_Logger_Cls(object):
         # Run-wide analysis counters and the per-run bookkeeping of sessions/errors.
         self.__images_total = 0
         self.__objects_total = 0
+        # The run record and the whole-run figures behind the later CSV columns. Confidences are
+        # the per-object percentages (rounded per object, as the status bar rounds them), pooled
+        # so the run mean weights each object equally; latencies are per completed analysis.
+        self.__run_id = ''
+        self.__classification_enabled = None
+        self.__failed_total = 0
+        self.__nok_total = 0
+        self.__clears_total = 0
+        self.__confidences = []
+        self.__latencies = []
         self.__sessions = []
         self.__open_session = None
         self.__errors = []
@@ -931,9 +1027,55 @@ class Session_Logger_Cls(object):
                 line += ' Capture set %s.' % set_id
             self.__Write_Line(line, self.__clock())
 
+    def Record_Run(self, run_id: str, classification_enabled: bool) -> None:
+        """
+        Description:
+            Record the application-run id and the run's classification flag for the summary
+            row. The window owns both (it generates the run id it writes into every capture set)
+            and records them once, so the CSV row and the capture sets carry the same id.
+
+        Args:
+            (1) run_id [string]: The application-run id.
+            (2) classification_enabled [bool]: General.Classification.Enabled for this run.
+        """
+
+        with self.__lock:
+            self.__run_id = str(run_id)
+            self.__classification_enabled = bool(classification_enabled)
+
+    def Log_Analysis_Failed(self, message: str) -> int:
+        """
+        Description:
+            Log a failed analysis as a tracked error (exactly as Log_Error) and count it, so the
+            summary can report failures apart from the other errors.
+
+        Args:
+            (1) message [string]: The failure sentence.
+
+        Returns:
+            (1) parameter [int]: The error identifier, for Log_Error_Resolved.
+        """
+
+        with self.__lock:
+            self.__failed_total += 1
+            return self.Log_Error(message)
+
+    def Log_Cleared(self) -> None:
+        """
+        Description:
+            Log that the operator pressed Clear, and count it. Clear resets the UI's figures,
+            not the run summary's, so the count is what explains a CSV row that differs from
+            what the status bar last showed.
+        """
+
+        with self.__lock:
+            self.__clears_total += 1
+            self.__Write_Line('Cleared the frame, the counters and the reading panel',
+                              self.__clock())
+
     def Log_Analysis_Finished(self, index: int, latency_ms: int, objects: int, scored: int,
                               mean_confidence: tp.Optional[int],
-                              set_id: tp.Optional[str] = None) -> None:
+                              set_id: tp.Optional[str] = None, *, nok: int) -> None:
         """
         Description:
             Log a finished analysis as a sentence, and advance the counters (the run-wide
@@ -950,11 +1092,16 @@ class Session_Logger_Cls(object):
             (5) mean_confidence [int]: The mean confidence percentage over the scored
                                        objects, or None when none are scored.
             (6) set_id [string]: The capture-set identifier for this analysis.
+            (7) nok [int]: REQUIRED, keyword-only: how many of the objects were judged NOK (0 when
+                           nothing is classified — the summary's classification_enabled says
+                           which).
         """
 
         with self.__lock:
             self.__images_total += 1
             self.__objects_total += objects
+            self.__nok_total += int(nok)
+            self.__latencies.append(int(latency_ms))
             if self.__open_session is not None:
                 self.__open_session.Images += 1
                 self.__open_session.Objects += objects
@@ -991,6 +1138,7 @@ class Session_Logger_Cls(object):
         with self.__lock:
             parts = ['type=%s' % label]
             if confidence is not None:
+                self.__confidences.append(int(confidence))
                 parts.append('confidence=%d%%' % confidence)
             if bbox is not None:
                 parts.append('bbox=(' + ','.join(str(int(v)) for v in bbox) + ')')
@@ -1055,7 +1203,18 @@ class Session_Logger_Cls(object):
                                Errors_Count=len(self.__errors),
                                Total_Error_Seconds=error_seconds,
                                Session_Details=session_details,
-                               Error_Details=error_details)
+                               Error_Details=error_details,
+                               Run_Id=self.__run_id,
+                               Classification_Enabled=self.__classification_enabled,
+                               Failed_Analyses=self.__failed_total,
+                               Scored_Objects=len(self.__confidences),
+                               Nok_Objects=self.__nok_total,
+                               Clears_Count=self.__clears_total,
+                               Mean_Confidence=(int(round(sum(self.__confidences)
+                                                          / len(self.__confidences)))
+                                                if self.__confidences else None),
+                               Median_Inference_Ms=(int(statistics.median(self.__latencies))
+                                                    if self.__latencies else None))
 
     def __Read_Existing_Header(self) -> tp.Optional[tp.List[str]]:
         """
@@ -1133,6 +1292,74 @@ class Session_Logger_Cls(object):
         except (ImportError, OSError, ValueError):
             pass
 
+    def __Is_Current_File(self, file_obj: tp.Any) -> bool:
+        """
+        Description:
+            Whether an open handle still refers to the file now at the CSV path. Another run may
+            have atomically replaced the CSV (a header extension) while this one waited for the
+            lock; writing through the stale handle would put the row into the replaced file,
+            where it would be lost.
+
+        Args:
+            (1) file_obj [file(object)]: The open, locked CSV handle.
+
+        Returns:
+            (1) parameter [bool]: True when the handle and the path are the same file.
+        """
+
+        try:
+            held, current = os.fstat(file_obj.fileno()), os.stat(self.__csv_path)
+        except OSError:
+            return False
+        return (held.st_dev, held.st_ino) == (current.st_dev, current.st_ino)
+
+    def __Extend_Header(self, now: datetime) -> None:
+        """
+        Description:
+            When the existing CSV's header is a strict prefix of the current columns (a file
+            written before columns were appended), extend the header line ONCE, leaving every row
+            byte-identical (Extend_Csv_Header). The new bytes are written to a temporary file and
+            atomically replace the CSV under the file lock, so a crash leaves either the old file
+            or the new one, never a half-written header. On a platform that cannot replace a file
+            this process holds open (Windows) the replace runs just after the handle closes. Any
+            other mismatch is left for __Append_Csv_Summary's align-and-warn path.
+
+        Args:
+            (1) now [datetime(object)]: The stop time, used to timestamp the log line.
+        """
+
+        if not os.path.exists(self.__csv_path):
+            return
+        for _attempt in range(3):
+            deferred = False
+            with open(self.__csv_path, 'rb') as csv_file:
+                self.__Lock_File(csv_file)
+                try:
+                    if not self.__Is_Current_File(csv_file):
+                        continue
+                    result = Extend_Csv_Header(csv_file.read(), CONST_CSV_COLUMNS,
+                                               self.__csv_delimiter)
+                    if result is None:
+                        return
+                    extended, added = result
+                    temp_path = self.__csv_path + CONST_CSV_EXTEND_SUFFIX
+                    with open(temp_path, 'wb') as temp_file:
+                        temp_file.write(extended)
+                        temp_file.flush()
+                        os.fsync(temp_file.fileno())
+                    try:
+                        os.replace(temp_path, self.__csv_path)
+                    except PermissionError:
+                        deferred = True
+                finally:
+                    self.__Unlock_File(csv_file)
+            if deferred:
+                os.replace(temp_path, self.__csv_path)
+            self.__Write_Line('Extended the run-summary CSV header with %d new column%s (%s); '
+                              'the existing rows are unchanged.'
+                              % (len(added), '' if len(added) == 1 else 's', ', '.join(added)), now)
+            return
+
     def __Append_Csv_Summary(self, Summary_Str: Summary_Str, now: datetime) -> None:
         """
         Description:
@@ -1150,12 +1377,22 @@ class Session_Logger_Cls(object):
 
         row = Render_Summary_Csv_Row(Summary_Str)
         os.makedirs(os.path.dirname(self.__csv_path) or '.', exist_ok=True)
+        # An older file whose header is a prefix of the current columns is extended first, so the
+        # row below appends under the full header instead of losing its newer cells to alignment.
+        self.__Extend_Header(now)
 
         # The file is opened as plain UTF-8; the byte-order mark is written by hand
         # only for a fresh file (see CONST_CSV_BOM), because the 'utf-8-sig' codec
         # would otherwise re-emit the mark on every append and corrupt the stream.
-        with open(self.__csv_path, 'a', newline='', encoding='utf-8') as csv_file:
+        for attempt in range(3):
+            csv_file = open(self.__csv_path, 'a', newline='', encoding='utf-8')
             self.__Lock_File(csv_file)
+            if self.__Is_Current_File(csv_file) or attempt == 2:
+                break
+            # Replaced while waiting for the lock (another run extended the header): reopen.
+            self.__Unlock_File(csv_file)
+            csv_file.close()
+        with csv_file:
             try:
                 write_header = os.fstat(csv_file.fileno()).st_size == 0
                 if not write_header:

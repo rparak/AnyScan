@@ -169,13 +169,13 @@ def _Build_Reference_Run(tmp_path: tp.Any) -> tp.Tuple[Session_Logger_Cls, Clock
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
 
     clock.now = _T('14:37:12'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('14:37:21'); Session_Logger.Log_Analysis_Finished(14, 1000, 3, 0, None)
-    clock.now = _T('14:37:25'); Session_Logger.Log_Analysis_Finished(15, 1000, 2, 0, None)
+    clock.now = _T('14:37:21'); Session_Logger.Log_Analysis_Finished(14, 1000, 3, 0, None, nok=0)
+    clock.now = _T('14:37:25'); Session_Logger.Log_Analysis_Finished(15, 1000, 2, 0, None, nok=0)
     clock.now = _T('14:37:34'); error_id = Session_Logger.Log_Error('camera timeout')
     clock.now = _T('14:37:49'); Session_Logger.Log_Error_Resolved(error_id)
     clock.now = _T('14:40:02'); Session_Logger.Log_Camera_Disconnected()
     clock.now = _T('14:52:30'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('15:05:00'); Session_Logger.Log_Analysis_Finished(42, 1000, 4, 0, None)
+    clock.now = _T('15:05:00'); Session_Logger.Log_Analysis_Finished(42, 1000, 4, 0, None, nok=0)
     clock.now = _T('15:20:01'); Session_Logger.Log_Error('analysis failed on image 233')
 
     return (Session_Logger, clock, _T('16:12:44'))
@@ -333,8 +333,8 @@ def test_image_and_object_counters(tmp_path: tp.Any) -> None:
     clock = Clock_Cls(_T('08:00:00'))
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('08:00:01'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('08:00:05'); Session_Logger.Log_Analysis_Finished(1, 1000, 3, 0, None)
-    clock.now = _T('08:00:09'); Session_Logger.Log_Analysis_Finished(2, 1000, 2, 0, None)
+    clock.now = _T('08:00:05'); Session_Logger.Log_Analysis_Finished(1, 1000, 3, 0, None, nok=0)
+    clock.now = _T('08:00:09'); Session_Logger.Log_Analysis_Finished(2, 1000, 2, 0, None, nok=0)
 
     assert Session_Logger.Analyzed_Images == 2
     assert Session_Logger.Analyzed_Objects == 5
@@ -636,7 +636,7 @@ def test_csv_row_written_on_exception_exit(tmp_path: tp.Any) -> None:
                                 install_handlers=False) as Session_Logger:
             csv_holder['path'] = Session_Logger.Csv_Path
             clock.now = _T('11:00:05'); Session_Logger.Log_Camera_Connected()
-            clock.now = _T('11:00:10'); Session_Logger.Log_Analysis_Finished(1, 1000, 2, 0, None)
+            clock.now = _T('11:00:10'); Session_Logger.Log_Analysis_Finished(1, 1000, 2, 0, None, nok=0)
             raise RuntimeError('boom')
 
     rows = _Read_Rows(csv_holder['path'])

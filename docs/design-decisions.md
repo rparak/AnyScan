@@ -324,3 +324,25 @@ shipped config produces the existing name, so current files continue unchanged.
 Tests `test/Logger/test_core.py::test_csv_filename_follows_the_loaded_configuration`,
 `::test_logger_requires_the_configuration_to_be_stated`.
 
+## Run-summary CSV columns are appended, never renamed, and old files are extended in place
+
+The CSV gained `run_id, classification_enabled, failed_analyses, scored_objects, nok_objects,
+mean_confidence, median_inference_ms, clears_count` after `error_details`. Columns are only ever
+**appended** — never renamed or reordered — so an older file's header is a strict prefix of the
+current list. On the first run that closes onto such a file the logger extends the header line
+once (`Logger.Core.Extend_Csv_Header`): the new header is written to a temporary file and
+atomically replaces the CSV under the file lock, every existing row stays byte-identical, and a
+reader treats an old row's missing trailing cells as empty. Any other mismatch (reordered, renamed,
+or a header from a newer version) keeps the align-and-warn path rather than guessing. A row appends
+through a handle re-checked after the lock is taken, so a run that waited while another extended
+the file does not write into the replaced one.
+
+Every figure is **whole-run**: one row per application run, and Clear — which resets only what the
+UI shows — does not reset the CSV. `clears_count` records the Clear presses so a row that differs
+from the status bar's last reading is explained, not mistaken for a bug. `run_id` is the id every
+capture set's `_objects.json` carries, joining a row to its sets. `mean_confidence` and
+`median_inference_ms` are blank, never 0, when nothing was scored / no analysis completed.
+`nok_objects` is 0 until a classifier exists, and `classification_enabled` in the same row says
+whether that 0 means "none failed" or "nothing was judged".
+Tests `test/Logger/test_csv_extension.py`, `test/UI/test_run_summary.py`.
+
