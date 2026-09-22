@@ -59,7 +59,7 @@ def _Write(writer, session_id, set_id, text='A plain surface.', yolo=None, seg=N
                         yolo if yolo is not None else ['0 0.5 0.5 0.1 0.1'],
                         seg if seg is not None else ['0 0.4 0.4 0.6 0.4 0.6 0.6 0.4 0.6'],
                         metadata if metadata is not None else {'set_id': set_id, 'objects': []},
-                        'stamp %s' % set_id, cv2, np)
+                        'stamp %s' % set_id, cv2, np, distorted_bgr=None, undistortion=None)
 
 
 def test_a_complete_set_is_written_into_the_session_directory(tmp_path) -> None:
@@ -117,7 +117,7 @@ def test_thumbnail_is_written_and_bounded_to_the_long_edge(tmp_path) -> None:
     big = np.full((1200, 1920, 3), 60, np.uint8)
     writer.Write('s', 'set1', big, big, np.zeros((1200, 1920, 3), np.uint8), 'text',
                  ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], {'set_id': 'set1', 'objects': []},
-                 'stamp', cv2, np)
+                 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
     thumb_path = tmp_path / 's' / 'set1_thumb.jpg'
     assert thumb_path.exists()
@@ -208,4 +208,66 @@ def test_a_write_failure_raises(tmp_path, monkeypatch) -> None:
     raw, annotated, mask = _Images()
     with pytest.raises(OSError):
         writer.Write('s', 'set1', raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
-                     ['0 0.4 0.4 0.6 0.6'], {'set_id': 'set1'}, 'stamp', cv2, np)
+                     ['0 0.4 0.4 0.6 0.6'], {'set_id': 'set1'}, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
+
+
+def test_distorted_frame_is_kept_with_a_sidecar_saying_so(tmp_path) -> None:
+    """
+    Description:
+        When the camera provides the frame before undistortion, the set keeps it as
+        '<set>_distorted.png' beside the undistorted '<set>_raw.png', with a sidecar that says it
+        is distorted, names its counterpart and records the exact undistortion — so no reader can
+        mistake one for the other, and the original can be re-undistorted under a later
+        calibration. A partial (failed-analysis) set keeps it too; the pixels are the ones given.
+    """
+
+    import json
+    undistortion = {'configuration': 'Config_x.yaml', 'frame_size': [16, 12],
+                    'K': [[1.0, 0.0, 8.0], [0.0, 1.0, 6.0], [0.0, 0.0, 1.0]],
+                    'coefficients': {'k1': -0.1}, 'alpha': 1,
+                    'new_camera_matrix': [[1.0, 0.0, 8.0], [0.0, 1.0, 6.0], [0.0, 0.0, 1.0]]}
+    distorted = np.full((12, 16, 3), 90, np.uint8)
+    raw, annotated, mask = _Images()
+    writer = Capture_Writer_Cls(str(tmp_path))
+    writer.Write('s', 'set1', raw, annotated, mask, 'text', [], [], {'objects': []}, 'stamp',
+                 cv2, np, distorted_bgr=distorted, undistortion=undistortion)
+    writer.Write_Partial('s', 'fail1', raw, 'failed', 'stamp', cv2, np,
+                         distorted_bgr=distorted, undistortion=undistortion)
+
+    for set_id in ('set1', 'fail1'):
+        assert (cv2.imread(str(tmp_path / 's' / (set_id + '_distorted.png'))) == 90).all()
+        record = json.loads((tmp_path / 's' / (set_id + '_distorted.json')).read_text())
+        assert record['distorted'] is True and 'NOT removed' in record['note']
+        assert record['frame'] == set_id + '_distorted.png'
+        assert record['undistorted_counterpart'] == set_id + '_raw.png'
+        assert record['undistortion'] == undistortion
+
+
+def test_no_distorted_frame_without_one_and_it_is_evicted_with_its_set(tmp_path) -> None:
+    """
+    Description:
+        A camera that does not undistort (a saved frame) provides no original: nothing distorted
+        is written — never the undistorted frame under the distorted name. keep_raw off drops
+        both frames. Retention evicts the distorted frame and its sidecar with the rest of the set.
+    """
+
+    raw, annotated, mask = _Images()
+    distorted, record = np.full((12, 16, 3), 90, np.uint8), {'alpha': 1}
+    Capture_Writer_Cls(str(tmp_path / 'a')).Write('s', 'set1', raw, annotated, mask, 'text', [],
+                                                  [], {'objects': []}, 'stamp', cv2, np,
+                                                  distorted_bgr=None, undistortion=None)
+    assert not any('distorted' in name for name in os.listdir(tmp_path / 'a' / 's'))
+
+    Capture_Writer_Cls(str(tmp_path / 'b'), keep_raw=False).Write(
+        's', 'set1', raw, annotated, mask, 'text', [], [], {'objects': []}, 'stamp', cv2, np,
+        distorted_bgr=distorted, undistortion=record)
+    names = os.listdir(tmp_path / 'b' / 's')
+    assert not any('distorted' in name or '_raw' in name for name in names)
+
+    writer = Capture_Writer_Cls(str(tmp_path / 'c'), retention_sets=1)
+    for set_id in ('old', 'new'):
+        writer.Write('s', set_id, raw, annotated, mask, 'text', [], [], {'objects': []}, 'stamp',
+                     cv2, np, distorted_bgr=distorted, undistortion=record)
+    names = sorted(os.listdir(tmp_path / 'c' / 's'))
+    assert not any(name.startswith('old') for name in names)
+    assert 'new_distorted.png' in names and 'new_distorted.json' in names

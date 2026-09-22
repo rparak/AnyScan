@@ -185,6 +185,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__analysis_error_id = None
 
         self.__frame = None
+        self.__frame_distorted = None
+        self.__frame_undistortion = None
         # The ONE run accumulator behind the status aggregates AND the Trends charts: it owns the
         # images-analysed count, the objects-detected total and the run mean confidence, so the
         # status figures and the charts are one source and cannot drift (the last run-mean
@@ -768,6 +770,8 @@ class AnyScan_Window_Cls(QMainWindow):
 
         self.__camera.Disconnect()
         self.__frame = None
+        self.__frame_distorted = None
+        self.__frame_undistortion = None
         self.__viewport.Clear()
         self.__frame_badge.setText('No frame')
         self.__status.camera.Set_Value('Disconnected', Style.CONST_INK_MUTE, Style.CONST_INK_MUTE)
@@ -789,6 +793,8 @@ class AnyScan_Window_Cls(QMainWindow):
         try:
             self.__viewport.Set_Busy('Capturing frame…')
             self.__frame = self.__camera.Capture()
+            self.__frame_distorted = self.__camera.Last_Distorted_Frame
+            self.__frame_undistortion = self.__camera.Last_Undistortion
         except Camera_Error_Cls as exc:
             if self.__logger is not None:
                 # A capture that failed AND left the camera disconnected is a mid-session
@@ -985,7 +991,8 @@ class AnyScan_Window_Cls(QMainWindow):
         try:
             evicted, created = self.__capture_writer.Write(
                 self.__session_id, set_id, frame_bgr, annotated_bgr, mask_bgr,
-                understanding, yolo, seg, metadata, stamp, cv2, np)
+                understanding, yolo, seg, metadata, stamp, cv2, np,
+                distorted_bgr=self.__Distorted_Bgr(cv2), undistortion=self.__frame_undistortion)
         except Exception as exc:                          # noqa: BLE001
             self.__logger.Log_Error('failed to write capture set %s: %s' % (set_id, exc))
             return
@@ -994,6 +1001,23 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__Log_Seg_Points(seg)
         self.__Log_Capture_Evictions(evicted)
         self.__Refresh_History(evicted)
+
+    def __Distorted_Bgr(self, cv2: tp.Any) -> tp.Any:
+        """
+        Description:
+            The current frame's distorted original as BGR for the capture writer, or None when
+            the camera did not provide one.
+
+        Args:
+            (1) cv2 [module]: The OpenCV module.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The distorted frame (BGR), or None.
+        """
+
+        if self.__frame_distorted is None:
+            return None
+        return cv2.cvtColor(self.__frame_distorted, cv2.COLOR_RGB2BGR)
 
     def __Refresh_History(self, evicted: tp.List[str]) -> None:
         """
@@ -1130,7 +1154,8 @@ class AnyScan_Window_Cls(QMainWindow):
         stamp = 'set %s (partial) | %s' % (set_id, datetime.now().isoformat(timespec='seconds'))
         try:
             evicted, created = self.__capture_writer.Write_Partial(
-                self.__session_id, set_id, frame_bgr, note, stamp, cv2, np)
+                self.__session_id, set_id, frame_bgr, note, stamp, cv2, np,
+                distorted_bgr=self.__Distorted_Bgr(cv2), undistortion=self.__frame_undistortion)
         except Exception as exc:                          # noqa: BLE001
             self.__logger.Log_Error('failed to write partial capture set %s: %s' % (set_id, exc))
             return
@@ -1349,6 +1374,8 @@ class AnyScan_Window_Cls(QMainWindow):
         if self.__logger is not None:
             self.__logger.Log_Cleared()
         self.__frame = None
+        self.__frame_distorted = None
+        self.__frame_undistortion = None
         self.__trends.Reset()
         self.__latencies = []
         self.__confidence_band = 'ok'

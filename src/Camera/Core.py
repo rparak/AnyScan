@@ -50,6 +50,11 @@ CONST_BASLER_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(
 # Which Camera.Utilities.Image_Processing.Process_Image_Cls profile is applied to each
 # raw frame. 'real' is the profile written for the physical camera.
 CONST_BASLER_IMAGE_PROFILE = 'real'
+# getOptimalNewCameraMatrix's free-scaling parameter for undistortion: 1 keeps every source
+# pixel (black corners, no crop). The new camera matrix it yields defines the pixel space every
+# measurement happens in, so it is recorded with each distorted frame the capture set keeps.
+#   Unit [int]
+CONST_BASLER_UNDISTORT_ALPHA = 1
 
 
 class Camera_Error_Cls(RuntimeError):
@@ -102,6 +107,12 @@ class Camera_Backend_Cls(object):
         # The number of grab retries the last Capture needed (a dropped-frame count), for
         # the UI to report as one line rather than the driver streaming per-attempt.
         self._last_capture_retries = 0
+        # The last captured frame BEFORE undistortion (RGB) and the undistortion that turned it
+        # into the delivered frame — None for a backend that does not undistort (a saved frame
+        # is delivered as it is). Kept so a capture set can store the lens-distorted original,
+        # the only form a future calibration can re-undistort.
+        self._last_distorted = None
+        self._last_undistortion = None
 
     def Set_Log_Callback(self, log_cb: tp.Optional[tp.Callable[[str, str], None]]) -> None:
         """
@@ -146,6 +157,35 @@ class Camera_Backend_Cls(object):
         """
 
         return self._last_capture_retries
+
+    @property
+    def Last_Distorted_Frame(self) -> tp.Optional[tp.List[tp.List[int]]]:
+        """
+        Description:
+            The most recent Capture's frame BEFORE undistortion — processed exactly as the
+            delivered frame (the same blur and colour step) but with the lens distortion still
+            in it — or None when this backend does not undistort.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The distorted frame (RGB), or None.
+        """
+
+        return self._last_distorted
+
+    @property
+    def Last_Undistortion(self) -> tp.Optional[tp.Dict[str, tp.Any]]:
+        """
+        Description:
+            The undistortion that produced the most recent Capture's frame from
+            Last_Distorted_Frame: the configuration it came from, the frame size, K, the
+            distortion coefficients, getOptimalNewCameraMatrix's alpha and the new camera
+            matrix it gave. None when this backend does not undistort.
+
+        Returns:
+            (1) parameter [Dict or None]: The JSON-ready undistortion record, or None.
+        """
+
+        return self._last_undistortion
 
     @property
     def Connected(self) -> bool:
@@ -231,6 +271,10 @@ class Camera_Backend_Cls(object):
 
         if not self.__connected:
             raise Camera_Error_Cls('Camera is not connected.')
+        # A frame's distorted original never outlives it: cleared before every grab, so a
+        # failed grab cannot leave the previous frame's original behind.
+        self._last_distorted = None
+        self._last_undistortion = None
         return self._Grab()
 
 
@@ -370,6 +414,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         self.__resolution = (1920, 1200)
         self.__processor = None
         self.__calib = None
+        self.__config_path = ''
         self.__cv2 = None
         self.__np = None
         # (width, height) -> (K, distortion coeffs, optimal new camera matrix)
@@ -443,6 +488,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         self.__np = np
         self.__processor = Image_Processing.Process_Image_Cls(CONST_BASLER_IMAGE_PROFILE)
         self.__calib = Basler_Cfg_Str.Calibration
+        self.__config_path = CONST_BASLER_CONFIG_FILE
         self.__undistort_cache = {}
 
         # Report the device's actual sensor size straight away, so the status strip
@@ -474,6 +520,8 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         self.__cam = None
         self.__processor = None
         self.__undistort_cache = {}
+        self._last_distorted = None
+        self._last_undistortion = None
 
     def _Grab(self) -> tp.List[tp.List[int]]:
         """
@@ -507,10 +555,20 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         processed = self.__processor.Apply(raw)
         undistorted = self.__Undistort(processed)
 
-        # The pipeline works in BGR; the application exchanges RGB.
+        # The pipeline works in BGR; the application exchanges RGB. The processed frame is also
+        # kept as it was BEFORE undistortion, with the undistortion that was applied to it.
         rgb = np.ascontiguousarray(cv2.cvtColor(undistorted, cv2.COLOR_BGR2RGB))
         h, w = rgb.shape[:2]
         self.__resolution = (w, h)
+        K, coeffs, new_K = self.__undistort_cache[(w, h)]
+        self._last_distorted = np.ascontiguousarray(cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
+        self._last_undistortion = {
+            'configuration': os.path.basename(self.__config_path),
+            'frame_size': [int(w), int(h)],
+            'K': [[float(v) for v in row] for row in K],
+            'coefficients': {key: float(value) for key, value in self.__calib.Coefficients.items()},
+            'alpha': CONST_BASLER_UNDISTORT_ALPHA,
+            'new_camera_matrix': [[float(v) for v in row] for row in new_K]}
         return rgb
 
     def __Undistort(self, image: tp.List[tp.List[int]]) -> tp.List[tp.List[int]]:
@@ -532,7 +590,8 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
             K = self.__calib.K
             coeffs = np.array(list(self.__calib.Coefficients.values()),
                               dtype=np.float64)
-            new_K, _ = cv2.getOptimalNewCameraMatrix(K, coeffs, (w, h), 1, (w, h))
+            new_K, _ = cv2.getOptimalNewCameraMatrix(K, coeffs, (w, h),
+                                                     CONST_BASLER_UNDISTORT_ALPHA, (w, h))
             cached = (K, coeffs, new_K)
             self.__undistort_cache[(w, h)] = cached
         K, coeffs, new_K = cached

@@ -41,7 +41,13 @@ Description:
     The per-analysis capture writer: on every completed analysis it writes a set of
     artefacts into the current session's directory under logger/captures/<session_id>/ —
 
-        <set_id>_raw.png            the raw captured frame          (optional, keep_raw)
+        <set_id>_raw.png            the captured frame, UNDISTORTED (optional, keep_raw) — 'raw'
+                                    means unannotated; the lens distortion is already removed
+        <set_id>_distorted.png      the same frame BEFORE undistortion (keep_raw, when the
+                                    camera undistorts) — the form a future calibration can
+                                    re-undistort
+        <set_id>_distorted.json     its sidecar: marks it distorted and records the exact
+                                    undistortion that produced <set_id>_raw.png from it
         <set_id>_annotated.png      the annotated image
         <set_id>_mask.png           the label mask
         <set_id>_thumb.jpg          a small thumbnail of the annotated image (for History)
@@ -72,15 +78,16 @@ Description:
     persist within the retention bound.
 """
 # How many analysis sets to keep across ALL sessions. The oldest are evicted on write, so
-# the store is bounded: at ~8 MB/set (raw ~4 MB, annotated ~4 MB, the rest negligible)
-# this caps it near 400 MB. Turning the raw frame off (CONST_CAPTURE_KEEP_RAW) roughly
-# halves the per-set size, so the same disk holds about twice the history.
+# the store is bounded: at ~12 MB/set (raw ~4 MB, distorted ~4 MB, annotated ~4 MB, the rest
+# negligible) this caps it near 600 MB. Turning the raw frames off (CONST_CAPTURE_KEEP_RAW)
+# drops both frames — about two thirds of the per-set size.
 #   Unit [int]
 CONST_CAPTURE_RETENTION_SETS = 50
 
-# Whether the raw captured frame is written. On by default; it is the largest artefact
-# and the one reconstructible from nothing, so turning it off is the lever for a longer
-# history on the same disk.
+# Whether the captured frames are written — the undistorted '_raw.png' and, when the camera
+# undistorts, the '_distorted.png' original. On by default; they are the largest artefacts and
+# the ones reconstructible from nothing, so turning them off is the lever for a longer history
+# on the same disk.
 #   Unit [bool]
 CONST_CAPTURE_KEEP_RAW = True
 
@@ -89,8 +96,11 @@ CONST_CAPTURE_KEEP_RAW = True
 # suffix that matches ('_understanding.txt' before the bare YOLO '.txt').
 #   Unit [Vector<string>]
 CONST_CAPTURE_RAW_SUFFIX = '_raw.png'
-CONST_CAPTURE_SUFFIXES = ('_raw.png', '_annotated.png', '_mask.png', '_thumb.jpg',
-                          '_understanding.txt', '_objects.json', '_seg.txt', '.txt')
+CONST_CAPTURE_DISTORTED_SUFFIX = '_distorted.png'
+CONST_CAPTURE_DISTORTED_RECORD_SUFFIX = '_distorted.json'
+CONST_CAPTURE_SUFFIXES = ('_raw.png', '_distorted.png', '_distorted.json', '_annotated.png',
+                          '_mask.png', '_thumb.jpg', '_understanding.txt', '_objects.json',
+                          '_seg.txt', '.txt')
 
 # The thumbnail's long-edge target (px). A grid of History cards decodes one thumbnail each;
 # a fifty-card grid of full 4 MB PNGs would be unusable, so a small JPEG is written once at
@@ -227,6 +237,33 @@ def Set_Id_From_Name(name: str) -> tp.Optional[str]:
         if name.endswith(suffix):
             return name[:-len(suffix)]
     return None
+
+
+def Distorted_Frame_Record(set_id: str, undistortion: tp.Dict[str, tp.Any]) -> tp.Dict[str, tp.Any]:
+    """
+    Description:
+        The '<set>_distorted.json' sidecar of a distorted frame: says in so many words that the
+        frame still carries the lens distortion (so no reader mistakes it for '<set>_raw.png'),
+        names its undistorted counterpart, and records the exact undistortion that produced that
+        counterpart — the configuration, K, the coefficients, alpha and the new camera matrix —
+        so the pair can be checked, and the distorted frame re-undistorted under any later
+        calibration.
+
+    Args:
+        (1) set_id [string]: The set identifier.
+        (2) undistortion [Dict]: The camera's undistortion record (Last_Undistortion).
+
+    Returns:
+        (1) parameter [Dict]: The JSON-ready sidecar.
+    """
+
+    return {'frame': set_id + CONST_CAPTURE_DISTORTED_SUFFIX, 'distorted': True,
+            'note': ('Lens distortion NOT removed. Processed exactly as the application\'s '
+                     'frames (the same blur and colour step) but not undistorted. '
+                     + set_id + CONST_CAPTURE_RAW_SUFFIX + ' is this frame after the '
+                     'undistortion below.'),
+            'undistorted_counterpart': set_id + CONST_CAPTURE_RAW_SUFFIX,
+            'undistortion': undistortion}
 
 
 def Measurement_Record(measurement: tp.Optional[Measurement_Str]) -> tp.Optional[tp.Dict[str, tp.Any]]:
@@ -592,7 +629,8 @@ class Capture_Writer_Cls(object):
     def Write(self, session_id: str, set_id: str, raw_bgr: tp.Any, annotated_bgr: tp.Any,
               mask_bgr: tp.Any, understanding_text: str, yolo_lines: tp.List[str],
               seg_lines: tp.List[str], metadata: tp.Dict[str, tp.Any], stamp: str,
-              cv2: tp.Any, np: tp.Any) -> tp.Tuple[tp.List[str], tp.Optional[str]]:
+              cv2: tp.Any, np: tp.Any, *, distorted_bgr: tp.Any,
+              undistortion: tp.Optional[tp.Dict[str, tp.Any]]) -> tp.Tuple[tp.List[str], tp.Optional[str]]:
         """
         Description:
             Write one analysis set into the session's directory — the annotated image, the
@@ -605,7 +643,7 @@ class Capture_Writer_Cls(object):
         Args:
             (1) session_id [string]: The session the set belongs to (its subdirectory).
             (2) set_id [string]: The set identifier (<timestamp>_<n>), the filename stem.
-            (3) raw_bgr [Matrix<uint8> HxWx3]: The raw captured frame (BGR).
+            (3) raw_bgr [Matrix<uint8> HxWx3]: The captured frame, undistorted (BGR).
             (4) annotated_bgr [Matrix<uint8> HxWx3]: The annotated image (BGR).
             (5) mask_bgr [Matrix<uint8> HxWx3]: The label mask (BGR).
             (6) understanding_text [string]: The Scene-Understanding text (shared formatter).
@@ -615,6 +653,10 @@ class Capture_Writer_Cls(object):
             (10) stamp [string]: The provenance stamp for the '_understanding.txt' header.
             (11) cv2 [module]: The OpenCV module, injected by the caller.
             (12) np [module]: The NumPy module, injected by the caller.
+            (13) distorted_bgr [Matrix<uint8> HxWx3 or None]: REQUIRED, keyword-only: the frame
+                 BEFORE undistortion (BGR), or None when the camera does not undistort.
+            (14) undistortion [Dict or None]: REQUIRED, keyword-only: the undistortion that
+                 turned it into raw_bgr (the camera's Last_Undistortion), or None.
 
         Returns:
             (1) parameter [Tuple]: (evicted set ids oldest-first, the session id if its
@@ -624,6 +666,7 @@ class Capture_Writer_Cls(object):
         session_dir, created = self.__Ensure_Session_Dir(session_id)
         if self.__keep_raw:
             self.__Write_Png(session_dir, set_id + CONST_CAPTURE_RAW_SUFFIX, raw_bgr, cv2)
+            self.__Write_Distorted(session_dir, set_id, distorted_bgr, undistortion, cv2)
         self.__Write_Png(session_dir, set_id + CONST_CAPTURE_ANNOTATED_SUFFIX, annotated_bgr, cv2)
         self.__Write_Png(session_dir, set_id + CONST_CAPTURE_MASK_SUFFIX, mask_bgr, cv2)
         # The thumbnail is generated once here (cheap) from the annotated image, so History
@@ -644,7 +687,8 @@ class Capture_Writer_Cls(object):
         return self.__Evict(), (session_id if created else None)
 
     def Write_Partial(self, session_id: str, set_id: str, raw_bgr: tp.Any, note: str,
-                      stamp: str, cv2: tp.Any, np: tp.Any) -> tp.Tuple[tp.List[str], tp.Optional[str]]:
+                      stamp: str, cv2: tp.Any, np: tp.Any, *, distorted_bgr: tp.Any,
+                      undistortion: tp.Optional[tp.Dict[str, tp.Any]]) -> tp.Tuple[tp.List[str], tp.Optional[str]]:
         """
         Description:
             Write a PARTIAL set into the session's directory for a FAILED analysis — the
@@ -657,11 +701,14 @@ class Capture_Writer_Cls(object):
         Args:
             (1) session_id [string]: The session the set belongs to (its subdirectory).
             (2) set_id [string]: The set identifier (filename stem).
-            (3) raw_bgr [Matrix<uint8> HxWx3]: The raw captured frame (BGR).
+            (3) raw_bgr [Matrix<uint8> HxWx3]: The captured frame, undistorted (BGR).
             (4) note [string]: The failure note written into the '_understanding.txt'.
             (5) stamp [string]: The provenance stamp.
             (6) cv2 [module]: The OpenCV module, injected by the caller.
             (7) np [module]: The NumPy module, injected by the caller.
+            (8) distorted_bgr [Matrix<uint8> HxWx3 or None]: REQUIRED, keyword-only: the frame
+                BEFORE undistortion (BGR), or None — as for Write.
+            (9) undistortion [Dict or None]: REQUIRED, keyword-only: its undistortion, or None.
 
         Returns:
             (1) parameter [Tuple]: (evicted set ids, the session id if its directory was
@@ -671,9 +718,34 @@ class Capture_Writer_Cls(object):
         session_dir, created = self.__Ensure_Session_Dir(session_id)
         if self.__keep_raw:
             self.__Write_Png(session_dir, set_id + CONST_CAPTURE_RAW_SUFFIX, raw_bgr, cv2)
+            self.__Write_Distorted(session_dir, set_id, distorted_bgr, undistortion, cv2)
         self.__Write_Text(session_dir, set_id + '_understanding.txt', '# ' + stamp + '\n'
                           + note + '\n')
         return self.__Evict(), (session_id if created else None)
+
+    def __Write_Distorted(self, session_dir: str, set_id: str, distorted_bgr: tp.Any,
+                          undistortion: tp.Optional[tp.Dict[str, tp.Any]], cv2: tp.Any) -> None:
+        """
+        Description:
+            Write the frame as it was BEFORE undistortion, with its sidecar, when the camera
+            provided both; nothing when it did not (a saved frame is not undistorted, so it has
+            no separate original). The frame and its sidecar are written together or not at all:
+            a distorted PNG without the record saying so is the ambiguity the sidecar prevents.
+
+        Args:
+            (1) session_dir [string]: The session directory.
+            (2) set_id [string]: The set identifier.
+            (3) distorted_bgr [Matrix<uint8> HxWx3 or None]: The distorted frame (BGR).
+            (4) undistortion [Dict or None]: The undistortion record.
+            (5) cv2 [module]: The OpenCV module.
+        """
+
+        if distorted_bgr is None or undistortion is None:
+            return
+        self.__Write_Text(session_dir, set_id + CONST_CAPTURE_DISTORTED_RECORD_SUFFIX,
+                          json.dumps(Distorted_Frame_Record(set_id, undistortion), indent=2,
+                                     ensure_ascii=False) + '\n')
+        self.__Write_Png(session_dir, set_id + CONST_CAPTURE_DISTORTED_SUFFIX, distorted_bgr, cv2)
 
     def __Ensure_Session_Dir(self, session_id: str) -> tp.Tuple[str, bool]:
         """

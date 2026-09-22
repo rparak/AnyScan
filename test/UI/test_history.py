@@ -84,7 +84,7 @@ def _Write_Full(writer, session_id, set_id, classification=False, run_id=''):
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
                                   'caption', 1180, 91, '', classification, run_id, scale=None)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
-                 ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np)
+                 ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
 
 def _Set_Filter(view, key: str) -> None:
@@ -339,7 +339,7 @@ def test_missing_score_note_explains_unscored_objects(qt_app, tmp_path) -> None:
     md = Build_Set_Metadata('sessionA', 'set1', '2026-09-20T10:00:00', [scored, unscored],
                             (60, 40), 'caption', 1000, 90, scale=None)
     writer.Write('sessionA', 'set1', raw, raw, np.zeros((40, 60, 3), np.uint8), 'text',
-                 ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np)
+                 ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
     view = History_View_Cls(str(tmp_path))
     view.Refresh()
@@ -413,7 +413,7 @@ def test_partial_set_renders_raw_full_width_with_the_banner(qt_app, tmp_path) ->
     raw = np.full((40, 60, 3), 30, np.uint8)
     writer.Write_Partial('sessionA', 'failset', raw,
                          'Analysis FAILED — partial capture (raw frame only). Failure: boom',
-                         'stamp', cv2, np)
+                         'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
     view = History_View_Cls(str(tmp_path))
     view.show()
@@ -539,7 +539,7 @@ def test_info_text_matches_the_shared_formatter(qt_app, tmp_path) -> None:
                             'caption', 1180, 91, 'A green background.', scale=None)
     raw = np.full((40, 60, 3), 30, np.uint8)
     writer.Write('sessionA', 'set1', raw, raw, np.zeros((40, 60, 3), np.uint8), 'text',
-                 ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np)
+                 ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
     view = History_View_Cls(str(tmp_path))
     view.Refresh()

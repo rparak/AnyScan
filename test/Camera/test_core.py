@@ -160,3 +160,39 @@ def test_log_sink_delivers_level_and_message_and_never_raises() -> None:
     # Clearing the sink is a no-op emit.
     camera.Set_Log_Callback(None)
     camera._Log('INFO', 'nothing wired')
+
+
+class _Undistorting_Camera_Cls(_Sink_Camera_Cls):
+    """A backend that undistorts: its grab records an original, or fails after a success."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.fail = False
+
+    def _Grab(self):
+        import numpy as np
+        if self.fail:
+            raise Camera_Error_Cls('no frame')
+        self._last_distorted = np.zeros((2, 2, 3), np.uint8)
+        self._last_undistortion = {'alpha': 1}
+        return np.ones((2, 2, 3), np.uint8)
+
+
+def test_distorted_original_belongs_to_one_frame_only() -> None:
+    """
+    Description:
+        A backend that undistorts exposes the frame before undistortion and the undistortion
+        that was applied; a saved-frame backend exposes neither (its frame is delivered as it
+        is). A failed grab clears them, so a capture set can never pair a new frame with the
+        previous frame's original.
+    """
+
+    cam = _Undistorting_Camera_Cls()
+    cam.Connect()
+    cam.Capture()
+    assert cam.Last_Distorted_Frame is not None and cam.Last_Undistortion == {'alpha': 1}
+    cam.fail = True
+    with pytest.raises(Camera_Error_Cls):
+        cam.Capture()
+    assert cam.Last_Distorted_Frame is None and cam.Last_Undistortion is None
+    assert File_Camera_Cls('/no/such/frame.png').Last_Distorted_Frame is None

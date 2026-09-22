@@ -28,6 +28,8 @@ import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
+# OpenCV library for computer vision tasks [pip3 install opencv-python]
+import cv2
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
@@ -300,3 +302,39 @@ def test_mid_session_connection_loss_is_an_error(qt_app, tmp_path) -> None:
     content = _Log_Text(logger2)
     assert 'The camera connection was lost' not in content
     assert '[ERROR  ] capture timeout (error_id=' in content
+
+
+class _Undistorting_Camera_Cls(_Idle_Camera_Cls):
+    """A camera that undistorts: it also exposes the frame before undistortion."""
+
+    def _Grab(self):
+        self._last_distorted = np.full((40, 60, 3), (10, 20, 30), dtype=np.uint8)   # RGB
+        self._last_undistortion = {'configuration': 'Config_x.yaml', 'alpha': 1}
+        return np.zeros((40, 60, 3), dtype=np.uint8)
+
+
+def test_the_scanned_frames_distorted_original_reaches_the_capture_set(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The window keeps the camera's pre-undistortion frame from SCAN and hands it, with its
+        undistortion record, to the capture set: '<set>_distorted.png' holds exactly that frame
+        (converted to BGR on disk like every other image) and its sidecar the camera's record.
+    """
+
+    import json
+    camera = _Undistorting_Camera_Cls()
+    camera.Connect()
+    window, logger = _Window(tmp_path, camera=camera)
+    _Private(window, '__On_Scan_Button_Clicked')()
+    setattr(window, CONST_MANGLE + '__current_set_id', '20260923-100000_1')
+    setattr(window, CONST_MANGLE + '__session_id', '20260923-095900_s1')
+    _Private(window, '__On_Analysis_Finished')(
+        Analysis_Str(Objects=[], Background='A plain surface.', Latency_Ms=100, Verdict='Empty',
+                     Verdict_Level='ok', Task='caption'))
+    logger.Close()
+
+    session = tmp_path / 'captures' / '20260923-095900_s1'
+    written = cv2.imread(str(session / '20260923-100000_1_distorted.png'))
+    assert written is not None and tuple(written[0, 0]) == (30, 20, 10)       # BGR on disk
+    record = json.loads((session / '20260923-100000_1_distorted.json').read_text())
+    assert record['distorted'] is True and record['undistortion']['configuration'] == 'Config_x.yaml'

@@ -541,3 +541,31 @@ Tests `test/Vision/Utilities/test_measure.py` (`test_hexagonal_part_reports_acro
 `test_a_disc_of_any_size_is_round_not_across_flats`, label and stored-record tests),
 `test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
 
+
+## Capture sets keep the frame before undistortion, marked as distorted
+
+Every capture set's `<set>_raw.png` is the frame **after** undistortion with the calibration in
+force when it was taken ("raw" means unannotated, not undistorted). A frame undistorted with one
+calibration cannot be cleanly re-measured under another: it would have to be re-distorted and
+re-undistorted, resampling twice. So a set now also keeps `<set>_distorted.png` — the same frame,
+processed identically (the same blur and colour step), before undistortion — whenever the camera
+undistorts, together with a `<set>_distorted.json` sidecar that:
+
+- says `"distorted": true` and, in words, that the lens distortion is not removed, so the two
+  files cannot be mistaken for each other;
+- names its undistorted counterpart;
+- records the exact undistortion that produced `<set>_raw.png`: the configuration file, the frame
+  size, K, the coefficients, `alpha` (1) and the new camera matrix.
+
+The PNG and its sidecar are written together or not at all. A saved-frame camera (`--frame`) does
+not undistort, so it provides no original and nothing distorted is written — never the undistorted
+frame under the distorted name. The camera clears the original before every grab, so a failed grab
+cannot pair a new frame with the previous frame's original. `keep_raw` governs both frames; the
+retention estimate rises from ~8 to ~12 MB per set (~600 MB at 50 sets).
+
+**Why now:** the reference check (known-size parts at the centre and in the corners) must stay
+usable whichever calibration ends up in force, and the calibration is about to be redone.
+Tests `test/UI/test_capture.py` (`test_distorted_frame_is_kept_with_a_sidecar_saying_so`,
+`test_no_distorted_frame_without_one_and_it_is_evicted_with_its_set`),
+`test/UI/test_logging_coverage.py::test_the_scanned_frames_distorted_original_reaches_the_capture_set`,
+`test/Camera/test_core.py::test_distorted_original_belongs_to_one_frame_only`.

@@ -67,7 +67,7 @@ def _Write_Set(writer, session_id, set_id, objects, task='caption', latency=1180
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, size,
                                   task, latency, mean, '', classification, scale=None)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
-                 ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np)
+                 ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
 
 def test_metadata_round_trips_and_matches_the_detection_list(tmp_path) -> None:
@@ -156,7 +156,7 @@ def test_partial_set_reads_as_partial_with_a_note(tmp_path) -> None:
     raw = np.full((40, 60, 3), 30, np.uint8)
     writer.Write_Partial('sessionA', 'failset', raw,
                          'Analysis FAILED — partial capture (raw frame only). Failure: boom',
-                         'stamp', cv2, np)
+                         'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
     cap = Read_Capture_Set(str(tmp_path / 'sessionA'), 'sessionA', 'failset')
     assert cap.Partial and cap.Objects == []
