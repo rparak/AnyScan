@@ -371,14 +371,29 @@ Both breakdown cells used to pack entries as `index:HH:MM:SS-HH:MM:SS:HH:MM:SS` 
 colons. That is readable only by a positional regex that assumes every time is exactly
 `HH:MM:SS`; it breaks once a duration reaches 100 hours (`Format_HMS` widens the hour field),
 drops the date (a session crossing midnight is ambiguous), and required sanitising `|` and
-newlines out of error messages. Both cells are now compact JSON arrays with full datetimes —
-`[{"index":1,"start":"2026-09-22 14:37:12","end":"2026-09-22 14:40:02","duration":"00:02:50"}]`,
+newlines out of error messages. Both cells are now compact JSON arrays with full datetimes at
+millisecond precision —
+`[{"index":1,"start":"2026-09-22 20:18:38.412","end":"2026-09-22 20:18:39.998","duration":"00:00:01.586"}]`,
 errors adding `"id"` and a verbatim `"message"` — parsed with any JSON reader.
+
+**Every row checks out arithmetically.** The old cells printed whole-second start/end but rounded
+the duration from the exact times, so an entry could read 20:18:38 → 20:18:39 with a duration of
+00:00:02 — internally inconsistent, and the kind of thing that makes someone doubt the totals.
+Now each entry's timestamps are cut to whole milliseconds and its duration is derived from exactly
+those two values, so `start + duration == end` holds for every entry. The whole-second columns
+keep their `HH:MM:SS` format (a contract) but are derived from the values the row prints:
+`cycle_time` is the printed stop minus the printed start, `total_session_time` and
+`total_error_time` are the detail durations rounded to seconds, and `idle_time` is the cycle minus
+that session total, so `cycle_time == total_session_time + idle_time` exactly.
 
 **Where the change starts.** Old rows are not rewritten. The encoding is self-identifying: a JSON
 cell begins with `[`, a legacy cell with a digit, and an empty breakdown is an empty cell in both.
 It takes effect from the commit "Run-summary CSV: encode session_details and error_details as JSON" (the one after `fdc6edd`); the first real run after it writes the first JSON row,
-and that row also carries a `run_id`, the first run id in the file. To read a legacy cell, split on
+and that row also carries a `run_id`, the first run id in the file. **Millisecond timestamps and
+the self-consistent arithmetic** start one commit later ("Run-summary CSV: millisecond detail
+timestamps; every row adds up"): a JSON timestamp with a `.mmm` fraction is the new behaviour. No
+row was written in between — the real file had no JSON cells when this landed — so in practice
+every JSON row is millisecond-precise, and every legacy row keeps its original rounding. To read a legacy cell, split on
 ` | ` and match each entry with
 `^(\d+):(\d{2}:\d{2}:\d{2})-(\d{2}:\d{2}:\d{2}):(\d{2,}:\d{2}:\d{2})$` (sessions) or the same
 followed by `:(.*)$` (errors: id, start, end, duration, message) — verified against every legacy

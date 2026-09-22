@@ -28,7 +28,7 @@ import os
 import re
 import csv
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 # Typing (Support for type hints)
 import typing as tp
 # Pytest (Testing framework) [pip3 install pytest]
@@ -477,12 +477,12 @@ def test_reference_run_row_values(tmp_path: tp.Any) -> None:
     assert row['errors_count'] == '2'
     assert row['total_error_time'] == '00:52:58'
     assert json.loads(row['session_details']) == [
-        {'index': 1, 'start': '2026-09-12 14:37:12', 'end': '2026-09-12 14:40:02', 'duration': '00:02:50'},
-        {'index': 2, 'start': '2026-09-12 14:52:30', 'end': '2026-09-12 16:12:44', 'duration': '01:20:14'}]
+        {'index': 1, 'start': '2026-09-12 14:37:12.000', 'end': '2026-09-12 14:40:02.000', 'duration': '00:02:50.000'},
+        {'index': 2, 'start': '2026-09-12 14:52:30.000', 'end': '2026-09-12 16:12:44.000', 'duration': '01:20:14.000'}]
     assert json.loads(row['error_details']) == [
-        {'id': 1, 'start': '2026-09-12 14:37:34', 'end': '2026-09-12 14:37:49', 'duration': '00:00:15',
+        {'id': 1, 'start': '2026-09-12 14:37:34.000', 'end': '2026-09-12 14:37:49.000', 'duration': '00:00:15.000',
          'message': 'camera timeout'},
-        {'id': 2, 'start': '2026-09-12 15:20:01', 'end': '2026-09-12 16:12:44', 'duration': '00:52:43',
+        {'id': 2, 'start': '2026-09-12 15:20:01.000', 'end': '2026-09-12 16:12:44.000', 'duration': '00:52:43.000',
          'message': 'analysis failed on image 233'}]
 
 
@@ -530,7 +530,7 @@ def test_session_open_at_shutdown_is_counted(tmp_path: tp.Any) -> None:
     assert row['sessions_count'] == '1'
     assert row['total_session_time'] == '00:30:00'
     assert json.loads(row['session_details']) == [
-        {'index': 1, 'start': '2026-09-12 12:00:10', 'end': '2026-09-12 12:30:10', 'duration': '00:30:00'}]
+        {'index': 1, 'start': '2026-09-12 12:00:10.000', 'end': '2026-09-12 12:30:10.000', 'duration': '00:30:00.000'}]
 
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
     assert '(closed at shutdown)' in content
@@ -575,7 +575,7 @@ def test_unresolved_error_counted_to_shutdown(tmp_path: tp.Any) -> None:
     assert row['errors_count'] == '2'
     assert row['total_error_time'] == '00:01:15'        # 15 + 60 = 75 s
     assert [(e['id'], e['duration'], e['message']) for e in json.loads(row['error_details'])] == [
-        (1, '00:00:15', 'camera timeout'), (2, '00:01:00', 'analysis failed')]
+        (1, '00:00:15.000', 'camera timeout'), (2, '00:01:00.000', 'analysis failed')]
 
 
 def test_idle_time_equals_cycle_minus_session(tmp_path: tp.Any) -> None:
@@ -610,8 +610,60 @@ def test_details_round_trip_with_commas_and_quotes(tmp_path: tp.Any) -> None:
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
     assert row['error_details'].startswith('[')               # the JSON encoding identifies itself
     assert json.loads(row['error_details']) == [
-        {'id': 1, 'start': '2026-09-12 09:00:10', 'end': '2026-09-12 09:00:25',
-         'duration': '00:00:15', 'message': message}]
+        {'id': 1, 'start': '2026-09-12 09:00:10.000', 'end': '2026-09-12 09:00:25.000',
+         'duration': '00:00:15.000', 'message': message}]
+
+
+def test_summary_arithmetic_is_self_consistent_at_sub_second_times(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Real clocks have sub-second parts. A detail entry used to print whole-second start/end
+        but round its duration from the exact times, so 20:18:38 -> 20:18:39 could read 00:00:02.
+        Now every detail entry carries millisecond timestamps and a duration derived from exactly
+        those, so start + duration == end holds to the millisecond; and the whole-second columns
+        are derived from the values the row prints, so cycle_time equals the printed stop minus the
+        printed start AND total_session_time + idle_time.
+    """
+
+    def Parse_Time(text: str) -> datetime:
+        return datetime.strptime('2026-09-22 ' + text, '%Y-%m-%d %H:%M:%S.%f')
+
+    def Parse_Span(text: str) -> timedelta:
+        hms, milli = text.split('.')
+        h, m, sec = (int(v) for v in hms.split(':'))
+        return timedelta(hours=h, minutes=m, seconds=sec, milliseconds=int(milli))
+
+    clock = Clock_Cls(Parse_Time('20:18:37.300'))
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
+                                        install_handlers=False)
+    clock.now = Parse_Time('20:18:38.412'); Session_Logger.Log_Camera_Connected()
+    clock.now = Parse_Time('20:18:38.900'); error_id = Session_Logger.Log_Error('camera timeout')
+    clock.now = Parse_Time('20:18:39.050'); Session_Logger.Log_Error_Resolved(error_id)
+    clock.now = Parse_Time('20:18:39.998'); Session_Logger.Log_Camera_Disconnected()
+    clock.now = Parse_Time('20:18:40.100'); Session_Logger.Log_Camera_Connected()
+    clock.now = Parse_Time('20:18:40.750'); Session_Logger.Close()        # closes connection 2 at shutdown
+
+    row = _Read_Rows(Session_Logger.Csv_Path)[0]
+    sessions = json.loads(row['session_details'])
+    errors = json.loads(row['error_details'])
+
+    # The reported case: 38.412 -> 39.998 is 1.586 s, not a rounded 00:00:02.
+    assert sessions[0] == {'index': 1, 'start': '2026-09-22 20:18:38.412',
+                           'end': '2026-09-22 20:18:39.998', 'duration': '00:00:01.586'}
+    # Every entry, both cells: start + duration == end, exactly.
+    for entry in sessions + errors:
+        start = datetime.strptime(entry['start'], '%Y-%m-%d %H:%M:%S.%f')
+        end = datetime.strptime(entry['end'], '%Y-%m-%d %H:%M:%S.%f')
+        assert start + Parse_Span(entry['duration']) == end, entry
+
+    # The whole-second columns add up from what the row prints.
+    printed = (datetime.strptime(row['application_stop'], '%Y-%m-%d %H:%M:%S')
+               - datetime.strptime(row['application_start'], '%Y-%m-%d %H:%M:%S')).total_seconds()
+    cycle = _Hms_To_Seconds(row['cycle_time'])
+    assert cycle == printed == 3
+    assert cycle == _Hms_To_Seconds(row['total_session_time']) + _Hms_To_Seconds(row['idle_time'])
+    detail_total = sum(Parse_Span(e['duration']).total_seconds() for e in sessions)   # 1.586 + 0.650
+    assert _Hms_To_Seconds(row['total_session_time']) == round(detail_total) == 2
 
 
 def test_semicolon_delimiter_is_configurable(tmp_path: tp.Any) -> None:

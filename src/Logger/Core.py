@@ -259,6 +259,58 @@ def Format_HMS(total_seconds: float) -> str:
     return f'{hours:02d}:{minutes:02d}:{seconds:02d}'
 
 
+def Truncate_To_Ms(moment: datetime) -> datetime:
+    """
+    Description:
+        A datetime cut to whole milliseconds — the precision the run-summary detail cells are
+        written at. Durations are computed from these truncated values, so the start, end and
+        duration a reader sees in one entry agree exactly.
+
+    Args:
+        (1) moment [datetime(object)]: The time.
+
+    Returns:
+        (1) parameter [datetime(object)]: The time with sub-millisecond digits dropped.
+    """
+
+    return moment.replace(microsecond=(moment.microsecond // 1000) * 1000)
+
+
+def Format_Detail_Datetime(moment: datetime) -> str:
+    """
+    Description:
+        A detail-cell timestamp at millisecond precision, 'YYYY-MM-DD HH:MM:SS.mmm'.
+
+    Args:
+        (1) moment [datetime(object)]: The (millisecond-truncated) time.
+
+    Returns:
+        (1) parameter [string]: The formatted timestamp.
+    """
+
+    return moment.strftime(CONST_CSV_DATETIME_FORMAT) + '.%03d' % (moment.microsecond // 1000)
+
+
+def Format_HMS_Ms(total_seconds: float) -> str:
+    """
+    Description:
+        A detail-cell duration at millisecond precision, 'HH:MM:SS.mmm' (hours uncapped). Given the
+        difference of two millisecond-truncated times it is exact, so start + duration == end.
+
+    Args:
+        (1) total_seconds [float]: The duration in seconds.
+
+    Returns:
+        (1) parameter [string]: The duration formatted as HH:MM:SS.mmm.
+    """
+
+    milliseconds = int(round(max(0.0, total_seconds) * 1000.0))
+    seconds, milliseconds = divmod(milliseconds, 1000)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f'{hours:02d}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}'
+
+
 @dataclass
 class Session_Str:
     """
@@ -366,8 +418,9 @@ def Encode_Session_Details(Summary_Str: Summary_Str) -> str:
     Description:
         Encode the per-session breakdown into a single CSV cell as a compact JSON array — one
         {"index", "start", "end", "duration"} object per camera connection, with full datetimes
-        (so a session crossing midnight is unambiguous) and the duration as HH:MM:SS like the
-        other duration columns. An empty string when there were no sessions.
+        (so a session crossing midnight is unambiguous) at millisecond precision and the duration
+        derived from exactly those two values (HH:MM:SS.mmm), so start + duration == end holds for
+        every entry. An empty string when there were no sessions.
 
     Args:
         (1) Summary_Str [Summary_Str(object)]: The computed run statistics.
@@ -378,9 +431,9 @@ def Encode_Session_Details(Summary_Str: Summary_Str) -> str:
 
     if not Summary_Str.Session_Details:
         return ''
-    return json.dumps([{'index': index, 'start': start.strftime(CONST_CSV_DATETIME_FORMAT),
-                        'end': end.strftime(CONST_CSV_DATETIME_FORMAT),
-                        'duration': Format_HMS(duration_seconds)}
+    return json.dumps([{'index': index, 'start': Format_Detail_Datetime(start),
+                        'end': Format_Detail_Datetime(end),
+                        'duration': Format_HMS_Ms(duration_seconds)}
                        for (index, start, end, duration_seconds) in Summary_Str.Session_Details],
                       **CONST_CSV_JSON_OPTIONS)
 
@@ -389,9 +442,10 @@ def Encode_Error_Details(Summary_Str: Summary_Str) -> str:
     """
     Description:
         Encode the per-error breakdown into a single CSV cell as a compact JSON array — one
-        {"id", "start", "end", "duration", "message"} object per tracked error. The message is kept
-        verbatim (JSON escapes quotes and newlines), so nothing is lost to sanitising. An empty
-        string when there were no errors.
+        {"id", "start", "end", "duration", "message"} object per tracked error, timestamps at
+        millisecond precision and the duration derived from them, like the session cell. The
+        message is kept verbatim (JSON escapes quotes and newlines), so nothing is lost to
+        sanitising. An empty string when there were no errors.
 
     Args:
         (1) Summary_Str [Summary_Str(object)]: The computed run statistics.
@@ -402,9 +456,9 @@ def Encode_Error_Details(Summary_Str: Summary_Str) -> str:
 
     if not Summary_Str.Error_Details:
         return ''
-    return json.dumps([{'id': error_id, 'start': start.strftime(CONST_CSV_DATETIME_FORMAT),
-                        'end': end.strftime(CONST_CSV_DATETIME_FORMAT),
-                        'duration': Format_HMS(duration_seconds), 'message': message}
+    return json.dumps([{'id': error_id, 'start': Format_Detail_Datetime(start),
+                        'end': Format_Detail_Datetime(end),
+                        'duration': Format_HMS_Ms(duration_seconds), 'message': message}
                        for (error_id, start, end, duration_seconds, message)
                        in Summary_Str.Error_Details],
                       **CONST_CSV_JSON_OPTIONS)
@@ -1159,26 +1213,39 @@ class Session_Logger_Cls(object):
             if stop_time is None:
                 stop_time = self.__stop_time if self.__stop_time is not None else self.__clock()
 
-            cycle_seconds = (stop_time - self.__start_time).total_seconds()
+            # Every figure is derived from the values AS WRITTEN, so a row's arithmetic checks
+            # out when someone recomputes it: the cycle from the whole-second start/stop the row
+            # prints; each detail entry's duration from its millisecond-truncated start/end; the
+            # whole-second totals rounded from those entries; and idle as the cycle minus the
+            # rounded session total, so cycle_time == total_session_time + idle_time exactly.
+            start_s = self.__start_time.replace(microsecond=0)
+            stop_s = stop_time.replace(microsecond=0)
+            cycle_seconds = (stop_s - start_s).total_seconds()
 
             # << Sessions: durations and the per-session breakdown. >>
-            session_seconds = 0.0
+            session_exact = 0.0
             session_details = []
             for Session_Str_i in self.__sessions:
-                end = Session_Str_i.End if Session_Str_i.End is not None else stop_time
-                duration = (end - Session_Str_i.Start).total_seconds()
-                session_seconds += duration
-                session_details.append((Session_Str_i.Index, Session_Str_i.Start, end, duration))
+                start = Truncate_To_Ms(Session_Str_i.Start)
+                end = Truncate_To_Ms(Session_Str_i.End if Session_Str_i.End is not None
+                                     else stop_time)
+                duration = (end - start).total_seconds()
+                session_exact += duration
+                session_details.append((Session_Str_i.Index, start, end, duration))
+            # A connection spanning the whole run can round a second past the whole-second cycle;
+            # cap it so idle never goes negative and the three columns still add up.
+            session_seconds = float(min(round(session_exact), cycle_seconds))
 
             # << Errors: durations and the per-error breakdown. >>
-            error_seconds = 0.0
+            error_exact = 0.0
             error_details = []
             for Error_Str_i in self.__errors:
-                end = Error_Str_i.End if Error_Str_i.End is not None else stop_time
-                duration = (end - Error_Str_i.Start).total_seconds()
-                error_seconds += duration
-                error_details.append((Error_Str_i.Id, Error_Str_i.Start, end, duration,
-                                      Error_Str_i.Message))
+                start = Truncate_To_Ms(Error_Str_i.Start)
+                end = Truncate_To_Ms(Error_Str_i.End if Error_Str_i.End is not None else stop_time)
+                duration = (end - start).total_seconds()
+                error_exact += duration
+                error_details.append((Error_Str_i.Id, start, end, duration, Error_Str_i.Message))
+            error_seconds = float(round(error_exact))
 
             return Summary_Str(Log_File=os.path.basename(self.__path),
                                Application_Start=self.__start_time,
