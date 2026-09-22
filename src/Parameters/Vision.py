@@ -164,3 +164,43 @@ class Analysis_Str(object):
     # composer rewrote is silent. 'level' is 'info' or 'warning'.
     #   Unit [Vector<Tuple<string> 1x2>]
     Audit: tp.List[tp.Tuple[str, str]] = field(default_factory=list)
+
+
+# The confidence severity thresholds, in PERCENT, defined ONCE here so every place a
+# confidence number is shown or logged (the object labels, the frame mean, the session mean,
+# the Trends reference lines) reads the same two lines. A number AT or ABOVE the warn line is
+# fine; below it is a warning; below the error line it is an error.
+#   Unit [int] (percent)
+CONST_CONFIDENCE_WARN_BELOW = 80
+CONST_CONFIDENCE_ERROR_BELOW = 60
+# The hysteresis margin, in percent, for the status-bar session-mean LOG crossings only: after
+# a threshold is crossed downward, the mean must climb this far back ABOVE it before a recovery
+# is logged, so a value hovering on a line does not emit a log record per analysis.
+#   Unit [int] (percent)
+CONST_CONFIDENCE_LOG_HYSTERESIS = 2
+
+
+def Confidence_Severity(percent: tp.Optional[float]) -> str:
+    """
+    Description:
+        The severity band of a confidence percentage, as the LOG-LEVEL string that names it
+        ('INFO' above the warn line, 'WARNING' below it, 'ERROR' below the error line). The
+        strings are deliberately the log levels so the UI can reuse the one log palette and
+        weight ramp for the confidence colouring — colour is not invented per view. An
+        unscored value (None) has no severity and reads 'INFO' (the default), though callers
+        showing '—' style it as the plain default rather than a measured pass.
+
+    Args:
+        (1) percent [float]: The confidence in percent (0..100), or None when unscored.
+
+    Returns:
+        (1) parameter [string]: The severity level ('INFO', 'WARNING' or 'ERROR').
+    """
+
+    if percent is None:
+        return 'INFO'
+    if percent < CONST_CONFIDENCE_ERROR_BELOW:
+        return 'ERROR'
+    if percent < CONST_CONFIDENCE_WARN_BELOW:
+        return 'WARNING'
+    return 'INFO'

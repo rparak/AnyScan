@@ -910,7 +910,14 @@ class Object_List_Cls(QWidget):
         row.addWidget(name)
 
         # The same separator the file's Object_Label_Full uses, so the two spellings match.
-        confidence = QLabel(CONST_LABEL_SEPARATOR + Object_Confidence(det))
+        # The number carries its severity colour and weight (Style.Confidence_Number_Html); the
+        # surrounding words stay the default ink. An unscored '—' is left plain — not a low read.
+        suffix = Object_Confidence(det)
+        if det.Segmenter_Score is not None:
+            number = '%d%%' % int(round(100.0 * det.Segmenter_Score))
+            suffix = suffix.replace(number, Style.Confidence_Number_Html(number, int(number[:-1])))
+        confidence = QLabel(CONST_LABEL_SEPARATOR + suffix)
+        confidence.setTextFormat(Qt.RichText)
         # Smaller than the name and a lighter weight — secondary metadata, not a continuation
         # of the heading.
         confidence.setFont(Font(self.__confidence_size))
@@ -971,18 +978,26 @@ class Stat_Cell_Cls(QWidget):
         return self.__value.text()
 
     def Set_Value(self, text: str, color: tp.Optional[str] = None,
-                  dot_color: tp.Optional[str] = None) -> None:
+                  dot_color: tp.Optional[str] = None, weight: tp.Optional[int] = None) -> None:
         """
         Description:
-            Set the cell's value, optionally with a colour and a leading status dot.
+            Set the cell's value, optionally with a colour, a leading status dot, and a font
+            weight. `weight` overrides only the weight, keeping the cell's own size and family,
+            so the confidence session-mean can carry the severity weight ramp without the cell
+            reinventing its type.
 
         Args:
             (1) text [string]: The value text.
             (2) color [string]: Optional text colour.
             (3) dot_color [string]: Optional leading-dot colour (rich text).
+            (4) weight [int]: Optional QFont weight; None keeps the cell's own weight.
         """
 
         self.__dot_color = dot_color
+        if weight is not None:
+            font = self.__value.font()
+            font.setWeight(weight)
+            self.__value.setFont(font)
         self.__value.setStyleSheet('color: %s;' % (color or Style.CONST_INK))
         self.__value.setText(('●  ' if dot_color else '') + text)
         if dot_color:

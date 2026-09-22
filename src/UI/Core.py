@@ -64,7 +64,9 @@ from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask, Seg_Lines
 from Reporting.Core import (Screen_Understanding, Scene_Background_Line, Scene_Count_Line,
                             Yolo_Lines)
 #   ../Parameters/Vision
-from Parameters.Vision import Analysis_Str, Detection_Str
+from Parameters.Vision import (Analysis_Str, Detection_Str, Confidence_Severity,
+                               CONST_CONFIDENCE_WARN_BELOW, CONST_CONFIDENCE_ERROR_BELOW,
+                               CONST_CONFIDENCE_LOG_HYSTERESIS)
 #   ../Parameters/General — the single default for the classification flag
 from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
 # Custom Lib.: AnyScan — the session logger and the per-analysis capture writer
@@ -175,6 +177,10 @@ class AnyScan_Window_Cls(QMainWindow):
         # the status figure is the mean over every object in every analysis since the
         # session began, the table figure the mean over one frame's objects. Reset on Clear.
         self.__session_scores = []
+        # The last-logged severity band of the session-mean confidence ('ok' | 'warn' | 'error').
+        # Only the status-bar session mean is logged, and only when it CROSSES a threshold — not
+        # every analysis — so this remembers where it was to detect a crossing. Reset on Clear.
+        self.__confidence_band = 'ok'
         # The Camera View's remembered annotated/mask choice (§2b): it persists across
         # analyses in a session, so an operator working in mask view is not thrown back
         # to annotated by the next Analyze.
@@ -1185,10 +1191,56 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__session_scores.extend(det.Segmenter_Score for det in result.Objects
                                      if det.Segmenter_Score is not None)
         if self.__session_scores:
-            mean = sum(self.__session_scores) / len(self.__session_scores)
-            self.__status.confidence.Set_Value('%d%%' % int(round(100.0 * mean)))
+            percent = int(round(100.0 * sum(self.__session_scores) / len(self.__session_scores)))
+            level = Confidence_Severity(percent)
+            self.__status.confidence.Set_Value('%d%%' % percent, color=Style.Log_Level_Color(level),
+                                               weight=Style.Log_Level_Weight(level))
+            self.__Log_Confidence_Crossing(percent)
         else:
             self.__status.confidence.Set_Value(Style.CONST_NO_VALUE)
+
+    def __Log_Confidence_Crossing(self, percent: int) -> None:
+        """
+        Description:
+            Log the session-mean confidence ONLY when it crosses a severity threshold — a
+            WARNING when it first falls below the warn line and again below the error line, an
+            INFO when it recovers back above a line — never a line per analysis while it sits in
+            one band. A hysteresis margin means a value hovering on a line must climb that far
+            back above it before the recovery is logged, so a jittering mean near 80% does not
+            emit a record every frame. Only this status-bar figure is logged; the per-object and
+            per-frame numbers would flood the log.
+
+        Args:
+            (1) percent [int]: The current session-mean confidence in percent.
+        """
+
+        if self.__logger is None:
+            return
+        warn, error, h = (CONST_CONFIDENCE_WARN_BELOW, CONST_CONFIDENCE_ERROR_BELOW,
+                          CONST_CONFIDENCE_LOG_HYSTERESIS)
+        previous = self.__confidence_band
+        # The new band, with hysteresis on the UPWARD (recovery) crossings only: a downward
+        # crossing fires as soon as the line is passed, a recovery only after clearing it by h.
+        if percent < error:
+            band = 'error'
+        elif percent < warn:
+            band = 'error' if previous == 'error' and percent < error + h else 'warn'
+        elif percent < warn + h:
+            band = previous if previous in ('warn', 'error') else 'ok'
+        else:
+            band = 'ok'
+        if band == previous:
+            return
+        order = {'ok': 2, 'warn': 1, 'error': 0}
+        if order[band] < order[previous]:                       # fell to a worse band
+            line = error if band == 'error' else warn
+            self.__logger.Log_Warning('Session mean confidence fell below %d%% (now %d%%).'
+                                      % (line, percent))
+        else:                                                   # recovered to a better band
+            line = warn if band == 'ok' else error
+            self.__logger.Log_Info('Session mean confidence recovered above %d%% (now %d%%).'
+                                   % (line, percent))
+        self.__confidence_band = band
 
     def __Frame_Confidence_Text(self, objects: tp.List[Detection_Str]) -> str:
         """
@@ -1212,9 +1264,11 @@ class AnyScan_Window_Cls(QMainWindow):
         if not scores:
             return Style.CONST_NO_VALUE
         mean = int(round(100.0 * sum(scores) / len(scores)))
+        # The number carries its severity colour and weight (rich text); the coverage stays plain.
+        number = Style.Confidence_Number_Html('%d%%' % mean, mean)
         if len(scores) < len(objects):
-            return '%d%% over %d of %d' % (mean, len(scores), len(objects))
-        return '%d%%' % mean
+            return '%s over %d of %d' % (number, len(scores), len(objects))
+        return number
 
     def __On_View_Toggle(self, view: str) -> None:
         """
@@ -1281,6 +1335,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__objects_found = 0
         self.__latencies = []
         self.__session_scores = []
+        self.__confidence_band = 'ok'
         self.__viewport.Clear()
         self.__frame_badge.setText('No frame')
         self.__status.images.Set_Value('0')

@@ -960,9 +960,12 @@ class History_View_Cls(QWidget):
         self.__meta_objects.setText('%d' % len(cap.Objects))
         self.__meta_task.setText(cap.Task or Style.CONST_NO_VALUE)
         self.__meta_latency.setText('%d ms' % cap.Inference_Ms)
-        self.__meta_confidence.setText('%d%%' % cap.Frame_Mean_Confidence
-                                       if cap.Frame_Mean_Confidence is not None
-                                       else Style.CONST_NO_VALUE)
+        # The frame-mean number carries its severity colour and weight, like the Live panel.
+        if cap.Frame_Mean_Confidence is not None:
+            percent = int(cap.Frame_Mean_Confidence)
+            self.__meta_confidence.setText(Style.Confidence_Number_Html('%d%%' % percent, percent))
+        else:
+            self.__meta_confidence.setText(Style.CONST_NO_VALUE)
 
     def __Show_Partial(self, cap: tp.Any) -> None:
         """

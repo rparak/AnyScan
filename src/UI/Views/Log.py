@@ -67,14 +67,11 @@ CONST_FILTER_SEGMENTS = (('all', 'All'), ('info', 'Info'), ('warning', 'Warning'
 #   Unit [Dict<string, string>]
 CONST_FILTER_TO_LEVEL = {'info': CONST_LEVEL_INFO, 'warning': CONST_LEVEL_WARNING,
                          'error': CONST_LEVEL_ERROR}
-# The level -> font weight ramp for the level field. Severity is carried by THREE channels,
-# not colour alone: the level word, its colour, and this weight — because #b45309 (WARNING)
-# and #b91c1c (ERROR) collapse to nearly the same colour under a red-green deficiency
-# (measured dE ~8 in deuteranopia), so a heavier weight for the more severe level keeps them
+# The level -> font weight ramp lives in Style (Style.CONST_LEVEL_WEIGHTS / Log_Level_Weight),
+# shared with the confidence colouring: severity is carried by the level word, its colour AND its
+# weight, because the WARNING amber and ERROR red collapse to nearly one colour under a red-green
+# deficiency (ΔE ~8 in deuteranopia), so a heavier weight for the more severe level keeps them
 # apart for a viewer who cannot rely on the colour.
-#   Unit [Dict<string, int>]
-CONST_LEVEL_WEIGHTS = {CONST_LEVEL_INFO: QFont.Normal, CONST_LEVEL_WARNING: QFont.DemiBold,
-                       CONST_LEVEL_ERROR: QFont.Bold}
 # The widest sample of each fixed-width column, measured once to set the column widths so the
 # message starts at the same x on every row regardless of content.
 #   Unit [string]
@@ -359,8 +356,7 @@ class Log_View_Cls(Card_Cls):
         line.addWidget(stamp, 0, Qt.AlignTop)
 
         level = QLabel(record.Level)
-        weight = CONST_LEVEL_WEIGHTS.get(record.Level, QFont.Normal)
-        level.setFont(Font(Style.CONST_TYPE_LOG, weight, mono=True))
+        level.setFont(Font(Style.CONST_TYPE_LOG, Style.Log_Level_Weight(record.Level), mono=True))
         level.setStyleSheet('color: %s;' % color)
         level.setFixedWidth(self.__level_width)
         line.addWidget(level, 0, Qt.AlignTop)

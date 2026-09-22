@@ -34,6 +34,9 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QFontDatabase, QIcon, QImage, QPixmap, QPainter
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import QApplication, QWidget
+# Custom Lib.: AnyScan domain — the confidence severity bands (Qt-free)
+#   ../Parameters/Vision
+from Parameters.Vision import Confidence_Severity
 # Custom Lib.: AnyScan domain — the colour palette (Qt-free, the single source)
 #   ../Parameters/Theme
 from Parameters.Theme import (                                             # noqa: F401
@@ -126,6 +129,57 @@ CONST_TYPE_INFO_META = CONST_TYPE_SCALE[0]          # 9.5  — confidence suffix
 # consistent x); the message at this size in the UI family.
 #   Unit [float] (point size)
 CONST_TYPE_LOG = CONST_TYPE_SCALE[2]                # 11.5 — the log row size
+
+# The severity -> font-weight ramp, keyed by the log-level strings and SHARED by the Log view
+# and the confidence colouring. Severity is carried by colour AND weight, never colour alone,
+# because the WARNING amber (#b45309) and ERROR red (#b91c1c) collapse to nearly one colour
+# under a red-green deficiency (measured ΔE ~8 in deuteranopia): the heavier weight keeps the
+# two apart for a viewer who cannot rely on the hue. CSS weights mirror the QFont ones for the
+# rich-text (HTML) confidence spans.
+#   Unit [Dict<string, int>]
+CONST_LEVEL_WEIGHTS = {'INFO': QFont.Normal, 'WARNING': QFont.DemiBold, 'ERROR': QFont.Bold}
+CONST_LEVEL_CSS_WEIGHTS = {'INFO': 400, 'WARNING': 600, 'ERROR': 700}
+
+
+def Log_Level_Weight(level: str) -> int:
+    """
+    Description:
+        The QFont weight for a severity level, from the one shared ramp — so the Log view's
+        level field and any confidence number at that severity carry the same weight.
+
+    Args:
+        (1) level [string]: The severity level ('INFO', 'WARNING' or 'ERROR').
+
+    Returns:
+        (1) parameter [int]: The QFont weight.
+    """
+
+    return CONST_LEVEL_WEIGHTS.get(level, QFont.Normal)
+
+
+def Confidence_Number_Html(number: str, percent: tp.Optional[float]) -> str:
+    """
+    Description:
+        A confidence number as rich text, coloured and weighted by its severity band so the
+        number itself carries the warning/error state (the surrounding words stay the label's
+        default ink). Reuses the log palette (Log_Level_Color) and the shared weight ramp,
+        never a fresh literal. Only a WARNING or ERROR value is wrapped; a fine value (INFO) and
+        an unscored value (None) are returned plain, so a passing or absent reading keeps the
+        default colour and weight and no markup is emitted where nothing changes.
+
+    Args:
+        (1) number [string]: The already-formatted number (e.g. '73%').
+        (2) percent [float]: Its value in percent (0..100), or None when unscored.
+
+    Returns:
+        (1) parameter [string]: The number as an HTML span for WARNING/ERROR, else plain.
+    """
+
+    level = Confidence_Severity(percent)
+    if percent is None or level == 'INFO':
+        return number
+    return '<span style="color: %s; font-weight: %d;">%s</span>' % (
+        Log_Level_Color(level), CONST_LEVEL_CSS_WEIGHTS[level], number)
 
 
 def Load_Fonts() -> None:

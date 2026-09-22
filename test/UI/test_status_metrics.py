@@ -179,9 +179,10 @@ def test_frame_mean_and_session_mean_are_over_their_own_scopes(qt_app, reference
     _Private(window, '__On_Analysis_Finished')(_Result(100, [0.90]))
     _Private(window, '__On_Analysis_Finished')(_Result(100, [0.50]))
 
-    assert meta.text() == '50%'                 # the frame: the last analysis alone
-    assert status.confidence.Value() == '70%'   # the session: every scored object
-    assert meta.text() != status.confidence.Value()
+    # The frame number is 50% (ERROR), now carried in a severity-coloured span (§5).
+    assert '50%' in meta.text()                  # the frame: the last analysis alone
+    assert status.confidence.Value() == '70%'    # the session: every scored object
+    assert '50%' not in status.confidence.Value()
 
 
 def test_session_mean_weights_each_object_equally_not_each_frame(qt_app, reference_background_path) -> None:
