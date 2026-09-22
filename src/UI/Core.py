@@ -49,6 +49,7 @@ from UI.Widgets import (Card_Cls, Card_Head_Cls, Icon_Cls, Viewport_Cls, Tool_Bu
                         Status_Strip_Cls, Funding_Row_Cls)
 #   ../UI/Views/History
 from UI.Views.History import History_View_Cls
+from UI.Views.Trends import Trends_View_Cls
 #   ../UI/Views/Log
 from UI.Views.Log import Log_View_Cls
 #   ../UI/Workers
@@ -64,6 +65,8 @@ from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask, Seg_Lines
 #   ../Reporting/Core
 from Reporting.Core import (Screen_Understanding, Scene_Background_Line, Scene_Count_Line,
                             Yolo_Lines)
+#   ../Reporting/Trends
+from Reporting.Trends import Trends_Accumulator_Cls
 #   ../Parameters/Vision
 from Parameters.Vision import (Analysis_Str, Detection_Str, Confidence_Severity,
                                CONST_CONFIDENCE_WARN_BELOW, CONST_CONFIDENCE_ERROR_BELOW,
@@ -109,11 +112,12 @@ class AnyScan_Window_Cls(QMainWindow):
     CONST_READING_NO_FRAME = ('Press Scan to capture a frame, then Analyze. The model’s '
                               'reading of the scene appears here as plain English text.')
     # The central-view switch segments, in order, as (key, label) — the stack pages line up
-    # with these by index (live=0, history=1, log=2). 'live' is first, so it is selected at
-    # startup.
-    CONST_VIEW_SEGMENTS = (('live', 'Live'), ('history', 'History'), ('log', 'Log'))
+    # with these by index (live=0, trends=1, history=2, log=3). 'live' is first, so it is
+    # selected at startup.
+    CONST_VIEW_SEGMENTS = (('live', 'Live'), ('trends', 'Trends'), ('history', 'History'),
+                           ('log', 'Log'))
     # The switch keys mapped to their stack index.
-    CONST_VIEW_INDEX = {'live': 0, 'history': 1, 'log': 2}
+    CONST_VIEW_INDEX = {'live': 0, 'trends': 1, 'history': 2, 'log': 3}
 
     CONST_READING_HAS_FRAME = ('Frame captured. Press Analyze to read the scene. The result '
                                'appears here as plain English text.')
@@ -172,17 +176,17 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__analysis_error_id = None
 
         self.__frame = None
-        self.__analyses = 0
-        self.__objects_found = 0
-        # The per-analysis latencies of this session, for the rolling MEDIAN inference
-        # time in the status strip — a median so a single slow frame does not swing the
-        # figure the operator reads. Reset with the counters on Clear.
+        # The ONE run accumulator behind the status aggregates AND the Trends charts: it owns the
+        # images-analysed count, the objects-detected total and the run mean confidence, so the
+        # status figures and the charts are one source and cannot drift (the last session-mean
+        # point equals the status mean by construction). Fed one successful analysis at a time; a
+        # failed analysis is never added, so the image count never advances on a failure. Reset on
+        # Clear. The word 'run' means the application run here, not a camera connection.
+        self.__trends = Trends_Accumulator_Cls()
+        # The per-analysis latencies of this run, for the rolling MEDIAN inference time in the
+        # status strip — a median so a single slow frame does not swing the figure the operator
+        # reads. Not in the accumulator (it is not charted). Reset with the run on Clear.
         self.__latencies = []
-        # Every scored object's confidence across the WHOLE session, for the session MEAN
-        # in the status strip. Kept distinct from the per-frame mean the panel table shows:
-        # the status figure is the mean over every object in every analysis since the
-        # session began, the table figure the mean over one frame's objects. Reset on Clear.
-        self.__session_scores = []
         # The last-logged severity band of the session-mean confidence ('ok' | 'warn' | 'error').
         # Only the status-bar session mean is logged, and only when it CROSSES a threshold — not
         # every analysis — so this remembers where it was to detect a crossing. Reset on Clear.
@@ -206,6 +210,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # and keep updating whichever view is shown.
         self.__stack = None
         self.__view_switch = None
+        self.__trends_view = None
         self.__history_view = None
         self.__log_view = None
         self.__viewport = None
@@ -265,11 +270,14 @@ class AnyScan_Window_Cls(QMainWindow):
         # cards while another view is on top.
         self.__stack = QStackedWidget()
         self.__stack.addWidget(self.__Build_Live_View())    # index 0 — Live
+        self.__trends_view = Trends_View_Cls(classification_enabled=self.__classification_enabled)
+        self.__trends_view.Set_Accumulator(self.__trends)
+        self.__stack.addWidget(self.__trends_view)           # index 1 — Trends
         self.__history_view = History_View_Cls(self.__captures_root, run_id=self.__run_id,
                                                classification_enabled=self.__classification_enabled)
-        self.__stack.addWidget(self.__history_view)          # index 1 — History
+        self.__stack.addWidget(self.__history_view)          # index 2 — History
         self.__log_view = Log_View_Cls()
-        self.__stack.addWidget(self.__log_view)              # index 2 — Log
+        self.__stack.addWidget(self.__log_view)              # index 3 — Log
 
         grid = QGridLayout()
         grid.setSpacing(Style.CONST_GAP)
@@ -1168,26 +1176,26 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__meta_latency.setText('%d ms' % result.Latency_Ms)
         self.__meta_confidence.setText(self.__Frame_Confidence_Text(result.Objects))
 
-        self.__analyses += 1
-        self.__objects_found += len(result.Objects)
-        self.__status.images.Set_Value(str(self.__analyses))
-        self.__status.objects.Set_Value(str(self.__objects_found))
+        # One successful analysis into the shared accumulator; the status counts read back from it.
+        self.__trends.Add_Analysis(result.Objects)
+        self.__status.images.Set_Value(str(self.__trends.Image_Count()))
+        self.__status.objects.Set_Value(str(self.__trends.Object_Count()))
         self.__status.updated.Set_Value(datetime.now().strftime('%H:%M:%S'))
         self.__Update_Performance_Stats(result)
+        if self.__trends_view is not None:
+            self.__trends_view.Refresh()
 
     def __Update_Performance_Stats(self, result: Analysis_Str) -> None:
         """
         Description:
-            Update the two status-strip aggregate cells from a completed analysis, both over
-            the WHOLE session: the rolling MEDIAN inference latency across the session's
-            analyses (not per object, and a median so one slow frame does not swing it), and
-            the MEAN detector confidence over every scored object in every analysis since the
-            session began. This session mean is deliberately distinct from the per-frame mean
-            the panel table shows — they cover different scopes and will read different
-            numbers at the same time. Only FastSAM supplies scores; objects the background cue
-            alone found (Segmenter_Score None) have none, so the mean is over exactly the
-            scored objects (never averaged silently over a partial set) and reads '—' until
-            one object anywhere in the session is scored.
+            Update the two status-strip aggregate cells over the whole RUN: the rolling MEDIAN
+            inference latency across the run's analyses (not per object, and a median so one slow
+            frame does not swing it), and the run MEAN detector confidence from the shared
+            accumulator — over every scored object in every analysis of the run. This run mean is
+            deliberately distinct from the per-frame mean the panel table shows — they cover
+            different scopes and will read different numbers at the same time. Objects the
+            background cue alone found have no score, so the mean is over exactly the scored objects
+            and reads '—' until one object anywhere in the run is scored.
 
         Args:
             (1) result [Analysis_Str(object)]: The scene reading.
@@ -1196,10 +1204,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__latencies.append(result.Latency_Ms)
         self.__status.inference.Set_Value('%d ms' % int(statistics.median(self.__latencies)))
 
-        self.__session_scores.extend(det.Segmenter_Score for det in result.Objects
-                                     if det.Segmenter_Score is not None)
-        if self.__session_scores:
-            percent = int(round(100.0 * sum(self.__session_scores) / len(self.__session_scores)))
+        percent = self.__trends.Run_Mean()
+        if percent is not None:
             level = Confidence_Severity(percent)
             self.__status.confidence.Set_Value('%d%%' % percent, color=Style.Log_Level_Color(level),
                                                weight=Style.Log_Level_Weight(level))
@@ -1295,13 +1301,13 @@ class AnyScan_Window_Cls(QMainWindow):
     def __On_View_Selected(self, key: str) -> None:
         """
         Description:
-            Switch the central area to the selected view (Live / History / Log). Only the stack
-            page changes; the header, status strip and footer stay fixed, and every view keeps
-            its state — so an analysis started on another view still shows its result when Live
-            is selected again, and the status strip keeps updating throughout.
+            Switch the central area to the selected view (Live / Trends / History / Log). Only the
+            stack page changes; the header, status strip and footer stay fixed, and every view
+            keeps its state — so an analysis started on another view still shows its result when
+            Live is selected again, and the status strip keeps updating throughout.
 
         Args:
-            (1) key [string]: The view key ('live', 'history' or 'log').
+            (1) key [string]: The view key ('live', 'trends', 'history' or 'log').
         """
 
         index = self.CONST_VIEW_INDEX.get(key)
@@ -1311,6 +1317,9 @@ class AnyScan_Window_Cls(QMainWindow):
         # is shown, so a set written (or evicted) since last time is reflected.
         if key == 'history':
             self.__history_view.Refresh()
+        # Trends draws the current accumulator — redraw on show so a hidden-view analysis appears.
+        elif key == 'trends':
+            self.__trends_view.Refresh()
 
     def __Clear_Reading(self) -> None:
         """
@@ -1339,10 +1348,8 @@ class AnyScan_Window_Cls(QMainWindow):
         if self.__logger is not None:
             self.__logger.Log_Info('Cleared the frame, the counters and the reading panel')
         self.__frame = None
-        self.__analyses = 0
-        self.__objects_found = 0
+        self.__trends.Reset()
         self.__latencies = []
-        self.__session_scores = []
         self.__confidence_band = 'ok'
         self.__viewport.Clear()
         self.__frame_badge.setText('No frame')
@@ -1351,6 +1358,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__status.updated.Set_Value(Style.CONST_NO_VALUE)
         self.__status.inference.Set_Value(Style.CONST_NO_VALUE)
         self.__status.confidence.Set_Value(Style.CONST_NO_VALUE)
+        if self.__trends_view is not None:
+            self.__trends_view.Refresh()
         self.__Clear_Reading()
         self.__Sync_Controls()
 

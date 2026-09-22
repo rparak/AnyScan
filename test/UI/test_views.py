@@ -92,13 +92,17 @@ def test_startup_is_live_and_the_switch_changes_only_the_central_view(qt_app, re
     stack = _Private(window, '__stack')
     switch = _Private(window, '__view_switch')
 
-    assert stack.count() == 3
+    assert stack.count() == 4
     assert stack.currentIndex() == 0
     assert switch.Selection() == 'live'
+    # The switch order is Live · Trends · History · Log.
+    assert [key for key, _label in window.CONST_VIEW_SEGMENTS] == ['live', 'trends', 'history', 'log']
 
     _Private(window, '__On_View_Selected')('log')
-    assert stack.currentIndex() == 2
+    assert stack.currentIndex() == 3
     _Private(window, '__On_View_Selected')('history')
+    assert stack.currentIndex() == 2
+    _Private(window, '__On_View_Selected')('trends')
     assert stack.currentIndex() == 1
     _Private(window, '__On_View_Selected')('live')
     assert stack.currentIndex() == 0

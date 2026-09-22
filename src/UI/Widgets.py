@@ -983,7 +983,7 @@ class Stat_Cell_Cls(QWidget):
         Description:
             Set the cell's value, optionally with a colour, a leading status dot, and a font
             weight. `weight` overrides only the weight, keeping the cell's own size and family,
-            so the confidence session-mean can carry the severity weight ramp without the cell
+            so the confidence run-mean can carry the severity weight ramp without the cell
             reinventing its type.
 
         Args:
@@ -1014,9 +1014,10 @@ class Status_Strip_Cls(Card_Cls):
         Hairline-divided cells across the full width. The cells (camera, resolution, system,
         updated, images, objects, inference, confidence) are public so the window can drive
         them. The order runs device state first (what the console is connected to), then the
-        session counts, then the two derived aggregates last, since those cover every frame
-        checked so far: inference is the session MEDIAN analysis latency (a median so one
-        slow frame does not swing it) and confidence the session MEAN detector score. Both
+        run counts, then the two derived aggregates last, since those cover every frame
+        checked so far in this application RUN (not one camera connection): inference is the run
+        MEDIAN analysis latency (a median so one slow frame does not swing it) and confidence the
+        run MEAN detector score. Both
         aggregate labels name their scope and their statistic — the two differ deliberately,
         so flattening them to one word would misname them.
     """
@@ -1033,8 +1034,8 @@ class Status_Strip_Cls(Card_Cls):
         self.updated = Stat_Cell_Cls('Last update', Style.CONST_NO_VALUE, mono=True)
         self.images = Stat_Cell_Cls('Images analysed', '0', big=True)
         self.objects = Stat_Cell_Cls('Objects detected', '0', big=True)
-        self.inference = Stat_Cell_Cls('Inference (session median)', Style.CONST_NO_VALUE, mono=True)
-        self.confidence = Stat_Cell_Cls('Confidence (session mean)', Style.CONST_NO_VALUE, mono=True)
+        self.inference = Stat_Cell_Cls('Inference (run median)', Style.CONST_NO_VALUE, mono=True)
+        self.confidence = Stat_Cell_Cls('Confidence (run mean)', Style.CONST_NO_VALUE, mono=True)
 
         for i, cell in enumerate([self.camera, self.resolution, self.system, self.updated,
                                   self.images, self.objects, self.inference, self.confidence]):

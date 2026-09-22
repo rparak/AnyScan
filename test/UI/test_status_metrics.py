@@ -202,7 +202,8 @@ def test_session_mean_weights_each_object_equally_not_each_frame(qt_app, referen
     _Private(window, '__On_Analysis_Finished')(_Result(100, [0.30]))
 
     assert status.confidence.Value() == '75%'   # per object; the mean-of-means 60% is wrong
-    assert _Private(window, '__session_scores') == [0.90, 0.90, 0.90, 0.30]
+    trends = _Private(window, '__trends')           # the one run accumulator
+    assert trends.Object_Count() == 4 and trends.Run_Mean() == 75
 
 
 def test_frame_confidence_shows_coverage_when_partial_and_dash_when_none(qt_app, reference_background_path) -> None:
@@ -245,4 +246,5 @@ def test_clear_resets_the_performance_fields(qt_app, reference_background_path) 
     assert status.confidence.Value() == Style.CONST_NO_VALUE
     assert _Private(window, '__meta_confidence').text() == Style.CONST_NO_VALUE
     assert _Private(window, '__latencies') == []
-    assert _Private(window, '__session_scores') == []
+    trends = _Private(window, '__trends')
+    assert trends.Image_Count() == 0 and trends.Run_Mean() is None

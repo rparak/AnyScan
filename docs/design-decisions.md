@@ -250,7 +250,44 @@ simply are not shown. The run is identified by this **explicit id, not by compar
 a timestamp scheme breaks the moment the clock is adjusted, and a run can span several camera
 connections (each its own on-disk `session`), which one id spans and a per-session scheme would
 split. Before the first analysis the grid shows a short muted message ("No captures in this run
-yet. Analyse an image to begin."), not a blank panel. (The word "session" is disambiguated when
-the Trends view lands — the logger and capture directories keep it for a camera connection, while
-the visible UI speaks of the application run.)
+yet. Analyse an image to begin."), not a blank panel. See the next entry for what "session"
+and "run" each mean.
 Tests `test/UI/test_history.py::test_history_lists_only_the_current_run`, `::test_empty_run_shows_the_run_scoped_message`.
+
+## "Run" in the UI, "session" only for a camera connection
+
+History, the Trends charts and the status-bar aggregates all describe the same span: the
+**application run**, reset by Clear. The logger and the on-disk capture directories already used
+"session" for one **camera connection**, so the word could not also mean the run without two
+readings of one label. The UI therefore says **run** ("Inference (run median)", "Confidence (run
+mean)", the charts' "run mean" line), and where a set's camera connection is shown it is called a
+**Connection** (the History grid headers and the Info panel), never a session. "Session" survives
+only in the logger, the capture directory names and internal identifiers tied to them.
+**Revisit if** the capture directories are renamed, at which point "session" can leave the code too.
+
+## Trends: one accumulator, a hand-drawn chart base, and no failed image on the x axis
+
+The Trends view (Live · Trends · History · Log — named for what it shows: both charts are
+running values over the run's images, not summary statistics) draws two charts: cumulative
+detected objects (Total, plus OK/NOK when the run classifies), and confidence (one dot per scored
+object, the frame mean, the running run mean, dashed 80%/60% lines at the §5 thresholds).
+
+- **One accumulator** (`Reporting.Trends.Trends_Accumulator_Cls`, Qt-free) feeds both charts
+  *and* the status bar's IMAGES ANALYSED, OBJECTS DETECTED and run-mean confidence, so the last
+  point of each series is the status figure by construction, not by two paths agreeing.
+- **A failed analysis does not advance x.** It is not an analysed image, and the accumulator is
+  only fed successful analyses, so the last x and IMAGES ANALYSED agree either way.
+- **Unscored objects are not plotted.** A dot at 0% would be a false low-confidence reading; the
+  hover shows how many objects in that image were left off.
+- **Hand-drawn with QPainter, not matplotlib.** matplotlib is installed (via ultralytics), but a
+  small Qt chart base matches how the rest of the UI is drawn, takes its colours and type sizes
+  from the theme by construction, and keeps a plotting library out of the UI layer. Both charts
+  share one base (`UI.Views.Trends.Chart_Base_Cls`) for axes, gridlines, legend and hover; the
+  maths that such charts usually get wrong (1/2/5 × 10ⁿ ticks on **both** axes, value→pixel
+  mapping, the hover hit-test, x-label thinning onto round numbers) is pure and unit-tested.
+- Neutral confidence dots use the detection colour's **ink** twin (`#5C6270`): the box value
+  `#B8BECA` is tuned for drawing on the green frame and nearly vanishes on the white card.
+
+**Revisit if** a chart needs zoom/pan or thousands of series points, which is where adopting a
+charting library starts to pay for itself.
+Tests `test/Reporting/test_trends.py`, `test/UI/test_trends_view.py`.
