@@ -68,12 +68,6 @@ class _Spy_Logger_Cls(object):
         self.warnings.append(info)
 
     # The other lifecycle calls the finished slot makes are recorded as no-ops.
-    def Record_Run(self, *args, **kwargs) -> None:
-        pass
-
-    def Log_Analysis_Failed(self, *args, **kwargs) -> int:
-        return 0
-
     def Log_Cleared(self, *args, **kwargs) -> None:
         pass
 

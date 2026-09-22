@@ -27,8 +27,7 @@
 import os
 import re
 import csv
-import json
-from datetime import datetime, timedelta
+from datetime import datetime
 # Typing (Support for type hints)
 import typing as tp
 # Pytest (Testing framework) [pip3 install pytest]
@@ -170,13 +169,13 @@ def _Build_Reference_Run(tmp_path: tp.Any) -> tp.Tuple[Session_Logger_Cls, Clock
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
 
     clock.now = _T('14:37:12'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('14:37:21'); Session_Logger.Log_Analysis_Finished(14, 1000, 3, 0, None, nok=0)
-    clock.now = _T('14:37:25'); Session_Logger.Log_Analysis_Finished(15, 1000, 2, 0, None, nok=0)
+    clock.now = _T('14:37:21'); Session_Logger.Log_Analysis_Finished(14, 1000, 3, 0, None)
+    clock.now = _T('14:37:25'); Session_Logger.Log_Analysis_Finished(15, 1000, 2, 0, None)
     clock.now = _T('14:37:34'); error_id = Session_Logger.Log_Error('camera timeout')
     clock.now = _T('14:37:49'); Session_Logger.Log_Error_Resolved(error_id)
     clock.now = _T('14:40:02'); Session_Logger.Log_Camera_Disconnected()
     clock.now = _T('14:52:30'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('15:05:00'); Session_Logger.Log_Analysis_Finished(42, 1000, 4, 0, None, nok=0)
+    clock.now = _T('15:05:00'); Session_Logger.Log_Analysis_Finished(42, 1000, 4, 0, None)
     clock.now = _T('15:20:01'); Session_Logger.Log_Error('analysis failed on image 233')
 
     return (Session_Logger, clock, _T('16:12:44'))
@@ -324,26 +323,6 @@ def test_single_session_duration(tmp_path: tp.Any) -> None:
     Session_Logger.Close()
 
 
-def test_image_and_object_counters(tmp_path: tp.Any) -> None:
-    """
-    Description:
-        The run-wide image and object counters accumulate, and the per-session
-        counters follow the open session.
-    """
-
-    clock = Clock_Cls(_T('08:00:00'))
-    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
-    clock.now = _T('08:00:01'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('08:00:05'); Session_Logger.Log_Analysis_Finished(1, 1000, 3, 0, None, nok=0)
-    clock.now = _T('08:00:09'); Session_Logger.Log_Analysis_Finished(2, 1000, 2, 0, None, nok=0)
-
-    assert Session_Logger.Analyzed_Images == 2
-    assert Session_Logger.Analyzed_Objects == 5
-    assert Session_Logger.Sessions[0].Images == 2
-    assert Session_Logger.Sessions[0].Objects == 5
-    Session_Logger.Close()
-
-
 def test_orphan_events_are_warnings(tmp_path: tp.Any) -> None:
     """
     Description:
@@ -446,51 +425,33 @@ def test_columns_present_in_declared_order_and_format(tmp_path: tp.Any) -> None:
     assert re.fullmatch(r'log_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.txt', row['log_file'])
     assert re.fullmatch(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', row['application_start'])
     assert re.fullmatch(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', row['application_stop'])
-    for key in ('cycle_time', 'total_session_time', 'idle_time', 'total_error_time'):
+    for key in ('cycle_time', 'total_session_time', 'idle_time'):
         assert re.fullmatch(r'\d{2,}:\d{2}:\d{2}', row[key])
-    assert re.fullmatch(r'\d+\.\d{3}', row['cycle_hours'])
-    for key in ('analyzed_images', 'analyzed_objects', 'sessions_count', 'errors_count'):
-        assert re.fullmatch(r'\d+', row[key])
 
 
 def test_reference_run_row_values(tmp_path: tp.Any) -> None:
     """
     Description:
-        The full data row for the realistic reference scenario carries the expected
-        values in every column, including the compact per-session and per-error cells.
+        The data row for the realistic reference scenario carries the expected value in every
+        column: the run's time account, with the second session closed at the stop time.
     """
 
     Session_Logger, clock, stop_time = _Build_Reference_Run(tmp_path)
     clock.now = stop_time; Session_Logger.Close()
 
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
-    assert row['log_file'] == 'log_2026-09-12_14-37.txt'
-    assert row['application_start'] == '2026-09-12 14:37:02'
-    assert row['application_stop'] == '2026-09-12 16:12:44'
-    assert row['cycle_time'] == '01:35:42'
-    assert row['cycle_hours'] == '1.595'
-    assert row['analyzed_images'] == '3'
-    assert row['analyzed_objects'] == '9'
-    assert row['sessions_count'] == '2'
-    assert row['total_session_time'] == '01:23:04'
-    assert row['idle_time'] == '00:12:38'
-    assert row['errors_count'] == '2'
-    assert row['total_error_time'] == '00:52:58'
-    assert json.loads(row['session_details']) == [
-        {'index': 1, 'start': '2026-09-12 14:37:12.000', 'end': '2026-09-12 14:40:02.000', 'duration': '00:02:50.000'},
-        {'index': 2, 'start': '2026-09-12 14:52:30.000', 'end': '2026-09-12 16:12:44.000', 'duration': '01:20:14.000'}]
-    assert json.loads(row['error_details']) == [
-        {'id': 1, 'start': '2026-09-12 14:37:34.000', 'end': '2026-09-12 14:37:49.000', 'duration': '00:00:15.000',
-         'message': 'camera timeout'},
-        {'id': 2, 'start': '2026-09-12 15:20:01.000', 'end': '2026-09-12 16:12:44.000', 'duration': '00:52:43.000',
-         'message': 'analysis failed on image 233'}]
+    assert row == {'log_file': 'log_2026-09-12_14-37.txt',
+                   'application_start': '2026-09-12 14:37:02',
+                   'application_stop': '2026-09-12 16:12:44',
+                   'cycle_time': '01:35:42', 'total_session_time': '01:23:04',
+                   'idle_time': '00:12:38'}
 
 
 def test_zero_activity_row_is_complete(tmp_path: tp.Any) -> None:
     """
     Description:
-        A run with zero images, zero sessions and zero errors still produces one full
-        row, with zeros and empty detail cells — never a skipped or partial row.
+        A run with no connection still produces one full row — the whole cycle idle — never a
+        skipped or partial row.
     """
 
     clock = Clock_Cls(_T('12:16:23'))
@@ -502,23 +463,15 @@ def test_zero_activity_row_is_complete(tmp_path: tp.Any) -> None:
     row = rows[0]
     assert set(row.keys()) == set(CONST_CSV_COLUMNS)
     assert row['cycle_time'] == '00:00:06'
-    assert row['cycle_hours'] == '0.002'
-    assert row['analyzed_images'] == '0'
-    assert row['analyzed_objects'] == '0'
-    assert row['sessions_count'] == '0'
     assert row['total_session_time'] == '00:00:00'
     assert row['idle_time'] == '00:00:06'
-    assert row['errors_count'] == '0'
-    assert row['total_error_time'] == '00:00:00'
-    assert row['session_details'] == ''
-    assert row['error_details'] == ''
 
 
 def test_session_open_at_shutdown_is_counted(tmp_path: tp.Any) -> None:
     """
     Description:
-        A session still open at shutdown is counted and its duration measured to the
-        stop time; the '.txt' file marks it '(closed at shutdown)'.
+        A session still open at shutdown is measured to the stop time; the '.txt' file marks it
+        '(closed at shutdown)'.
     """
 
     clock = Clock_Cls(_T('12:00:00'))
@@ -527,10 +480,7 @@ def test_session_open_at_shutdown_is_counted(tmp_path: tp.Any) -> None:
     clock.now = _T('12:30:10'); Session_Logger.Close()
 
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
-    assert row['sessions_count'] == '1'
     assert row['total_session_time'] == '00:30:00'
-    assert json.loads(row['session_details']) == [
-        {'index': 1, 'start': '2026-09-12 12:00:10.000', 'end': '2026-09-12 12:30:10.000', 'duration': '00:30:00.000'}]
 
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
     assert '(closed at shutdown)' in content
@@ -552,30 +502,25 @@ def test_multiple_sessions_total_session_time(tmp_path: tp.Any) -> None:
     clock.now = _T('10:10:00'); Session_Logger.Close()
 
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
-    assert row['sessions_count'] == '2'
     assert row['total_session_time'] == '00:03:30'      # 60 + 150 = 210 s
 
 
-def test_unresolved_error_counted_to_shutdown(tmp_path: tp.Any) -> None:
+def test_errors_are_tracked_for_the_log_and_not_summarised(tmp_path: tp.Any) -> None:
     """
     Description:
-        Errors are counted with a summed total; a resolved error records its downtime
-        and an unresolved error's duration is measured up to shutdown.
+        Errors are still tracked — the '.txt' reports each resolution — but the run summary no
+        longer carries them: the row is the six time-account columns only.
     """
 
     clock = Clock_Cls(_T('13:00:00'))
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('13:00:10'); first_id = Session_Logger.Log_Error('camera timeout')
-    clock.now = _T('13:00:25'); Session_Logger.Log_Error_Resolved(first_id)   # 15 s
+    clock.now = _T('13:00:25'); Session_Logger.Log_Error_Resolved(first_id)
     clock.now = _T('13:01:00'); Session_Logger.Log_Error('analysis failed')    # unresolved
-    clock.now = _T('13:02:00'); Session_Logger.Close()                         # unresolved runs 60 s
+    clock.now = _T('13:02:00'); Session_Logger.Close()
 
-    assert Session_Logger.Errors[1].Resolved is False
-    row = _Read_Rows(Session_Logger.Csv_Path)[0]
-    assert row['errors_count'] == '2'
-    assert row['total_error_time'] == '00:01:15'        # 15 + 60 = 75 s
-    assert [(e['id'], e['duration'], e['message']) for e in json.loads(row['error_details'])] == [
-        (1, '00:00:15.000', 'camera timeout'), (2, '00:01:00.000', 'analysis failed')]
+    assert [e.Resolved for e in Session_Logger.Errors] == [True, False]
+    assert list(_Read_Rows(Session_Logger.Csv_Path)[0]) == CONST_CSV_COLUMNS
 
 
 def test_idle_time_equals_cycle_minus_session(tmp_path: tp.Any) -> None:
@@ -592,78 +537,33 @@ def test_idle_time_equals_cycle_minus_session(tmp_path: tp.Any) -> None:
             == _Hms_To_Seconds(row['cycle_time']) - _Hms_To_Seconds(row['total_session_time']))
 
 
-def test_details_round_trip_with_commas_and_quotes(tmp_path: tp.Any) -> None:
-    """
-    Description:
-        A detail cell round-trips through csv.DictReader and json.loads unchanged: commas,
-        quotes, colons, a pipe and a newline inside an error message all survive VERBATIM —
-        JSON escapes them, so nothing has to be sanitised away — and the times are full
-        datetimes, parsed as fields rather than split out of a colon-joined string.
-    """
-
-    message = 'he said "wait, now" | really: 12:00\nsecond line'
-    clock = Clock_Cls(_T('09:00:00'))
-    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
-    clock.now = _T('09:00:10'); Session_Logger.Log_Error(message)
-    clock.now = _T('09:00:25'); Session_Logger.Close()
-
-    row = _Read_Rows(Session_Logger.Csv_Path)[0]
-    assert row['error_details'].startswith('[')               # the JSON encoding identifies itself
-    assert json.loads(row['error_details']) == [
-        {'id': 1, 'start': '2026-09-12 09:00:10.000', 'end': '2026-09-12 09:00:25.000',
-         'duration': '00:00:15.000', 'message': message}]
-
-
 def test_summary_arithmetic_is_self_consistent_at_sub_second_times(tmp_path: tp.Any) -> None:
     """
     Description:
-        Real clocks have sub-second parts. A detail entry used to print whole-second start/end
-        but round its duration from the exact times, so 20:18:38 -> 20:18:39 could read 00:00:02.
-        Now every detail entry carries millisecond timestamps and a duration derived from exactly
-        those, so start + duration == end holds to the millisecond; and the whole-second columns
-        are derived from the values the row prints, so cycle_time equals the printed stop minus the
-        printed start AND total_session_time + idle_time.
+        Real clocks have sub-second parts. The whole-second columns are derived from the values
+        the row prints, so cycle_time equals the printed stop minus the printed start AND
+        total_session_time + idle_time, and the session total is the sessions' exact durations
+        (1.586 s + 0.650 s) rounded once — not each rounded and then summed.
     """
 
     def Parse_Time(text: str) -> datetime:
         return datetime.strptime('2026-09-22 ' + text, '%Y-%m-%d %H:%M:%S.%f')
 
-    def Parse_Span(text: str) -> timedelta:
-        hms, milli = text.split('.')
-        h, m, sec = (int(v) for v in hms.split(':'))
-        return timedelta(hours=h, minutes=m, seconds=sec, milliseconds=int(milli))
-
     clock = Clock_Cls(Parse_Time('20:18:37.300'))
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
                                         install_handlers=False)
     clock.now = Parse_Time('20:18:38.412'); Session_Logger.Log_Camera_Connected()
-    clock.now = Parse_Time('20:18:38.900'); error_id = Session_Logger.Log_Error('camera timeout')
-    clock.now = Parse_Time('20:18:39.050'); Session_Logger.Log_Error_Resolved(error_id)
     clock.now = Parse_Time('20:18:39.998'); Session_Logger.Log_Camera_Disconnected()
     clock.now = Parse_Time('20:18:40.100'); Session_Logger.Log_Camera_Connected()
     clock.now = Parse_Time('20:18:40.750'); Session_Logger.Close()        # closes connection 2 at shutdown
 
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
-    sessions = json.loads(row['session_details'])
-    errors = json.loads(row['error_details'])
-
-    # The reported case: 38.412 -> 39.998 is 1.586 s, not a rounded 00:00:02.
-    assert sessions[0] == {'index': 1, 'start': '2026-09-22 20:18:38.412',
-                           'end': '2026-09-22 20:18:39.998', 'duration': '00:00:01.586'}
-    # Every entry, both cells: start + duration == end, exactly.
-    for entry in sessions + errors:
-        start = datetime.strptime(entry['start'], '%Y-%m-%d %H:%M:%S.%f')
-        end = datetime.strptime(entry['end'], '%Y-%m-%d %H:%M:%S.%f')
-        assert start + Parse_Span(entry['duration']) == end, entry
-
-    # The whole-second columns add up from what the row prints.
     printed = (datetime.strptime(row['application_stop'], '%Y-%m-%d %H:%M:%S')
                - datetime.strptime(row['application_start'], '%Y-%m-%d %H:%M:%S')).total_seconds()
     cycle = _Hms_To_Seconds(row['cycle_time'])
     assert cycle == printed == 3
     assert cycle == _Hms_To_Seconds(row['total_session_time']) + _Hms_To_Seconds(row['idle_time'])
-    detail_total = sum(Parse_Span(e['duration']).total_seconds() for e in sessions)   # 1.586 + 0.650
-    assert _Hms_To_Seconds(row['total_session_time']) == round(detail_total) == 2
+    assert _Hms_To_Seconds(row['total_session_time']) == round(1.586 + 0.650) == 2
 
 
 def test_semicolon_delimiter_is_configurable(tmp_path: tp.Any) -> None:
@@ -698,14 +598,12 @@ def test_csv_row_written_on_exception_exit(tmp_path: tp.Any) -> None:
                                 install_handlers=False) as Session_Logger:
             csv_holder['path'] = Session_Logger.Csv_Path
             clock.now = _T('11:00:05'); Session_Logger.Log_Camera_Connected()
-            clock.now = _T('11:00:10'); Session_Logger.Log_Analysis_Finished(1, 1000, 2, 0, None, nok=0)
+            clock.now = _T('11:00:10'); Session_Logger.Log_Analysis_Finished(1, 1000, 2, 0, None)
             raise RuntimeError('boom')
 
     rows = _Read_Rows(csv_holder['path'])
     assert len(rows) == 1
-    assert rows[0]['analyzed_images'] == '1'
-    assert rows[0]['analyzed_objects'] == '2'
-    assert rows[0]['sessions_count'] == '1'
+    assert rows[0]['total_session_time'] == '00:00:05'
 
 
 def test_csv_write_failure_is_logged_and_not_raised(tmp_path: tp.Any) -> None:
@@ -731,39 +629,6 @@ def test_csv_write_failure_is_logged_and_not_raised(tmp_path: tp.Any) -> None:
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
     assert '[ERROR  ] Failed to write the run-summary CSV row' in content
     assert content.rstrip().endswith('Application stopped.')
-
-
-def test_header_mismatch_row_is_aligned_and_warned(tmp_path: tp.Any) -> None:
-    """
-    Description:
-        When the existing CSV header does not match the current columns, the row is not
-        appended misaligned: it is re-ordered to the existing header (columns the header
-        does not name are dropped, columns it names but the run does not provide are left
-        empty) and a warning is logged into the '.txt' file. This is the documented
-        choice over failing loudly.
-    """
-
-    clock = Clock_Cls(_T('16:00:00'))
-    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
-    csv_path = Session_Logger.Csv_Path
-
-    # Pre-seed the CSV with a header that differs from the current column set.
-    stale_header = ['application_start', 'cycle_time', 'bogus_column']
-    with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
-        csv.writer(f).writerow(stale_header)
-
-    clock.now = _T('16:00:06'); Session_Logger.Close()
-
-    rows = _Read_Rows(csv_path)
-    assert len(rows) == 1
-    row = rows[0]
-    assert list(row.keys()) == stale_header             # the header was not rewritten
-    assert row['application_start'] == '2026-09-12 16:00:00'
-    assert row['cycle_time'] == '00:00:06'
-    assert row['bogus_column'] == ''                    # named but not provided -> empty
-
-    content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
-    assert '[WARNING] The run-summary CSV header does not match the current columns' in content
 
 
 def test_txt_has_no_run_summary_block(tmp_path: tp.Any) -> None:

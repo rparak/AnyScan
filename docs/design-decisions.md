@@ -315,12 +315,12 @@ Tests `test/UI/test_history.py::test_history_lists_only_the_current_run`, `::tes
 ## Vocabulary: "session" is a camera connection; UI figures run since start or last Clear
 
 **Session = camera connection = the UI's "Connection".** The logger's session bookkeeping, the
-capture directory names (`<timestamp>_s<N>`) and the run-summary CSV's `sessions_count`,
-`total_session_time` and `session_details` all count **camera connections**. In the UI a connection
+capture directory names (`<timestamp>_s<N>`) and the run-summary CSV's `total_session_time` all
+count **camera connections**. In the UI a connection
 is called a **Connection** — the History grid headers, the Info panel, and the Log view's prose
 lines ("Camera connected. Connection 1 started.", "Connection 1 ended after …", "Created the
 capture directory for connection …"). The Log is UI and speaks the UI's words. The CSV is a file
-format: its `session*` column names are a data contract that existing rows carry, so they stay.
+format: its `total_session_time` column name is a data contract that its rows carry, so it stays.
 
 **Three spans, named precisely** — they differ on purpose, and each is labelled for what it is:
 
@@ -330,14 +330,13 @@ format: its `session*` column names are a data contract that existing rows carry
   one accumulator.
 - **History: the application run**, identified by the run id in each set's `_objects.json`. Clear
   does not hide sets; History shows every set written since the application started.
-- **The run-summary CSV: one row per application run**, whole-run, ignoring Clear;
-  `clears_count` records the Clear presses, so a row that differs from the status bar's last
-  reading is explained rather than looking like a bug.
+- **The run-summary CSV: one row per application run** — its time account (cycle, connected
+  and idle time), which Clear does not touch.
 
 So after a Clear, the status bar and Trends restart while History and the CSV do not. That is the
 intended behaviour, not a counting bug.
 **Revisit if** the capture directories are renamed, at which point "session" can leave the code
-too; the CSV columns keep their names regardless.
+too; the CSV column keeps its name regardless.
 
 ## Trends: one accumulator, a hand-drawn chart base, and no failed image on the x axis
 
@@ -350,7 +349,7 @@ object, the frame mean, the running run mean, dashed 80%/60% lines at the §5 th
   *and* the status bar's IMAGES ANALYSED, OBJECTS DETECTED and run-mean confidence, so the last
   point of each series is the status figure by construction, not by two paths agreeing. It spans
   **since the application started or the last Clear** (Clear resets it), not the whole application
-  run — History and the run-summary CSV cover that (see the vocabulary entry).
+  run — History covers that (see the vocabulary entry).
 - **A failed analysis does not advance x.** It is not an analysed image, and the accumulator is
   only fed successful analyses, so the last x and IMAGES ANALYSED agree either way.
 - **Unscored objects are not plotted.** A dot at 0% would be a false low-confidence reading; the
@@ -400,64 +399,43 @@ shipped config produces the existing name, so current files continue unchanged.
 Tests `test/Logger/test_core.py::test_csv_filename_follows_the_loaded_configuration`,
 `::test_logger_requires_the_configuration_to_be_stated`.
 
-## Run-summary CSV columns are appended, never renamed, and old files are extended in place
+## Run-summary CSV: six time-account columns; an older format is archived, never appended to
 
-The CSV gained `run_id, classification_enabled, failed_analyses, scored_objects, nok_objects,
-mean_confidence, median_inference_ms, clears_count` after `error_details`. Columns are only ever
-**appended** — never renamed or reordered — so an older file's header is a strict prefix of the
-current list. On the first run that closes onto such a file the logger extends the header line
-once (`Logger.Core.Extend_Csv_Header`): the new header is written to a temporary file and
-atomically replaces the CSV under the file lock, every existing row stays byte-identical, and a
-reader treats an old row's missing trailing cells as empty. Any other mismatch (reordered, renamed,
-or a header from a newer version) keeps the align-and-warn path rather than guessing. A row appends
-through a handle re-checked after the lock is taken, so a run that waited while another extended
-the file does not write into the replaced one.
+The CSV is cut to `log_file, application_start, application_stop, cycle_time, total_session_time,
+idle_time` — the run's time account: when the application ran, for how long, how much of that a
+camera was connected, and how much it was idle (`cycle_time == total_session_time + idle_time`
+exactly, every duration derived from the whole-second values the row prints). Counts, errors,
+confidence and inference figures, the run id, the Clear count and the JSON detail cells are gone;
+the `.txt` log beside each row still records every event, and the capture sets carry the per-image
+figures.
 
-Every figure is **whole-run**: one row per application run, and Clear — which resets only what the
-UI shows — does not reset the CSV. `clears_count` records the Clear presses so a row that differs
-from the status bar's last reading is explained, not mistaken for a bug. `run_id` is the id every
-capture set's `_objects.json` carries, joining a row to its sets. `mean_confidence` and
-`median_inference_ms` are blank, never 0, when nothing was scored / no analysis completed.
-`nok_objects` is 0 until a classifier exists, and `classification_enabled` in the same row says
-whether that 0 means "none failed" or "nothing was judged".
-Tests `test/Logger/test_csv_extension.py`, `test/UI/test_run_summary.py`.
+**An older file is renamed aside, not appended to.** Every file written before the cut carries the
+22-column header, which is not a prefix of the six, so the old header-extension path cannot apply.
+Appending six values under the 22-column header (the extra cells empty) would make one file whose
+rows mean different things depending on when they were written. Instead, when the file at the
+canonical name has any header other than the current columns, the logger renames it — byte-for-byte
+unchanged — to `log_<id>_until_<date>.csv`, the date its last row was written (`_2`, `_3` if that
+name is taken), and the canonical `log_<id>.csv` starts afresh. A reader looking for "the log"
+finds the live one; history sits beside it under a name that says what it is. The `.txt` log of
+the run that archived it says so. The check and the rename run under the file lock, and a run
+that waited while another archived the file re-checks the file now at the path, so two runs
+closing together cannot both archive or write into the archived file.
 
-## `session_details` and `error_details` are JSON; older rows keep the colon encoding
+This one rule replaced the header-extension path (rewrite the header in place when it is a prefix)
+and the align-and-warn path (realign a row to a mismatched header) — the most intricate code in
+the logger, which existed to solve the problem this rule removes. Any future change of columns
+archives the same way.
 
-Both breakdown cells used to pack entries as `index:HH:MM:SS-HH:MM:SS:HH:MM:SS` (and
-`…:message` for errors), joined by ` | ` — colons separating timestamps that themselves contain
-colons. That is readable only by a positional regex that assumes every time is exactly
-`HH:MM:SS`; it breaks once a duration reaches 100 hours (`Format_HMS` widens the hour field),
-drops the date (a session crossing midnight is ambiguous), and required sanitising `|` and
-newlines out of error messages. Both cells are now compact JSON arrays with full datetimes at
-millisecond precision —
-`[{"index":1,"start":"2026-09-22 20:18:38.412","end":"2026-09-22 20:18:39.998","duration":"00:00:01.586"}]`,
-errors adding `"id"` and a verbatim `"message"` — parsed with any JSON reader.
-
-**Every row checks out arithmetically.** The old cells printed whole-second start/end but rounded
-the duration from the exact times, so an entry could read 20:18:38 → 20:18:39 with a duration of
-00:00:02 — internally inconsistent, and the kind of thing that makes someone doubt the totals.
-Now each entry's timestamps are cut to whole milliseconds and its duration is derived from exactly
-those two values, so `start + duration == end` holds for every entry. The whole-second columns
-keep their `HH:MM:SS` format (a contract) but are derived from the values the row prints:
-`cycle_time` is the printed stop minus the printed start, `total_session_time` and
-`total_error_time` are the detail durations rounded to seconds, and `idle_time` is the cycle minus
-that session total, so `cycle_time == total_session_time + idle_time` exactly.
-
-**Where the change starts.** Old rows are not rewritten. The encoding is self-identifying: a JSON
-cell begins with `[`, a legacy cell with a digit, and an empty breakdown is an empty cell in both.
-It takes effect from the commit "Run-summary CSV: encode session_details and error_details as JSON" (the one after `fdc6edd`); the first real run after it writes the first JSON row,
-and that row also carries a `run_id`, the first run id in the file. **Millisecond timestamps and
-the self-consistent arithmetic** start one commit later ("Run-summary CSV: millisecond detail
-timestamps; every row adds up"): a JSON timestamp with a `.mmm` fraction is the new behaviour. No
-row was written in between — the real file had no JSON cells when this landed — so in practice
-every JSON row is millisecond-precise, and every legacy row keeps its original rounding. To read a legacy cell, split on
-` | ` and match each entry with
+**Reading an archived file.** Its rows are the old 22 columns. Their `session_details` and
+`error_details` cells are compact JSON arrays (`[{"index":1,"start":"2026-09-22 20:18:38.412",…}]`)
+from the commit "Run-summary CSV: encode session_details and error_details as JSON" onward, and
+legacy colon-joined entries before it — a JSON cell begins with `[`, a legacy one with a digit. A
+legacy cell splits on ` | `, each entry matching
 `^(\d+):(\d{2}:\d{2}:\d{2})-(\d{2}:\d{2}:\d{2}):(\d{2,}:\d{2}:\d{2})$` (sessions) or the same
-followed by `:(.*)$` (errors: id, start, end, duration, message) — verified against every legacy
-entry in `logger/log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv`.
-Tests `test/Logger/test_core.py::test_reference_run_row_values`,
-`::test_details_round_trip_with_commas_and_quotes`.
+followed by `:(.*)$` (errors: id, start, end, duration, message).
+Tests `test/Logger/test_csv_archive.py` (an older file archived unchanged and a new one started, for
+22- and 14-column files; a current file appended with either delimiter; an earlier archive never
+overwritten; the row is the time account), `test/Logger/test_core.py`.
 
 ## Object measurement: mm per pixel, our own angle convention, and a symmetric case with a square exception
 

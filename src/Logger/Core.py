@@ -25,16 +25,13 @@
 
 # System (Default)
 import os
-import io
 import csv
-import json
-import statistics
 import atexit
 import signal
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 # Dataclasses (Data Classes)
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 # Typing (Support for type hints)
 import typing as tp
 
@@ -90,42 +87,27 @@ CONST_CSV_UNCONFIGURED_ID = 'unconfigured'
 CONST_CSV_DELIMITER_COMMA = ','
 CONST_CSV_DELIMITER_SEMICOLON = ';'
 CONST_CSV_DEFAULT_DELIMITER = CONST_CSV_DELIMITER_COMMA
-# The run-summary CSV columns, in the exact order they are written. The header
-# row is this list; each data row is rendered one-to-one from a Summary_Str.
-#   Unit [Vector<string>]
-#
-# The columns after 'error_details' were APPENDED later (the run id onward); columns are only
-# ever appended, never renamed or reordered, so an older file's header is a strict prefix of this
-# list and is extended in place once (__Extend_Header), its rows left byte-identical. Every
-# figure is whole-run — Clear resets the UI's figures, not these; clears_count records how often
-# it did, which explains any difference from the status bar. mean_confidence and
-# median_inference_ms are blank, never 0, when nothing was scored / no analysis completed;
-# nok_objects is 0 until a classifier exists, and classification_enabled in the same row says
-# whether that 0 means 'none failed' or 'nothing was judged'.
+# The run-summary CSV columns, in the exact order they are written. The header row is this list;
+# each data row is rendered one-to-one from a Summary_Str. The row is the run's TIME ACCOUNT only:
+# when the application ran, for how long, how much of that a camera was connected, and how much
+# it was idle (cycle_time == total_session_time + idle_time exactly). Counts, errors, confidence
+# and inference figures are not summarised here; the '.txt' log beside each row holds every event.
 #   Unit [Vector<string>]
 CONST_CSV_COLUMNS = ['log_file', 'application_start', 'application_stop', 'cycle_time',
-                     'cycle_hours', 'analyzed_images', 'analyzed_objects', 'sessions_count',
-                     'total_session_time', 'idle_time', 'errors_count', 'total_error_time',
-                     'session_details', 'error_details',
-                     'run_id', 'classification_enabled', 'failed_analyses', 'scored_objects',
-                     'nok_objects', 'mean_confidence', 'median_inference_ms', 'clears_count']
-# The per-item breakdowns in 'session_details' and 'error_details' are compact JSON arrays of
-# objects with full datetimes, e.g. [{"index":1,"start":"2026-09-22 14:37:12",...}], so a cell is
-# parsed with any JSON reader instead of by splitting timestamps that themselves contain colons.
-# Rows written before the change keep the legacy colon encoding; a JSON cell starts with '[' and a
-# legacy one with a digit, so each row identifies its own encoding (see docs/design-decisions.md).
-# An empty breakdown stays an empty cell in both.
-#   Unit [Dict]
-CONST_CSV_JSON_OPTIONS = {'separators': (',', ':'), 'ensure_ascii': False}
+                     'total_session_time', 'idle_time']
+# A CSV whose header is not exactly CONST_CSV_COLUMNS is never appended to: its rows would mean
+# something different from the rows after them. It is renamed aside, byte-for-byte unchanged, as
+# '<name>_until_<date>.csv' — the date its last row was written — and the canonical name starts
+# afresh with the current header, so the file a reader finds under the canonical name is the live
+# one and the history sits beside it under a name that says what it is.
+#   Unit [string]
+CONST_CSV_ARCHIVE_TEMPLATE = '{stem}_until_{date}{suffix}{extension}'
 # The byte-order mark written once at the head of a freshly created CSV, so Excel
 # opens the file as UTF-8. It is written explicitly (rather than via the
 # 'utf-8-sig' codec) because that codec re-emits the mark on every append, which
 # would corrupt the file mid-stream when a row is added to an existing file.
 #   Unit [string]
 CONST_CSV_BOM = '﻿'
-# The temporary file a header extension is written to before it atomically replaces the CSV.
-#   Unit [string]
-CONST_CSV_EXTEND_SUFFIX = '.extending'
 
 
 @dataclass
@@ -259,64 +241,12 @@ def Format_HMS(total_seconds: float) -> str:
     return f'{hours:02d}:{minutes:02d}:{seconds:02d}'
 
 
-def Truncate_To_Ms(moment: datetime) -> datetime:
-    """
-    Description:
-        A datetime cut to whole milliseconds — the precision the run-summary detail cells are
-        written at. Durations are computed from these truncated values, so the start, end and
-        duration a reader sees in one entry agree exactly.
-
-    Args:
-        (1) moment [datetime(object)]: The time.
-
-    Returns:
-        (1) parameter [datetime(object)]: The time with sub-millisecond digits dropped.
-    """
-
-    return moment.replace(microsecond=(moment.microsecond // 1000) * 1000)
-
-
-def Format_Detail_Datetime(moment: datetime) -> str:
-    """
-    Description:
-        A detail-cell timestamp at millisecond precision, 'YYYY-MM-DD HH:MM:SS.mmm'.
-
-    Args:
-        (1) moment [datetime(object)]: The (millisecond-truncated) time.
-
-    Returns:
-        (1) parameter [string]: The formatted timestamp.
-    """
-
-    return moment.strftime(CONST_CSV_DATETIME_FORMAT) + '.%03d' % (moment.microsecond // 1000)
-
-
-def Format_HMS_Ms(total_seconds: float) -> str:
-    """
-    Description:
-        A detail-cell duration at millisecond precision, 'HH:MM:SS.mmm' (hours uncapped). Given the
-        difference of two millisecond-truncated times it is exact, so start + duration == end.
-
-    Args:
-        (1) total_seconds [float]: The duration in seconds.
-
-    Returns:
-        (1) parameter [string]: The duration formatted as HH:MM:SS.mmm.
-    """
-
-    milliseconds = int(round(max(0.0, total_seconds) * 1000.0))
-    seconds, milliseconds = divmod(milliseconds, 1000)
-    hours, remainder = divmod(seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f'{hours:02d}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}'
-
-
 @dataclass
 class Session_Str:
     """
     Description:
         One camera session: the interval from a camera connection to the matching
-        disconnection, with its per-session analysis counters.
+        disconnection.
     """
 
     # The 1-based index of the session within the run.
@@ -326,9 +256,6 @@ class Session_Str:
     End: tp.Optional[datetime] = None
     # True when the session was still open at shutdown and closed at the stop time.
     Closed_At_Shutdown: bool = False
-    # Analysis counters accumulated while this session was open.
-    Images: int = 0
-    Objects: int = 0
 
 
 @dataclass
@@ -354,11 +281,9 @@ class Error_Str:
 class Summary_Str:
     """
     Description:
-        The computed statistics for one application run. This is the pure result of
-        reading the recorded state at a given stop time; it holds raw values (times
-        and durations in seconds) so the CSV renderer, not the computation, owns the
-        formatting. The per-item breakdowns keep their datetimes so the renderer can
-        format them exactly as the compact detail cells require.
+        The computed time account for one application run. This is the pure result of reading
+        the recorded state at a given stop time; it holds raw values (times and durations in
+        seconds) so the CSV renderer, not the computation, owns the formatting.
     """
 
     # The filename of the matching '.txt' log (e.g. 'log_2026-09-12_12-16.txt').
@@ -371,97 +296,12 @@ class Summary_Str:
     # The whole-run cycle time, start -> stop.
     #   Unit [float]
     Cycle_Seconds: float = 0.0
-    # The run-wide analysis counters.
-    #   Unit [int]
-    Analyzed_Images: int = 0
-    Analyzed_Objects: int = 0
-    # The number of camera sessions and their summed duration.
-    #   Unit [int]
-    Sessions_Count: int = 0
+    # The summed duration of the camera sessions.
     #   Unit [float]
     Total_Session_Seconds: float = 0.0
     # The time no session was open, cycle_seconds - total_session_seconds.
     #   Unit [float]
     Idle_Seconds: float = 0.0
-    # The number of tracked errors and their summed duration.
-    #   Unit [int]
-    Errors_Count: int = 0
-    #   Unit [float]
-    Total_Error_Seconds: float = 0.0
-    # The per-session breakdown: each entry is (index, start, end, duration_seconds).
-    #   Unit [Vector<Tuple[int, datetime, datetime, float]>]
-    Session_Details: tp.List[tp.Tuple[int, datetime, datetime, float]] = field(default_factory=list)
-    # The per-error breakdown: each entry is (id, start, end, duration_seconds, message).
-    #   Unit [Vector<Tuple[int, datetime, datetime, float, string]>]
-    Error_Details: tp.List[tp.Tuple[int, datetime, datetime, float, str]] = field(default_factory=list)
-    # The application-run id (the one written into every capture set's '_objects.json'), and the
-    # run's classification flag — None/'' when the window never recorded them.
-    #   Unit [string] / [bool]
-    Run_Id: str = ''
-    Classification_Enabled: tp.Optional[bool] = None
-    # Whole-run analysis figures beyond the image/object totals: failed analyses, objects that
-    # carry a confidence score, objects judged NOK, and the Clear presses.
-    #   Unit [int]
-    Failed_Analyses: int = 0
-    Scored_Objects: int = 0
-    Nok_Objects: int = 0
-    Clears_Count: int = 0
-    # The run mean confidence over every scored object (percent) and the median inference time
-    # over every completed analysis (ms) — None when nothing was scored / nothing completed.
-    #   Unit [int]
-    Mean_Confidence: tp.Optional[int] = None
-    Median_Inference_Ms: tp.Optional[int] = None
-
-
-def Encode_Session_Details(Summary_Str: Summary_Str) -> str:
-    """
-    Description:
-        Encode the per-session breakdown into a single CSV cell as a compact JSON array — one
-        {"index", "start", "end", "duration"} object per camera connection, with full datetimes
-        (so a session crossing midnight is unambiguous) at millisecond precision and the duration
-        derived from exactly those two values (HH:MM:SS.mmm), so start + duration == end holds for
-        every entry. An empty string when there were no sessions.
-
-    Args:
-        (1) Summary_Str [Summary_Str(object)]: The computed run statistics.
-
-    Returns:
-        (1) parameter [string]: The 'session_details' cell.
-    """
-
-    if not Summary_Str.Session_Details:
-        return ''
-    return json.dumps([{'index': index, 'start': Format_Detail_Datetime(start),
-                        'end': Format_Detail_Datetime(end),
-                        'duration': Format_HMS_Ms(duration_seconds)}
-                       for (index, start, end, duration_seconds) in Summary_Str.Session_Details],
-                      **CONST_CSV_JSON_OPTIONS)
-
-
-def Encode_Error_Details(Summary_Str: Summary_Str) -> str:
-    """
-    Description:
-        Encode the per-error breakdown into a single CSV cell as a compact JSON array — one
-        {"id", "start", "end", "duration", "message"} object per tracked error, timestamps at
-        millisecond precision and the duration derived from them, like the session cell. The
-        message is kept verbatim (JSON escapes quotes and newlines), so nothing is lost to
-        sanitising. An empty string when there were no errors.
-
-    Args:
-        (1) Summary_Str [Summary_Str(object)]: The computed run statistics.
-
-    Returns:
-        (1) parameter [string]: The 'error_details' cell.
-    """
-
-    if not Summary_Str.Error_Details:
-        return ''
-    return json.dumps([{'id': error_id, 'start': Format_Detail_Datetime(start),
-                        'end': Format_Detail_Datetime(end),
-                        'duration': Format_HMS_Ms(duration_seconds), 'message': message}
-                       for (error_id, start, end, duration_seconds, message)
-                       in Summary_Str.Error_Details],
-                      **CONST_CSV_JSON_OPTIONS)
 
 
 def Csv_Filename_For_Config(config_path: tp.Optional[str]) -> str:
@@ -488,56 +328,13 @@ def Csv_Filename_For_Config(config_path: tp.Optional[str]) -> str:
     return CONST_CSV_FILENAME_TEMPLATE.format(config_id=stem)
 
 
-def Extend_Csv_Header(data: bytes, columns: tp.List[str],
-                      delimiter: str) -> tp.Optional[tp.Tuple[bytes, tp.List[str]]]:
-    """
-    Description:
-        The CSV's bytes with ONLY its header line extended, when the existing header is a strict
-        prefix of `columns` (columns are only ever appended). The byte-order mark and the header's
-        own line terminator are kept, and every byte after the header line — every existing row —
-        is carried over untouched, so old rows stay byte-identical; a reader then treats an old
-        row's missing trailing cells as empty. Returns None when there is nothing to extend: an
-        empty file, a header already equal to `columns`, or one that is not a prefix of it (that
-        case keeps the align-and-warn path). Pure: bytes in, bytes out.
-
-    Args:
-        (1) data [bytes]: The whole CSV file.
-        (2) columns [Vector<string>]: The current columns (CONST_CSV_COLUMNS).
-        (3) delimiter [string]: The CSV delimiter.
-
-    Returns:
-        (1) parameter [Tuple<bytes, Vector<string>> or None]: The new file bytes and the names
-                                                               added, or None.
-    """
-
-    bom = CONST_CSV_BOM.encode('utf-8')
-    has_bom = data.startswith(bom)
-    body = data[len(bom):] if has_bom else data
-    if not body:
-        return None
-    newline = body.find(b'\n')
-    if newline < 0:
-        header_bytes, rest, terminator = body, b'', '\r\n'
-    else:
-        terminator = '\r\n' if newline > 0 and body[newline - 1:newline] == b'\r' else '\n'
-        header_bytes, rest = body[:newline + 1 - len(terminator)], body[newline + 1:]
-    existing = next(csv.reader([header_bytes.decode('utf-8')], delimiter=delimiter), [])
-    if (not existing or len(existing) >= len(columns)
-            or list(columns[:len(existing)]) != existing):
-        return None
-    header = io.StringIO()
-    csv.writer(header, delimiter=delimiter, lineterminator=terminator).writerow(columns)
-    extended = (bom if has_bom else b'') + header.getvalue().encode('utf-8') + rest
-    return extended, list(columns[len(existing):])
-
-
 def Render_Summary_Csv_Row(Summary_Str: Summary_Str) -> tp.List[str]:
     """
     Description:
         Render one computed summary into the ordered list of CSV cell values that
         matches CONST_CSV_COLUMNS one-to-one. This is pure and holds every formatting
-        decision (HH:MM:SS durations, decimal hours to three places, the compact
-        detail cells), so it can be tested without touching the file system.
+        decision (full-second datetimes, HH:MM:SS durations), so it can be tested without
+        touching the file system.
 
     Args:
         (1) Summary_Str [Summary_Str(object)]: The computed run statistics.
@@ -550,25 +347,8 @@ def Render_Summary_Csv_Row(Summary_Str: Summary_Str) -> tp.List[str]:
             Summary_Str.Application_Start.strftime(CONST_CSV_DATETIME_FORMAT),
             Summary_Str.Application_Stop.strftime(CONST_CSV_DATETIME_FORMAT),
             Format_HMS(Summary_Str.Cycle_Seconds),
-            f'{Summary_Str.Cycle_Seconds / 3600.0:.3f}',
-            str(Summary_Str.Analyzed_Images),
-            str(Summary_Str.Analyzed_Objects),
-            str(Summary_Str.Sessions_Count),
             Format_HMS(Summary_Str.Total_Session_Seconds),
-            Format_HMS(Summary_Str.Idle_Seconds),
-            str(Summary_Str.Errors_Count),
-            Format_HMS(Summary_Str.Total_Error_Seconds),
-            Encode_Session_Details(Summary_Str),
-            Encode_Error_Details(Summary_Str),
-            Summary_Str.Run_Id,
-            ('' if Summary_Str.Classification_Enabled is None
-             else 'true' if Summary_Str.Classification_Enabled else 'false'),
-            str(Summary_Str.Failed_Analyses),
-            str(Summary_Str.Scored_Objects),
-            str(Summary_Str.Nok_Objects),
-            '' if Summary_Str.Mean_Confidence is None else str(Summary_Str.Mean_Confidence),
-            '' if Summary_Str.Median_Inference_Ms is None else str(Summary_Str.Median_Inference_Ms),
-            str(Summary_Str.Clears_Count)]
+            Format_HMS(Summary_Str.Idle_Seconds)]
 
 
 class Session_Logger_Cls(object):
@@ -577,8 +357,9 @@ class Session_Logger_Cls(object):
         A plain-text session logger. It records the full lifecycle of one application
         run to a single '.txt' file, one '[Date] [Time] [Info]' line per event, ending
         with the 'Application stopped' line. When the application closes it also appends
-        exactly one statistical row, per run, to a single static run-summary CSV file
-        that accumulates over every run and is never rewritten, truncated or rotated.
+        exactly one time-account row, per run, to a single run-summary CSV file that
+        accumulates over every run and is never rewritten or truncated; a file with an older
+        column set is renamed aside unchanged and a fresh one started (CONST_CSV_ARCHIVE_TEMPLATE).
 
         The logger is Qt-free and thread-safe. A single clock provider is injected so
         the behaviour is deterministic under test; nothing calls datetime.now directly.
@@ -636,19 +417,8 @@ class Session_Logger_Cls(object):
         self.__start_time = clock()
         self.__stop_time = None
 
-        # Run-wide analysis counters and the per-run bookkeeping of sessions/errors.
-        self.__images_total = 0
-        self.__objects_total = 0
-        # The run record and the whole-run figures behind the later CSV columns. Confidences are
-        # the per-object percentages (rounded per object, as the status bar rounds them), pooled
-        # so the run mean weights each object equally; latencies are per completed analysis.
-        self.__run_id = ''
-        self.__classification_enabled = None
-        self.__failed_total = 0
-        self.__nok_total = 0
-        self.__clears_total = 0
-        self.__confidences = []
-        self.__latencies = []
+        # The per-run bookkeeping: the camera sessions (the CSV's time account) and the tracked
+        # errors (the '.txt' reports each one's resolution and how long it lasted).
         self.__sessions = []
         self.__open_session = None
         self.__errors = []
@@ -711,30 +481,6 @@ class Session_Logger_Cls(object):
         """
 
         return self.__csv_path
-
-    @property
-    def Analyzed_Images(self) -> int:
-        """
-        Description:
-            The cumulative number of analyzed images over the whole run.
-
-        Returns:
-            (1) parameter [int]: The analyzed-image count.
-        """
-
-        return self.__images_total
-
-    @property
-    def Analyzed_Objects(self) -> int:
-        """
-        Description:
-            The cumulative number of analyzed objects over the whole run.
-
-        Returns:
-            (1) parameter [int]: The analyzed-object count.
-        """
-
-        return self.__objects_total
 
     @property
     def Sessions(self) -> tp.List[Session_Str]:
@@ -1070,59 +816,23 @@ class Session_Logger_Cls(object):
                 line += ' Capture set %s.' % set_id
             self.__Write_Line(line, self.__clock())
 
-    def Record_Run(self, run_id: str, classification_enabled: bool) -> None:
-        """
-        Description:
-            Record the application-run id and the run's classification flag for the summary
-            row. The window owns both (it generates the run id it writes into every capture set)
-            and records them once, so the CSV row and the capture sets carry the same id.
-
-        Args:
-            (1) run_id [string]: The application-run id.
-            (2) classification_enabled [bool]: General.Classification.Enabled for this run.
-        """
-
-        with self.__lock:
-            self.__run_id = str(run_id)
-            self.__classification_enabled = bool(classification_enabled)
-
-    def Log_Analysis_Failed(self, message: str) -> int:
-        """
-        Description:
-            Log a failed analysis as a tracked error (exactly as Log_Error) and count it, so the
-            summary can report failures apart from the other errors.
-
-        Args:
-            (1) message [string]: The failure sentence.
-
-        Returns:
-            (1) parameter [int]: The error identifier, for Log_Error_Resolved.
-        """
-
-        with self.__lock:
-            self.__failed_total += 1
-            return self.Log_Error(message)
-
     def Log_Cleared(self) -> None:
         """
         Description:
-            Log that the operator pressed Clear, and count it. Clear resets the UI's figures,
-            not the run summary's, so the count is what explains a CSV row that differs from
-            what the status bar last showed.
+            Log that the operator pressed Clear (it resets the frame, the counters and the
+            reading panel in the UI).
         """
 
         with self.__lock:
-            self.__clears_total += 1
             self.__Write_Line('Cleared the frame, the counters and the reading panel',
                               self.__clock())
 
     def Log_Analysis_Finished(self, index: int, latency_ms: int, objects: int, scored: int,
                               mean_confidence: tp.Optional[int],
-                              set_id: tp.Optional[str] = None, *, nok: int) -> None:
+                              set_id: tp.Optional[str] = None) -> None:
         """
         Description:
-            Log a finished analysis as a sentence, and advance the counters (the run-wide
-            image and object totals and the open session's). It carries the inference time
+            Log a finished analysis as a sentence. It carries the inference time
             and the mean detector confidence WITH its coverage — how many of the objects
             were scored — because the log is the forensic record and a mean over a partial
             set must say so; the short percentage-only form belongs in the UI, not here.
@@ -1135,19 +845,9 @@ class Session_Logger_Cls(object):
             (5) mean_confidence [int]: The mean confidence percentage over the scored
                                        objects, or None when none are scored.
             (6) set_id [string]: The capture-set identifier for this analysis.
-            (7) nok [int]: REQUIRED, keyword-only: how many of the objects were judged NOK (0 when
-                           nothing is classified — the summary's classification_enabled says
-                           which).
         """
 
         with self.__lock:
-            self.__images_total += 1
-            self.__objects_total += objects
-            self.__nok_total += int(nok)
-            self.__latencies.append(int(latency_ms))
-            if self.__open_session is not None:
-                self.__open_session.Images += 1
-                self.__open_session.Objects += objects
             if objects == 0:
                 count_clause = 'No objects detected'
             else:
@@ -1181,7 +881,6 @@ class Session_Logger_Cls(object):
         with self.__lock:
             parts = ['type=%s' % label]
             if confidence is not None:
-                self.__confidences.append(int(confidence))
                 parts.append('confidence=%d%%' % confidence)
             if bbox is not None:
                 parts.append('bbox=(' + ','.join(str(int(v)) for v in bbox) + ')')
@@ -1192,14 +891,13 @@ class Session_Logger_Cls(object):
     def Compute_Summary(self, stop_time: tp.Optional[datetime] = None) -> Summary_Str:
         """
         Description:
-            Compute the run statistics for a stop time. This is pure: it reads the
+            Compute the run's time account for a stop time. This is pure: it reads the
             recorded state and never mutates it, so it is safe to call more than once
             and holds no formatting — the CSV renderer (Render_Summary_Csv_Row) owns
             that. This keeps 'compute summary' and 'render summary' separately testable.
 
-            An open session is closed at the stop time; an unresolved error's duration
-            is measured up to the stop time. With zero sessions, errors or images the
-            summary is still complete, with zero values.
+            An open session is closed at the stop time. With zero sessions the summary is
+            still complete: the whole cycle is idle.
 
         Args:
             (1) stop_time [datetime(object)]: The application stop time (defaults to the
@@ -1213,105 +911,26 @@ class Session_Logger_Cls(object):
             if stop_time is None:
                 stop_time = self.__stop_time if self.__stop_time is not None else self.__clock()
 
-            # Every figure is derived from the values AS WRITTEN, so a row's arithmetic checks
-            # out when someone recomputes it: the cycle from the whole-second start/stop the row
-            # prints; each detail entry's duration from its millisecond-truncated start/end; the
-            # whole-second totals rounded from those entries; and idle as the cycle minus the
-            # rounded session total, so cycle_time == total_session_time + idle_time exactly.
+            # Every figure is derived from the values AS WRITTEN, so a row's arithmetic checks out
+            # when someone recomputes it: the cycle from the whole-second start/stop the row
+            # prints, the session total rounded to whole seconds, and idle as the cycle minus
+            # that total, so cycle_time == total_session_time + idle_time exactly.
             start_s = self.__start_time.replace(microsecond=0)
             stop_s = stop_time.replace(microsecond=0)
             cycle_seconds = (stop_s - start_s).total_seconds()
-
-            # << Sessions: durations and the per-session breakdown. >>
-            session_exact = 0.0
-            session_details = []
-            for Session_Str_i in self.__sessions:
-                start = Truncate_To_Ms(Session_Str_i.Start)
-                end = Truncate_To_Ms(Session_Str_i.End if Session_Str_i.End is not None
-                                     else stop_time)
-                duration = (end - start).total_seconds()
-                session_exact += duration
-                session_details.append((Session_Str_i.Index, start, end, duration))
+            session_exact = sum(((Session_Str_i.End if Session_Str_i.End is not None else stop_time)
+                                 - Session_Str_i.Start).total_seconds()
+                                for Session_Str_i in self.__sessions)
             # A connection spanning the whole run can round a second past the whole-second cycle;
             # cap it so idle never goes negative and the three columns still add up.
             session_seconds = float(min(round(session_exact), cycle_seconds))
-
-            # << Errors: durations and the per-error breakdown. >>
-            error_exact = 0.0
-            error_details = []
-            for Error_Str_i in self.__errors:
-                start = Truncate_To_Ms(Error_Str_i.Start)
-                end = Truncate_To_Ms(Error_Str_i.End if Error_Str_i.End is not None else stop_time)
-                duration = (end - start).total_seconds()
-                error_exact += duration
-                error_details.append((Error_Str_i.Id, start, end, duration, Error_Str_i.Message))
-            error_seconds = float(round(error_exact))
 
             return Summary_Str(Log_File=os.path.basename(self.__path),
                                Application_Start=self.__start_time,
                                Application_Stop=stop_time,
                                Cycle_Seconds=cycle_seconds,
-                               Analyzed_Images=self.__images_total,
-                               Analyzed_Objects=self.__objects_total,
-                               Sessions_Count=len(self.__sessions),
                                Total_Session_Seconds=session_seconds,
-                               Idle_Seconds=cycle_seconds - session_seconds,
-                               Errors_Count=len(self.__errors),
-                               Total_Error_Seconds=error_seconds,
-                               Session_Details=session_details,
-                               Error_Details=error_details,
-                               Run_Id=self.__run_id,
-                               Classification_Enabled=self.__classification_enabled,
-                               Failed_Analyses=self.__failed_total,
-                               Scored_Objects=len(self.__confidences),
-                               Nok_Objects=self.__nok_total,
-                               Clears_Count=self.__clears_total,
-                               Mean_Confidence=(int(round(sum(self.__confidences)
-                                                          / len(self.__confidences)))
-                                                if self.__confidences else None),
-                               Median_Inference_Ms=(int(statistics.median(self.__latencies))
-                                                    if self.__latencies else None))
-
-    def __Read_Existing_Header(self) -> tp.Optional[tp.List[str]]:
-        """
-        Description:
-            Read the header row of the existing CSV, or None when the file is missing,
-            empty or unreadable. The 'utf-8-sig' codec strips the leading byte-order
-            mark, so the returned names never carry it.
-
-        Returns:
-            (1) parameter [Vector<string> or None]: The existing header, or None.
-        """
-
-        try:
-            with open(self.__csv_path, 'r', newline='', encoding='utf-8-sig') as csv_file:
-                for header in csv.reader(csv_file, delimiter=self.__csv_delimiter):
-                    return header
-                return None
-        except (OSError, ValueError):
-            return None
-
-    def __Align_Row_To_Header(self, existing_header: tp.List[str],
-                              row: tp.List[str]) -> tp.List[str]:
-        """
-        Description:
-            Re-order a data row (aligned to CONST_CSV_COLUMNS) so it matches an existing
-            header that differs from the current columns. Columns the existing header
-            does not name are dropped; columns it names but the current run does not
-            provide are left empty. This is the chosen behaviour for a header mismatch:
-            never append a misaligned row silently — align it to what is already there
-            and log a warning into the '.txt' file.
-
-        Args:
-            (1) existing_header [Vector<string>]: The header already in the file.
-            (2) row [Vector<string>]: The data row aligned to CONST_CSV_COLUMNS.
-
-        Returns:
-            (1) parameter [Vector<string>]: The row re-ordered to the existing header.
-        """
-
-        values = dict(zip(CONST_CSV_COLUMNS, row))
-        return [values.get(column, '') for column in existing_header]
+                               Idle_Seconds=cycle_seconds - session_seconds)
 
     def __Lock_File(self, file_obj: tp.Any) -> None:
         """
@@ -1352,9 +971,8 @@ class Session_Logger_Cls(object):
         """
         Description:
             Whether an open handle still refers to the file now at the CSV path. Another run may
-            have atomically replaced the CSV (a header extension) while this one waited for the
-            lock; writing through the stale handle would put the row into the replaced file,
-            where it would be lost.
+            have renamed the CSV aside (an older column set, archived) while this one waited for
+            the lock; writing through the stale handle would put the row into the archived file.
 
         Args:
             (1) file_obj [file(object)]: The open, locked CSV handle.
@@ -1369,62 +987,83 @@ class Session_Logger_Cls(object):
             return False
         return (held.st_dev, held.st_ino) == (current.st_dev, current.st_ino)
 
-    def __Extend_Header(self, now: datetime) -> None:
+    def __Archive_Path(self, modified: float) -> str:
         """
         Description:
-            When the existing CSV's header is a strict prefix of the current columns (a file
-            written before columns were appended), extend the header line ONCE, leaving every row
-            byte-identical (Extend_Csv_Header). The new bytes are written to a temporary file and
-            atomically replace the CSV under the file lock, so a crash leaves either the old file
-            or the new one, never a half-written header. On a platform that cannot replace a file
-            this process holds open (Windows) the replace runs just after the handle closes. Any
-            other mismatch is left for __Append_Csv_Summary's align-and-warn path.
+            The name an older-format CSV is renamed to: '<name>_until_<date>.csv', the date its
+            last row was written; '_2', '_3', ... when that name is already taken.
+
+        Args:
+            (1) modified [float]: The file's modification time (epoch seconds).
+
+        Returns:
+            (1) parameter [string]: The archive path, beside the CSV.
+        """
+
+        stem, extension = os.path.splitext(self.__csv_path)
+        date = datetime.fromtimestamp(modified).strftime(CONST_DATE_FORMAT)
+        for number in range(1, 1000):
+            path = CONST_CSV_ARCHIVE_TEMPLATE.format(stem=stem, date=date,
+                                                      suffix='' if number == 1 else '_%d' % number,
+                                                      extension=extension)
+            if not os.path.exists(path):
+                return path
+        raise OSError('no free archive name for %s' % self.__csv_path)
+
+    def __Archive_Older_Format(self, now: datetime) -> None:
+        """
+        Description:
+            When the CSV at the canonical path has a header other than CONST_CSV_COLUMNS, rename
+            it aside, byte-for-byte unchanged (__Archive_Path), so the next row starts a fresh file
+            instead of appending rows that mean something different under a header that no longer
+            describes them. The check and the rename run under the file lock; a handle that no
+            longer refers to the file at the path (another run archived it meanwhile) re-checks
+            the new file. On a platform that cannot rename a file this process holds open
+            (Windows) the rename runs just after the handle closes. The '.txt' log records it.
 
         Args:
             (1) now [datetime(object)]: The stop time, used to timestamp the log line.
         """
 
-        if not os.path.exists(self.__csv_path):
-            return
         for _attempt in range(3):
-            deferred = False
+            if not os.path.exists(self.__csv_path):
+                return
+            deferred = None
             with open(self.__csv_path, 'rb') as csv_file:
                 self.__Lock_File(csv_file)
                 try:
                     if not self.__Is_Current_File(csv_file):
                         continue
-                    result = Extend_Csv_Header(csv_file.read(), CONST_CSV_COLUMNS,
-                                               self.__csv_delimiter)
-                    if result is None:
+                    first = csv_file.readline().decode('utf-8-sig', errors='replace').rstrip('\r\n')
+                    header = next(csv.reader([first], delimiter=self.__csv_delimiter), [])
+                    if not first or header == CONST_CSV_COLUMNS:
                         return
-                    extended, added = result
-                    temp_path = self.__csv_path + CONST_CSV_EXTEND_SUFFIX
-                    with open(temp_path, 'wb') as temp_file:
-                        temp_file.write(extended)
-                        temp_file.flush()
-                        os.fsync(temp_file.fileno())
+                    archive = self.__Archive_Path(os.fstat(csv_file.fileno()).st_mtime)
                     try:
-                        os.replace(temp_path, self.__csv_path)
+                        os.rename(self.__csv_path, archive)
                     except PermissionError:
-                        deferred = True
+                        deferred = archive
                 finally:
                     self.__Unlock_File(csv_file)
-            if deferred:
-                os.replace(temp_path, self.__csv_path)
-            self.__Write_Line('Extended the run-summary CSV header with %d new column%s (%s); '
-                              'the existing rows are unchanged.'
-                              % (len(added), '' if len(added) == 1 else 's', ', '.join(added)), now)
+            if deferred is not None:
+                os.rename(self.__csv_path, deferred)
+                archive = deferred
+            self.__Write_Line('The run-summary CSV had an older column set (%d columns); it was '
+                              'renamed, unchanged, to %s and a new %s was started with the current '
+                              '%d columns.' % (len(header), os.path.basename(archive),
+                                               os.path.basename(self.__csv_path),
+                                               len(CONST_CSV_COLUMNS)), now)
             return
 
     def __Append_Csv_Summary(self, Summary_Str: Summary_Str, now: datetime) -> None:
         """
         Description:
-            Append exactly one row to the static run-summary CSV. The header row is
-            written only when the file is created (or is empty); an existing file is
-            appended to, never rewritten. A header that does not match the current
-            columns is not silently misaligned — the row is aligned to the existing
-            header and a warning is logged into the '.txt' file. The append is guarded
-            by an exclusive file lock so concurrent runs cannot interleave a row.
+            Append exactly one row to the run-summary CSV. The header row is written only
+            when the file is created (or is empty); an existing file with the current
+            columns is appended to, never rewritten, and one with an older column set is
+            first archived unchanged (__Archive_Older_Format), so no row is ever written
+            under a header that does not describe it. The append is guarded by an exclusive
+            file lock so concurrent runs cannot interleave a row.
 
         Args:
             (1) Summary_Str [Summary_Str(object)]: The computed run statistics.
@@ -1433,9 +1072,8 @@ class Session_Logger_Cls(object):
 
         row = Render_Summary_Csv_Row(Summary_Str)
         os.makedirs(os.path.dirname(self.__csv_path) or '.', exist_ok=True)
-        # An older file whose header is a prefix of the current columns is extended first, so the
-        # row below appends under the full header instead of losing its newer cells to alignment.
-        self.__Extend_Header(now)
+        # An older-format file is renamed aside first, so the row below starts a fresh file.
+        self.__Archive_Older_Format(now)
 
         # The file is opened as plain UTF-8; the byte-order mark is written by hand
         # only for a fresh file (see CONST_CSV_BOM), because the 'utf-8-sig' codec
@@ -1445,20 +1083,12 @@ class Session_Logger_Cls(object):
             self.__Lock_File(csv_file)
             if self.__Is_Current_File(csv_file) or attempt == 2:
                 break
-            # Replaced while waiting for the lock (another run extended the header): reopen.
+            # Renamed while waiting for the lock (another run archived it): reopen at the path.
             self.__Unlock_File(csv_file)
             csv_file.close()
         with csv_file:
             try:
                 write_header = os.fstat(csv_file.fileno()).st_size == 0
-                if not write_header:
-                    existing_header = self.__Read_Existing_Header()
-                    if existing_header is not None and existing_header != CONST_CSV_COLUMNS:
-                        self.__Write_Line('The run-summary CSV header does not match the current '
-                                          'columns. Aligned the row to the existing header '
-                                          f'({self.__csv_path}).', now, CONST_LEVEL_WARNING)
-                        row = self.__Align_Row_To_Header(existing_header, row)
-
                 writer = csv.writer(csv_file, delimiter=self.__csv_delimiter)
                 if write_header:
                     csv_file.write(CONST_CSV_BOM)

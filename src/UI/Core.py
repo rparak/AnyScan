@@ -153,9 +153,6 @@ class AnyScan_Window_Cls(QMainWindow):
         # The session logger is injected by the launcher; None disables logging so the
         # window still builds under test and in the screenshot harness.
         self.__logger = logger
-        # The run summary carries the same run id as every capture set, and the run's flag.
-        if self.__logger is not None:
-            self.__logger.Record_Run(self.__run_id, self.__classification_enabled)
         # The per-analysis capture writer (four artefacts per analysis under
         # logger/captures/, retention-bounded). Only when a logger is present, since the
         # captures live beside its log; None disables capture entirely.
@@ -193,7 +190,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # point equals the status mean by construction). Fed one successful analysis at a time; a
         # failed analysis is never added, so the image count never advances on a failure. Reset on
         # Clear, so its span is since the application started or the last Clear (the UI's 'run');
-        # History and the run-summary CSV cover the whole application run instead.
+        # History covers the whole application run instead.
         self.__trends = Trends_Accumulator_Cls()
         # The per-analysis latencies of this run, for the rolling MEDIAN inference time in the
         # status strip — a median so a single slow frame does not swing the figure the operator
@@ -943,10 +940,8 @@ class AnyScan_Window_Cls(QMainWindow):
             # The finished-analysis summary: object count, mean confidence and coverage.
             scores = [d.Segmenter_Score for d in result.Objects if d.Segmenter_Score is not None]
             mean = int(round(100.0 * sum(scores) / len(scores))) if scores else None
-            nok = sum(1 for d in result.Objects if d.Verdict == 'NOK')
             self.__logger.Log_Analysis_Finished(self.__session_analyses, result.Latency_Ms,
-                                                len(result.Objects), len(scores), mean, set_id,
-                                                nok=nok)
+                                                len(result.Objects), len(scores), mean, set_id)
             self.__Write_Capture(set_id, result, frame_bgr, annotated_bgr, mask_bgr)
         self.__Sync_Controls()
 
@@ -1126,7 +1121,7 @@ class AnyScan_Window_Cls(QMainWindow):
             # that caused the failure is in the capture directory under that id, and this
             # is the case where the link matters most.
             suffix = ' (set=%s)' % set_id if set_id else ''
-            self.__analysis_error_id = self.__logger.Log_Analysis_Failed(message + suffix)
+            self.__analysis_error_id = self.__logger.Log_Error(message + suffix)
             # A failed analysis renders no annotated image or mask (rendering is on the
             # success path), but the raw frame exists — write a PARTIAL set (raw + a note)
             # so the crash leaves evidence rather than nothing.
