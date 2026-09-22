@@ -32,6 +32,8 @@ if '../../' + 'src' not in sys.path:
 import os
 # Argparse (Command-line parsing)
 import argparse
+# Typing (Support for type hints)
+import typing as tp
 # Datetime (Timestamps for the capture manifest)
 from datetime import datetime
 # OpenCV (Computer Vision) [pip3 install opencv-python]
@@ -50,9 +52,10 @@ import Calibration.Core
 Description:
     Initialization of constants.
 """
-# The identification number of the iteration to save the image. It starts with the number 1.
-#   1 = 'Image_001', 2 = 'Image_002', etc.
-CONST_INIT_INDEX = 1
+# The new configuration file a solved calibration is written to, beside the one in force:
+# '<source stem>_calib-<date>.yaml'. The source is overwritten only with --write-config.
+#   Unit [string]
+CONST_OUTPUT_TEMPLATE = '{stem}_calib-{stamp}.yaml'
 
 
 def Capture_Main(directory: str) -> int:
@@ -120,14 +123,83 @@ def Capture_Main(directory: str) -> int:
     return 0
 
 
+def Parse_Board(text: str) -> tp.Tuple[int, int]:
+    """
+    Description:
+        Parse '--board-squares' ('11x8': squares across x down) into (columns, rows).
+
+    Args:
+        (1) text [string]: The argument.
+
+    Returns:
+        (1) parameter [Vector<int> 1x2]: (columns, rows).
+    """
+
+    try:
+        columns, rows = (int(part) for part in text.lower().split('x'))
+        assert columns >= 3 and rows >= 3
+    except (ValueError, AssertionError):
+        raise argparse.ArgumentTypeError('expected COLUMNSxROWS of squares, e.g. 11x8')
+    return (columns, rows)
+
+
+def Images_Main(directory: str, board_squares: tp.Tuple[int, int], square_mm: float,
+                board_height_mm: float, write_config: bool) -> int:
+    """
+    Description:
+        Calibrate from every image in a directory and print the report. The result is written to
+        a NEW configuration file beside the one in force (which stays untouched), unless
+        --write-config asks to overwrite the configuration in force.
+
+    Args:
+        (1) directory [string]: The calibration capture directory.
+        (2) board_squares [Vector<int> 1x2]: The board's squares (columns, rows).
+        (3) square_mm [float]: The calipered square size (mm).
+        (4) board_height_mm [float]: The flat boards' surface height above the table (mm).
+        (5) write_config [bool]: Overwrite the configuration in force instead of writing a new one.
+
+    Returns:
+        (1) parameter [int]: The process exit code (1 when nothing trustworthy could be solved).
+    """
+
+    try:
+        report = Calibration.Core.Calibrate(Calibration.Core.Load_Views(directory), square_mm,
+                                            board_height_mm, board_squares)
+    except Calibration.Core.Calibration_Error_Cls as error:
+        print('[ERROR] %s' % error)
+        return 1
+    for line in Calibration.Core.Report_Lines(report):
+        print(line)
+
+    views = [view for view in report.Views if view.Detection.Found]
+    flat = sum(view.Flat for view in views)
+    record = {'date': datetime.now().isoformat(timespec='seconds'),
+              'images': os.path.abspath(directory),
+              'views': {'total': len(views), 'flat': flat, 'tilted': len(views) - flat},
+              'rms_px': report.Rms_Px, 'square_mm': square_mm, 'board_height_mm': board_height_mm}
+    stem = os.path.splitext(CONST_BASLER_CONFIG_FILE)[0]
+    output = (CONST_BASLER_CONFIG_FILE if write_config else
+              CONST_OUTPUT_TEMPLATE.format(stem=stem, stamp=datetime.now().strftime('%Y%m%d-%H%M%S')))
+    if not Write_Calibration(Calibration.Core.Calibration_Parameters(report), CONST_BASLER_CONFIG_FILE,
+                             output_path=output, record=record):
+        return 1
+    print('[INFO] Calibration written to: %s' % output)
+    if not write_config:
+        print('[INFO] The configuration in force (%s) is UNCHANGED. App/run.py hardcodes its path, '
+              'so adopting this calibration is a separate, deliberate step.'
+              % os.path.basename(CONST_BASLER_CONFIG_FILE))
+    return 0
+
+
 def main():
     """
     Description:
-        A program to capture images of a checkerboard pattern using a Basler a2A1920-51gcPRO camera and perform camera calibration based
-        on the captured images. The system is equipped with EFFI-FD-200-200-000 lighting to ensure optimal illumination.
+        Camera calibration for the Basler a2A1920-51gcPRO with the Computar M1228-MPW3 lens, from
+        several chessboard views solved together. Two modes:
 
-        The calibration computes the camera matrix, distortion coefficients, and pixel-to-millimeter conversion factors
-        to correct image distortions.
+            --capture DIR   capture distorted frames interactively ('f' flat, 't' tilted)
+            --images DIR    solve from every image in DIR and write a NEW configuration file
+                            (or overwrite the one in force with --write-config)
 
         Setup:
             Camera Model: Basler a2A1920-51gcPRO GigE Camera
@@ -135,78 +207,27 @@ def main():
     """
 
     parser = argparse.ArgumentParser(description='Camera calibration from chessboard captures.')
-    parser.add_argument('--capture', metavar='DIR', default=None,
-                        help='capture distorted calibration frames into DIR, interactively')
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--capture', metavar='DIR', help='capture distorted calibration frames into DIR')
+    mode.add_argument('--images', metavar='DIR', help='calibrate from every image in DIR')
+    parser.add_argument('--board-squares', type=Parse_Board, metavar='CxR',
+                        help='the board\'s squares, columns x rows, e.g. 11x8 (--images)')
+    parser.add_argument('--square-mm', type=float, metavar='MM',
+                        help='the CALIPERED square size in mm (--images)')
+    parser.add_argument('--board-height-mm', type=float, metavar='MM',
+                        help='the flat boards\' surface height above the table in mm (--images)')
+    parser.add_argument('--write-config', action='store_true',
+                        help='overwrite the configuration in force instead of writing a new file')
     args = parser.parse_args()
     if args.capture is not None:
         return Capture_Main(args.capture)
-
-    # Locate the path to the project folder.
-    project_folder = os.getcwd().split('anyscan-pyqt')[0] + 'anyscan-pyqt'
-
-    # Read the camera configuration (with calibration) from the *.yaml file.
-    Basler_Cfg_Str = Read_Configuration(CONST_BASLER_CONFIG_FILE)
-
-    # Initialize and configure the Basler camera.
-    Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
-
-    # Capture a single image.
-    image_raw = Basler_Cam_Id_1.Capture()
-    if image_raw is None:
-        raise ValueError('[ERROR] No image captured!')
-
-    # Release the camera resources.
-    del Basler_Cam_Id_1
-
-    # The camera's calibration folder, and the output image path within it.
-    camera_folder = f'{project_folder}/Data/Camera/{Basler_Cfg_Str.Name}'
-    output_path = os.path.join(f'{camera_folder}/', f'Image_Checkerboard_{(CONST_INIT_INDEX):03}.png')
-
-    # Initialize the class for custom image processing.
-    Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls('real')
-
-    # Apply the image processing pipeline.
-    image_raw_processed = Process_Image_Cls.Apply(image_raw)
-
-    # Function to adjust the contrast and brightness parameters of the input image
-    # by clipping the histogram.
-    (alpha_custom, beta_custom) = Camera.Utilities.Image_Processing.Get_Alpha_Beta_Parameters(image_raw_processed, 1.0)
-
-    # Adjust the contrast and brightness of the image using the alpha and beta parameters.
-    #   Equation:
-    #       g(i, j) = alpha * f(i, j) + beta
-    image_out = cv2.convertScaleAbs(image_raw_processed, alpha=alpha_custom, beta=beta_custom)
-
-    # Initialize the checkerboard calibration class with checkerboard dimensions and square size (in mm).
-    Checkerboard_Calib_Cls = Calibration.Core.Checkerboard_Calibration_Cls(inner_corners=(11, 8), square_size=12.0)
-
-    # Perform camera calibration using the provided checkerboard image.
-    flag, x = Checkerboard_Calib_Cls.Solve(image_out, False, camera_folder)
-
-    # Check whether calibration was successful.
-    if flag:
-        # Display the camera calibration results: intrinsic matrix, distortion coefficients, and scaling factor.
-        print(f'[INFO] Intrinsic Matrix (K):\n{x.K}')
-        print(f'[INFO] Distortion Coefficients:\n{x.Coefficients}')
-        print(f'[INFO] Pixel-to-mm Conversion Factor:\n{x.Conversion_Factor}')
-
-        # Re-write the 'Calibration' block of the *.yaml configuration file so the freshly
-        # solved result becomes the project's single source of truth (used by the camera backend).
-        if Write_Calibration(x, CONST_BASLER_CONFIG_FILE):
-            print(f'[INFO] Calibration parameters written to: {CONST_BASLER_CONFIG_FILE}')
-        else:
-            print('[WARNING] Calibration parameters could not be written to the configuration file.')
-
-        # Save the image after successful calibration to the specified output path.
-        cv2.imwrite(output_path, image_out)
-        print('[INFO] The data processing was completed successfully.')
-        print(f'[INFO] Output image saved to: {output_path}')
-    else:
-        # Inform user that checkerboard detection or calibration failed.
-        print('[WARNING] Data processing was not completed successfully. An error occurred.')
-
-    # Release the classes.
-    del Process_Image_Cls
+    missing = [flag for flag, value in (('--board-squares', args.board_squares),
+                                        ('--square-mm', args.square_mm),
+                                        ('--board-height-mm', args.board_height_mm)) if value is None]
+    if missing:
+        parser.error('--images requires %s (no defaults: each changes the result)' % ', '.join(missing))
+    return Images_Main(args.images, args.board_squares, args.square_mm, args.board_height_mm,
+                       args.write_config)
 
 if __name__ == '__main__':
     sys.exit(main())

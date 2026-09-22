@@ -25,6 +25,8 @@
 
 # System (Default)
 import os
+# JSON (quoting a path safely in YAML)
+import json
 # PyYAML (YAML parser and emitter) [pip3 install pyyaml]
 import yaml
 # Numpy (Array computing) [pip3 install numpy]
@@ -135,7 +137,8 @@ def Read_Conversion_Factor(file_path: str) -> tp.Optional[Scale_Str]:
     Description:
         Read the image scale from 'Camera.Calibration.Conversion_Factor' — MILLIMETRES PER PIXEL
         along x and y (the calibration computes square_size_mm / corner spacing in px, and the
-        file labels it [mm/px]). It is read through this ONE configuration layer, once, and passed
+        file labels it [mm/px]; Calibration.Core.Calibrate takes that spacing from flat boards'
+        corners undistorted into the application's pixel space). It is read through this ONE configuration layer, once, and passed
         to whatever measures. It never raises, and it has NO default: a missing file, a missing
         block, or an axis that is not a positive finite number yields None, and the caller measures
         nothing (and warns) rather than computing a size from an invented scale.
@@ -160,14 +163,17 @@ def Read_Conversion_Factor(file_path: str) -> tp.Optional[Scale_Str]:
 
 
 def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Parameters_Str,
-                      file_path: str) -> bool:
+                      source_path: str, *, output_path: str,
+                      record: tp.Dict[str, tp.Any]) -> bool:
     """
     Description:
-        Overwrite the 'Calibration' block of a camera *.yaml configuration file with a
-        freshly solved result, so the calibration output becomes the project's single
-        source of truth. Everything above the 'Calibration:' key (the header, the camera
-        identity, its resolution and custom configuration) is preserved; only the
-        calibration values, with their inline comments, are regenerated.
+        Write a camera *.yaml configuration whose 'Calibration' block holds a freshly solved
+        result: everything above the 'Calibration:' key of the SOURCE file (the header, the camera
+        identity, its resolution and custom configuration) is copied, and the calibration values,
+        with their inline comments and the record of how they were solved, are regenerated. The
+        output may be a new file (the default the calibration harness uses, so the configuration
+        in force is untouched until someone adopts the new one) or the source itself (an explicit
+        choice).
 
         Note:
             The 'Calibration:' block is the last block of the file, so preserving
@@ -178,10 +184,14 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
         (1) Camera_Calibration_Parameters_Str [Camera_Calibration_Parameters_Str(object)]: The
             solved calibration result, holding the intrinsic matrix, distortion coefficients
             and pixel-to-millimeter factors.
-        (2) file_path [string]: The absolute path to the *.yaml configuration file.
+        (2) source_path [string]: The configuration the header is copied from.
+        (3) output_path [string]: REQUIRED, keyword-only: the file written (may equal source_path).
+        (4) record [Dict]: REQUIRED, keyword-only: how the calibration was solved — 'date',
+            'images', 'views' {'total', 'flat', 'tilted'}, 'rms_px', 'square_mm' and
+            'board_height_mm' (the reference plane: the flat boards' surface above the table).
 
     Returns:
-        (1) parameter [bool]: True if the file was rewritten successfully, False otherwise.
+        (1) parameter [bool]: True if the file was written successfully, False otherwise.
     """
 
     # The anchor key: everything up to and including it is preserved, the calibration
@@ -189,10 +199,10 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
     anchor = '  Calibration:'
 
     try:
-        assert os.path.isfile(file_path)
+        assert os.path.isfile(source_path)
 
-        # 1\ Read the current source and locate the anchor.
-        with open(file_path, 'r', encoding='utf-8') as f:
+        # 1\ Read the source and locate the anchor.
+        with open(source_path, 'r', encoding='utf-8') as f:
             lines = f.read().splitlines()
         anchor_i = next((i for i, line in enumerate(lines) if line.rstrip() == anchor), None)
         assert anchor_i is not None
@@ -209,22 +219,37 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
                                  for key, value in Camera_Calibration_Parameters_Str.Coefficients.items())
         factors = '\n'.join(f'      {key}: {repr(float(value))}'
                             for key, value in Camera_Calibration_Parameters_Str.Conversion_Factor.items())
+        views = record['views']
 
         # 3\ Compose the regenerated calibration block, keeping its inline comments.
-        block = ('    # Camera calibration (intrinsic) matrix K, 3 x 3, row-major.\n'
+        block = ('    # How this calibration was solved (Example/Camera/calibrate.py --images).\n'
+                 '    Solved:\n'
+                 f'      Date: {record["date"]}\n'
+                 f'      Images: {json.dumps(record["images"])}\n'
+                 '      # Views used: flat boards (lens model + factor) and tilted ones (lens model).\n'
+                 f'      Views: {{Total: {int(views["total"])}, Flat: {int(views["flat"])}, '
+                 f'Tilted: {int(views["tilted"])}}}\n'
+                 f'      Reprojection_RMS_Px: {repr(float(record["rms_px"]))}\n'
+                 '      # The board\'s square size [mm], as calipered.\n'
+                 f'      Square_Size_Mm: {repr(float(record["square_mm"]))}\n'
+                 '      # The reference plane: the flat boards\' surface height above the table [mm].\n'
+                 '      # The factor is exact in this plane only.\n'
+                 f'      Board_Height_Mm: {repr(float(record["board_height_mm"]))}\n'
+                 '    # Camera calibration (intrinsic) matrix K, 3 x 3, row-major.\n'
                  f'    K:\n{matrix_rows}\n'
                  '    # Distortion coefficients: [k1, k2, p1, p2, k3].\n'
                  f'    Coefficients:\n{coefficients}\n'
-                 '    # Pixel-to-millimeter conversion factors for the x and y axes [mm/px].\n'
+                 '    # Pixel-to-millimeter conversion factors for the x and y axes [mm/px], in the\n'
+                 '    # undistorted (alpha = 1) pixel space measurement happens in.\n'
                  f'    Conversion_Factor:\n{factors}')
 
-        # 4\ Write the preserved head and the regenerated block back to the file.
-        with open(file_path, 'w', encoding='utf-8') as f:
+        # 4\ Write the preserved head and the regenerated block to the output file.
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(head) + '\n' + block + '\n')
 
         return True
 
-    except AssertionError as error:
+    except (AssertionError, OSError, KeyError) as error:
         print(f'[ERROR] Information: {error}')
-        print(f'[ERROR] The calibration block could not be written to "{file_path}".')
+        print(f'[ERROR] The calibration could not be written to "{output_path}".')
         return False

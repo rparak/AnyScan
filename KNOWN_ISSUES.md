@@ -22,35 +22,6 @@ leaving a stranded `"n"`: the label becomes `"n m6 stainless steel"`.
   `"this is an"` is tried before `"this is a"`), or match on word boundaries.
   Update the pinning test and re-baseline in the same change.
 
-## `calibrate.py` custom camera config is silently ignored
-
-`Example/Camera/calibrate.py` builds `custom_cfg` with lower-case keys:
-
-```python
-custom_cfg = {
-    'exposure_time': 10000,
-    'gain': 10,
-    'balance_ratios': {'Red': 0.95, 'Green': 0.9, 'Blue': 1.2},
-    'pixel_format': 'BayerRG8',
-}
-```
-
-But `Camera.Basler.Basler_Cls.__Configure` reads the **capitalized** keys —
-`self.config['Exposure_Time']`, `['Gain']`, `['Balance_Ratios']`,
-`['Pixel_Format']` — the same form as `Camera.Core.CONST_BASLER_CONFIG`. The
-lower-case keys therefore never match; `Basler_Cls` merges them in but reads none
-of them, falling back to its own `default_config`. So `calibrate.py` runs the
-camera at the wrapper's defaults, not the values it appears to set.
-
-- **Impact:** the calibration is performed at unintended exposure/gain/white
-  balance. Latent because `calibrate.py` needs a physical Basler camera and has
-  never been run against hardware in this repo.
-- **Should be:** `{'Exposure_Time': 10000, 'Gain': 10, 'Balance_Ratios': {...},
-  'Pixel_Format': 'BayerRG8'}` (Capitalized), matching `CONST_BASLER_CONFIG`.
-- **Not fixed here:** correcting the keys changes the capture behaviour, which is
-  out of scope for a style pass and unverifiable without the camera. Fix it
-  together with a hardware test run.
-
 ## `Synth_Eye` stale project name (fixed)
 
 `calibrate.py` located the project folder by splitting `os.getcwd()` on the string
@@ -312,7 +283,7 @@ error whose size nobody has measured. They are shown to 0.1 mm because that is o
 They are **repeatable** — the same plate in `Image_002`–`005`, placed differently, measures
 57.7–58.5 × 37.9–39.1 mm — but repeatability says nothing about correctness: a systematic error
 (a wrong scale, or a scale that varies across the frame) is the same in every frame and hides
-inside exactly that stability. The calibration gives specific reasons to expect one:
+inside exactly that stability. The calibration in force gives specific reasons to expect one:
 
 - `Conversion_Factor` is derived from chessboard corners in a **single, raw (distorted)** image,
   but it is applied to **undistorted** frames (the live camera and `Example/Camera/scan.py` both
@@ -334,12 +305,19 @@ inside exactly that stability. The calibration gives specific reasons to expect 
 - **Impact:** every size (A × B, Ø and A/F) may carry a systematic error of unknown magnitude, either
   one scale factor or one that varies with position in the frame.
 - **The check that closes it:** photograph references of known size — the calibration chessboard
-  (12 mm squares, hardcoded in `Example/Camera/calibrate.py`, not stored in the configuration)
-  and caliper-measured flat parts — at the frame centre and in the corners, through the
-  application's own undistortion, and compare measured against nominal in mm and percent. If the
-  error is the same everywhere it is one correction to the factor; if it varies across the frame,
-  the factor must be recomputed from undistorted corners (and the calibration redone from several
-  board poses) before any size is relied on.
+  (its square size calipered) and caliper-measured flat parts — at the frame centre and in the
+  corners, through the application's own undistortion, and compare measured against nominal in mm
+  and percent. If the error is the same everywhere it is one correction to the factor; if it
+  varies across the frame, the factor must be recomputed from undistorted corners and the
+  calibration redone from several board poses before any size is relied on. Capture sets now keep
+  each frame before undistortion too (`<set>_distorted.png`), so the same reference frames can be
+  re-measured under any later calibration.
+- **The tool to redo it exists; the result does not yet.** `Example/Camera/calibrate.py --capture`
+  records distorted frames (flat and tilted boards, all kept) and `--images` solves them together,
+  derives the factor from the flat boards' undistorted corners in the application's pixel space,
+  and reports the principal point, the tilt spread and the factor's spread across the frame. It
+  writes a NEW configuration file; the configuration in force is still the single-view one above
+  until a new set is solved, compared against it, and adopted (App/run.py hardcodes its path).
 
 ## A part's measured size depends on where it lies in the frame, and on its thickness
 

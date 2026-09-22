@@ -35,7 +35,10 @@ import numpy as np
 import typing as tp
 # Custom Lib.:
 #   ../Parameters/Camera
-from Parameters.Camera import Camera_Calibration_Parameters_Str, Board_Detection_Str
+from Parameters.Camera import (Camera_Calibration_Parameters_Str, Board_Detection_Str,
+                               Calibration_View_Str, Calibration_Report_Str)
+#   ../Camera/Core — the application's own undistortion setting (the pixel space of measurement)
+from Camera.Core import CONST_BASLER_UNDISTORT_ALPHA
 
 """
 Description:
@@ -48,6 +51,11 @@ Description:
     tilted or raised board (it feeds the lens model only). A 'capture.json' manifest beside them
     states that they are distorted and how they were produced, so no reader mistakes them for the
     application's undistorted '<set>_raw.png'.
+
+    The lens model is solved with cv2.calibrateCamera over ALL detected views together. The mm/px
+    factor is derived afterwards from the FLAT views only, from their corners UNDISTORTED into the
+    application's own pixel space (getOptimalNewCameraMatrix with CONST_BASLER_UNDISTORT_ALPHA) —
+    the space every measurement happens in — never from raw, distorted corners.
 """
 # The filename prefixes of the two kinds of calibration capture.
 #   Unit [string]
@@ -70,6 +78,58 @@ CONST_CALIB_MIN_GRID = (4, 3)
 # is not used either.
 #   Unit [int]
 CONST_CALIB_DETECT_FLAGS = cv2.CALIB_CB_LARGER | cv2.CALIB_CB_ACCURACY
+# The image files a calibration directory is read from.
+#   Unit [Vector<string>]
+CONST_CALIB_IMAGE_EXTENSIONS = ('.png', '.bmp', '.tif', '.tiff', '.jpg', '.jpeg')
+# The tilt (degrees between the board's normal and the optical axis) a view needs to count as
+# tilted, and how many such views a set needs before its principal point is trusted. From the
+# synthetic study Example/Camera/calibration_tilt_study.py (12 views, 0.1 px corner noise;
+# principal-point error median / 90th percentile over 40 seeds):
+#   k views tilted 10 deg, the rest flat:  k=0 45 / 100 px (focal 18 % off) — at 0.2 px noise
+#   94 / 614 px, the failure the single-view calibration showed at ~800 px;  k=1 22 / 49 px;
+#   k=2 2.8 / 6.8 px;  k=3 2.3 / 4.4 px (focal 0.14 %);  k=6 1.4 / 2.5 px.
+#   tilts uniform up to a maximum:  0 deg 45 px, 2 deg 4.8 px, 3 deg 3.1 px, 5 deg 2.1 px,
+#   8 deg 1.5 px, 10 deg 1.5 px (focal 0.15 %), 15-45 deg 1.5-1.6 px — the plateau starts at
+#   8-10 deg and recovery degrades sharply below 5 deg.
+# Three views of at least 10 deg is the first point on the plateau in both sweeps. Tilt does not
+# buy scale uniformity (that is corner noise and view count: 0.085 % at 12 views, 0.057 % at 24).
+#   Unit [float] / [int]
+CONST_CALIB_MIN_TILT_DEG = 10.0
+CONST_CALIB_MIN_TILTED_VIEWS = 3
+# A view whose own reprojection RMS exceeds this multiple of the set's median is named as a bad
+# capture (blurred, moved, glared or misdetected) to retake or exclude.
+#   Unit [float]
+CONST_CALIB_OUTLIER_RATIO = 2.0
+# The frame regions (columns, rows) the factor is mapped over to show position dependence.
+#   Unit [Vector<int> 1x2]
+CONST_CALIB_FACTOR_MAP_CELLS = (3, 3)
+# The per-axis spread of the factor across the frame (max - min, % of the factor) above which it
+# is reported as position-dependent rather than averaged away: one pixel in a thousand — a 100 mm
+# part is ~1000 px at ~0.1 mm/px, so a larger variation changes its size at the display
+# resolution. (The synthetic study puts pure corner noise at 0.085 % for 12 views and 0.057 % for
+# 24, so a set of 20+ views stays under it unless the variation is real.)
+#   Unit [float] (%)
+CONST_CALIB_FACTOR_UNIFORM_PCT = 0.1
+# The points the distortion's reach is reported at: the frame's corners and edge midpoints, as
+# fractions of (width - 1, height - 1).
+#   Unit [Dict]
+CONST_CALIB_EDGE_POINTS = {'top-left': (0.0, 0.0), 'top': (0.5, 0.0), 'top-right': (1.0, 0.0),
+                           'right': (1.0, 0.5), 'bottom-right': (1.0, 1.0), 'bottom': (0.5, 1.0),
+                           'bottom-left': (0.0, 1.0), 'left': (0.0, 0.5)}
+# A printed board's warning, stated with every result: the square size scales every measurement.
+#   Unit [string]
+CONST_CALIB_SQUARE_WARNING = ('The square size scales every measurement. Caliper a printed board '
+                              'across several squares: printer scaling of 0.5-1 % is the same '
+                              'order as the errors this calibration is meant to remove.')
+
+
+class Calibration_Error_Cls(RuntimeError):
+    """
+    Description:
+        Raised when a calibration cannot produce a trustworthy result at all — no images, no
+        detected board, no flat view for the factor, mixed image sizes. Its message is a full
+        sentence saying what to capture.
+    """
 
 
 def Detect_Board(image: np.ndarray) -> Board_Detection_Str:
@@ -153,140 +213,359 @@ def Record_Capture(directory: str, header: tp.Dict[str, tp.Any],
     os.replace(temporary, path)
     return path
 
-class Checkerboard_Calibration_Cls:
+def Natural_Key(name: str) -> tp.List[tp.Any]:
     """
     Description:
-        A class for performing camera calibration using a checkerboard pattern.
+        A natural sort key: digit runs compare as numbers, so 'view_10' follows 'view_9'.
 
-        Note:
-            It estimates calibration parameters (matrix, distortion coefficients) and pixel-to-millimeter 
-            conversion factors.
-    
-    Initialization of the Class:
-        Args:
-            (1) inner_corners [Vector<float> 1x2]: Number of inner corners per a checkerboard row and column (columns, rows).
-            (2) square_size [float]: Size of one square on the checkerboard in mm.
+    Args:
+        (1) name [string]: The filename.
 
-        Example:
-            Initialization:
-                # Assignment of the variables.
-                inner_corners = (11, 8); square_size = 12.0
-
-                # Initialize the class.
-                Cls = Checkerboard_Calibration_Cls(inner_corners, square_size)
+    Returns:
+        (1) parameter [Vector]: The key.
     """
-        
-    def __init__(self, inner_corners: tp.Tuple[int, int], square_size: float) -> None:
-        # Store the number of inner corners per dimension (adjusting by -1 to match OpenCV expectations).
-        self.__inner_corners = [x_i - 1 for x_i in inner_corners]
-        self.__square_size = square_size
 
-        # Initialize the calibration parameters container.
-        self.__Calib_Param_Str = Camera_Calibration_Parameters_Str()
-
-        # Prepare the object points array for the checkerboard.
-        self.__obj_points = np.zeros((self.__inner_corners[0] * self.__inner_corners[1], 3), np.float32)
-
-        # Fill in X and Y coordinates using a grid; Z = 0 as it's a planar board.
-        self.__obj_points[:, :2] = np.mgrid[0:self.__inner_corners[0], 0:self.__inner_corners[1]].T.reshape(-1, 2)
-
-        # Scale by square size to convert to real-world units.
-        self.__obj_points *= self.__square_size
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r'(\d+)', name)]
 
 
-    def __Get_Pixel_To_MM_Factor(self, corner_subpix: np.ndarray) -> tp.Dict[str, float]:
-        """
-        Description:
-            Computes the pixel-to-millimeter conversion factors in X and Y directions
-            based on subpixel corner detections.
+def Load_Views(directory: str) -> tp.List[tp.Tuple[str, np.ndarray]]:
+    """
+    Description:
+        Every image in a calibration directory, in natural filename order. An image that cannot
+        be read is still returned (as None) so the solve reports it by name instead of it
+        silently vanishing.
 
-        Args:
-            (1) corners_subpix [np.ndarray]: Refined corner locations with subpixel accuracy (shape: N x 1 x 2).
+    Args:
+        (1) directory [string]: The capture directory.
 
-        Returns:
-            (1) parameter [Dict[str, float]]: Conversion factor in horizontal ('x') and vertical ('y') directions.
-        """
+    Returns:
+        (1) parameter [Vector<Tuple<string, Matrix or None>>]: (filename, image) pairs.
+    """
 
-        dist_horizontal = []; dist_vertical = []
- 
-        # Compute average horizontal distances between adjacent corners in each row.
-        for row_i in range(self.__inner_corners[1]):
-            for column_i in range(self.__inner_corners[0] - 1):
-                i = row_i * self.__inner_corners[0] + column_i
-                dist_horizontal.append(np.linalg.norm(corner_subpix[i + 1][0] 
-                                                      - corner_subpix[i][0]))
+    if not os.path.isdir(directory):
+        raise Calibration_Error_Cls('There is no calibration directory at "%s".' % directory)
+    names = sorted((name for name in os.listdir(directory)
+                    if name.lower().endswith(CONST_CALIB_IMAGE_EXTENSIONS)), key=Natural_Key)
+    return [(name, cv2.imread(os.path.join(directory, name))) for name in names]
 
-        # Compute average vertical distances between adjacent corners in each column.
-        for column_i in range(self.__inner_corners[0]):
-            for row_i in range(self.__inner_corners[1] - 1):
-                i = row_i * self.__inner_corners[0] + column_i
-                dist_vertical.append(np.linalg.norm(corner_subpix[i + self.__inner_corners[0]][0] 
-                                                    - corner_subpix[i][0]))
-        
-        return {
-            'x': self.__square_size / float(np.mean(dist_horizontal)),
-            'y': self.__square_size / float(np.mean(dist_vertical))
-        }
 
-    def Solve(self, image: np.ndarray, draw_chessboard_corners: bool = False,
-              path: str = '') -> tp.Tuple[bool, tp.Optional[Camera_Calibration_Parameters_Str]]:
-        """
-        Description:
-            Performs camera calibration using a single checkerboard image. It computes camera calibration 
-            parameters as matrix, distortion coefficients, and pixel-to-mm conversion factors.
+def __Grid_Object_Points(detection: Board_Detection_Str, square_mm: float) -> np.ndarray:
+    """
+    Description:
+        The board-plane coordinates (mm, z = 0) of a detection's corners, row-major over its grid.
+        A partial grid is labelled from its own first corner: each view has its own pose, so only
+        the relative geometry has to be right.
 
-        Args:
-            (1) image [np.ndarray]: Input image containing a visible checkerboard pattern.
-            (2) draw_chessboard_corners [bool]: Whether to draw and save the image with detected corners.
-            (3) path [string]: Directory path to save the visualized checkerboard image (if enabled).
+    Args:
+        (1) detection [Board_Detection_Str(object)]: The detection.
+        (2) square_mm [float]: The square size in mm.
 
-        Returns:
-            (1) parameter [Tuple[bool, Camera_Calibration_Parameters_Str or None]]:
-                (1a) Success flag indicating whether calibration was successful.
-                (1b) Calibration parameters if successful, otherwise None.
-        """
-                
-        # Convert to grayscale if input is a color image.
-        if len(image.shape) == 3:
-            img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        else:
-            img_gray = image.copy()
+    Returns:
+        (1) parameter [Matrix<float32> Nx3]: The object points.
+    """
 
-        # Try to find the checkerboard corners.
-        ret, corners = cv2.findChessboardCorners(img_gray, self.__inner_corners, None)
-        if not ret:
-            print('[INFO] Checkerboard not detected.')
-            return False, None
+    columns, rows = detection.Grid
+    ys, xs = np.mgrid[0:rows, 0:columns]
+    return np.stack([xs.ravel() * square_mm, ys.ravel() * square_mm,
+                     np.zeros(rows * columns)], axis=1).astype(np.float32)
 
-        # Refine corner positions to subpixel accuracy.
-        criteria = (cv2.TermCriteria_EPS + cv2.TermCriteria_MAX_ITER, 30, 0.001)
-        corners_subpix = cv2.cornerSubPix(img_gray, corners, (11, 11), (-1, -1), criteria)
 
-        # Perform camera calibration to obtain the matrix and distortion coefficients
-        _, K, dist_coeffs_tmp, _, _ = cv2.calibrateCamera(
-            [self.__obj_points], [corners_subpix], img_gray.shape[::-1], None, None
-        )
-        # Flatten the distortion coefficients
-        dist_coeffs = dist_coeffs_tmp.ravel()
+def __Solve_Scale(pairs_px: np.ndarray, square_mm: float) -> tp.Optional[tp.Tuple[float, float]]:
+    """
+    Description:
+        The per-axis mm/px (sx, sy) that best explains a set of adjacent-corner pairs, each one
+        square apart: square_mm^2 = (dx sx)^2 + (dy sy)^2 is linear in (sx^2, sy^2), so a board
+        at any rotation on the table contributes to both axes. None when the pairs cannot fix
+        both axes (e.g. every pair points the same way).
 
-        # Store the matrix.
-        self.__Calib_Param_Str.K = K
+    Args:
+        (1) pairs_px [Matrix<float> Nx2]: The (dx, dy) of each pair, in undistorted pixels.
+        (2) square_mm [float]: The square size in mm.
 
-        # Store the distortion coefficients.
-        self.__Calib_Param_Str.Coefficients = {
-            'k1': dist_coeffs[0],
-            'k2': dist_coeffs[1],
-            'p1': dist_coeffs[2],
-            'p2': dist_coeffs[3],
-            'k3': dist_coeffs[4] if dist_coeffs.size > 4 else 0.0
-        }
+    Returns:
+        (1) parameter [Vector<float> 1x2 or None]: (mm/px x, mm/px y), or None.
+    """
 
-        # Determine the pixel to mm conversion factor in both directions from the actual corners.
-        self.__Calib_Param_Str.Conversion_Factor = self.__Get_Pixel_To_MM_Factor(corners_subpix)
+    if pairs_px.shape[0] < 2:
+        return None
+    design = pairs_px ** 2
+    if np.linalg.matrix_rank(design, tol=1e-6 * float(design.max())) < 2:
+        return None
+    solution, *_ = np.linalg.lstsq(design, np.full(pairs_px.shape[0], square_mm ** 2), rcond=None)
+    if (solution <= 0.0).any():
+        return None
+    return (float(np.sqrt(solution[0])), float(np.sqrt(solution[1])))
 
-        # [Optional] Draw the detected corners and save the image.
-        if draw_chessboard_corners:
-            img_corners = cv2.drawChessboardCorners(image, self.__inner_corners, corners_subpix, ret)
-            cv2.imwrite(f'{path}/Image_Checkerboard_Calibrated.png', img_corners)
 
-        return True, self.__Calib_Param_Str
+def __Undistorted_Pairs(detection: Board_Detection_Str, K: np.ndarray, coeffs: np.ndarray,
+                        new_K: np.ndarray) -> tp.Tuple[np.ndarray, np.ndarray]:
+    """
+    Description:
+        A flat view's adjacent-corner pairs (along both grid directions) after undistorting its
+        corners into the application's pixel space, with each pair's midpoint.
+
+    Args:
+        (1) detection [Board_Detection_Str(object)]: The flat view's detection.
+        (2) K [Matrix<float> 3x3]: The solved camera matrix.
+        (3) coeffs [Vector<float>]: The solved distortion coefficients.
+        (4) new_K [Matrix<float> 3x3]: The application's undistortion camera matrix.
+
+    Returns:
+        (1) parameter [Tuple<Matrix Nx2, Matrix Nx2>]: (pair vectors, pair midpoints) in px.
+    """
+
+    columns, rows = detection.Grid
+    undistorted = cv2.undistortPoints(detection.Corners.reshape(-1, 1, 2), K, coeffs,
+                                      P=new_K).reshape(rows, columns, 2)
+    vectors, midpoints = [], []
+    for axis in (0, 1):
+        a = undistorted[:-1, :] if axis == 0 else undistorted[:, :-1]
+        b = undistorted[1:, :] if axis == 0 else undistorted[:, 1:]
+        vectors.append((b - a).reshape(-1, 2))
+        midpoints.append(((a + b) / 2.0).reshape(-1, 2))
+    return np.concatenate(vectors), np.concatenate(midpoints)
+
+
+def __Spread_Pct(values: tp.List[tp.Tuple[float, float]]) -> tp.Tuple[float, float]:
+    """
+    Description:
+        The per-axis spread (max - min) of a set of (x, y) factors, as % of their mean.
+
+    Args:
+        (1) values [Vector<Tuple<float>>]: The factors.
+
+    Returns:
+        (1) parameter [Vector<float> 1x2]: (x %, y %), 0 for fewer than two values.
+    """
+
+    if len(values) < 2:
+        return (0.0, 0.0)
+    array = np.array(values)
+    return tuple(float(100.0 * (array[:, k].max() - array[:, k].min()) / array[:, k].mean())
+                 for k in (0, 1))
+
+
+def Calibrate(views: tp.List[tp.Tuple[str, tp.Optional[np.ndarray]]], square_mm: float,
+              board_height_mm: float, board_squares: tp.Tuple[int, int]) -> Calibration_Report_Str:
+    """
+    Description:
+        Solve the camera over a set of chessboard images and report everything needed to judge
+        the result. Each image is detected on its own; one that fails (unreadable, blurred,
+        glared, no board, a grid larger than the board) is named with the reason and skipped,
+        never fatal. cv2.calibrateCamera then runs over all detected views together. The mm/px
+        factor comes from the FLAT views only ('flat_' prefix), from their corners undistorted
+        into the application's pixel space; with no flat view detected this raises rather than
+        derive a factor from tilted boards.
+
+    Args:
+        (1) views [Vector<Tuple<string, Matrix or None>>]: (filename, image) pairs, e.g. from
+                                                           Load_Views.
+        (2) square_mm [float]: The board's square size in mm (as calipered).
+        (3) board_height_mm [float]: The flat boards' surface height above the table (mm) — the
+                                     reference plane the factor belongs to; recorded, not applied.
+        (4) board_squares [Vector<int> 1x2]: The board's squares (columns, rows), e.g. (11, 8);
+                                             its inner-corner grid is one fewer each way.
+
+    Returns:
+        (1) parameter [Calibration_Report_Str(object)]: The solved calibration and its diagnostics.
+    """
+
+    if not views:
+        raise Calibration_Error_Cls('The calibration directory holds no images.')
+    inner = sorted((board_squares[0] - 1, board_squares[1] - 1))
+    report = Calibration_Report_Str(Square_Mm=float(square_mm), Board_Height_Mm=float(board_height_mm))
+
+    # 1\ Detect each view on its own; a failure is recorded with its reason and skipped.
+    size = None
+    for name, image in views:
+        view = Calibration_View_Str(Name=name, Flat=name.startswith(CONST_CALIB_FLAT_PREFIX))
+        report.Views.append(view)
+        if image is None:
+            view.Detection = Board_Detection_Str(Reason='the file could not be read as an image')
+            continue
+        image_size = (int(image.shape[1]), int(image.shape[0]))
+        if size is None:
+            size = image_size
+        elif image_size != size:
+            raise Calibration_Error_Cls('"%s" is %d x %d but the first image is %d x %d; a '
+                                        'calibration needs one image size.' % (name, *image_size, *size))
+        view.Detection = Detect_Board(image)
+        grid = sorted(view.Detection.Grid)
+        if view.Detection.Found and (grid[0] > inner[0] or grid[1] > inner[1]):
+            view.Detection = Board_Detection_Str(Reason='a %d x %d grid was found, larger than the '
+                                                        'board\'s %d x %d inner corners'
+                                                        % (*view.Detection.Grid, *inner))
+    detected = [view for view in report.Views if view.Detection.Found]
+    if not detected:
+        raise Calibration_Error_Cls('No chessboard was found in any image; nothing can be solved.')
+    flats = [view for view in detected if view.Flat]
+    if not flats:
+        raise Calibration_Error_Cls('No flat view (a "%s*" image with the board found) is present: '
+                                    'the mm/px factor comes only from boards lying flat on the table, '
+                                    'and is never derived from tilted ones. Capture the board flat '
+                                    'at the centre and in the corners.' % CONST_CALIB_FLAT_PREFIX)
+    report.Image_Size = size
+    width, height = size
+
+    # 2\ One calibration over every detected view.
+    object_points = [__Grid_Object_Points(view.Detection, square_mm) for view in detected]
+    image_points = [view.Detection.Corners.reshape(-1, 1, 2).astype(np.float32) for view in detected]
+    rms, K, coeffs, rvecs, tvecs = cv2.calibrateCamera(object_points, image_points, size, None, None)
+    coeffs = coeffs.ravel()[:5]
+    report.K, report.Rms_Px = K, float(rms)
+    report.Coefficients = dict(zip(('k1', 'k2', 'p1', 'p2', 'k3'), (float(c) for c in coeffs)))
+
+    # 3\ Per view: reprojection error and the board's tilt from facing the camera.
+    for view, obj, img, rvec, tvec in zip(detected, object_points, image_points, rvecs, tvecs):
+        projected, _ = cv2.projectPoints(obj, rvec, tvec, K, coeffs)
+        view.Rms_Px = float(np.sqrt(np.mean(np.sum((projected - img) ** 2, axis=2))))
+        normal = cv2.Rodrigues(rvec)[0][:, 2]
+        view.Tilt_Deg = float(np.degrees(np.arccos(min(1.0, abs(float(normal[2]))))))
+        view.Tilt_Azimuth_Deg = float(np.degrees(np.arctan2(normal[1], normal[0])) % 360.0)
+    median_rms = float(np.median([view.Rms_Px for view in detected]))
+    for view in detected:
+        view.Outlier = view.Rms_Px > CONST_CALIB_OUTLIER_RATIO * median_rms
+    tilts = [view.Tilt_Deg for view in detected]
+    report.Tilt_Range_Deg = (min(tilts), max(tilts))
+    report.Tilted_Views = sum(tilt >= CONST_CALIB_MIN_TILT_DEG for tilt in tilts)
+    if report.Tilted_Views < CONST_CALIB_MIN_TILTED_VIEWS:
+        report.Tilt_Warning = ('Only %d view(s) are tilted by %.0f deg or more (%d needed): '
+                               'near-frontal views cannot separate the principal point from the '
+                               'board\'s position, so this result may be as unreliable as the '
+                               'single-view calibration it replaces. Add views tilted %.0f-30 deg '
+                               'in several directions.' % (report.Tilted_Views, CONST_CALIB_MIN_TILT_DEG,
+                                                           CONST_CALIB_MIN_TILTED_VIEWS,
+                                                           CONST_CALIB_MIN_TILT_DEG))
+
+    # 4\ The principal point against the image centre, and the distortion at the frame edge.
+    centre = ((width - 1) / 2.0, (height - 1) / 2.0)
+    dx, dy = float(K[0, 2] - centre[0]), float(K[1, 2] - centre[1])
+    report.Principal_Offset_Px = (dx, dy)
+    report.Principal_Distance_Px = float(np.hypot(dx, dy))
+    report.Principal_Offset_Fraction = (dx / width, dy / height)
+    edge = np.array([[fx * (width - 1), fy * (height - 1)]
+                     for fx, fy in CONST_CALIB_EDGE_POINTS.values()]).reshape(-1, 1, 2)
+    moved = cv2.undistortPoints(edge, K, coeffs, P=K).reshape(-1, 2) - edge.reshape(-1, 2)
+    report.Edge_Distortion_Px = {key: float(np.hypot(*d)) for key, d in
+                                 zip(CONST_CALIB_EDGE_POINTS, moved)}
+
+    # 5\ The factor from the flat views' undistorted corners, in the application's pixel space.
+    new_K, _ = cv2.getOptimalNewCameraMatrix(K, coeffs, size, CONST_BASLER_UNDISTORT_ALPHA, size)
+    report.New_K = new_K
+    report.Undistortion_Rescale = (float(new_K[0, 0] / K[0, 0]), float(new_K[1, 1] / K[1, 1]))
+    all_vectors, all_midpoints = [], []
+    for view in flats:
+        vectors, midpoints = __Undistorted_Pairs(view.Detection, K, coeffs, new_K)
+        view.Factor = __Solve_Scale(vectors, square_mm)
+        all_vectors.append(vectors)
+        all_midpoints.append(midpoints)
+    vectors, midpoints = np.concatenate(all_vectors), np.concatenate(all_midpoints)
+    factor = __Solve_Scale(vectors, square_mm)
+    if factor is None:
+        raise Calibration_Error_Cls('The flat views do not determine the factor on both axes.')
+    report.Factor = factor
+    report.Factor_View_Spread_Pct = __Spread_Pct([view.Factor for view in flats
+                                                 if view.Factor is not None])
+    cells_x, cells_y = CONST_CALIB_FACTOR_MAP_CELLS
+    column = np.clip((midpoints[:, 0] / width * cells_x).astype(int), 0, cells_x - 1)
+    row = np.clip((midpoints[:, 1] / height * cells_y).astype(int), 0, cells_y - 1)
+    report.Factor_Map = [[__Solve_Scale(vectors[(row == r) & (column == c)], square_mm)
+                          for c in range(cells_x)] for r in range(cells_y)]
+    report.Factor_Frame_Spread_Pct = __Spread_Pct([cell for cells in report.Factor_Map
+                                                  for cell in cells if cell is not None])
+    if max(report.Factor_Frame_Spread_Pct) > CONST_CALIB_FACTOR_UNIFORM_PCT:
+        report.Factor_Warning = ('The factor varies across the frame by %.3f %% (x) / %.3f %% (y), '
+                                 'more than %.1f %%: sizes depend on where a part lies. See the '
+                                 'map; a gradient across it suggests the table is not parallel to '
+                                 'the sensor.' % (*report.Factor_Frame_Spread_Pct,
+                                                  CONST_CALIB_FACTOR_UNIFORM_PCT))
+    return report
+
+
+def Report_Lines(report: Calibration_Report_Str) -> tp.List[str]:
+    """
+    Description:
+        The calibration report as printable lines — per image (kind, detection, corners,
+        reprojection, tilt), then the principal point (prominently: its misplacement is what
+        exposed the single-view calibration), the tilt spread, the distortion at the frame edge,
+        and the factor with its spread across images and across the frame. Warnings are lines
+        starting '[WARNING]'.
+
+    Args:
+        (1) report [Calibration_Report_Str(object)]: The report.
+
+    Returns:
+        (1) parameter [Vector<string>]: The lines.
+    """
+
+    lines = []
+    flats = [v for v in report.Views if v.Flat and v.Detection.Found]
+    tilted = [v for v in report.Views if not v.Flat and v.Detection.Found]
+    failed = [v for v in report.Views if not v.Detection.Found]
+    lines.append('[INFO] Images: %d  |  used: %d flat (lens model + factor), %d tilted (lens model '
+                 'only)  |  skipped: %d' % (len(report.Views), len(flats), len(tilted), len(failed)))
+    for view in report.Views:
+        kind = 'flat' if view.Flat else 'view'
+        if not view.Detection.Found:
+            lines.append('[WARNING]   %-22s %s  SKIPPED: %s' % (view.Name, kind, view.Detection.Reason))
+            continue
+        lines.append('[INFO]      %-22s %s  %2d x %-2d = %3d corners  reprojection %.3f px  tilt %5.1f deg%s'
+                     % (view.Name, kind, *view.Detection.Grid, view.Detection.Corners.shape[0],
+                        view.Rms_Px, view.Tilt_Deg,
+                        ('  factor %.6f x %.6f mm/px' % view.Factor) if view.Factor else ''))
+    for view in report.Views:
+        if view.Outlier:
+            lines.append('[WARNING] %s reprojects at %.3f px, over %.0fx the set\'s median: a bad '
+                         'capture (blur, movement, glare) - retake or exclude it.'
+                         % (view.Name, view.Rms_Px, CONST_CALIB_OUTLIER_RATIO))
+    lines.append('[INFO] Overall reprojection RMS: %.3f px' % report.Rms_Px)
+    width, height = report.Image_Size
+    lines.append('[INFO] PRINCIPAL POINT: (%.1f, %.1f) px  -  %.1f px from the image centre '
+                 '(dx %+.1f, dy %+.1f; %+.1f %% of the width, %+.1f %% of the height)'
+                 % (report.K[0, 2], report.K[1, 2], report.Principal_Distance_Px,
+                    *report.Principal_Offset_Px, 100.0 * report.Principal_Offset_Fraction[0],
+                    100.0 * report.Principal_Offset_Fraction[1]))
+    lines.append('[INFO] Focal length: %.1f x %.1f px' % (report.K[0, 0], report.K[1, 1]))
+    lines.append('[INFO] Board tilt across the set: %.1f - %.1f deg; %d view(s) tilted %.0f deg or more'
+                 % (*report.Tilt_Range_Deg, report.Tilted_Views, CONST_CALIB_MIN_TILT_DEG))
+    if report.Tilt_Warning:
+        lines.append('[WARNING] ' + report.Tilt_Warning)
+    lines.append('[INFO] Distortion (k1, k2, p1, p2, k3): ' + ', '.join(
+        '%s %.5f' % item for item in report.Coefficients.items()))
+    lines.append('[INFO] Distortion moves the frame edge by: ' + ', '.join(
+        '%s %.1f px' % item for item in report.Edge_Distortion_Px.items()))
+    lines.append('[INFO] Undistortion (alpha %d) rescales the focal length to %.4f (x) / %.4f (y) of K'
+                 % (CONST_BASLER_UNDISTORT_ALPHA, *report.Undistortion_Rescale))
+    lines.append('[INFO] FACTOR (flat views, undistorted corners, application pixel space): '
+                 '%.6f x %.6f mm/px' % report.Factor)
+    lines.append('[INFO] Factor spread across the %d flat view(s): %.3f %% (x) / %.3f %% (y)'
+                 % (len(flats), *report.Factor_View_Spread_Pct))
+    lines.append('[INFO] Factor across the frame (%d x %d regions, mm/px x / y), spread %.3f %% (x) '
+                 '/ %.3f %% (y):' % (*CONST_CALIB_FACTOR_MAP_CELLS, *report.Factor_Frame_Spread_Pct))
+    for cells in report.Factor_Map:
+        lines.append('[INFO]     ' + '   '.join('%.6f / %.6f' % cell if cell else '      (no data)      '
+                                                for cell in cells))
+    if report.Factor_Warning:
+        lines.append('[WARNING] ' + report.Factor_Warning)
+    lines.append('[INFO] Square size %.3f mm; reference plane (flat boards\' surface) %.1f mm above '
+                 'the table.' % (report.Square_Mm, report.Board_Height_Mm))
+    lines.append('[WARNING] ' + CONST_CALIB_SQUARE_WARNING)
+    return lines
+
+
+def Calibration_Parameters(report: Calibration_Report_Str) -> Camera_Calibration_Parameters_Str:
+    """
+    Description:
+        The report's result as the configuration's calibration structure (K, coefficients and
+        the mm/px factor), for writing.
+
+    Args:
+        (1) report [Calibration_Report_Str(object)]: The report.
+
+    Returns:
+        (1) parameter [Camera_Calibration_Parameters_Str(object)]: The calibration parameters.
+    """
+
+    return Camera_Calibration_Parameters_Str(K=report.K, Coefficients=dict(report.Coefficients),
+                                             Conversion_Factor={'x': report.Factor[0],
+                                                                'y': report.Factor[1]})

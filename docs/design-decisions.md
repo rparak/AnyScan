@@ -594,3 +594,64 @@ Tests `test/UI/test_capture.py` (`test_distorted_frame_is_kept_with_a_sidecar_sa
   it worse (0.051–0.079 px), and `CALIB_CB_NORMALIZE_IMAGE` cost 0.22 px, so neither is used.
 
 Tests `test/Calibration/test_core.py`.
+
+## Calibration: many views solved together, the factor from flat boards' undistorted corners
+
+The calibration in force came from **one** chessboard image. A single, near-frontal view cannot
+separate the principal point from the board's position (a shifted principal point and a translated
+board give the same image), and the optimiser put it ~800 px from the image centre. The factor was
+then taken from that image's raw, distorted corners and applied to undistorted frames.
+`Calibration.Core` now solves over a set, and `Example/Camera/calibrate.py` is only its harness:
+`--capture DIR` records frames, `--images DIR` solves them.
+
+- **All views feed the lens model; only flat views feed the factor.** Every detected image goes into
+  one `cv2.calibrateCamera`. The factor comes only from `flat_*` images (boards lying on the table),
+  from their corners **undistorted into the application's own pixel space**
+  (`getOptimalNewCameraMatrix` with the camera's `CONST_BASLER_UNDISTORT_ALPHA`) — the space every
+  measurement happens in. Each adjacent-corner pair gives square² = (dx·sx)² + (dy·sy)², linear in
+  (sx², sy²), so a board at any rotation on the table fixes both axes. **No flat view detected is an
+  error**, never a fallback to tilted boards; the report counts the views of each kind.
+- **Failures are per image.** An unreadable file, a frame with no board, or a grid larger than the
+  board is named with its reason and skipped. A view that reprojects at more than 2× the set's
+  median is named as a bad capture to retake or exclude.
+- **What is reported,** because this is where single-view calibration goes wrong: per image the
+  kind, the visible grid and corner count, the reprojection error and the tilt; the overall RMS; the
+  **principal point** with its offset from the image centre in pixels and as a fraction of the
+  frame; the tilt range and the count of views tilted ≥ 10°; the distortion coefficients and how far
+  they move the frame's corners and edge midpoints; the undistortion's rescale of the focal length;
+  and the factor with its spread across the flat views and over a 3 × 3 map of the frame.
+- **The tilt warning is set from a recovery curve, not picked.** `Example/Camera/calibration_tilt_study.py`
+  solves synthetic sets (a camera close to ours, 0.03–0.2 px corner noise). With 12 views at 0.1 px:
+  all flat 45 / 100 px principal-point error (median / 90th percentile; at 0.2 px noise 94 / 614 px —
+  the stored calibration's failure) and 18 % focal error; tilts spread up to 2° 4.8 px, 3° 3.1 px, 5°
+  2.1 px, 8–45° 1.5–1.6 px. By count, with the rest flat: one view tilted 10° 22 / 49 px, two
+  2.8 / 6.8 px, three 2.3 / 4.4 px, six 1.4 / 2.5 px. So the warning fires below **three views
+  tilted ≥ 10°**, the first point on the plateau in both sweeps. More flat views do not help: the
+  all-flat row is the same however many there are.
+- **What tilt does not buy.** The factor's uniformity across the frame is set by corner noise and view
+  count, not tilt: 0.149 % at 6 views, 0.085 % at 12, 0.057 % at 24, 0.039 % at 40 (0.1 px noise).
+  A spread above **0.1 %** (one pixel on a ~1000 px, 100 mm part) is reported as position-dependent
+  rather than averaged away, with the map — a gradient across it suggests the table is not parallel
+  to the sensor. Capture 20+ views.
+- **Sub-pixel.** The detector's own `CALIB_CB_ACCURACY` refinement; `cornerSubPix` afterwards
+  measured worse (previous entry).
+- **Square size and reference plane are stated, not assumed.** `--board-squares`, `--square-mm` and
+  `--board-height-mm` are required with no defaults, and every result repeats that a printed board
+  must be calipered (0.5–1 % printer scaling is the same order as the errors being removed). The
+  board's height above the table is recorded with the result: the factor is exact in that plane only.
+- **Nothing switches over by itself.** The result is written to a new
+  `<config>_calib-<date>.yaml` — the source's header, the new K, coefficients and factor, and a
+  `Solved` record (date, image directory, views by kind, RMS, square size, board height). The
+  configuration in force is overwritten only with `--write-config`, and the harness says that
+  `App/run.py` hardcodes its path, so adoption is a separate, deliberate step after comparing old
+  against new.
+
+The old `Checkerboard_Calibration_Cls` is gone, and with it the parameter named `inner_corners`
+that actually received the square counts; the board is now given as `--board-squares 11x8`, named
+for what it holds.
+
+Tests `test/Calibration/test_core.py` — rendered boards through a known lens: the intrinsics
+recovered (principal point within 1 px, focal within 0.5 %); failing images named and skipped; the
+tilt warning on an all-frontal set; the factor from undistorted corners within 0.1 % of the truth
+where the raw-corner value is off by more than 0.5 % (−1.1 % here); no flat view fails loudly; the new
+file written with the source untouched.

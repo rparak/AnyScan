@@ -28,9 +28,10 @@ import typing as tp
 # Dataclasses (Data Classes)
 from dataclasses import dataclass, field
 
-# The units of Scale_Str — millimetres PER PIXEL. The calibration derives the factor as
-# square_size_mm / mean corner spacing in px (Calibration.Core.__Get_Pixel_To_MM_Factor), so a
-# length in pixels TIMES the factor is millimetres. Written beside every stored measurement so a
+# The units of Scale_Str — millimetres PER PIXEL. The calibration derives the factor from
+# square_size_mm over the corner spacing, in px, of boards lying flat on the table, their corners
+# undistorted into the application's pixel space (Calibration.Core.Calibrate), so a length in
+# pixels TIMES the factor is millimetres. Written beside every stored measurement so a
 # number can always be traced to the scale and direction that produced it.
 #   Unit [string]
 CONST_SCALE_UNITS = 'mm/px'
