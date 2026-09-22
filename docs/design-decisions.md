@@ -9,20 +9,41 @@ why the reason no longer holds.
 
 ## The label mask is black ground, tinted fill, verdict contour
 
-The exported mask paints a black ground, fills each object with a **light tint of its own
-box colour**, and outlines it in that box colour with a dark numeral on the fill. Black
-ground keeps every silhouette edge sharp (nothing bleeds into a coloured background). The
-fill was white until the tint replaced it: white made the silhouette and its coloured box
-read as two things — a white shape with an unrelated coloured border. A tint of the box
-(20% box + 80% white, stored as the third entry of each colour token, not derived at the
-call site) makes silhouette and box read as **one object of the same hue**, while the box
-outline still stands out because the tint sits far from the box in ΔE (~59 OK, ~75 NOK,
-~20 neutral — all above the distinctness floor), not only against the black ground. When
-classification is off the fill is the neutral detection tint, so a detect-only silhouette
-implies no verdict nobody made. The dark numeral stays legible because the fill is light.
+The exported mask paints a black ground, fills each object with a **tint of its own box
+colour**, and outlines it in that box colour. Black ground keeps every silhouette edge sharp.
+The fill was white until a tint replaced it, because white made the silhouette and its coloured
+box read as two things. A tint of the box's own hue makes them read as **one object**.
+
+**The first tint was a token on paper only.** It mixed the box with 80% white in sRGB and landed
+on near-white: the neutral fill `#F1F2F4` was ΔE 4.7 from white — the white it replaced — with
+the outline only ΔE 19.5 away; the OK fill was ΔE 13.2 from white at a sixth of the box's
+chroma; and sRGB mixing drifted NOK's hue 22°. It was also justified by a wrong premise — "a
+dark numeral on the fill" — but the index numeral sits on its chip, drawn in the box colour, and
+never touches the fill. The fills are now built in LCh with the box's hue held:
+
+| | box | fill | ΔE box↔fill | ΔE fill↔white | vs black ground |
+|---|---|---|---|---|---|
+| OK | `#6C63B5` | `#E2E0F0` → **`#B4AADB`** | 59.4 → 33.6 | 13.2 → 39.0 | 9.7:1 |
+| NOK | `#ff005c` | `#FFCCDE` → **`#FC929C`** | 74.7 → 46.8 | 24.6 → 51.1 | 9.7:1 |
+| neutral | `#B8BECA` | `#F1F2F4` → **`#727782`** | 19.5 → 26.9 | 4.7 → 50.5 | 4.7:1 |
+
+OK and NOK share L\* 72 at about half their box's chroma, so only hue separates them, as with
+the boxes. The neutral box is nearly achromatic and already light, so lightening it can only
+reach white; its fill goes the **other way**, to a mid grey (L\* 50) in the box's cool hue — the
+outline is the lighter of that pair. Its window is narrow on purpose: darker than L\* ~49 falls
+below 4.5:1 against black, lighter than ~51 below the box/fill floor. The floors
+(`Annotate.CONST_ANNOTATE_FILL_*`) are stricter than the general ΔE 12 because a thin outline must
+stand out against the fill it crosses: ΔE box↔fill ≥ 25, ΔE fill↔white ≥ 25, ≥ 4.5:1 against the
+black ground, and a chromatic fill within 5° of its box's hue at ≥ 40% of its chroma. The OK/NOK
+box↔fill ΔE went *down*: that is the cost of a fill that is actually a colour, and both stay well
+above the floor. When classification is off the fill is the neutral one, implying no verdict
+nobody made.
 **Revisit if** the operator-facing mask needs to encode something other than verdict (e.g.
 per-class colour), in which case add a mode rather than overloading the default.
-Tests `test/Vision/Utilities/test_annotate.py::test_label_mask_fills_each_object_with_a_tint_of_its_box_colour`, `::test_detect_only_label_mask_fills_with_the_neutral_tint`; `test/Parameters/test_theme.py::test_label_mask_fill_is_a_light_distinguishable_tint_of_its_box`.
+Tests `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box` (fails
+on the old values: "OK: fill #E2E0F0 reads as white"),
+`test/Vision/Utilities/test_annotate.py::test_label_mask_fills_each_object_with_a_tint_of_its_box_colour`,
+`::test_detect_only_label_mask_fills_with_the_neutral_tint`, `test/UI/test_harness_parity.py`.
 
 ## `#ff005c` is the fail marker and must stay the NOK colour
 

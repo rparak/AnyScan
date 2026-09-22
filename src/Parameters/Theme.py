@@ -82,16 +82,23 @@ CONST_BAND_TEXT     = '#b9b2d6'   # lavender text/disclaimer on the band
 #   '#4a4180' alone is too dark to read against the dark plates in Image_003/005, so the
 #   box carries the lighter value and the ink is reserved for text on the white card.
 #
-#   The THIRD entry is the label-mask FILL: a light tint of the box (20% box + 80% white),
-#   so the filled silhouette and its box outline read as ONE object of the same hue rather
-#   than a white shape with an unrelated coloured border. It is stored, not derived at the
-#   call site. It stays far enough from the box that the outline survives ON the fill, not
-#   only against the black ground — measured ΔE(box, fill) is ~59 (OK) and ~75 (NOK) — and
-#   it is light, so the index numeral stays legible in a dark tone on it.
+#   The THIRD entry is the label-mask FILL: a tint of the box that is visibly the box's own
+#   hue, so the filled silhouette and its outline read as ONE object. It is built in LCh with
+#   the box's hue held and only lightness and chroma moved — both verdict fills sit at the
+#   same L* 72 (only hue separates them, as with the boxes) at about half the box's chroma.
+#   The first version mixed the box with 80% white in sRGB, which landed near white (OK:
+#   ΔE 13 from white, chroma 8 of the box's 49) and drifted NOK's hue 22°; a mask you cannot
+#   tell from white is a token that exists on paper and does nothing on screen. Measured
+#   (the floors are Annotate.CONST_ANNOTATE_FILL_*, pinned in test_theme):
+#       OK   #B4AADB  ΔE(box, fill) 33.6 (was 59.4)  ΔE(fill, white) 39.0 (was 13.2)
+#       NOK  #FC929C  ΔE(box, fill) 46.8 (was 74.7)  ΔE(fill, white) 51.1 (was 24.6)
+#   Both fills are ~9.7:1 against the black mask ground, so the silhouette stays obvious. The
+#   index numeral never sits on the fill (it is drawn on its chip, in the box colour), so the
+#   fill does not have to be pale.
 #   Unit [Dict<string, Tuple<string> 1x3>] (box, ink, fill)
 CONST_VERDICT_COLORS = {
-    'OK':  ('#6C63B5', '#4a4180', '#E2E0F0'),   # pass
-    'NOK': ('#ff005c', '#d1004a', '#FFCCDE'),   # fail — the brand magenta, now correctly the fail marker
+    'OK':  ('#6C63B5', '#4a4180', '#B4AADB'),   # pass
+    'NOK': ('#ff005c', '#d1004a', '#FC929C'),   # fail — the brand magenta, now correctly the fail marker
 }
 # The verdict a detection carries until classification sets one; every object is OK today.
 #   Unit [string]
@@ -117,12 +124,17 @@ CONST_VERDICT_DEFAULT = 'OK'
 # which would undo the separation from OK) pulls it clear: measured ΔE is now ~23 vs bright steel
 # (~2x the floor), ~46 vs the table green, ~54 vs the dark plates, and ~53 to the OK box (up from
 # ~46). The darker ink twin is reserved for text on the white card. The THIRD entry is the
-# label-mask FILL — a light tint of the box (20% box + 80% white), the same rule as the verdict
-# fills, so a detect-only silhouette and its box read as one neutral object and imply no verdict
-# nobody made. Measured ΔE(box, fill) ~20, above the distinctness floor, so the outline survives
-# on the fill; and it is light, so the index numeral stays legible in a dark tone on it.
+# label-mask FILL, so a detect-only silhouette and its box read as one neutral object and imply no
+# verdict nobody made. The box is already nearly achromatic (C* 6.8) and light (L* 77), so
+# lightening it lands on white — the first version, #F1F2F4, was ΔE 4.7 from white and ΔE 19.5
+# from the box, i.e. the white it replaced. So the fill goes the OTHER way: a mid grey at L* 50 in
+# the box's own cool hue and chroma, clearly darker than white and clearly lighter than the black
+# ground. The window is narrow and deliberate: darker than L* ~49 drops below 4.5:1 against the
+# black ground, lighter than L* ~51 drops below the ΔE 25 box/fill floor. Measured: ΔE(box, fill)
+# 26.9 (was 19.5), ΔE(fill, white) 50.5 (was 4.7), 4.7:1 against black. Here the outline is the
+# LIGHTER of the pair, the reverse of the verdict fills — contrast, not direction, is what counts.
 #   Unit [Tuple<string> 1x3] (box, ink, fill)
-CONST_DETECTION_COLORS = ('#B8BECA', '#5C6270', '#F1F2F4')
+CONST_DETECTION_COLORS = ('#B8BECA', '#5C6270', '#727782')
 
 # The Log-view severity text colours, one named semantic token per level. The log view
 # colours the level field and the message by these (the timestamp stays muted); a level

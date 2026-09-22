@@ -119,28 +119,62 @@ def test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis() -> None:
     assert Theme.Delta_E(neutral, bright_steel) > CONST_ANNOTATE_MIN_DELTA_E
 
 
-def test_label_mask_fill_is_a_light_distinguishable_tint_of_its_box() -> None:
+def test_label_mask_fill_is_a_visible_tint_of_its_box() -> None:
     """
     Description:
-        Every object colour carries a third entry, the label-mask fill. The fill must be a
-        LIGHT tint of its box (so a dark index numeral reads on it) yet stay far enough from
-        the box in perceptual distance that the box outline survives ON the fill, not only
-        against the black ground. Pinned for both verdict colours and the neutral detection
-        colour, all three sharing the (box, ink, fill) shape.
+        Every object colour carries a third entry, the label-mask fill, and the fill must do its
+        job on screen, not only exist as a token. For the two verdict colours and the neutral
+        detection colour:
+          - the box outline stays clearly visible against its own fill (ΔE >= the fill floor,
+            stricter than the general distinctness floor);
+          - the fill is not white — the failure it replaced (ΔE from white >= its floor);
+          - the fill reads as light against the black mask ground (>= 4.5:1), so the silhouette
+            stays obvious;
+          - a chromatic fill is recognisably the box's own hue (within a few degrees, at a real
+            fraction of the box's chroma), not a near-grey.
+        The neutral box is nearly achromatic and already light, so its fill is a mid grey in the
+        box's cool hue, DARKER than the box — the outline is the lighter of that pair.
     """
 
-    from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
+    import math
+    import Vision.Utilities.Annotate as Annotate
 
-    def _lum(hex_color):
-        r, g, b = (v / 255.0 for v in Theme.Hex_To_Rgb(hex_color))
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    lab = getattr(Theme, '__Lab')
 
-    triples = [Theme.CONST_VERDICT_COLORS['OK'], Theme.CONST_VERDICT_COLORS['NOK'],
-               Theme.CONST_DETECTION_COLORS]
-    for box, ink, fill in triples:
-        # The outline stays distinguishable against its own fill (above the distinctness floor).
-        assert Theme.Delta_E(box, fill) > CONST_ANNOTATE_MIN_DELTA_E, \
-            'box %s and fill %s collapse (ΔE=%.1f)' % (box, fill, Theme.Delta_E(box, fill))
-        # The fill is a LIGHT tint (lighter than the box), so a dark numeral reads on it.
-        assert _lum(fill) > _lum(box)
-        assert _lum(fill) > 0.75
+    def _Lch(hex_color):
+        L, a, b = lab(hex_color)
+        return L, math.hypot(a, b), math.degrees(math.atan2(b, a)) % 360.0
+
+    def _Ground_Contrast(hex_color):
+        # WCAG relative luminance (linear light) of the fill against the black ground.
+        def _Linear(channel):
+            channel /= 255.0
+            return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+        r, g, b = (_Linear(v) for v in Theme.Hex_To_Rgb(hex_color))
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05) / 0.05
+
+    triples = {'OK': Theme.CONST_VERDICT_COLORS['OK'], 'NOK': Theme.CONST_VERDICT_COLORS['NOK'],
+               'neutral': Theme.CONST_DETECTION_COLORS}
+    for name, (box, _ink, fill) in triples.items():
+        assert Theme.Delta_E(box, fill) >= Annotate.CONST_ANNOTATE_FILL_MIN_DELTA_E, \
+            '%s: outline %s barely separates from fill %s (ΔE=%.1f)' % (name, box, fill,
+                                                                     Theme.Delta_E(box, fill))
+        assert Theme.Delta_E(fill, '#FFFFFF') >= Annotate.CONST_ANNOTATE_FILL_MIN_WHITE_DELTA_E, \
+            '%s: fill %s reads as white (ΔE=%.1f)' % (name, fill, Theme.Delta_E(fill, '#FFFFFF'))
+        assert _Ground_Contrast(fill) >= Annotate.CONST_ANNOTATE_FILL_MIN_GROUND_CONTRAST, \
+            '%s: fill %s does not read as light on black (%.1f:1)' % (name, fill,
+                                                                   _Ground_Contrast(fill))
+
+    for name in ('OK', 'NOK'):
+        box, _ink, fill = triples[name]
+        _Lb, box_chroma, box_hue = _Lch(box)
+        _Lf, fill_chroma, fill_hue = _Lch(fill)
+        shift = abs((fill_hue - box_hue + 180.0) % 360.0 - 180.0)
+        assert shift <= Annotate.CONST_ANNOTATE_FILL_MAX_HUE_SHIFT, (name, shift)
+        assert fill_chroma >= Annotate.CONST_ANNOTATE_FILL_MIN_CHROMA_FRACTION * box_chroma, \
+            (name, fill_chroma, box_chroma)
+
+    # Neutral: a mid grey in the box's hue family, darker than the (light) box.
+    box, _ink, fill = triples['neutral']
+    assert _Lch(fill)[0] < _Lch(box)[0]
+    assert 40.0 <= _Lch(fill)[0] <= 60.0
