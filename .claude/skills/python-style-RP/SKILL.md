@@ -121,9 +121,7 @@ More: `references/naming.md`
 MIT License
 ... (full text from assets/header.txt) ...
 ## =========================================================================== ## 
-Author   : Roman Parak
-Email    : Roman.Parak@outlook.com
-Github   : https://github.com/rparak
+Author   : JIC Smart Factory
 File Name: ../RoLE/<Domain>/<Module>.py
 ## =========================================================================== ## 
 """

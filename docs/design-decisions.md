@@ -633,3 +633,18 @@ recovered (principal point within 1 px, focal within 0.5 %); failing images name
 tilt warning on an all-frontal set; the factor from undistorted corners within 0.1 % of the truth
 where the raw-corner value is off by more than 0.5 % (−1.1 % here); no flat view fails loudly; the new
 file written with the source untouched.
+
+## File headers carry JIC Smart Factory; the style's origin credit stays
+
+Every file header now reads `Copyright (c) <year> JIC Smart Factory` (each file keeps its own year:
+2023 ×6, 2024 ×1, 2025 ×79) and `Author   : JIC Smart Factory`, aligned with `File Name:`; the
+`Email` and `Github` lines are gone. The sweep covered every tracked file — `src/`, tests, examples,
+`App/run.py` — and the style skill's header templates (`assets/header.txt` in both forms,
+`module_template.py`, `script_template.py`, and the skeleton in `SKILL.md`), because files written
+from them are ours. Every `File Name:` line already matched its file's path. There is no root
+`LICENSE`, and the style checker's header rule checks only for the MIT block and the `File Name:`
+basename, so no author string is encoded anywhere that would fail.
+
+**Deliberately unchanged:** the skill's `SKILL.md` and `README.md` lines saying the style is derived
+from `rparak/RoLE`, "MIT License, © 2023 Roman Parak". They credit where the style came from, in
+another repository; rewriting them would misstate that origin.
