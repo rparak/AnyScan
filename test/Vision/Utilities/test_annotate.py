@@ -95,7 +95,7 @@ def test_label_mask_fills_each_object_with_a_tint_of_its_box_colour() -> None:
     """
 
     objects = [__Object(40, 40, verdict='OK'), __Object(200, 300, verdict='NOK')]
-    mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np)
+    mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np, verdict_colored=True)
     ok_box, _, ok_fill = Theme.Verdict_Color('OK')
     nok_box, _, nok_fill = Theme.Verdict_Color('NOK')
 
@@ -139,14 +139,14 @@ def test_verdict_colour_drives_the_stroke_in_both_renderers() -> None:
     nok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
 
     ok_only = [__Object(150, 250, verdict='OK')]
-    ann_ok = Annotate.Draw_Annotated(scene, ok_only, cv2, np)
-    mask_ok = Annotate.Draw_Label_Mask(ok_only, scene.shape, cv2, np)
+    ann_ok = Annotate.Draw_Annotated(scene, ok_only, cv2, np, verdict_colored=True)
+    mask_ok = Annotate.Draw_Label_Mask(ok_only, scene.shape, cv2, np, verdict_colored=True)
     assert __Has_Bgr(ann_ok, ok_bgr) and __Has_Bgr(mask_ok, ok_bgr)
     assert not __Has_Bgr(ann_ok, nok_bgr) and not __Has_Bgr(mask_ok, nok_bgr)
 
     nok_only = [__Object(150, 250, verdict='NOK')]
-    ann_nok = Annotate.Draw_Annotated(scene, nok_only, cv2, np)
-    mask_nok = Annotate.Draw_Label_Mask(nok_only, scene.shape, cv2, np)
+    ann_nok = Annotate.Draw_Annotated(scene, nok_only, cv2, np, verdict_colored=True)
+    mask_nok = Annotate.Draw_Label_Mask(nok_only, scene.shape, cv2, np, verdict_colored=True)
     assert __Has_Bgr(ann_nok, nok_bgr) and __Has_Bgr(mask_nok, nok_bgr)
     assert not __Has_Bgr(ann_nok, ok_bgr) and not __Has_Bgr(mask_nok, ok_bgr)
 
@@ -160,7 +160,7 @@ def test_mask_separates_near_but_distinct_objects() -> None:
     """
 
     objects = [__Object(150, 250, size=60), __Object(150, 330, size=60)]   # a 20px gap
-    mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np)
+    mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np, verdict_colored=True)
     ok_fill = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[2])
 
     # Each block has its own tinted fill (sampled inside, clear of border and numeral).
@@ -195,9 +195,9 @@ def test_empty_objects_render_cleanly() -> None:
     """
 
     scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)
-    mask = Annotate.Draw_Label_Mask([], scene.shape, cv2, np)
+    mask = Annotate.Draw_Label_Mask([], scene.shape, cv2, np, verdict_colored=True)
     assert int(np.count_nonzero(mask)) == 0
-    annotated = Annotate.Draw_Annotated(scene, [], cv2, np)
+    annotated = Annotate.Draw_Annotated(scene, [], cv2, np, verdict_colored=True)
     assert annotated.shape == scene.shape
 
 
@@ -211,7 +211,7 @@ def test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour() -> 
     """
 
     scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)   # green table
-    annotated = Annotate.Draw_Annotated(scene, [__Object(150, 250, size=80, verdict='OK')], cv2, np)
+    annotated = Annotate.Draw_Annotated(scene, [__Object(150, 250, size=80, verdict='OK')], cv2, np, verdict_colored=True)
     ok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0])
 
     # The verdict colour appears (the box and chip), unshifted.

@@ -187,7 +187,7 @@ def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: 
 
 
 def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
-                   cv2: tp.Any, np: tp.Any, verdict_colored: bool = True) -> tp.Any:
+                   cv2: tp.Any, np: tp.Any, *, verdict_colored: bool) -> tp.Any:
     """
     Description:
         The scene with each object marked by its BOUNDING BOX and INDEX number ONLY — no
@@ -204,6 +204,11 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
         (3) cv2 [module]: The OpenCV module, injected by the caller.
         (4) np [module]: The NumPy module, injected by the caller.
         (5) verdict_colored [bool]: True to colour by verdict, False for the neutral colour.
+                                    REQUIRED and keyword-only, with no default: the value is
+                                    the configuration's General.Classification.Enabled, and a
+                                    silent default renders one mode for a caller that never read
+                                    the config — which is how the harness came to paint verdict
+                                    colours on a detect-only run. Every caller states its intent.
 
     Returns:
         (1) parameter [Matrix<uint8> HxWx3]: The annotated scene (BGR).
@@ -216,7 +221,7 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
 
 
 def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
-                 cv2: tp.Any, verdict_colored: bool = True) -> None:
+                 cv2: tp.Any, verdict_colored: bool) -> None:
     """
     Description:
         Draw each object's bounding box and index chip on the image given — the SAME overlay for
@@ -242,7 +247,7 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
 
 
 def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, int],
-                    cv2: tp.Any, np: tp.Any, verdict_colored: bool = True) -> tp.Any:
+                    cv2: tp.Any, np: tp.Any, *, verdict_colored: bool) -> tp.Any:
     """
     Description:
         The segmentation result as a LABEL mask on a pure-black ground: each accepted
@@ -264,8 +269,9 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
         (2) shape [Tuple<int>]: The source frame's (h, w, c) shape.
         (3) cv2 [module]: The OpenCV module, injected by the caller.
         (4) np [module]: The NumPy module, injected by the caller.
-        (5) verdict_colored [bool]: True to colour the boxes by verdict, False for the neutral
-                                    detection colour.
+        (5) verdict_colored [bool]: True to colour the boxes and fills by verdict, False for
+                                    the neutral detection colour. REQUIRED and keyword-only, like
+                                    Draw_Annotated's — the caller passes the configuration's flag.
 
     Returns:
         (1) parameter [Matrix<uint8> HxWx3]: The label mask (BGR) at the source size.

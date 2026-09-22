@@ -291,3 +291,20 @@ object, the frame mean, the running run mean, dashed 80%/60% lines at the §5 th
 **Revisit if** a chart needs zoom/pan or thousands of series points, which is where adopting a
 charting library starts to pay for itself.
 Tests `test/Reporting/test_trends.py`, `test/UI/test_trends_view.py`.
+
+## `verdict_colored` has no default, and the harnesses read the flag like the app
+
+`Draw_Annotated` and `Draw_Label_Mask` take `verdict_colored` as a **required, keyword-only**
+argument. It used to default to `True`, and two callers that never read the configuration fell
+back to it silently: `Example/Vision/analyze.py` painted OK-verdict boxes and the OK tint
+(`#E2E0F0`) on a detect-only run, and `Example/UI/screenshot.py` built its window detect-only but
+rendered its `demo_*.png` beside it in verdict mode — two modes in one run. A default is a
+rendering mode chosen on the caller's behalf; with none, a caller that has not decided fails at
+the call site, and the keyword makes a bare `True`/`False` impossible to pass without naming it.
+Both harnesses now read `General.Classification.Enabled` through the application's own
+`Read_Classification_Enabled` and default config (`analyze.py --config` overrides it), because
+`analyze.py` validates the logic the app uses — a harness rendering in another mode would make a
+harness artefact look like a real difference. **Do not reintroduce a default.**
+Tests `test/UI/test_harness_parity.py` (the harness mask equals the mask the window writes, for
+both flag values; the harness uses the app's config reader; the renderers reject an unstated mode).
+

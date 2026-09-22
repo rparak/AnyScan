@@ -896,9 +896,9 @@ class AnyScan_Window_Cls(QMainWindow):
         # the capture writer writes them, so the on-screen and on-disk images are identical.
         frame_bgr = cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR)
         annotated_bgr = Draw_Annotated(frame_bgr, result.Objects, cv2, np,
-                                       self.__classification_enabled)
+                                       verdict_colored=self.__classification_enabled)
         mask_bgr = Draw_Label_Mask(result.Objects, frame_bgr.shape, cv2, np,
-                                   self.__classification_enabled)
+                                   verdict_colored=self.__classification_enabled)
         self.__Show_Analysis(result, annotated_bgr, mask_bgr)
 
         set_id = self.__current_set_id

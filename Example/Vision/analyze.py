@@ -60,6 +60,10 @@ from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 from Reporting.Core import Screen_Understanding
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
+# Custom Lib.: AnyScan — the ONE configuration layer the application reads the classification
+# flag through, so the harness renders exactly the mode the app renders
+#   ../Camera/Utilities/Configuration
+from Camera.Utilities.Configuration import Read_Classification_Enabled, CONST_BASLER_CONFIG_FILE
 
 """
 Description:
@@ -267,9 +271,34 @@ def _Configure(args: argparse.Namespace) -> None:
         Vision_Core.CONST_DESCRIBER = 'fallback'
 
 
+def Render_Views(scene_bgr: tp.Any, objects: tp.List[tp.Any],
+                 classification_enabled: bool) -> tp.Tuple[tp.Any, tp.Any]:
+    """
+    Description:
+        The harness's two views — the annotated frame and the label mask — rendered through the
+        application's own renderers with the configuration's classification flag, exactly as the
+        window renders them. This is the one place the harness draws, so a test can hold it
+        against the UI path: the harness validates the logic the app uses, and a harness that
+        rendered in a different mode would be that guarantee quietly breaking.
+
+    Args:
+        (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
+        (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (3) classification_enabled [bool]: General.Classification.Enabled from the config.
+
+    Returns:
+        (1) parameter [Tuple<Matrix<uint8> HxWx3> 1x2]: The (annotated, mask) images (BGR).
+    """
+
+    annotated = Draw_Annotated(scene_bgr, objects, cv2, np, verdict_colored=classification_enabled)
+    mask = Draw_Label_Mask(objects, scene_bgr.shape, cv2, np, verdict_colored=classification_enabled)
+    return annotated, mask
+
+
 def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: str,
                    write_descriptions: bool, write_montage: bool,
-                   run_stamp: str, reference_hash: str) -> tp.Optional[Analysis_Str]:
+                   run_stamp: str, reference_hash: str,
+                   classification_enabled: bool) -> tp.Optional[Analysis_Str]:
     """
     Description:
         Run one scene through the application pipeline and write its artefacts — the
@@ -292,6 +321,7 @@ def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: st
         (5) write_montage [bool]: Also write the enhanced-crop debug montage.
         (6) run_stamp [string]: The run timestamp shared by every artefact of this run.
         (7) reference_hash [string]: The empty-surface reference's fingerprint.
+        (8) classification_enabled [bool]: The configuration's classification flag.
 
     Returns:
         (1) parameter [Analysis_Str(object) or None]: The analysis, or None on failure.
@@ -313,10 +343,9 @@ def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: st
         return None
 
     stamp = _Stamp_Line(stem, scene_path, run_stamp, reference_hash, Vision_Core.CONST_DESCRIBER)
-    cv2.imwrite(os.path.join(output_dir, '%s_annotated.png' % stem),
-                _Stamp_Image(Draw_Annotated(scene_bgr, result.Objects, cv2, np), stamp))
-    cv2.imwrite(os.path.join(output_dir, '%s_mask.png' % stem),
-                _Stamp_Image(Draw_Label_Mask(result.Objects, scene_bgr.shape, cv2, np), stamp))
+    annotated, mask = Render_Views(scene_bgr, result.Objects, classification_enabled)
+    cv2.imwrite(os.path.join(output_dir, '%s_annotated.png' % stem), _Stamp_Image(annotated, stamp))
+    cv2.imwrite(os.path.join(output_dir, '%s_mask.png' % stem), _Stamp_Image(mask, stamp))
     if write_descriptions:
         _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result, stamp)
     if write_montage:
@@ -348,6 +377,9 @@ def main() -> int:
     parser.add_argument('--no-describe', action='store_true',
                         help='use the model-free fallback describer (no VLM); does NOT write descriptions files')
     parser.add_argument('--montage', action='store_true', help='also write the enhanced-crop debug montage (off by default)')
+    parser.add_argument('--config', default=CONST_BASLER_CONFIG_FILE,
+                        help='configuration YAML to read General.Classification.Enabled from '
+                             '(default: the one the application loads)')
     args = parser.parse_args()
 
     _Configure(args)
@@ -385,6 +417,11 @@ def main() -> int:
     print('[INFO] Reference: %s (%s)' % (reference_path, reference_hash))
     print('[INFO] Scenes   : %d frame(s) in %s' % (len(scenes), os.path.abspath(args.input_dir)))
     print('[INFO] Describer: %s' % Vision_Core.CONST_DESCRIBER)
+    # The classification flag, read ONCE through the application's configuration layer, so the
+    # harness renders the same mode (verdict colours vs the neutral detection colour) as the app.
+    classification_enabled = Read_Classification_Enabled(args.config)
+    print('[INFO] Classify : %s (%s)' % ('enabled' if classification_enabled else 'disabled',
+                                         os.path.basename(args.config)))
     print('[INFO] Run stamp: %s\n' % run_stamp)
 
     backend = Florence_Vision_Cls()
@@ -393,7 +430,8 @@ def main() -> int:
     for scene_path in scenes:
         stem = os.path.splitext(os.path.basename(scene_path))[0]
         result = _Analyze_Frame(backend, scene_path, args.output_dir,
-                                not args.no_describe, args.montage, run_stamp, reference_hash)
+                                not args.no_describe, args.montage, run_stamp, reference_hash,
+                                classification_enabled)
         if result is None:
             return 1
         cues = {}

@@ -60,6 +60,10 @@ from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 import Vision.Utilities.Provenance as Provenance
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
+# Custom Lib.: AnyScan — the configuration layer the application reads the classification flag
+# through, so the stamped renders and the window grab are in the same mode as the app
+#   ../Camera/Utilities/Configuration
+from Camera.Utilities.Configuration import Read_Classification_Enabled, CONST_BASLER_CONFIG_FILE
 
 """
 Description:
@@ -182,7 +186,11 @@ def _Render(output_dir: str, stamp: str) -> None:
     Style.Load_Fonts()
 
     reference = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Image_Background_001.png')
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference))
+    # ONE flag, read as the application reads it, for the window AND the two stamped renders —
+    # previously the window used the default (off) while the renders defaulted to verdict colours.
+    classification_enabled = Read_Classification_Enabled(CONST_BASLER_CONFIG_FILE)
+    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference),
+                                classification_enabled=classification_enabled)
     window.resize(1500, 950)
 
     mangle = '_AnyScan_Window_Cls'
@@ -210,9 +218,11 @@ def _Render(output_dir: str, stamp: str) -> None:
         app.processEvents()
 
     cv2.imwrite(os.path.join(output_dir, 'demo_annotated.png'),
-                _Stamp(Draw_Annotated(scene_bgr, objects, cv2, np), stamp))
+                _Stamp(Draw_Annotated(scene_bgr, objects, cv2, np,
+                                      verdict_colored=classification_enabled), stamp))
     cv2.imwrite(os.path.join(output_dir, 'demo_mask.png'),
-                _Stamp(Draw_Label_Mask(objects, scene_bgr.shape, cv2, np), stamp))
+                _Stamp(Draw_Label_Mask(objects, scene_bgr.shape, cv2, np,
+                                       verdict_colored=classification_enabled), stamp))
     cv2.imwrite(os.path.join(output_dir, 'demo_window.png'), _Stamp(_Grab_Bgr(window), stamp))
 
 
