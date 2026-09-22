@@ -326,9 +326,10 @@ inside exactly that stability. The calibration gives specific reasons to expect 
   sign the intrinsics are poorly constrained.
 - A mean corner spacing over the whole board averages out any perspective tilt of the board, so
   a tilted calibration board biases the factor.
-- The factor holds only for the **table plane** at the calibrated distance; moving the camera or
-  refocusing invalidates it altogether. A part with thickness is not in that plane — see the next
-  entry, which is a separate effect that no factor can remove.
+- The factor holds only in its **reference plane** — the calibration board's surface — at the
+  calibrated distance; moving the camera or refocusing invalidates it altogether. A part with
+  thickness is not in that plane — see the next entry, which is a separate effect that no factor
+  can remove.
 
 - **Impact:** every size (A × B, Ø and A/F) may carry a systematic error of unknown magnitude, either
   one scale factor or one that varies with position in the frame.
@@ -340,37 +341,50 @@ inside exactly that stability. The calibration gives specific reasons to expect 
   the factor must be recomputed from undistorted corners (and the calibration redone from several
   board poses) before any size is relied on.
 
-## A size is the part's outline seen from above, not its footprint — it depends on thickness
+## A part's measured size depends on where it lies in the frame, and on its thickness
 
-This is a property of measuring with one camera and an ordinary (entocentric) lens from above, not
+**The same part measures differently depending on where it lies in the frame.** A 6 mm thick nut
+of about 12 mm reads ≈ 0.2 mm large at the frame centre and ≈ 1.5 mm large near the frame edge.
+That is not a precision caveat: **any acceptance threshold built on these sizes would have to
+depend on position (and on the part's thickness)** — a fixed tolerance would pass a part at the
+centre and reject the same part near the edge. If that is unacceptable for the intended use, the
+answer is a **telecentric lens**, which sees every part at the same scale regardless of position
+and height; better to know that before anyone builds tolerances on these numbers.
+
+It is a property of measuring with one camera and an ordinary (entocentric) lens from above, not
 a bug: **even a perfect conversion factor gives a size that depends on how thick the part is and
-where it lies in the frame.** The factor converts pixels at the **table plane**; a part's outline
-is formed partly above it.
+where it lies.** The factor is exact in one plane only — the **reference plane**, the surface of
+the chessboard it was calibrated on (the table itself only if the board lay flat on it; a mounted
+board puts the plane at the board's height h above the table). A part's outline is formed partly
+above or below that plane.
 
 Take a flat part of footprint width W and thickness t, the lens at height Z above the table
-(~340–380 mm here), and X the distance, on the table, from the optical axis to the part's edge
-farther from it:
+(~340–380 mm; 360 below), the reference plane at height h, and X the distance, on the table, from
+the optical axis to the part's edge farther from it:
 
-- **Centred on the optical axis**, both outline edges are top edges, and the top face is nearer
-  the lens, so it reads W · Z / (Z − t) ≈ W · (1 + t / Z) — about **+0.28 % per millimetre of
-  thickness**. A 58 mm plate 3 mm thick reads ≈ 58.5 mm (+0.8 %).
+- **Centred on the optical axis**, both outline edges are top edges, and the top face is at height
+  t, so it reads W · (Z − h) / (Z − t) — with a board flat on the table (h = 0), about **+0.28 %
+  per millimetre of thickness**: a 58 mm plate 3 mm thick reads ≈ 58.5 mm (+0.8 %).
 - **Off the axis**, the outline is the union of the top and bottom faces' projections: the edge
   away from the axis is the top edge, the edge toward it is the bottom edge, and the side wall
-  between them is visible. Along the direction away from the axis the size reads
+  between them is visible. Along the direction away from the axis the size reads (for h = 0)
   **W + X · t / (Z − t)** — the excess grows with the distance from the axis, **not** with the
-  part's size. The same 3 mm plate with its far edge 100 mm off-axis gains ≈ 0.8 mm that way; a
-  6 mm nut near the frame edge (X ≈ 90 mm) gains ≈ 1.5 mm on a ~12 mm part (~13 %). The size
-  across that direction gains only the top-face term, so an across-flats width (the smallest
-  width) is largely spared, while a round Ø (the mean of two sides) takes about half the excess.
+  part's size. The same 3 mm plate with its far edge 100 mm off-axis gains ≈ 0.8 mm that way; the
+  6 mm nut near the frame edge (X ≈ 90 mm) gains ≈ 1.5 mm (~13 %). The size across that direction
+  gains only the top-face term, so an across-flats width (the smallest width) is largely spared,
+  while a round Ø (the mean of two sides) takes about half the excess.
+- **A central measuring zone does not rescue fixed tolerances:** keeping the off-axis excess of
+  that 6 mm nut under 0.1 mm needs its far edge within ~6 mm of the axis, and under 0.5 mm within
+  ~30 mm.
 
-- **Why it is not corrected:** the correction needs each part's thickness and the true optical
-  axis. Neither is known — the thickness is not in the image, and the calibration's principal
-  point (160.7, 355.5) is itself suspect. A telecentric lens removes the effect optically; in
-  software it can only be corrected per part family once its thickness is known.
-- **What a size means, then:** the extent of the part's silhouette from above, converted at the
-  table plane. For thin parts near the frame centre that is within the pixel resolution of the
-  footprint; for thick or off-centre parts it is not.
+- **Why it is not corrected:** the correction needs each part's thickness, the reference plane's
+  height, and the true optical axis. The thickness is not in the image, and the calibration's
+  principal point (160.7, 355.5) is itself suspect. In software it could only be corrected per
+  part family once its thickness is known and the axis is calibrated from several board poses.
+- **What a size means, then:** the extent of the part's silhouette from above, converted in the
+  reference plane. For thin parts near the frame centre that is within the pixel resolution of
+  the footprint; for thick or off-centre parts it is not.
 - **Measured by** the reference check in the previous entry: the calipered parts at the centre and
-  in two corners, with their thicknesses, give the parallax term directly, alongside the
-  chessboard's zero-thickness scale.
+  in two corners, with their thicknesses and the board's height, give the parallax term directly,
+  alongside the chessboard's own scale in its own plane.
 
