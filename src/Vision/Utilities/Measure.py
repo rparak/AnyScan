@@ -47,6 +47,12 @@ Description:
     square is just as un-elongated as a disc, but its sides are real edges that minAreaRect finds
     reliably, so it keeps A x B and an angle (folded to [0, 90), since its two sides are
     interchangeable and would otherwise swap on noise).
+
+    A symmetric part's diameter follows one of two stated conventions. A ROUND part reports the
+    mean of its rotated rectangle's two sides. A HEXAGONAL part (a nut, a hex head — its
+    silhouette's width repeats every 60°) reports ACROSS FLATS, its smallest caliper width: the
+    number a nut is specified by, where a mean would sit ~7.5 % from both across-flats and
+    across-corners, which differ by 15 %.
 """
 
 # The elongation below which an object is not elongated: the square root of the ratio of its
@@ -64,6 +70,22 @@ CONST_MEASURE_SQUARE_EXTENT = 0.92
 # The smallest mask (pixels) that is measured at all; below it the rectangle is noise.
 #   Unit [int]
 CONST_MEASURE_MIN_AREA_PX = 16
+# The hexagonality (the third harmonic of a symmetric part's caliper width over 180° — its 60°
+# periodicity — as a fraction of the mean width) at or above which the part is hexagonal and its
+# size is reported across flats. A hexagon's across-corners width is 2/sqrt(3) = 1.155 x its
+# across-flats, so the mean diameter of a nut sits ~7.5 % from either standard number; a nut is
+# specified by its across-flats (the wrench size). Measured: the washers in Image_001 0.0016 and
+# 0.0026, the nuts 0.0204 and 0.0254 (their corners are rounded; an ideal hexagon is 0.038-0.057
+# down to 20 px across), pixelated ideal discs <= 0.0021 down to 20 px across. 0.0075 sits near the
+# geometric mean of the closest washer and nut, ~2.7x from each. Only the 60° harmonic is used:
+# a 4-fold one is not evidence of a polygon here — washer 1's own mask is a slightly squared circle
+# (4-fold 0.012) — and square parts are already told apart by their extent.
+#   Unit [float]
+CONST_MEASURE_HEX_HARMONIC = 0.0075
+# Caliper directions sampled over 180° for the width profile (0.5° apart; the across-flats minimum
+# found on that grid is within 1e-5 of the true one).
+#   Unit [int]
+CONST_MEASURE_WIDTH_SAMPLES = 360
 
 
 def Measure_Decimals(scale: Scale_Str) -> int:
@@ -121,6 +143,29 @@ def __Screen_Angle(vector_mm: tp.Tuple[float, float], period: float) -> float:
     return 0.0 if angle >= period else angle
 
 
+def __Width_Profile(points: tp.Any, cv2: tp.Any, np: tp.Any) -> tp.Tuple[tp.Any, tp.Any]:
+    """
+    Description:
+        The caliper (Feret) width of a silhouette in each of CONST_MEASURE_WIDTH_SAMPLES directions
+        over 180°, from its convex hull, in pixels — lengthened by one pixel like the rectangle's
+        sides, because contour points sit on pixel centres.
+
+    Args:
+        (1) points [Matrix<int> Nx1x2]: The outer contour points.
+        (2) cv2 [module]: The OpenCV module.
+        (3) np [module]: The NumPy module.
+
+    Returns:
+        (1) parameter [Tuple<Vector<float>, Vector<float>>]: The directions (radians, image axes)
+                                                             and the width in each (pixels).
+    """
+
+    hull = cv2.convexHull(points).reshape(-1, 2).astype(np.float64)
+    theta = np.arange(CONST_MEASURE_WIDTH_SAMPLES) * (math.pi / CONST_MEASURE_WIDTH_SAMPLES)
+    projection = hull @ np.stack([np.cos(theta), np.sin(theta)])
+    return theta, projection.max(axis=0) - projection.min(axis=0) + 1.0
+
+
 def Measure_Mask(mask: tp.Any, scale: Scale_Str, cv2: tp.Any, np: tp.Any) -> tp.Optional[Measurement_Str]:
     """
     Description:
@@ -128,8 +173,9 @@ def Measure_Mask(mask: tp.Any, scale: Scale_Str, cv2: tp.Any, np: tp.Any) -> tp.
         points; contour points sit on pixel CENTRES, so each side is lengthened by one pixel (a
         filled 200 px block spans 199 px between its boundary pixel centres). Each side is then
         converted through the per-axis factor. Elongation (second moments) and extent (area over
-        rectangle area) decide the symmetric case: a round object reports its diameter (the mean
-        of the two sides) and no angle; otherwise the long side is the width, the short side the
+        rectangle area) decide the symmetric case: a symmetric object reports no angle and a
+        diameter — across flats (its smallest caliper width) when its silhouette is hexagonal, the
+        mean of the two sides when it is round; otherwise the long side is the width, the short side the
         height, and the angle is the long side's, folded to [0, 90) for a square-like object.
 
     Args:
@@ -175,7 +221,19 @@ def Measure_Mask(mask: tp.Any, scale: Scale_Str, cv2: tp.Any, np: tp.Any) -> tp.
                                   Box_Points=[(float(x), float(y)) for x, y in corners])
     if not_elongated and extent < CONST_MEASURE_SQUARE_EXTENT:
         measurement.Symmetric = True
-        measurement.Diameter_Mm = round((long_mm + short_mm) / 2.0, decimals)
+        theta, widths = __Width_Profile(points, cv2, np)
+        harmonics = np.abs(np.fft.rfft(widths)) * (2.0 / len(widths))
+        measurement.Hexagonality = round(float(harmonics[3] / widths.mean()), 4)
+        if measurement.Hexagonality >= CONST_MEASURE_HEX_HARMONIC:
+            # Across flats: the smallest caliper width, converted through the factor along its
+            # own direction (exact for equal x/y factors; the configured two differ by 0.004 %).
+            i = int(np.argmin(widths))
+            mm_per_px = math.hypot(scale.Mm_Per_Px_X * math.cos(theta[i]),
+                                   scale.Mm_Per_Px_Y * math.sin(theta[i]))
+            measurement.Across_Flats = True
+            measurement.Diameter_Mm = round(float(widths[i]) * mm_per_px, decimals)
+        else:
+            measurement.Diameter_Mm = round((long_mm + short_mm) / 2.0, decimals)
         return measurement
     measurement.Width_Mm = round(long_mm, decimals)
     measurement.Height_Mm = round(short_mm, decimals)

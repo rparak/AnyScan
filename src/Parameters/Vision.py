@@ -69,9 +69,20 @@ class Measurement_Str(object):
     #   Unit [float] (mm)
     Width_Mm: tp.Optional[float] = None
     Height_Mm: tp.Optional[float] = None
-    # Diameter in mm — only when symmetric.
+    # Diameter in mm — only when symmetric. For a round part it is the mean of the rotated
+    # rectangle's two sides; for a hexagonal part (Across_Flats) it is the across-flats width,
+    # the part's smallest caliper width.
     #   Unit [float] (mm)
     Diameter_Mm: tp.Optional[float] = None
+    # Whether Diameter_Mm is an across-flats width (a hexagonal symmetric part, e.g. a nut)
+    # rather than a round part's diameter.
+    #   Unit [bool]
+    Across_Flats: bool = False
+    # The strength of the silhouette's 60° periodicity (the third harmonic of its caliper width
+    # over 180°, as a fraction of the mean width) — the number Across_Flats rests on. None when
+    # not symmetric (it is only evaluated for symmetric parts).
+    #   Unit [float]
+    Hexagonality: tp.Optional[float] = None
     # The long side's angle from the image +x axis, counter-clockwise AS SEEN ON SCREEN, in
     # [0, 180) — or [0, 90) for a square-like object, whose two sides are interchangeable. None
     # when symmetric.

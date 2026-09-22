@@ -234,8 +234,9 @@ def Measurement_Record(measurement: tp.Optional[Measurement_Str]) -> tp.Optional
     Description:
         One object's measurement as its '_objects.json' record: sizes in millimetres at the
         scale's precision, the angle in degrees (screen counter-clockwise from +x; null when
-        symmetric), the symmetric flag and the two numbers it rests on, and the decimals. None when
-        the object was not measured.
+        symmetric), the symmetric flag and the two numbers it rests on, whether the diameter is
+        across flats and the hexagonality that decides it (null when not symmetric), and the
+        decimals. None when the object was not measured.
 
     Args:
         (1) measurement [Measurement_Str(object) or None]: The measurement.
@@ -248,6 +249,7 @@ def Measurement_Record(measurement: tp.Optional[Measurement_Str]) -> tp.Optional
         return None
     return {'symmetric': measurement.Symmetric, 'width_mm': measurement.Width_Mm,
             'height_mm': measurement.Height_Mm, 'diameter_mm': measurement.Diameter_Mm,
+            'across_flats': measurement.Across_Flats, 'hexagonality': measurement.Hexagonality,
             'angle_deg': measurement.Angle_Deg, 'elongation': measurement.Elongation,
             'extent': measurement.Extent, 'decimals': measurement.Decimals}
 
@@ -289,6 +291,8 @@ def __Read_Measurement(record: tp.Any) -> tp.Optional[Measurement_Str]:
                                   Width_Mm=__Record_Number(record, 'width_mm'),
                                   Height_Mm=__Record_Number(record, 'height_mm'),
                                   Diameter_Mm=__Record_Number(record, 'diameter_mm'),
+                                  Across_Flats=record.get('across_flats') is True,
+                                  Hexagonality=__Record_Number(record, 'hexagonality'),
                                   Angle_Deg=__Record_Number(record, 'angle_deg'),
                                   Elongation=__Record_Number(record, 'elongation') or 1.0,
                                   Extent=__Record_Number(record, 'extent') or 1.0,

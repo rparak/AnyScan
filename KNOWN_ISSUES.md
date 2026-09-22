@@ -330,7 +330,7 @@ inside exactly that stability. The calibration gives specific reasons to expect 
   nearer the lens and reads larger — about 0.3 % per millimetre of thickness at the ~340–380 mm
   working distance — and moving the camera or refocusing invalidates the factor altogether.
 
-- **Impact:** every size (A × B and Ø) may carry a systematic error of unknown magnitude, either
+- **Impact:** every size (A × B, Ø and A/F) may carry a systematic error of unknown magnitude, either
   one scale factor or one that varies with position in the frame.
 - **The check that closes it:** photograph references of known size — the calibration chessboard
   (12 mm squares, hardcoded in `Example/Camera/calibrate.py`, not stored in the configuration)

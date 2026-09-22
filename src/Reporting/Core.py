@@ -657,8 +657,9 @@ def Object_Size(det: Detection_Str) -> str:
     """
     Description:
         The size suffix of an object's label, from its measurement: 'A × B mm' (long side
-        first) for an elongated or square-like object, 'Ø D mm' for a rotationally symmetric one,
-        at the decimal places the scale supports (Measurement_Str.Decimals — one pixel's size, so
+        first) for an elongated or square-like object, 'Ø D mm' for a round symmetric one and
+        'A/F D mm' for a hexagonal one (across flats — the label names the convention, since the
+        two differ by up to 15 % on the same part), at the decimal places the scale supports (Measurement_Str.Decimals — one pixel's size, so
         never false precision). An empty string when the object is not measured (no mask, or no
         scale configured): the label then simply has no size, never a placeholder number.
 
@@ -666,7 +667,8 @@ def Object_Size(det: Detection_Str) -> str:
         (1) det [Detection_Str(object)]: The object.
 
     Returns:
-        (1) parameter [string]: The size ('24.3 × 18.7 mm' / 'Ø 16.1 mm'), or ''.
+        (1) parameter [string]: The size ('24.3 × 18.7 mm' / 'Ø 16.1 mm' / 'A/F 11.7 mm'), or
+                                ''.
     """
 
     measurement = det.Measurement
@@ -674,7 +676,8 @@ def Object_Size(det: Detection_Str) -> str:
         return ''
     decimals = measurement.Decimals
     if measurement.Symmetric:
-        return 'Ø %.*f mm' % (decimals, measurement.Diameter_Mm)
+        return '%s %.*f mm' % ('A/F' if measurement.Across_Flats else 'Ø', decimals,
+                               measurement.Diameter_Mm)
     return '%.*f × %.*f mm' % (decimals, measurement.Width_Mm, decimals, measurement.Height_Mm)
 
 

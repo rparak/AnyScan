@@ -490,9 +490,9 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   it is as un-elongated as a disc (1.02, the plate in 006/007) but its sides are real edges that
   `minAreaRect` finds reliably, so un-elongated parts are only called symmetric when also round —
   extent (contour area / rectangle area) below **0.92** (round parts 0.81–0.85, the square 0.98–0.99).
-  A square keeps A × B and an angle folded to [0°, 90°), since its sides are interchangeable. The
-  diameter is the mean of the rectangle's sides (for a hex nut, between across-flats and
-  across-corners).
+  A square keeps A × B and an angle folded to [0°, 90°), since its sides are interchangeable. A
+  round part's diameter is the mean of the rectangle's sides; a hexagonal one reports across flats
+  (next entry).
 - **Camera View drawing.** A measured, elongated object is drawn twice in its one verdict colour:
   the rotated rectangle **solid** at the full box weight (the measurement) and the axis-aligned box
   as a **thin dashed** line (now only the reference that carries the number chip) — solid versus
@@ -500,7 +500,44 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   confused shape. Symmetric and unmeasured objects keep the single solid axis box; the label mask
   is unchanged.
 
-**Revisit if** a part family needs orientation modulo 60° (hex) or needs across-flats rather than a
-mean diameter; and see KNOWN_ISSUES: the sizes may carry a systematic error of unknown magnitude and are not for acceptance decisions until checked against references of known size.
+**Revisit if** a part family needs orientation modulo 60° (hex). See KNOWN_ISSUES: the sizes may
+carry a systematic error of unknown magnitude and are not for acceptance decisions until checked
+against references of known size.
 Tests `test/Vision/Utilities/test_measure.py`, `test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
+
+## Symmetric parts: round ones report Ø, hexagonal ones report across flats (A/F)
+
+A hexagon's across-corners width is 2/√3 = 1.155 × its across-flats, so one hex nut has two
+standard "diameters" 15 % apart, and the mean of the rotated rectangle's sides — the round-part
+convention — lands between them and matches neither. A nut is specified by its across flats (the
+wrench size), so a hexagonal symmetric part reports that, and the label names the convention:
+`A/F 11.7 mm` beside a round part's `Ø 14.7 mm`. The two can never be read as the same kind of
+number.
+
+- **What counts as hexagonal.** The part's caliper (Feret) width is sampled over 180° from its
+  convex hull; a hexagon's repeats every 60°, so its third harmonic is strong. *Hexagonality* is
+  that harmonic's amplitude over the mean width, and **0.0075** is the threshold. Measured: the
+  two washers in `Image_001` 0.0016 and 0.0026, the two nuts 0.0204 and 0.0254 (lower than an
+  ideal hexagon's 0.038–0.057 because the masks round the corners), pixelated ideal discs ≤ 0.0021
+  down to 24 px across. 0.0075 sits near the geometric mean of the closest washer and nut, about
+  2.7× from each. The round parts are only in `Image_001`, so this rests on two parts of each
+  kind; the synthetic cases (discs and hexagons at several sizes and rotations) are the wider net.
+- **Only the 60° harmonic.** A general "polygonal" test (any harmonic 3–8) fails on this data:
+  washer 1's own mask is a slightly squared circle with a 4-fold component of 0.012 — stronger
+  than the threshold. Square parts never reach this branch anyway (their extent excludes them).
+- **Across flats is the smallest caliper width**, converted through the factor along its own
+  direction. It is also the robust choice here: the masks clip the nuts' corners (nut 7's widest
+  caliper width is 1.13 × its across flats, not 1.155), which pulls a mean or an across-corners
+  number but not the flats. On `Image_001` nut 7 moves from Ø 12.0 to A/F 11.7 mm and nut 8 from Ø 11.6 to
+  A/F 11.5 mm — much less than the theoretical 7.5 %, for exactly that reason.
+- **Stored.** `_objects.json` records `across_flats` and `hexagonality` (null when the part is not
+  symmetric). A record written before this convention has no `across_flats` and reads back as a
+  round Ø, which is what it was measured as.
+
+**Revisit if** another polygonal family appears (an octagonal part would need its own harmonic and
+its own evidence), or if the nuts' measured A/F disagrees with a caliper by more than the scale
+check in KNOWN_ISSUES explains.
+Tests `test/Vision/Utilities/test_measure.py` (`test_hexagonal_part_reports_across_flats`,
+`test_a_disc_of_any_size_is_round_not_across_flats`, label and stored-record tests),
+`test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
 

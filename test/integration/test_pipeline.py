@@ -257,6 +257,8 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(request, monkeypa
         shipped scale: in Image_001 the round washers and nuts (objects 1, 3, 7, 8) are measured
         as diameters with no angle, and the elongated parts — the blue shape, the red block, the
         terminal strip, the screw and the lattice bracket (2, 4, 5, 6, 9) — as A x B with an angle.
+        Of the symmetric four, the two hex nuts (7, 8) report across flats and the two washers
+        (1, 3) a round diameter.
         The square plate in Image_006 is NOT reported as a diameter (it is un-elongated, but its
         extent marks it square). Slow because it runs FastSAM; skips when the weights are absent.
     """
@@ -281,6 +283,8 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(request, monkeypa
     assert len(objects) == 9
     symmetric = [i + 1 for i, det in enumerate(objects) if det.Measurement.Symmetric]
     assert symmetric == [1, 3, 7, 8]
+    across_flats = [i + 1 for i, det in enumerate(objects) if det.Measurement.Across_Flats]
+    assert across_flats == [7, 8]
     for det in objects:
         m = det.Measurement
         if m.Symmetric:

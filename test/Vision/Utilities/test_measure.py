@@ -88,6 +88,18 @@ def _Disc(radius_px: float) -> np.ndarray:
     return (xs + 0.5 - CONST_SHAPE[1] / 2.0) ** 2 + (ys + 0.5 - CONST_SHAPE[0] / 2.0) ** 2 <= radius_px ** 2
 
 
+def _Hexagon(across_flats_px: float, rotation_deg: float) -> np.ndarray:
+    """A mask of a regular hexagon with the given across-flats width, rotated, centred in the
+    frame: a pixel is set when its centre lies inside all six half-planes."""
+    ys, xs = np.mgrid[0:CONST_SHAPE[0], 0:CONST_SHAPE[1]]
+    dx, dy = xs + 0.5 - CONST_SHAPE[1] / 2.0, ys + 0.5 - CONST_SHAPE[0] / 2.0
+    inside = np.ones(CONST_SHAPE, bool)
+    for k in range(6):
+        t = math.radians(rotation_deg + 60.0 * k)
+        inside &= dx * math.cos(t) + dy * math.sin(t) <= across_flats_px / 2.0
+    return inside
+
+
 def test_known_size_and_angle_through_a_known_factor() -> None:
     """
     Description:
@@ -136,6 +148,41 @@ def test_rotationally_symmetric_object_reports_a_diameter_and_no_angle() -> None
     assert disc.Angle_Deg is None and disc.Width_Mm is None and disc.Height_Mm is None
     assert disc.Elongation < Measure.CONST_MEASURE_SYMMETRIC_ELONGATION
     assert disc.Extent < Measure.CONST_MEASURE_SQUARE_EXTENT
+    assert not disc.Across_Flats
+
+
+@pytest.mark.parametrize('rotation', [0.0, 13.0, 30.0, 47.0])
+def test_hexagonal_part_reports_across_flats(rotation: float) -> None:
+    """
+    Description:
+        A hexagon (a nut) is symmetric — no angle — but its diameter is ACROSS FLATS, the smallest
+        caliper width, at any rotation: 120 px across flats at 0.1 mm/px is 12.0 mm. The mean-of-
+        sides convention would put it ~7.5 % higher (across corners is 13.9 mm), which is why the
+        convention is recorded and named in the label.
+    """
+
+    nut = Measure_Mask(_Hexagon(120.0, rotation), CONST_SCALE, cv2, np)
+    assert nut.Symmetric and nut.Angle_Deg is None
+    assert nut.Across_Flats
+    assert nut.Hexagonality >= Measure.CONST_MEASURE_HEX_HARMONIC
+    assert nut.Diameter_Mm == pytest.approx(12.0, abs=0.15)
+    assert Object_Size(Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Measurement=nut)) == \
+        'A/F %.1f mm' % nut.Diameter_Mm
+
+
+@pytest.mark.parametrize('radius', [12.0, 25.0, 60.0, 150.0])
+def test_a_disc_of_any_size_is_round_not_across_flats(radius: float) -> None:
+    """
+    Description:
+        A disc's pixel staircase must not read as a hexagon, from 24 px across (2.4 mm) up: it
+        stays a round Ø (the mean of the rectangle's sides), its hexagonality well under the
+        threshold.
+    """
+
+    disc = Measure_Mask(_Disc(radius), CONST_SCALE, cv2, np)
+    assert disc.Symmetric and not disc.Across_Flats
+    assert disc.Hexagonality < Measure.CONST_MEASURE_HEX_HARMONIC / 2.0
+    assert Object_Size(Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Measurement=disc)).startswith('Ø ')
 
 
 def test_a_square_is_not_symmetric_and_its_angle_folds_to_ninety() -> None:
@@ -185,19 +232,23 @@ def test_label_carries_the_size_after_the_confidence() -> None:
     """
     Description:
         The shared label gains the size after the confidence — 'A × B mm' for an elongated object,
-        'Ø D mm' for a symmetric one — and has no size segment at all when unmeasured.
+        'Ø D mm' for a round one, 'A/F D mm' for a hexagonal one — and has no size segment at all
+        when unmeasured.
     """
 
     rectangle = Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Segmenter_Score=0.91,
                               Measurement=Measure_Mask(_Block(243, 187), CONST_SCALE, cv2, np))
     disc = Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Segmenter_Score=0.91,
                          Measurement=Measure_Mask(_Disc(80.0), CONST_SCALE, cv2, np))
+    nut = Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Segmenter_Score=0.91,
+                        Measurement=Measure_Mask(_Hexagon(120.0, 0.0), CONST_SCALE, cv2, np))
     plain = Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Segmenter_Score=0.91)
 
     assert Object_Label_Full(0, rectangle) == 'Object 1 · Confidence 91% · 24.3 × 18.7 mm'
     import re
     assert re.fullmatch(r'Ø \d+\.\d mm', Object_Size(disc)), Object_Size(disc)   # one decimal
     assert Object_Label_Full(0, disc) == 'Object 1 · Confidence 91% · ' + Object_Size(disc)
+    assert Object_Label_Full(0, nut) == 'Object 1 · Confidence 91% · A/F 12.0 mm'
     assert Object_Label_Full(0, plain) == 'Object 1 · Confidence 91%'
 
 
@@ -237,14 +288,18 @@ def test_stored_set_records_the_measurements_and_the_scale_that_produced_them(tm
     Description:
         The capture set stores each object's measurement and, once at set level, the conversion
         factor with its units; reading the set back restores both, so the History Info label shows
-        the same size. A set written with no scale records null for both.
+        the same size — including an across-flats diameter, which reads back as A/F, not Ø. A set
+        written with no scale records null for both. A record from before the across-flats
+        convention (no 'across_flats' key) reads back as a round Ø, which is what it was measured as.
     """
 
     measured = Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Sentence='A part.', Segmenter_Score=0.9,
                              Measurement=Measure_Mask(_Rectangle(200, 100, 30.0), CONST_SCALE, cv2, np))
+    nut = Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Sentence='A nut.', Segmenter_Score=0.9,
+                        Measurement=Measure_Mask(_Hexagon(120.0, 13.0), CONST_SCALE, cv2, np))
     raw = np.zeros((40, 60, 3), np.uint8)
     writer = Capture_Writer_Cls(str(tmp_path))
-    for set_id, scale, objects in (('with', CONST_SCALE, [measured]),
+    for set_id, scale, objects in (('with', CONST_SCALE, [measured, nut]),
                                    ('without', None, [Detection_Str(Label='p', Bbox=(0, 0, 1, 1))])):
         metadata = Build_Set_Metadata('s', set_id, '2026-09-22T10:00:00', objects, (60, 40), 't', 1,
                                       90, scale=scale)
@@ -257,9 +312,18 @@ def test_stored_set_records_the_measurements_and_the_scale_that_produced_them(tm
     assert (read_back.Width_Mm, read_back.Height_Mm, read_back.Angle_Deg) == \
         (measured.Measurement.Width_Mm, measured.Measurement.Height_Mm, measured.Measurement.Angle_Deg)
     assert sets['without'].Scale is None and sets['without'].Objects[0].Measurement is None
+    assert Object_Size(stored.Objects[1]) == Object_Size(nut) == 'A/F %.1f mm' % nut.Measurement.Diameter_Mm
     import json, glob, os
-    record = json.load(open(glob.glob(os.path.join(str(tmp_path), 's', 'with_objects.json'))[0]))
+    path = glob.glob(os.path.join(str(tmp_path), 's', 'with_objects.json'))[0]
+    record = json.load(open(path))
     assert record['conversion_factor']['units'] == CONST_SCALE_UNITS == 'mm/px'
+
+    for obj in record['objects']:                                      # a pre-convention record
+        del obj['measurement']['across_flats'], obj['measurement']['hexagonality']
+    json.dump(record, open(path, 'w'))
+    legacy = {cap.Set_Id: cap for cap in Discover_Capture_Sets(str(tmp_path))}['with'].Objects[1]
+    assert not legacy.Measurement.Across_Flats and legacy.Measurement.Hexagonality is None
+    assert Object_Size(legacy) == 'Ø %.1f mm' % nut.Measurement.Diameter_Mm
 
 
 def test_camera_view_draws_the_rotated_rectangle_solid_and_the_axis_box_dashed() -> None:
