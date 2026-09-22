@@ -343,6 +343,10 @@ inside exactly that stability. The calibration gives specific reasons to expect 
 
 ## A part's measured size depends on where it lies in the frame, and on its thickness
 
+**In practice: this setup measures repeatably, not absolutely.** Comparing like parts in like
+positions works; deciding whether a part is within a stated tolerance does not, and won't without
+a telecentric lens.
+
 **The same part measures differently depending on where it lies in the frame.** A 6 mm thick nut
 of about 12 mm reads ≈ 0.2 mm large at the frame centre and ≈ 1.5 mm large near the frame edge.
 That is not a precision caveat: **any acceptance threshold built on these sizes would have to
@@ -373,9 +377,10 @@ the optical axis to the part's edge farther from it:
   6 mm nut near the frame edge (X ≈ 90 mm) gains ≈ 1.5 mm (~13 %). The size across that direction
   gains only the top-face term, so an across-flats width (the smallest width) is largely spared,
   while a round Ø (the mean of two sides) takes about half the excess.
-- **A central measuring zone does not rescue fixed tolerances:** keeping the off-axis excess of
-  that 6 mm nut under 0.1 mm needs its far edge within ~6 mm of the axis, and under 0.5 mm within
-  ~30 mm.
+- **A central measuring zone does not rescue fixed tolerances.** The smallest excess, with the
+  part centred on the axis, is W · t / (Z − t) — 0.2 mm for the 12 mm, 6 mm thick nut — so a 0.1 mm
+  tolerance cannot be held for that nut **anywhere** in the frame. Holding 0.5 mm needs its far
+  edge within ~30 mm of the axis: a central zone about 6 cm across on a 188 × 118 mm field.
 
 - **Why it is not corrected:** the correction needs each part's thickness, the reference plane's
   height, and the true optical axis. The thickness is not in the image, and the calibration's
