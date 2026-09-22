@@ -87,19 +87,24 @@ FONT_MONO = 'Consolas'  # resolved in Load_Fonts
 #   Unit [Vector<float>] (point sizes)
 CONST_TYPE_SCALE = (9.5, 10.5, 11.5, 12.5, 14.0, 15.5, 16.5, 18.0)
 
-# The LIVE Scene-Understanding type steps. The panel is a two-level block per object: the label
-# line ('Object N · Confidence …') larger and heavier, the description beneath it smaller and
-# regular; above them the background paragraph leads the panel. The hierarchy is size and weight
-# only — everything is CONST_INK. The label stays clearly larger and heavier than the description
-# below it (14.0 DemiBold over 12.5 regular); the confidence suffix is one step DOWN from the
-# name AND a lighter weight, so it reads as secondary metadata attached to the name.
+# The LIVE Scene-Understanding type steps. The panel reads top-down as a three-level hierarchy:
+# the count sentence ('There are N objects on it…') is the HEADING over the list and stays
+# largest (16.5, DemiBold); the background sentence above it is context, so it drops to the
+# object-label size in REGULAR weight (same size as 'Object N', lighter, so it does not compete
+# with the heading); then each object is a two-level block — the label line ('Object N ·
+# Confidence …') larger and heavier, the description beneath it smaller and regular. The
+# hierarchy is size and weight only — everything is CONST_INK. The label stays clearly larger and
+# heavier than the description below it (14.0 DemiBold over 12.5 regular); the confidence suffix
+# is one step DOWN from the name AND a lighter weight, so it reads as secondary metadata attached
+# to the name.
 #
 # These are the LIVE sizes: the Scene-Understanding block is glanced at across a workbench, so it
 # runs large. The History Info panel (below) uses SEPARATE, smaller tokens because it is read up
 # close while comparing two images — keeping them apart means adjusting one distance cannot move
 # the other.
 #   Unit [float] (point size)
-CONST_TYPE_SCENE_BACKGROUND = CONST_TYPE_SCALE[5]   # 15.5
+CONST_TYPE_SCENE_HEADING = CONST_TYPE_SCALE[6]      # 16.5 — the count heading, largest in the panel
+CONST_TYPE_SCENE_BACKGROUND = CONST_TYPE_SCALE[4]   # 14.0 — background sentence, == the object label
 CONST_TYPE_OBJECT_LABEL = CONST_TYPE_SCALE[4]       # 14.0
 CONST_TYPE_OBJECT_CONFIDENCE = CONST_TYPE_SCALE[3]  # 12.5 — one step down from the label
 CONST_TYPE_OBJECT_BODY = CONST_TYPE_SCALE[3]        # 12.5 — the description

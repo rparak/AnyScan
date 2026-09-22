@@ -593,20 +593,55 @@ def Screen_Header(objects: tp.List[Detection_Str], background_sentence: str) -> 
         (1) parameter [string]: The header line.
     """
 
-    # The background is stated first, always: an empty sentence would leave the count
-    # line headless ('There are 3 objects on it' with no 'it'), so a missing background
-    # falls back to the neutral string here too.
+    # The background is stated first, always, so the count line's 'it' has an antecedent;
+    # the file keeps them on ONE line. The application splits them into two lines of
+    # different sizes (Scene_Background_Line, Scene_Count_Line), but the words are the same.
+    return Scene_Background_Line(background_sentence) + ' ' + Scene_Count_Line(objects)
+
+
+def Scene_Background_Line(background_sentence: str) -> str:
+    """
+    Description:
+        The normalised background sentence on its own — the first half of Screen_Header,
+        exposed so the Scene-Understanding panel can render it at its own (smaller) size
+        without re-deriving the wording. A missing sentence falls back to the neutral
+        string, so the count line's 'it' is never left headless.
+
+    Args:
+        (1) background_sentence [string]: The one global background description.
+
+    Returns:
+        (1) parameter [string]: The background sentence, terminated with punctuation.
+    """
+
     background = (background_sentence or '').strip() or CONST_BACKGROUND_FALLBACK
     if background[-1] not in '.!?':
         background += '.'
-    lead = background + ' '
+    return background
+
+
+def Scene_Count_Line(objects: tp.List[Detection_Str]) -> str:
+    """
+    Description:
+        The object-count sentence on its own — the second half of Screen_Header, exposed
+        so the panel can render it as the heading over the object list. The count is
+        len(objects), the same list the lines are numbered from, so the count and the
+        lines cannot disagree; singular/plural read correctly and the zero case reads
+        'No objects were detected on it.', not '0 objects'.
+
+    Args:
+        (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+
+    Returns:
+        (1) parameter [string]: The count sentence.
+    """
 
     count = len(objects)
     if count == 0:
-        return lead + 'No objects were detected on it.'
+        return 'No objects were detected on it.'
     verb = 'is' if count == 1 else 'are'
     noun = 'object' if count == 1 else 'objects'
-    return lead + 'There %s %d %s on it, described below.' % (verb, count, noun)
+    return 'There %s %d %s on it, described below.' % (verb, count, noun)
 
 
 def Object_Label(index: int) -> str:

@@ -39,17 +39,18 @@ from Camera.Core import File_Camera_Cls
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
-from Reporting.Core import (Screen_Header, Object_Line, Object_Label, Object_Confidence,
-                           Object_Label_Full, CONST_LABEL_SEPARATOR)
+from Reporting.Core import (Screen_Header, Scene_Background_Line, Scene_Count_Line, Object_Line,
+                           Object_Label, Object_Confidence, Object_Label_Full, CONST_LABEL_SEPARATOR)
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
 
 """
 Description:
     Headless (offscreen) tests that the Scene-Understanding view renders from the shared
-    Reporting formatter (§2): the lead is Screen_Header (the background stated once with
-    the count) and each object line carries the shared Object_Line text, so the panel and
-    the descriptions file cannot drift. No camera and no weights needed.
+    Reporting formatter (§2): the panel splits Screen_Header into a background line and a
+    count heading (whose concatenation is still Screen_Header, so no drift) and each object
+    line carries the shared Object_Line text, so the panel and the descriptions file cannot
+    drift. No camera and no weights needed.
 """
 
 # The window's name-mangling prefix, for reaching its private state.
@@ -104,12 +105,14 @@ def _Line_Texts(window) -> list:
     return triples
 
 
-def test_lead_is_the_shared_screen_header(qt_app, reference_background_path) -> None:
+def test_reading_header_splits_into_background_and_count_without_drift(qt_app,
+                                                                       reference_background_path) -> None:
     """
     Description:
-        The reading lead is Screen_Header — the SAME first line the descriptions file
-        carries — so the panel states the background once with the count, not a separate
-        summary sentence.
+        The panel shows the background sentence and the count sentence as two separate
+        labels — the background as context, the count as the heading over the list — but
+        together they are still exactly Screen_Header, the SAME first line the descriptions
+        file carries, so the view and the file cannot drift.
     """
 
     objects = [_Object('A silver ring.'), _Object('A blue bracket.')]
@@ -118,10 +121,42 @@ def test_lead_is_the_shared_screen_header(qt_app, reference_background_path) -> 
                           Analysis_Str(Objects=objects, Background=background,
                                        Verdict='2 found', Verdict_Level='ok', Task='caption'))
 
+    bg_label = _Private(window, '__reading_background')
     lead = _Private(window, '__reading_lead')
-    assert lead.text() == Screen_Header(objects, background)
-    assert lead.text().startswith(background)
-    assert 'There are 2 objects on it, described below.' in lead.text()
+    assert bg_label.text() == Scene_Background_Line(background)
+    assert lead.text() == Scene_Count_Line(objects)
+    assert lead.text() == 'There are 2 objects on it, described below.'
+    # The two labels together are exactly the shared header — no drift from the file.
+    assert bg_label.text() + ' ' + lead.text() == Screen_Header(objects, background)
+
+
+def test_live_panel_type_hierarchy(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        The Live panel reads top-down as heading > background sentence > object label >
+        description. The count heading is the largest text; the background sentence drops
+        to the SAME size as the 'Object N' label but a lighter (regular) weight, so it
+        does not compete with the heading; the description is smaller than the label.
+    """
+
+    objects = [_Object('A silver ring.', 0.91)]
+    window = _Window_With(reference_background_path,
+                          Analysis_Str(Objects=objects, Background='A green surface.',
+                                       Verdict='1 found', Verdict_Level='ok', Task='caption'))
+
+    heading = _Private(window, '__reading_lead').font()
+    background = _Private(window, '__reading_background').font()
+    layout = _Private(window, '__object_list').box
+    name, _confidence, description = _Label_Line_Widgets(layout.itemAt(0).widget())
+
+    # The heading is the largest text in the panel and heavier than the background context.
+    assert heading.pointSizeF() > background.pointSizeF()
+    assert heading.weight() > background.weight()
+    # The background sentence is the SAME size as the object label, in a lighter (regular) weight.
+    assert background.pointSizeF() == name.font().pointSizeF()
+    assert background.weight() < name.font().weight()
+    # The description stays smaller than the label.
+    assert name.font().pointSizeF() > description.font().pointSizeF()
 
 
 def test_object_blocks_carry_the_shared_label_and_description(qt_app, reference_background_path) -> None:
@@ -203,6 +238,8 @@ def test_zero_objects_reads_sensibly(qt_app, reference_background_path) -> None:
                                        Verdict='Empty', Verdict_Level='idle', Task='caption'))
 
     lead = _Private(window, '__reading_lead')
-    assert lead.text().endswith('No objects were detected on it.')
+    assert lead.text() == 'No objects were detected on it.'
     assert '0 object' not in lead.text()
+    # The background context is still shown, on its own label.
+    assert _Private(window, '__reading_background').text() == 'A plain surface.'
     assert _Line_Texts(window) == []
