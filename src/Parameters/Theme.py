@@ -76,14 +76,21 @@ CONST_BAND_TEXT     = '#b9b2d6'   # lavender text/disclaimer on the band
 # layer. They are stricter than the general distinctness floor because a thin box outline must
 # stand out against the fill it crosses, and the fill must actually be a colour:
 #   - ΔE(box, fill) >= 25: the outline stays clearly visible against its own fill;
-#   - ΔE(fill, white) >= 25: the fill is not the white it replaced;
+#   - ΔE(fill, white) >= 21: the fill does not read as white (see the note on the constant);
 #   - >= 4.5:1 against the black mask ground (WCAG relative luminance): the silhouette reads;
 #   - a chromatic fill keeps its box's hue (within 5°) at >= 40% of the box's chroma;
 #   - a DERIVED fill sits at least 0.5 L* inside its valid window on both sides, so rounding to
 #     hex (about 0.2 L*) can never push it across a floor.
 #   Unit [float]
 CONST_MASK_FILL_MIN_BOX_DELTA_E = 25.0
-CONST_MASK_FILL_MIN_WHITE_DELTA_E = 25.0
+# The fill/white floor exists for ONE failure: a mask fill that reads as white. That failure was
+# #F1F2F4, ΔE 4.7 from white — effectively white. 21 is a chosen margin above it, not a
+# measurement limit: at 21 a near-neutral fill can reach L* ~80 and still reads clearly as grey
+# (checked on Image_001), while L* 85 (ΔE ~16 from white) starts drifting back toward the white it
+# replaced. It was 25 for one round; 25 capped the neutral fill at L* ~75, which read darker than
+# intended. Do not round it back up to 25 without re-checking the neutral mask: every point above
+# 21 costs neutral fill lightness (L* <= 100 - sqrt(floor² - C*²)).
+CONST_MASK_FILL_MIN_WHITE_DELTA_E = 21.0
 CONST_MASK_FILL_MIN_GROUND_CONTRAST = 4.5
 CONST_MASK_FILL_MAX_HUE_SHIFT = 5.0
 CONST_MASK_FILL_MIN_CHROMA_FRACTION = 0.4
@@ -151,14 +158,14 @@ CONST_VERDICT_DEFAULT = 'OK'
 # the box as the mask outline, the ΔE 25 outline/fill floor forced the fill dark (L* 50); a darker
 # mask outline frees the fill to go light. Neutral_Mask_Colors derives the pair in this box's own
 # hue and chroma, and it no longer depends on the box's LIGHTNESS at all:
-#     fill     L* 75.39 (#B4BAC6) — as light as the fill/white floor allows: for chroma C*, ΔE to
-#                                   white >= 25 needs L* <= 100 - sqrt(25² - C*²) = 75.93, less
-#                                   the 0.5 margin. A fill at L* 80-85 would sit ΔE 16-21 from
-#                                   white — lighter needs a lower white floor, not a new outline;
-#     outline  L* 49.56 (#717681) — the midpoint of [48.88 (4.5:1 against the black ground),
-#                                   fill L* - 25 (the outline/fill floor)] = [48.88, 50.43];
-#     measured ΔE(outline, fill) 25.8, ΔE(fill, white) 25.5, fill 10.8:1 and outline 4.6:1 on black.
-# The outline's window is only 1.55 L* wide. It closes only if the FLOORS change (not the box),
+#     fill     L* 79.75 (#C0C6D2) — as light as the fill/white floor allows: for chroma C*, ΔE to
+#                                   white >= 21 needs L* <= 100 - sqrt(21² - C*²) = 80.12, less the
+#                                   0.5 margin (hex rounding lands it at 79.75). The floor is 21, not
+#                                   25, on purpose — see CONST_MASK_FILL_MIN_WHITE_DELTA_E;
+#     outline  L* 51.86 (#767C87) — the midpoint of [48.88 (4.5:1 against the black ground),
+#                                   fill L* - 25 (the outline/fill floor)] = [48.88, 54.62];
+#     measured ΔE(outline, fill) 27.9, ΔE(fill, white) 21.3, fill 12.2:1 and outline 5.0:1 on black.
+# The outline's window is 5.74 L* wide. It closes only if the FLOORS change (not the box),
 # and then Theme raises at import naming the window rather than shipping a pair that breaks one.
 #   Unit [string] (hex colour)
 CONST_DETECTION_BOX = '#B8BECA'

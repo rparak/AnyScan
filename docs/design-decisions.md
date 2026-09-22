@@ -31,7 +31,7 @@ has to do. The fills are now built in LCh with the box's hue held:
 |---|---|---|---|---|---|
 | OK | `#6C63B5` | `#E2E0F0` → **`#B4AADB`** | 59.4 → 33.6 | 13.2 → 39.0 | 9.7:1 |
 | NOK | `#ff005c` | `#FFCCDE` → **`#FC929C`** | 74.7 → 46.8 | 24.6 → 51.1 | 9.7:1 |
-| neutral | `#B8BECA` → mask outline **`#717681`** | `#F1F2F4` → **`#B4BAC6`** (derived pair) | 19.5 → 25.8 | 4.7 → 25.5 | 10.8:1 |
+| neutral | `#B8BECA` → mask outline **`#767C87`** | `#F1F2F4` → **`#C0C6D2`** (derived pair) | 19.5 → 27.9 | 4.7 → 21.3 | 12.2:1 |
 
 OK and NOK share L\* 72 at about half their box's chroma, so only hue separates them, as with
 the boxes; their mask outlines are their boxes (L\* 46 and 54, darker than the fills), so they
@@ -47,24 +47,27 @@ keeps `#B8BECA`. The pair is derived in the box's own hue and chroma and no long
 box's lightness:
 
 - the **fill** is as light as the fill/white floor allows. For a near-neutral of chroma C\*,
-  ΔE to white is √((100 − L\*)² + C\*²), so ΔE ≥ 25 needs L\* ≤ 100 − √(25² − C\*²) = 75.93
-  here; less the 0.5 margin, the fill is `#B4BAC6` at L\* 75.39;
+  ΔE to white is √((100 − L\*)² + C\*²), so ΔE ≥ 21 needs L\* ≤ 100 − √(21² − C\*²) = 80.12
+  here; less the 0.5 margin (and hex rounding), the fill is `#C0C6D2` at L\* 79.75;
 - the **outline** sits at the midpoint of its window [48.88 (4.5:1 against black), fill − 25] =
-  [48.88, 50.43]: `#717681`, L\* 49.56. ΔE(outline, fill) 25.8, fill 10.8:1 and outline 4.6:1 on
+  [48.88, 54.62]: `#767C87`, L\* 51.86. ΔE(outline, fill) 27.9, fill 12.2:1 and outline 5.0:1 on
   black.
 
-**Why not L\* 80–85.** The white floor, not the outline, stops the fill at ~75: a near-neutral fill
-at L\* 80 is only ΔE 21.0 from white, at L\* 85 ΔE 16.3. The outline/fill floor is not the
-constraint — with the outline near L\* 50 it stays at 28–30 even at L\* 85 — so it does not need
-lowering. Going lighter would mean lowering the fill/white floor (from 25 to ~21 for L\* 80, ~16
-for L\* 85). That floor was set in the previous correction, not by a requirement; it was left at 25
-pending a look at the L\* 80/85 renders. The outline's window is 1.55 L\* wide and closes only if
+**The fill/white floor is 21, and why.** It exists for one failure: a mask fill that reads as
+white — which `#F1F2F4` did at ΔE 4.7. It was set to 25 for one round, and 25 capped the neutral
+fill at L\* ~75 (the outline/fill floor was never the constraint: with the outline near L\* 50 it
+stays at 28–30). Previews at L\* 80 and 85 settled it: L\* 80 (ΔE ~21 from white) still reads
+clearly as grey, including at full size on `Image_001`; L\* 85 (ΔE ~16) starts drifting back toward
+the white that was removed. So 21 is a chosen margin with L\* 85 as the point where it starts to fail
+visually, not a measurement limit — `Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E` carries this note so it
+is not rounded back up. Every point above 21 costs neutral fill lightness. The pair re-derives from
+the floor; the outline's window is now 5.74 L\* wide and closes only if the floors change.
 the floors change (not the box), and then Theme raises at import naming the window.
 
 The floors
 (`Theme.CONST_MASK_FILL_*`, in the parameters layer because Theme derives with them) are stricter
 than the general ΔE 12 because a thin outline must
-stand out against the fill it crosses: ΔE box↔fill ≥ 25, ΔE fill↔white ≥ 25, ≥ 4.5:1 against the
+stand out against the fill it crosses: ΔE box↔fill ≥ 25, ΔE fill↔white ≥ 21, ≥ 4.5:1 against the
 black ground, and a chromatic fill within 5° of its box's hue at ≥ 40% of its chroma. The OK/NOK
 box↔fill ΔE went *down*: that is the cost of a fill that is actually a colour, and both stay well
 above the floor. When classification is off the fill is the neutral one, implying no verdict
@@ -75,6 +78,7 @@ Tests `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_
 on the old values: "OK: fill #E2E0F0 reads as white"),
 `::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline` (the bounds and the pair's
 margins), `::test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_floors`,
+`::test_white_floor_rejects_what_reads_as_white_and_admits_the_l80_fill`,
 `test/Vision/Utilities/test_annotate.py::test_label_mask_fills_each_object_with_a_tint_of_its_box_colour`,
 `::test_detect_only_label_mask_fills_with_the_neutral_tint`, `test/UI/test_harness_parity.py`.
 

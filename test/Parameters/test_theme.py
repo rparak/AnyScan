@@ -168,8 +168,8 @@ def test_neutral_mask_pair_is_derived_light_fill_and_darker_outline() -> None:
         lightness for the table and the parts; on the mask the outline only meets the fill and the
         black ground, so it is darker, which frees the fill to go light. The test states the two
         bounds and asserts the pair's placement against them with the margin:
-          - fill: as light as the fill/white floor allows (L* <= 75.93 for this chroma), placed
-            at that bound less the 0.5 margin — never back to the dark L* 50 fill;
+          - fill: as light as the fill/white floor allows (L* <= 80.12 for this chroma at the
+            floor of 21), placed at that bound less the 0.5 margin — never back to a dark fill;
           - outline: inside [48.88 (4.5:1 on black), fill L* - 25], at least 0.5 from the lower
             bound and at least 25 + 0.5 below the fill.
     """
@@ -181,10 +181,10 @@ def test_neutral_mask_pair_is_derived_light_fill_and_darker_outline() -> None:
 
     outline_lower, fill_upper = Theme.Neutral_Mask_Bounds(box)
     margin = Theme.CONST_MASK_FILL_WINDOW_MARGIN
-    assert (round(outline_lower, 2), round(fill_upper, 2)) == (48.88, 75.93)   # stated in Theme
+    assert (round(outline_lower, 2), round(fill_upper, 2)) == (48.88, 80.12)   # stated in Theme
     outline_l, fill_l = Theme.Lch_Of(outline)[0], Theme.Lch_Of(fill)[0]
     assert abs(fill_l - (fill_upper - margin)) < 0.3                # the lightest allowed fill
-    assert fill_l >= 75.0                                           # light — not the L* 50 fill
+    assert fill_l >= 79.0                                           # light — the L* ~80 fill
     assert outline_l >= outline_lower + margin, (outline_l, outline_lower)
     assert fill_l - outline_l >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E + margin, (fill_l, outline_l)
     assert outline_l < Theme.Lch_Of(box)[0]                         # darker than the frame's box
@@ -200,8 +200,8 @@ def test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_floors() ->
     """
     Description:
         The pair depends on the box's hue and chroma, not its lightness, so the frame's box can be
-        re-tuned for the frame without moving the mask. The outline's window is only ~1.55 L*
-        wide, set by the floors; tighten the outline/fill floor past what it allows and the
+        re-tuned for the frame without moving the mask. The outline's window (~5.7 L* wide) is
+        set by the floors; tighten the outline/fill floor past what it allows and the
         derivation raises, naming the window, instead of clamping to a pair that breaks one.
     """
 
@@ -213,8 +213,28 @@ def test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_floors() ->
 
     previous = Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E
     try:
-        Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E = previous + 2.0
+        Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E = previous + 6.0
         with pytest.raises(ValueError, match='No valid neutral mask pair'):
             Theme.Neutral_Mask_Colors(Theme.CONST_DETECTION_BOX)
     finally:
         Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E = previous
+
+
+def test_white_floor_rejects_what_reads_as_white_and_admits_the_l80_fill() -> None:
+    """
+    Description:
+        The fill/white floor exists to stop a mask fill reading as white. It is 21, a chosen
+        margin: it rejects the removed #F1F2F4 (ΔE 4.7, effectively white) and the L* 85 preview
+        #CFD5E1 (ΔE ~16, where the fill starts drifting back toward white), and admits the shipped
+        L* ~80 neutral fill. Rounding the floor back up to 25 would reject that fill — the test pins
+        the reasoning, not just the number.
+    """
+
+    floor = Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E
+    assert floor == 21.0
+    assert Theme.Delta_E('#F1F2F4', '#FFFFFF') < floor               # the original white failure
+    assert Theme.Delta_E('#CFD5E1', '#FFFFFF') < floor               # L* 85: drifting back to white
+    shipped = Theme.Detection_Color()[2]
+    assert Theme.Delta_E(shipped, '#FFFFFF') >= floor                # the L* ~80 fill clears it
+    assert Theme.Delta_E(shipped, '#FFFFFF') < 25.0                  # and a 25 floor would reject it
+
