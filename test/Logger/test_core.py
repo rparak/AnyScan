@@ -34,7 +34,7 @@ import typing as tp
 import pytest
 # Custom Lib.: AnyScan — the session logger
 #   ../Logger/Core
-from Logger.Core import (Session_Logger_Cls, Format_HMS, Parse_Line, CONST_CSV_COLUMNS,
+from Logger.Core import (Session_Logger_Cls, Format_HMS, Parse_Line, CONST_CSV_COLUMNS, Csv_Filename_For_Config,
                          CONST_LEVEL_INFO, CONST_LEVEL_WARNING, CONST_LEVEL_ERROR)
 
 """
@@ -166,7 +166,7 @@ def _Build_Reference_Run(tmp_path: tp.Any) -> tp.Tuple[Session_Logger_Cls, Clock
     """
 
     clock = Clock_Cls(_T('14:37:02'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
 
     clock.now = _T('14:37:12'); Session_Logger.Log_Camera_Connected()
     clock.now = _T('14:37:21'); Session_Logger.Log_Analysis_Finished(14, 1000, 3, 0, None)
@@ -201,23 +201,45 @@ def test_filename_from_start_timestamp(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('14:37:02'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     assert os.path.basename(Session_Logger.Path) == 'log_2026-09-12_14-37.txt'
     Session_Logger.Close()
 
 
-def test_csv_filename_is_static_hardware_template(tmp_path: tp.Any) -> None:
+def test_csv_filename_follows_the_loaded_configuration(tmp_path: tp.Any) -> None:
     """
     Description:
-        The CSV filename is the static, hardware-identifying name and lives beside the
-        '.txt' log in the same directory.
+        The CSV is named after the configuration the run loaded, not a constant: the shipped
+        config gives the existing 'log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv' (so current files
+        keep their name), a different YAML gives its own file, and a logger with no configuration
+        writes to an unattributed file rather than into some camera's summary. The CSV lives beside
+        the '.txt' log.
     """
 
+    from Camera.Utilities.Configuration import CONST_BASLER_CONFIG_FILE
+
     Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=Clock_Cls(_T('09:00:00')),
-                                        install_handlers=False)
+                                        install_handlers=False, config_path=CONST_BASLER_CONFIG_FILE)
     assert os.path.basename(Session_Logger.Csv_Path) == 'log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv'
     assert os.path.dirname(Session_Logger.Csv_Path) == str(tmp_path)
     Session_Logger.Close()
+
+    assert Csv_Filename_For_Config('/cfg/Config_acA2500_14gc_Fujinon_HF16.yaml') == \
+        'log_acA2500_14gc_Fujinon_HF16.csv'
+    assert Csv_Filename_For_Config('/cfg/bench_rig.yml') == 'log_bench_rig.csv'
+    assert Csv_Filename_For_Config(None) == 'log_unconfigured.csv'
+
+
+def test_logger_requires_the_configuration_to_be_stated(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        config_path has no default: a caller that never said which setup the run used fails at
+        construction instead of silently summarising into a default file.
+    """
+
+    import pytest
+    with pytest.raises(TypeError):
+        Session_Logger_Cls(log_dir=str(tmp_path), install_handlers=False)
 
 
 def test_log_directory_created_when_missing(tmp_path: tp.Any) -> None:
@@ -228,7 +250,7 @@ def test_log_directory_created_when_missing(tmp_path: tp.Any) -> None:
 
     target = os.path.join(str(tmp_path), 'nested', 'logger')
     assert not os.path.isdir(target)
-    Session_Logger = Session_Logger_Cls(log_dir=target, clock=Clock_Cls(_T('09:00:00')),
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=target, clock=Clock_Cls(_T('09:00:00')),
                                         install_handlers=False)
     assert os.path.isdir(target)
     assert os.path.isfile(Session_Logger.Path)
@@ -243,7 +265,7 @@ def test_line_format(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('14:37:02'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     Session_Logger.Log_Info('Application started')
     with open(Session_Logger.Path, 'r', encoding='utf-8') as f:
         first_line = f.readline().rstrip('\n')
@@ -262,7 +284,7 @@ def test_levels_are_a_fixed_width_column_chosen_by_the_call_site(tmp_path: tp.An
     """
 
     clock = Clock_Cls(_T('14:37:02'))
-    logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     logger.Log_Info('an info line')
     logger.Log_Warning('a warning line')
     error_id = logger.Log_Error('an error line')
@@ -291,7 +313,7 @@ def test_single_session_duration(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('10:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('10:00:05'); Session_Logger.Log_Camera_Connected()
     clock.now = _T('10:02:35'); Session_Logger.Log_Camera_Disconnected()
 
@@ -309,7 +331,7 @@ def test_image_and_object_counters(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('08:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('08:00:01'); Session_Logger.Log_Camera_Connected()
     clock.now = _T('08:00:05'); Session_Logger.Log_Analysis_Finished(1, 1000, 3, 0, None)
     clock.now = _T('08:00:09'); Session_Logger.Log_Analysis_Finished(2, 1000, 2, 0, None)
@@ -329,7 +351,7 @@ def test_orphan_events_are_warnings(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('07:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     Session_Logger.Log_Camera_Disconnected()
     Session_Logger.Log_Error_Resolved(999)
 
@@ -348,7 +370,7 @@ def test_csv_header_written_once_and_matches_golden(tmp_path: tp.Any) -> None:
         line (matching the committed golden header) and then one data row.
     """
 
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=Clock_Cls(_T('12:16:23')),
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=Clock_Cls(_T('12:16:23')),
                                         install_handlers=False)
     Session_Logger.Close()
 
@@ -369,12 +391,12 @@ def test_second_run_appends_without_duplicate_header(tmp_path: tp.Any) -> None:
         A second run appends its row to the existing CSV and never re-writes the header.
     """
 
-    first = Session_Logger_Cls(log_dir=str(tmp_path), clock=Clock_Cls(_T('09:00:00')),
+    first = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=Clock_Cls(_T('09:00:00')),
                                install_handlers=False)
     csv_path = first.Csv_Path
     first.Close()
 
-    second = Session_Logger_Cls(log_dir=str(tmp_path), clock=Clock_Cls(_T('10:00:00')),
+    second = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=Clock_Cls(_T('10:00:00')),
                                 install_handlers=False)
     second.Close()
 
@@ -393,7 +415,7 @@ def test_three_runs_produce_three_rows_in_order(tmp_path: tp.Any) -> None:
     starts = ['08:00:00', '09:30:00', '11:15:00']
     csv_path = None
     for start in starts:
-        Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=Clock_Cls(_T(start)),
+        Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=Clock_Cls(_T(start)),
                                             install_handlers=False)
         csv_path = Session_Logger.Csv_Path
         Session_Logger.Close()
@@ -466,7 +488,7 @@ def test_zero_activity_row_is_complete(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('12:16:23'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('12:16:29'); Session_Logger.Close()
 
     rows = _Read_Rows(Session_Logger.Csv_Path)
@@ -494,7 +516,7 @@ def test_session_open_at_shutdown_is_counted(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('12:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('12:00:10'); Session_Logger.Log_Camera_Connected()
     clock.now = _T('12:30:10'); Session_Logger.Close()
 
@@ -515,7 +537,7 @@ def test_multiple_sessions_total_session_time(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('10:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('10:00:00'); Session_Logger.Log_Camera_Connected()
     clock.now = _T('10:01:00'); Session_Logger.Log_Camera_Disconnected()    # 60 s
     clock.now = _T('10:05:00'); Session_Logger.Log_Camera_Connected()
@@ -535,7 +557,7 @@ def test_unresolved_error_counted_to_shutdown(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('13:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('13:00:10'); first_id = Session_Logger.Log_Error('camera timeout')
     clock.now = _T('13:00:25'); Session_Logger.Log_Error_Resolved(first_id)   # 15 s
     clock.now = _T('13:01:00'); Session_Logger.Log_Error('analysis failed')    # unresolved
@@ -572,7 +594,7 @@ def test_details_round_trip_with_commas_and_quotes(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('09:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     clock.now = _T('09:00:10'); Session_Logger.Log_Error('he said "wait, now" | really')
     clock.now = _T('09:00:25'); Session_Logger.Close()
 
@@ -590,7 +612,7 @@ def test_semicolon_delimiter_is_configurable(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('09:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False,
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False,
                                         csv_delimiter=';')
     clock.now = _T('09:00:06'); Session_Logger.Close()
 
@@ -610,7 +632,7 @@ def test_csv_row_written_on_exception_exit(tmp_path: tp.Any) -> None:
     clock = Clock_Cls(_T('11:00:00'))
     csv_holder = {}
     with pytest.raises(RuntimeError):
-        with Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
+        with Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
                                 install_handlers=False) as Session_Logger:
             csv_holder['path'] = Session_Logger.Csv_Path
             clock.now = _T('11:00:05'); Session_Logger.Log_Camera_Connected()
@@ -638,7 +660,7 @@ def test_csv_write_failure_is_logged_and_not_raised(tmp_path: tp.Any) -> None:
     unreachable_csv = os.path.join(blocker, 'summary.csv')
 
     clock = Clock_Cls(_T('15:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False,
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False,
                                         csv_filename=unreachable_csv)
     clock.now = _T('15:00:06')
     Session_Logger.Close()   # must not raise
@@ -660,7 +682,7 @@ def test_header_mismatch_row_is_aligned_and_warned(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('16:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock, install_handlers=False)
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
     csv_path = Session_Logger.Csv_Path
 
     # Pre-seed the CSV with a header that differs from the current column set.
@@ -710,7 +732,7 @@ def test_line_sink_receives_separated_fields_and_the_matching_line(tmp_path: tp.
     """
 
     clock = Clock_Cls(_T('08:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
                                         install_handlers=False)
     received = []
 
@@ -740,7 +762,7 @@ def test_a_sink_failure_never_prevents_the_write_to_disk(tmp_path: tp.Any) -> No
     """
 
     clock = Clock_Cls(_T('09:15:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
                                         install_handlers=False)
 
     def _Explode(_record, _line) -> None:
@@ -764,7 +786,7 @@ def test_parse_line_round_trips_real_lines(tmp_path: tp.Any) -> None:
     """
 
     clock = Clock_Cls(_T('10:20:30'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
                                         install_handlers=False)
     Session_Logger.Log_Info('A plain event.')
     Session_Logger.Log_Warning('Careful now.')
@@ -847,7 +869,7 @@ def test_newline_in_message_is_escaped_to_one_file_line(tmp_path: tp.Any) -> Non
     """
 
     clock = Clock_Cls(_T('11:00:00'))
-    Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=clock,
+    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
                                         install_handlers=False)
     received = []
     Session_Logger.Set_Line_Sink(lambda record, line: received.append((record, line)))

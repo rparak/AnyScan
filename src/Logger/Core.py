@@ -72,13 +72,16 @@ CONST_FILENAME_TIME_FORMAT = '%H-%M'
 #   Unit [string]
 CONST_CSV_DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 CONST_CSV_TIME_FORMAT = '%H:%M:%S'
-# The static run-summary CSV. The name identifies the camera + lens hardware
-# setup; a different setup produces a different file without touching the logic.
-# The hardware identifier is the only thing that varies, so it is kept apart from
-# the filename template and both live here, in one place.
+# The run-summary CSV is named after the LOADED configuration, never a constant here: the
+# configuration file is the one source of which camera + lens setup a run used, so a run on
+# 'Config_<id>.yaml' summarises into 'log_<id>.csv' and a different YAML starts its own file
+# instead of silently appending into another camera's summary. The 'Config_' prefix is dropped
+# so the existing name is unchanged. A logger given no configuration (tests, tooling) writes to
+# an explicitly unattributed file that belongs to no hardware.
 #   Unit [string]
-CONST_CSV_HARDWARE_ID = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
-CONST_CSV_FILENAME_TEMPLATE = 'log_{hardware_id}.csv'
+CONST_CSV_FILENAME_TEMPLATE = 'log_{config_id}.csv'
+CONST_CSV_CONFIG_PREFIX = 'Config_'
+CONST_CSV_UNCONFIGURED_ID = 'unconfigured'
 # The supported CSV delimiters. The default is a comma; a semicolon is exposed
 # because Excel in a Czech locale expects it.
 #   Unit [string]
@@ -384,6 +387,30 @@ def Encode_Error_Details(Summary_Str: Summary_Str) -> str:
     return CONST_CSV_DETAIL_SEPARATOR.join(parts)
 
 
+def Csv_Filename_For_Config(config_path: tp.Optional[str]) -> str:
+    """
+    Description:
+        The run-summary CSV filename for a configuration file: 'log_<id>.csv', where <id> is the
+        configuration's filename without its extension and without the leading 'Config_' — so
+        'Config_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml' gives the existing
+        'log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv'. No configuration (None) gives
+        'log_unconfigured.csv', a file no camera's summary shares.
+
+    Args:
+        (1) config_path [string or None]: The loaded configuration file path, or None.
+
+    Returns:
+        (1) parameter [string]: The CSV filename (no directory).
+    """
+
+    if not config_path:
+        return CONST_CSV_FILENAME_TEMPLATE.format(config_id=CONST_CSV_UNCONFIGURED_ID)
+    stem = os.path.splitext(os.path.basename(config_path))[0]
+    if stem.startswith(CONST_CSV_CONFIG_PREFIX) and len(stem) > len(CONST_CSV_CONFIG_PREFIX):
+        stem = stem[len(CONST_CSV_CONFIG_PREFIX):]
+    return CONST_CSV_FILENAME_TEMPLATE.format(config_id=stem)
+
+
 def Render_Summary_Csv_Row(Summary_Str: Summary_Str) -> tp.List[str]:
     """
     Description:
@@ -442,16 +469,20 @@ class Session_Logger_Cls(object):
             (3) date_format [string]: strftime format for the date field.
             (4) time_format [string]: strftime format for the per-line time field.
             (5) install_handlers [bool]: Register the atexit and signal shutdown hooks.
-            (6) csv_filename [string]: The run-summary CSV filename (default: derived from
-                CONST_CSV_FILENAME_TEMPLATE and CONST_CSV_HARDWARE_ID). An absolute path is
-                honoured as-is; otherwise it is resolved inside log_dir.
+            (6) csv_filename [string]: An explicit run-summary CSV filename, overriding the
+                name derived from config_path. An absolute path is honoured as-is; otherwise it
+                is resolved inside log_dir.
             (7) csv_delimiter [string]: The CSV delimiter (default ','; ';' for Excel in a
                 Czech locale).
+            (8) config_path [string or None]: REQUIRED, keyword-only: the configuration file the
+                run loaded, which names the CSV (Csv_Filename_For_Config). It has no default so
+                every caller states which setup the summary belongs to; None is an explicit 'no
+                configuration' and writes to log_unconfigured.csv.
 
         Example:
             Initialization:
                 # Initialize the class.
-                Cls = Session_Logger_Cls()
+                Cls = Session_Logger_Cls(config_path=CONST_BASLER_CONFIG_FILE)
 
             Features:
                 # Log lifecycle events and close (which appends the CSV summary row).
@@ -462,7 +493,8 @@ class Session_Logger_Cls(object):
                  clock: tp.Callable[[], datetime] = datetime.now,
                  date_format: str = CONST_DATE_FORMAT, time_format: str = CONST_TIME_FORMAT,
                  install_handlers: bool = True, csv_filename: tp.Optional[str] = None,
-                 csv_delimiter: str = CONST_CSV_DEFAULT_DELIMITER) -> None:
+                 csv_delimiter: str = CONST_CSV_DEFAULT_DELIMITER, *,
+                 config_path: tp.Optional[str]) -> None:
 
         # << PRIVATE >> #
         # Injected time provider and formats.
@@ -501,12 +533,12 @@ class Session_Logger_Cls(object):
         self.__path = os.path.join(self.__log_dir, self.__Build_Filename(self.__start_time))
         self.__file = open(self.__path, 'w', encoding='utf-8')
 
-        # The static run-summary CSV. The default name is derived once, from the
-        # hardware constant; an absolute csv_filename is honoured as-is, otherwise it
+        # The run-summary CSV, named after the loaded configuration (Csv_Filename_For_Config);
+        # an explicit csv_filename overrides it, an absolute one is honoured as-is, otherwise it
         # is resolved inside the log directory alongside the '.txt' file.
         self.__csv_delimiter = csv_delimiter
         csv_name = (csv_filename if csv_filename is not None
-                    else CONST_CSV_FILENAME_TEMPLATE.format(hardware_id=CONST_CSV_HARDWARE_ID))
+                    else Csv_Filename_For_Config(config_path))
         self.__csv_path = os.path.join(self.__log_dir, csv_name)
 
         # Register the shutdown hooks so the summary is written even on a hard exit.

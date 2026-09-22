@@ -254,7 +254,7 @@ def test_seed_from_file_reproduces_the_live_view(qt_app, tmp_path) -> None:
         one line, so it seeds as the one row the sink delivered, not orphaned continuations).
     """
 
-    logger = Session_Logger_Cls(log_dir=str(tmp_path), install_handlers=False)
+    logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), install_handlers=False)
     live = Log_View_Cls()
     logger.Set_Line_Sink(live.Sink)
 

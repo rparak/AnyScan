@@ -156,15 +156,18 @@ def main() -> int:
     # writes the statistical summary when the run ends. The try/finally guarantees the
     # summary is written even if the event loop raises; a normal window close and the
     # logger's own atexit/signal hooks are the other, idempotent, shutdown paths.
-    logger = Session_Logger_Cls()
+    # The ONE configuration this run loads. It names the run-summary CSV (so a different setup
+    # summarises into its own file), supplies the classification flag, and is what the camera
+    # reads — the same path everywhere, never a second copy of the hardware id.
+    config_path = CONST_BASLER_CONFIG_FILE
+    logger = Session_Logger_Cls(config_path=config_path)
     logger.Log_Info('Application started.')
 
     # Read the classification flag ONCE, through the configuration layer, and log the state on
     # the configuration-loaded line — when someone later asks why there is no OK/NOK in the UI,
     # this line is the answer. The flag is then passed to the window; no other module reads it.
-    classification_enabled = Read_Classification_Enabled(CONST_BASLER_CONFIG_FILE)
-    logger.Log_Info(Config_Loaded_Log_Line(os.path.basename(CONST_BASLER_CONFIG_FILE),
-                                           classification_enabled))
+    classification_enabled = Read_Classification_Enabled(config_path)
+    logger.Log_Info(Config_Loaded_Log_Line(os.path.basename(config_path), classification_enabled))
 
     # A File_Camera_Cls (developer --frame) or the real Basler_Camera_Cls.
     camera = File_Camera_Cls(os.path.abspath(args.frame)) if args.frame else Basler_Camera_Cls()

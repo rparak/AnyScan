@@ -175,7 +175,7 @@ def test_log_view_seeds_from_the_file_and_then_follows_the_sink(qt_app, referenc
         rendered by the same path as the seed.
     """
 
-    logger = Session_Logger_Cls(log_dir=str(tmp_path), install_handlers=False)
+    logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), install_handlers=False)
     logger.Log_Info('Seed line one.')
     logger.Log_Warning('Seed line two.')
 
@@ -201,7 +201,7 @@ def test_evicting_the_displayed_history_set_is_logged(qt_app, reference_backgrou
         evicted; the log must record it by id.
     """
 
-    logger = Session_Logger_Cls(log_dir=str(tmp_path), install_handlers=False)
+    logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), install_handlers=False)
     window = _Framed_Window(reference_background_path, logger=logger)
     history = _Private(window, '__history_view')
     setattr(history, '_History_View_Cls__selected_id', 'setX')   # pretend it is on display
@@ -224,7 +224,7 @@ def test_classification_flag_flows_to_the_written_set(qt_app, reference_backgrou
     import json
     for enabled in (True, False):
         root = tmp_path / ('on' if enabled else 'off')
-        logger = Session_Logger_Cls(log_dir=str(root), install_handlers=False)
+        logger = Session_Logger_Cls(config_path=None, log_dir=str(root), install_handlers=False)
         window = _Framed_Window(reference_background_path, logger=logger)
         setattr(window, CONST_MANGLE + '__classification_enabled', enabled)
         setattr(window, CONST_MANGLE + '__session_id', 'sess1')

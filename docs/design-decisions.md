@@ -308,3 +308,19 @@ harness artefact look like a real difference. **Do not reintroduce a default.**
 Tests `test/UI/test_harness_parity.py` (the harness mask equals the mask the window writes, for
 both flag values; the harness uses the app's config reader; the renderers reject an unstated mode).
 
+## The run-summary CSV is named after the loaded configuration
+
+`logger/log_<id>.csv` takes `<id>` from the configuration file the run loaded
+(`Config_<id>.yaml` → `log_<id>.csv`, `Logger.Core.Csv_Filename_For_Config`). It used to come from
+a hardware-id constant in `Logger/Core.py` that duplicated the id already in the config filename
+— two sources of truth, and loading a different YAML would have appended that camera's runs into
+the other camera's summary: silent, and corrupting the data rather than failing. `App/run.py`
+now holds one `config_path` and passes it to the logger, the classification reader and the
+config-loaded log line. `config_path` is required on `Session_Logger_Cls` (keyword-only, no
+default), for the same reason `verdict_colored` is; `None` is an explicit "no configuration"
+and writes to `log_unconfigured.csv`, which belongs to no hardware. **A configuration change
+therefore starts a new CSV** — different hardware, different summary, which is the intent. The
+shipped config produces the existing name, so current files continue unchanged.
+Tests `test/Logger/test_core.py::test_csv_filename_follows_the_loaded_configuration`,
+`::test_logger_requires_the_configuration_to_be_stated`.
+
