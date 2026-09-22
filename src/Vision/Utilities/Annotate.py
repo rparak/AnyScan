@@ -414,19 +414,18 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
     """
     Description:
         The segmentation result as a LABEL mask on a pure-black ground: each accepted
-        object filled WHITE (its silhouette), with EVERYTHING ELSE exactly as the annotated
-        view — the same verdict-coloured bounding box and index chip, in the same place and
-        the same colour. So the mask view is the annotated view with the real frame
-        replaced by the white segmentation: the operator compares the segmentation against
-        the boxes without switching what the marks mean. Each object is filled from its OWN
-        component mask, so two parts that sit close but do not touch stay separate white
-        shapes; two parts that TOUCH are already one component here (Fuse_Objects), so they
-        render as one shape — see KNOWN_ISSUES.md.
-
-        The diagnostic 'index' mode (CONST_ANNOTATE_MASK_FILL == 'index') instead fills
-        each object in its own Index_Color, so a merge (two parts one colour) or an
-        over-segmentation (one part two colours) is visible at a glance — the one constant
-        that switches the fill back to the per-object palette.
+        object filled with a LIGHT TINT of its own box colour (its silhouette), with
+        EVERYTHING ELSE exactly as the annotated view — the same verdict-coloured bounding
+        box and index chip, in the same place and the same colour. So the mask view is the
+        annotated view with the real frame replaced by the segmentation: the operator
+        compares the segmentation against the boxes without switching what the marks mean.
+        Filling with a tint of the box (not flat white) makes the silhouette and its outline
+        read as ONE object of the same hue, and the box outline still stands out because the
+        tint is far from the box in ΔE (measured on the colour tokens). When classification
+        is off the tint is the neutral detection fill, implying no verdict nobody made. Each
+        object is filled from its OWN component mask, so two parts that sit close but do not
+        touch stay separate shapes; two parts that TOUCH are already one component here
+        (Fuse_Objects), so they render as one shape — see KNOWN_ISSUES.md.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
@@ -445,12 +444,17 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
     mask_image = np.zeros((h, w, 3), dtype=np.uint8)
     mask_image[:] = CONST_ANNOTATE_MASK_GROUND
 
-    # The fill: white by default, or each object's own Index_Color in the diagnostic mode.
-    white = Hex_To_Bgr(CONST_CARD)
+    # The fill: a light tint of each object's own box colour (its verdict fill, or the
+    # neutral detection fill when classification is off), so silhouette and box read as one
+    # object. The diagnostic 'index' mode instead fills each object in its own Index_Color.
+    neutral_fill = Hex_To_Bgr(Detection_Color()[2])
     for i, det in enumerate(objects):
         if det.Mask is None:
             continue
-        fill_bgr = Hex_To_Bgr(Index_Color(i)[0]) if CONST_ANNOTATE_MASK_FILL == 'index' else white
+        if CONST_ANNOTATE_MASK_FILL == 'index':
+            fill_bgr = Hex_To_Bgr(Index_Color(i)[0])
+        else:
+            fill_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[2]) if verdict_colored else neutral_fill
         mask_image[det.Mask.astype(bool)] = fill_bgr
 
     # Then the SAME boxes and index chips as the annotated view, in the verdict (or neutral)

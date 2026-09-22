@@ -86,28 +86,45 @@ def __Has_Bgr(image: np.ndarray, bgr: tp.Tuple[int, int, int]) -> bool:
     return bool(np.any(np.all(image == np.array(bgr, dtype=np.uint8), axis=-1)))
 
 
-def test_label_mask_is_white_fill_with_the_same_verdict_boxes() -> None:
+def test_label_mask_fills_each_object_with_a_tint_of_its_box_colour() -> None:
     """
     Description:
-        The default label mask: a pure-black ground, each object filled WHITE (its
-        silhouette), with the SAME verdict-coloured bounding box as the annotated view —
-        no contour on the fill. An OK object's box is the OK colour, a NOK object's the
-        NOK colour, and the white is the fill and nothing else.
+        The default label mask: a pure-black ground, each object filled with a light TINT
+        of its own box colour (not flat white), with the SAME verdict-coloured bounding box
+        as the annotated view. An OK object's fill is the OK fill and its box the OK box; a
+        NOK object's fill is the NOK fill and its box the NOK box. The ground stays black.
     """
 
     objects = [__Object(40, 40, verdict='OK'), __Object(200, 300, verdict='NOK')]
     mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np)
-    white = Theme.Hex_To_Bgr(Theme.CONST_CARD)
-    ok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0])
-    nok_bgr = Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
+    ok_box, _, ok_fill = Theme.Verdict_Color('OK')
+    nok_box, _, nok_fill = Theme.Verdict_Color('NOK')
 
     # A corner far from either block is pure black.
     assert tuple(int(c) for c in mask[5, 5]) == (0, 0, 0)
-    # Each block's interior is WHITE fill (sampled inside, away from the box edge).
-    assert tuple(int(c) for c in mask[70, 70]) == white
-    assert tuple(int(c) for c in mask[240, 340]) == white
+    # Each block's interior is its OWN verdict fill (sampled inside, away from the box edge).
+    assert tuple(int(c) for c in mask[70, 70]) == Theme.Hex_To_Bgr(ok_fill)
+    assert tuple(int(c) for c in mask[240, 340]) == Theme.Hex_To_Bgr(nok_fill)
     # Each object's box carries its own verdict colour, unshifted.
-    assert __Has_Bgr(mask, ok_bgr) and __Has_Bgr(mask, nok_bgr)
+    assert __Has_Bgr(mask, Theme.Hex_To_Bgr(ok_box)) and __Has_Bgr(mask, Theme.Hex_To_Bgr(nok_box))
+
+
+def test_detect_only_label_mask_fills_with_the_neutral_tint() -> None:
+    """
+    Description:
+        With classification off (verdict_colored False) the label mask fills every object
+        with the neutral detection fill, not a verdict fill, so a detect-only silhouette
+        implies no verdict nobody made. The neutral box still marks it.
+    """
+
+    objects = [__Object(40, 40, verdict='OK')]
+    mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np, verdict_colored=False)
+    neutral_box, _, neutral_fill = Theme.Detection_Color()
+
+    assert tuple(int(c) for c in mask[70, 70]) == Theme.Hex_To_Bgr(neutral_fill)
+    assert __Has_Bgr(mask, Theme.Hex_To_Bgr(neutral_box))
+    # No verdict fill leaks in.
+    assert not __Has_Bgr(mask, Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[2]))
 
 
 def test_verdict_colour_drives_the_stroke_in_both_renderers() -> None:
@@ -139,17 +156,17 @@ def test_mask_separates_near_but_distinct_objects() -> None:
     """
     Description:
         Two objects that sit close together but do NOT touch stay separate: each is its
-        own white component with its own outline, and the black ground still runs between
+        own tinted component with its own outline, and the black ground still runs between
         them — the mask reads as two objects, not one.
     """
 
     objects = [__Object(150, 250, size=60), __Object(150, 330, size=60)]   # a 20px gap
     mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np)
-    white = Theme.Hex_To_Bgr(Theme.CONST_CARD)
+    ok_fill = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[2])
 
-    # Each block has its own white fill (sampled inside, clear of border and numeral).
-    assert tuple(int(c) for c in mask[165, 260]) == white
-    assert tuple(int(c) for c in mask[165, 340]) == white
+    # Each block has its own tinted fill (sampled inside, clear of border and numeral).
+    assert tuple(int(c) for c in mask[165, 260]) == ok_fill
+    assert tuple(int(c) for c in mask[165, 340]) == ok_fill
     # The full-height strip through the middle of the gap is black ground — no fill or
     # contour bridges the two, so they are two separate outlined shapes, not one merged.
     gap = mask[150:210, 318:323]

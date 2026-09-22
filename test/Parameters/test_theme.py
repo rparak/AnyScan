@@ -175,3 +175,30 @@ def test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis() -> None:
     from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
     bright_steel = '#808083'  # ~(128,128,131), the machined-steel surface in sets 003/005
     assert Theme.Delta_E(neutral, bright_steel) > CONST_ANNOTATE_MIN_DELTA_E
+
+
+def test_label_mask_fill_is_a_light_distinguishable_tint_of_its_box() -> None:
+    """
+    Description:
+        Every object colour carries a third entry, the label-mask fill. The fill must be a
+        LIGHT tint of its box (so a dark index numeral reads on it) yet stay far enough from
+        the box in perceptual distance that the box outline survives ON the fill, not only
+        against the black ground. Pinned for both verdict colours and the neutral detection
+        colour, all three sharing the (box, ink, fill) shape.
+    """
+
+    from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
+
+    def _lum(hex_color):
+        r, g, b = (v / 255.0 for v in Theme.Hex_To_Rgb(hex_color))
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    triples = [Theme.CONST_VERDICT_COLORS['OK'], Theme.CONST_VERDICT_COLORS['NOK'],
+               Theme.CONST_DETECTION_COLORS]
+    for box, ink, fill in triples:
+        # The outline stays distinguishable against its own fill (above the distinctness floor).
+        assert Theme.Delta_E(box, fill) > CONST_ANNOTATE_MIN_DELTA_E, \
+            'box %s and fill %s collapse (ΔE=%.1f)' % (box, fill, Theme.Delta_E(box, fill))
+        # The fill is a LIGHT tint (lighter than the box), so a dark numeral reads on it.
+        assert _lum(fill) > _lum(box)
+        assert _lum(fill) > 0.75

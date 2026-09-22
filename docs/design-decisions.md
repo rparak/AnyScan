@@ -7,19 +7,22 @@ file records latent quirks left unchanged; this file records deliberate choices 
 motivation is not visible in the code. A change that contradicts one of these should cite
 why the reason no longer holds.
 
-## The label mask is black ground, white fill, verdict contour
+## The label mask is black ground, tinted fill, verdict contour
 
-The exported mask paints a black ground, fills each object white, and outlines it in its
-verdict colour with a dark numeral on the fill. Black ground keeps every silhouette edge
-sharp (nothing bleeds into a coloured background); white fill plus a verdict-coloured
-contour reads the pass/fail at a glance without staining the whole shape, and a dark
-numeral stays legible on the white. The per-object colour that used to fill the mask is
-not gone — it is the **`index` diagnostic mode** (`Annotate.CONST_ANNOTATE_MASK_FILL =
-'index'`), the one switch that fills each object in its own `Index_Color` to reveal a
-merge or an over-segmentation. **Revisit if** the operator-facing mask needs to encode
-something other than verdict (e.g. per-class colour), in which case add a mode rather than
-overloading the default.
-Commit `78311b4`; tests `test/Vision/Utilities/test_annotate.py::test_label_mask_is_white_fill_verdict_contour_dark_numeral`, `::test_index_fill_mask_mode_is_reachable_by_one_constant`.
+The exported mask paints a black ground, fills each object with a **light tint of its own
+box colour**, and outlines it in that box colour with a dark numeral on the fill. Black
+ground keeps every silhouette edge sharp (nothing bleeds into a coloured background). The
+fill was white until the tint replaced it: white made the silhouette and its coloured box
+read as two things — a white shape with an unrelated coloured border. A tint of the box
+(20% box + 80% white, stored as the third entry of each colour token, not derived at the
+call site) makes silhouette and box read as **one object of the same hue**, while the box
+outline still stands out because the tint sits far from the box in ΔE (~59 OK, ~75 NOK,
+~20 neutral — all above the distinctness floor), not only against the black ground. When
+classification is off the fill is the neutral detection tint, so a detect-only silhouette
+implies no verdict nobody made. The dark numeral stays legible because the fill is light.
+**Revisit if** the operator-facing mask needs to encode something other than verdict (e.g.
+per-class colour), in which case add a mode rather than overloading the default.
+Tests `test/Vision/Utilities/test_annotate.py::test_label_mask_fills_each_object_with_a_tint_of_its_box_colour`, `::test_detect_only_label_mask_fills_with_the_neutral_tint`; `test/Parameters/test_theme.py::test_label_mask_fill_is_a_light_distinguishable_tint_of_its_box`.
 
 ## `#ff005c` is the fail marker and must not return to the object palette
 

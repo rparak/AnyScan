@@ -253,11 +253,11 @@ for a reason that has nothing to do with the application code.
 
 ## The label mask reveals near-but-distinct objects, not merged touching ones
 
-The exported label mask (`Vision.Utilities.Annotate.Draw_Label_Mask`, default
-`CONST_ANNOTATE_MASK_FILL == 'verdict'`) fills each object white and outlines it
-in its verdict colour from that object's **own** component mask. Two parts that
+The exported label mask (`Vision.Utilities.Annotate.Draw_Label_Mask`) fills each
+object with a light tint of its box colour and outlines it in that box colour from
+that object's **own** component mask. Two parts that
 sit close together but do not touch are separate components, so they render as
-two white shapes with two outlines and black ground between them — the mask reads
+two tinted shapes with two outlines and black ground between them — the mask reads
 as two objects. Two parts that **touch**, however, are already a single component
 by the time they reach the renderer: `Vision.Utilities.Fusion.Fuse_Objects`
 closes and connected-components the fused cues *before* anything is drawn, so a

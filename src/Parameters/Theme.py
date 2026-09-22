@@ -106,10 +106,17 @@ CONST_INDEX_COLORS = [
 #   The OK box '#6C63B5' is a deliberately LIGHTER tint than its ink twin '#4a4180':
 #   '#4a4180' alone is too dark to read against the dark plates in Image_003/005, so the
 #   box carries the lighter value and the ink is reserved for text on the white card.
-#   Unit [Dict<string, Tuple<string> 1x2>]
+#
+#   The THIRD entry is the label-mask FILL: a light tint of the box (20% box + 80% white),
+#   so the filled silhouette and its box outline read as ONE object of the same hue rather
+#   than a white shape with an unrelated coloured border. It is stored, not derived at the
+#   call site. It stays far enough from the box that the outline survives ON the fill, not
+#   only against the black ground — measured ΔE(box, fill) is ~59 (OK) and ~75 (NOK) — and
+#   it is light, so the index numeral stays legible in a dark tone on it.
+#   Unit [Dict<string, Tuple<string> 1x3>] (box, ink, fill)
 CONST_VERDICT_COLORS = {
-    'OK':  ('#6C63B5', '#4a4180'),   # pass
-    'NOK': ('#ff005c', '#d1004a'),   # fail — the brand magenta, now correctly the fail marker
+    'OK':  ('#6C63B5', '#4a4180', '#E2E0F0'),   # pass
+    'NOK': ('#ff005c', '#d1004a', '#FFCCDE'),   # fail — the brand magenta, now correctly the fail marker
 }
 # The verdict a detection carries until classification sets one; every object is OK today.
 #   Unit [string]
@@ -134,9 +141,13 @@ CONST_VERDICT_DEFAULT = 'OK'
 # to ΔE ~10.7 there, under the floor. Lightening it along the grey axis (NOT back toward indigo,
 # which would undo the separation from OK) pulls it clear: measured ΔE is now ~23 vs bright steel
 # (~2x the floor), ~46 vs the table green, ~54 vs the dark plates, and ~53 to the OK box (up from
-# ~46). The darker ink twin is reserved for text on the white card.
-#   Unit [Tuple<string> 1x2] (box, ink)
-CONST_DETECTION_COLORS = ('#B8BECA', '#5C6270')
+# ~46). The darker ink twin is reserved for text on the white card. The THIRD entry is the
+# label-mask FILL — a light tint of the box (20% box + 80% white), the same rule as the verdict
+# fills, so a detect-only silhouette and its box read as one neutral object and imply no verdict
+# nobody made. Measured ΔE(box, fill) ~20, above the distinctness floor, so the outline survives
+# on the fill; and it is light, so the index numeral stays legible in a dark tone on it.
+#   Unit [Tuple<string> 1x3] (box, ink, fill)
+CONST_DETECTION_COLORS = ('#B8BECA', '#5C6270', '#F1F2F4')
 
 # The Log-view severity text colours, one named semantic token per level. The log view
 # colours the level field and the message by these (the timestamp stays muted); a level
@@ -377,35 +388,36 @@ def __Shade(hex_color: str, delta_l: float, delta_s: float) -> str:
     return __Rgb_To_Hex(int(round(nr * 255)), int(round(ng * 255)), int(round(nb * 255)))
 
 
-def Verdict_Color(verdict: str) -> tp.Tuple[str, str]:
+def Verdict_Color(verdict: str) -> tp.Tuple[str, str, str]:
     """
     Description:
-        The (box, ink) colour pair for a per-object verdict, from the ONE
+        The (box, ink, fill) colour triple for a per-object verdict, from the ONE
         CONST_VERDICT_COLORS definition — the object rendering reads this, never a colour
         literal at the call site, so the pass/fail colours are changed in one place. An
         unknown or empty verdict falls back to the default (OK), so a detection carrying
-        no verdict still renders.
+        no verdict still renders. The fill is the light label-mask tint of the box.
 
     Args:
         (1) verdict [string]: The verdict key ('OK' or 'NOK').
 
     Returns:
-        (1) parameter [Tuple<string> 1x2]: The (box, ink) hex colours.
+        (1) parameter [Tuple<string> 1x3]: The (box, ink, fill) hex colours.
     """
 
     return CONST_VERDICT_COLORS.get(verdict, CONST_VERDICT_COLORS[CONST_VERDICT_DEFAULT])
 
 
-def Detection_Color() -> tp.Tuple[str, str]:
+def Detection_Color() -> tp.Tuple[str, str, str]:
     """
     Description:
-        The (box, ink) colour pair for a plain, unjudged detection — used when the configuration
-        only detects (classification off), so every object is one neutral colour. From the ONE
-        CONST_DETECTION_COLORS definition, a distinct token from the verdict colours ('detected,
-        not judged', never a pass/fail).
+        The (box, ink, fill) colour triple for a plain, unjudged detection — used when the
+        configuration only detects (classification off), so every object is one neutral colour.
+        From the ONE CONST_DETECTION_COLORS definition, a distinct token from the verdict colours
+        ('detected, not judged', never a pass/fail). The fill is the light label-mask tint of the
+        box.
 
     Returns:
-        (1) parameter [Tuple<string> 1x2]: The (box, ink) hex colours.
+        (1) parameter [Tuple<string> 1x3]: The (box, ink, fill) hex colours.
     """
 
     return CONST_DETECTION_COLORS
