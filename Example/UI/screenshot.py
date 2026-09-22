@@ -171,7 +171,7 @@ def _Scene_Objects() -> tp.List[Detection_Str]:
     ]
 
 
-def _Render(output_dir: str, stamp: str) -> None:
+def _Render(output_dir: str, stamp: str, classification_enabled: bool) -> None:
     """
     Description:
         Render and stamp the three review images — the annotated frame, the label mask
@@ -180,15 +180,17 @@ def _Render(output_dir: str, stamp: str) -> None:
     Args:
         (1) output_dir [string]: The directory to write into.
         (2) stamp [string]: The scene/run stamp appended to every image.
+        (3) classification_enabled [bool]: General.Classification.Enabled, read by the caller
+                                           through the application's configuration layer; the
+                                           window AND the two stamped renders use this one value.
     """
 
     app = QApplication.instance() or QApplication([])
     Style.Load_Fonts()
 
     reference = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Image_Background_001.png')
-    # ONE flag, read as the application reads it, for the window AND the two stamped renders —
-    # previously the window used the default (off) while the renders defaulted to verdict colours.
-    classification_enabled = Read_Classification_Enabled(CONST_BASLER_CONFIG_FILE)
+    # ONE flag for the window AND the two stamped renders — previously the window used the default
+    # (off) while the renders defaulted to verdict colours, two modes in one run.
     window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference),
                                 classification_enabled=classification_enabled)
     window.resize(1500, 950)
@@ -238,12 +240,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Render the stamped Camera-View / mask / window review images.')
     parser.add_argument('--output-dir', default=CONST_OUTPUT_DIR, help='where to write the stamped renders')
     parser.add_argument('--scene', default='demo', help='the scene name recorded in the stamp')
+    parser.add_argument('--config', default=CONST_BASLER_CONFIG_FILE,
+                        help='configuration YAML to read General.Classification.Enabled from '
+                             '(default: the one the application loads)')
     args = parser.parse_args()
 
+    # The classification flag, read ONCE through the application's configuration layer. The
+    # stamp names the mode, so every image states which rendering it is and a render in the
+    # wrong mode is visible on sight.
+    classification_enabled = Read_Classification_Enabled(args.config)
+    mode = 'classification %s' % ('on' if classification_enabled else 'off')
     os.makedirs(args.output_dir, exist_ok=True)
     run_stamp = datetime.datetime.now().isoformat(timespec='seconds')
-    stamp = 'scene %s | %s' % (args.scene, run_stamp)
-    _Render(args.output_dir, stamp)
+    stamp = 'scene %s | %s | %s (%s)' % (args.scene, run_stamp, mode, os.path.basename(args.config))
+    _Render(args.output_dir, stamp, classification_enabled)
     print('[INFO] Stamped review renders written to: %s' % os.path.abspath(args.output_dir))
     print('[INFO] Stamp: %s' % stamp)
     return 0
