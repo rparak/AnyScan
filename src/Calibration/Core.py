@@ -23,6 +23,10 @@
 # File Name: ../Calibration/Core.py
 ## =========================================================================== ##
 
+# System (Default)
+import os
+import re
+import json
 # OpenCV library for computer vision tasks
 import cv2
 # Numpy (Array computing)
@@ -31,7 +35,123 @@ import numpy as np
 import typing as tp
 # Custom Lib.:
 #   ../Parameters/Camera
-from Parameters.Camera import Camera_Calibration_Parameters_Str
+from Parameters.Camera import Camera_Calibration_Parameters_Str, Board_Detection_Str
+
+"""
+Description:
+    Initialization of constants.
+
+    Calibration captures are the camera's frames BEFORE undistortion — the only form a lens model
+    can be solved from — and every one taken is kept: a pose that is thrown away can never be
+    re-examined. They are numbered in one sequence, their kind in the name: 'flat_NNN.png' is a
+    board lying flat on the table (it feeds the lens model AND the mm/px factor), 'view_NNN.png' a
+    tilted or raised board (it feeds the lens model only). A 'capture.json' manifest beside them
+    states that they are distorted and how they were produced, so no reader mistakes them for the
+    application's undistorted '<set>_raw.png'.
+"""
+# The filename prefixes of the two kinds of calibration capture.
+#   Unit [string]
+CONST_CALIB_FLAT_PREFIX = 'flat_'
+CONST_CALIB_VIEW_PREFIX = 'view_'
+# The manifest (sidecar) written beside the captures.
+#   Unit [string]
+CONST_CALIB_MANIFEST = 'capture.json'
+# The smallest inner-corner grid (columns, rows) accepted from a board partly outside the frame:
+# enough rows and columns to fix a plane's perspective, small enough that a board overhanging a
+# corner by a couple of squares still qualifies.
+#   Unit [Vector<int> 1x2]
+CONST_CALIB_MIN_GRID = (4, 3)
+# The sector-based detector's flags. CALIB_CB_LARGER finds whatever part of the grid is visible
+# (the classic findChessboardCorners needs the whole board and fails on an overhanging one), and
+# CALIB_CB_ACCURACY is the sub-pixel refinement. Measured on six noisy, perspective-warped
+# synthetic boards (mean corner error against the true positions): LARGER | ACCURACY 0.031 px,
+# LARGER alone 0.041 px; cornerSubPix run AFTER either makes it worse (0.051 px with an 11 x 11
+# window, 0.079 px with 5 x 5), so it is not used; CALIB_CB_NORMALIZE_IMAGE costs 0.22 px, so it
+# is not used either.
+#   Unit [int]
+CONST_CALIB_DETECT_FLAGS = cv2.CALIB_CB_LARGER | cv2.CALIB_CB_ACCURACY
+
+
+def Detect_Board(image: np.ndarray) -> Board_Detection_Str:
+    """
+    Description:
+        Find the chessboard's visible inner-corner grid in one image with
+        findChessboardCornersSBWithMeta and CALIB_CB_LARGER, so a board that overhangs the frame
+        still yields its visible part. The corners come back row-major over the detected grid.
+
+    Args:
+        (1) image [Matrix<uint8> HxW or HxWx3]: The image (BGR or grey).
+
+    Returns:
+        (1) parameter [Board_Detection_Str(object)]: The detection, or Found False with a reason.
+    """
+
+    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+    found, corners, meta = cv2.findChessboardCornersSBWithMeta(grey, CONST_CALIB_MIN_GRID,
+                                                               CONST_CALIB_DETECT_FLAGS)
+    if not found or corners is None or meta is None:
+        return Board_Detection_Str(Reason='no chessboard of at least %d x %d inner corners was '
+                                          'found (blurred, glared, or too little of the board '
+                                          'in view)' % CONST_CALIB_MIN_GRID)
+    rows, columns = meta.shape[:2]
+    points = corners.reshape(-1, 2).astype(np.float64)
+    if points.shape[0] != rows * columns:
+        return Board_Detection_Str(Reason='the detector returned %d corners for a %d x %d grid'
+                                          % (points.shape[0], columns, rows))
+    return Board_Detection_Str(Found=True, Grid=(int(columns), int(rows)), Corners=points)
+
+
+def Next_Capture_Name(directory: str, flat: bool) -> str:
+    """
+    Description:
+        The filename for the next calibration capture in a directory: one running number across
+        both kinds (so the capture order survives), never reusing a number already on disk — an
+        existing frame is never overwritten.
+
+    Args:
+        (1) directory [string]: The capture directory.
+        (2) flat [bool]: True for a board lying flat on the table, False for a tilted view.
+
+    Returns:
+        (1) parameter [string]: 'flat_NNN.png' or 'view_NNN.png'.
+    """
+
+    pattern = re.compile(r'^(?:%s|%s)(\d+)\.png$' % (CONST_CALIB_FLAT_PREFIX, CONST_CALIB_VIEW_PREFIX))
+    taken = [int(m.group(1)) for m in map(pattern.match, os.listdir(directory)) if m]
+    prefix = CONST_CALIB_FLAT_PREFIX if flat else CONST_CALIB_VIEW_PREFIX
+    return '%s%03d.png' % (prefix, max(taken, default=0) + 1)
+
+
+def Record_Capture(directory: str, header: tp.Dict[str, tp.Any],
+                   entry: tp.Dict[str, tp.Any]) -> str:
+    """
+    Description:
+        Add one capture to the directory's manifest, creating it from the header the first time.
+        The manifest is rewritten whole through a temporary file and an atomic replace, so an
+        interrupted session leaves the previous, consistent manifest rather than a torn one.
+
+    Args:
+        (1) directory [string]: The capture directory.
+        (2) header [Dict]: The manifest's fixed part (used only when the manifest is new).
+        (3) entry [Dict]: The capture's record (file, kind, time, detection).
+
+    Returns:
+        (1) parameter [string]: The manifest path.
+    """
+
+    path = os.path.join(directory, CONST_CALIB_MANIFEST)
+    if os.path.isfile(path):
+        with open(path, 'r', encoding='utf-8') as handle:
+            manifest = json.load(handle)
+    else:
+        manifest = dict(header, frames=[])
+    manifest['frames'].append(entry)
+    temporary = path + '.writing'
+    with open(temporary, 'w', encoding='utf-8') as handle:
+        json.dump(manifest, handle, indent=2, ensure_ascii=False)
+        handle.write('\n')
+    os.replace(temporary, path)
+    return path
 
 class Checkerboard_Calibration_Cls:
     """

@@ -71,3 +71,26 @@ class Camera_Configuration_Str:
     Custom_Cfg: tp.Dict[str, tp.Any] = field(default_factory=dict)
     # Calibration of the camera above.
     Calibration: Camera_Calibration_Parameters_Str = field(default_factory=Camera_Calibration_Parameters_Str)
+
+@dataclass
+class Board_Detection_Str:
+    """
+    Description:
+        The chessboard found in one image: its inner-corner grid (which may be only the visible
+        part of a board that overhangs the frame), the corners in pixels, and — when nothing
+        usable was found — why.
+    """
+
+    # Whether a usable grid was found.
+    #   Unit [bool]
+    Found: bool = False
+    # The detected inner-corner grid as (columns, rows) — the visible part of the board.
+    #   Unit [Vector<int> 1x2]
+    Grid: tp.Tuple[int, int] = (0, 0)
+    # The corners in pixels, row-major over Grid (rows x columns, then x/y).
+    #   Unit [Matrix<float> Nx2]
+    Corners: np.ndarray = field(default_factory=lambda: np.zeros((0, 2), dtype=np.float64),
+                                repr=False)
+    # Why nothing was found (empty when Found).
+    #   Unit [string]
+    Reason: str = ''

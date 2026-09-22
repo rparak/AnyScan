@@ -30,6 +30,10 @@ if '../../' + 'src' not in sys.path:
     sys.path.append('../../' + 'src')
 # OS (Operating system interfaces)
 import os
+# Argparse (Command-line parsing)
+import argparse
+# Datetime (Timestamps for the capture manifest)
+from datetime import datetime
 # OpenCV (Computer Vision) [pip3 install opencv-python]
 import cv2
 # Custom Library:
@@ -50,6 +54,72 @@ Description:
 #   1 = 'Image_001', 2 = 'Image_002', etc.
 CONST_INIT_INDEX = 1
 
+
+def Capture_Main(directory: str) -> int:
+    """
+    Description:
+        Capture calibration frames interactively into a directory, one per key press, until 'q'.
+        Each frame is the camera's image after the application's own processing step and BEFORE
+        undistortion (a lens model can only be solved from distorted frames). Every frame taken
+        is kept — also one where no board is found, which is reported but never deleted — and
+        recorded in the directory's capture.json, which states that the frames are distorted.
+
+    Args:
+        (1) directory [string]: The directory the frames are written to (created if missing).
+
+    Returns:
+        (1) parameter [int]: The process exit code.
+    """
+
+    os.makedirs(directory, exist_ok=True)
+    Basler_Cfg_Str = Read_Configuration(CONST_BASLER_CONFIG_FILE)
+    Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
+    Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls('real')
+    header = {'distorted': True,
+              'note': ('These frames are NOT undistorted: they are the camera\'s images after the '
+                       'application\'s processing step (the same blur and colour adjustment) and '
+                       'before undistortion, for solving the lens model. They are not the '
+                       'application\'s <set>_raw.png, which is undistorted.'),
+              'processing': "Camera.Utilities.Image_Processing.Process_Image_Cls('real')",
+              'configuration': os.path.basename(CONST_BASLER_CONFIG_FILE),
+              'camera': Basler_Cfg_Str.Name, 'custom_cfg': Basler_Cfg_Str.Custom_Cfg,
+              'kinds': {Calibration.Core.CONST_CALIB_FLAT_PREFIX: 'board flat on the table: lens '
+                        'model and mm/px factor', Calibration.Core.CONST_CALIB_VIEW_PREFIX: 'board '
+                        'tilted or raised: lens model only'},
+              'created': datetime.now().isoformat(timespec='seconds')}
+
+    print('[INFO] Capturing distorted calibration frames into: %s' % directory)
+    print('[INFO] Keys: f = board FLAT on the table, t = board TILTED (vary the tilt: 20-45 degrees '
+          'in several directions), q = quit. Every frame is kept.')
+    while True:
+        key = input('[f / t / q] > ').strip().lower()
+        if key == 'q':
+            break
+        if key not in ('f', 't'):
+            continue
+        image_raw = Basler_Cam_Id_1.Capture()
+        if image_raw is None:
+            print('[WARNING] No image captured; nothing was written. Try again.')
+            continue
+        image = Process_Image_Cls.Apply(image_raw)
+        name = Calibration.Core.Next_Capture_Name(directory, flat=(key == 'f'))
+        cv2.imwrite(os.path.join(directory, name), image)
+        detection = Calibration.Core.Detect_Board(image)
+        Calibration.Core.Record_Capture(directory, header, {
+            'file': name, 'kind': 'flat' if key == 'f' else 'view',
+            'time': datetime.now().isoformat(timespec='milliseconds'),
+            'board_found': detection.Found, 'grid': list(detection.Grid),
+            'corners': int(detection.Corners.shape[0]), 'reason': detection.Reason})
+        if detection.Found:
+            print('[INFO] %s: board found, %d x %d inner corners visible.'
+                  % (name, detection.Grid[0], detection.Grid[1]))
+        else:
+            print('[WARNING] %s: kept, but %s. Consider another pose.' % (name, detection.Reason))
+
+    del Basler_Cam_Id_1, Process_Image_Cls
+    return 0
+
+
 def main():
     """
     Description:
@@ -63,6 +133,13 @@ def main():
             Camera Model: Basler a2A1920-51gcPRO GigE Camera
             Lighting: EFFI-FD-200-200-000 High-Power Flat Light
     """
+
+    parser = argparse.ArgumentParser(description='Camera calibration from chessboard captures.')
+    parser.add_argument('--capture', metavar='DIR', default=None,
+                        help='capture distorted calibration frames into DIR, interactively')
+    args = parser.parse_args()
+    if args.capture is not None:
+        return Capture_Main(args.capture)
 
     # Locate the path to the project folder.
     project_folder = os.getcwd().split('anyscan-pyqt')[0] + 'anyscan-pyqt'

@@ -569,3 +569,28 @@ Tests `test/UI/test_capture.py` (`test_distorted_frame_is_kept_with_a_sidecar_sa
 `test_no_distorted_frame_without_one_and_it_is_evicted_with_its_set`),
 `test/UI/test_logging_coverage.py::test_the_scanned_frames_distorted_original_reaches_the_capture_set`,
 `test/Camera/test_core.py::test_distorted_original_belongs_to_one_frame_only`.
+
+## Calibration captures: distorted, all kept, flat and tilted named apart
+
+`Example/Camera/calibrate.py --capture DIR` captures calibration frames one key press at a time:
+`f` for a board lying **flat on the table**, `t` for a **tilted** (or raised) board, `q` to stop.
+
+- **Distorted, and said so.** Each frame is the camera image after the application's own
+  processing step and before undistortion — a lens model can only be solved from distorted frames.
+  A `capture.json` manifest beside them states `"distorted": true`, how they were produced (the
+  processing profile, the configuration, the camera settings), and one record per frame, so no
+  reader mistakes them for the application's undistorted `<set>_raw.png`.
+- **Every frame is kept.** A frame where no board is found is reported and recorded with the
+  reason, never deleted: a discarded pose cannot be re-examined, which is exactly what went missing
+  when the image behind the original single-view calibration was not kept.
+- **Kind in the name, one running number.** `flat_NNN.png` feeds the lens model and the mm/px
+  factor; `view_NNN.png` feeds the lens model only. Numbers run across both kinds and continue after
+  whatever the directory holds, so a second session never overwrites the first.
+- **Partial boards are detected.** `findChessboardCornersSBWithMeta` with `CALIB_CB_LARGER` returns
+  the visible part of a board that overhangs the frame (at least 4 × 3 inner corners); the classic
+  detector the old calibration used needs the whole board. The sub-pixel refinement is the
+  detector's own `CALIB_CB_ACCURACY`: on six noisy, perspective-warped synthetic boards it gave a
+  mean corner error of 0.031 px, against 0.041 px without it; running `cornerSubPix` afterwards made
+  it worse (0.051–0.079 px), and `CALIB_CB_NORMALIZE_IMAGE` cost 0.22 px, so neither is used.
+
+Tests `test/Calibration/test_core.py`.
