@@ -178,7 +178,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__frame = None
         # The ONE run accumulator behind the status aggregates AND the Trends charts: it owns the
         # images-analysed count, the objects-detected total and the run mean confidence, so the
-        # status figures and the charts are one source and cannot drift (the last session-mean
+        # status figures and the charts are one source and cannot drift (the last run-mean
         # point equals the status mean by construction). Fed one successful analysis at a time; a
         # failed analysis is never added, so the image count never advances on a failure. Reset on
         # Clear. The word 'run' means the application run here, not a camera connection.
@@ -187,8 +187,8 @@ class AnyScan_Window_Cls(QMainWindow):
         # status strip — a median so a single slow frame does not swing the figure the operator
         # reads. Not in the accumulator (it is not charted). Reset with the run on Clear.
         self.__latencies = []
-        # The last-logged severity band of the session-mean confidence ('ok' | 'warn' | 'error').
-        # Only the status-bar session mean is logged, and only when it CROSSES a threshold — not
+        # The last-logged severity band of the run-mean confidence ('ok' | 'warn' | 'error').
+        # Only the status-bar run mean is logged, and only when it CROSSES a threshold — not
         # every analysis — so this remembers where it was to detect a crossing. Reset on Clear.
         self.__confidence_band = 'ok'
         # The Camera View's remembered annotated/mask choice (§2b): it persists across
@@ -1216,7 +1216,7 @@ class AnyScan_Window_Cls(QMainWindow):
     def __Log_Confidence_Crossing(self, percent: int) -> None:
         """
         Description:
-            Log the session-mean confidence ONLY when it crosses a severity threshold — a
+            Log the run-mean confidence ONLY when it crosses a severity threshold — a
             WARNING when it first falls below the warn line and again below the error line, an
             INFO when it recovers back above a line — never a line per analysis while it sits in
             one band. A hysteresis margin means a value hovering on a line must climb that far
@@ -1225,7 +1225,7 @@ class AnyScan_Window_Cls(QMainWindow):
             per-frame numbers would flood the log.
 
         Args:
-            (1) percent [int]: The current session-mean confidence in percent.
+            (1) percent [int]: The current run-mean confidence in percent.
         """
 
         if self.__logger is None:
@@ -1248,11 +1248,11 @@ class AnyScan_Window_Cls(QMainWindow):
         order = {'ok': 2, 'warn': 1, 'error': 0}
         if order[band] < order[previous]:                       # fell to a worse band
             line = error if band == 'error' else warn
-            self.__logger.Log_Warning('Session mean confidence fell below %d%% (now %d%%).'
+            self.__logger.Log_Warning('Run mean confidence fell below %d%% (now %d%%).'
                                       % (line, percent))
         else:                                                   # recovered to a better band
             line = warn if band == 'ok' else error
-            self.__logger.Log_Info('Session mean confidence recovered above %d%% (now %d%%).'
+            self.__logger.Log_Info('Run mean confidence recovered above %d%% (now %d%%).'
                                    % (line, percent))
         self.__confidence_band = band
 

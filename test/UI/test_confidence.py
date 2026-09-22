@@ -46,7 +46,7 @@ from Parameters.Vision import (Confidence_Severity, CONST_CONFIDENCE_WARN_BELOW,
 Description:
     The confidence severity colouring (§5): the thresholds and the severity bands, the
     number-only rich-text styling that reuses the log palette AND weight, and the status-bar
-    session-mean log crossings with hysteresis. No camera and no weights needed.
+    run-mean log crossings with hysteresis. No camera and no weights needed.
 """
 
 # The window's name-mangling prefix, for reaching its private state.
@@ -129,10 +129,10 @@ def test_confidence_number_html_colours_and_weights_only_below_the_line() -> Non
     assert Style.CONST_LEVEL_CSS_WEIGHTS['ERROR'] > Style.CONST_LEVEL_CSS_WEIGHTS['WARNING']
 
 
-def test_session_mean_log_crossings_with_hysteresis(qt_app, reference_background_path) -> None:
+def test_run_mean_log_crossings_with_hysteresis(qt_app, reference_background_path) -> None:
     """
     Description:
-        The status-bar session mean is logged only when it CROSSES a threshold, not every
+        The status-bar run mean is logged only when it CROSSES a threshold, not every
         analysis, and a recovery is logged only after the value clears the line by the
         hysteresis margin — so a mean hovering on a line does not emit a record per analysis.
         A fall logs a WARNING, a recovery an INFO, each carrying the value.
