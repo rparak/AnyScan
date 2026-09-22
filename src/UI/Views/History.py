@@ -97,7 +97,7 @@ CONST_FILTER_SEGMENTS = (('all', 'All'), ('ok', 'OK'), ('nok', 'NOK'))
 # The empty-grid messages, per filter — the NOK one names why it is expected to be empty today.
 #   Unit [Dict<string, string>]
 CONST_EMPTY_MESSAGES = {
-    'all': 'No capture sets yet. Analyse a frame in Live and it will appear here.',
+    'all': 'No captures in this run yet. Analyse an image to begin.',
     'ok': 'No OK results in the current history.',
     'nok': 'No NOK results — no classifier is running yet, so no object has been judged.'}
 
@@ -217,16 +217,11 @@ class Thumb_Card_Cls(QFrame):
     # << SIGNAL >> #
     Clicked = pyqtSignal(object)
 
-    def __init__(self, cap: tp.Any, mark_unclassified: bool = False,
-                 parent: tp.Optional[QWidget] = None) -> None:
+    def __init__(self, cap: tp.Any, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         # << PRIVATE >> #
         self.__cap = cap
-        # In a MIXED list (some sets classified, some not) a detect-only card is marked 'not
-        # classified', so the distinction from a classified-OK card does not depend on colour
-        # alone — two channels, not one.
-        self.__mark_unclassified = mark_unclassified and not cap.Partial and not cap.Classification
         self.__loaded = False
 
         self.setObjectName('thumbCard')
@@ -344,10 +339,7 @@ class Thumb_Card_Cls(QFrame):
         if self.__cap.Partial:
             return 'Analysis failed'
         count = len(self.__cap.Objects)
-        text = '%d object%s' % (count, '' if count == 1 else 's')
-        if self.__mark_unclassified:
-            text += '  ·  not classified'
-        return text
+        return '%d object%s' % (count, '' if count == 1 else 's')
 
     # << QT OVERRIDE >> #
     def mousePressEvent(self, event: tp.Any) -> None:
@@ -370,15 +362,22 @@ class History_View_Cls(QWidget):
         Qt-free reader.
     """
 
-    def __init__(self, captures_root: tp.Optional[str] = None,
+    def __init__(self, captures_root: tp.Optional[str] = None, run_id: str = '',
+                 classification_enabled: bool = False,
                  parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         # << PRIVATE >> #
         self.__root = captures_root
+        # The current application run: History lists ONLY the sets written in it (matched by
+        # run id), so earlier runs stay on disk but are not shown.
+        self.__run_id = run_id
+        # Whether this run classifies. The flag is read once at startup, so every set in the run
+        # shares it: the OK/NOK filter shows iff the run classifies, and there is no mixed history
+        # to mark per card.
+        self.__classification_enabled = classification_enabled
         self.__sets = []
         self.__cards = []
-        self.__classified_present = False
         self.__selected_id = None
         self.__detail_cap = None
         self.__detail_pixmaps = {}
@@ -684,7 +683,10 @@ class History_View_Cls(QWidget):
         """
 
         prior = self.__selected_id
-        self.__sets = Discover_Capture_Sets(self.__root) if self.__root else []
+        discovered = Discover_Capture_Sets(self.__root) if self.__root else []
+        # Only THIS run's sets: match the run id written into each set's metadata. Earlier runs'
+        # sets stay on disk (retention manages them) but are not listed.
+        self.__sets = [cap for cap in discovered if cap.Run_Id == self.__run_id]
         removed = prior is not None and prior not in {cap.Set_Id for cap in self.__sets}
         self.__Rebuild_List(removed_prior=removed)
 
@@ -725,16 +727,14 @@ class History_View_Cls(QWidget):
             (1) removed_prior [bool]: True when the previously selected set was evicted.
         """
 
-        # The OK/NOK filter is shown only when at least one discovered set was WRITTEN with
-        # classification on — its images carry verdict colours, so the filter must exist to
-        # explain and narrow them. When no visible set was classified there is no verdict state
-        # to filter, so the filter is removed (hidden) and forced to 'All', not merely disabled:
-        # nothing on screen then implies a feature this history does not contain. This is decided
-        # per set, not by the current config, so toggling the config never hides data already on
-        # disk (a set written with verdicts keeps them).
-        self.__classified_present = any(cap.Classification for cap in self.__sets)
-        self.__filter.setVisible(self.__classified_present)
-        if not self.__classified_present:
+        # The OK/NOK filter is shown only when this RUN classifies — its images carry verdict
+        # colours, so the filter must exist to explain and narrow them. When the run only detects
+        # there is no verdict state to filter, so the filter is removed (hidden) and forced to
+        # 'All', not merely disabled: nothing on screen then implies a feature this history does
+        # not contain. The run's flag is read once at startup, so every set in it shares it — no
+        # mixed history, so no per-set scan and no per-card marker.
+        self.__filter.setVisible(self.__classification_enabled)
+        if not self.__classification_enabled:
             self.__filter.Set_Selection('all')
 
         while self.__list_box.count():
@@ -851,7 +851,7 @@ class History_View_Cls(QWidget):
         for position, cap in enumerate(caps):
             # Mark detect-only cards only when the list also holds classified sets — a mixed list,
             # where a neutral card must be told apart from a classified-OK one by more than colour.
-            card = Thumb_Card_Cls(cap, mark_unclassified=self.__classified_present)
+            card = Thumb_Card_Cls(cap)
             card.Clicked.connect(self.__Select)
             grid.addWidget(card, position // CONST_THUMB_COLUMNS,
                            position % CONST_THUMB_COLUMNS)

@@ -153,6 +153,10 @@ class Capture_Set_Str:
 
     # The session the set belongs to (its subdirectory name; matches the log lines).
     Session_Id: str = ''
+    # The APPLICATION-run id the set was written in (stable across camera connections). History
+    # lists only the current run's sets by matching it. Empty for a set written before run ids
+    # (or a partial set), which no current run matches, so it simply does not show.
+    Run_Id: str = ''
     # The set identifier (<timestamp>_<n>), the filename stem.
     Set_Id: str = ''
     # The capture timestamp (ISO 8601) from the metadata, empty for a partial set.
@@ -224,7 +228,8 @@ def Set_Id_From_Name(name: str) -> tp.Optional[str]:
 def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                        objects: tp.List[Detection_Str], size: tp.Tuple[int, int], task: str,
                        inference_ms: int, frame_mean_confidence: tp.Optional[int],
-                       background: str = '', classification: bool = False) -> tp.Dict[str, tp.Any]:
+                       background: str = '', classification: bool = False,
+                       run_id: str = '') -> tp.Dict[str, tp.Any]:
     """
     Description:
         Build the machine-readable metadata for one set from the SAME detection list that
@@ -250,6 +255,11 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                                     so History knows how each set's colours were baked and can
                                     show or hide the verdict UI per set rather than assuming the
                                     current config applies to every set.
+        (11) run_id [string]: The APPLICATION-run identifier, generated once at startup and stable
+                              across every camera connection in that run. History lists only the
+                              sets of the current run by matching it, so earlier runs' sets stay on
+                              disk (retention still manages them) but are not shown. Distinct from
+                              session_id, which is one camera connection.
 
     Returns:
         (1) parameter [Dict]: The metadata, ready to serialise as '_objects.json'.
@@ -262,7 +272,7 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
         records.append({'index': index, 'bbox': [int(v) for v in det.Bbox],
                         'confidence': confidence, 'cue': det.Cue, 'verdict': det.Verdict,
                         'description': det.Sentence})
-    return {'session_id': session_id, 'set_id': set_id, 'timestamp': timestamp,
+    return {'session_id': session_id, 'run_id': run_id, 'set_id': set_id, 'timestamp': timestamp,
             'frame_width': int(size[0]), 'frame_height': int(size[1]), 'task': task,
             'inference_ms': int(inference_ms), 'frame_mean_confidence': frame_mean_confidence,
             'background': background, 'classification': bool(classification), 'objects': records}
@@ -388,6 +398,7 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
         cap.Frame_Mean_Confidence = int(mean) if mean is not None else None
         cap.Background = str(data.get('background', ''))
         cap.Classification = bool(data.get('classification', False))
+        cap.Run_Id = str(data.get('run_id', ''))
         cap.Objects = [Capture_Object_Str(
             Index=int(record.get('index', i)),
             Bbox=tuple(int(v) for v in record.get('bbox', (0, 0, 0, 0))),

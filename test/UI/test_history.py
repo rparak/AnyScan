@@ -75,14 +75,14 @@ def _Objects():
                           Sentence='A hex nut.', Verdict='OK', Cue='both')]
 
 
-def _Write_Full(writer, session_id, set_id, classification=False):
-    """Write a full (successful) set through the real writer, recording the classification flag."""
+def _Write_Full(writer, session_id, set_id, classification=False, run_id=''):
+    """Write a full (successful) set through the real writer, recording the flags and run id."""
     raw = np.full((40, 60, 3), 30, np.uint8)
     annotated = np.full((40, 60, 3), 60, np.uint8)
     mask = np.zeros((40, 60, 3), np.uint8)
     objects = _Objects()
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
-                                  'caption', 1180, 91, '', classification)
+                                  'caption', 1180, 91, '', classification, run_id)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                  ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np)
 
@@ -114,9 +114,9 @@ def test_filter_including_the_always_empty_nok_case(qt_app, tmp_path) -> None:
     _Write_Full(writer, 'sessionA', 'set1', classification=True)
     _Write_Full(writer, 'sessionA', 'set2', classification=True)
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), classification_enabled=True)
     view.Refresh()
-    assert _Private(view, '__filter').isVisibleTo(view)   # a classified set -> filter present
+    assert _Private(view, '__filter').isVisibleTo(view)   # a classified run -> filter present
     assert len(_Private(view, '__cards')) == 2            # All
 
     _Set_Filter(view, 'ok')
@@ -180,8 +180,8 @@ def test_detect_only_sets_have_no_filter_and_a_neutral_outline(qt_app, tmp_path)
 def test_classified_sets_get_the_filter_and_a_verdict_outline(qt_app, tmp_path) -> None:
     """
     Description:
-        A set written WITH classification brings the filter back and takes a verdict-coloured
-        outline — even when the current config is off, the record is shown, not hidden.
+        A classified run shows the filter, and its set takes a verdict-coloured outline (read from
+        the set's own recorded flag, so the outline is the record, not the current config).
     """
 
     from Parameters.Theme import Verdict_Color
@@ -189,66 +189,48 @@ def test_classified_sets_get_the_filter_and_a_verdict_outline(qt_app, tmp_path) 
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set1', classification=True)
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), classification_enabled=True)
     view.Refresh()
     assert _Private(view, '__filter').isVisibleTo(view)
     cap = _Private(view, '__detail_cap')
     assert _Private(view, '__Set_Color')(cap) == Verdict_Color('OK')[0]
 
 
-def test_ok_filter_excludes_never_judged_detect_only_sets(qt_app, tmp_path) -> None:
+def test_history_lists_only_the_current_run(qt_app, tmp_path) -> None:
     """
     Description:
-        In a mixed history 'OK' means 'classified and passed'. A detect-only set was never judged —
-        it is neither OK nor NOK and belongs only under All. So filtering to OK returns only the
-        classified set, not the detect-only one; otherwise the filter would assert a judgement
-        nobody made.
+        History lists ONLY the sets of the current application run, matched by the run id written
+        into each set's metadata — not every set on disk. A set from an earlier run stays on disk
+        (retention manages it) but is not shown, and the match does not depend on timestamps.
     """
 
     writer = Capture_Writer_Cls(str(tmp_path))
-    _Write_Full(writer, 'sessionA', 'classified', classification=True)   # classified, all OK
-    _Write_Full(writer, 'sessionA', 'detected', classification=False)    # never judged
+    _Write_Full(writer, 'sessionA', 'old', run_id='run-earlier')
+    _Write_Full(writer, 'sessionA', 'new1', run_id='run-current')
+    _Write_Full(writer, 'sessionB', 'new2', run_id='run-current')   # a second camera connection
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), run_id='run-current')
     view.Refresh()
-    assert len(_Private(view, '__cards')) == 2                # All shows both
-
-    _Set_Filter(view, 'ok')
-    shown = [c.Cap().Set_Id for c in _Private(view, '__cards')]
-    assert shown == ['classified']                           # only the judged-OK set
-
-    _Set_Filter(view, 'nok')
-    assert len(_Private(view, '__cards')) == 0                # neither is NOK
+    shown = sorted(c.Cap().Set_Id for c in _Private(view, '__cards'))
+    assert shown == ['new1', 'new2']                     # both connections of THIS run, not 'old'
 
 
-def test_detect_only_cards_are_marked_not_classified_in_a_mixed_list(qt_app, tmp_path) -> None:
+def test_empty_run_shows_the_run_scoped_message(qt_app, tmp_path) -> None:
     """
     Description:
-        In a mixed list the detect-only cards carry a 'not classified' marker, so a neutral card is
-        told from a classified-OK card by more than colour (two channels, not one). A classified
-        card carries no such marker. In an all-detect-only list (no classified set, no filter)
-        there is nothing to distinguish, so no marker is added.
+        Before the first analysis of a run — no sets match the run id — the grid shows a short
+        muted message inviting an analysis, not a blank panel (nor another run's sets).
     """
 
-    def _Count_Text(view, set_id):
-        card = next(c for c in _Private(view, '__cards') if c.Cap().Set_Id == set_id)
-        return getattr(card, '_Thumb_Card_Cls__Count_Text')()
-
     writer = Capture_Writer_Cls(str(tmp_path))
-    _Write_Full(writer, 'sessionA', 'classified', classification=True)
-    _Write_Full(writer, 'sessionA', 'detected', classification=False)
+    _Write_Full(writer, 'sessionA', 'old', run_id='run-earlier')      # a different run's set
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), run_id='run-current')
     view.Refresh()
-    assert 'not classified' in _Count_Text(view, 'detected')     # marked in the mixed list
-    assert 'not classified' not in _Count_Text(view, 'classified')
-
-    # An all-detect-only history: no classified set to confuse it with, so no marker.
-    plain_root = tmp_path / 'plain'
-    _Write_Full(Capture_Writer_Cls(str(plain_root)), 's', 'a', classification=False)
-    plain = History_View_Cls(str(plain_root))
-    plain.Refresh()
-    assert 'not classified' not in _Count_Text(plain, 'a')
+    assert len(_Private(view, '__cards')) == 0
+    message = _Private(view, '__list_box').itemAt(0).widget()
+    assert isinstance(message, QLabel)
+    assert message.text() == 'No captures in this run yet. Analyse an image to begin.'
 
 
 def test_the_two_empty_nok_states_are_distinguishable(qt_app, tmp_path) -> None:
@@ -261,15 +243,14 @@ def test_the_two_empty_nok_states_are_distinguishable(qt_app, tmp_path) -> None:
     """
 
     off_root = tmp_path / 'off'
-    Capture_Writer_Cls(str(off_root))
     _Write_Full(Capture_Writer_Cls(str(off_root)), 's', 'a', classification=False)
-    off = History_View_Cls(str(off_root))
+    off = History_View_Cls(str(off_root), classification_enabled=False)
     off.Refresh()
     assert not _Private(off, '__filter').isVisibleTo(off)     # no filter — the absence is the signal
 
     on_root = tmp_path / 'on'
     _Write_Full(Capture_Writer_Cls(str(on_root)), 's', 'a', classification=True)
-    on = History_View_Cls(str(on_root))
+    on = History_View_Cls(str(on_root), classification_enabled=True)
     on.Refresh()
     assert _Private(on, '__filter').isVisibleTo(on)          # filter present
     _Set_Filter(on, 'nok')

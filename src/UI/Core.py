@@ -27,6 +27,7 @@
 import typing as tp
 import os
 import statistics
+import uuid
 from datetime import datetime
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
 import cv2
@@ -130,6 +131,11 @@ class AnyScan_Window_Cls(QMainWindow):
         # capture set. It does NOT govern History, which reads how each set was written from that
         # set's own metadata (a set written under a different flag keeps its own colours).
         self.__classification_enabled = classification_enabled
+        # A unique id for THIS application run, generated once at startup and stable across every
+        # camera connection in the run. It is written into each set's metadata; History lists only
+        # the current run's sets by matching it — not by comparing timestamps, which a clock
+        # adjustment would break. Earlier runs' sets stay on disk under retention, simply unshown.
+        self.__run_id = uuid.uuid4().hex
         # One real implementation each. `camera` is injected so the developer
         # --frame path can supply a File_Camera_Cls; production is the Basler.
         self.__camera = camera if camera is not None else Basler_Camera_Cls()
@@ -259,7 +265,8 @@ class AnyScan_Window_Cls(QMainWindow):
         # cards while another view is on top.
         self.__stack = QStackedWidget()
         self.__stack.addWidget(self.__Build_Live_View())    # index 0 — Live
-        self.__history_view = History_View_Cls(self.__captures_root)
+        self.__history_view = History_View_Cls(self.__captures_root, run_id=self.__run_id,
+                                               classification_enabled=self.__classification_enabled)
         self.__stack.addWidget(self.__history_view)          # index 1 — History
         self.__log_view = Log_View_Cls()
         self.__stack.addWidget(self.__log_view)              # index 2 — Log
@@ -960,7 +967,8 @@ class AnyScan_Window_Cls(QMainWindow):
         timestamp = datetime.now().isoformat(timespec='seconds')
         metadata = Build_Set_Metadata(self.__session_id, set_id, timestamp, result.Objects,
                                       size, result.Task, result.Latency_Ms, frame_mean,
-                                      result.Background, self.__classification_enabled)
+                                      result.Background, self.__classification_enabled,
+                                      self.__run_id)
         stamp = 'set %s | %s' % (set_id, timestamp)
         try:
             evicted, created = self.__capture_writer.Write(

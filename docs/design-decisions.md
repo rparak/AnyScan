@@ -223,12 +223,14 @@ The flag is read **once**, through the one configuration layer
 line, which is the answer when someone asks why the UI has no OK/NOK. It governs what LIVE
 produces (annotation colours, and the flag recorded on each new capture set) — **not** History.
 
-History is driven **per set**: each `_objects.json` records the flag that was active when the set
-was written, so toggling the config never hides data already on disk. The Captures filter appears
-when **any visible set** was written with classification on (its images carry verdict colours, so
-the filter must exist to explain them), and each set's outline follows its own recorded flag
-(verdict colour vs neutral). Object rows always show the record — suppressing a captured verdict
-would lie about what was captured.
+History lists only the **current application run** (see the run-scope entry below), and the flag is
+read once at startup, so every set in a run shares it — there is no mixed history. The Captures
+filter appears when **the run classifies**, and each set's outline still follows its **own recorded
+flag** (`_objects.json` keeps it as the record, so an earlier set shown by some future cross-run
+view would still carry its own colours). Object rows always show the record — suppressing a
+captured verdict would lie about what was captured. The earlier mixed-history handling (the filter
+shown by scanning sets, and a "not classified" per-card marker) was removed with run scoping,
+since it can no longer arise.
 
 **Two empty-NOK states are kept distinguishable:** config disabled ⇒ the filter is absent (its
 absence is the answer); config enabled with no classifier ⇒ the filter is present and says why it
@@ -238,3 +240,17 @@ missing classifier, not the config.
 **Revisit when** a classifier lands: it sets `Detection_Str.Verdict`, the empty-NOK message stops
 being the normal state, and the switch starts gating a feature that actually runs.
 Commit `c34983e`; tests `test/Camera/test_configuration.py`, `test/UI/test_history.py::test_the_two_empty_nok_states_are_distinguishable`, `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`.
+
+## History shows only the current run, identified by a run id
+
+The window generates one **run id** at startup (a UUID, stable across every camera connection in
+that run) and writes it into each set's `_objects.json`. History lists only the sets whose run id
+matches the current one; earlier runs' sets stay on disk and retention still manages them, they
+simply are not shown. The run is identified by this **explicit id, not by comparing timestamps** —
+a timestamp scheme breaks the moment the clock is adjusted, and a run can span several camera
+connections (each its own on-disk `session`), which one id spans and a per-session scheme would
+split. Before the first analysis the grid shows a short muted message ("No captures in this run
+yet. Analyse an image to begin."), not a blank panel. (The word "session" is disambiguated when
+the Trends view lands — the logger and capture directories keep it for a camera connection, while
+the visible UI speaks of the application run.)
+Tests `test/UI/test_history.py::test_history_lists_only_the_current_run`, `::test_empty_run_shows_the_run_scoped_message`.
