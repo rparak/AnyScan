@@ -77,20 +77,9 @@ CONST_ANNOTATE_CHIP_PAD = 6       # padding (px, at font scale 1) around the num
 #   Unit [float]
 CONST_ANNOTATE_MIN_DELTA_E = 12.0
 
-# The label-mask FILL floors, stricter than the general one because the box outline is a thin
-# line that must stand out against the fill it crosses, and the fill must actually be a colour:
-#   - ΔE(box, fill) >= 25: the outline stays clearly visible against its own fill (the neutral
-#     fill used to sit at 19.5 — above 12, but visibly weak);
-#   - ΔE(fill, white) >= 25: the fill is not the white it replaced (it used to be 4.7 for neutral);
-#   - contrast against the black ground >= 4.5:1 (WCAG relative luminance): the silhouette reads.
-# Chromatic fills must also keep the box's hue (within 5°) at >= 40% of its chroma. Pinned by
-# test_theme.test_label_mask_fill_is_a_visible_tint_of_its_box.
-#   Unit [float]
-CONST_ANNOTATE_FILL_MIN_DELTA_E = 25.0
-CONST_ANNOTATE_FILL_MIN_WHITE_DELTA_E = 25.0
-CONST_ANNOTATE_FILL_MIN_GROUND_CONTRAST = 4.5
-CONST_ANNOTATE_FILL_MAX_HUE_SHIFT = 5.0
-CONST_ANNOTATE_FILL_MIN_CHROMA_FRACTION = 0.4
+# The label-mask FILL floors (box/fill ΔE, fill/white ΔE, contrast against the black ground, hue
+# and chroma) live in Parameters.Theme as CONST_MASK_FILL_*, because Theme derives the neutral fill
+# from them and the parameters layer must not import this one.
 
 # The black ground of the label mask. Deliberately NOT a theme surface colour: the
 # mask is a diagnostic image, and on black the tinted object fills (each >= 4.5:1 against

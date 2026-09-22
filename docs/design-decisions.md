@@ -17,22 +17,38 @@ box read as two things. A tint of the box's own hue makes them read as **one obj
 **The first tint was a token on paper only.** It mixed the box with 80% white in sRGB and landed
 on near-white: the neutral fill `#F1F2F4` was ΔE 4.7 from white — the white it replaced — with
 the outline only ΔE 19.5 away; the OK fill was ΔE 13.2 from white at a sixth of the box's
-chroma; and sRGB mixing drifted NOK's hue 22°. It was also justified by a wrong premise — "a
-dark numeral on the fill" — but the index numeral sits on its chip, drawn in the box colour, and
-never touches the fill. The fills are now built in LCh with the box's hue held:
+chroma; and sRGB mixing drifted NOK's hue 22°.
+
+**Why they stayed near-white for so long: a test enforced a constraint that was never real.**
+`test_theme` asserted `_lum(fill) > 0.75` "so a dark numeral reads on it". But the index numeral
+sits on its chip, which is filled with the box colour, and never touches the fill. The test pinned
+the fills pale, every later check passed against it, and the near-white looked like a settled
+decision rather than a side effect. The change below is therefore a correction, not a change of
+taste: the false constraint is removed and replaced by floors that describe what a fill actually
+has to do. The fills are now built in LCh with the box's hue held:
 
 | | box | fill | ΔE box↔fill | ΔE fill↔white | vs black ground |
 |---|---|---|---|---|---|
 | OK | `#6C63B5` | `#E2E0F0` → **`#B4AADB`** | 59.4 → 33.6 | 13.2 → 39.0 | 9.7:1 |
 | NOK | `#ff005c` | `#FFCCDE` → **`#FC929C`** | 74.7 → 46.8 | 24.6 → 51.1 | 9.7:1 |
-| neutral | `#B8BECA` | `#F1F2F4` → **`#727782`** | 19.5 → 26.9 | 4.7 → 50.5 | 4.7:1 |
+| neutral | `#B8BECA` | `#F1F2F4` → **`#737883`** (derived) | 19.5 → 26.5 | 4.7 → 50.1 | 4.7:1 |
 
 OK and NOK share L\* 72 at about half their box's chroma, so only hue separates them, as with
 the boxes. The neutral box is nearly achromatic and already light, so lightening it can only
-reach white; its fill goes the **other way**, to a mid grey (L\* 50) in the box's cool hue — the
-outline is the lighter of that pair. Its window is narrow on purpose: darker than L\* ~49 falls
-below 4.5:1 against black, lighter than ~51 below the box/fill floor. The floors
-(`Annotate.CONST_ANNOTATE_FILL_*`) are stricter than the general ΔE 12 because a thin outline must
+reach white; its fill goes the **other way**, to a mid grey in the box's cool hue — the outline is
+the lighter of that pair.
+
+**The neutral fill is derived from its box, not hand-set** (`Theme.Neutral_Mask_Fill`). Its valid
+window is only 2.97 L\* wide: the lower bound, L\* 48.88, is where the fill would drop under 4.5:1
+against the black ground (fixed, independent of the box); the upper bound, L\* 51.85, is the box's
+L\* 76.85 minus the ΔE 25 floor, and it moves with the box. A hand-picked fill would silently fall
+out of that window the moment someone adjusted `#B8BECA`, so the fill is computed at the window's
+midpoint in the box's own hue and chroma (`#737883`, L\* 50.35, 1.5 L\* inside each bound against a
+required 0.5). Adjust the box and the fill follows; darken it below L\* 74.88 and the window
+closes — there is then no valid darker fill, and Theme raises at import naming the window, because
+a different neutral needs a design decision, not a silently broken mask. The floors
+(`Theme.CONST_MASK_FILL_*`, in the parameters layer because Theme derives with them) are stricter
+than the general ΔE 12 because a thin outline must
 stand out against the fill it crosses: ΔE box↔fill ≥ 25, ΔE fill↔white ≥ 25, ≥ 4.5:1 against the
 black ground, and a chromatic fill within 5° of its box's hue at ≥ 40% of its chroma. The OK/NOK
 box↔fill ΔE went *down*: that is the cost of a fill that is actually a colour, and both stay well
@@ -42,6 +58,8 @@ nobody made.
 per-class colour), in which case add a mode rather than overloading the default.
 Tests `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box` (fails
 on the old values: "OK: fill #E2E0F0 reads as white"),
+`::test_neutral_fill_is_derived_from_its_box_inside_the_valid_window` (the window bounds and the
+fill's margin inside both), `::test_neutral_fill_follows_the_box_and_fails_loudly_when_no_fill_fits`,
 `test/Vision/Utilities/test_annotate.py::test_label_mask_fills_each_object_with_a_tint_of_its_box_colour`,
 `::test_detect_only_label_mask_fills_with_the_neutral_tint`, `test/UI/test_harness_parity.py`.
 

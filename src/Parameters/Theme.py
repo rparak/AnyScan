@@ -23,6 +23,8 @@
 # File Name: ../Parameters/Theme.py
 ## =========================================================================== ##
 
+# System (Default)
+import math
 # Typing (Support for type hints)
 import typing as tp
 
@@ -69,6 +71,24 @@ CONST_BAND          = '#2b2455'   # deep-indigo funding band
 CONST_BAND_LINE     = '#4a4180'   # dividers on the band
 CONST_BAND_TEXT     = '#b9b2d6'   # lavender text/disclaimer on the band
 
+# The label-mask FILL floors. They live here, not in the renderer, because Theme DERIVES the
+# neutral fill from them (Neutral_Mask_Fill) and the parameters layer must not import the vision
+# layer. They are stricter than the general distinctness floor because a thin box outline must
+# stand out against the fill it crosses, and the fill must actually be a colour:
+#   - ΔE(box, fill) >= 25: the outline stays clearly visible against its own fill;
+#   - ΔE(fill, white) >= 25: the fill is not the white it replaced;
+#   - >= 4.5:1 against the black mask ground (WCAG relative luminance): the silhouette reads;
+#   - a chromatic fill keeps its box's hue (within 5°) at >= 40% of the box's chroma;
+#   - a DERIVED fill sits at least 0.5 L* inside its valid window on both sides, so rounding to
+#     hex (about 0.2 L*) can never push it across a floor.
+#   Unit [float]
+CONST_MASK_FILL_MIN_BOX_DELTA_E = 25.0
+CONST_MASK_FILL_MIN_WHITE_DELTA_E = 25.0
+CONST_MASK_FILL_MIN_GROUND_CONTRAST = 4.5
+CONST_MASK_FILL_MAX_HUE_SHIFT = 5.0
+CONST_MASK_FILL_MIN_CHROMA_FRACTION = 0.4
+CONST_MASK_FILL_WINDOW_MARGIN = 0.5
+
 # The two per-object VERDICT colours, as (box, ink, fill) triples. The box is the stroke
 # drawn on the frame and the mask contour; the ink is the darkened twin for verdict text
 # on the white card. These DRIVE the object rendering in both views (via Verdict_Color) —
@@ -89,7 +109,7 @@ CONST_BAND_TEXT     = '#b9b2d6'   # lavender text/disclaimer on the band
 #   The first version mixed the box with 80% white in sRGB, which landed near white (OK:
 #   ΔE 13 from white, chroma 8 of the box's 49) and drifted NOK's hue 22°; a mask you cannot
 #   tell from white is a token that exists on paper and does nothing on screen. Measured
-#   (the floors are Annotate.CONST_ANNOTATE_FILL_*, pinned in test_theme):
+#   (the floors are CONST_MASK_FILL_* above, pinned in test_theme):
 #       OK   #B4AADB  ΔE(box, fill) 33.6 (was 59.4)  ΔE(fill, white) 39.0 (was 13.2)
 #       NOK  #FC929C  ΔE(box, fill) 46.8 (was 74.7)  ΔE(fill, white) 51.1 (was 24.6)
 #   Both fills are ~9.7:1 against the black mask ground, so the silhouette stays obvious. The
@@ -123,18 +143,27 @@ CONST_VERDICT_DEFAULT = 'OK'
 # to ΔE ~10.7 there, under the floor. Lightening it along the grey axis (NOT back toward indigo,
 # which would undo the separation from OK) pulls it clear: measured ΔE is now ~23 vs bright steel
 # (~2x the floor), ~46 vs the table green, ~54 vs the dark plates, and ~53 to the OK box (up from
-# ~46). The darker ink twin is reserved for text on the white card. The THIRD entry is the
-# label-mask FILL, so a detect-only silhouette and its box read as one neutral object and imply no
-# verdict nobody made. The box is already nearly achromatic (C* 6.8) and light (L* 77), so
-# lightening it lands on white — the first version, #F1F2F4, was ΔE 4.7 from white and ΔE 19.5
-# from the box, i.e. the white it replaced. So the fill goes the OTHER way: a mid grey at L* 50 in
-# the box's own cool hue and chroma, clearly darker than white and clearly lighter than the black
-# ground. The window is narrow and deliberate: darker than L* ~49 drops below 4.5:1 against the
-# black ground, lighter than L* ~51 drops below the ΔE 25 box/fill floor. Measured: ΔE(box, fill)
-# 26.9 (was 19.5), ΔE(fill, white) 50.5 (was 4.7), 4.7:1 against black. Here the outline is the
-# LIGHTER of the pair, the reverse of the verdict fills — contrast, not direction, is what counts.
-#   Unit [Tuple<string> 1x3] (box, ink, fill)
-CONST_DETECTION_COLORS = ('#B8BECA', '#5C6270', '#727782')
+# ~46). The darker ink twin is reserved for text on the white card.
+#
+# THE MASK FILL IS DERIVED FROM THIS BOX — it is not a free token and must not be hand-edited.
+# The box is nearly achromatic (C* 6.8) and light (L* 76.85), so lightening it lands on white (the
+# first fill, #F1F2F4, was ΔE 4.7 from white). The fill therefore goes DARKER: a grey in the box's
+# own hue and chroma, at the MIDPOINT of the only L* window that clears every floor
+# (Neutral_Mask_Fill):
+#     lower bound  L* 48.88 — below it the fill falls under 4.5:1 against the black ground
+#                             (fixed: it does not depend on the box);
+#     upper bound  L* 51.85 — box L* 76.85 minus the ΔE 25 box/fill floor (MOVES with the box);
+#     fill         L* 50.35 — #737883, 1.47 / 1.50 L* inside the bounds (required margin 0.5).
+# The window is 2.97 L* wide. Change this box and the fill follows automatically; darken it
+# below L* 74.88 and the window closes (under 2 x 0.5 L*): there is then NO valid darker fill, and
+# Theme raises at import naming the window — a different neutral needs a design decision (e.g. a
+# lighter fill direction), not a silently broken mask. The outline is the LIGHTER of this pair,
+# the reverse of the verdict fills — contrast, not direction, is what counts.
+#   Unit [string] (hex colour)
+CONST_DETECTION_BOX = '#B8BECA'
+CONST_DETECTION_INK = '#5C6270'
+# CONST_DETECTION_COLORS — the (box, ink, fill) triple — is assembled at the END of this module,
+# once Neutral_Mask_Fill (which needs the colour-space helpers below) is defined.
 
 # The Log-view severity text colours, one named semantic token per level. The log view
 # colours the level field and the message by these (the timestamp stays muted); a level
@@ -280,6 +309,171 @@ def Delta_E(hex_a: str, hex_b: str) -> float:
     return ((la - lb) ** 2 + (aa - ab) ** 2 + (ba - bb) ** 2) ** 0.5
 
 
+def Lch_Of(hex_color: str) -> tp.Tuple[float, float, float]:
+    """
+    Description:
+        A colour as CIE LCh (D65): lightness, chroma and hue angle in degrees — the space the
+        mask fills are built and checked in (hue held, lightness and chroma moved).
+
+    Args:
+        (1) hex_color [string]: The colour as '#rrggbb'.
+
+    Returns:
+        (1) parameter [Tuple<float> 1x3]: (L*, C*, h in degrees 0..360).
+    """
+
+    lightness, a, b = __Lab(hex_color)
+    return (lightness, math.hypot(a, b), math.degrees(math.atan2(b, a)) % 360.0)
+
+
+def Ground_Contrast(hex_color: str) -> float:
+    """
+    Description:
+        The contrast ratio of a colour against the black label-mask ground, from its WCAG
+        relative luminance (linear light) — how clearly a fill reads as light on black.
+
+    Args:
+        (1) hex_color [string]: The colour as '#rrggbb'.
+
+    Returns:
+        (1) parameter [float]: The contrast ratio (>= 1.0).
+    """
+
+    def _Linear(channel: float) -> float:
+        """
+        Description:
+            Undo the sRGB gamma for one 0..255 channel, giving linear light 0..1.
+
+        Args:
+            (1) channel [float]: The channel value (0..255).
+
+        Returns:
+            (1) parameter [float]: The linear-light value (0..1).
+        """
+
+        channel /= 255.0
+        return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (_Linear(c) for c in Hex_To_Rgb(hex_color))
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05) / 0.05
+
+
+def __Lab_To_Hex(lightness: float, a: float, b: float) -> str:
+    """
+    Description:
+        The inverse of __Lab: a CIE L*a*b* (D65) colour as '#rrggbb', each channel clamped to the
+        sRGB gamut and rounded.
+
+    Args:
+        (1) lightness [float]: L*.
+        (2) a [float]: a*.
+        (3) b [float]: b*.
+
+    Returns:
+        (1) parameter [string]: The colour as '#rrggbb'.
+    """
+
+    def _Inverse_F(t: float) -> float:
+        """
+        Description:
+            The inverse CIELAB nonlinearity.
+
+        Args:
+            (1) t [float]: The transformed component.
+
+        Returns:
+            (1) parameter [float]: The normalised XYZ component.
+        """
+
+        return t ** 3 if t ** 3 > 0.008856 else (t - 16.0 / 116.0) / 7.787
+
+    def _Encode(channel: float) -> int:
+        """
+        Description:
+            Linear light 0..1 to an sRGB 0..255 channel, clamped to the gamut.
+
+        Args:
+            (1) channel [float]: The linear-light value.
+
+        Returns:
+            (1) parameter [int]: The channel value (0..255).
+        """
+
+        channel = min(1.0, max(0.0, channel))
+        encoded = 12.92 * channel if channel <= 0.0031308 else 1.055 * channel ** (1.0 / 2.4) - 0.055
+        return int(round(encoded * 255.0))
+
+    fy = (lightness + 16.0) / 116.0
+    x = _Inverse_F(fy + a / 500.0) * 0.95047
+    y = _Inverse_F(fy)
+    z = _Inverse_F(fy - b / 200.0) * 1.08883
+    red = 3.2406 * x - 1.5372 * y - 0.4986 * z
+    green = -0.9689 * x + 1.8758 * y + 0.0415 * z
+    blue = 0.0557 * x - 0.2040 * y + 1.0570 * z
+    return '#%02X%02X%02X' % (_Encode(red), _Encode(green), _Encode(blue))
+
+
+def Neutral_Fill_Window(box_hex: str) -> tp.Tuple[float, float]:
+    """
+    Description:
+        The L* window in which a DARKER, same-hue fill for a near-achromatic box clears every
+        floor. The lower bound is the lightness whose relative luminance gives exactly the minimum
+        contrast against the black ground (it does not depend on the box); the upper bound is the
+        box's L* minus the box/fill ΔE floor (with the box's own a*, b* kept, ΔE is exactly the
+        lightness difference), capped by the fill/white floor. A window narrower than twice the
+        margin means no valid darker fill exists for this box.
+
+    Args:
+        (1) box_hex [string]: The neutral box colour as '#rrggbb'.
+
+    Returns:
+        (1) parameter [Tuple<float> 1x2]: The (lower, upper) L* bounds.
+    """
+
+    y_min = CONST_MASK_FILL_MIN_GROUND_CONTRAST * 0.05 - 0.05
+    f_min = y_min ** (1.0 / 3.0) if y_min > 0.008856 else 7.787 * y_min + 16.0 / 116.0
+    lower = 116.0 * f_min - 16.0
+    upper = min(Lch_Of(box_hex)[0] - CONST_MASK_FILL_MIN_BOX_DELTA_E,
+                100.0 - CONST_MASK_FILL_MIN_WHITE_DELTA_E)
+    return (lower, upper)
+
+
+def Neutral_Mask_Fill(box_hex: str) -> str:
+    """
+    Description:
+        The label-mask fill for a near-achromatic box, DERIVED rather than hand-picked so the two
+        cannot drift apart: the box's own a*, b* (its hue and chroma) at the midpoint of
+        Neutral_Fill_Window. It fails LOUDLY — ValueError, raised at import for the shipped token —
+        when the window is narrower than twice CONST_MASK_FILL_WINDOW_MARGIN, or when the rounded
+        hex misses any floor; it never clamps to a fill that breaks one.
+
+    Args:
+        (1) box_hex [string]: The neutral box colour as '#rrggbb'.
+
+    Returns:
+        (1) parameter [string]: The fill colour as '#rrggbb'.
+    """
+
+    lower, upper = Neutral_Fill_Window(box_hex)
+    margin = CONST_MASK_FILL_WINDOW_MARGIN
+    if upper - lower < 2.0 * margin:
+        raise ValueError('No valid neutral mask fill for box %s: the L* window [%.1f, %.1f] is '
+                         'narrower than 2 x %.1f. A darker fill would fall under %.1f:1 against '
+                         'the black ground or within dE %.0f of the box; a neutral box needs '
+                         'L* >= %.1f, or the fill needs a different design.'
+                         % (box_hex, lower, upper, margin, CONST_MASK_FILL_MIN_GROUND_CONTRAST,
+                            CONST_MASK_FILL_MIN_BOX_DELTA_E,
+                            lower + CONST_MASK_FILL_MIN_BOX_DELTA_E + 2.0 * margin))
+    _lightness, a, b = __Lab(box_hex)
+    fill = __Lab_To_Hex((lower + upper) / 2.0, a, b)
+    if (Delta_E(box_hex, fill) < CONST_MASK_FILL_MIN_BOX_DELTA_E
+            or Delta_E(fill, '#FFFFFF') < CONST_MASK_FILL_MIN_WHITE_DELTA_E
+            or Ground_Contrast(fill) < CONST_MASK_FILL_MIN_GROUND_CONTRAST):
+        raise ValueError('The derived neutral mask fill %s for box %s misses a floor after '
+                         'rounding.' % (fill, box_hex))
+    return fill
+
+
 def Verdict_Color(verdict: str) -> tp.Tuple[str, str, str]:
     """
     Description:
@@ -305,8 +499,8 @@ def Detection_Color() -> tp.Tuple[str, str, str]:
         The (box, ink, fill) colour triple for a plain, unjudged detection — used when the
         configuration only detects (classification off), so every object is one neutral colour.
         From the ONE CONST_DETECTION_COLORS definition, a distinct token from the verdict colours
-        ('detected, not judged', never a pass/fail). The fill is the light label-mask tint of the
-        box.
+        ('detected, not judged', never a pass/fail). The fill is DERIVED from the box
+        (Neutral_Mask_Fill), never hand-set.
 
     Returns:
         (1) parameter [Tuple<string> 1x3]: The (box, ink, fill) hex colours.
@@ -315,3 +509,9 @@ def Detection_Color() -> tp.Tuple[str, str, str]:
     return CONST_DETECTION_COLORS
 
 
+# The neutral (box, ink, fill) triple, assembled here because the fill is DERIVED from the box by
+# Neutral_Mask_Fill (defined above). A box that leaves no valid fill raises at import — loudly —
+# instead of shipping a mask fill that breaks a floor.
+#   Unit [Tuple<string> 1x3] (box, ink, fill)
+CONST_DETECTION_COLORS = (CONST_DETECTION_BOX, CONST_DETECTION_INK,
+                          Neutral_Mask_Fill(CONST_DETECTION_BOX))

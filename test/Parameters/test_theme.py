@@ -23,6 +23,8 @@
 # File Name: ../test/Parameters/test_theme.py
 ## =========================================================================== ##
 
+# Pytest (Testing framework) [pip3 install pytest]
+import pytest
 # Custom Lib.: AnyScan domain — the Qt-free colour palette
 #   ../Parameters/Theme
 import Parameters.Theme as Theme
@@ -132,49 +134,75 @@ def test_label_mask_fill_is_a_visible_tint_of_its_box() -> None:
             stays obvious;
           - a chromatic fill is recognisably the box's own hue (within a few degrees, at a real
             fraction of the box's chroma), not a near-grey.
-        The neutral box is nearly achromatic and already light, so its fill is a mid grey in the
-        box's cool hue, DARKER than the box — the outline is the lighter of that pair.
     """
-
-    import math
-    import Vision.Utilities.Annotate as Annotate
-
-    lab = getattr(Theme, '__Lab')
-
-    def _Lch(hex_color):
-        L, a, b = lab(hex_color)
-        return L, math.hypot(a, b), math.degrees(math.atan2(b, a)) % 360.0
-
-    def _Ground_Contrast(hex_color):
-        # WCAG relative luminance (linear light) of the fill against the black ground.
-        def _Linear(channel):
-            channel /= 255.0
-            return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
-        r, g, b = (_Linear(v) for v in Theme.Hex_To_Rgb(hex_color))
-        return (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05) / 0.05
 
     triples = {'OK': Theme.CONST_VERDICT_COLORS['OK'], 'NOK': Theme.CONST_VERDICT_COLORS['NOK'],
                'neutral': Theme.CONST_DETECTION_COLORS}
     for name, (box, _ink, fill) in triples.items():
-        assert Theme.Delta_E(box, fill) >= Annotate.CONST_ANNOTATE_FILL_MIN_DELTA_E, \
+        assert Theme.Delta_E(box, fill) >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E, \
             '%s: outline %s barely separates from fill %s (ΔE=%.1f)' % (name, box, fill,
                                                                      Theme.Delta_E(box, fill))
-        assert Theme.Delta_E(fill, '#FFFFFF') >= Annotate.CONST_ANNOTATE_FILL_MIN_WHITE_DELTA_E, \
+        assert Theme.Delta_E(fill, '#FFFFFF') >= Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E, \
             '%s: fill %s reads as white (ΔE=%.1f)' % (name, fill, Theme.Delta_E(fill, '#FFFFFF'))
-        assert _Ground_Contrast(fill) >= Annotate.CONST_ANNOTATE_FILL_MIN_GROUND_CONTRAST, \
+        assert Theme.Ground_Contrast(fill) >= Theme.CONST_MASK_FILL_MIN_GROUND_CONTRAST, \
             '%s: fill %s does not read as light on black (%.1f:1)' % (name, fill,
-                                                                   _Ground_Contrast(fill))
+                                                                   Theme.Ground_Contrast(fill))
 
     for name in ('OK', 'NOK'):
         box, _ink, fill = triples[name]
-        _Lb, box_chroma, box_hue = _Lch(box)
-        _Lf, fill_chroma, fill_hue = _Lch(fill)
+        _Lb, box_chroma, box_hue = Theme.Lch_Of(box)
+        _Lf, fill_chroma, fill_hue = Theme.Lch_Of(fill)
         shift = abs((fill_hue - box_hue + 180.0) % 360.0 - 180.0)
-        assert shift <= Annotate.CONST_ANNOTATE_FILL_MAX_HUE_SHIFT, (name, shift)
-        assert fill_chroma >= Annotate.CONST_ANNOTATE_FILL_MIN_CHROMA_FRACTION * box_chroma, \
+        assert shift <= Theme.CONST_MASK_FILL_MAX_HUE_SHIFT, (name, shift)
+        assert fill_chroma >= Theme.CONST_MASK_FILL_MIN_CHROMA_FRACTION * box_chroma, \
             (name, fill_chroma, box_chroma)
 
-    # Neutral: a mid grey in the box's hue family, darker than the (light) box.
-    box, _ink, fill = triples['neutral']
-    assert _Lch(fill)[0] < _Lch(box)[0]
-    assert 40.0 <= _Lch(fill)[0] <= 60.0
+
+def test_neutral_fill_is_derived_from_its_box_inside_the_valid_window() -> None:
+    """
+    Description:
+        The neutral fill is DERIVED from the neutral box, not hand-set, and the window it has to
+        fit is under 3 L* wide: darker than ~48.9 falls under 4.5:1 against the black ground,
+        lighter than the box's L* minus 25 collides with the outline. So the test asserts the
+        window directly — its bounds, and the shipped fill's L* at least the stated margin (0.5
+        L*) inside BOTH bounds — on top of the floors, so a change to the box that squeezes the
+        fill toward an edge fails here by number, not by inspection. The fill also keeps the box's
+        hue and chroma and is darker than the box.
+    """
+
+    box, _ink, fill = Theme.CONST_DETECTION_COLORS
+    assert box == Theme.CONST_DETECTION_BOX
+    assert fill == Theme.Neutral_Mask_Fill(box)                   # derived, not a free literal
+
+    lower, upper = Theme.Neutral_Fill_Window(box)
+    margin = Theme.CONST_MASK_FILL_WINDOW_MARGIN
+    assert (round(lower, 2), round(upper, 2)) == (48.88, 51.85)     # the window stated in Theme
+    fill_l = Theme.Lch_Of(fill)[0]
+    assert lower + margin <= fill_l <= upper - margin, \
+        'neutral fill L* %.2f is within %.1f of its window [%.2f, %.2f]' % (fill_l, margin,
+                                                                         lower, upper)
+
+    box_l, box_c, box_h = Theme.Lch_Of(box)
+    fill_l, fill_c, fill_h = Theme.Lch_Of(fill)
+    assert fill_l < box_l                                          # darker: the outline is lighter
+    assert abs(fill_c - box_c) < 1.0                                # the box's own chroma
+    assert abs((fill_h - box_h + 180.0) % 360.0 - 180.0) < 5.0      # and its own hue
+
+
+def test_neutral_fill_follows_the_box_and_fails_loudly_when_no_fill_fits() -> None:
+    """
+    Description:
+        Changing the neutral box moves the derived fill with it, still clearing every floor. A
+        box too dark to leave a window of twice the margin (below L* 74.88) has NO valid darker
+        fill: the derivation raises, naming the window, instead of clamping to a fill that breaks
+        a floor — and since the shipped token is derived at import, such a box fails the import.
+    """
+
+    for box in ('#C4CAD6', '#BFC3CC'):                             # lighter neutral boxes
+        fill = Theme.Neutral_Mask_Fill(box)
+        assert Theme.Delta_E(box, fill) >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E
+        assert Theme.Ground_Contrast(fill) >= Theme.CONST_MASK_FILL_MIN_GROUND_CONTRAST
+        assert Theme.Delta_E(fill, '#FFFFFF') >= Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E
+
+    with pytest.raises(ValueError, match='No valid neutral mask fill'):
+        Theme.Neutral_Mask_Fill('#949AA6')                          # the earlier, darker neutral
