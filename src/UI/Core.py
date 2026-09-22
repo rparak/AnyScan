@@ -63,8 +63,7 @@ from Vision.Core import Florence_Vision_Cls
 import Vision.Utilities.Annotate as Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask, Seg_Lines
 #   ../Reporting/Core
-from Reporting.Core import (Screen_Understanding, Scene_Background_Line, Scene_Count_Line,
-                            Yolo_Lines)
+from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines
 #   ../Reporting/Trends
 from Reporting.Trends import Trends_Accumulator_Cls
 #   ../Parameters/Vision
@@ -220,7 +219,6 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__stage_badge = None
         self.__pill_camera = None
         self.__reading_empty = None
-        self.__reading_background = None
         self.__reading_lead = None
         self.__reading_note = None
         self.__object_list = None
@@ -461,18 +459,12 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__reading_empty.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
         col.addWidget(self.__reading_empty)
 
-        # The background sentence: context above the count heading, at the object-label size
-        # in regular weight, so it does not compete with the heading below it.
-        self.__reading_background = QLabel()
-        self.__reading_background.setFont(Font(Style.CONST_TYPE_SCENE_BACKGROUND))
-        self.__reading_background.setWordWrap(True)
-        self.__reading_background.setStyleSheet('color: %s; padding-bottom: 6px;' % Style.CONST_INK)
-        self.__reading_background.hide()
-        col.addWidget(self.__reading_background)
-
-        # The count sentence is the heading over the object list — the largest text in the panel.
+        # The background paragraph: the shared header (the background sentence and the object
+        # count) as ONE label in ONE style — the object-label size, regular weight, plain text so
+        # no markup can embolden a part of it. The card title above is the panel's heading.
         self.__reading_lead = QLabel()
-        self.__reading_lead.setFont(Font(Style.CONST_TYPE_SCENE_HEADING, QFont.DemiBold, tracking=-1.5))
+        self.__reading_lead.setFont(Font(Style.CONST_TYPE_SCENE_BACKGROUND))
+        self.__reading_lead.setTextFormat(Qt.PlainText)
         self.__reading_lead.setWordWrap(True)
         self.__reading_lead.setStyleSheet('color: %s; padding-bottom: 14px;' % Style.CONST_INK)
         self.__reading_lead.hide()
@@ -670,7 +662,6 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__stage_badge.Set_State('Error', 'warn')
         self.__reading_empty.setText(message)
         self.__reading_empty.show()
-        self.__reading_background.hide()
         self.__reading_lead.hide()
         self.__reading_note.hide()
         self.__object_list.Set_Objects([])
@@ -1152,14 +1143,11 @@ class AnyScan_Window_Cls(QMainWindow):
 
         self.__showing_error = False
         self.__reading_empty.hide()
-        # The background sentence and the count heading are the two halves of the shared
-        # Screen-Understanding header — the SAME words the descriptions file carries on one
-        # line, so the view and the file cannot drift — split into two lines of different
-        # size: the background as context above, the count as the heading over the list. The
-        # per-object lines below come from the same shared formatter (via Object_List_Cls).
-        self.__reading_background.setText(Scene_Background_Line(result.Background))
-        self.__reading_background.show()
-        self.__reading_lead.setText(Scene_Count_Line(result.Objects))
+        # The lead is the shared Screen-Understanding header — the background stated once
+        # with the object count — the SAME first line the descriptions file carries, as one
+        # string in one label, so the view and the file cannot drift and the pair cannot be
+        # split. The per-object lines below come from the same shared formatter.
+        self.__reading_lead.setText(Screen_Header(result.Objects, result.Background))
         self.__reading_lead.show()
         self.__object_list.Set_Objects(result.Objects)
         self.__reading_note.setText(result.Note)
@@ -1330,7 +1318,6 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__showing_error = False
         self.__reading_empty.setText(self.__Prompt_Text())
         self.__reading_empty.show()
-        self.__reading_background.hide()
         self.__reading_lead.hide()
         self.__reading_note.hide()
         self.__object_list.Set_Objects([])
