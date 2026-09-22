@@ -143,7 +143,7 @@ def test_pipeline_real_florence_smoke(request, reference_background, make_synthe
     image_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     h, w = image_rgb.shape[:2]
 
-    result = Florence_Vision_Cls().Analyze(image_rgb)
+    result = Florence_Vision_Cls(scale=None).Analyze(image_rgb)
 
     assert isinstance(result, Analysis_Str)
     assert len(result.Objects) == len(CONST_RECTS)
@@ -187,7 +187,7 @@ def test_shadow_rejected_on_real_capture(request, monkeypatch, reference_backgro
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # count/mask only, no VLM
 
     scene_bgr = cv2.imread(frame_path)
-    result = Florence_Vision_Cls().Analyze(cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB))
+    result = Florence_Vision_Cls(scale=None).Analyze(cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB))
 
     assert len(result.Objects) == 1
     det = result.Objects[0]
@@ -246,3 +246,47 @@ def test_synthetic_harsh_shadow_not_absorbed_xfail(monkeypatch) -> None:
     # shadow band. Currently one object extends to ~y=641, so this fails (xfail).
     bottom = max((y + bh for (x, y, bw, bh) in (o.Bbox for o in objects)), default=0)
     assert bottom <= 545
+
+
+@pytest.mark.slow
+def test_symmetric_parts_measure_as_diameters_on_real_captures(request, monkeypatch,
+                                                                reference_background_path) -> None:
+    """
+    Description:
+        The symmetric decision on real captures, through the application's own pipeline and the
+        shipped scale: in Image_001 the round washers and nuts (objects 1, 3, 7, 8) are measured
+        as diameters with no angle, and the elongated parts — the blue shape, the red block, the
+        terminal strip, the screw and the lattice bracket (2, 4, 5, 6, 9) — as A x B with an angle.
+        The square plate in Image_006 is NOT reported as a diameter (it is un-elongated, but its
+        extent marks it square). Slow because it runs FastSAM; skips when the weights are absent.
+    """
+
+    if not os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS):
+        _Warn_Weights_Absent(request)
+        return
+    import cv2
+    from Camera.Utilities.Configuration import Read_Conversion_Factor, CONST_BASLER_CONFIG_FILE
+    monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # masks only, no VLM
+    backend = Florence_Vision_Cls(scale=Read_Conversion_Factor(CONST_BASLER_CONFIG_FILE))
+    folder = os.path.dirname(reference_background_path)
+
+    def _Analyze(name):
+        frame = cv2.imread(os.path.join(folder, name))
+        if frame is None:
+            pytest.skip('%s not present in %s' % (name, folder))
+        return backend.Analyze(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).Objects
+
+    objects = _Analyze('Image_001.png')
+    assert len(objects) == 9
+    symmetric = [i + 1 for i, det in enumerate(objects) if det.Measurement.Symmetric]
+    assert symmetric == [1, 3, 7, 8]
+    for det in objects:
+        m = det.Measurement
+        if m.Symmetric:
+            assert m.Diameter_Mm is not None and m.Angle_Deg is None
+        else:
+            assert m.Width_Mm >= m.Height_Mm and m.Angle_Deg is not None
+
+    square = _Analyze('Image_006.png')[0].Measurement
+    assert not square.Symmetric and square.Angle_Deg is not None and square.Angle_Deg < 90.0

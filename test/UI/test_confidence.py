@@ -148,7 +148,7 @@ def test_run_mean_log_crossings_with_hysteresis(qt_app, reference_background_pat
     """
 
     logger = _Spy_Logger_Cls()
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path), logger=logger)
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path), logger=logger)
     cross = _Private(window, '__Log_Confidence_Crossing')
 
     cross(85)                       # stays OK — no log

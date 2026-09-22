@@ -23,6 +23,8 @@
 # File Name: ../Vision/Utilities/Annotate.py
 ## =========================================================================== ##
 
+# System (Default)
+import math
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
@@ -58,6 +60,17 @@ CONST_ANNOTATE_REF_DIM = 1000
 # so a box tuned for a preview is not a hairline on a 1920x1200 export.
 #   Unit [int]
 CONST_ANNOTATE_BOX_W = 2          # bounding-box stroke
+
+# The Camera View draws a measured, non-symmetric object TWICE, in its one verdict colour: the
+# rotated rectangle (the measurement) SOLID at the full box weight, and the axis-aligned box (now
+# only the reference frame that carries the number chip) as a THIN DASHED line — so the two read
+# as 'measurement' and 'reference', not as one confused shape. Symmetric and unmeasured objects
+# keep the single solid axis-aligned box. Dash, gap and the dashed weight are at the reference
+# dimension and scale with the frame like every other weight.
+#   Unit [int/float]
+CONST_ANNOTATE_DASH = 10
+CONST_ANNOTATE_DASH_GAP = 7
+CONST_ANNOTATE_DASHED_W_FRACTION = 0.5
 
 # The index chip's numeral. Its font scales only gently with resolution and is capped
 # (CONST_ANNOTATE_CHIP_FONT_MIN/MAX), so the chip stays a small tab — legible at 100%
@@ -220,12 +233,44 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
 
     scale = __Scale(scene_bgr.shape)
     annotated = scene_bgr.copy()
-    __Draw_Boxes(annotated, objects, scale, cv2, verdict_colored, Detection_Color()[0])
+    __Draw_Boxes(annotated, objects, scale, cv2, verdict_colored, Detection_Color()[0],
+                 draw_rotated=True)
     return annotated
 
 
+def __Draw_Dashed_Line(image: tp.Any, start: tp.Tuple[float, float], end: tp.Tuple[float, float],
+                       color_bgr: tp.Tuple[int, int, int], thickness: int, dash: float, gap: float,
+                       cv2: tp.Any) -> None:
+    """
+    Description:
+        A dashed straight line (OpenCV has none): dashes of `dash` px separated by `gap` px, the
+        last dash clipped to the end point.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
+        (2 - 3) start, end [Vector<float> 1x2]: The end points (x, y) in pixels.
+        (4) color_bgr [Vector<int> 1x3]: The line colour (B, G, R).
+        (5) thickness [int]: The line weight in pixels.
+        (6 - 7) dash, gap [float]: The dash and gap lengths in pixels.
+        (8) cv2 [module]: The OpenCV module, injected by the caller.
+    """
+
+    length = math.hypot(end[0] - start[0], end[1] - start[1])
+    if length <= 0.0:
+        return
+    ux, uy = (end[0] - start[0]) / length, (end[1] - start[1]) / length
+    position = 0.0
+    while position < length:
+        stop = min(position + dash, length)
+        cv2.line(image, (int(round(start[0] + ux * position)), int(round(start[1] + uy * position))),
+                 (int(round(start[0] + ux * stop)), int(round(start[1] + uy * stop))),
+                 color_bgr, thickness, cv2.LINE_AA)
+        position = stop + gap
+
+
 def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
-                 cv2: tp.Any, verdict_colored: bool, neutral_hex: str) -> None:
+                 cv2: tp.Any, verdict_colored: bool, neutral_hex: str,
+                 draw_rotated: bool = False) -> None:
     """
     Description:
         Draw each object's bounding box and index chip on the image given — the same boxes and
@@ -241,14 +286,32 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
         (4) cv2 [module]: The OpenCV module, injected by the caller.
         (5) verdict_colored [bool]: True to colour by verdict, False for the neutral colour.
         (6) neutral_hex [string]: The neutral outline for this image (frame box or mask outline).
+        (7) draw_rotated [bool]: Also draw each measured, non-symmetric object's rotated rectangle
+                                 (solid), demoting its axis-aligned box to a thin dashed line. The
+                                 Camera View's annotated frame does; the label mask does not.
     """
 
     box_w = max(1, int(round(CONST_ANNOTATE_BOX_W * scale)))
+    dashed_w = max(1, int(round(box_w * CONST_ANNOTATE_DASHED_W_FRACTION)))
+    dash, gap = CONST_ANNOTATE_DASH * scale, CONST_ANNOTATE_DASH_GAP * scale
     neutral_bgr = Hex_To_Bgr(neutral_hex)
     for i, det in enumerate(objects):
         x, y, w, h = det.Bbox
         color_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[0]) if verdict_colored else neutral_bgr
-        cv2.rectangle(image, (x, y), (x + w, y + h), color_bgr, box_w)
+        measurement = det.Measurement
+        if draw_rotated and measurement is not None and not measurement.Symmetric \
+                and measurement.Box_Points:
+            corners = measurement.Box_Points
+            for k in range(4):
+                __Draw_Dashed_Line(image, ((x, y), (x + w, y), (x + w, y + h), (x, y + h))[k],
+                                   ((x + w, y), (x + w, y + h), (x, y + h), (x, y))[k],
+                                   color_bgr, dashed_w, dash, gap, cv2)
+            for k in range(4):
+                (x0, y0), (x1, y1) = corners[k], corners[(k + 1) % 4]
+                cv2.line(image, (int(round(x0)), int(round(y0))), (int(round(x1)), int(round(y1))),
+                         color_bgr, box_w, cv2.LINE_AA)
+        else:
+            cv2.rectangle(image, (x, y), (x + w, y + h), color_bgr, box_w)
         __Draw_Index_Chip(image, det.Bbox, i, color_bgr, scale, cv2)
 
 

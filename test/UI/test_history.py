@@ -82,7 +82,7 @@ def _Write_Full(writer, session_id, set_id, classification=False, run_id=''):
     mask = np.zeros((40, 60, 3), np.uint8)
     objects = _Objects()
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
-                                  'caption', 1180, 91, '', classification, run_id)
+                                  'caption', 1180, 91, '', classification, run_id, scale=None)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                  ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np)
 
@@ -337,7 +337,7 @@ def test_missing_score_note_explains_unscored_objects(qt_app, tmp_path) -> None:
                              Verdict='OK', Cue='background')
     raw = np.full((40, 60, 3), 30, np.uint8)
     md = Build_Set_Metadata('sessionA', 'set1', '2026-09-20T10:00:00', [scored, unscored],
-                            (60, 40), 'caption', 1000, 90)
+                            (60, 40), 'caption', 1000, 90, scale=None)
     writer.Write('sessionA', 'set1', raw, raw, np.zeros((40, 60, 3), np.uint8), 'text',
                  ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np)
 
@@ -536,7 +536,7 @@ def test_info_text_matches_the_shared_formatter(qt_app, tmp_path) -> None:
     writer = Capture_Writer_Cls(str(tmp_path))
     objects = _Objects()
     md = Build_Set_Metadata('sessionA', 'set1', '2026-09-20T10:00:00', objects, (60, 40),
-                            'caption', 1180, 91, 'A green background.')
+                            'caption', 1180, 91, 'A green background.', scale=None)
     raw = np.full((40, 60, 3), 30, np.uint8)
     writer.Write('sessionA', 'set1', raw, raw, np.zeros((40, 60, 3), np.uint8), 'text',
                  ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np)

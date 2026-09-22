@@ -56,6 +56,8 @@ from UI.Core import AnyScan_Window_Cls
 from Camera.Core import File_Camera_Cls
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
+#   ../Vision/Utilities/Measure
+from Vision.Utilities.Measure import Measure_Objects
 #   ../Vision/Utilities/Provenance
 import Vision.Utilities.Provenance as Provenance
 #   ../Parameters/Vision
@@ -63,7 +65,8 @@ from Parameters.Vision import Detection_Str, Analysis_Str
 # Custom Lib.: AnyScan — the configuration layer the application reads the classification flag
 # through, so the stamped renders and the window grab are in the same mode as the app
 #   ../Camera/Utilities/Configuration
-from Camera.Utilities.Configuration import Read_Classification_Enabled, CONST_BASLER_CONFIG_FILE
+from Camera.Utilities.Configuration import (Read_Classification_Enabled, Read_Conversion_Factor,
+                                            CONST_BASLER_CONFIG_FILE)
 
 """
 Description:
@@ -171,7 +174,8 @@ def _Scene_Objects() -> tp.List[Detection_Str]:
     ]
 
 
-def _Render(output_dir: str, stamp: str, classification_enabled: bool) -> None:
+def _Render(output_dir: str, stamp: str, classification_enabled: bool,
+            scale: tp.Optional[tp.Any]) -> None:
     """
     Description:
         Render and stamp the three review images — the annotated frame, the label mask
@@ -183,6 +187,8 @@ def _Render(output_dir: str, stamp: str, classification_enabled: bool) -> None:
         (3) classification_enabled [bool]: General.Classification.Enabled, read by the caller
                                            through the application's configuration layer; the
                                            window AND the two stamped renders use this one value.
+        (4) scale [Scale_Str(object) or None]: The configured image scale; the synthetic demo
+                                               objects are measured with it, as the backend would.
     """
 
     app = QApplication.instance() or QApplication([])
@@ -192,7 +198,7 @@ def _Render(output_dir: str, stamp: str, classification_enabled: bool) -> None:
     # ONE flag for the window AND the two stamped renders — previously the window used the default
     # (off) while the renders defaulted to verdict colours, two modes in one run.
     window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference),
-                                classification_enabled=classification_enabled)
+                                classification_enabled=classification_enabled, scale=scale)
     window.resize(1500, 950)
 
     mangle = '_AnyScan_Window_Cls'
@@ -211,6 +217,8 @@ def _Render(output_dir: str, stamp: str, classification_enabled: bool) -> None:
 
     frame = getattr(window, mangle + '__frame')
     objects = _Scene_Objects()
+    # The synthetic objects bypass the backend, so measure them here exactly as it would.
+    Measure_Objects(objects, scale, cv2, np)
     scene_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
     result = Analysis_Str(Objects=objects, Latency_Ms=1180, Verdict='5 found',
                           Verdict_Level='ok', Task='caption',
@@ -249,11 +257,12 @@ def main() -> int:
     # stamp names the mode, so every image states which rendering it is and a render in the
     # wrong mode is visible on sight.
     classification_enabled = Read_Classification_Enabled(args.config)
+    scale = Read_Conversion_Factor(args.config)
     mode = 'classification %s' % ('on' if classification_enabled else 'off')
     os.makedirs(args.output_dir, exist_ok=True)
     run_stamp = datetime.datetime.now().isoformat(timespec='seconds')
     stamp = 'scene %s | %s | %s (%s)' % (args.scene, run_stamp, mode, os.path.basename(args.config))
-    _Render(args.output_dir, stamp, classification_enabled)
+    _Render(args.output_dir, stamp, classification_enabled, scale)
     print('[INFO] Stamped review renders written to: %s' % os.path.abspath(args.output_dir))
     print('[INFO] Stamp: %s' % stamp)
     return 0

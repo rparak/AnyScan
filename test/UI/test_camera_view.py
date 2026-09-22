@@ -83,7 +83,7 @@ def _Private(window, name: str):
 
 def _Scanned_Window(reference_background_path):
     """A window with the camera connected, a frame scanned, and a counting backend."""
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
     setattr(window, CONST_MANGLE + '__vision', _Counting_Vision_Cls())
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()

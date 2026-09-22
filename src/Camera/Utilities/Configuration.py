@@ -36,6 +36,8 @@ import typing as tp
 from Parameters.Camera import Camera_Configuration_Str, Camera_Calibration_Parameters_Str
 #   ../Parameters/General — the single default for the classification flag
 from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
+#   ../Parameters/Vision
+from Parameters.Vision import Scale_Str
 
 """
 Description:
@@ -126,6 +128,35 @@ def Read_Classification_Enabled(file_path: str) -> bool:
         return bool(value) if isinstance(value, bool) else CONST_CLASSIFICATION_ENABLED_DEFAULT
     except (OSError, yaml.YAMLError, AttributeError):
         return CONST_CLASSIFICATION_ENABLED_DEFAULT
+
+
+def Read_Conversion_Factor(file_path: str) -> tp.Optional[Scale_Str]:
+    """
+    Description:
+        Read the image scale from 'Camera.Calibration.Conversion_Factor' — MILLIMETRES PER PIXEL
+        along x and y (the calibration computes square_size_mm / corner spacing in px, and the
+        file labels it [mm/px]). It is read through this ONE configuration layer, once, and passed
+        to whatever measures. It never raises, and it has NO default: a missing file, a missing
+        block, or an axis that is not a positive finite number yields None, and the caller measures
+        nothing (and warns) rather than computing a size from an invented scale.
+
+    Args:
+        (1) file_path [string]: The absolute path to the *.yaml configuration file.
+
+    Returns:
+        (1) parameter [Scale_Str(object) or None]: The scale, or None when it is absent or invalid.
+    """
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        factor = (data or {}).get('Camera', {}).get('Calibration', {}).get('Conversion_Factor')
+        x, y = float(factor['x']), float(factor['y'])
+    except (OSError, yaml.YAMLError, AttributeError, KeyError, TypeError, ValueError):
+        return None
+    if not all(np.isfinite(v) and v > 0.0 for v in (x, y)):
+        return None
+    return Scale_Str(Mm_Per_Px_X=x, Mm_Per_Px_Y=y)
 
 
 def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Parameters_Str,

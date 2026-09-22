@@ -28,6 +28,69 @@ import typing as tp
 # Dataclasses (Data Classes)
 from dataclasses import dataclass, field
 
+# The units of Scale_Str — millimetres PER PIXEL. The calibration derives the factor as
+# square_size_mm / mean corner spacing in px (Calibration.Core.__Get_Pixel_To_MM_Factor), so a
+# length in pixels TIMES the factor is millimetres. Written beside every stored measurement so a
+# number can always be traced to the scale and direction that produced it.
+#   Unit [string]
+CONST_SCALE_UNITS = 'mm/px'
+
+
+@dataclass
+class Scale_Str(object):
+    """
+    Description:
+        The image scale from the configuration's Calibration.Conversion_Factor: millimetres per
+        pixel along the image x and y axes (mm = px * factor, per axis). Read once, through the
+        configuration layer, and passed to whatever measures; there is no default — a
+        configuration without a factor yields None, and nothing is measured.
+    """
+
+    # Millimetres per pixel along the image x (column) and y (row) axes.
+    #   Unit [float] (mm/px)
+    Mm_Per_Px_X: float = 0.0
+    Mm_Per_Px_Y: float = 0.0
+
+
+@dataclass
+class Measurement_Str(object):
+    """
+    Description:
+        One object's physical measurement from the minimum-area rotated rectangle of its mask.
+        An ELONGATED (or square-like) object has a width (the long side), a height (the short
+        side) and a rotation angle; a rotationally SYMMETRIC one (round, not elongated) has a
+        diameter and no angle, because its rectangle's orientation is noise.
+    """
+
+    # Whether the object is rotationally symmetric (report a diameter, no angle).
+    #   Unit [bool]
+    Symmetric: bool = False
+    # Width (long side) and height (short side) in mm — None when symmetric.
+    #   Unit [float] (mm)
+    Width_Mm: tp.Optional[float] = None
+    Height_Mm: tp.Optional[float] = None
+    # Diameter in mm — only when symmetric.
+    #   Unit [float] (mm)
+    Diameter_Mm: tp.Optional[float] = None
+    # The long side's angle from the image +x axis, counter-clockwise AS SEEN ON SCREEN, in
+    # [0, 180) — or [0, 90) for a square-like object, whose two sides are interchangeable. None
+    # when symmetric.
+    #   Unit [float] (degrees)
+    Angle_Deg: tp.Optional[float] = None
+    # The mask's elongation (square root of the second-moment eigenvalue ratio, >= 1) and extent
+    # (contour area / rotated-rectangle area) — the two numbers the symmetric decision rests on.
+    #   Unit [float]
+    Elongation: float = 1.0
+    Extent: float = 1.0
+    # The decimal places the sizes are meaningful to, from the scale (one pixel's size).
+    #   Unit [int]
+    Decimals: int = 1
+    # The rotated rectangle's four corners in pixels, for drawing (not stored in the capture set).
+    #   Unit [Vector<Tuple<float> 1x2>]
+    Box_Points: tp.List[tp.Tuple[float, float]] = field(default_factory=list, repr=False,
+                                                          compare=False)
+
+
 @dataclass
 class Detection_Str(object):
     """
@@ -106,6 +169,10 @@ class Detection_Str(object):
     # and two detections are equal on their described fields, not on pixels.
     #   Unit [Matrix<uint8> hxwx3]
     Enhanced_Crop: tp.Optional[tp.Any] = field(default=None, repr=False, compare=False)
+    # The physical measurement from the mask's rotated rectangle, or None when the object has no
+    # mask or no scale was configured (never a size computed from a default).
+    #   Unit [Measurement_Str(object)]
+    Measurement: tp.Optional[Measurement_Str] = None
 
 @dataclass
 class Analysis_Str(object):

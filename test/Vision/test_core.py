@@ -100,7 +100,7 @@ def test_analyze_end_to_end(reference_background, make_synthetic_frame) -> None:
     frame_bgr = make_synthetic_frame(reference_background, rects)
     image_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
-    result = Florence_Vision_Cls().Analyze(image_rgb)
+    result = Florence_Vision_Cls(scale=None).Analyze(image_rgb)
 
     assert isinstance(result, Analysis_Str)
     assert len(result.Objects) == 2

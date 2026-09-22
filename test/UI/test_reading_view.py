@@ -77,7 +77,7 @@ def _Object(sentence: str, score=None) -> Detection_Str:
 
 def _Window_With(reference_background_path, result: Analysis_Str) -> AnyScan_Window_Cls:
     """A window that has scanned a frame and rendered the given result."""
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()
     _Private(window, '__On_Scan_Button_Clicked')()

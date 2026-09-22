@@ -32,7 +32,7 @@ import typing as tp
 from dataclasses import dataclass, field
 # Custom Lib.: AnyScan domain — the detection structure the metadata is built from
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str
+from Parameters.Vision import Detection_Str, Scale_Str, Measurement_Str, CONST_SCALE_UNITS
 
 """
 Description:
@@ -139,6 +139,8 @@ class Capture_Object_Str:
     Verdict: str = 'OK'
     # The composed description sentence (the shared formatter's output for this object).
     Description: str = ''
+    # The stored measurement (sizes in mm, angle), or None when the object was not measured.
+    Measurement: tp.Optional[Measurement_Str] = None
 
 
 @dataclass
@@ -170,6 +172,8 @@ class Capture_Set_Str:
     Frame_Mean_Confidence: tp.Optional[int] = None
     # The one global background sentence (for the Scene-Understanding lead), empty when absent.
     Background: str = ''
+    # The scale (mm/px) the set's measurements were computed with, or None when it had none.
+    Scale: tp.Optional[Scale_Str] = None
     # Whether classification was enabled when this set was written — so History renders the
     # verdict UI (filter, outline colour) per set, not by the current config. False when absent.
     Classification: bool = False
@@ -225,11 +229,80 @@ def Set_Id_From_Name(name: str) -> tp.Optional[str]:
     return None
 
 
+def Measurement_Record(measurement: tp.Optional[Measurement_Str]) -> tp.Optional[tp.Dict[str, tp.Any]]:
+    """
+    Description:
+        One object's measurement as its '_objects.json' record: sizes in millimetres at the
+        scale's precision, the angle in degrees (screen counter-clockwise from +x; null when
+        symmetric), the symmetric flag and the two numbers it rests on, and the decimals. None when
+        the object was not measured.
+
+    Args:
+        (1) measurement [Measurement_Str(object) or None]: The measurement.
+
+    Returns:
+        (1) parameter [Dict or None]: The JSON-ready record, or None.
+    """
+
+    if measurement is None:
+        return None
+    return {'symmetric': measurement.Symmetric, 'width_mm': measurement.Width_Mm,
+            'height_mm': measurement.Height_Mm, 'diameter_mm': measurement.Diameter_Mm,
+            'angle_deg': measurement.Angle_Deg, 'elongation': measurement.Elongation,
+            'extent': measurement.Extent, 'decimals': measurement.Decimals}
+
+
+def __Record_Number(record: tp.Dict[str, tp.Any], key: str) -> tp.Optional[float]:
+    """
+    Description:
+        A numeric field of a stored record, or None when it is missing or not a number (a bool
+        is not accepted as a number).
+
+    Args:
+        (1) record [Dict]: The record.
+        (2) key [string]: The field name.
+
+    Returns:
+        (1) parameter [float or None]: The value, or None.
+    """
+
+    value = record.get(key)
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def __Read_Measurement(record: tp.Any) -> tp.Optional[Measurement_Str]:
+    """
+    Description:
+        A stored measurement record read back defensively; anything missing or malformed reads as
+        not measured (None), never as a made-up size.
+
+    Args:
+        (1) record [Dict or None]: The 'measurement' record.
+
+    Returns:
+        (1) parameter [Measurement_Str(object) or None]: The measurement, or None.
+    """
+
+    if not isinstance(record, dict):
+        return None
+    measurement = Measurement_Str(Symmetric=bool(record.get('symmetric', False)),
+                                  Width_Mm=__Record_Number(record, 'width_mm'),
+                                  Height_Mm=__Record_Number(record, 'height_mm'),
+                                  Diameter_Mm=__Record_Number(record, 'diameter_mm'),
+                                  Angle_Deg=__Record_Number(record, 'angle_deg'),
+                                  Elongation=__Record_Number(record, 'elongation') or 1.0,
+                                  Extent=__Record_Number(record, 'extent') or 1.0,
+                                  Decimals=int(record.get('decimals', 1)))
+    complete = (measurement.Diameter_Mm is not None if measurement.Symmetric
+                else measurement.Width_Mm is not None and measurement.Height_Mm is not None)
+    return measurement if complete else None
+
+
 def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                        objects: tp.List[Detection_Str], size: tp.Tuple[int, int], task: str,
                        inference_ms: int, frame_mean_confidence: tp.Optional[int],
                        background: str = '', classification: bool = False,
-                       run_id: str = '') -> tp.Dict[str, tp.Any]:
+                       run_id: str = '', *, scale: tp.Optional[Scale_Str]) -> tp.Dict[str, tp.Any]:
     """
     Description:
         Build the machine-readable metadata for one set from the SAME detection list that
@@ -260,6 +333,12 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                               sets of the current run by matching it, so earlier runs' sets stay on
                               disk (retention still manages them) but are not shown. Distinct from
                               session_id, which is one camera connection.
+        (12) scale [Scale_Str(object) or None]: REQUIRED, keyword-only: the scale the objects'
+                                                measurements were computed with, recorded ONCE at
+                                                set level with its units ('conversion_factor'), so a
+                                                stored size can always be traced back to the scale
+                                                that produced it; None (no factor) is recorded as
+                                                null and no object carries a measurement.
 
     Returns:
         (1) parameter [Dict]: The metadata, ready to serialise as '_objects.json'.
@@ -271,11 +350,16 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                       if det.Segmenter_Score is not None else None)
         records.append({'index': index, 'bbox': [int(v) for v in det.Bbox],
                         'confidence': confidence, 'cue': det.Cue, 'verdict': det.Verdict,
-                        'description': det.Sentence})
+                        'description': det.Sentence,
+                        'measurement': Measurement_Record(det.Measurement)})
     return {'session_id': session_id, 'run_id': run_id, 'set_id': set_id, 'timestamp': timestamp,
             'frame_width': int(size[0]), 'frame_height': int(size[1]), 'task': task,
             'inference_ms': int(inference_ms), 'frame_mean_confidence': frame_mean_confidence,
-            'background': background, 'classification': bool(classification), 'objects': records}
+            'background': background, 'classification': bool(classification),
+            'conversion_factor': (None if scale is None else
+                                  {'x': scale.Mm_Per_Px_X, 'y': scale.Mm_Per_Px_Y,
+                                   'units': CONST_SCALE_UNITS}),
+            'objects': records}
 
 
 def __Existing_Path(session_dir: str, set_id: str, suffix: str) -> tp.Optional[str]:
@@ -405,8 +489,12 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
             Confidence=(int(record['confidence']) if record.get('confidence') is not None
                         else None),
             Cue=str(record.get('cue', '')), Verdict=str(record.get('verdict', 'OK')),
-            Description=str(record.get('description', '')))
+            Description=str(record.get('description', '')),
+            Measurement=__Read_Measurement(record.get('measurement')))
             for i, record in enumerate(data.get('objects', []))]
+        factor = data.get('conversion_factor')
+        if isinstance(factor, dict) and factor.get('units') == CONST_SCALE_UNITS:
+            cap.Scale = Scale_Str(Mm_Per_Px_X=float(factor['x']), Mm_Per_Px_Y=float(factor['y']))
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
         # A malformed or unreadable metadata file: show the set as partial rather than crash.
         cap.Partial = True

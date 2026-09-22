@@ -118,7 +118,7 @@ def test_field_names_are_pascal_snake_case() -> None:
     # preserved so positional construction and the operator-visible contract hold.
     assert detection_field_order == ['Label', 'Bbox', 'Confidence', 'Text', 'Detail',
                                      'Sentence', 'Mask', 'Change_Coverage', 'Segmenter_Score',
-                                     'Cue', 'Verdict', 'Enhanced_Crop']
+                                     'Cue', 'Verdict', 'Enhanced_Crop', 'Measurement']
     assert analysis_fields == {'Objects', 'Note', 'Latency_Ms',
                                'Verdict', 'Verdict_Level', 'Task', 'Raw_Mask_Count',
                                'Background', 'Audit'}

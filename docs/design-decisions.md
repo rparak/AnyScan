@@ -459,3 +459,48 @@ entry in `logger/log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv`.
 Tests `test/Logger/test_core.py::test_reference_run_row_values`,
 `::test_details_round_trip_with_commas_and_quotes`.
 
+## Object measurement: mm per pixel, our own angle convention, and a symmetric case with a square exception
+
+Each masked object is measured from the minimum-area rotated rectangle of its mask
+(`Vision.Utilities.Measure`), converted through `Camera.Calibration.Conversion_Factor`.
+
+- **The factor is millimetres per pixel.** The YAML labels it `[mm/px]`, and the calibration
+  derives it as `square_size_mm / mean corner spacing in px`
+  (`Calibration.Core.__Get_Pixel_To_MM_Factor`) — so `mm = px × factor`, per axis. Two physical
+  cross-checks agree: 1920 px × 0.098 ≈ 188 mm field width, and K's focal length 3886 px × 0.098
+  mm/px ≈ 381 mm working distance. Nothing applied the factor before this; it is read once through
+  `Read_Conversion_Factor`, passed as a `Scale_Str` (required, keyword-only, like the classification
+  flag) to the vision backend, and recorded with its units at capture-set level. **No factor means
+  no measurement**, with a WARNING on the configuration-loaded line — never a size from a default.
+- **Per-axis conversion, pixel-centre correction.** Each side's pixel vector is converted with its
+  own axis factor before its length is taken. Contour points sit on pixel centres, so a filled
+  200 px block spans 199 px between its boundary pixels; one pixel is added to each side, or every
+  size would read ~0.1 mm short.
+- **The angle convention is ours, not OpenCV's:** the long side's direction from the image +x axis,
+  counter-clockwise *as seen on screen*, in [0°, 180°) — computed from the rectangle's corners, not
+  from `minAreaRect`'s angle, whose convention changed between OpenCV versions. A test pins
+  +30° → 30, −30° → 150, 181° → 1.
+- **Precision from the scale.** Sizes are shown to one pixel's size: `floor(−log10(mm/px))`
+  decimals — 0.098 mm/px → 0.1 mm. That is already the most the mask edge supports.
+- **Rotationally symmetric parts report a diameter and no angle.** `minAreaRect` assigns a round
+  part an orientation that changes on noise, so a drawn rectangle would appear to spin on a part
+  that has not moved. The test is elongation — the square root of the mask's second-moment
+  eigenvalue ratio — below **1.15**: the seven `Data/Camera` frames put round parts at 1.008–1.031
+  and the least elongated real part at 1.498 (the plates in 002–005). **A square is the exception:**
+  it is as un-elongated as a disc (1.02, the plate in 006/007) but its sides are real edges that
+  `minAreaRect` finds reliably, so un-elongated parts are only called symmetric when also round —
+  extent (contour area / rectangle area) below **0.92** (round parts 0.81–0.85, the square 0.98–0.99).
+  A square keeps A × B and an angle folded to [0°, 90°), since its sides are interchangeable. The
+  diameter is the mean of the rectangle's sides (for a hex nut, between across-flats and
+  across-corners).
+- **Camera View drawing.** A measured, elongated object is drawn twice in its one verdict colour:
+  the rotated rectangle **solid** at the full box weight (the measurement) and the axis-aligned box
+  as a **thin dashed** line (now only the reference that carries the number chip) — solid versus
+  dashed reads as "measurement" versus "reference" where two weights alone could read as one
+  confused shape. Symmetric and unmeasured objects keep the single solid axis box; the label mask
+  is unchanged.
+
+**Revisit if** a part family needs orientation modulo 60° (hex) or needs across-flats rather than a
+mean diameter; and see KNOWN_ISSUES for the absolute accuracy, which is unverified.
+Tests `test/Vision/Utilities/test_measure.py`, `test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
+

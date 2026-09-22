@@ -65,7 +65,7 @@ def _Write_Set(writer, session_id, set_id, objects, task='caption', latency=1180
     mask = np.zeros((40, 60, 3), np.uint8)
     size = (60, 40)
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, size,
-                                  task, latency, mean, '', classification)
+                                  task, latency, mean, '', classification, scale=None)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                  ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np)
 

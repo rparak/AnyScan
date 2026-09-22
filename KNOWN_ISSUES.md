@@ -302,3 +302,25 @@ no object has a score.
 - **Pinned by:** `test/UI/test_status_metrics.py::test_confidence_is_the_mean_over_scored_objects_with_coverage`,
   `::test_confidence_denominator_is_the_scored_count_not_the_total` and
   `::test_confidence_is_no_value_when_no_object_has_a_score`.
+
+## Measured sizes are precise but their absolute accuracy is unverified
+
+Object sizes are shown to 0.1 mm (one pixel at 0.098 mm/px) and are **repeatable**: the same plate
+in `Image_002`–`005`, placed differently, measures 57.7–58.5 × 37.9–39.1 mm. Their **absolute**
+accuracy has not been checked against a part of known size, and the calibration gives reasons to
+check before trusting it:
+
+- `Conversion_Factor` is derived from chessboard corners in a **single, raw (distorted)** image,
+  but it is applied to **undistorted** frames (the live camera and `Example/Camera/scan.py` both
+  undistort), so any scale difference between the two pixel spaces is a systematic error.
+- The same single-image calibration puts K's principal point at (160.7, 355.5), far from the
+  image centre (960, 600), which suggests the intrinsics are poorly constrained.
+- A mean corner spacing over the whole board averages out any perspective tilt of the board, so
+  a tilted calibration board biases the factor.
+
+- **Impact:** sizes may carry an unquantified systematic error (a scale factor); their decimals
+  reflect pixel resolution, not accuracy.
+- **The specific check:** measure a part of known size (e.g. a gauge block, or a washer of known
+  outer diameter) and compare. If it is off, recalibrate from several board poses on undistorted
+  images; do not add a correction factor.
+

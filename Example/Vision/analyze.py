@@ -57,13 +57,14 @@ import Vision.Utilities.Provenance as Provenance
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 #   ../Reporting/Core
-from Reporting.Core import Screen_Understanding
+from Reporting.Core import Screen_Understanding, Object_Size
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
 # Custom Lib.: AnyScan — the ONE configuration layer the application reads the classification
 # flag through, so the harness renders exactly the mode the app renders
 #   ../Camera/Utilities/Configuration
-from Camera.Utilities.Configuration import Read_Classification_Enabled, CONST_BASLER_CONFIG_FILE
+from Camera.Utilities.Configuration import (Read_Classification_Enabled, Read_Conversion_Factor,
+                                            CONST_BASLER_CONFIG_FILE)
 
 """
 Description:
@@ -424,7 +425,15 @@ def main() -> int:
                                          os.path.basename(args.config)))
     print('[INFO] Run stamp: %s\n' % run_stamp)
 
-    backend = Florence_Vision_Cls()
+    # The measurement scale, read ONCE the same way as the flag; without a factor nothing is
+    # measured (and the harness says so), never a size from a default.
+    scale = Read_Conversion_Factor(args.config)
+    if scale is None:
+        print('[WARNING] %s has no valid Calibration.Conversion_Factor; objects will not be '
+              'measured.' % os.path.basename(args.config))
+    else:
+        print('[INFO] Scale    : %.5f x %.5f mm/px' % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y))
+    backend = Florence_Vision_Cls(scale=scale)
     total_objects = 0
     rows = []
     for scene_path in scenes:
@@ -444,7 +453,9 @@ def main() -> int:
         if result.Background:
             print('[INFO]     background = %s' % result.Background)
         for i, det in enumerate(result.Objects, 1):
-            print('[INFO]     Obj. %d [%s] - %s' % (i, det.Cue, det.Sentence))
+            size = Object_Size(det)
+            print('[INFO]     Obj. %d [%s]%s - %s' % (i, det.Cue, ' (%s)' % size if size else '',
+                                                    det.Sentence))
         # The post-processing audit: every background strip and substance substitution,
         # so over-stripping surfaces here instead of passing silently.
         for level, message in result.Audit:

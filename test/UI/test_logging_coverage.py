@@ -104,7 +104,7 @@ def _Window(tmp_path, camera=None):
     """A window with a real logger writing to tmp_path and a working idle camera."""
     os.makedirs(str(tmp_path), exist_ok=True)
     logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), install_handlers=False)
-    window = AnyScan_Window_Cls(camera=camera or _Idle_Camera_Cls(), logger=logger)
+    window = AnyScan_Window_Cls(scale=None, camera=camera or _Idle_Camera_Cls(), logger=logger)
     return window, logger
 
 

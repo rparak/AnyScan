@@ -105,7 +105,7 @@ def test_analysis_audit_is_logged_by_level(qt_app, reference_background_path) ->
     """
 
     spy = _Spy_Logger_Cls()
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path), logger=spy)
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path), logger=spy)
     # A frame is needed to render the views; the objects are empty, which both renderers
     # handle, so the test isolates the audit logging.
     setattr(window, CONST_MANGLE + '__frame', np.zeros((20, 30, 3), dtype=np.uint8))

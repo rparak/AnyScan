@@ -77,7 +77,7 @@ def _Private(window: AnyScan_Window_Cls, name: str):
         Fetch a name-mangled private attribute or method of the window.
 
     Args:
-        (1) window [AnyScan_Window_Cls(object)]: The window.
+        (1) window [AnyScan_Window_Cls(scale=None, object)]: The window.
         (2) name [string]: The bare private name (e.g. '__viewport').
 
     Returns:
@@ -94,7 +94,7 @@ def test_window_builds(qt_app, reference_background_path) -> None:
         against a File_Camera_Cls, with the model backend present but unloaded.
     """
 
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
     window.resize(1280, 800)
 
     assert window.windowTitle().startswith('AnyScan')
@@ -111,7 +111,7 @@ def test_scan_path_displays_frame(qt_app, reference_background_path, reference_s
         the frame size. Then clear and disconnect return to the empty state.
     """
 
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
 
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()

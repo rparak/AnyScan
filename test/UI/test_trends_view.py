@@ -73,7 +73,7 @@ def _Result(scores) -> Analysis_Str:
 
 def _Window(reference_background_path) -> AnyScan_Window_Cls:
     """A window with a frame set, ready to receive completed analyses."""
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
     setattr(window, CONST_MANGLE + '__frame', np.zeros((20, 30, 3), dtype=np.uint8))
     return window
 

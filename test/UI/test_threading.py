@@ -230,7 +230,7 @@ def test_closeevent_stops_a_running_analysis_thread(qt_app, reference_background
         must never appear.
     """
 
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
     # Inject a blocking backend and a frame so an analysis genuinely starts and runs.
     setattr(window, CONST_MANGLE + '__vision', _Blocking_Vision_Cls(0.3))
     camera = _Private(window, '__camera')
@@ -287,7 +287,7 @@ def test_view_toggle_available_only_after_the_worker_delivers(qt_app, reference_
         thread — never mid-flight.
     """
 
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
     setattr(window, CONST_MANGLE + '__vision', _Blocking_Vision_Cls(0.2))
     camera = _Private(window, '__camera')
     camera.Connect()
@@ -321,7 +321,7 @@ def test_two_analyses_in_quick_succession_do_not_mix(qt_app, reference_backgroun
         is ignored (a single run is serviced), so both held renders come from one run.
     """
 
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
     vision = _Blocking_Vision_Cls(0.2)
     setattr(window, CONST_MANGLE + '__vision', vision)
     camera = _Private(window, '__camera')

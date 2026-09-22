@@ -1087,7 +1087,7 @@ class History_View_Cls(QWidget):
             score = obj.Confidence / 100.0 if obj.Confidence is not None else None
             detections.append(Detection_Str(Label='', Bbox=tuple(obj.Bbox), Segmenter_Score=score,
                                             Sentence=obj.Description, Verdict=obj.Verdict,
-                                            Cue=obj.Cue))
+                                            Cue=obj.Cue, Measurement=obj.Measurement))
         return detections
 
     def __Update_Score_Note(self, cap: tp.Any) -> None:

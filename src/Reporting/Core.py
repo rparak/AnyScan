@@ -653,15 +653,40 @@ def Object_Confidence(det: Detection_Str) -> str:
     return 'Confidence %d%%' % int(round(100.0 * det.Segmenter_Score))
 
 
+def Object_Size(det: Detection_Str) -> str:
+    """
+    Description:
+        The size suffix of an object's label, from its measurement: 'A × B mm' (long side
+        first) for an elongated or square-like object, 'Ø D mm' for a rotationally symmetric one,
+        at the decimal places the scale supports (Measurement_Str.Decimals — one pixel's size, so
+        never false precision). An empty string when the object is not measured (no mask, or no
+        scale configured): the label then simply has no size, never a placeholder number.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [string]: The size ('24.3 × 18.7 mm' / 'Ø 16.1 mm'), or ''.
+    """
+
+    measurement = det.Measurement
+    if measurement is None:
+        return ''
+    decimals = measurement.Decimals
+    if measurement.Symmetric:
+        return 'Ø %.*f mm' % (decimals, measurement.Diameter_Mm)
+    return '%.*f × %.*f mm' % (decimals, measurement.Width_Mm, decimals, measurement.Height_Mm)
+
+
 def Object_Label_Full(index: int, det: Detection_Str) -> str:
     """
     Description:
-        The whole one-line label of an object — the name and its confidence joined by the
-        one CONST_LABEL_SEPARATOR ('Object 1 · Confidence 91%'). This is the SINGLE source
-        of the label text for both the descriptions file (via Object_Line) and the panel,
-        which renders the two parts (Object_Label and Object_Confidence) in different
-        weights so the name leads. Both renderings carry the same words and the same
-        separator, so they cannot drift.
+        The whole one-line label of an object — the name, its confidence and, when measured, its
+        size, joined by the one CONST_LABEL_SEPARATOR ('Object 1 · Confidence 91% · 24.3 × 18.7
+        mm'). This is the SINGLE source of the label text for both the descriptions file (via
+        Object_Line) and the panel, which renders the parts (Object_Label, Object_Confidence,
+        Object_Size) in different weights so the name leads. Both renderings carry the same
+        words and the same separator, so they cannot drift.
 
     Args:
         (1) index [int]: The object's 0-based position in the list.
@@ -671,7 +696,11 @@ def Object_Label_Full(index: int, det: Detection_Str) -> str:
         (1) parameter [string]: The full label ('Object N · Confidence …').
     """
 
-    return '%s%s%s' % (Object_Label(index), CONST_LABEL_SEPARATOR, Object_Confidence(det))
+    parts = [Object_Label(index), Object_Confidence(det)]
+    size = Object_Size(det)
+    if size:
+        parts.append(size)
+    return CONST_LABEL_SEPARATOR.join(parts)
 
 
 def Object_Line(index: int, det: Detection_Str) -> str:

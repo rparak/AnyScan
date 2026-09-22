@@ -31,7 +31,7 @@ import hashlib
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures, composer, and vision utilities
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Analysis_Str
+from Parameters.Vision import Detection_Str, Analysis_Str, Scale_Str
 #   ../Reporting/Core
 from Reporting.Core import (Compose, Verdict, Background_Sentence,
                             CONST_EMPTY_SCENE_EXPLANATION, CONST_BACKGROUND_FALLBACK)
@@ -48,6 +48,8 @@ from Vision.Segmenter import Fast_Sam_Cls
 from Vision.Describe_Fallback import Describe_Fallback
 #   ../Vision/Utilities/Caption
 from Vision.Utilities.Caption import Describe, Condense_Label
+#   ../Vision/Utilities/Measure
+from Vision.Utilities.Measure import Measure_Objects
 
 """
 Description:
@@ -150,7 +152,7 @@ class Vision_Backend_Cls(object):
         Example:
             Initialization:
                 # Initialization of the class (a concrete subclass).
-                Cls = Florence_Vision_Cls()
+                Cls = Florence_Vision_Cls(scale=scale)
 
             Features:
                 # Functions of the class.
@@ -250,22 +252,26 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
 
     Initialization of the Class:
         Args:
-            None.
+            (1) scale [Scale_Str(object) or None]: REQUIRED, keyword-only: the configured image
+                scale (mm/px) that every object is measured with, or None when the configuration
+                has no Conversion_Factor — then nothing is measured, never a default.
 
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = Florence_Vision_Cls()
+                Cls = Florence_Vision_Cls(scale=Read_Conversion_Factor(config_path))
 
             Features:
                 # Functions of the class.
                 Cls.Analyze(image_rgb, progress_cb, stage_cb)
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, scale: tp.Optional[Scale_Str]) -> None:
         super().__init__()
 
         # << PRIVATE >> #
+        # The image scale the objects are measured with (None: measure nothing).
+        self.__scale = scale
         self.__model = None
         self.__processor = None
         self.__device = None
@@ -499,8 +505,11 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
 
         # The one global background sentence, from the reference (cached across frames).
         background_sentence, background_audit = self.__Describe_Background(bg_bgr)
-        return self.__Compose_Result(objects, size, t0, len(masks),
-                                     background_sentence, background_audit)
+        result = self.__Compose_Result(objects, size, t0, len(masks),
+                                       background_sentence, background_audit)
+        # Measure every masked object through the configured scale (none without one).
+        Measure_Objects(result.Objects, self.__scale, cv2, np)
+        return result
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            bg_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],

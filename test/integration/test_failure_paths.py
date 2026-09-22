@@ -60,7 +60,7 @@ def test_missing_model_directory_surfaces_cleanly(reference_background) -> None:
     Vision_Core.CONST_MODEL_DIR = '/no/such/model/directory'
     try:
         with pytest.raises(Vision_Error_Cls):
-            Florence_Vision_Cls().Analyze(image_rgb)
+            Florence_Vision_Cls(scale=None).Analyze(image_rgb)
     finally:
         Vision_Core.CONST_MODEL_DIR = original
 
@@ -83,4 +83,4 @@ def test_frame_size_mismatch_surfaces_cleanly(reference_background) -> None:
     wrong_size = np.zeros((h // 2, w // 2, 3), dtype=np.uint8)
 
     with pytest.raises(Vision_Error_Cls):
-        Florence_Vision_Cls().Analyze(wrong_size)
+        Florence_Vision_Cls(scale=None).Analyze(wrong_size)

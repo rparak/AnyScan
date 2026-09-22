@@ -94,7 +94,7 @@ def _Ui_Written_Mask(reference_background_path: str, log_dir: str,
     """The label mask the WINDOW writes to its capture set for one analysis (BGR, as on disk)."""
     app = QApplication.instance()
     logger = Session_Logger_Cls(config_path=None, log_dir=log_dir, install_handlers=False)
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference_background_path), logger=logger,
+    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path), logger=logger,
                                 classification_enabled=classification_enabled)
     private = lambda name: getattr(window, CONST_MANGLE + name)
     private('__On_Connect_Button_Clicked')()

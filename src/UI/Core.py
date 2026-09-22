@@ -67,7 +67,7 @@ from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines
 #   ../Reporting/Trends
 from Reporting.Trends import Trends_Accumulator_Cls
 #   ../Parameters/Vision
-from Parameters.Vision import (Analysis_Str, Detection_Str, Confidence_Severity,
+from Parameters.Vision import (Analysis_Str, Detection_Str, Confidence_Severity, Scale_Str,
                                CONST_CONFIDENCE_WARN_BELOW, CONST_CONFIDENCE_ERROR_BELOW,
                                CONST_CONFIDENCE_LOG_HYSTERESIS)
 #   ../Parameters/General — the single default for the classification flag
@@ -92,11 +92,13 @@ class AnyScan_Window_Cls(QMainWindow):
             (1) camera [Camera_Backend_Cls(object)]: An injected camera backend, or
                 None to use the real Basler_Camera_Cls (the --frame path injects a
                 File_Camera_Cls).
+            (2) scale [Scale_Str(object) or None]: REQUIRED, keyword-only: the configured image
+                scale (mm/px) objects are measured with, or None to measure nothing.
 
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = AnyScan_Window_Cls(camera=File_Camera_Cls(path))
+                Cls = AnyScan_Window_Cls(camera=File_Camera_Cls(path), scale=scale)
                 Cls.showMaximized()
 
             Features:
@@ -123,7 +125,8 @@ class AnyScan_Window_Cls(QMainWindow):
 
     def __init__(self, camera: tp.Optional[tp.Any] = None,
                  logger: tp.Optional[Session_Logger_Cls] = None,
-                 classification_enabled: bool = CONST_CLASSIFICATION_ENABLED_DEFAULT) -> None:
+                 classification_enabled: bool = CONST_CLASSIFICATION_ENABLED_DEFAULT, *,
+                 scale: tp.Optional[Scale_Str]) -> None:
         super().__init__()
         self.setWindowTitle('AnyScan  ·  %s' % Style.CONST_TAGLINE)
 
@@ -142,7 +145,11 @@ class AnyScan_Window_Cls(QMainWindow):
         # One real implementation each. `camera` is injected so the developer
         # --frame path can supply a File_Camera_Cls; production is the Basler.
         self.__camera = camera if camera is not None else Basler_Camera_Cls()
-        self.__vision = Florence_Vision_Cls()
+        # The image scale (mm/px) from the configuration, read once by the launcher: the backend
+        # measures every object with it, and each capture set records it beside its measurements.
+        # None — the configuration has no Conversion_Factor — measures nothing (the launcher warns).
+        self.__scale = scale
+        self.__vision = Florence_Vision_Cls(scale=scale)
         # The session logger is injected by the launcher; None disables logging so the
         # window still builds under test and in the screenshot harness.
         self.__logger = logger
@@ -973,7 +980,7 @@ class AnyScan_Window_Cls(QMainWindow):
         metadata = Build_Set_Metadata(self.__session_id, set_id, timestamp, result.Objects,
                                       size, result.Task, result.Latency_Ms, frame_mean,
                                       result.Background, self.__classification_enabled,
-                                      self.__run_id)
+                                      self.__run_id, scale=self.__scale)
         stamp = 'set %s | %s' % (set_id, timestamp)
         try:
             evicted, created = self.__capture_writer.Write(

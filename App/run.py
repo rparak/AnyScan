@@ -42,8 +42,9 @@ if CONST_SRC not in sys.path:
 # Custom Lib.: AnyScan — camera backends
 #   ../Camera/Core
 from Camera.Core import File_Camera_Cls, Basler_Camera_Cls
-#   ../Camera/Utilities/Configuration — the one configuration layer (classification flag)
-from Camera.Utilities.Configuration import Read_Classification_Enabled, CONST_BASLER_CONFIG_FILE
+#   ../Camera/Utilities/Configuration — the one configuration layer (classification flag, scale)
+from Camera.Utilities.Configuration import (Read_Classification_Enabled, Read_Conversion_Factor,
+                                            CONST_BASLER_CONFIG_FILE)
 # Custom Lib.: AnyScan — vision backend (for the --background override)
 #   ../Vision/Core
 import Vision.Core as Vision_Core
@@ -55,6 +56,9 @@ from UI.Core import AnyScan_Window_Cls
 # Custom Lib.: AnyScan — the session logger
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
+#   ../Vision/Utilities/Measure — the measurement precision, and the scale's units
+from Vision.Utilities.Measure import Measure_Decimals
+from Parameters.Vision import CONST_SCALE_UNITS
 
 # The Windows AppUserModelID: without it the taskbar groups the app under
 # python.exe's identity, so the title bar shows the AnyScan icon while the taskbar
@@ -116,6 +120,31 @@ def Config_Loaded_Log_Line(config_basename: str, classification_enabled: bool) -
     return "Loaded configuration '%s'. Classification is %s." % (config_basename, state)
 
 
+def Scale_Log_Line(config_basename: str, scale: tp.Optional[tp.Any]) -> tp.Tuple[str, str]:
+    """
+    Description:
+        The configuration-loaded line for the measurement scale: at INFO, the scale in mm/px and
+        the precision sizes are shown to; at WARNING, when the configuration has no valid
+        Calibration.Conversion_Factor — objects are then not measured at all, and this line says
+        why, instead of a size silently computed from a default.
+
+    Args:
+        (1) config_basename [string]: The configuration file's name.
+        (2) scale [Scale_Str(object) or None]: The scale read from it, or None.
+
+    Returns:
+        (1) parameter [Tuple<string> 1x2]: (level 'INFO' or 'WARNING', the log line).
+    """
+
+    if scale is None:
+        return ('WARNING', "Configuration '%s' has no valid Calibration.Conversion_Factor; objects "
+                           "will not be measured." % config_basename)
+    decimals = Measure_Decimals(scale)
+    return ('INFO', 'Measuring objects at %.5f x %.5f %s (sizes to %s mm).'
+            % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y, CONST_SCALE_UNITS,
+               '%.*f' % (decimals, 10.0 ** -decimals)))
+
+
 def main() -> int:
     """
     Description:
@@ -169,10 +198,16 @@ def main() -> int:
     classification_enabled = Read_Classification_Enabled(config_path)
     logger.Log_Info(Config_Loaded_Log_Line(os.path.basename(config_path), classification_enabled))
 
+    # Read the measurement scale ONCE, the same way, and pass it to the window. No factor means no
+    # measurement (logged as a warning), never a size from a default.
+    scale = Read_Conversion_Factor(config_path)
+    level, line = Scale_Log_Line(os.path.basename(config_path), scale)
+    (logger.Log_Warning if level == 'WARNING' else logger.Log_Info)(line)
+
     # A File_Camera_Cls (developer --frame) or the real Basler_Camera_Cls.
     camera = File_Camera_Cls(os.path.abspath(args.frame)) if args.frame else Basler_Camera_Cls()
     window = AnyScan_Window_Cls(camera=camera, logger=logger,
-                                classification_enabled=classification_enabled)
+                                classification_enabled=classification_enabled, scale=scale)
     window.setWindowIcon(icon)
     window.resize(1720, 1020)
     window.showMaximized()   # F11 toggles fullscreen, Esc closes

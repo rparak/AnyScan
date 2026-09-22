@@ -39,7 +39,7 @@ import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline, Load_Logo
 # Custom Lib.: AnyScan domain — the shared Scene-Understanding formatter
 #   ../Reporting/Core
-from Reporting.Core import Object_Label, Object_Confidence, CONST_LABEL_SEPARATOR
+from Reporting.Core import Object_Label, Object_Confidence, Object_Size, CONST_LABEL_SEPARATOR
 
 """
 Description:
@@ -923,6 +923,17 @@ class Object_List_Cls(QWidget):
         confidence.setFont(Font(self.__confidence_size))
         confidence.setStyleSheet('color: %s;' % Style.CONST_INK)
         row.addWidget(confidence)
+
+        # The size, when the object was measured — the same words and separator as the file's
+        # Object_Label_Full, in the confidence's secondary style so the name still leads. Plain
+        # text: a measurement carries no severity. Absent entirely when there is no measurement.
+        size = Object_Size(det)
+        if size:
+            size_label = QLabel(CONST_LABEL_SEPARATOR + size)
+            size_label.setTextFormat(Qt.PlainText)
+            size_label.setFont(Font(self.__confidence_size))
+            size_label.setStyleSheet('color: %s;' % Style.CONST_INK)
+            row.addWidget(size_label)
 
         row.addStretch(1)
         return line
