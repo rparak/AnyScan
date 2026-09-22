@@ -916,7 +916,7 @@ class Session_Logger_Cls(object):
             now = self.__clock()
             if self.__open_session is not None:
                 self.__open_session.End = now
-                self.__Write_Line(f'Camera connected while session '
+                self.__Write_Line(f'Camera connected while connection '
                                   f'{self.__open_session.Index} was still open. Closed it.',
                                   now, CONST_LEVEL_WARNING)
                 self.__open_session = None
@@ -924,7 +924,7 @@ class Session_Logger_Cls(object):
             self.__sessions.append(Session_Str_i)
             self.__open_session = Session_Str_i
             detail = f' {info}.' if info else '.'
-            self.__Write_Line(f'Camera connected{detail} Session {Session_Str_i.Index} started.', now)
+            self.__Write_Line(f'Camera connected{detail} Connection {Session_Str_i.Index} started.', now)
             return Session_Str_i.Index
 
     def Log_Camera_Disconnected(self, info: str = '') -> None:
@@ -940,7 +940,7 @@ class Session_Logger_Cls(object):
         with self.__lock:
             now = self.__clock()
             if self.__open_session is None:
-                self.__Write_Line('Camera disconnected, but no session was open.',
+                self.__Write_Line('Camera disconnected, but no connection was open.',
                                   now, CONST_LEVEL_WARNING)
                 return
             Session_Str_i = self.__open_session
@@ -948,7 +948,7 @@ class Session_Logger_Cls(object):
             self.__open_session = None
             duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
             detail = f' {info}.' if info else ''
-            self.__Write_Line(f'Camera disconnected. Session {Session_Str_i.Index} ended after '
+            self.__Write_Line(f'Camera disconnected. Connection {Session_Str_i.Index} ended after '
                               f'{duration}.{detail}', now)
 
     def Log_Camera_Connection_Lost(self, info: str = '') -> None:
@@ -971,7 +971,7 @@ class Session_Logger_Cls(object):
                 Session_Str_i.End = now
                 self.__open_session = None
                 duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
-                self.__Write_Line(f'Session {Session_Str_i.Index} ended after {duration}.', now)
+                self.__Write_Line(f'Connection {Session_Str_i.Index} ended after {duration}.', now)
 
     def Log_Scan_Started(self, scan_id: tp.Optional[int] = None) -> None:
         """
@@ -1433,7 +1433,7 @@ class Session_Logger_Cls(object):
                 Session_Str_i.Closed_At_Shutdown = True
                 self.__open_session = None
                 duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
-                self.__Write_Line(f'Session {Session_Str_i.Index} ended after {duration} '
+                self.__Write_Line(f'Connection {Session_Str_i.Index} ended after {duration} '
                                   f'(closed at shutdown).', now)
 
             # Append the run summary as one CSV row while the '.txt' handle is still

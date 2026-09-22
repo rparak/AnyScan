@@ -183,7 +183,8 @@ class AnyScan_Window_Cls(QMainWindow):
         # status figures and the charts are one source and cannot drift (the last run-mean
         # point equals the status mean by construction). Fed one successful analysis at a time; a
         # failed analysis is never added, so the image count never advances on a failure. Reset on
-        # Clear. The word 'run' means the application run here, not a camera connection.
+        # Clear, so its span is since the application started or the last Clear (the UI's 'run');
+        # History and the run-summary CSV cover the whole application run instead.
         self.__trends = Trends_Accumulator_Cls()
         # The per-analysis latencies of this run, for the rolling MEDIAN inference time in the
         # status strip — a median so a single slow frame does not swing the figure the operator
@@ -1037,7 +1038,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         if created_session is not None:
-            self.__logger.Log_Info('Created the capture directory for session %s.' % created_session)
+            self.__logger.Log_Info('Created the capture directory for connection %s.' % created_session)
 
     def __Log_Capture_Evictions(self, evicted: tp.List[str]) -> None:
         """
@@ -1181,9 +1182,10 @@ class AnyScan_Window_Cls(QMainWindow):
     def __Update_Performance_Stats(self, result: Analysis_Str) -> None:
         """
         Description:
-            Update the two status-strip aggregate cells over the whole RUN: the rolling MEDIAN
-            inference latency across the run's analyses (not per object, and a median so one slow
-            frame does not swing it), and the run MEAN detector confidence from the shared
+            Update the two status-strip aggregate cells over the UI's run — since the application
+            started or the last Clear: the rolling MEDIAN inference latency across those analyses
+            (not per object, and a median so one slow frame does not swing it), and the run MEAN
+            detector confidence from the shared
             accumulator — over every scored object in every analysis of the run. This run mean is
             deliberately distinct from the per-frame mean the panel table shows — they cover
             different scopes and will read different numbers at the same time. Objects the

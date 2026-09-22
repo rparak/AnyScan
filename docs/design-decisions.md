@@ -254,16 +254,32 @@ yet. Analyse an image to begin."), not a blank panel. See the next entry for wha
 and "run" each mean.
 Tests `test/UI/test_history.py::test_history_lists_only_the_current_run`, `::test_empty_run_shows_the_run_scoped_message`.
 
-## "Run" in the UI, "session" only for a camera connection
+## Vocabulary: "session" is a camera connection; UI figures run since start or last Clear
 
-History, the Trends charts and the status-bar aggregates all describe the same span: the
-**application run**, reset by Clear. The logger and the on-disk capture directories already used
-"session" for one **camera connection**, so the word could not also mean the run without two
-readings of one label. The UI therefore says **run** ("Inference (run median)", "Confidence (run
-mean)", the charts' "run mean" line), and where a set's camera connection is shown it is called a
-**Connection** (the History grid headers and the Info panel), never a session. "Session" survives
-only in the logger, the capture directory names and internal identifiers tied to them.
-**Revisit if** the capture directories are renamed, at which point "session" can leave the code too.
+**Session = camera connection = the UI's "Connection".** The logger's session bookkeeping, the
+capture directory names (`<timestamp>_s<N>`) and the run-summary CSV's `sessions_count`,
+`total_session_time` and `session_details` all count **camera connections**. In the UI a connection
+is called a **Connection** — the History grid headers, the Info panel, and the Log view's prose
+lines ("Camera connected. Connection 1 started.", "Connection 1 ended after …", "Created the
+capture directory for connection …"). The Log is UI and speaks the UI's words. The CSV is a file
+format: its `session*` column names are a data contract that existing rows carry, so they stay.
+
+**Three spans, named precisely** — they differ on purpose, and each is labelled for what it is:
+
+- **Status-bar aggregates and the Trends charts: since the application started or the last
+  Clear.** The UI calls this the **run** ("Inference (run median)", "Confidence (run mean)", the
+  charts' "Run mean" line); Clear resets these figures and both charts together, because they read
+  one accumulator.
+- **History: the application run**, identified by the run id in each set's `_objects.json`. Clear
+  does not hide sets; History shows every set written since the application started.
+- **The run-summary CSV: one row per application run**, whole-run, ignoring Clear;
+  `clears_count` records the Clear presses, so a row that differs from the status bar's last
+  reading is explained rather than looking like a bug.
+
+So after a Clear, the status bar and Trends restart while History and the CSV do not. That is the
+intended behaviour, not a counting bug.
+**Revisit if** the capture directories are renamed, at which point "session" can leave the code
+too; the CSV columns keep their names regardless.
 
 ## Trends: one accumulator, a hand-drawn chart base, and no failed image on the x axis
 
@@ -274,7 +290,9 @@ object, the frame mean, the running run mean, dashed 80%/60% lines at the §5 th
 
 - **One accumulator** (`Reporting.Trends.Trends_Accumulator_Cls`, Qt-free) feeds both charts
   *and* the status bar's IMAGES ANALYSED, OBJECTS DETECTED and run-mean confidence, so the last
-  point of each series is the status figure by construction, not by two paths agreeing.
+  point of each series is the status figure by construction, not by two paths agreeing. It spans
+  **since the application started or the last Clear** (Clear resets it), not the whole application
+  run — History and the run-summary CSV cover that (see the vocabulary entry).
 - **A failed analysis does not advance x.** It is not an analysed image, and the accumulator is
   only fed successful analyses, so the last x and IMAGES ANALYSED agree either way.
 - **Unscored objects are not plotted.** A dot at 0% would be a false low-confidence reading; the

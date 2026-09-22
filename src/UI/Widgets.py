@@ -1015,10 +1015,9 @@ class Status_Strip_Cls(Card_Cls):
         updated, images, objects, inference, confidence) are public so the window can drive
         them. The order runs device state first (what the console is connected to), then the
         run counts, then the two derived aggregates last, since those cover every frame
-        checked so far in this application RUN (not one camera connection): inference is the run
-        MEDIAN analysis latency (a median so one slow frame does not swing it) and confidence the
-        run MEAN detector score. Both
-        aggregate labels name their scope and their statistic — the two differ deliberately,
+        checked since the application started or the last Clear (not one camera connection):
+        inference is the run MEDIAN analysis latency (a median so one slow frame does not swing
+        it) and confidence the run MEAN detector score. Both aggregate labels name their scope and their statistic — the two differ deliberately,
         so flattening them to one word would misname them.
     """
 

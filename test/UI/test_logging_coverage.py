@@ -152,7 +152,7 @@ def test_analysis_writes_a_capture_set_linked_by_id(qt_app, tmp_path) -> None:
     # The set id links the log to the files, as prose on the started/finished lines.
     assert 'Capture set 20260912-143202_1.' in content
     assert 'finished in' in content
-    assert 'Created the capture directory for session 20260912-143000_s1.' in content
+    assert 'Created the capture directory for connection 20260912-143000_s1.' in content
     assert 'Capture set 20260912-143202_1 written.' in content
     # The finished-analysis line carries the confidence coverage (1 of 2 scored).
     assert 'mean confidence' in content and 'over 1 of 2 scored' in content

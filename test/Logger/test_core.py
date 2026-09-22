@@ -359,7 +359,7 @@ def test_orphan_events_are_warnings(tmp_path: tp.Any) -> None:
     assert len(Session_Logger.Sessions) == 0
     assert len(Session_Logger.Errors) == 0
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
-    assert '[WARNING] Camera disconnected, but no session was open.' in content
+    assert '[WARNING] Camera disconnected, but no connection was open.' in content
     assert '[WARNING] An error resolution arrived with no matching error (error_id=999).' in content
     Session_Logger.Close()
 
@@ -726,7 +726,7 @@ def test_txt_has_no_run_summary_block(tmp_path: tp.Any) -> None:
 
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
     assert 'RUN SUMMARY' not in content
-    assert 'Camera connected. Session 1 started.' in content
+    assert 'Camera connected. Connection 1 started.' in content
     assert content.rstrip().endswith('Application stopped.')
 
 
