@@ -898,11 +898,6 @@ class AnyScan_Window_Cls(QMainWindow):
                     self.__logger.Log_Warning(message)
                 else:
                     self.__logger.Log_Info(message)
-            # Which renderer produced the artefacts, so the log says so even when the
-            # diagnostic index-fill mask mode is active.
-            if Annotate.CONST_ANNOTATE_MASK_FILL != 'verdict':
-                self.__logger.Log_Info("The label mask was rendered in the diagnostic '%s' mode."
-                                       % Annotate.CONST_ANNOTATE_MASK_FILL)
             # The finished-analysis summary: object count, mean confidence and coverage.
             scores = [d.Segmenter_Score for d in result.Objects if d.Segmenter_Score is not None]
             mean = int(round(100.0 * sum(scores) / len(scores))) if scores else None

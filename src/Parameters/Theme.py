@@ -23,8 +23,6 @@
 # File Name: ../Parameters/Theme.py
 ## =========================================================================== ##
 
-# System (Default)
-import colorsys
 # Typing (Support for type hints)
 import typing as tp
 
@@ -53,10 +51,7 @@ CONST_LINE          = '#ecebf2'   # violet-tinted dividers
 CONST_BRAND         = '#ff005c'   # EDIH-DIGIMAT magenta: object 1 and focus only
 
 # The verdict colours. Green, red and amber are RESERVED here: they mean pass,
-# degraded and fail on the badge, so they must never appear as an object colour — an
-# object numbered 3 painted green would silently read as 'the good one'. This is why
-# CONST_INDEX_COLORS below excludes those three hues, and why Index_Color's palette
-# extension varies only lightness/saturation, never hue (see __Assert_No_Reserved_Hue).
+# degraded and fail on the badge, so they must never appear as an object colour.
 CONST_OK            = '#16a34a'   # connected, pass
 CONST_OK_INK        = '#15803d'
 CONST_OK_SOFT       = '#f2faf5'
@@ -74,35 +69,15 @@ CONST_BAND          = '#2b2455'   # deep-indigo funding band
 CONST_BAND_LINE     = '#4a4180'   # dividers on the band
 CONST_BAND_TEXT     = '#b9b2d6'   # lavender text/disclaimer on the band
 
-# One colour pair per detection index, shared by the frame overlay and the text.
-# `box` is the stroke on the dark viewport; `ink` is a darkened twin of the same hue
-# for type on white, because a saturated stroke colour set as 14.5px text falls below
-# readable contrast. Green, amber AND the red-through-magenta wedge are deliberately
-# ABSENT: green/amber are the pass/degraded verdicts, and the whole red-magenta wedge
-# reads as 'fail' at a glance — including the brand magenta (#ff005c), which is a
-# verdict-lookalike, so it stays the brand accent elsewhere but is NOT an object
-# colour. An object's colour must never be mistakable for a verdict.
-#   Unit [Vector<Tuple<string> 1x2>]
-CONST_INDEX_COLORS = [
-    ('#0ea5e9', '#0369a1'),   # cyan-blue
-    ('#7c3aed', '#5b21b6'),   # violet
-    ('#14b8a6', '#0f766e'),   # teal
-    ('#6366f1', '#4338ca'),   # indigo
-    ('#d946ef', '#a21caf'),   # magenta-purple (distinct from the red-magenta wedge)
-]
-
-# The two per-object VERDICT colours, as (box, ink) pairs like CONST_INDEX_COLORS. The
-# box is the stroke drawn on the frame and the mask contour; the ink is the darkened
-# twin for verdict text on the white card. These DRIVE the object rendering in both
-# views (via Verdict_Color) — every object is drawn in its verdict colour, replacing the
-# per-index palette there. Until classification lands every object is OK, so everything
-# renders in the OK box.
+# The two per-object VERDICT colours, as (box, ink, fill) triples. The box is the stroke
+# drawn on the frame and the mask contour; the ink is the darkened twin for verdict text
+# on the white card. These DRIVE the object rendering in both views (via Verdict_Color) —
+# every object is drawn in its verdict colour. Until classification lands every object is
+# OK, so everything renders in the OK box.
 #
-#   NOTE on '#ff005c': this is the EDIH-DIGIMAT brand magenta that was deliberately
-#   REMOVED from the object palette (see CONST_INDEX_COLORS) because it reads as a fail
-#   marker at a glance. As the actual NOK marker it is now exactly right — do NOT
-#   "restore" it to the object palette or swap it for a calmer red; its fail-lookalike
-#   quality is the whole reason it belongs here.
+#   NOTE on '#ff005c': this is the EDIH-DIGIMAT brand magenta, kept as the NOK marker
+#   precisely because it reads as a fail marker at a glance — do NOT swap it for a calmer
+#   red; its fail-lookalike quality is the whole reason it belongs here.
 #   The OK box '#6C63B5' is a deliberately LIGHTER tint than its ink twin '#4a4180':
 #   '#4a4180' alone is too dark to read against the dark plates in Image_003/005, so the
 #   box carries the lighter value and the ink is reserved for text on the white card.
@@ -190,31 +165,6 @@ def Log_Level_Color(level: str) -> str:
 
     return CONST_LOG_LEVEL_COLORS.get(level, CONST_LOG_INFO)
 
-# Reserved hue bands (fraction of the wheel, 0..1) an object colour must avoid: an
-# object in a verdict hue would misread as pass/fail/degraded. The red end is the
-# WHOLE red-through-magenta wedge, not just true red, because a rose/crimson reads as
-# fail at a glance even though its hue is not 0. Guards both the base palette and every
-# generated variant (__Assert_No_Reserved_Hue).
-#   Unit [Vector<Tuple<float> 1x2>]
-CONST_RESERVED_HUE_BANDS = [
-    (0.83, 1.00), (0.00, 0.05),   # red through magenta (~300..360deg) — fail
-    (0.05, 0.18),                 # amber / orange      (~20..65deg)   — degraded
-    (0.22, 0.45),                 # green               (~80..160deg)  — pass
-]
-
-# The lightness LEVELS (delta_l, delta_s) that extend the five base pairs past the
-# fifth object, applied to a base colour with its HUE HELD FIXED (so a variant never
-# drifts into a reserved hue — only the shade changes). Each hue gets three well-
-# separated lightness levels — base (medium), dark, then light — so twelve objects are
-# five hues at distinct lightnesses rather than near-repeats of one another. A dark
-# and a light teal read as clearly different colours; two whites do not.
-#   Unit [Vector<Tuple<float> 1x2>]
-CONST_INDEX_VARIANT_STEPS = [
-    (-0.30, -0.05),   # level 1 — dark
-    (0.30, -0.15),    # level 2 — light
-]
-
-
 def Hex_To_Rgb(hex_color: str) -> tp.Tuple[int, int, int]:
     """
     Description:
@@ -245,38 +195,6 @@ def Hex_To_Bgr(hex_color: str) -> tp.Tuple[int, int, int]:
 
     r, g, b = Hex_To_Rgb(hex_color)
     return (b, g, r)
-
-
-def __Rgb_To_Hex(r: int, g: int, b: int) -> str:
-    """
-    Description:
-        An (R, G, B) 0..255 triple as a '#rrggbb' string.
-
-    Args:
-        (1 - 3) r, g, b [int]: The colour channels (0..255).
-
-    Returns:
-        (1) parameter [string]: The colour as '#rrggbb'.
-    """
-
-    return '#%02x%02x%02x' % (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
-
-
-def Hue_Of(hex_color: str) -> float:
-    """
-    Description:
-        The hue of a colour as a fraction of the wheel (0..1) — the axis the reserved
-        verdict hues are defined on.
-
-    Args:
-        (1) hex_color [string]: The colour as '#rrggbb'.
-
-    Returns:
-        (1) parameter [float]: The hue (0..1).
-    """
-
-    r, g, b = Hex_To_Rgb(hex_color)
-    return colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)[0]
 
 
 def __Lab(hex_color: str) -> tp.Tuple[float, float, float]:
@@ -350,44 +268,6 @@ def Delta_E(hex_a: str, hex_b: str) -> float:
     return ((la - lb) ** 2 + (aa - ab) ** 2 + (ba - bb) ** 2) ** 0.5
 
 
-def __Is_Reserved_Hue(hue: float) -> bool:
-    """
-    Description:
-        Whether a hue falls in a reserved verdict band (pass/fail/degraded).
-
-    Args:
-        (1) hue [float]: The hue as a fraction of the wheel (0..1).
-
-    Returns:
-        (1) parameter [bool]: True when the hue is reserved.
-    """
-
-    return any(low <= hue <= high for low, high in CONST_RESERVED_HUE_BANDS)
-
-
-def __Shade(hex_color: str, delta_l: float, delta_s: float) -> str:
-    """
-    Description:
-        Shift a colour's lightness and saturation while HOLDING ITS HUE, so the shade
-        changes but the colour can never drift into a reserved verdict hue.
-
-    Args:
-        (1) hex_color [string]: The base colour as '#rrggbb'.
-        (2) delta_l [float]: The lightness delta (clamped to a readable band).
-        (3) delta_s [float]: The saturation delta.
-
-    Returns:
-        (1) parameter [string]: The shaded colour as '#rrggbb'.
-    """
-
-    r, g, b = Hex_To_Rgb(hex_color)
-    h, l, s = colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
-    l = min(0.85, max(0.25, l + delta_l))
-    s = min(1.0, max(0.35, s + delta_s))
-    nr, ng, nb = colorsys.hls_to_rgb(h, l, s)
-    return __Rgb_To_Hex(int(round(nr * 255)), int(round(ng * 255)), int(round(nb * 255)))
-
-
 def Verdict_Color(verdict: str) -> tp.Tuple[str, str, str]:
     """
     Description:
@@ -423,61 +303,3 @@ def Detection_Color() -> tp.Tuple[str, str, str]:
     return CONST_DETECTION_COLORS
 
 
-def Index_Color(index: int) -> tp.Tuple[str, str]:
-    """
-    Description:
-        RETAINED (not on the default render path). The object rendering is now keyed by
-        VERDICT colour, not by index; Index_Color, the coordinated-stroke assignment in
-        Vision.Utilities.Annotate and the ΔE distinctness test are kept for the diagnostic
-        label-mask variant reachable by one constant (Annotate.CONST_ANNOTATE_MASK_FILL =
-        'index'), which fills each object in its own colour to reveal a merge.
-
-        The (box, ink) colour pair for a detection index (0-based), stable across runs
-        and shared by the frame overlay and the label mask, so the same object is the
-        same colour everywhere. The first six indices are the hand-tuned base pairs;
-        past the sixth the palette is extended by shifting a base colour's
-        lightness/saturation with its HUE HELD FIXED (CONST_INDEX_VARIANT_STEPS), so a
-        variant is a distinct shade of a safe hue and never lands on the reserved
-        pass/fail/degraded colours.
-
-    Args:
-        (1) index [int]: The 0-based object index.
-
-    Returns:
-        (1) parameter [Tuple<string> 1x2]: The (box, ink) hex colours.
-    """
-
-    base = len(CONST_INDEX_COLORS)
-    box_hex, ink_hex = CONST_INDEX_COLORS[index % base]
-    level = index // base
-    if level == 0:
-        return box_hex, ink_hex
-    # A variant of a base colour at a distinct lightness level (dark, then light),
-    # hue held fixed — so the same hue's base, dark and light variants are three
-    # clearly different shades.
-    delta_l, delta_s = CONST_INDEX_VARIANT_STEPS[(level - 1) % len(CONST_INDEX_VARIANT_STEPS)]
-    box = __Shade(box_hex, delta_l, delta_s)
-    # The ink twin: the same variant, darkened for readable text on white.
-    ink = __Shade(box, -0.22, 0.05)
-    return box, ink
-
-
-def __Assert_No_Reserved_Hue() -> None:
-    """
-    Description:
-        Load-time guard: neither the base palette nor the first two cycles of
-        generated variants may fall in a reserved verdict hue. A generated variant
-        landing on green would silently read as 'pass' to anyone reading the UI, so
-        this fails loudly at import rather than shipping a misleading colour.
-    """
-
-    for i in range(len(CONST_INDEX_COLORS) * 3):
-        box, _ = Index_Color(i)
-        if __Is_Reserved_Hue(Hue_Of(box)):
-            raise ValueError(
-                'Index_Color(%d) = %s has a reserved verdict hue (%.3f); the palette '
-                'or its variant steps must avoid pass/fail/degraded hues.'
-                % (i, box, Hue_Of(box)))
-
-
-__Assert_No_Reserved_Hue()

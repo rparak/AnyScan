@@ -268,13 +268,14 @@ question.
 - **Impact:** a genuine merge (two touching parts read as one object) is invisible
   in the default mask; the per-object contour only distinguishes objects that were
   already separate components.
-- **Detection route:** the object **count** against expectation is the first signal
-  (a merge lowers the count by one). To see it in the mask, switch the one constant
-  `CONST_ANNOTATE_MASK_FILL = 'index'`: the diagnostic mode fills each object in its
-  own `Index_Color`, so a single blob carrying one colour where two were expected
-  shows the merge, and one part in two colours shows an over-segmentation.
-- **Pinned by:** `test/Vision/Utilities/test_annotate.py::test_mask_separates_near_but_distinct_objects`
-  and `::test_index_fill_mask_mode_is_reachable_by_one_constant`.
+- **Detection route:** the object **count** against expectation is now the only route
+  (a merge lowers the count by one; the status bar's OBJECTS DETECTED and the Trends
+  chart both show it). The per-object diagnostic mask fill that used to reveal a merge
+  in the mask itself (`CONST_ANNOTATE_MASK_FILL = 'index'`, filling each object in its
+  own colour) was removed — its only consumer was that diagnostic, and it carried a
+  whole coordinated-stroke palette with it, so the count against expectation stands
+  alone.
+- **Pinned by:** `test/Vision/Utilities/test_annotate.py::test_mask_separates_near_but_distinct_objects`.
 
 ## The confidence status metric is partial — only the FastSAM cue is scored
 

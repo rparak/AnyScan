@@ -24,16 +24,13 @@ implies no verdict nobody made. The dark numeral stays legible because the fill 
 per-class colour), in which case add a mode rather than overloading the default.
 Tests `test/Vision/Utilities/test_annotate.py::test_label_mask_fills_each_object_with_a_tint_of_its_box_colour`, `::test_detect_only_label_mask_fills_with_the_neutral_tint`; `test/Parameters/test_theme.py::test_label_mask_fill_is_a_light_distinguishable_tint_of_its_box`.
 
-## `#ff005c` is the fail marker and must not return to the object palette
+## `#ff005c` is the fail marker and must stay the NOK colour
 
-The EDIH-DIGIMAT brand magenta `#ff005c` reads as a fail marker at a glance, so it was
-removed from the object palette (an object numbered in it would silently look "bad") and
-is now the **NOK** verdict colour, which is exactly what that quality makes it good for.
-The object palette (`CONST_INDEX_COLORS`) and every generated variant are guarded against
-the whole red-through-magenta wedge at load time. **Revisit only** if the verdict scheme
-itself changes; do not "restore" the magenta to the object palette or swap it for a calmer
-red, because its fail-lookalike quality is the point.
-Commits `78311b4`, `3494ba3`; tests `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`, `::test_no_index_colour_is_a_reserved_verdict_hue`.
+The EDIH-DIGIMAT brand magenta `#ff005c` reads as a fail marker at a glance, so it is the
+**NOK** verdict colour — exactly what that quality makes it good for. **Revisit only** if
+the verdict scheme itself changes; do not repurpose the magenta as a decorative object
+colour or swap it for a calmer red, because its fail-lookalike quality is the point.
+Commit `3494ba3`; test `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`.
 
 ## The colour-name saturation cutoff is 120, and was not tuned for object 4
 

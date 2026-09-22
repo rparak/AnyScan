@@ -23,13 +23,11 @@
 # File Name: ../Vision/Utilities/Annotate.py
 ## =========================================================================== ##
 
-# System (Default)
-import colorsys
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
-from Parameters.Theme import (Index_Color, Verdict_Color, Detection_Color, Hex_To_Bgr, Delta_E,
+from Parameters.Theme import (Verdict_Color, Detection_Color, Hex_To_Bgr,
                               CONST_CARD, CONST_INK)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
@@ -41,18 +39,15 @@ Description:
     The annotation renderer: draws the annotated frame and the label mask from a list
     of detections, in the console's own palette (Parameters.Theme, the same tokens the
     UI reads). It is Qt-free — OpenCV and NumPy are injected — so the harness and the
-    Qt-free vision layer render exactly what the UI would, keyed by the same
-    Index_Color per object index. The live UI viewport paints its overlay with Qt from
-    the SAME palette; the two agree because they share the tokens, not the primitives.
+    Qt-free vision layer render exactly what the UI would, keyed by each object's VERDICT
+    colour (Theme.Verdict_Color) or the one neutral detection colour when a configuration
+    only detects. The live UI viewport paints its overlay with Qt from the SAME palette;
+    the two agree because they share the tokens, not the primitives.
 
     Note:
-        Two rules the drawing obeys, both from §1d:
-          (1) Everything scales with resolution — line widths, font size, chip padding —
-              off the frame's larger side (CONST_ANNOTATE_REF_DIM), so a stroke tuned
-              for a preview is not a hairline on a 1920x1200 export.
-          (2) A stroke colour that is too low-contrast against the object it outlines
-              (a dark accent on a dark 003/005 part) falls back to the theme's
-              contrasting foreground (white or ink), rather than inventing a colour.
+        Everything scales with resolution — line widths, font size, chip padding — off the
+        frame's larger side (CONST_ANNOTATE_REF_DIM), so a stroke tuned for a preview is not
+        a hairline on a 1920x1200 export.
 """
 # The reference larger-side dimension the drawing weights are tuned at; every weight
 # below is multiplied by max(h, w) / this.
@@ -75,16 +70,10 @@ CONST_ANNOTATE_CHIP_FONT_MAX = 1.1
 CONST_ANNOTATE_CHIP_FONT_W = 2    # cv2 font thickness
 CONST_ANNOTATE_CHIP_PAD = 6       # padding (px, at font scale 1) around the numeral
 
-# The minimum luminance-contrast ratio a stroke colour must clear against the object
-# it outlines; below it the stroke is re-lit (see __Candidate_Strokes).
-#   Unit [float]
-CONST_ANNOTATE_CONTRAST_MIN = 1.7
-
-# RETAINED (alternate mode). The minimum perceptual distance (CIE76 ΔE) between any two
-# objects' coordinated stroke colours in the diagnostic index-fill mask mode. It no
-# longer describes the default render, where every object is drawn in its verdict colour
-# and two OK objects are deliberately identical; it guards Index_Color / __Assign_Strokes,
-# kept for CONST_ANNOTATE_MASK_FILL == 'index'.
+# The perceptual distinctness floor (CIE76 ΔE) for the annotation colours: the minimum
+# distance at which two colours read as different marks rather than a near-repeat. The
+# colour-distinctness tests assert against it — a box against its own fill, and the
+# neutral detection colour against the surfaces it is drawn on.
 #   Unit [float]
 CONST_ANNOTATE_MIN_DELTA_E = 12.0
 
@@ -102,16 +91,6 @@ CONST_ANNOTATE_MASK_GROUND = (0, 0, 0)
 #   Unit [float/int]
 CONST_SEG_APPROX_EPS_FRAC = 0.01
 CONST_SEG_DECIMALS = 6
-
-# The label-mask fill mode. 'verdict' (default): every object is filled WHITE with a
-# verdict-coloured contour and a dark numeral — the operator-facing result, coloured by
-# pass/fail. 'index': the diagnostic variant that fills each object in its own
-# Index_Color instead, so a merge (two parts sharing one colour) or an over-segmentation
-# (one part in two colours) is visible; this is the one constant that switches the mask
-# back to the per-object palette (see KNOWN_ISSUES.md).
-#   Unit [string]
-CONST_ANNOTATE_MASK_FILL = 'verdict'
-
 
 def __Scale(shape: tp.Tuple[int, int, int]) -> float:
     """
@@ -143,153 +122,6 @@ def __Luminance(bgr: tp.Tuple[float, float, float]) -> float:
 
     b, g, r = bgr[0] / 255.0, bgr[1] / 255.0, bgr[2] / 255.0
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
-
-
-def __Contrast(a: tp.Tuple[float, float, float], b: tp.Tuple[float, float, float]) -> float:
-    """
-    Description:
-        The luminance-contrast ratio between two BGR colours (>= 1.0).
-
-    Args:
-        (1) a [Vector<float> 1x3]: The first colour (B, G, R).
-        (2) b [Vector<float> 1x3]: The second colour (B, G, R).
-
-    Returns:
-        (1) parameter [float]: The contrast ratio.
-    """
-
-    la, lb = __Luminance(a), __Luminance(b)
-    hi, lo = max(la, lb), min(la, lb)
-    return (hi + 0.05) / (lo + 0.05)
-
-
-def __Relight(box_bgr: tp.Tuple[int, int, int], lightness: float) -> tp.Tuple[int, int, int]:
-    """
-    Description:
-        The colour with its HUE and saturation held but its lightness set to `lightness`
-        — a lighter or darker shade of the same colour.
-
-    Args:
-        (1) box_bgr [Vector<int> 1x3]: The colour (B, G, R).
-        (2) lightness [float]: The target lightness (0..1).
-
-    Returns:
-        (1) parameter [Vector<int> 1x3]: The re-lit colour (B, G, R).
-    """
-
-    b, g, r = box_bgr[0] / 255.0, box_bgr[1] / 255.0, box_bgr[2] / 255.0
-    hue, _, sat = colorsys.rgb_to_hls(r, g, b)
-    nr, ng, nb = colorsys.hls_to_rgb(hue, lightness, sat)
-    return (int(round(nb * 255)), int(round(ng * 255)), int(round(nr * 255)))
-
-
-def __Bgr_Hex(bgr: tp.Tuple[int, int, int]) -> str:
-    """
-    Description:
-        A (B, G, R) colour as a '#rrggbb' string, for the ΔE distance check.
-
-    Args:
-        (1) bgr [Vector<int> 1x3]: The colour (B, G, R).
-
-    Returns:
-        (1) parameter [string]: The colour as '#rrggbb'.
-    """
-
-    return '#%02x%02x%02x' % (int(bgr[2]), int(bgr[1]), int(bgr[0]))
-
-
-def __Candidate_Strokes(box_bgr: tp.Tuple[int, int, int],
-                        region_mean: tp.Any) -> tp.List[tp.Tuple[int, int, int]]:
-    """
-    Description:
-        Every shade of the object's colour that clears the contrast against its part,
-        ordered by nearness to the object's own lightness — the box colour itself first
-        if it already clears. Keeping the hue and saturation and only moving the
-        lightness means a re-lit stroke is still recognisably the object's colour, so
-        the coordinated assignment can pick a distinct one without discarding identity.
-
-    Args:
-        (1) box_bgr [Vector<int> 1x3]: The object's box colour (B, G, R).
-        (2) region_mean [Vector<float> 1x3]: The mean BGR of the object's pixels.
-
-    Returns:
-        (1) parameter [Vector<Tuple<int> 1x3>]: The contrast-clearing shades, nearest first.
-    """
-
-    region = tuple(float(c) for c in region_mean)
-    own_lightness = colorsys.rgb_to_hls(box_bgr[2] / 255.0, box_bgr[1] / 255.0, box_bgr[0] / 255.0)[1]
-    passing = []
-    if __Contrast(box_bgr, region) >= CONST_ANNOTATE_CONTRAST_MIN:
-        passing.append((0.0, tuple(int(c) for c in box_bgr)))
-    for step in range(3, 98, 2):
-        candidate = __Relight(box_bgr, step / 100.0)
-        if __Contrast(candidate, region) >= CONST_ANNOTATE_CONTRAST_MIN:
-            passing.append((abs(step / 100.0 - own_lightness) + 1e-3, candidate))
-    passing.sort(key=lambda item: item[0])
-    return [colour for _, colour in passing]
-
-
-def Stroke_Colors(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
-                  cv2: tp.Any, np: tp.Any) -> tp.List[tp.Tuple[int, int, int]]:
-    """
-    Description:
-        RETAINED (alternate mode) — NOT the default render, which draws every object in
-        its verdict colour (Draw_Annotated). This is the per-object coordinated palette
-        kept for the diagnostic index-fill mask (CONST_ANNOTATE_MASK_FILL == 'index') and
-        any future per-object render: the colour its contour, box and chip would share,
-        after the contrast fallback and the distinctness coordination. Exposed so the
-        invariant (no two objects within CONST_ANNOTATE_MIN_DELTA_E) can be checked on a
-        real frame, since the fallback is what could collapse two distinct colours.
-
-    Args:
-        (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
-        (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
-        (3) cv2 [module]: The OpenCV module, injected by the caller.
-        (4) np [module]: The NumPy module, injected by the caller.
-
-    Returns:
-        (1) parameter [Vector<Tuple<int> 1x3>]: One stroke colour per object.
-    """
-
-    return [colour for colour, _ in __Assign_Strokes(scene_bgr, objects, np)]
-
-
-def __Assign_Strokes(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
-                     np: tp.Any) -> tp.List[tp.Tuple[tp.Tuple[int, int, int], bool]]:
-    """
-    Description:
-        Assign every object a stroke colour that both clears the contrast against its
-        part AND stays at least CONST_ANNOTATE_MIN_DELTA_E from every already-assigned
-        stroke, so no two objects ever render in near-identical colours. Each object
-        takes the nearest contrast-clearing shade of its own colour that is still
-        distinct from those placed before it; only when no shade is both is it forced to
-        flat white (flagged, so the caller can log how often the palette is overridden).
-
-    Args:
-        (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
-        (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
-        (3) np [module]: The NumPy module, injected by the caller.
-
-    Returns:
-        (1) parameter [Vector<Tuple>]: One (colour (B, G, R), forced_white [bool]) per object.
-    """
-
-    assigned, result = [], []
-    for index, det in enumerate(objects):
-        box_bgr = tuple(int(c) for c in Hex_To_Bgr(Index_Color(index)[0]))
-        if det.Mask is None or int(np.count_nonzero(det.Mask)) == 0:
-            candidates = [box_bgr]
-        else:
-            candidates = __Candidate_Strokes(box_bgr, scene_bgr[det.Mask.astype(bool)].mean(axis=0))
-        chosen = next((colour for colour in candidates
-                       if all(Delta_E(__Bgr_Hex(colour), __Bgr_Hex(other)) >= CONST_ANNOTATE_MIN_DELTA_E
-                              for other in assigned)), None)
-        forced = chosen is None
-        if forced:
-            chosen = tuple(int(c) for c in Hex_To_Bgr(CONST_CARD))
-        assigned.append(chosen)
-        result.append((chosen, forced))
-    return result
 
 
 def __Chip_Font_Scale(scale: float) -> float:
@@ -446,15 +278,12 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
 
     # The fill: a light tint of each object's own box colour (its verdict fill, or the
     # neutral detection fill when classification is off), so silhouette and box read as one
-    # object. The diagnostic 'index' mode instead fills each object in its own Index_Color.
+    # object.
     neutral_fill = Hex_To_Bgr(Detection_Color()[2])
-    for i, det in enumerate(objects):
+    for det in objects:
         if det.Mask is None:
             continue
-        if CONST_ANNOTATE_MASK_FILL == 'index':
-            fill_bgr = Hex_To_Bgr(Index_Color(i)[0])
-        else:
-            fill_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[2]) if verdict_colored else neutral_fill
+        fill_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[2]) if verdict_colored else neutral_fill
         mask_image[det.Mask.astype(bool)] = fill_bgr
 
     # Then the SAME boxes and index chips as the annotated view, in the verdict (or neutral)

@@ -24,7 +24,6 @@
 ## =========================================================================== ##
 
 # System (Default)
-import itertools
 import typing as tp
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
 import cv2
@@ -202,51 +201,6 @@ def test_empty_objects_render_cleanly() -> None:
     assert annotated.shape == scene.shape
 
 
-def __Bgr_Hex(bgr) -> str:
-    """
-    Description:
-        A (B, G, R) stroke colour as '#rrggbb', for the ΔE distance check.
-
-    Args:
-        (1) bgr [Vector<int> 1x3]: The colour (B, G, R).
-
-    Returns:
-        (1) parameter [string]: The colour as '#rrggbb'.
-    """
-
-    return '#%02x%02x%02x' % (int(bgr[2]), int(bgr[1]), int(bgr[0]))
-
-
-def test_coordinated_strokes_stay_distinct_after_fallback() -> None:
-    """
-    Description:
-        RETAINED — guards the ALTERNATE per-object palette (Stroke_Colors /
-        __Assign_Strokes), NOT the default render. The default now draws every object in
-        its verdict colour, where two OK objects are deliberately identical; this
-        invariant is kept for the diagnostic index-fill mask and any future per-object
-        render, so the coordinated assignment is proven still to keep all pairs distinct.
-        Twelve objects on a mid-grey part (the worst case: many need the contrast
-        fallback), and every pair must stay at least CONST_ANNOTATE_MIN_DELTA_E apart.
-    """
-
-    n = 12
-    scene = np.full((1000, 1600, 3), 128, np.uint8)     # mid grey — forces the fallback
-    objects = []
-    for i in range(n):
-        row, col = i // 4, i % 4
-        top, left = 40 + row * 240, 40 + col * 380
-        mask = np.zeros(scene.shape[:2], dtype=bool)
-        mask[top:top + 140, left:left + 140] = True
-        objects.append(Detection_Str(Label='b', Bbox=(left, top, 140, 140), Mask=mask))
-
-    strokes = [__Bgr_Hex(s) for s in Annotate.Stroke_Colors(scene, objects, cv2, np)]
-    for a, b in itertools.combinations(range(n), 2):
-        distance = Theme.Delta_E(strokes[a], strokes[b])
-        assert distance >= Annotate.CONST_ANNOTATE_MIN_DELTA_E, \
-            'objects %d and %d collapse (ΔE=%.1f): %s vs %s' % (a + 1, b + 1, distance,
-                                                                strokes[a], strokes[b])
-
-
 def test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour() -> None:
     """
     Description:
@@ -264,25 +218,6 @@ def test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour() -> 
     assert __Has_Bgr(annotated, ok_bgr)
     # The object's interior is NOT filled — it still shows the scene, unchanged.
     assert tuple(int(c) for c in annotated[185, 285]) == (70, 150, 70)
-
-
-def test_index_fill_mask_mode_is_reachable_by_one_constant() -> None:
-    """
-    Description:
-        The diagnostic label-mask variant is reachable by the single constant
-        CONST_ANNOTATE_MASK_FILL: set to 'index' it fills each object in its own
-        Index_Color (to reveal a merge), instead of the default white fill.
-    """
-
-    objects = [__Object(40, 40), __Object(200, 300)]
-    previous = Annotate.CONST_ANNOTATE_MASK_FILL
-    try:
-        Annotate.CONST_ANNOTATE_MASK_FILL = 'index'
-        mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np)
-        assert tuple(int(c) for c in mask[70, 70]) == Theme.Hex_To_Bgr(Theme.Index_Color(0)[0])
-        assert tuple(int(c) for c in mask[230, 330]) == Theme.Hex_To_Bgr(Theme.Index_Color(1)[0])
-    finally:
-        Annotate.CONST_ANNOTATE_MASK_FILL = previous
 
 
 def test_module_is_qt_free() -> None:

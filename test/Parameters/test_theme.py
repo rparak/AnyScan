@@ -23,8 +23,6 @@
 # File Name: ../test/Parameters/test_theme.py
 ## =========================================================================== ##
 
-# System (Default)
-import itertools
 # Custom Lib.: AnyScan domain — the Qt-free colour palette
 #   ../Parameters/Theme
 import Parameters.Theme as Theme
@@ -47,62 +45,6 @@ def test_module_is_qt_free() -> None:
 
     source = open(Theme.__file__).read()
     assert 'PyQt' not in source and 'import cv2' not in source
-
-
-def test_base_indices_are_the_hand_tuned_pairs() -> None:
-    """
-    Description:
-        The first six indices return the hand-tuned base pairs unchanged; the same
-        index always returns the same colour (stable across runs and files).
-    """
-
-    for i, pair in enumerate(Theme.CONST_INDEX_COLORS):
-        assert Theme.Index_Color(i) == pair
-    assert Theme.Index_Color(3) == Theme.Index_Color(3)
-
-
-def test_ten_objects_get_ten_distinct_colours() -> None:
-    """
-    Description:
-        A ten-object frame (Image_001) gets ten distinct box colours: past the sixth,
-        the palette is extended by shading a base colour rather than repeating it.
-    """
-
-    boxes = [Theme.Index_Color(i)[0] for i in range(10)]
-    assert len(set(boxes)) == 10
-
-
-def test_no_index_colour_is_a_reserved_verdict_hue() -> None:
-    """
-    Description:
-        Neither the base palette nor its generated variants may fall in a reserved
-        pass/fail/degraded hue — an object painted green would silently read as 'the
-        good one'. Checks well past a realistic object count.
-    """
-
-    for i in range(len(Theme.CONST_INDEX_COLORS) * 3):
-        box = Theme.Index_Color(i)[0]
-        hue = Theme.Hue_Of(box)
-        assert not any(low <= hue <= high for low, high in Theme.CONST_RESERVED_HUE_BANDS), \
-            'Index_Color(%d)=%s hue=%.3f is reserved' % (i, box, hue)
-
-
-def test_twelve_index_colours_are_perceptually_distinct() -> None:
-    """
-    Description:
-        The ΔE distinctness invariant, targeted at Index_Color DIRECTLY — the object
-        rendering is now keyed by verdict colour, so this no longer describes the default
-        mask; it guards the RETAINED per-object palette (used by the diagnostic index-fill
-        mask). Every pair of the first twelve index colours is at least a clear perceptual
-        distance apart (CIE76 ΔE), not merely a different hex — a dense frame leans on the
-        generated variants, and the diagnostic colour coding is worthless if two objects
-        read as the same colour. Checked in Lab, not RGB, which does not match the eye.
-    """
-
-    for a, b in itertools.combinations(range(12), 2):
-        distance = Theme.Delta_E(Theme.Index_Color(a)[0], Theme.Index_Color(b)[0])
-        assert distance >= 12.0, \
-            'index %d and %d are too close (ΔE=%.1f)' % (a, b, distance)
 
 
 def test_verdict_colour_comes_from_the_one_constant() -> None:
