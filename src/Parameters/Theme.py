@@ -145,20 +145,21 @@ CONST_VERDICT_DEFAULT = 'OK'
 # (~2x the floor), ~46 vs the table green, ~54 vs the dark plates, and ~53 to the OK box (up from
 # ~46). The darker ink twin is reserved for text on the white card.
 #
-# THE MASK FILL IS DERIVED FROM THIS BOX — it is not a free token and must not be hand-edited.
-# The box is nearly achromatic (C* 6.8) and light (L* 76.85), so lightening it lands on white (the
-# first fill, #F1F2F4, was ΔE 4.7 from white). The fill therefore goes DARKER: a grey in the box's
-# own hue and chroma, at the MIDPOINT of the only L* window that clears every floor
-# (Neutral_Mask_Fill):
-#     lower bound  L* 48.88 — below it the fill falls under 4.5:1 against the black ground
-#                             (fixed: it does not depend on the box);
-#     upper bound  L* 51.85 — box L* 76.85 minus the ΔE 25 box/fill floor (MOVES with the box);
-#     fill         L* 50.35 — #737883, 1.47 / 1.50 L* inside the bounds (required margin 0.5).
-# The window is 2.97 L* wide. Change this box and the fill follows automatically; darken it
-# below L* 74.88 and the window closes (under 2 x 0.5 L*): there is then NO valid darker fill, and
-# Theme raises at import naming the window — a different neutral needs a design decision (e.g. a
-# lighter fill direction), not a silently broken mask. The outline is the LIGHTER of this pair,
-# the reverse of the verdict fills — contrast, not direction, is what counts.
+# THE LABEL MASK USES ITS OWN, DERIVED NEUTRAL PAIR — outline and fill — not this box. The box is
+# drawn on the frame (it needs L* 76.85 to read on the green table and the parts); on the mask
+# the outline only ever sits on the fill and on black, so it does not need that lightness. With
+# the box as the mask outline, the ΔE 25 outline/fill floor forced the fill dark (L* 50); a darker
+# mask outline frees the fill to go light. Neutral_Mask_Colors derives the pair in this box's own
+# hue and chroma, and it no longer depends on the box's LIGHTNESS at all:
+#     fill     L* 75.39 (#B4BAC6) — as light as the fill/white floor allows: for chroma C*, ΔE to
+#                                   white >= 25 needs L* <= 100 - sqrt(25² - C*²) = 75.93, less
+#                                   the 0.5 margin. A fill at L* 80-85 would sit ΔE 16-21 from
+#                                   white — lighter needs a lower white floor, not a new outline;
+#     outline  L* 49.56 (#717681) — the midpoint of [48.88 (4.5:1 against the black ground),
+#                                   fill L* - 25 (the outline/fill floor)] = [48.88, 50.43];
+#     measured ΔE(outline, fill) 25.8, ΔE(fill, white) 25.5, fill 10.8:1 and outline 4.6:1 on black.
+# The outline's window is only 1.55 L* wide. It closes only if the FLOORS change (not the box),
+# and then Theme raises at import naming the window rather than shipping a pair that breaks one.
 #   Unit [string] (hex colour)
 CONST_DETECTION_BOX = '#B8BECA'
 CONST_DETECTION_INK = '#5C6270'
@@ -413,65 +414,70 @@ def __Lab_To_Hex(lightness: float, a: float, b: float) -> str:
     return '#%02X%02X%02X' % (_Encode(red), _Encode(green), _Encode(blue))
 
 
-def Neutral_Fill_Window(box_hex: str) -> tp.Tuple[float, float]:
+def Neutral_Mask_Bounds(box_hex: str) -> tp.Tuple[float, float]:
     """
     Description:
-        The L* window in which a DARKER, same-hue fill for a near-achromatic box clears every
-        floor. The lower bound is the lightness whose relative luminance gives exactly the minimum
-        contrast against the black ground (it does not depend on the box); the upper bound is the
-        box's L* minus the box/fill ΔE floor (with the box's own a*, b* kept, ΔE is exactly the
-        lightness difference), capped by the fill/white floor. A window narrower than twice the
-        margin means no valid darker fill exists for this box.
+        The two fixed bounds of the neutral label-mask pair, for a near-achromatic colour's hue
+        and chroma: the darkest outline that still reads on the black ground (the L* whose relative
+        luminance gives exactly the minimum ground contrast), and the lightest fill that is still
+        clearly not white (ΔE to white = sqrt((100 - L*)² + C*²) >= the white floor, so
+        L* <= 100 - sqrt(floor² - C*²)). Neither depends on the box's lightness.
 
     Args:
-        (1) box_hex [string]: The neutral box colour as '#rrggbb'.
+        (1) box_hex [string]: The neutral box colour as '#rrggbb' (its hue and chroma are used).
 
     Returns:
-        (1) parameter [Tuple<float> 1x2]: The (lower, upper) L* bounds.
+        (1) parameter [Tuple<float> 1x2]: (outline lower L*, fill upper L*).
     """
 
     y_min = CONST_MASK_FILL_MIN_GROUND_CONTRAST * 0.05 - 0.05
     f_min = y_min ** (1.0 / 3.0) if y_min > 0.008856 else 7.787 * y_min + 16.0 / 116.0
-    lower = 116.0 * f_min - 16.0
-    upper = min(Lch_Of(box_hex)[0] - CONST_MASK_FILL_MIN_BOX_DELTA_E,
-                100.0 - CONST_MASK_FILL_MIN_WHITE_DELTA_E)
-    return (lower, upper)
+    outline_lower = 116.0 * f_min - 16.0
+    chroma = Lch_Of(box_hex)[1]
+    white_floor = CONST_MASK_FILL_MIN_WHITE_DELTA_E
+    fill_upper = 100.0 - math.sqrt(max(0.0, white_floor ** 2 - chroma ** 2))
+    return (outline_lower, fill_upper)
 
 
-def Neutral_Mask_Fill(box_hex: str) -> str:
+def Neutral_Mask_Colors(box_hex: str) -> tp.Tuple[str, str]:
     """
     Description:
-        The label-mask fill for a near-achromatic box, DERIVED rather than hand-picked so the two
-        cannot drift apart: the box's own a*, b* (its hue and chroma) at the midpoint of
-        Neutral_Fill_Window. It fails LOUDLY — ValueError, raised at import for the shipped token —
-        when the window is narrower than twice CONST_MASK_FILL_WINDOW_MARGIN, or when the rounded
-        hex misses any floor; it never clamps to a fill that breaks one.
+        The label mask's neutral (outline, fill) pair, DERIVED in the box's own hue and chroma so
+        it cannot drift: the fill as LIGHT as the fill/white floor allows (its upper bound less the
+        margin), and the outline at the midpoint of its window — no darker than reads on the black
+        ground, no lighter than the fill minus the outline/fill floor. It fails LOUDLY — ValueError,
+        raised at import for the shipped tokens — when that window is narrower than twice the
+        margin, or when a rounded hex misses any floor; it never clamps to a pair that breaks one.
 
     Args:
         (1) box_hex [string]: The neutral box colour as '#rrggbb'.
 
     Returns:
-        (1) parameter [string]: The fill colour as '#rrggbb'.
+        (1) parameter [Tuple<string> 1x2]: The (mask outline, mask fill) colours as '#rrggbb'.
     """
 
-    lower, upper = Neutral_Fill_Window(box_hex)
+    outline_lower, fill_upper = Neutral_Mask_Bounds(box_hex)
     margin = CONST_MASK_FILL_WINDOW_MARGIN
-    if upper - lower < 2.0 * margin:
-        raise ValueError('No valid neutral mask fill for box %s: the L* window [%.1f, %.1f] is '
-                         'narrower than 2 x %.1f. A darker fill would fall under %.1f:1 against '
-                         'the black ground or within dE %.0f of the box; a neutral box needs '
-                         'L* >= %.1f, or the fill needs a different design.'
-                         % (box_hex, lower, upper, margin, CONST_MASK_FILL_MIN_GROUND_CONTRAST,
-                            CONST_MASK_FILL_MIN_BOX_DELTA_E,
-                            lower + CONST_MASK_FILL_MIN_BOX_DELTA_E + 2.0 * margin))
+    fill_l = fill_upper - margin
+    outline_upper = fill_l - CONST_MASK_FILL_MIN_BOX_DELTA_E
+    if outline_upper - outline_lower < 2.0 * margin:
+        raise ValueError('No valid neutral mask pair for box %s: the outline L* window '
+                         '[%.2f, %.2f] is narrower than 2 x %.1f. With the fill at L* %.2f (the '
+                         'lightest that stays dE %.0f from white), the outline must be dE %.0f '
+                         'below it yet keep %.1f:1 against the black ground.'
+                         % (box_hex, outline_lower, outline_upper, margin, fill_l,
+                            CONST_MASK_FILL_MIN_WHITE_DELTA_E, CONST_MASK_FILL_MIN_BOX_DELTA_E,
+                            CONST_MASK_FILL_MIN_GROUND_CONTRAST))
     _lightness, a, b = __Lab(box_hex)
-    fill = __Lab_To_Hex((lower + upper) / 2.0, a, b)
-    if (Delta_E(box_hex, fill) < CONST_MASK_FILL_MIN_BOX_DELTA_E
+    fill = __Lab_To_Hex(fill_l, a, b)
+    outline = __Lab_To_Hex((outline_lower + outline_upper) / 2.0, a, b)
+    if (Delta_E(outline, fill) < CONST_MASK_FILL_MIN_BOX_DELTA_E
             or Delta_E(fill, '#FFFFFF') < CONST_MASK_FILL_MIN_WHITE_DELTA_E
-            or Ground_Contrast(fill) < CONST_MASK_FILL_MIN_GROUND_CONTRAST):
-        raise ValueError('The derived neutral mask fill %s for box %s misses a floor after '
-                         'rounding.' % (fill, box_hex))
-    return fill
+            or Ground_Contrast(fill) < CONST_MASK_FILL_MIN_GROUND_CONTRAST
+            or Ground_Contrast(outline) < CONST_MASK_FILL_MIN_GROUND_CONTRAST):
+        raise ValueError('The derived neutral mask pair (%s, %s) for box %s misses a floor after '
+                         'rounding.' % (outline, fill, box_hex))
+    return (outline, fill)
 
 
 def Verdict_Color(verdict: str) -> tp.Tuple[str, str, str]:
@@ -499,8 +505,9 @@ def Detection_Color() -> tp.Tuple[str, str, str]:
         The (box, ink, fill) colour triple for a plain, unjudged detection — used when the
         configuration only detects (classification off), so every object is one neutral colour.
         From the ONE CONST_DETECTION_COLORS definition, a distinct token from the verdict colours
-        ('detected, not judged', never a pass/fail). The fill is DERIVED from the box
-        (Neutral_Mask_Fill), never hand-set.
+        ('detected, not judged', never a pass/fail). The fill is the label mask's neutral fill,
+        DERIVED with its own darker outline (Neutral_Mask_Colors, Detection_Mask_Outline), never
+        hand-set.
 
     Returns:
         (1) parameter [Tuple<string> 1x3]: The (box, ink, fill) hex colours.
@@ -509,9 +516,24 @@ def Detection_Color() -> tp.Tuple[str, str, str]:
     return CONST_DETECTION_COLORS
 
 
-# The neutral (box, ink, fill) triple, assembled here because the fill is DERIVED from the box by
-# Neutral_Mask_Fill (defined above). A box that leaves no valid fill raises at import — loudly —
-# instead of shipping a mask fill that breaks a floor.
-#   Unit [Tuple<string> 1x3] (box, ink, fill)
-CONST_DETECTION_COLORS = (CONST_DETECTION_BOX, CONST_DETECTION_INK,
-                          Neutral_Mask_Fill(CONST_DETECTION_BOX))
+def Detection_Mask_Outline() -> str:
+    """
+    Description:
+        The neutral OUTLINE for the label mask — a darker shade of the neutral than the frame's box
+        (Detection_Color()[0]), derived with the mask fill by Neutral_Mask_Colors. On the mask the
+        outline only sits on the fill and on black, so it can be dark enough to leave the fill
+        light; the frame's box keeps its own lightness for the table and the parts.
+
+    Returns:
+        (1) parameter [string]: The mask outline colour as '#rrggbb'.
+    """
+
+    return CONST_DETECTION_MASK_OUTLINE
+
+
+# The neutral label-mask pair and the (box, ink, fill) triple, assembled here because the pair is
+# DERIVED by Neutral_Mask_Colors (defined above). A pair that cannot clear every floor raises at
+# import — loudly — instead of shipping a mask that breaks one.
+#   Unit [string] (hex colour) / [Tuple<string> 1x3] (box, ink, fill)
+CONST_DETECTION_MASK_OUTLINE, CONST_DETECTION_MASK_FILL = Neutral_Mask_Colors(CONST_DETECTION_BOX)
+CONST_DETECTION_COLORS = (CONST_DETECTION_BOX, CONST_DETECTION_INK, CONST_DETECTION_MASK_FILL)

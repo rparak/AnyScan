@@ -31,22 +31,37 @@ has to do. The fills are now built in LCh with the box's hue held:
 |---|---|---|---|---|---|
 | OK | `#6C63B5` | `#E2E0F0` → **`#B4AADB`** | 59.4 → 33.6 | 13.2 → 39.0 | 9.7:1 |
 | NOK | `#ff005c` | `#FFCCDE` → **`#FC929C`** | 74.7 → 46.8 | 24.6 → 51.1 | 9.7:1 |
-| neutral | `#B8BECA` | `#F1F2F4` → **`#737883`** (derived) | 19.5 → 26.5 | 4.7 → 50.1 | 4.7:1 |
+| neutral | `#B8BECA` → mask outline **`#717681`** | `#F1F2F4` → **`#B4BAC6`** (derived pair) | 19.5 → 25.8 | 4.7 → 25.5 | 10.8:1 |
 
 OK and NOK share L\* 72 at about half their box's chroma, so only hue separates them, as with
-the boxes. The neutral box is nearly achromatic and already light, so lightening it can only
-reach white; its fill goes the **other way**, to a mid grey in the box's cool hue — the outline is
-the lighter of that pair.
+the boxes; their mask outlines are their boxes (L\* 46 and 54, darker than the fills), so they
+never had the neutral's convergence problem and were checked and left as they are.
 
-**The neutral fill is derived from its box, not hand-set** (`Theme.Neutral_Mask_Fill`). Its valid
-window is only 2.97 L\* wide: the lower bound, L\* 48.88, is where the fill would drop under 4.5:1
-against the black ground (fixed, independent of the box); the upper bound, L\* 51.85, is the box's
-L\* 76.85 minus the ΔE 25 floor, and it moves with the box. A hand-picked fill would silently fall
-out of that window the moment someone adjusted `#B8BECA`, so the fill is computed at the window's
-midpoint in the box's own hue and chroma (`#737883`, L\* 50.35, 1.5 L\* inside each bound against a
-required 0.5). Adjust the box and the fill follows; darken it below L\* 74.88 and the window
-closes — there is then no valid darker fill, and Theme raises at import naming the window, because
-a different neutral needs a design decision, not a silently broken mask. The floors
+**The neutral mask has its own derived pair — a light fill and a darker outline.** The first
+correction kept the frame's box (`#B8BECA`, L\* 76.85) as the mask outline; the ΔE 25 outline/fill
+floor then forced the fill down to a dark grey (L\* ~50), which read too dark. The box needs its
+lightness on the frame, over the green table and the parts, but on the mask the outline only ever
+meets the fill and the black ground. So the mask gets its own neutral outline, darker, which frees
+the fill to go light (`Theme.Neutral_Mask_Colors`, `Detection_Mask_Outline`); the annotated frame
+keeps `#B8BECA`. The pair is derived in the box's own hue and chroma and no longer depends on the
+box's lightness:
+
+- the **fill** is as light as the fill/white floor allows. For a near-neutral of chroma C\*,
+  ΔE to white is √((100 − L\*)² + C\*²), so ΔE ≥ 25 needs L\* ≤ 100 − √(25² − C\*²) = 75.93
+  here; less the 0.5 margin, the fill is `#B4BAC6` at L\* 75.39;
+- the **outline** sits at the midpoint of its window [48.88 (4.5:1 against black), fill − 25] =
+  [48.88, 50.43]: `#717681`, L\* 49.56. ΔE(outline, fill) 25.8, fill 10.8:1 and outline 4.6:1 on
+  black.
+
+**Why not L\* 80–85.** The white floor, not the outline, stops the fill at ~75: a near-neutral fill
+at L\* 80 is only ΔE 21.0 from white, at L\* 85 ΔE 16.3. The outline/fill floor is not the
+constraint — with the outline near L\* 50 it stays at 28–30 even at L\* 85 — so it does not need
+lowering. Going lighter would mean lowering the fill/white floor (from 25 to ~21 for L\* 80, ~16
+for L\* 85). That floor was set in the previous correction, not by a requirement; it was left at 25
+pending a look at the L\* 80/85 renders. The outline's window is 1.55 L\* wide and closes only if
+the floors change (not the box), and then Theme raises at import naming the window.
+
+The floors
 (`Theme.CONST_MASK_FILL_*`, in the parameters layer because Theme derives with them) are stricter
 than the general ΔE 12 because a thin outline must
 stand out against the fill it crosses: ΔE box↔fill ≥ 25, ΔE fill↔white ≥ 25, ≥ 4.5:1 against the
@@ -58,8 +73,8 @@ nobody made.
 per-class colour), in which case add a mode rather than overloading the default.
 Tests `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box` (fails
 on the old values: "OK: fill #E2E0F0 reads as white"),
-`::test_neutral_fill_is_derived_from_its_box_inside_the_valid_window` (the window bounds and the
-fill's margin inside both), `::test_neutral_fill_follows_the_box_and_fails_loudly_when_no_fill_fits`,
+`::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline` (the bounds and the pair's
+margins), `::test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_floors`,
 `test/Vision/Utilities/test_annotate.py::test_label_mask_fills_each_object_with_a_tint_of_its_box_colour`,
 `::test_detect_only_label_mask_fills_with_the_neutral_tint`, `test/UI/test_harness_parity.py`.
 

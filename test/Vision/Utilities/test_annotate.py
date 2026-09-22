@@ -111,19 +111,27 @@ def test_label_mask_fills_each_object_with_a_tint_of_its_box_colour() -> None:
 def test_detect_only_label_mask_fills_with_the_neutral_tint() -> None:
     """
     Description:
-        With classification off (verdict_colored False) the label mask fills every object
-        with the neutral detection fill, not a verdict fill, so a detect-only silhouette
-        implies no verdict nobody made. The neutral box still marks it.
+        With classification off (verdict_colored False) the label mask fills every object with the
+        light neutral fill and draws its box in the mask's own DARKER neutral outline — not the
+        frame's box colour, which the annotated frame keeps — so the outline stands clear of the
+        light fill. No verdict fill or box leaks into either image.
     """
 
     objects = [__Object(40, 40, verdict='OK')]
     mask = Annotate.Draw_Label_Mask(objects, (CONST_H, CONST_W, 3), cv2, np, verdict_colored=False)
-    neutral_box, _, neutral_fill = Theme.Detection_Color()
+    scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)
+    annotated = Annotate.Draw_Annotated(scene, objects, cv2, np, verdict_colored=False)
+    frame_box, _, neutral_fill = Theme.Detection_Color()
+    mask_outline = Theme.Detection_Mask_Outline()
 
     assert tuple(int(c) for c in mask[70, 70]) == Theme.Hex_To_Bgr(neutral_fill)
-    assert __Has_Bgr(mask, Theme.Hex_To_Bgr(neutral_box))
-    # No verdict fill leaks in.
+    assert __Has_Bgr(mask, Theme.Hex_To_Bgr(mask_outline))          # the mask's own outline
+    assert not __Has_Bgr(mask, Theme.Hex_To_Bgr(frame_box))         # not the frame's box
+    assert __Has_Bgr(annotated, Theme.Hex_To_Bgr(frame_box))        # the frame keeps its box
+    assert not __Has_Bgr(annotated, Theme.Hex_To_Bgr(mask_outline))
+    # No verdict fill or box leaks in.
     assert not __Has_Bgr(mask, Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[2]))
+    assert not __Has_Bgr(mask, Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0]))
 
 
 def test_verdict_colour_drives_the_stroke_in_both_renderers() -> None:

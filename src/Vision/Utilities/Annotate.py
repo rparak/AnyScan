@@ -27,7 +27,7 @@
 import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
-from Parameters.Theme import (Verdict_Color, Detection_Color, Hex_To_Bgr,
+from Parameters.Theme import (Verdict_Color, Detection_Color, Detection_Mask_Outline, Hex_To_Bgr,
                               CONST_CARD, CONST_INK)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
@@ -220,18 +220,19 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
 
     scale = __Scale(scene_bgr.shape)
     annotated = scene_bgr.copy()
-    __Draw_Boxes(annotated, objects, scale, cv2, verdict_colored)
+    __Draw_Boxes(annotated, objects, scale, cv2, verdict_colored, Detection_Color()[0])
     return annotated
 
 
 def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
-                 cv2: tp.Any, verdict_colored: bool) -> None:
+                 cv2: tp.Any, verdict_colored: bool, neutral_hex: str) -> None:
     """
     Description:
-        Draw each object's bounding box and index chip on the image given — the SAME overlay for
-        the annotated frame and the label mask, so the two views carry identical boxes and labels
-        and only differ in what lies beneath them. The colour is each object's verdict colour
-        (verdict_colored) or the one neutral detection colour otherwise.
+        Draw each object's bounding box and index chip on the image given — the same boxes and
+        labels in the same places for the annotated frame and the label mask. The colour is each
+        object's verdict colour (verdict_colored), or the neutral colour the caller passes: the
+        frame's box on the annotated frame, and the mask's own darker outline on the label mask,
+        where the outline sits only on the fill and on black and so must stand off a LIGHT fill.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
@@ -239,10 +240,11 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
         (3) scale [float]: The drawing scale (from __Scale).
         (4) cv2 [module]: The OpenCV module, injected by the caller.
         (5) verdict_colored [bool]: True to colour by verdict, False for the neutral colour.
+        (6) neutral_hex [string]: The neutral outline for this image (frame box or mask outline).
     """
 
     box_w = max(1, int(round(CONST_ANNOTATE_BOX_W * scale)))
-    neutral_bgr = Hex_To_Bgr(Detection_Color()[0])
+    neutral_bgr = Hex_To_Bgr(neutral_hex)
     for i, det in enumerate(objects):
         x, y, w, h = det.Bbox
         color_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[0]) if verdict_colored else neutral_bgr
@@ -263,7 +265,10 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
         Filling with a tint of the box (not flat white) makes the silhouette and its outline
         read as ONE object of the same hue, and the box outline still stands out because the
         tint is far from the box in ΔE (measured on the colour tokens). When classification
-        is off the tint is the neutral detection fill, implying no verdict nobody made. Each
+        is off the fill is the light neutral mask fill and the boxes and chips take the mask's
+        own DARKER neutral outline (Theme.Detection_Mask_Outline) rather than the frame's box —
+        the outline sits only on the fill and on black here, so it gives up the frame box's
+        lightness to stand clear of a light fill — implying no verdict nobody made. Each
         object is filled from its OWN component mask, so two parts that sit close but do not
         touch stay separate shapes; two parts that TOUCH are already one component here
         (Fuse_Objects), so they render as one shape — see KNOWN_ISSUES.md.
@@ -296,9 +301,10 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
         fill_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[2]) if verdict_colored else neutral_fill
         mask_image[det.Mask.astype(bool)] = fill_bgr
 
-    # Then the SAME boxes and index chips as the annotated view, in the verdict (or neutral)
-    # colour, so the two views always agree.
-    __Draw_Boxes(mask_image, objects, scale, cv2, verdict_colored)
+    # Then the same boxes and index chips as the annotated view, in the verdict colour — or, when
+    # classification is off, in the mask's own darker neutral outline, which stays clear of the
+    # light neutral fill (the frame's lighter box would all but vanish on it).
+    __Draw_Boxes(mask_image, objects, scale, cv2, verdict_colored, Detection_Mask_Outline())
     return mask_image
 
 

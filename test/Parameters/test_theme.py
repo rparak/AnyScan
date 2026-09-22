@@ -136,8 +136,10 @@ def test_label_mask_fill_is_a_visible_tint_of_its_box() -> None:
             fraction of the box's chroma), not a near-grey.
     """
 
+    # The pair that actually meets on the mask: a verdict box over its fill, and for detect-only
+    # the mask's own darker neutral outline over the neutral fill (the frame's box never sits on it).
     triples = {'OK': Theme.CONST_VERDICT_COLORS['OK'], 'NOK': Theme.CONST_VERDICT_COLORS['NOK'],
-               'neutral': Theme.CONST_DETECTION_COLORS}
+               'neutral': (Theme.Detection_Mask_Outline(), None, Theme.Detection_Color()[2])}
     for name, (box, _ink, fill) in triples.items():
         assert Theme.Delta_E(box, fill) >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E, \
             '%s: outline %s barely separates from fill %s (ΔE=%.1f)' % (name, box, fill,
@@ -158,51 +160,61 @@ def test_label_mask_fill_is_a_visible_tint_of_its_box() -> None:
             (name, fill_chroma, box_chroma)
 
 
-def test_neutral_fill_is_derived_from_its_box_inside_the_valid_window() -> None:
+def test_neutral_mask_pair_is_derived_light_fill_and_darker_outline() -> None:
     """
     Description:
-        The neutral fill is DERIVED from the neutral box, not hand-set, and the window it has to
-        fit is under 3 L* wide: darker than ~48.9 falls under 4.5:1 against the black ground,
-        lighter than the box's L* minus 25 collides with the outline. So the test asserts the
-        window directly — its bounds, and the shipped fill's L* at least the stated margin (0.5
-        L*) inside BOTH bounds — on top of the floors, so a change to the box that squeezes the
-        fill toward an edge fails here by number, not by inspection. The fill also keeps the box's
-        hue and chroma and is darker than the box.
+        The label mask's neutral pair is DERIVED (Neutral_Mask_Colors), not hand-set: a LIGHT fill
+        and its own darker outline, in the neutral box's hue and chroma. The frame's box keeps its
+        lightness for the table and the parts; on the mask the outline only meets the fill and the
+        black ground, so it is darker, which frees the fill to go light. The test states the two
+        bounds and asserts the pair's placement against them with the margin:
+          - fill: as light as the fill/white floor allows (L* <= 75.93 for this chroma), placed
+            at that bound less the 0.5 margin — never back to the dark L* 50 fill;
+          - outline: inside [48.88 (4.5:1 on black), fill L* - 25], at least 0.5 from the lower
+            bound and at least 25 + 0.5 below the fill.
     """
 
-    box, _ink, fill = Theme.CONST_DETECTION_COLORS
-    assert box == Theme.CONST_DETECTION_BOX
-    assert fill == Theme.Neutral_Mask_Fill(box)                   # derived, not a free literal
+    box = Theme.CONST_DETECTION_BOX
+    outline, fill = Theme.Neutral_Mask_Colors(box)
+    assert (outline, fill) == (Theme.Detection_Mask_Outline(), Theme.Detection_Color()[2])
+    assert Theme.Detection_Color()[0] == box                        # the frame box is unchanged
 
-    lower, upper = Theme.Neutral_Fill_Window(box)
+    outline_lower, fill_upper = Theme.Neutral_Mask_Bounds(box)
     margin = Theme.CONST_MASK_FILL_WINDOW_MARGIN
-    assert (round(lower, 2), round(upper, 2)) == (48.88, 51.85)     # the window stated in Theme
-    fill_l = Theme.Lch_Of(fill)[0]
-    assert lower + margin <= fill_l <= upper - margin, \
-        'neutral fill L* %.2f is within %.1f of its window [%.2f, %.2f]' % (fill_l, margin,
-                                                                         lower, upper)
+    assert (round(outline_lower, 2), round(fill_upper, 2)) == (48.88, 75.93)   # stated in Theme
+    outline_l, fill_l = Theme.Lch_Of(outline)[0], Theme.Lch_Of(fill)[0]
+    assert abs(fill_l - (fill_upper - margin)) < 0.3                # the lightest allowed fill
+    assert fill_l >= 75.0                                           # light — not the L* 50 fill
+    assert outline_l >= outline_lower + margin, (outline_l, outline_lower)
+    assert fill_l - outline_l >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E + margin, (fill_l, outline_l)
+    assert outline_l < Theme.Lch_Of(box)[0]                         # darker than the frame's box
+    assert Theme.Ground_Contrast(outline) >= Theme.CONST_MASK_FILL_MIN_GROUND_CONTRAST
 
     box_l, box_c, box_h = Theme.Lch_Of(box)
-    fill_l, fill_c, fill_h = Theme.Lch_Of(fill)
-    assert fill_l < box_l                                          # darker: the outline is lighter
-    assert abs(fill_c - box_c) < 1.0                                # the box's own chroma
-    assert abs((fill_h - box_h + 180.0) % 360.0 - 180.0) < 5.0      # and its own hue
+    for colour in (outline, fill):                                  # the box's own hue and chroma
+        _l, c, h = Theme.Lch_Of(colour)
+        assert abs(c - box_c) < 1.0 and abs((h - box_h + 180.0) % 360.0 - 180.0) < 5.0
 
 
-def test_neutral_fill_follows_the_box_and_fails_loudly_when_no_fill_fits() -> None:
+def test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_floors() -> None:
     """
     Description:
-        Changing the neutral box moves the derived fill with it, still clearing every floor. A
-        box too dark to leave a window of twice the margin (below L* 74.88) has NO valid darker
-        fill: the derivation raises, naming the window, instead of clamping to a fill that breaks
-        a floor — and since the shipped token is derived at import, such a box fails the import.
+        The pair depends on the box's hue and chroma, not its lightness, so the frame's box can be
+        re-tuned for the frame without moving the mask. The outline's window is only ~1.55 L*
+        wide, set by the floors; tighten the outline/fill floor past what it allows and the
+        derivation raises, naming the window, instead of clamping to a pair that breaks one.
     """
 
-    for box in ('#C4CAD6', '#BFC3CC'):                             # lighter neutral boxes
-        fill = Theme.Neutral_Mask_Fill(box)
-        assert Theme.Delta_E(box, fill) >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E
-        assert Theme.Ground_Contrast(fill) >= Theme.CONST_MASK_FILL_MIN_GROUND_CONTRAST
+    lighter = Theme.Neutral_Mask_Colors('#C4CAD6')
+    for outline, fill in (lighter, Theme.Neutral_Mask_Colors(Theme.CONST_DETECTION_BOX)):
+        assert Theme.Delta_E(outline, fill) >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E
         assert Theme.Delta_E(fill, '#FFFFFF') >= Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E
+        assert Theme.Ground_Contrast(outline) >= Theme.CONST_MASK_FILL_MIN_GROUND_CONTRAST
 
-    with pytest.raises(ValueError, match='No valid neutral mask fill'):
-        Theme.Neutral_Mask_Fill('#949AA6')                          # the earlier, darker neutral
+    previous = Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E
+    try:
+        Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E = previous + 2.0
+        with pytest.raises(ValueError, match='No valid neutral mask pair'):
+            Theme.Neutral_Mask_Colors(Theme.CONST_DETECTION_BOX)
+    finally:
+        Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E = previous
