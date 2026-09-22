@@ -501,6 +501,6 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   is unchanged.
 
 **Revisit if** a part family needs orientation modulo 60° (hex) or needs across-flats rather than a
-mean diameter; and see KNOWN_ISSUES for the absolute accuracy, which is unverified.
+mean diameter; and see KNOWN_ISSUES: the sizes may carry a systematic error of unknown magnitude and are not for acceptance decisions until checked against references of known size.
 Tests `test/Vision/Utilities/test_measure.py`, `test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
 

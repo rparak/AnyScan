@@ -303,24 +303,40 @@ no object has a score.
   `::test_confidence_denominator_is_the_scored_count_not_the_total` and
   `::test_confidence_is_no_value_when_no_object_has_a_score`.
 
-## Measured sizes are precise but their absolute accuracy is unverified
+## Measured sizes may carry a systematic error of unknown magnitude — not for acceptance decisions
 
-Object sizes are shown to 0.1 mm (one pixel at 0.098 mm/px) and are **repeatable**: the same plate
-in `Image_002`–`005`, placed differently, measures 57.7–58.5 × 37.9–39.1 mm. Their **absolute**
-accuracy has not been checked against a part of known size, and the calibration gives reasons to
-check before trusting it:
+**Do not use the object sizes for acceptance decisions yet.** They may be wrong by a systematic
+error whose size nobody has measured. They are shown to 0.1 mm because that is one pixel at
+0.098 mm/px, not because they are accurate to 0.1 mm.
+
+They are **repeatable** — the same plate in `Image_002`–`005`, placed differently, measures
+57.7–58.5 × 37.9–39.1 mm — but repeatability says nothing about correctness: a systematic error
+(a wrong scale, or a scale that varies across the frame) is the same in every frame and hides
+inside exactly that stability. The calibration gives specific reasons to expect one:
 
 - `Conversion_Factor` is derived from chessboard corners in a **single, raw (distorted)** image,
   but it is applied to **undistorted** frames (the live camera and `Example/Camera/scan.py` both
-  undistort), so any scale difference between the two pixel spaces is a systematic error.
-- The same single-image calibration puts K's principal point at (160.7, 355.5), far from the
-  image centre (960, 600), which suggests the intrinsics are poorly constrained.
+  undistort), so any scale difference between the two pixel spaces is a systematic error. The
+  undistortion itself rescales: `getOptimalNewCameraMatrix(alpha=1)` gives a focal length 0.17 %
+  (x) and 0.97 % (y) shorter than K's.
+- The calibration's own model, taken at face value, predicts sizes about +0.5 % (x) / +1.0 % (y)
+  too large at the frame centre and within ±0.3 % near the corners — a position-dependent error.
+  That prediction is **not** evidence either way: it comes from the same single-image fit, which
+  puts K's principal point at (160.7, 355.5), about 800 px from the image centre (960, 600) — a
+  sign the intrinsics are poorly constrained.
 - A mean corner spacing over the whole board averages out any perspective tilt of the board, so
   a tilted calibration board biases the factor.
+- The factor holds only for the **table plane** at the calibrated distance. A part's top face is
+  nearer the lens and reads larger — about 0.3 % per millimetre of thickness at the ~340–380 mm
+  working distance — and moving the camera or refocusing invalidates the factor altogether.
 
-- **Impact:** sizes may carry an unquantified systematic error (a scale factor); their decimals
-  reflect pixel resolution, not accuracy.
-- **The specific check:** measure a part of known size (e.g. a gauge block, or a washer of known
-  outer diameter) and compare. If it is off, recalibrate from several board poses on undistorted
-  images; do not add a correction factor.
+- **Impact:** every size (A × B and Ø) may carry a systematic error of unknown magnitude, either
+  one scale factor or one that varies with position in the frame.
+- **The check that closes it:** photograph references of known size — the calibration chessboard
+  (12 mm squares, hardcoded in `Example/Camera/calibrate.py`, not stored in the configuration)
+  and caliper-measured flat parts — at the frame centre and in the corners, through the
+  application's own undistortion, and compare measured against nominal in mm and percent. If the
+  error is the same everywhere it is one correction to the factor; if it varies across the frame,
+  the factor must be recomputed from undistorted corners (and the calibration redone from several
+  board poses) before any size is relied on.
 
