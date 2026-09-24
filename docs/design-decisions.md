@@ -895,3 +895,60 @@ different text through floating-point differences inside the model, so word-for-
 output is a measured property of the Apple-silicon build. On any new platform, everything pinned
 to exact description text — tests and the characterization baseline — must be re-verified
 before it is trusted there.
+
+## Control stylesheets: every state rule names its fill and its label
+
+**Qt resolves stylesheet rules by specificity, not by order.** Specificity counts pseudo-states,
+so `QPushButton:hover:enabled` (two) beats `QPushButton:checked` (one) wherever both apply, even
+if `:checked` is written later. A rule wins only for the properties it names. Properties it
+leaves out still come from whichever rule is next in line.
+
+This broke every segmented control. The shared segment stylesheet had a hover rule that set
+only the background (`#f6f5fa`) and a `:checked` rule that set the fill to ink and the label to
+white. On a selected segment under the cursor, the hover rule won the background and `:checked`
+still supplied the label: **white on `#f6f5fa`, 1.08:1.** Pressing counts as hovering, so a press
+on a selected segment failed in the same way. The rules looked correct in the file. The failure
+only showed in what Qt painted, and only when someone hovered.
+
+**The rule adopted:** a state rule sets the background *and* the label together, and a hover
+rule is scoped to `:checked` or `:!checked`. Then no state can pick up a label colour chosen for
+a different fill, whichever rule Qt ranks first. `Tool_Button_Cls` follows the same rule.
+
+**How far it reached:** one rule, in one class (`Segmented_Control_Cls`). It showed up in four
+places (view switch, Log filter, Annotated/Mask toggle, Captures filter) only because they share
+the class. ANALYZE was the obvious suspect, since it is filled like a selected segment and its
+hover rule also set only the background. It measured **11.23:1**. Nothing else on an enabled
+button set a competing label colour, so there was nothing to leak. The pattern was a trap that
+had gone off in one place, not a bug in every stylesheet. The tool buttons were rewritten as
+pairs anyway, so adding a label colour to some state later cannot set it off.
+
+**Measured, not read.** `test/UI/test_control_contrast.py` builds the real window and drives
+every control through rest, hover, pressed, focus, disabled, and disabled with the cursor on it.
+Segmented controls are measured with a segment selected and one unselected. It renders each state
+at 2× and measures the label area's pixels. Two traps for anyone writing such a test:
+
+- In Qt 5.15, `QPushButton` reports hover only after a `MouseMove` while `WA_UnderMouse` is set.
+  Setting the attribute alone renders the resting state, and the test passes without testing
+  anything.
+- A control the app keeps hidden, such as the view toggle before an analysis, can render stale
+  the first time. The test shows it first.
+
+Every enabled state is held to **4.5:1**. The lowest is 10.08:1, a focused selected segment.
+
+**Disabled states are exempt from 4.5:1, by decision.** Low contrast is how a disabled control
+says it is unavailable. Holding it to 4.5:1 would make it look active. It is held instead to
+looking different from its enabled self: ΔE76 ≥ 12 in label or fill, the project's distinctness
+floor. It must also look the same whether or not the cursor is on it, so a CONNECT that disables
+itself under the pointer stays visibly disabled. The exemption is a named constant in the test
+(`CONST_EXEMPT_STATES`) with its reason. Measured disabled values:
+
+| disabled | label on fill | contrast | ΔE to enabled (label / fill) |
+|---|---|---|---|
+| unselected segment, plain button | `#b6b2ca` on `#ffffff` | 2.06:1 | 59.7 / 0.0 |
+| selected segment | `#b6b2ca` on `#2b2455` | 6.87:1 | 29.5 / 0.0 |
+| ANALYZE (primary) | `#f2f1f6` on `#cbc8db` | 1.46:1 | 5.3 / 68.0 |
+
+Revisit this if a control needs a disabled label that stays readable, or if the console moves to
+a different Qt version. The hover forcing was checked against Qt 5.15's `QPushButton` only, so
+on another version, confirm the 'hover' rows still differ from 'rest' first. The test's own
+completeness check fails if they don't.

@@ -149,8 +149,9 @@ class Log_View_Cls(Card_Cls):
         self.__new_indicator.setStyleSheet(
             'QPushButton { border: 1px solid %s; background: %s; color: %s;'
             'border-radius: 12px; padding: 3px 12px; }'
-            'QPushButton:hover { background: #f6f5fa; }'
-            % (Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK))
+            'QPushButton:hover { background: %s; color: %s; }'
+            % (Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK, Style.CONST_CONTROL_HOVER,
+               Style.CONST_INK))
         self.__new_indicator.clicked.connect(self.__Scroll_To_Bottom)
         self.__new_indicator.hide()
         head.box.addWidget(self.__new_indicator)

@@ -562,22 +562,34 @@ class Tool_Button_Cls(QPushButton):
         self.setFixedHeight(48)
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        # Every state rule names its fill AND its label, as in Segmented_Control_Cls: Qt picks a
+        # rule by pseudo-state count, not order, so a fill-only rule can pair with a label chosen
+        # for another state. Nothing competes here today, but the pairing keeps it that way.
         if primary:
             self.setStyleSheet("""
-                QPushButton { background: %s; border: 1px solid %s; color: #fff;
-                              border-radius: %dpx; }
-                QPushButton:hover:enabled { background: #3a3270; border-color: #3a3270; }
-                QPushButton:pressed:enabled { background: #1f1a3f; border-color: #1f1a3f; }
-                QPushButton:disabled { background: #cbc8db; border-color: #cbc8db;
-                                       color: #f2f1f6; }
-            """ % (Style.CONST_INK, Style.CONST_INK, Style.CONST_RADIUS_BTN))
+                QPushButton { background: %(ink)s; border: 1px solid %(ink)s; color: %(on_ink)s;
+                              border-radius: %(radius)dpx; }
+                QPushButton:hover:enabled { background: %(hover)s; border-color: %(hover)s;
+                                            color: %(on_ink)s; }
+                QPushButton:pressed:enabled { background: %(pressed)s; border-color: %(pressed)s;
+                                              color: %(on_ink)s; }
+                QPushButton:disabled { background: %(off_fill)s; border-color: %(off_fill)s;
+                                       color: %(off_text)s; }
+            """ % {'ink': Style.CONST_INK, 'on_ink': Style.CONST_ON_INK, 'hover': Style.CONST_INK_HOVER,
+                   'pressed': Style.CONST_INK_PRESSED, 'off_fill': Style.CONST_PRIMARY_DISABLED_FILL,
+                   'off_text': Style.CONST_PRIMARY_DISABLED_TEXT, 'radius': Style.CONST_RADIUS_BTN})
         else:
             self.setStyleSheet("""
-                QPushButton { background: #fff; border: 1px solid #e3e0ee; color: %s;
-                              border-radius: %dpx; }
-                QPushButton:hover:enabled { background: #f6f5fa; border-color: #d5d1e6; }
-                QPushButton:disabled { color: #b6b2ca; border-color: #ecebf2; }
-            """ % (Style.CONST_INK, Style.CONST_RADIUS_BTN))
+                QPushButton { background: %(card)s; border: 1px solid %(border)s; color: %(ink)s;
+                              border-radius: %(radius)dpx; }
+                QPushButton:hover:enabled { background: %(hover)s; border-color: %(hover_border)s;
+                                            color: %(ink)s; }
+                QPushButton:disabled { background: %(card)s; border-color: %(off_border)s;
+                                       color: %(off_text)s; }
+            """ % {'card': Style.CONST_CARD, 'border': Style.CONST_CONTROL_BORDER, 'ink': Style.CONST_INK,
+                   'hover': Style.CONST_CONTROL_HOVER, 'hover_border': Style.CONST_CONTROL_HOVER_BORDER,
+                   'off_border': Style.CONST_CONTROL_DISABLED_BORDER,
+                   'off_text': Style.CONST_CONTROL_DISABLED_TEXT, 'radius': Style.CONST_RADIUS_BTN})
 
 
 class Segmented_Control_Cls(QWidget):
@@ -626,6 +638,14 @@ class Segmented_Control_Cls(QWidget):
             buttons read as a single segmented control, and the checked segment carries the
             brand ink.
 
+            Note:
+                Qt ranks a selector by its pseudo-state count, not its order, so a bare
+                ':hover:enabled' (two states) beats ':checked' (one) and repaints a SELECTED
+                segment's fill with the unselected hover tint while ':checked' still supplies
+                the white label — white on near-white. Each hover rule is therefore scoped to
+                checked or unchecked and sets the background AND the label together, so no
+                state can inherit a label colour chosen for a different fill.
+
         Args:
             (1) index [int]: The segment's position.
             (2) total [int]: The number of segments.
@@ -638,14 +658,22 @@ class Segmented_Control_Cls(QWidget):
         left = radius if index == 0 else 0
         right = radius if index == total - 1 else 0
         return ("""
-            QPushButton { background: #fff; border: 1px solid #e3e0ee; color: %s;
+            QPushButton { background: %(card)s; border: 1px solid %(border)s; color: %(ink)s;
                           padding: 0 16px;
-                          border-top-left-radius: %dpx; border-bottom-left-radius: %dpx;
-                          border-top-right-radius: %dpx; border-bottom-right-radius: %dpx; }
-            QPushButton:hover:enabled { background: #f6f5fa; }
-            QPushButton:checked { background: %s; border-color: %s; color: #fff; }
-            QPushButton:disabled { color: #b6b2ca; border-color: #ecebf2; }
-        """ % (Style.CONST_INK, left, left, right, right, Style.CONST_INK, Style.CONST_INK))
+                          border-top-left-radius: %(left)dpx; border-bottom-left-radius: %(left)dpx;
+                          border-top-right-radius: %(right)dpx; border-bottom-right-radius: %(right)dpx; }
+            QPushButton:!checked:hover:enabled { background: %(hover)s; color: %(ink)s; }
+            QPushButton:checked { background: %(ink)s; border-color: %(ink)s; color: %(on_ink)s; }
+            QPushButton:checked:hover:enabled { background: %(ink_hover)s; border-color: %(ink_hover)s;
+                                                color: %(on_ink)s; }
+            QPushButton:!checked:disabled { background: %(card)s; border-color: %(off_border)s;
+                                            color: %(off_text)s; }
+            QPushButton:checked:disabled { background: %(ink)s; border-color: %(ink)s;
+                                           color: %(off_text)s; }
+        """ % {'card': Style.CONST_CARD, 'border': Style.CONST_CONTROL_BORDER, 'ink': Style.CONST_INK,
+               'hover': Style.CONST_CONTROL_HOVER, 'ink_hover': Style.CONST_INK_HOVER,
+               'on_ink': Style.CONST_ON_INK, 'off_border': Style.CONST_CONTROL_DISABLED_BORDER,
+               'off_text': Style.CONST_CONTROL_DISABLED_TEXT, 'left': left, 'right': right})
 
     def Set_Selection(self, key: str) -> None:
         """

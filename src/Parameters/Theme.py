@@ -50,6 +50,26 @@ CONST_LINE          = '#ecebf2'   # violet-tinted dividers
 
 CONST_BRAND         = '#ff005c'   # EDIH-DIGIMAT magenta: object 1 and focus only
 
+# The interactive-control tokens (segmented controls, tool buttons). A control state is ALWAYS
+# a (background, label) PAIR: a state rule that moves the background without naming the label
+# lets another rule's label colour leak onto it — a hovered SELECTED segment once kept the
+# checked white label on the unselected hover fill (~1.1:1). Every pair is >= 4.5:1, pinned in
+# test/UI/test_control_contrast.py by measuring the rendered pixels.
+#   Unit [string] (hex colour)
+CONST_CONTROL_BORDER          = '#e3e0ee'  # resting outline of an unselected segment / plain button
+CONST_CONTROL_HOVER           = '#f6f5fa'  # unselected hover fill; the label stays CONST_INK
+CONST_CONTROL_HOVER_BORDER    = '#d5d1e6'  # plain-button outline under the cursor
+CONST_INK_HOVER               = '#3a3270'  # selected / primary hover fill: a slight shift off CONST_INK
+CONST_INK_PRESSED             = '#1f1a3f'  # primary pressed fill: a slight shift the other way
+CONST_ON_INK                  = '#ffffff'  # the label on any CONST_INK-family fill
+# Disabled states are EXEMPT from the 4.5:1 text floor: their low contrast is what says 'not
+# available'. They are held instead to looking different from enabled (ΔE76 >= 12 in label or
+# fill) — see CONST_EXEMPT_STATES in test/UI/test_control_contrast.py.
+CONST_CONTROL_DISABLED_TEXT   = '#b6b2ca'  # label of a disabled segment / plain button (2.06:1 on white)
+CONST_CONTROL_DISABLED_BORDER = CONST_LINE # the outline fades to the divider tone
+CONST_PRIMARY_DISABLED_FILL   = '#cbc8db'  # disabled primary (ANALYZE) fill
+CONST_PRIMARY_DISABLED_TEXT   = '#f2f1f6'  # disabled primary label (1.46:1; the fill carries the state)
+
 # The verdict colours. Green, red and amber are RESERVED here: they mean pass,
 # degraded and fail on the badge, so they must never appear as an object colour.
 CONST_OK            = '#16a34a'   # connected, pass
@@ -332,17 +352,17 @@ def Lch_Of(hex_color: str) -> tp.Tuple[float, float, float]:
     return (lightness, math.hypot(a, b), math.degrees(math.atan2(b, a)) % 360.0)
 
 
-def Ground_Contrast(hex_color: str) -> float:
+def Relative_Luminance(hex_color: str) -> float:
     """
     Description:
-        The contrast ratio of a colour against the black label-mask ground, from its WCAG
-        relative luminance (linear light) — how clearly a fill reads as light on black.
+        The WCAG relative luminance of a colour: each sRGB channel is linearised (the gamma
+        undone), then weighted by the eye's sensitivity to it.
 
     Args:
         (1) hex_color [string]: The colour as '#rrggbb'.
 
     Returns:
-        (1) parameter [float]: The contrast ratio (>= 1.0).
+        (1) parameter [float]: The relative luminance (0 = black .. 1 = white).
     """
 
     def _Linear(channel: float) -> float:
@@ -361,7 +381,42 @@ def Ground_Contrast(hex_color: str) -> float:
         return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
 
     r, g, b = (_Linear(c) for c in Hex_To_Rgb(hex_color))
-    return (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05) / 0.05
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def Contrast_Ratio(hex_a: str, hex_b: str) -> float:
+    """
+    Description:
+        The WCAG contrast ratio between two colours — (L_light + 0.05) / (L_dark + 0.05) of their
+        relative luminances. Order does not matter. 4.5:1 is the WCAG AA floor for body text,
+        the floor every enabled control state is held to.
+
+    Args:
+        (1) hex_a [string]: The first colour as '#rrggbb'.
+        (2) hex_b [string]: The second colour as '#rrggbb'.
+
+    Returns:
+        (1) parameter [float]: The contrast ratio (1.0 .. 21.0).
+    """
+
+    l_a = Relative_Luminance(hex_a); l_b = Relative_Luminance(hex_b)
+    return (max(l_a, l_b) + 0.05) / (min(l_a, l_b) + 0.05)
+
+
+def Ground_Contrast(hex_color: str) -> float:
+    """
+    Description:
+        The contrast ratio of a colour against the black label-mask ground, from its WCAG
+        relative luminance (linear light) — how clearly a fill reads as light on black.
+
+    Args:
+        (1) hex_color [string]: The colour as '#rrggbb'.
+
+    Returns:
+        (1) parameter [float]: The contrast ratio (>= 1.0).
+    """
+
+    return Contrast_Ratio(hex_color, '#000000')
 
 
 def __Lab_To_Hex(lightness: float, a: float, b: float) -> str:
