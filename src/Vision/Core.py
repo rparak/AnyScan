@@ -104,9 +104,9 @@ CONST_FALLBACK_TASK_LABEL = 'model-free description'
 CONST_DESCRIBER = 'gemma'
 
 # What the models are presented as to the operator is configuration (Identity.Model_Set). The describer's
-# weights carry their own licence, which is NOT the repository's MIT licence: Gemma is under the
-# Gemma Terms of Use (https://ai.google.dev/gemma/terms) and is not redistributable under this
-# repository's licence. See Vision.Describers.
+# weights carry their own licence, which is NOT the repository's MIT licence: Gemma 4 is under the
+# Apache License 2.0 (https://ai.google.dev/gemma/docs/gemma_4_license), which this repository's
+# licence does not cover. See Vision.Describers.
 
 
 class Vision_Error_Cls(RuntimeError):

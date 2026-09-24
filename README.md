@@ -57,7 +57,7 @@ revision is the one this application was measured with: every file of it was che
 byte-for-byte (SHA-256 / git blob hash) against the local weights, and the command was
 dry-run (10 files, 5.2 GB).
 
-The Gemma weights are under the Gemma Terms of Use, **not** MIT (see [Licence
+The Gemma weights are under the Apache License 2.0, **not** MIT (see [Licence
 note](#licence-note)). The describer's prompts live in the configuration file (see
 [Configuration](#configuration)).
 See `models/.gitkeep` for the expected directory contents.
@@ -391,8 +391,16 @@ Both hardware-facing parts sit behind an interface, so a replacement touches one
 
 The models are presented as the configuration's model set (`Identity.Model_Set`, shipped as
 `JIC_AnyScan_All_v1`). The describer's weights are Google's Gemma 4
-E4B (via the `mlx-community` 4-bit MLX conversion), governed by the **Gemma Terms of Use**
-(<https://ai.google.dev/gemma/terms>) and its Prohibited Use Policy — **not** the MIT licence
-of this repository's code. They are not redistributed with the repository (`models/` is
-git-ignored) and are not redistributable under its licence; anyone shipping them must pass
-on Google's terms.
+E4B (via the `mlx-community` 4-bit MLX conversion), licensed under the **Apache License 2.0**
+(<https://ai.google.dev/gemma/docs/gemma_4_license>) — **not** the MIT licence of this
+repository's code. The repository's licence therefore does not cover them: they are not
+redistributed with it (`models/` is git-ignored), and anyone shipping them does so under
+Apache 2.0's own conditions (a copy of the licence, retained notices), not under MIT.
+
+Gemma 4 is Apache 2.0, unlike earlier Gemma generations: Google's Gemma Terms of Use
+(<https://ai.google.dev/gemma/terms>) state that they do not govern Gemma 4 and point to the
+Gemma 4 licence, which is the Apache 2.0 text, and `google/gemma-4-E4B-it` is tagged
+`apache-2.0` — including at revision `fee6332`, the one our weights were converted from. The
+`license: gemma` tag on `mlx-community/gemma-4-e4b-it-4bit` disagrees; it looks like
+converter boilerplate carried over from earlier Gemma conversions, not the upstream licence.
+Checked 2026-09-24.

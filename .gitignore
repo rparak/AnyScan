@@ -10,8 +10,8 @@ env/
 # macOS
 .DS_Store
 
-# Model weights — the app loads Gemma 4 from models/gemma-4-e4b-it-4bit/ (~4.8 GB, Gemma
-# Terms of Use, not MIT) and FastSAM from models/sam-1/. Fetched separately, never committed. Anchored to the
+# Model weights — the app loads Gemma 4 from models/gemma-4-e4b-it-4bit/ (~4.8 GB, Apache
+# 2.0, not MIT) and FastSAM from models/sam-1/. Fetched separately, never committed. Anchored to the
 # repo root so it cannot also swallow a nested directory that happens to be named 'models'.
 /models/
 

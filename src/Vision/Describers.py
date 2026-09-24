@@ -53,11 +53,12 @@ CONST_PURPOSE_BACKGROUND = 'background'
 # Metal GPU through MLX / mlx-vlm. Loaded from the directory the configuration names
 # (Description.Model), never a hub id.
 #
-# LICENCE: the Gemma weights are governed by the Gemma Terms of Use
-# (https://ai.google.dev/gemma/terms) and its Prohibited Use Policy — NOT the MIT licence this
-# repository's code carries. They are not redistributable under the repository's licence;
-# anyone shipping them must pass on Google's terms. models/ is gitignored, so the weights are
-# not in the repository.
+# LICENCE: the Gemma 4 weights are licensed under the Apache License 2.0
+# (https://ai.google.dev/gemma/docs/gemma_4_license) — NOT the MIT licence this repository's
+# code carries, so the repository's licence does not cover them; anyone shipping them does so
+# under Apache 2.0's conditions. models/ is gitignored, so the weights are not in the
+# repository. (The mlx-community card's 'license: gemma' tag looks like converter boilerplate;
+# see README > Licence note.)
 #
 # Generation (Description.Temperature, Description.Max_Tokens) is configuration. Temperature 0 is
 # greedy decoding: the same crop and prompt give the same text, which the pipeline relies on (a

@@ -697,11 +697,14 @@ green surface through it. The background prompt asks for one short sentence nami
 colour and finish ("A deep teal surface presents a uniform, matte finish."); the one-sentence /
 20-word validator stays as a safety net.
 
-**Licence: not MIT, not redistributable under this repository's licence.** The Gemma weights are
-governed by the Gemma Terms of Use (https://ai.google.dev/gemma/terms) and its Prohibited Use
-Policy. The repository's code is MIT; the weights are not, and are not redistributed with it:
-`models/` is gitignored, so they sit in the working tree but are not in the repository. Anyone
-shipping them must pass on Google's terms. (Florence-2, while it remains, is MIT.)
+**Licence: not MIT, not covered by this repository's licence.** The Gemma 4 weights are licensed
+under the Apache License 2.0 (https://ai.google.dev/gemma/docs/gemma_4_license). The repository's
+code is MIT; the weights are not, and are not redistributed with it: `models/` is gitignored, so
+they sit in the working tree but are not in the repository. Anyone shipping them does so under
+Apache 2.0's conditions. (Florence-2, while it remains, is MIT.) *Corrected 2026-09-24:* this
+entry first said the Gemma Terms of Use, taken from the `license: gemma` tag on the mlx-community
+conversion; that tag looks like converter boilerplate — upstream `google/gemma-4-E4B-it` is
+`apache-2.0`, and the Gemma Terms of Use state they do not govern Gemma 4 (README > Licence note).
 
 **Revisit if** the comparison over all seven frames (Phase 2) shows the new model worse somewhere;
 the Florence path went in Phase 3, and the pipeline class, then `Florence_Vision_Cls`, was

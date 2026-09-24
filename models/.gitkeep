@@ -17,10 +17,13 @@ by mlx-community:
 
     https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit
 
-LICENCE: the weights are governed by the Gemma Terms of Use
-(https://ai.google.dev/gemma/terms) and its Prohibited Use Policy — NOT the MIT licence
-of this repository's code. They are not redistributable under the repository's licence;
-anyone shipping them must pass on Google's terms. The app presents the model to the
+LICENCE: the weights are licensed under the Apache License 2.0
+(https://ai.google.dev/gemma/docs/gemma_4_license) — NOT the MIT licence of this
+repository's code, so the repository's licence does not cover them; anyone shipping them
+does so under Apache 2.0's conditions. The mlx-community card's `license: gemma` tag looks
+like converter boilerplate: upstream google/gemma-4-E4B-it is apache-2.0 (also at the
+converted revision fee6332), and the Gemma Terms of Use exclude Gemma 4 (README > Licence
+note). The app presents the model to the
 operator as "JIC-AnyScan-v1" (see src/Vision/Core.py, CONST_MODEL_NAME, and
 src/Vision/Describers.py, CONST_GEMMA_MODEL_DIR).
 
