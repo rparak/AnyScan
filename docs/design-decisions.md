@@ -1301,3 +1301,33 @@ for putting chrome on the scale too), or if Live and History need to show the sa
 size (the two token sets would then merge).
 Tests `test/UI/test_history.py::test_info_panel_type_hierarchy_heading_is_largest`.
 
+## models/ is out of reach of the installer tests, and the suite fails if it changes
+
+On 2026-09-24 the repository's `models/` was emptied during a working session: the Gemma weights
+(5.1 GB) and FastSAM, both git-ignored and so beyond git's reach. **The cause is unexplained.** What was
+ruled out: `git worktree remove --force` does not follow a symlinked `models/` (two reproductions, and a
+faithful re-run of the exact worktree-and-pytest loop against a dummy `models/`, which came through
+intact); nothing in the suite, the harnesses or the installer deletes a directory; the installer's only
+destructive operations are `rm -f` of its own temporary and `.part` files, replacing the FastSAM file,
+and `hf --force-download` over single Gemma files — none can remove whole directories; the other
+sessions working in this repository were last active hours before. The weights were restored from
+verified copies (every file against the published hashes, before and after).
+
+Two measures make `models/` structurally out of reach, instead of a note asking to be careful:
+
+- **The installer tests source a copy of `install.sh` inside their sandbox.** `CONST_ROOT` is resolved
+  from the script's own location, so the copy's root *is* the sandbox from its first line. Before, the
+  tests sourced the real script — `CONST_ROOT` was the real repository — and every snippet had to
+  override it; one that forgot would have run the installer's writes against the real `models/`.
+- **The suite fails if `models/` changes.** A session fixture in `test/conftest.py` takes the inventory
+  (every file and its size) before the first test and compares it after the last; a removed, added or
+  resized file fails the run, naming it. The rest of the suite only reads `models/` (the model loads,
+  when the weights are present), so there is nothing further to prevent — but a repeat is now attributed
+  to the run that caused it, immediately.
+
+**Revisit if** the deletion recurs (the guard then names the run and the files, which is the evidence
+this entry lacks), or if a test ever needs to write under `models/` (it must use its own `tmp_path`, and
+the guard would fail it otherwise).
+Tests `test/Install/test_install.py::test_the_sandboxed_script_resolves_its_root_to_the_sandbox`; the
+`models_untouched` fixture in `test/conftest.py` runs with every session.
+

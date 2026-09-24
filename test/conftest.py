@@ -202,3 +202,43 @@ def make_synthetic_frame() -> tp.Callable[[np.ndarray, tp.List[tp.Tuple[int, int
         return frame
 
     return _Build
+
+
+def _Models_Inventory() -> tp.Dict[str, int]:
+    """
+    Description:
+        Every file under the repository's models/ (the user's multi-GB, git-ignored weights) as
+        {relative path: size}, Finder's .DS_Store excepted.
+
+    Returns:
+        (1) parameter [Dict<string, int>]: The inventory; empty when models/ holds no weights.
+    """
+
+    root = os.path.join(CONST_PROJECT_FOLDER, 'models')
+    inventory = {}
+    for folder, _dirs, files in os.walk(root):
+        for name in files:
+            if name != '.DS_Store':
+                path = os.path.join(folder, name)
+                inventory[os.path.relpath(path, root)] = os.path.getsize(path)
+    return inventory
+
+
+@pytest.fixture(scope='session', autouse=True)
+def models_untouched() -> tp.Iterator[None]:
+    """
+    Description:
+        The suite must leave models/ exactly as it found it: the weights are git-ignored, so git cannot
+        restore them. The inventory is taken before the first test and compared after the last; any
+        file removed, added or resized fails the run, naming each one — so a change is attributed to
+        this run the moment it happens, not discovered later. (On 2026-09-24 models/ was emptied during
+        a working session and the cause was never found; see docs/design-decisions.md.)
+    """
+
+    before = _Models_Inventory()
+    yield
+    after = _Models_Inventory()
+    changes = (['removed: %s' % name for name in sorted(set(before) - set(after))]
+               + ['added: %s' % name for name in sorted(set(after) - set(before))]
+               + ['resized: %s' % name for name in sorted(set(before) & set(after)) if before[name] != after[name]])
+    assert not changes, 'The test run changed models/:\n  ' + '\n  '.join(changes)

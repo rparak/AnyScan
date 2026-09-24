@@ -128,6 +128,11 @@ class Sandbox_Cls(object):
             path = shutil.which(tool)
             if path is not None:
                 os.symlink(path, os.path.join(self.__tools, tool))
+        # The script under test is a COPY inside the sandbox, so its CONST_ROOT (resolved from the
+        # script's own location) is the sandbox from the first line: no step can reach the real
+        # repository's models/ or .venv, even in a test that forgets to override CONST_ROOT.
+        self.__script = os.path.join(self.__root, 'install.sh')
+        shutil.copyfile(CONST_INSTALL_SCRIPT, self.__script)
 
     @property
     def Root(self) -> str:
@@ -182,7 +187,7 @@ class Sandbox_Cls(object):
                        'TMPDIR': self.__root, 'LC_ALL': 'C'}
         environment.update(env or {})
 
-        return subprocess.run(['/bin/bash', '-c', script, 'test', CONST_INSTALL_SCRIPT], env=environment,
+        return subprocess.run(['/bin/bash', '-c', script, 'test', self.__script], env=environment,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, timeout=60)
 
 
@@ -813,6 +818,19 @@ def test_configuration_pointing_elsewhere_names_the_field(sandbox, gemma, expect
 
 
 # ---- the whole detection path -----------------------------------------------
+
+def test_the_sandboxed_script_resolves_its_root_to_the_sandbox(sandbox):
+    """
+    Description:
+        The prevention, pinned: the sourced script is the sandbox's copy, so its CONST_ROOT — and with
+        it models/ and .venv — is the sandbox before any snippet runs, not the real repository.
+    """
+
+    process = sandbox.Run('Show CONST_ROOT CONST_VENV_DIR')
+    root = os.path.realpath(sandbox.Root)
+    assert os.path.realpath(_Results(process)['CONST_ROOT']) == root
+    assert os.path.realpath(_Results(process)['CONST_VENV_DIR']) == os.path.join(root, '.venv')
+
 
 def test_detect_only_on_stubbed_linux_changes_nothing(sandbox):
     _Stub_Linux(sandbox)
