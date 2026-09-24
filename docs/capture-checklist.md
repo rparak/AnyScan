@@ -23,7 +23,7 @@ is unverified until the relevant item here has been captured and checked.
 | # | Item | Frames | Closes |
 |---|---|---|---|
 | 1 | Multi-view calibration set | 20+ | The camera's first multi-view calibration: the lens model, the principal point and the mm/px factor that item 2 then checks |
-| 2 | Reference frames: scale and parallax | 9 | *Measured sizes may carry a systematic error*; *A part's measured size depends on where it lies in the frame* |
+| 2 | Empty-surface reference, then reference frames: scale and parallax | 1 + 9 | *Measured sizes may carry a systematic error*; *A part's measured size depends on where it lies in the frame* |
 | 3 | Parts session: defects, low-contrast parts, harsh shadow | ~40 | *The describer is not a defect detector*; *Open question: FastSAM's reliability on low-contrast shapes*; *A very harsh cast shadow can be absorbed* |
 
 **Before item 1: confirm the camera is pinned.** Power-cycle the camera (it then starts from its
@@ -36,8 +36,9 @@ every item below depends on the window. Capture the calibration set into a **new
 **Order: 1, then 2, then 3.**
 
 1. **Calibrate first.** Adopt the new calibration, then restart the application so it is in force.
-2. **Then shoot the reference frames, under the new calibration.** Frames shot before recalibrating
-   would measure a factor that is about to be replaced.
+2. **Then the empty-surface reference, then the reference frames, under the new calibration.** Frames
+   shot before recalibrating would measure a factor that is about to be replaced; the reference goes
+   first so the nine frames are analysed against it.
 3. **Then the parts session.** Its frames are then undistorted and measured under the calibration
    that item 2 has checked.
 
@@ -95,6 +96,32 @@ reference frames' distorted originals can be re-measured under it for a before/a
 
 ## 2. Reference frames — scale and parallax
 
+### 2.0 Empty-surface reference (one frame, first)
+
+**Why.** After the sensor-window change every other artefact is captured at a pinned, recorded window.
+The reference in force (`Data/Camera/Image_Background_001.png`) is the right size, but the window it was
+shot at is a guess — "probably (0, 0)" — and so are the calibration and lighting it was shot under.
+Re-shooting it removes the last unverified one. It is one frame of an empty table.
+
+**Conditions.** Item 1's calibration adopted and in force (application restarted), shipped
+configuration, shipped lighting, camera untouched since item 1, **the table empty** — nothing in view,
+no shadows from the operator.
+
+**Shoot it with the application, not `scan.py`.** The reference must be the frame the pipeline
+compares against: the application's processing step, then undistortion under the calibration in force.
+`scan.py` undistorts but skips the processing step, so its frame is not that.
+
+1. CONFIGURATION → Load, CONNECT, confirm the log's *Camera set to 1920 × 1200 at offset (8, 8)* line.
+2. SCAN + ANALYZE on the empty table. The capture set's `<set>_raw.png` is the reference frame.
+3. Copy it to `Data/Camera/Image_Background_002.png` (do not overwrite `_001`: the characterization
+   baseline and the seven `Data/Camera` frames were analysed against it), and set
+   `Segmentation.Background.Reference` to it.
+4. Restart the application so the new reference is in force, then shoot the nine frames below.
+
+**Record alongside** (in `Data/Reference/reference_check.yaml`, `background_reference`): the source
+capture set and `<set>`, the calibration in force, the window from the connect log line, the lighting,
+and the time.
+
 **Why.** The mm/px factor has never been checked against a known size on this rig. These frames
 check the calibration from item 1 against calipered references: a uniform error means one correction
 to the factor; an error that varies with position means the calibration itself needs another look.
@@ -102,8 +129,11 @@ Parts of known thickness at the centre and in the corners also give the parallax
 
 **Needed.** The same chessboard as item 1, one flat plate, one washer, one hex nut, and a caliper.
 
+### 2.1 The nine reference frames
+
 **Conditions.** **Item 1's calibration adopted and in force** (the application restarted after the
-rename). Shipped configuration loaded, one CONNECT, shipped lighting, camera untouched since item 1.
+rename), **and 2.0's reference in force** (restarted after setting it). Shipped configuration loaded,
+one CONNECT, shipped lighting, camera untouched since item 1.
 The board lies flat; the parts lie flat and do not touch each other.
 
 | n | What | Where (as seen in the Live view) | Note |
