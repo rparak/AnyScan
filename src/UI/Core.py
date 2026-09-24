@@ -56,7 +56,7 @@ from UI.Workers import Analysis_Worker_Cls, Connect_Worker_Cls
 #   ../Camera/Core
 from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
 #   ../Vision/Core
-from Vision.Core import Florence_Vision_Cls
+from Vision.Core import Vision_Pipeline_Cls
 #   ../Vision/Utilities/Annotate
 import Vision.Utilities.Annotate as Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask, Seg_Lines
@@ -147,7 +147,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # measures every object with it, and each capture set records it beside its measurements.
         # None — the configuration has no Conversion_Factor — measures nothing (the launcher warns).
         self.__scale = scale
-        self.__vision = Florence_Vision_Cls(scale=scale)
+        self.__vision = Vision_Pipeline_Cls(scale=scale)
         # The session logger is injected by the launcher; None disables logging so the
         # window still builds under test and in the screenshot harness.
         self.__logger = logger

@@ -28,7 +28,7 @@ import pytest
 # Custom Lib.: AnyScan domain — vision backend and result structure
 #   ../Vision/Core
 import Vision.Core as Vision_Core
-from Vision.Core import Vision_Backend_Cls, Florence_Vision_Cls, Vision_Error_Cls
+from Vision.Core import Vision_Backend_Cls, Vision_Pipeline_Cls, Vision_Error_Cls
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
 
@@ -44,12 +44,12 @@ Description:
 def test_backend_interface() -> None:
     """
     Description:
-        Florence_Vision_Cls is a Vision_Backend_Cls; the base Analyze is abstract;
+        Vision_Pipeline_Cls is a Vision_Backend_Cls; the base Analyze is abstract;
         the presented name is the model name.
     """
 
-    assert issubclass(Florence_Vision_Cls, Vision_Backend_Cls)
-    assert Florence_Vision_Cls.Name == Vision_Core.CONST_MODEL_NAME
+    assert issubclass(Vision_Pipeline_Cls, Vision_Backend_Cls)
+    assert Vision_Pipeline_Cls.Name == Vision_Core.CONST_MODEL_NAME
     with pytest.raises(NotImplementedError):
         Vision_Backend_Cls().Analyze(None)
 
@@ -105,7 +105,7 @@ def test_analyze_end_to_end(reference_background, make_synthetic_frame) -> None:
     frame_bgr = make_synthetic_frame(reference_background, rects)
     image_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
-    result = Florence_Vision_Cls(scale=None).Analyze(image_rgb)
+    result = Vision_Pipeline_Cls(scale=None).Analyze(image_rgb)
 
     assert isinstance(result, Analysis_Str)
     assert len(result.Objects) == 2

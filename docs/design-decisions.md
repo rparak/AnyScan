@@ -704,7 +704,8 @@ Policy. The repository's code is MIT; the weights are not, and are not redistrib
 shipping them must pass on Google's terms. (Florence-2, while it remains, is MIT.)
 
 **Revisit if** the comparison over all seven frames (Phase 2) shows the new model worse somewhere;
-the Florence path and `Vision_Core.Florence_Vision_Cls`'s historical name go in Phase 3.
+the Florence path went in Phase 3, and the pipeline class, then `Florence_Vision_Cls`, was
+renamed `Vision_Pipeline_Cls`.
 Tests `test/Vision/test_describers.py` (with a stand-in `mlx_vlm`: the data-file prompts, greedy
 decoding, thinking off, RGB input, loud failures, Florence's token mapping, the Task labels),
 `test/UI/test_history.py::test_each_set_shows_the_task_that_produced_it`,

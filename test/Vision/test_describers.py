@@ -37,7 +37,7 @@ from Vision.Describers import (Gemma_Describer_Cls, Describer_Error_Cls,
 from Camera.Utilities.Configuration import Read_Describer_Prompts, CONST_DESCRIBER_PROMPTS_FILE
 #   ../Vision/Core
 import Vision.Core as Vision_Core
-from Vision.Core import Florence_Vision_Cls, Vision_Error_Cls
+from Vision.Core import Vision_Pipeline_Cls, Vision_Error_Cls
 
 """
 Description:
@@ -168,4 +168,4 @@ def test_an_unknown_describer_fails_before_any_work(monkeypatch) -> None:
 
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'llava')
     with pytest.raises(Vision_Error_Cls, match='gemma or fallback'):
-        Florence_Vision_Cls(scale=None).Analyze(np.zeros((4, 4, 3), np.uint8))
+        Vision_Pipeline_Cls(scale=None).Analyze(np.zeros((4, 4, 3), np.uint8))

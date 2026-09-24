@@ -187,7 +187,7 @@ describer would then contain a strip of table.
 ## The no-reference-background detection path was removed
 
 Analysis now **requires a reference background**. Every path through
-`Florence_Vision_Cls.Analyze` runs stage 1 (background subtraction against
+`Vision_Pipeline_Cls.Analyze` runs stage 1 (background subtraction against
 `CONST_BACKGROUND_REF`), so with no reference capture the analysis raises rather
 than running.
 

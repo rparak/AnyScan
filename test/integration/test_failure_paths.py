@@ -30,11 +30,11 @@ import pytest
 # Custom Lib.: AnyScan domain — the vision backend and its error type
 #   ../Vision/Core
 import Vision.Core as Vision_Core
-from Vision.Core import Florence_Vision_Cls, Vision_Error_Cls
+from Vision.Core import Vision_Pipeline_Cls, Vision_Error_Cls
 
 """
 Description:
-    The failure paths users actually hit. Both run the real Florence_Vision_Cls
+    The failure paths users actually hit. Both run the real Vision_Pipeline_Cls
     path (loading the runtime), so both are slow. Each asserts the failure surfaces
     as a Vision_Error_Cls with an actionable message, rather than crashing with a
     raw traceback the panel could not print.
@@ -59,7 +59,7 @@ def test_missing_model_directory_surfaces_cleanly(reference_background) -> None:
     Describers.CONST_GEMMA_MODEL_DIR = '/no/such/model/directory'
     try:
         with pytest.raises(Vision_Error_Cls, match='/no/such/model/directory'):
-            Florence_Vision_Cls(scale=None).Analyze(image_rgb)
+            Vision_Pipeline_Cls(scale=None).Analyze(image_rgb)
     finally:
         Describers.CONST_GEMMA_MODEL_DIR = original
 
@@ -83,4 +83,4 @@ def test_frame_size_mismatch_surfaces_cleanly(reference_background) -> None:
     wrong_size = np.zeros((h // 2, w // 2, 3), dtype=np.uint8)
 
     with pytest.raises(Vision_Error_Cls):
-        Florence_Vision_Cls(scale=None).Analyze(wrong_size)
+        Vision_Pipeline_Cls(scale=None).Analyze(wrong_size)

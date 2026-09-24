@@ -44,7 +44,7 @@ import typing as tp
 # Custom Lib.: AnyScan vision — the pipeline, its errors, and data-file discovery
 #   ../Vision/Core
 import Vision.Core as Vision_Core
-from Vision.Core import Florence_Vision_Cls, Vision_Error_Cls
+from Vision.Core import Vision_Pipeline_Cls, Vision_Error_Cls
 #   ../Vision/Segmenter
 import Vision.Segmenter as Vision_Segmenter
 from Vision.Segmenter import Segmenter_Error_Cls
@@ -294,7 +294,7 @@ def Render_Views(scene_bgr: tp.Any, objects: tp.List[tp.Any],
     return annotated, mask
 
 
-def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: str,
+def _Analyze_Frame(backend: Vision_Pipeline_Cls, scene_path: str, output_dir: str,
                    write_descriptions: bool, write_montage: bool,
                    run_stamp: str, reference_hash: str,
                    classification_enabled: bool) -> tp.Optional[Analysis_Str]:
@@ -313,7 +313,7 @@ def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: st
         *_descriptions.txt with them is how a stale artefact ends up looking finished.
 
     Args:
-        (1) backend [Florence_Vision_Cls(object)]: The vision backend.
+        (1) backend [Vision_Pipeline_Cls(object)]: The vision backend.
         (2) scene_path [string]: The scene image path.
         (3) output_dir [string]: The directory to write the artefacts into.
         (4) write_descriptions [bool]: Write the descriptions file (real describer only).
@@ -432,7 +432,7 @@ def main() -> int:
               'measured.' % os.path.basename(args.config))
     else:
         print('[INFO] Scale    : %.5f x %.5f mm/px' % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y))
-    backend = Florence_Vision_Cls(scale=scale)
+    backend = Vision_Pipeline_Cls(scale=scale)
     total_objects = 0
     rows = []
     for scene_path in scenes:

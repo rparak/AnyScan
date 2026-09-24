@@ -31,7 +31,7 @@ import pytest
 from Camera.Core import File_Camera_Cls
 #   ../Vision/Core
 import Vision.Core as Vision_Core
-from Vision.Core import Florence_Vision_Cls
+from Vision.Core import Vision_Pipeline_Cls
 #   ../Vision/Segmenter
 import Vision.Segmenter as Vision_Segmenter
 #   ../Parameters/Vision
@@ -139,7 +139,7 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
     image_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     h, w = image_rgb.shape[:2]
 
-    result = Florence_Vision_Cls(scale=None).Analyze(image_rgb)
+    result = Vision_Pipeline_Cls(scale=None).Analyze(image_rgb)
 
     assert isinstance(result, Analysis_Str)
     assert len(result.Objects) == len(CONST_RECTS)
@@ -183,7 +183,7 @@ def test_shadow_rejected_on_real_capture(request, monkeypatch, reference_backgro
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # count/mask only, no VLM
 
     scene_bgr = cv2.imread(frame_path)
-    result = Florence_Vision_Cls(scale=None).Analyze(cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB))
+    result = Vision_Pipeline_Cls(scale=None).Analyze(cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB))
 
     assert len(result.Objects) == 1
     det = result.Objects[0]
@@ -266,7 +266,7 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(request, monkeypa
     from Camera.Utilities.Configuration import Read_Conversion_Factor, CONST_BASLER_CONFIG_FILE
     monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # masks only, no VLM
-    backend = Florence_Vision_Cls(scale=Read_Conversion_Factor(CONST_BASLER_CONFIG_FILE))
+    backend = Vision_Pipeline_Cls(scale=Read_Conversion_Factor(CONST_BASLER_CONFIG_FILE))
     folder = os.path.dirname(reference_background_path)
 
     def _Analyze(name):

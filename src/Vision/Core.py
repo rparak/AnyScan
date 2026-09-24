@@ -57,7 +57,7 @@ Description:
     Initialization of constants.
 
     The vision pipeline — four stages, one module each (see the flow diagram on
-    Florence_Vision_Cls):
+    Vision_Pipeline_Cls):
 
         (1) background subtraction   Vision.Utilities.Segmentation.Background_Foreground
                                          -> the background-subtracted foreground mask
@@ -142,7 +142,7 @@ class Vision_Backend_Cls(object):
         Example:
             Initialization:
                 # Initialization of the class (a concrete subclass).
-                Cls = Florence_Vision_Cls(scale=scale)
+                Cls = Vision_Pipeline_Cls(scale=scale)
 
             Features:
                 # Functions of the class.
@@ -173,7 +173,7 @@ class Vision_Backend_Cls(object):
         raise NotImplementedError
 
 
-class Florence_Vision_Cls(Vision_Backend_Cls):
+class Vision_Pipeline_Cls(Vision_Backend_Cls):
     """
     Description:
         The vision backend. It orchestrates the four-stage pipeline and owns the stage-4
@@ -248,7 +248,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = Florence_Vision_Cls(scale=Read_Conversion_Factor(config_path))
+                Cls = Vision_Pipeline_Cls(scale=Read_Conversion_Factor(config_path))
 
             Features:
                 # Functions of the class.

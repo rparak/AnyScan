@@ -35,7 +35,7 @@ Description:
     per-mask confidences. Fast_Sam_Cls is the concrete backend (FastSAM-x via
     ultralytics); the abstraction is the seam that lets SAM 2 replace it later
     without touching stages 1, 3 or 4 — the same shape Vision_Backend_Cls ->
-    Florence_Vision_Cls has.
+    Vision_Pipeline_Cls has.
 
     Note:
         This module is Qt-free and its bare import is cheap. ultralytics (which
