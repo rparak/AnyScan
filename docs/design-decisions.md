@@ -733,3 +733,22 @@ Tests `test/Reporting/test_core.py::test_a_sentence_naming_the_surface_is_kept_w
 `::test_describe_object_detail_reading_and_fallback`,
 `test/integration/test_pipeline.py::test_pipeline_camera_to_reporting`.
 
+
+## The label distiller peels Gemma's opener — and the label is still weak
+
+Gemma opens every description "The object is a …" (all 15 objects of the seven frames), which the
+Florence lead-ins do not cover; the distiller cut at " is " and every label — which feeds `type=`
+in the log — read `object`. `Reporting.CONST_LABEL_OPENERS` ("the object is", "the part is",
+"the object appears to be", …) is now peeled **for the label only**; the object line keeps the
+model's full sentence ("The object is a rectangular metallic plate, …").
+
+**The result is still poor, and is reported rather than patched per phrase.** Across the fifteen
+objects: usable 5 (circular ring, metallic bolt or screw, rectangular metallic plate, rectangular
+plate, and the two washers, cut at "… washer or"); a single adjective 8 (rectangular ×4, small ×3,
+flat); wrong 1 (dark blue). The cause is structural: the distiller cuts at the first comma, which
+suited Florence's phrasing, and Gemma lists adjectives with commas ("a rectangular, flat plate").
+Fixing that by more boundary rules would be tuning a heuristic to one model's style.
+**Open:** ask the model for the name directly — a third, short prompt ("name the part in at most
+three words") in `Describer_Prompts.yaml`, one more short generation per object — instead of
+distilling it from the description.
+Test `test/Vision/Utilities/test_caption.py::test_condense_label_peels_gemmas_opener_but_the_line_keeps_it`.

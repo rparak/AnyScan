@@ -95,6 +95,18 @@ CONST_LABEL_LEADINS = (
     "shows a", "shows an",
 )
 
+# The describer's own sentence openers, peeled for the LABEL only: Gemma begins every
+# description "The object is a …" (all 15 objects of the seven Data/Camera frames), which the
+# lead-ins above do not cover, so the distiller cut at ' is ' and every label read 'object'.
+# They are not peeled from the object LINE, which keeps the model's full sentence. The article
+# is left in place for the distiller's own article strip; longest first.
+#   Unit [Tuple<string>]
+CONST_LABEL_OPENERS = (
+    "the object appears to be", "the part appears to be", "the item appears to be",
+    "the object is", "this object is", "the part is", "this part is",
+    "the item is", "this item is", "the component is", "this component is",
+)
+
 # The clause boundaries the label distiller cuts a noun phrase at. Verbatim.
 CONST_LABEL_BOUNDARIES = (
     ",", " is ", " are ", " was ", " with ", " that ", " which ", " has ",

@@ -24,6 +24,8 @@
 # Custom Lib.: AnyScan domain — Florence-2 captioning
 #   ../Vision/Utilities/Caption
 import Vision.Utilities.Caption as Caption
+#   ../Reporting/Core
+import Reporting.Core as Reporting
 
 """
 Description:
@@ -44,6 +46,22 @@ def test_condense_label_strips_leadins_and_boundaries() -> None:
     assert Caption.Condense_Label('In this image we can see a washer.') == 'washer'
     assert Caption.Condense_Label('a photograph of two brass fittings sitting on a table') == \
         'two brass fittings'
+
+
+def test_condense_label_peels_gemmas_opener_but_the_line_keeps_it() -> None:
+    """
+    Description:
+        Gemma opens every description 'The object is a …'; the label distiller peels that opener
+        (it used to cut at ' is ' and every label read 'object'), while the object LINE keeps
+        the model's full sentence. A comma-separated adjective list still cuts the label at the
+        first adjective — a known weakness, pinned here so a change to it is deliberate.
+    """
+
+    assert Caption.Condense_Label('The object is a rectangular metallic plate, appearing silver.') == \
+        'rectangular metallic plate'
+    assert Caption.Condense_Label('The part appears to be a metallic bolt or screw.') == 'metallic bolt or screw'
+    assert Caption.Condense_Label('The object is a rectangular, flat plate of bright metal.') == 'rectangular'
+    assert Reporting.Caption_Sentence('The object is a circular ring.') == 'The object is a circular ring.'
 
 
 def test_condense_label_empty_is_object() -> None:

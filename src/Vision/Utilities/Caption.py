@@ -25,7 +25,7 @@
 import typing as tp
 # Custom Lib.: AnyScan domain — report composer (the label vocabulary lives there)
 #   ../Reporting/Core
-from Reporting.Core import (CONST_LABEL_LEADINS, CONST_LABEL_BOUNDARIES,
+from Reporting.Core import (CONST_LABEL_LEADINS, CONST_LABEL_OPENERS, CONST_LABEL_BOUNDARIES,
                             CONST_LABEL_MAX_WORDS)
 
 """
@@ -137,13 +137,13 @@ def Condense_Label(caption: str) -> str:
     """
 
     text = ' '.join(caption.split()).strip().rstrip('.')
-    # Florence stacks lead-ins ('The image shows a close-up of a hex bolt'), so
-    # strip them repeatedly until the front is the noun phrase itself.
+    # Florence stacks lead-ins ('The image shows a close-up of a hex bolt'), and Gemma opens
+    # 'The object is a …', so strip both repeatedly until the front is the noun phrase itself.
     stripped = True
     while stripped:
         stripped = False
         low = text.lower()
-        for lead in CONST_LABEL_LEADINS:
+        for lead in CONST_LABEL_OPENERS + CONST_LABEL_LEADINS:
             if low.startswith(lead):
                 text = text[len(lead):].lstrip(' ,')
                 stripped = True
