@@ -15,7 +15,7 @@ Analysis defaults: objects=[] note='' latency_ms=0 verdict='Idle' verdict_level=
   verdict = Empty (idle)
 [scene: one object]
   header  = The background is a plain green table. There is 1 object on it, described below.
-  object1 = A hex bolt.
+  object1 = A hex bolt on a green surface.
   note    = ''
   verdict = 1 found (ok)
 [scene: several objects]
