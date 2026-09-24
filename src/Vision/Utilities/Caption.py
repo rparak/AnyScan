@@ -25,8 +25,8 @@
 import typing as tp
 # Custom Lib.: AnyScan domain — report composer (the label vocabulary lives there)
 #   ../Reporting/Core
-from Reporting.Core import (CONST_LABEL_LEADINS, CONST_LABEL_OPENERS, CONST_LABEL_BOUNDARIES,
-                            CONST_LABEL_HEDGES, CONST_LABEL_MAX_WORDS)
+from Reporting.Core import (CONST_LABEL_OPENERS, CONST_LABEL_BOUNDARIES, CONST_LABEL_HEDGES,
+                            CONST_LABEL_MAX_WORDS)
 
 """
 Description:
@@ -57,17 +57,12 @@ def Condense_Label(caption: str) -> str:
     """
 
     text = ' '.join(caption.split()).strip().rstrip('.')
-    # Florence stacks lead-ins ('The image shows a close-up of a hex bolt'), and Gemma opens
-    # 'The object is a …', so strip both repeatedly until the front is the noun phrase itself.
-    stripped = True
-    while stripped:
-        stripped = False
-        low = text.lower()
-        for lead in CONST_LABEL_OPENERS + CONST_LABEL_LEADINS:
-            if low.startswith(lead):
-                text = text[len(lead):].lstrip(' ,')
-                stripped = True
-                break
+    # Gemma opens 'The object is a …': peel the opener so the front is the noun phrase itself.
+    low = text.lower()
+    for opener in CONST_LABEL_OPENERS:
+        if low.startswith(opener):
+            text = text[len(opener):].lstrip(' ,')
+            break
 
     # Join the comma-separated adjective run; stop at a comma that opens a new clause.
     segments = [segment.strip() for segment in text.split(',')]

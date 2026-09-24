@@ -15,22 +15,22 @@ Analysis defaults: objects=[] note='' latency_ms=0 verdict='Idle' verdict_level=
   verdict = Empty (idle)
 [scene: one object]
   header  = The background is a plain green table. There is 1 object on it, described below.
-  object1 = A hex bolt on a green surface.
+  object1 = In this image we can see a hex bolt on a green surface.
   note    = ''
   verdict = 1 found (ok)
 [scene: several objects]
   header  = The background is a plain green table. There are 3 objects on it, described below.
   object1 = A metal washer.
-  object2 = A screw, reading “M6”.
+  object2 = A close-up of a screw, reading “M6”.
   object3 = A nut.
   note    = ''
   verdict = Low confidence (warn)
 
 -- label distiller (_condense_label) --
-  'The image shows a close-up of a hex bolt on a green surface.' -> 'hex bolt'
-                            'In this image we can see a washer.' -> 'washer'
-         'a photograph of two brass fittings sitting on a table' -> 'two brass fittings'
-    'This is an M6 stainless steel screw with a hexagonal head.' -> 'm6 stainless steel screw'
+  'The image shows a close-up of a hex bolt on a green surface.' -> 'image shows a close-up'
+                            'In this image we can see a washer.' -> 'can see a washer'
+         'a photograph of two brass fittings sitting on a table' -> 'photograph'
+    'This is an M6 stainless steel screw with a hexagonal head.' -> 'this'
                                                               '' -> 'object'
 
 -- segmentation --

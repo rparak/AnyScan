@@ -73,32 +73,11 @@ CONST_EMPTY_SCENE_EXPLANATION = (
     'Either nothing is on the surface, or the model did not recognise what is there'
 )
 
-# Caption template lead-ins, peeled from the front of a caption to expose the
-# description (Caption_Sentence) and the noun phrase (the label distiller in
-# ../Vision/Utilities/Caption, which imports this). They are Florence-2's template
-# phrasing ('In this image we can see a …'); Gemma's descriptions carry none of them. Every granular
-# piece must appear — 'in this image we can see a bolt' peels as 'in this image'
-# + 'we can see' + the article. Longest variants first, only as a readability aid.
-# The strings are kept verbatim; their exact content is behaviour.
-CONST_LABEL_LEADINS = (
-    "in this image we can see", "in the image we can see",
-    "in this picture we can see", "in this image, we can see",
-    "in this image there are", "in this image there is",
-    "in this image we see", "here we can see", "we can also see",
-    "we can see", "we see", "you can see",
-    "in this image", "in the image", "in this picture", "in the picture",
-    "the image shows", "this image shows", "the photo shows",
-    "this is a", "this is an", "there is a", "there is an",
-    "there are", "here is a", "here is an",
-    "a close-up of", "a close up of", "close-up of", "close up of",
-    "an image of", "a image of", "image of", "a photo of", "a picture of",
-    "a photograph of", "it is a", "it is an", "showing a", "showing an",
-    "shows a", "shows an",
-)
-
 # The describer's own sentence openers, peeled for the LABEL only: Gemma begins every
-# description "The object is a …" (all 15 objects of the seven Data/Camera frames), which the
-# lead-ins above do not cover, so the distiller cut at ' is ' and every label read 'object'.
+# description "The object is a …" (all 15 objects of the seven Data/Camera frames); unpeeled,
+# the distiller cut at ' is ' and every label read 'object'. (Florence-2's caption template
+# lead-ins — "In this image we can see …" — were peeled here too until Florence was removed;
+# Gemma never writes them.)
 # They are not peeled from the object LINE, which keeps the model's full sentence. The article
 # is left in place for the distiller's own article strip; longest first.
 #   Unit [Tuple<string>]
@@ -229,40 +208,11 @@ def Clean_Detail(text: str) -> str:
     return text if text[-1] in '.!?' else text + '.'
 
 
-def Caption_Sentence(caption: str) -> str:
-    """
-    Description:
-        The model's full caption as a clean, standalone description. Any caption
-        template lead-in ('In this image we can see a ...') is peeled from the front
-        so the description reads naturally, then
-        Clean_Detail imposes the console's capitalisation and terminal stop. This
-        is where the panel's one voice is put on the model's raw words.
-
-    Args:
-        (1) caption [string]: The model's raw caption.
-
-    Returns:
-        (1) parameter [string]: The cleaned, standalone description sentence.
-    """
-
-    text = ' '.join(caption.split()).strip()
-    stripped = True
-    while stripped:
-        stripped = False
-        low = text.lower()
-        for lead in CONST_LABEL_LEADINS:
-            if low.startswith(lead):
-                text = text[len(lead):].lstrip(' ,')
-                stripped = True
-                break
-    return Clean_Detail(text)
-
-
 def Object_Description(det: Detection_Str) -> str:
     """
     Description:
-        The object's line: the model's description, peeled of any template lead-in
-        (Caption_Sentence) and put into the panel's capitalisation and stop. Nothing is
+        The object's line: the model's description, put into the panel's capitalisation
+        and terminal stop (Clean_Detail). Nothing is
         rewritten or removed — the describer is asked to describe only the part. When no
         usable description remains, the short 'A <label>.' stands in; a reading, if any, is
         appended.
@@ -274,7 +224,7 @@ def Object_Description(det: Detection_Str) -> str:
         (1) parameter [string]: The object's line.
     """
 
-    sentence = Caption_Sentence(det.Detail) if CONST_SHOW_OBJECT_DETAIL else ''
+    sentence = Clean_Detail(det.Detail) if CONST_SHOW_OBJECT_DETAIL else ''
     if not sentence:
         article = 'An' if det.Label[:1].lower() in 'aeiou' else 'A'
         sentence = '%s %s.' % (article, det.Label)
@@ -300,7 +250,7 @@ def Background_Sentence(caption: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str
                                audit records — a single warning when the fallback is used).
     """
 
-    sentence = Caption_Sentence(caption)
+    sentence = Clean_Detail(caption)
     words = len(sentence.split())
     count = len([part for part in re.split(r'[.!?]+', sentence) if part.strip()])
     if (not sentence) or count > 1 or words > CONST_BACKGROUND_MAX_WORDS:

@@ -849,3 +849,23 @@ frames; or a PyTorch build of the same model (`google/gemma-4-E4B-it` through `t
 behind `Describer_Backend_Cls`, likewise re-measured; or a different describer. The rest of the
 application (Qt, OpenCV, FastSAM/PyTorch, pypylon) is portable. No macOS packaging recipe has been
 verified; the application runs from source.
+
+## The caption lead-ins are removed
+
+`CONST_LABEL_LEADINS` held Florence-2's caption template ("In this image we can see …", "The image
+shows a close-up of …") and was peeled from the front of every description (`Caption_Sentence`)
+and every label. Gemma never writes those phrases, so — like the substance substitution — it was a
+rule that never fires, and it goes. Without the peel, `Caption_Sentence` did exactly what
+`Clean_Detail` does (tidy whitespace, capitalise, one terminal stop), so it goes too; the object
+line and the background sentence are the model's own words, tidied. The label distiller peels only
+Gemma's own openers (`CONST_LABEL_OPENERS`). The "stranded n" known issue lived in the lead-ins'
+ordering and is gone with them.
+
+**The characterization baseline moved, visibly:** the composer's Florence-style fixture lines keep
+their template ("In this image we can see a hex bolt …", "A close-up of a screw …"), and the label
+distiller's four Florence-style fixture captions now distil to nonsense ("image shows a
+close-up", "can see a washer", "photograph", "this"). That is the correct result of the rule
+change; it also shows the harness's fixture captions are Florence's phrasing, which the
+application no longer produces.
+Tests `test/Reporting/test_core.py::test_the_description_is_kept_as_written_and_only_tidied`,
+`test/Vision/Utilities/test_caption.py`.

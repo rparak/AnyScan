@@ -29,22 +29,9 @@ import Reporting.Core as Reporting
 
 """
 Description:
-    Tests for the label distiller. Condense_Label is pure text and is pinned here, on
-    Florence-2's caption phrasing (the characterization baseline's) and Gemma's.
+    Tests for the label distiller. Condense_Label is pure text and is pinned here, on Gemma's
+    phrasing.
 """
-
-
-def test_condense_label_strips_leadins_and_boundaries() -> None:
-    """
-    Description:
-        Stacked Florence lead-ins are peeled and the phrase is cut at the first
-        clause boundary, matching the characterization baseline.
-    """
-
-    assert Caption.Condense_Label('The image shows a close-up of a hex bolt on a green surface.') == 'hex bolt'
-    assert Caption.Condense_Label('In this image we can see a washer.') == 'washer'
-    assert Caption.Condense_Label('a photograph of two brass fittings sitting on a table') == \
-        'two brass fittings'
 
 
 def test_condense_label_peels_gemmas_opener_but_the_line_keeps_it() -> None:
@@ -58,7 +45,7 @@ def test_condense_label_peels_gemmas_opener_but_the_line_keeps_it() -> None:
     assert Caption.Condense_Label('The object is a rectangular metallic plate, appearing silver.') == \
         'rectangular metallic plate'
     assert Caption.Condense_Label('The part appears to be a metallic bolt or screw.') == 'metallic bolt'
-    assert Reporting.Caption_Sentence('The object is a circular ring.') == 'The object is a circular ring.'
+    assert Reporting.Clean_Detail('The object is a circular ring.') == 'The object is a circular ring.'
 
 
 def test_condense_label_takes_the_phrase_up_to_its_head_noun() -> None:
@@ -102,19 +89,6 @@ def test_condense_label_caps_word_count() -> None:
 
     label = Caption.Condense_Label('one two three four five six seven')
     assert len(label.split()) <= Caption.CONST_LABEL_MAX_WORDS
-
-
-def test_condense_label_known_leadin_ordering_quirk() -> None:
-    """
-    Description:
-        Known issue (KNOWN_ISSUES.md): 'this is a' matches before 'this is an',
-        so 'This is an M6 ...' strands the 'n'. Pinned here so a future fix is a
-        deliberate, visible change; the full caption is preserved in Detail
-        regardless.
-    """
-
-    # A short caption, so the stranded 'n' stays inside the kept last words and remains visible.
-    assert Caption.Condense_Label('This is an M6 screw.') == 'n m6 screw'
 
 
 def test_module_has_no_toplevel_heavy_import() -> None:

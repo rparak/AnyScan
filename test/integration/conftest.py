@@ -91,7 +91,7 @@ class Fake_Vision_Cls(Vision_Backend_Cls):
             stage_cb('Analysing…')
         objects = [
             Detection_Str(Label='hex bolt', Bbox=(10, 20, 60, 60),
-                          Detail='In this image we can see a hex bolt on a green surface.'),
+                          Detail='the object is a hex bolt with a threaded shaft'),
             Detection_Str(Label='washer', Bbox=(200, 120, 50, 50),
                           Detail='A metal washer.', Confidence=0.2),
         ]

@@ -83,16 +83,17 @@ def test_verdict_levels() -> None:
     assert Reporting.Verdict([_Detection('a', confidence=0.20)]) == ('Low confidence', 'warn')
 
 
-def test_caption_sentence_strips_florence_leadins() -> None:
+def test_the_description_is_kept_as_written_and_only_tidied() -> None:
     """
     Description:
-        The fixed Florence template prefix is peeled off and the sentence is
-        cleaned into the panel's capitalisation and terminal stop.
+        No caption-template lead-in is peeled any more (they were Florence-2's phrasing; Gemma
+        never writes them): the description is the model's own sentence, only tidied into the
+        panel's capitalisation and terminal stop.
     """
 
-    assert Reporting.Caption_Sentence('In this image we can see a washer.') == 'A washer.'
-    assert Reporting.Caption_Sentence('the image shows a close-up of a hex bolt') == \
-        'A hex bolt.'
+    det = _Detection('ring', detail='  the object is a circular ring  ')
+    assert Reporting.Object_Description(det) == 'The object is a circular ring.'
+    assert not hasattr(Reporting, 'Caption_Sentence') and not hasattr(Reporting, 'CONST_LABEL_LEADINS')
 
 
 def test_describe_object_detail_reading_and_fallback() -> None:
@@ -102,12 +103,12 @@ def test_describe_object_detail_reading_and_fallback() -> None:
         falls back to 'A <label>.'.
     """
 
-    # The lead-in is peeled; nothing else is removed (there is no background strip).
-    verbose = _Detection('hex bolt', detail='In this image we can see a hex bolt on a green surface.')
-    assert Reporting.Describe_Object(verbose, CONST_SIZE) == 'A hex bolt on a green surface.'
+    # Nothing is removed from the description (there is no background strip).
+    verbose = _Detection('hex bolt', detail='The object is a hex bolt on a green surface.')
+    assert Reporting.Describe_Object(verbose, CONST_SIZE) == 'The object is a hex bolt on a green surface.'
 
-    reading = _Detection('screw', detail='A close-up of a screw.', text='M6')
-    assert Reporting.Describe_Object(reading, CONST_SIZE) == 'A screw, reading “M6”.'
+    reading = _Detection('screw', detail='The object is a screw.', text='M6')
+    assert Reporting.Describe_Object(reading, CONST_SIZE) == 'The object is a screw, reading “M6”.'
 
     fallback = _Detection('nut', detail='')
     assert Reporting.Describe_Object(fallback, CONST_SIZE) == 'A nut.'

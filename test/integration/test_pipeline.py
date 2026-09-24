@@ -59,7 +59,7 @@ def test_pipeline_camera_to_reporting(reference_background_path, fake_backend) -
         The full wiring with the hermetic fake backend: File_Camera_Cls captures an
         RGB frame, the backend accepts it directly, and the reading is composed
         through the real Reporting. Asserts the seams — the composed sentences (the
-        fake's Florence-style detail is cleaned by Reporting) and the verdict from
+        fake's raw detail is tidied by Reporting) and the verdict from
         the low-confidence object.
     """
 
@@ -71,9 +71,9 @@ def test_pipeline_camera_to_reporting(reference_background_path, fake_backend) -
 
     assert isinstance(result, Analysis_Str)
     assert len(result.Objects) == 2
-    # Reporting composed each sentence, peeling the Florence lead-in. The background phrase
-    # stays: there is no background strip (the describer is asked to describe only the part).
-    assert result.Objects[0].Sentence == 'A hex bolt on a green surface.'
+    # Reporting composed each sentence: the model's own words, tidied into the panel's
+    # capitalisation and stop — nothing peeled, stripped or substituted.
+    assert result.Objects[0].Sentence == 'The object is a hex bolt with a threaded shaft.'
     assert all(o.Sentence for o in result.Objects)
     # The shared Screen_Header states the count, agreeing with the object list.
     assert 'There are 2 objects on it, described below.' in Screen_Header(result.Objects, result.Background)
