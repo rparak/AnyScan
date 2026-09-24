@@ -29,7 +29,7 @@ import typing as tp
 import numpy as np
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QFontDatabase, QIcon, QImage, QPixmap, QPainter
+from PyQt5.QtGui import QColor, QFont, QFontDatabase, QIcon, QImage, QPixmap, QPainter
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import QApplication, QWidget
 # Custom Lib.: AnyScan domain — the confidence severity bands (Qt-free)
@@ -43,6 +43,8 @@ from Parameters.Theme import (                                             # noq
     CONST_CONTROL_HOVER_BORDER, CONST_INK_HOVER, CONST_INK_PRESSED, CONST_ON_INK,
     CONST_CONTROL_DISABLED_TEXT, CONST_CONTROL_DISABLED_BORDER, CONST_PRIMARY_DISABLED_FILL,
     CONST_PRIMARY_DISABLED_TEXT, CONST_SCRIM, CONST_SCRIM_ALPHA, Hex_To_Rgb, CONST_OK, CONST_OK_INK,
+    CONST_BUSY_SCRIM, CONST_BUSY_SCRIM_ALPHA, CONST_BUSY_INK, CONST_BUSY_TRACK, CONST_BUSY_TRACK_ALPHA,
+    CONST_THUMB_HIGHLIGHT, CONST_THUMB_HIGHLIGHT_FILL_ALPHA, CONST_TOPBAR_DIVIDER, CONST_SCROLLBAR_HANDLE,
     CONST_OK_SOFT, CONST_OK_BORDER, CONST_WARN, CONST_WARN_INK, CONST_WARN_SOFT,
     CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_BAND,
     CONST_BAND_LINE, CONST_BAND_TEXT,
@@ -151,6 +153,24 @@ def Scrim_Color() -> str:
 
     r, g, b = Hex_To_Rgb(CONST_SCRIM)
     return 'rgba(%d, %d, %d, %d)' % (r, g, b, int(round(255 * CONST_SCRIM_ALPHA)))
+
+
+def Token_Color(hex_color: str, alpha: float = 1.0) -> QColor:
+    """
+    Description:
+        A theme token as a QColor, at an opacity — so a painter never builds a colour from literal
+        numbers (which is how a token's value gets hand-copied and then drifts from it).
+
+    Args:
+        (1) hex_color [string]: The token, as '#rrggbb'.
+        (2) alpha [float]: The opacity, 0..1.
+
+    Returns:
+        (1) parameter [QColor(object)]: The colour.
+    """
+
+    r, g, b = Hex_To_Rgb(hex_color)
+    return QColor(r, g, b, int(round(255 * alpha)))
 
 
 def Log_Level_Weight(level: str) -> int:

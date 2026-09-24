@@ -508,25 +508,25 @@ class Viewport_Cls(QWidget):
             (1) p [QPainter(object)]: The active painter.
         """
 
-        p.fillRect(self.rect(), QColor(43, 36, 85, 158))
+        p.fillRect(self.rect(), Style.Token_Color(Style.CONST_BUSY_SCRIM, Style.CONST_BUSY_SCRIM_ALPHA))
         cx, cy = self.width() / 2.0, self.height() / 2.0
 
         if self.__animated:
             radius = 22
             arc = QRectF(cx - radius, cy - radius - 16, radius * 2, radius * 2)
-            track = QPen(QColor(255, 255, 255, 40), 3)
+            track = QPen(Style.Token_Color(Style.CONST_BUSY_TRACK, Style.CONST_BUSY_TRACK_ALPHA), 3)
             track.setCapStyle(Qt.RoundCap)
             p.setPen(track)
             p.setBrush(Qt.NoBrush)
             p.drawArc(arc, 0, 360 * 16)
-            head = QPen(QColor('#f2f2f3'), 3)
+            head = QPen(Style.Token_Color(Style.CONST_BUSY_INK), 3)
             head.setCapStyle(Qt.RoundCap)
             p.setPen(head)
             # Qt angles are 1/16 degree, counter-clockwise; negate to turn the usual
             # clockwise direction. A 90-degree sweep reads as a spinner.
             p.drawArc(arc, int(-self.__spin * 16), 90 * 16)
 
-        p.setPen(QColor('#f2f2f3'))
+        p.setPen(Style.Token_Color(Style.CONST_BUSY_INK))
         p.setFont(Font(9.5, mono=True))
         text_rect = QRect(0, int(cy + 14), self.width(), 40)
         p.drawText(text_rect, Qt.AlignHCenter | Qt.AlignTop, self.__busy_text)

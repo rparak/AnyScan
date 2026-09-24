@@ -1275,3 +1275,29 @@ image from a camera with no reference capture. (Moved here from KNOWN_ISSUES on 
 Restoring it means a whole-frame detector ahead of stage 1, the describe-each-box loop and its crop
 helper (all recoverable from `7b1559c`'s parent) — and the test the original never had.
 Tests `test/Vision/test_analyze_harness.py::test_missing_reference_fails_before_writing_anything`.
+
+## Type: a scale for content, chosen sizes for chrome
+
+Text the analysis produces — the Scene Understanding reading, History's info panel, the Log's rows —
+is sized by named tokens on one modular scale (`CONST_TYPE_SCALE` in `UI/Utilities/Style.py`:
+`CONST_TYPE_OBJECT_LABEL`, `CONST_TYPE_INFO_BODY`, `CONST_TYPE_LOG` …). Within a view the same content
+has one size (the background paragraph and the descriptions share one), and the hierarchy is strict:
+heading > label > body > meta. The chrome around it — buttons, pills, status cells, captions, card
+metadata, overlays — is sized per widget and is not held to the scale.
+
+**Why.** The content is what a person reads to decide something, and its hierarchy is what makes it
+readable: a size is chosen as a step on the scale ("one step down from the label"), so a change
+moves a token, and the relative order cannot invert unnoticed. It did once: History's info panel
+put its heading below the text it headed until it got its own tokens (commit `9fd3b5c`). Live and
+History use **separate** token sets on purpose — Live is glanced at across a workbench and runs large
+(descriptions 12.5 pt), History is read up close while comparing two images (10.5 pt) — so the same
+description is deliberately a different size in the two views, and tuning one distance cannot move
+the other. Chrome was never put on the scale (32 of its `Font()` calls use literal sizes, most off the
+scale); holding it to one now would be a restyle of every widget, with no reading hierarchy at stake.
+
+**Revisit if** a chrome element starts carrying content (it then takes a named token), if the
+chrome's literal sizes start drifting into visible inconsistency between widgets of one kind (a case
+for putting chrome on the scale too), or if Live and History need to show the same text at the same
+size (the two token sets would then merge).
+Tests `test/UI/test_history.py::test_info_panel_type_hierarchy_heading_is_largest`.
+

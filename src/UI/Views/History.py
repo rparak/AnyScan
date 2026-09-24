@@ -197,8 +197,8 @@ class History_Image_Cls(QWidget):
             x, y, w, h = self.__highlight
             box = QRect(rect.left() + int(x * sx), rect.top() + int(y * sy),
                         int(w * sx), int(h * sy))
-            painter.setPen(QPen(QColor(255, 255, 255), 3))
-            painter.setBrush(QColor(255, 255, 255, 45))
+            painter.setPen(QPen(Style.Token_Color(Style.CONST_THUMB_HIGHLIGHT), 3))
+            painter.setBrush(Style.Token_Color(Style.CONST_THUMB_HIGHLIGHT, Style.CONST_THUMB_HIGHLIGHT_FILL_ALPHA))
             painter.drawRect(box)
         painter.end()
 
@@ -454,12 +454,14 @@ class History_View_Cls(QWidget):
         self.__info_button.setFont(Font(9, QFont.DemiBold, tracking=2))
         self.__info_button.setFixedHeight(30)
         self.__info_button.setStyleSheet(
-            'QPushButton { background: #fff; border: 1px solid #e3e0ee; color: %s;'
+            'QPushButton { background: %s; border: 1px solid %s; color: %s;'
             ' padding: 0 14px; border-radius: %dpx; }'
-            'QPushButton:hover:enabled { background: #f6f5fa; }'
-            'QPushButton:checked { background: %s; border-color: %s; color: #fff; }'
-            'QPushButton:disabled { color: #b6b2ca; border-color: #ecebf2; }'
-            % (Style.CONST_INK, Style.CONST_RADIUS_BTN, Style.CONST_INK, Style.CONST_INK))
+            'QPushButton:hover:enabled { background: %s; }'
+            'QPushButton:checked { background: %s; border-color: %s; color: %s; }'
+            'QPushButton:disabled { color: %s; border-color: %s; }'
+            % (Style.CONST_CARD, Style.CONST_CONTROL_BORDER, Style.CONST_INK, Style.CONST_RADIUS_BTN,
+               Style.CONST_CONTROL_HOVER, Style.CONST_INK, Style.CONST_INK, Style.CONST_ON_INK,
+               Style.CONST_CONTROL_DISABLED_TEXT, Style.CONST_CONTROL_DISABLED_BORDER))
         self.__info_button.clicked.connect(self.__Toggle_Info)
         head.box.addWidget(self.__info_button)
         card.box.addWidget(head)
@@ -668,12 +670,12 @@ class History_View_Cls(QWidget):
         return ("""
             QScrollArea { border: none; background: transparent; }
             QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
-            QScrollBar::handle:vertical { background: #c7c3d9; border-radius: 4px;
+            QScrollBar::handle:vertical { background: %s; border-radius: 4px;
                                           min-height: 30px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
                 background: transparent; }
-        """)
+        """ % Style.CONST_SCROLLBAR_HANDLE)
 
     # -------------------------------------------------------------------- public API
 

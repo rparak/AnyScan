@@ -192,12 +192,12 @@ class Log_View_Cls(Card_Cls):
         self.__scroll.setStyleSheet("""
             QScrollArea { border: 1px solid %s; border-radius: 10px; background: %s; }
             QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
-            QScrollBar::handle:vertical { background: #c7c3d9; border-radius: 4px;
+            QScrollBar::handle:vertical { background: %s; border-radius: 4px;
                                           min-height: 30px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
                 background: transparent; }
-        """ % (Style.CONST_LINE, Style.CONST_CARD))
+        """ % (Style.CONST_LINE, Style.CONST_CARD, Style.CONST_SCROLLBAR_HANDLE))
         self.box.addWidget(self.__scroll, 1)
 
         bar = self.__scroll.verticalScrollBar()

@@ -384,7 +384,7 @@ class AnyScan_Window_Cls(QMainWindow):
         logo.setPixmap(Load_Svg('anyscan-logo.svg', 54))
         row.addWidget(logo)
 
-        row.addWidget(Hairline(vertical=True, length=34, color='#c9c5d8'))
+        row.addWidget(Hairline(vertical=True, length=34, color=Style.CONST_TOPBAR_DIVIDER))
 
         jic = QLabel()
         jic.setPixmap(Load_Logo('brand-jic-mute.png', 26))
@@ -551,12 +551,12 @@ class AnyScan_Window_Cls(QMainWindow):
             QScrollArea { border: 1px solid %s; border-radius: 10px;
                           background: %s; }
             QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
-            QScrollBar::handle:vertical { background: #c7c3d9; border-radius: 4px;
+            QScrollBar::handle:vertical { background: %s; border-radius: 4px;
                                           min-height: 30px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
                 background: transparent; }
-        """ % (Style.CONST_LINE, Style.CONST_CARD))
+        """ % (Style.CONST_LINE, Style.CONST_CARD, Style.CONST_SCROLLBAR_HANDLE))
         card.box.addWidget(scroll, 1)
 
         meta = QVBoxLayout()

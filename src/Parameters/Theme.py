@@ -78,6 +78,29 @@ CONST_PRIMARY_DISABLED_TEXT   = CONST_INK_MUTE
 #   Unit [string] (hex colour) / [float] (opacity 0..1)
 CONST_SCRIM       = CONST_INK
 CONST_SCRIM_ALPHA = 0.16
+# The busy overlay laid over the Live view while a frame is analysed: the scrim's ink, far heavier
+# (the frame underneath is being worked on, not merely in the background), a near-white spinner head
+# and status text, and the spinner's track in white at low opacity. Opacities are chosen to keep the
+# overlay's pixels as they were drawn from literals (0.62 -> 158 of 255, 0.157 -> 40).
+#   Unit [string] (hex colour) / [float] (opacity 0..1)
+CONST_BUSY_SCRIM       = CONST_INK
+CONST_BUSY_SCRIM_ALPHA = 0.62
+CONST_BUSY_INK         = '#f2f2f3'
+CONST_BUSY_TRACK       = '#ffffff'
+CONST_BUSY_TRACK_ALPHA = 0.157
+# The highlight over the selected object on a History thumbnail: a white outline and a faint white
+# wash, readable on any frame (0.176 -> 45 of 255).
+#   Unit [string] (hex colour) / [float] (opacity 0..1)
+CONST_THUMB_HIGHLIGHT            = '#ffffff'
+CONST_THUMB_HIGHLIGHT_FILL_ALPHA = 0.176
+# The handle of a scroll bar (the reading card, the Log, History's panels): a quiet violet-grey
+# that shows where the view is without competing with the content.
+#   Unit [string] (hex colour)
+CONST_SCROLLBAR_HANDLE = '#c7c3d9'
+# The vertical divider in the top bar between the AnyScan and JIC marks: darker than CONST_LINE, so
+# it still reads on the bar.
+#   Unit [string] (hex colour)
+CONST_TOPBAR_DIVIDER = '#c9c5d8'
 
 # The verdict colours. Green, red and amber are RESERVED here: they mean pass,
 # degraded and fail on the badge, so they must never appear as an object colour.

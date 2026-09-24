@@ -50,9 +50,10 @@ A UI class reads input, calls into the Qt-free domain modules (`Camera`, `Vision
 `Reporting`, `Logger`) and renders the result. The domain modules never import Qt and never hold the
 UI or the logger — they emit through injected callbacks (references/structure.md).
 
-## Colours and fonts 📄
+## Colours and fonts ✅
 
-Colours and fonts come from `UI/Utilities/Style.py`, whose tokens are defined in `Parameters/Theme.py`
-(Qt-free, so the vision renderer shares the palette). Stylesheets are built inline where they are
-applied, from those tokens (`'color: %s;' % Style.CONST_INK`). Three literal colours remain in UI code
-(`UI/Core.py:387`, `UI/Widgets.py:522`, `:529`); whether that is allowed is unsettled.
+How the interface looks — colour tokens, verdict colours, severity, contrast, the type scale — is its
+own page: **references/ui-design.md**. In code: colours and fonts come from `UI/Utilities/Style.py`
+(tokens defined in the Qt-free `Parameters/Theme.py`); stylesheets are built inline where they are
+applied, from those tokens (`'color: %s;' % Style.CONST_INK`); a token at an opacity is
+`Style.Token_Color(token, alpha)` (✅ `test/UI/test_colour_tokens.py`).

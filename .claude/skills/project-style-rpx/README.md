@@ -13,7 +13,8 @@ docstring), the skill now describes this repository.
 |---|---|
 | `SKILL.md` | The rules in brief, what enforces each, and the practices still unsettled |
 | `references/python.md` | Python: header, names, imports, docstrings, types, errors, tests, scripts |
-| `references/pyqt.md` | What Qt changes: overrides, signals and slots, threads, colours |
+| `references/pyqt.md` | What Qt changes: overrides, signals and slots, threads |
+| `references/ui-design.md` | How the interface looks: colour tokens, verdict colours, severity, contrast, the type scale |
 | `references/shell.md` | `install.sh` |
 | `references/yaml.md` | The configuration and calibration files |
 | `references/markdown.md` | design-decisions, README > Limitations, KNOWN_ISSUES |

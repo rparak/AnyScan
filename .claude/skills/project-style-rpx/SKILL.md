@@ -40,6 +40,8 @@ Its own tests: `.venv/bin/python -m pytest .claude/skills/project-style-rpx/scri
 | The domain layers import no Qt | ✅ for the 12 modules in `test/integration/test_contracts.py` `CONST_DOMAIN_MODULES` (camera, vision, `Reporting.Core`, `Parameters.Vision`) + per-module `test_module_is_qt_free`; 📄 for the rest (`Configuration`, `Logger`, `Calibration`, `Vision.Describers`, `Vision.Utilities.Measure` …, Qt-free today but not in the list) |
 | A configuration key the loader does not know is reported | ✅ `Load_Configuration` (a WARNING, not a failure) |
 | Required configuration fields present, values valid | ✅ `Load_Configuration` |
+| UI colours only from theme tokens (no hex string, no numeric `QColor`) | ✅ `test/UI/test_colour_tokens.py` |
+| Every enabled control state ≥ 4.5:1, measured from rendered pixels | ✅ `test/UI/test_control_contrast.py` |
 | Installer log lines in the application's log format | ✅ `test/Install/test_install.py` (every line of the tested paths) |
 | A comment above every import; `# Custom Lib.:` group with `#   ../path` lines | 📄 |
 | `# << PRIVATE >> #` marker, private state as `self.__name` | 📄 |
@@ -53,7 +55,8 @@ Its own tests: `.venv/bin/python -m pytest .claude/skills/project-style-rpx/scri
 
 ## Python — the essentials
 
-Full rules with examples from this repository: **references/python.md**; Qt: **references/pyqt.md**.
+Full rules with examples from this repository: **references/python.md**; Qt code: **references/pyqt.md**;
+how the interface looks (colour, contrast, severity, type): **references/ui-design.md**.
 
 1. Every `.py` file opens with the `#`-comment MIT header (all 91 files use it; the checker also
    accepts a `"""` docstring header, which this repository does not use). Copy it from
