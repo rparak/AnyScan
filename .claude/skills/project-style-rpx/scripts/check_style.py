@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Check Python files against the RP house style. Stdlib only.
+"""Check Python files against the project style (project-style-rpx). Stdlib only.
 
 Usage: python check_style.py <file_or_dir> [...]
 Exit code 0 if clean, 1 if any violation was found.
+
+Paths listed in check_style.json (beside this script) are excluded, each with the reason
+recorded there; the summary line names every exclusion, so nothing is silently out of scope.
 """
 from __future__ import annotations
 
 import ast
 import io
+import json
 import re
 import sys
 import tokenize
@@ -18,6 +22,12 @@ SNAKE = re.compile(r"^_{0,2}[a-z][a-z0-9_]*$")
 CONST = re.compile(r"^CONST_[A-Z0-9_]+$")
 MATH_SYMBOL = re.compile(r"^_{0,2}[A-Za-z][A-Za-z0-9]{0,3}(_[A-Za-z0-9]{1,4})*$")
 MAX_LINE = 150   # p95 of the source is 122, p99 is 167; aim for <=120 by hand
+# The marker a Qt-dispatched method carries on the line above its def (SKILL.md, Python): its
+# camelCase name is Qt's, and renaming it would silently stop Qt calling it.
+QT_OVERRIDE_MARKER = "# << QT OVERRIDE >> #"
+# The exclusions: repository-relative paths, each with the reason it is out of scope.
+CONFIG_PATH = Path(__file__).with_name("check_style.json")
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 class Report:
@@ -116,6 +126,74 @@ def _is_pytest_dispatched(node) -> bool:
     return any(_decorator_name(d) == "fixture" for d in node.decorator_list)
 
 
+def _is_qt_override(node, lines: list[str]) -> bool:
+    """True for a method whose line above (above its decorators, if any) is the QT OVERRIDE
+    marker. Only a marked method is exempt from the naming rule, so the marker is what makes
+    the exemption, and an unmarked camelCase method is still reported.
+    """
+    first = min([node.lineno] + [d.lineno for d in node.decorator_list])
+    return first >= 2 and lines[first - 2].strip() == QT_OVERRIDE_MARKER
+
+
+_CLASS_BASES: dict[str, list[str]] | None = None
+
+
+def _class_bases() -> dict[str, list[str]]:
+    """Every class defined under the repository's src/ and App/, mapped to its base names (built
+    once), so a Qt ancestry is followed through the project's own classes: Log_View_Cls ->
+    Card_Cls -> QFrame."""
+    global _CLASS_BASES
+    if _CLASS_BASES is None:
+        _CLASS_BASES = {}
+        for folder in ("src", "App"):
+            for path in (REPO_ROOT / folder).rglob("*.py"):
+                try:
+                    tree = ast.parse(path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeDecodeError, SyntaxError):
+                    continue
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        _CLASS_BASES[node.name] = [
+                            base.attr if isinstance(base, ast.Attribute) else getattr(base, "id", "")
+                            for base in node.bases]
+    return _CLASS_BASES
+
+
+def _is_qt_name(name: str, seen: set[str] | None = None) -> bool:
+    """True for a Qt class name (Q followed by a capital: QWidget, QFrame, QObject ...) or a project
+    class that descends from one."""
+    if re.match(r"^Q[A-Z]", name):
+        return True
+    seen = seen or set()
+    if name in seen:
+        return False
+    seen.add(name)
+    return any(_is_qt_name(base, seen) for base in _class_bases().get(name, []))
+
+
+def _is_qt_class(node) -> bool:
+    """True for a class descending from a Qt class, directly or through the project's own classes. The
+    UI builds its instances; no caller initializes them from a docstring, so the 'Initialization of
+    the Class:' section is not required of it (a habit from elsewhere, skipped by most UI classes)."""
+    for base in node.bases:
+        name = base.attr if isinstance(base, ast.Attribute) else getattr(base, "id", "")
+        if _is_qt_name(name):
+            return True
+    return False
+
+
+def _own_returns(node) -> list:
+    """The return statements of a function itself, not of the functions and lambdas nested in it."""
+    found, stack = [], list(ast.iter_child_nodes(node))
+    while stack:
+        child = stack.pop()
+        if isinstance(child, ast.Return):
+            found.append(child)
+        if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            stack.extend(ast.iter_child_nodes(child))
+    return found
+
+
 def _is_exception_class(node) -> bool:
     """True if the class directly subclasses an exception (a base whose trailing
     name ends 'Error' or 'Exception', e.g. RuntimeError or a project *_Error_Cls).
@@ -142,13 +220,12 @@ def check_docstring_format(doc: str, node, path: Path, report: Report, kind: str
                        f"function '{node.name}' takes arguments but has no 'Args:' section")
         # Accept the numbered '(1) ...' form and the grouped '(1 - N) a, b ...'
         # form for consecutive arguments of the same type (see
-        # references/docstrings-comments.md); reject only truly unnumbered Args.
+        # references/python.md, Docstrings); reject only truly unnumbered Args.
         if args and "Args:" in doc and not re.search(r"\(1\s*[-)]", doc):
             report.add(path, node.lineno, "docstring",
                        f"function '{node.name}' Args entries are not numbered "
                        "'(1) ...' or '(1 - N) ...'")
-        returns_value = any(isinstance(n, ast.Return) and n.value is not None
-                            for n in ast.walk(node))
+        returns_value = any(n.value is not None for n in _own_returns(node))
         if returns_value and "Returns:" not in doc:
             report.add(path, node.lineno, "docstring",
                        f"function '{node.name}' returns a value but has no 'Returns:' section")
@@ -195,7 +272,7 @@ def check_mangled_overrides(tree: ast.Module, path: Path, report: Report) -> Non
     the same `__name` does not override the base's version: if the base calls
     `self.__name`, it keeps calling its own, and the subclass copy is dead. A
     member meant to be overridden must be single-underscore `_name`. This is the
-    exact error the private-member rule prevents (see references/naming.md).
+    exact error the private-member rule prevents (see references/python.md, Names).
 
     Scope: only inheritance visible within one file. A base and subclass in
     different modules cannot be resolved by a per-file static check, so those are
@@ -244,6 +321,7 @@ def check_file(path: Path, report: Report) -> None:
         return
 
     pytest_module = _is_pytest_module(path)
+    lines = source.splitlines()
 
     check_header(source, path, report)
 
@@ -256,7 +334,8 @@ def check_file(path: Path, report: Report) -> None:
     check_tokens(source, path, report)
 
     if "import logging" in source:
-        report.add(path, 1, "logging", "the project uses print('[INFO] ...'), not the logging module")
+        report.add(path, 1, "logging", "the project reports through its session logger and injected log "
+                   "callbacks (print('[INFO] ...') in scripts), not the logging module")
     if re.search(r"^\s*from\s+\.", source, re.M):
         report.add(path, 1, "imports", "relative imports are not used in this project")
     if re.search(r"^\s*from\s+typing\s+import", source, re.M) or \
@@ -295,7 +374,7 @@ def check_file(path: Path, report: Report) -> None:
                 # their docstring completeness is not checked (only its presence,
                 # above). Everywhere else the full class docstring is required.
                 check_docstring_format(doc, node, path, report, "class")
-                if (node.name.endswith("_Cls") and not _is_exception_class(node)
+                if (node.name.endswith("_Cls") and not _is_exception_class(node) and not _is_qt_class(node)
                         and "Initialization of the Class:" not in doc):
                     report.add(path, node.lineno, "docstring",
                                f"class '{node.name}' docstring has no "
@@ -311,7 +390,8 @@ def check_file(path: Path, report: Report) -> None:
             # helpers. Every structural rule (header, line length, semicolons,
             # mutable defaults, mangling, imports, class naming) still applies, so a
             # future flag on a test file means something.
-            if not node.name.startswith("__") and not (pytest_module and _is_pytest_dispatched(node)):
+            if (not node.name.startswith("__") and not (pytest_module and _is_pytest_dispatched(node))
+                    and not _is_qt_override(node, lines)):
                 if not PASCAL_SNAKE.match(node.name):
                     report.add(path, node.lineno, "naming",
                                f"function '{node.name}' should be Pascal_Snake_Case")
@@ -362,6 +442,20 @@ def check_file(path: Path, report: Report) -> None:
                        "or a Pascal_Snake_Case *_Str preset")
 
 
+def load_exclusions(config_path: Path = CONFIG_PATH) -> list[tuple[Path, str]]:
+    """The excluded paths (absolute) and their reasons, from check_style.json. An entry without a
+    reason is refused: an exclusion must say why, or it is a silent scope cut."""
+    if not config_path.is_file():
+        return []
+    entries = json.loads(config_path.read_text(encoding="utf-8")).get("exclude", [])
+    exclusions = []
+    for entry in entries:
+        if not str(entry.get("reason", "")).strip():
+            raise SystemExit(f"{config_path.name}: the exclusion of '{entry.get('path')}' has no reason")
+        exclusions.append(((REPO_ROOT / entry["path"]).resolve(), entry["reason"].strip()))
+    return exclusions
+
+
 def main() -> int:
     paths = [Path(a) for a in sys.argv[1:]]
     if not paths:
@@ -371,13 +465,26 @@ def main() -> int:
     for p in paths:
         files.extend(sorted(p.rglob("*.py")) if p.is_dir() else [p])
 
-    report = Report()
+    exclusions = load_exclusions()
+    excluded: dict[Path, int] = {}
+    checked: list[Path] = []
     for f in files:
+        root = next((root for root, _reason in exclusions if f.resolve().is_relative_to(root)), None)
+        if root is None:
+            checked.append(f)
+        else:
+            excluded[root] = excluded.get(root, 0) + 1
+
+    report = Report()
+    for f in checked:
         check_file(f, report)
 
     for item in report.items:
         print(item)
-    print(f"\n{len(files)} file(s) checked, {len(report.items)} issue(s) found.")
+    print(f"\n{len(checked)} file(s) checked, {len(report.items)} issue(s) found.")
+    for root, reason in exclusions:
+        if root in excluded:
+            print(f"Excluded {excluded[root]} file(s) in {root.relative_to(REPO_ROOT)} (check_style.json): {reason}")
     return 1 if report.items else 0
 
 

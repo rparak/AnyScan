@@ -105,17 +105,28 @@ class Icon_Cls(QWidget):
         p.setPen(pen)
         p.setBrush(Qt.NoBrush)
 
-        def r(x, y, w, h):
+        def _Rect(x: float, y: float, w: float, h: float) -> QRectF:
+            """
+            Description:
+                A rectangle in the 24-unit icon grid, scaled to the widget.
+
+            Args:
+                (1 - 4) x, y, w, h [float]: The rectangle in icon units.
+
+            Returns:
+                (1) parameter [QRectF(object)]: The rectangle in widget pixels.
+            """
+
             return QRectF(x * s, y * s, w * s, h * s)
 
         if self.__kind == 'camera':
-            p.drawRoundedRect(r(2, 6, 20, 14), 2 * s, 2 * s)
+            p.drawRoundedRect(_Rect(2, 6, 20, 14), 2 * s, 2 * s)
             p.drawLine(QPoint(int(9.5 * s), int(6 * s)), QPoint(int(11 * s), int(4 * s)))
             p.drawLine(QPoint(int(14.5 * s), int(6 * s)), QPoint(int(13 * s), int(4 * s)))
             p.drawLine(QPoint(int(11 * s), int(4 * s)), QPoint(int(13 * s), int(4 * s)))
-            p.drawEllipse(r(8.4, 9.4, 7.2, 7.2))
+            p.drawEllipse(_Rect(8.4, 9.4, 7.2, 7.2))
         elif self.__kind == 'reading':
-            p.drawRoundedRect(r(4, 4, 16, 16), 1.5 * s, 1.5 * s)
+            p.drawRoundedRect(_Rect(4, 4, 16, 16), 1.5 * s, 1.5 * s)
             p.drawLine(QPoint(int(12 * s), int(4 * s)), QPoint(int(12 * s), int(20 * s)))
             for y in (9, 12.5):
                 p.drawLine(QPoint(int(7 * s), int(y * s)), QPoint(int(9.5 * s), int(y * s)))

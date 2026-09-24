@@ -211,6 +211,29 @@ def Record_Capture(directory: str, header: tp.Dict[str, tp.Any],
     os.replace(temporary, path)
     return path
 
+def Captured_Window(directory: str) -> tp.Optional[tp.Dict[str, tp.List[int]]]:
+    """
+    Description:
+        The sensor window a calibration set was captured at, from its manifest — read here, beside
+        Record_Capture that writes it, so the manifest has one reader.
+
+    Args:
+        (1) directory [string]: The capture directory.
+
+    Returns:
+        (1) parameter [Dict or None]: {'resolution': [w, h], 'offset': [x, y]}, or None when the
+                                      directory has no manifest or the manifest does not record it
+                                      (sets captured before the window was recorded).
+    """
+
+    path = os.path.join(directory, CONST_CALIB_MANIFEST)
+    if not os.path.isfile(path):
+        return None
+    with open(path, 'r', encoding='utf-8') as handle:
+        window = json.load(handle).get('window')
+    return window if isinstance(window, dict) else None
+
+
 def Natural_Key(name: str) -> tp.List[tp.Any]:
     """
     Description:

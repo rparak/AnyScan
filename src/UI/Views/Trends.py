@@ -229,6 +229,7 @@ class Chart_Base_Cls(QWidget):
 
     # ------------------------------------------------------------------ painting
 
+    # << QT OVERRIDE >> #
     def paintEvent(self, _event: tp.Any) -> None:
         """
         Description:

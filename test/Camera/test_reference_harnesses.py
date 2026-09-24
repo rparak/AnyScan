@@ -194,8 +194,10 @@ def test_found_objects_are_described_so_an_override_is_informed(tmp_path) -> Non
     """
 
     make_reference = _Load_Script('make_reference')
-    lines = make_reference.Describe_Objects([{'bbox': [1900, 10, 12, 9]}, {'bbox': [760, 400, 400, 100]},
-                                             {'bbox': [3, 1180, 10, 14]}], [1920, 1200])
+    from UI.Capture import Capture_Object_Str
+    lines = make_reference.Describe_Objects([Capture_Object_Str(Bbox=(1900, 10, 12, 9)),
+                                             Capture_Object_Str(Bbox=(760, 400, 400, 100)),
+                                             Capture_Object_Str(Bbox=(3, 1180, 10, 14))], [1920, 1200])
     assert lines == ['400 × 100 px (1.74 % of the frame) at (760, 400), centre',
                      '10 × 14 px (0.01 % of the frame) at (3, 1180), bottom-left',
                      '12 × 9 px (0.00 % of the frame) at (1900, 10), top-right']

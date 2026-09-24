@@ -193,6 +193,12 @@ class Capture_Set_Str:
     Background_Reference: str = ''
     # The camera, lens and lighting the set was captured with ({} for an older set).
     Hardware: tp.Dict[str, str] = field(default_factory=dict)
+    # The sensor window the camera read back ({'resolution': [w, h], 'offset': [x, y]}), or None
+    # for a set from a saved frame or written before sets recorded it.
+    Window: tp.Optional[tp.Dict[str, tp.List[int]]] = None
+    # The undistortion applied to the frame (the '_distorted.json' record: the calibration file,
+    # K, the coefficients, ...), or None when the camera did not undistort.
+    Undistortion: tp.Optional[tp.Dict[str, tp.Any]] = None
     # The objects, in order.
     Objects: tp.List[Capture_Object_Str] = field(default_factory=list)
     # The absolute paths of the artefacts that exist (None when absent).
@@ -513,7 +519,8 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
         are recorded. When the metadata is absent (a failed analysis left only a raw frame) or
         cannot be read/parsed, the set is marked partial with a note — never dropped, because a
         failed set is the one an operator most wants to see. A missing or malformed field never
-        raises: every value is read defensively.
+        raises: every value is read defensively. This is the one reader of a set's '_objects.json'
+        and '_distorted.json' — the formats this module writes; nothing else parses them.
 
     Args:
         (1) session_dir [string]: The session directory holding the set's files.
@@ -553,6 +560,10 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
         cap.Configuration = str(data.get('configuration', ''))
         cap.Background_Reference = str(data.get('background_reference', ''))
         cap.Hardware = {str(k): str(v) for k, v in (data.get('hardware') or {}).items()}
+        window = data.get('window')
+        if isinstance(window, dict):
+            cap.Window = {'resolution': [int(v) for v in window['resolution']][:2],
+                          'offset': [int(v) for v in window['offset']][:2]}
         cap.Run_Id = str(data.get('run_id', ''))
         cap.Objects = [Capture_Object_Str(
             Index=int(record.get('index', i)),
@@ -572,6 +583,17 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
         cap.Objects = []
         cap.Note = ('The set metadata could not be read (a malformed %s%s).'
                     % (set_id, CONST_CAPTURE_OBJECTS_SUFFIX))
+        return cap
+    # The undistortion record beside a distorted frame: None when there is none, or it is unreadable
+    # (a reader of this record must then treat the frame as not undistorted by a known lens model).
+    record_path = __Existing_Path(session_dir, set_id, CONST_CAPTURE_DISTORTED_RECORD_SUFFIX)
+    if record_path is not None:
+        try:
+            with open(record_path, 'r') as handle:
+                undistortion = json.load(handle).get('undistortion')
+            cap.Undistortion = undistortion if isinstance(undistortion, dict) else None
+        except (OSError, ValueError, AttributeError):
+            cap.Undistortion = None
     return cap
 
 

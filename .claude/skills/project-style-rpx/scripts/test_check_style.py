@@ -1,14 +1,15 @@
-"""Regression tests for check_style.py's Args-numbering and mangling rules.
+"""Regression tests for check_style.py: Args numbering, mangling, the Qt-override and Qt-class exemptions,
+nested returns and the reasoned exclusions.
 
-Run with:  pytest .claude/skills/python-style-RP/scripts/test_check_style.py
+Run with:  pytest .claude/skills/project-style-rpx/scripts/test_check_style.py
 (stdlib + pytest only; not part of the app's test/ suite).
 
 Both the numbered '(1) ...' form and the grouped '(1 - N) a, b ...' form for
 consecutive arguments of the same type are valid (see
-references/docstrings-comments.md). This guards against the checker regressing to
+references/python.md, Docstrings). This guards against the checker regressing to
 accepting only the literal '(1)'.
 
-The mangling tests guard the private-member rule (see references/naming.md): a
+The mangling tests guard the private-member rule (see references/python.md, Names): a
 `__name` method a subclass in the same file redefines is a dead override and must
 be flagged; the single-underscore `_name` hook form must not be.
 """
@@ -267,3 +268,110 @@ def test_dunder_override_not_flagged():
 
 def test_unrelated_same_name_not_flagged():
     assert _mangling_flags(_UNRELATED_SAME_NAME) == []
+
+
+# A Qt-dispatched method: camelCase because Qt calls it by that name. Marked, it is exempt from
+# the naming rule; unmarked, it is reported, so the marker is what grants the exemption.
+_QT_OVERRIDE = '''
+class Panel_Cls(QWidget):
+    """
+    Description:
+        A panel.
+    """
+
+    # << QT OVERRIDE >> #
+    def paintEvent(self, event: QPaintEvent) -> None:
+        """
+        Description:
+            Paint it.
+
+        Args:
+            (1) event [QPaintEvent(object)]: The event.
+        """
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """
+        Description:
+            Unmarked.
+
+        Args:
+            (1) event [QResizeEvent(object)]: The event.
+        """
+'''
+
+
+def test_only_a_marked_qt_override_is_exempt_from_naming(tmp_path):
+    naming = [item for item in _file_flags(_QT_OVERRIDE, "src/UI/panel.py", tmp_path) if "[naming]" in item]
+    assert len(naming) == 1 and "'resizeEvent'" in naming[0]
+
+
+def test_a_qt_class_needs_no_initialization_section_directly_or_through_project_classes(tmp_path):
+    # Directly (QWidget), and through the project's own Card_Cls (-> QFrame), which the checker
+    # follows via the repository's class map; a plain class still needs the section.
+    source = _QT_OVERRIDE.replace("    def resizeEvent", "    # << QT OVERRIDE >> #\n    def resizeEvent")
+    source += '''
+
+class Card_Panel_Cls(Card_Cls):
+    """
+    Description:
+        A card.
+    """
+
+
+class Plain_Cls(object):
+    """
+    Description:
+        Not a widget.
+    """
+'''
+    flags = [item for item in _file_flags(source, "src/UI/panel.py", tmp_path) if "Initialization" in item]
+    assert len(flags) == 1 and "'Plain_Cls'" in flags[0]
+
+
+def test_a_nested_helpers_return_is_not_the_outer_functions(tmp_path):
+    source = '''
+def Outer(x: float) -> None:
+    """
+    Description:
+        Returns nothing itself; its helper does.
+
+    Args:
+        (1) x [float]: A value.
+    """
+
+    def _Inner(y: float) -> float:
+        """
+        Description:
+            The helper.
+
+        Args:
+            (1) y [float]: A value.
+
+        Returns:
+            (1) parameter [float]: The value.
+        """
+
+        return y
+'''
+    assert not [item for item in _file_flags(source, "src/x.py", tmp_path) if "Returns:" in item]
+
+
+def test_an_exclusion_must_give_its_reason(tmp_path):
+    config = tmp_path / "check_style.json"
+    config.write_text('{"exclude": [{"path": "src/Transformation", "reason": "inherited"}]}', encoding="utf-8")
+    ((root, reason),) = check_style.load_exclusions(config)
+    assert root == (check_style.REPO_ROOT / "src/Transformation").resolve() and reason == "inherited"
+    config.write_text('{"exclude": [{"path": "src/Transformation", "reason": " "}]}', encoding="utf-8")
+    try:
+        check_style.load_exclusions(config)
+    except SystemExit as error:
+        assert "has no reason" in str(error)
+    else:
+        raise AssertionError("an exclusion without a reason was accepted")
+
+
+def test_the_summary_names_every_exclusion(capsys, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["check_style.py", str(check_style.REPO_ROOT / "src" / "Transformation")])
+    assert check_style.main() == 0
+    out = capsys.readouterr().out
+    assert "0 file(s) checked" in out and "Excluded" in out and "src/Transformation (check_style.json)" in out

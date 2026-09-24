@@ -30,7 +30,7 @@ if '../../' + 'src' not in sys.path:
 import os
 # Re (Regular expressions: the next free reference index)
 import re
-# JSON (the capture set's records and the sidecar)
+# JSON (the sidecar)
 import json
 # Shutil (copying the frame byte for byte)
 import shutil
@@ -44,9 +44,8 @@ from PIL import Image
 #   ../Configuration/Core — the reference sidecar's one format, and repository paths
 from Configuration.Core import (Build_Reference_Sidecar, Reference_Sidecar_Path, Display_Path,
                                 CONST_PROJECT_ROOT)
-#   ../UI/Capture — the capture set's file names
-from UI.Capture import (CONST_CAPTURE_SUFFIXES, CONST_CAPTURE_RAW_SUFFIX, CONST_CAPTURE_OBJECTS_SUFFIX,
-                        CONST_CAPTURE_DISTORTED_RECORD_SUFFIX)
+#   ../UI/Capture — the capture set's one reader, and its file names
+from UI.Capture import Read_Capture_Set, CONST_CAPTURE_SUFFIXES
 
 """
 Description:
@@ -102,7 +101,7 @@ def Next_Reference_Path(directory: str = CONST_REFERENCE_DIR) -> str:
     return os.path.join(directory, CONST_REFERENCE_TEMPLATE.format(index=max(indices, default=0) + 1))
 
 
-def Describe_Objects(objects: tp.List[tp.Dict[str, tp.Any]], size: tp.List[int]) -> tp.List[str]:
+def Describe_Objects(objects: tp.List[tp.Any], size: tp.List[int]) -> tp.List[str]:
     """
     Description:
         What the analysis of a would-be reference found, one line per object — its box in pixels, its
@@ -111,7 +110,7 @@ def Describe_Objects(objects: tp.List[tp.Dict[str, tp.Any]], size: tp.List[int])
         old reference; one large box in the middle is something left on the table.
 
     Args:
-        (1) objects [Vector<Dict>]: The set's object records ('bbox' as [x, y, w, h]).
+        (1) objects [Vector<Capture_Object_Str(object)>]: The set's objects (Bbox as (x, y, w, h)).
         (2) size [Vector<int> 1x2]: The frame (width, height).
 
     Returns:
@@ -134,7 +133,7 @@ def Describe_Objects(objects: tp.List[tp.Dict[str, tp.Any]], size: tp.List[int])
         column = ('left', 'centre', 'right')[min(2, int(3 * x / size[0]))]
         return 'centre' if (row, column) == ('middle', 'centre') else '%s-%s' % (row, column)
 
-    boxes = sorted((tuple(int(v) for v in record['bbox']) for record in objects), key=lambda b: -b[2] * b[3])
+    boxes = sorted((tuple(int(v) for v in obj.Bbox) for obj in objects), key=lambda b: -b[2] * b[3])
     frame = float(size[0] * size[1])
     return ['%d × %d px (%.2f %% of the frame) at (%d, %d), %s'
             % (w, h, 100.0 * w * h / frame, x, y, _Region(x + w / 2.0, y + h / 2.0)) for x, y, w, h in boxes]
@@ -167,29 +166,29 @@ def Make_Reference(set_path: str, output: str, accept_objects: bool = False) -> 
         Reference_Error_Cls: The set cannot become a reference; the message says why.
     """
 
+    # The set, through its one reader: a set whose ANALYZE failed (partial) has no record to vouch for it.
     prefix = Set_Prefix(set_path)
-    raw, record_path = prefix + CONST_CAPTURE_RAW_SUFFIX, prefix + CONST_CAPTURE_OBJECTS_SUFFIX
-    if not (os.path.isfile(raw) and os.path.isfile(record_path)):
-        raise Reference_Error_Cls('%s is not a complete capture set: it needs %s and %s (a set whose ANALYZE '
-                                  'succeeded).' % (prefix, os.path.basename(raw), os.path.basename(record_path)))
-    with open(record_path, 'r', encoding='utf-8') as handle:
-        record = json.load(handle)
+    capture = Read_Capture_Set(os.path.dirname(prefix), os.path.basename(os.path.dirname(prefix)),
+                               os.path.basename(prefix))
+    if capture.Partial or capture.Raw_Path is None:
+        raise Reference_Error_Cls('%s is not a complete capture set: it needs its _raw.png and _objects.json '
+                                  '(a set whose ANALYZE succeeded).' % prefix)
 
     # 1\ The window: recorded by the camera, or this set cannot say where on the sensor it was shot.
-    window = record.get('window')
-    if not isinstance(window, dict):
+    window = capture.Window
+    if window is None:
         raise Reference_Error_Cls('%s records no sensor window: it was captured before sets recorded one, or from '
                                   'a saved frame rather than the camera. Shoot the reference with the camera '
-                                  '(docs/capture-checklist.md, item 2.0).' % os.path.basename(record_path))
-    with Image.open(raw) as image:
+                                  '(docs/capture-checklist.md, item 2).' % os.path.basename(prefix))
+    with Image.open(capture.Raw_Path) as image:
         size = [int(image.size[0]), int(image.size[1])]
     if size != list(window['resolution']):
         raise Reference_Error_Cls('%s is %d × %d but the set records a %d × %d window.'
-                                  % (os.path.basename(raw), size[0], size[1], window['resolution'][0],
+                                  % (os.path.basename(capture.Raw_Path), size[0], size[1], window['resolution'][0],
                                      window['resolution'][1]))
 
     # 2\ An empty table: the analysis must have found nothing.
-    objects = record.get('objects') or []
+    objects = capture.Objects
     found = Describe_Objects(objects, size)
     if objects and not accept_objects:
         raise Reference_Error_Cls('the analysis of this set found %d object(s):\n%s\nSmall boxes scattered at the '
@@ -198,13 +197,9 @@ def Make_Reference(set_path: str, output: str, accept_objects: bool = False) -> 
                                   'the table: clear it and shoot again.'
                                   % (len(objects), '\n'.join('  - ' + line for line in found)))
 
-    # 3\ The lens model that undistorted the frame: the set's own undistortion record (None when the
-    #    camera had no calibration, and so the frame was not undistorted).
-    undistortion = None
-    distorted_record = prefix + CONST_CAPTURE_DISTORTED_RECORD_SUFFIX
-    if os.path.isfile(distorted_record):
-        with open(distorted_record, 'r', encoding='utf-8') as handle:
-            undistortion = json.load(handle).get('undistortion')
+    # 3\ The lens model that undistorted the frame: the set's undistortion record (None when the camera
+    #    had no calibration, and so the frame was not undistorted).
+    undistortion = capture.Undistortion
 
     # 4\ Write: never over an existing reference or sidecar.
     sidecar_path = Reference_Sidecar_Path(output)
@@ -212,10 +207,10 @@ def Make_Reference(set_path: str, output: str, accept_objects: bool = False) -> 
         if os.path.exists(path):
             raise Reference_Error_Cls('%s already exists; references are never overwritten (analyses were made '
                                       'against it). Choose another --output.' % Display_Path(path))
-    shutil.copyfile(raw, output)
-    sidecar = Build_Reference_Sidecar(output, source=Display_Path(raw), shot=str(record.get('timestamp', '')),
-                                      configuration=str(record.get('configuration', '')), window=window,
-                                      undistortion=undistortion, hardware=record.get('hardware') or {})
+    shutil.copyfile(capture.Raw_Path, output)
+    sidecar = Build_Reference_Sidecar(output, source=Display_Path(capture.Raw_Path), shot=capture.Timestamp,
+                                      configuration=capture.Configuration, window=window,
+                                      undistortion=undistortion, hardware=capture.Hardware)
     if objects:
         # The override is part of the provenance: what the analysis found, and that it was accepted.
         sidecar['accepted_objects'] = found

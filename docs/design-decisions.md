@@ -423,6 +423,11 @@ WARNING that names the risk (measurements may be wrong by an unknown amount), no
 blocking live use over a calibration being replaced that week would gain nothing. **Once the
 multi-view recalibration is in force, make an absent window a load failure**; the code beside the
 warning (`Configuration.Core.__Read_Calibration`) says so.
+
+**Revisit if** the camera changes (another sensor makes 1920 × 1200 at (8, 8) wrong — the window
+belongs to the hardware, in its mode files); a measurement ever needs the 16 px per axis the window
+trims; or the read-back ever catches the camera not keeping the window, in which case persist it in a
+user set on the camera as well, instead of only setting it on connect.
 Tests `test/Configuration/test_core.py` (the window's validation, the reference and calibration
 checks, the writer's refusal), `test/Camera/test_basler.py` (the set order against a stand-in with the
 camera's constraints, the read-back, the log line, the grab check), `test/Calibration/test_core.py`
@@ -463,6 +468,11 @@ someone would reach for to shoot a reference or grab a test frame. The same clas
 says in its docstring and output that its frame carries no provenance and is not a reference.
 `calibrate.py --capture` keeps its own path on purpose — it needs frames before undistortion — and
 applies the application's processing profile to them.
+
+**Revisit if** lighting becomes measurable (a reading from the lamp or a light meter could replace the
+typed `Camera.Lighting` and close the gap above); references are shared between cameras (the checks
+would then need the hardware id as well as the window); or a reference ever has to come from
+something other than a capture set.
 Tests `test/Configuration/test_core.py` (the sidecar checks), `test/Camera/test_reference_harnesses.py`
 (the tool against sets built with the application's record builders; `scan.py` against a stand-in).
 

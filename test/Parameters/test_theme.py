@@ -104,10 +104,10 @@ def test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis() -> None:
     # clear the steel also pushed it further from the medium-dark OK indigo, ΔE ~46 -> ~53).
     assert Theme.Delta_E(neutral, ok) > 46
     # Off the indigo axis: a low-saturation grey, not a saturated indigo like OK.
-    def _sat(hex_color):
+    def _Saturation(hex_color: str) -> float:
         r, g, b = (v / 255.0 for v in Theme.Hex_To_Rgb(hex_color))
         return colorsys.rgb_to_hls(r, g, b)[2]
-    assert _sat(neutral) < 0.20 < _sat(ok)
+    assert _Saturation(neutral) < 0.20 < _Saturation(ok)
     # Still calm, and far from the loud NOK.
     assert Theme.Delta_E(neutral, nok) > 60
 

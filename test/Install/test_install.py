@@ -113,8 +113,8 @@ class Sandbox_Cls(object):
 
             Features:
                 # Methods
-                Sandbox.Stub('nvidia-smi', 'exit 9')
-                Sandbox.Run('Detect_Platform; Show MLX_BACKEND')
+                sandbox.Stub('nvidia-smi', 'exit 9')
+                sandbox.Run('Detect_Platform; Show MLX_BACKEND')
     """
 
     def __init__(self, root: str) -> None:
@@ -243,7 +243,7 @@ def _Levels(process: subprocess.CompletedProcess, level: str) -> tp.List[str]:
 
 
 @pytest.fixture
-def Sandbox(tmp_path) -> Sandbox_Cls:
+def sandbox(tmp_path) -> Sandbox_Cls:
     """
     Description:
         A fresh hermetic sandbox per test.
@@ -255,7 +255,7 @@ def Sandbox(tmp_path) -> Sandbox_Cls:
     return Sandbox_Cls(tmp_path)
 
 
-def _Stub_Macos(Sandbox: Sandbox_Cls, arm64: tp.Optional[str] = '1', machine: str = 'arm64',
+def _Stub_Macos(sandbox: Sandbox_Cls, arm64: tp.Optional[str] = '1', machine: str = 'arm64',
                 version: str = '15.1') -> None:
     """
     Description:
@@ -263,43 +263,43 @@ def _Stub_Macos(Sandbox: Sandbox_Cls, arm64: tp.Optional[str] = '1', machine: st
         older Intel macOS), and sw_vers.
 
     Args:
-        (1) Sandbox [Sandbox_Cls(object)]: The sandbox.
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
         (2) arm64 [string]: hw.optional.arm64's value, or None for 'unknown oid'.
         (3) machine [string]: uname -m (x86_64 under Rosetta).
         (4) version [string]: The macOS version.
     """
 
-    Sandbox.Stub('uname', f'case "$1" in -s) echo Darwin ;; -m) echo {machine} ;; esac')
+    sandbox.Stub('uname', f'case "$1" in -s) echo Darwin ;; -m) echo {machine} ;; esac')
     arm64_case = (f'echo {arm64}' if arm64 is not None
                   else "echo \"sysctl: unknown oid 'hw.optional.arm64'\" >&2; exit 1")
-    Sandbox.Stub('sysctl', f'case "$2" in hw.optional.arm64) {arm64_case} ;; '
+    sandbox.Stub('sysctl', f'case "$2" in hw.optional.arm64) {arm64_case} ;; '
                            'machdep.cpu.brand_string) echo "Apple M2 Pro" ;; esac')
-    Sandbox.Stub('sw_vers', f'echo {version}')
+    sandbox.Stub('sw_vers', f'echo {version}')
 
 
-def _Stub_Linux(Sandbox: Sandbox_Cls, machine: str = 'x86_64', glibc: tp.Optional[str] = '2.35') -> None:
+def _Stub_Linux(sandbox: Sandbox_Cls, machine: str = 'x86_64', glibc: tp.Optional[str] = '2.35') -> None:
     """
     Description:
         Stub a Linux machine: uname and getconf (None = no glibc, as on musl).
 
     Args:
-        (1) Sandbox [Sandbox_Cls(object)]: The sandbox.
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
         (2) machine [string]: uname -m.
         (3) glibc [string]: The glibc version, or None.
     """
 
-    Sandbox.Stub('uname', f'case "$1" in -s) echo Linux ;; -m) echo {machine} ;; esac')
-    Sandbox.Stub('getconf', f'echo "glibc {glibc}"' if glibc is not None
+    sandbox.Stub('uname', f'case "$1" in -s) echo Linux ;; -m) echo {machine} ;; esac')
+    sandbox.Stub('getconf', f'echo "glibc {glibc}"' if glibc is not None
                             else 'echo "getconf: Unrecognized variable" >&2; exit 1')
 
 
-def _Stub_Nvidia(Sandbox: Sandbox_Cls, driver: str, cap: str = '8.6', cuda: str = '12.6', gpus: int = 1) -> None:
+def _Stub_Nvidia(sandbox: Sandbox_Cls, driver: str, cap: str = '8.6', cuda: str = '12.6', gpus: int = 1) -> None:
     """
     Description:
         Stub a working nvidia-smi.
 
     Args:
-        (1) Sandbox [Sandbox_Cls(object)]: The sandbox.
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
         (2) driver [string]: The driver version.
         (3) cap [string]: The compute capability.
         (4) cuda [string]: The CUDA version the banner reports.
@@ -307,7 +307,7 @@ def _Stub_Nvidia(Sandbox: Sandbox_Cls, driver: str, cap: str = '8.6', cuda: str 
     """
 
     rows = ' '.join([f'"NVIDIA GeForce RTX 3090, {driver}"'] * gpus)
-    Sandbox.Stub('nvidia-smi', CONST_NVIDIA_SMI_TEMPLATE.format(rows=rows, cap=cap, driver=driver, cuda=cuda))
+    sandbox.Stub('nvidia-smi', CONST_NVIDIA_SMI_TEMPLATE.format(rows=rows, cap=cap, driver=driver, cuda=cuda))
 
 
 # ---- version comparison -----------------------------------------------------
@@ -318,21 +318,21 @@ def _Stub_Nvidia(Sandbox: Sandbox_Cls, driver: str, cap: str = '8.6', cuda: str 
     ('535.183.01', '550.54.14', False), ('580.65.06', '580', True), ('575.57.08', '580', False),
     ('7.5', '7.5', True), ('7.0', '7.5', False), ('12.0', '7.5', True), ('2.31', '2.35', False),
     ('2.39', '2.35', True), ('14', '14', True), ('13.6.1', '14', False), ('3.10.0rc1', '3.10', True)])
-def test_version_ge(Sandbox, a, b, expected):
-    process = Sandbox.Run(f'if Version_Ge "{a}" "{b}"; then echo "RESULT GE=yes"; else echo "RESULT GE=no"; fi')
+def test_version_ge(sandbox, a, b, expected):
+    process = sandbox.Run(f'if Version_Ge "{a}" "{b}"; then echo "RESULT GE=yes"; else echo "RESULT GE=no"; fi')
 
     assert _Results(process)['GE'] == ('yes' if expected else 'no')
 
 
 # ---- Python version check ---------------------------------------------------
 
-def _Stub_Python(Sandbox: Sandbox_Cls, name: str, version: str, machine: str = 'arm64') -> str:
+def _Stub_Python(sandbox: Sandbox_Cls, name: str, version: str, machine: str = 'arm64') -> str:
     """
     Description:
         Stub an interpreter that answers the version and platform.machine() queries.
 
     Args:
-        (1) Sandbox [Sandbox_Cls(object)]: The sandbox.
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
         (2) name [string]: The command name (python3, python3.12, ...).
         (3) version [string]: What it reports as its version.
         (4) machine [string]: What it reports as platform.machine().
@@ -341,12 +341,12 @@ def _Stub_Python(Sandbox: Sandbox_Cls, name: str, version: str, machine: str = '
         (1) parameter [string]: The stub's path.
     """
 
-    return Sandbox.Stub(name, f'case "$*" in *machine*) echo {machine} ;; *) echo {version} ;; esac')
+    return sandbox.Stub(name, f'case "$*" in *machine*) echo {machine} ;; *) echo {version} ;; esac')
 
 
-def test_python_below_floor_stops_first_and_names_both_versions(Sandbox):
-    _Stub_Python(Sandbox, 'python3', '3.9.18')
-    process = Sandbox.Run(f'CONST_VENV_DIR="{Sandbox.Root}/venv"; Select_Python; echo "RESULT REACHED=yes"')
+def test_python_below_floor_stops_first_and_names_both_versions(sandbox):
+    _Stub_Python(sandbox, 'python3', '3.9.18')
+    process = sandbox.Run(f'CONST_VENV_DIR="{sandbox.Root}/venv"; Select_Python; echo "RESULT REACHED=yes"')
 
     assert process.returncode == 1
     assert 'REACHED' not in _Results(process)
@@ -355,19 +355,19 @@ def test_python_below_floor_stops_first_and_names_both_versions(Sandbox):
     assert 'PYTHON=' in errors[-1]
 
 
-def test_python_search_prefers_a_suitable_versioned_interpreter(Sandbox):
-    _Stub_Python(Sandbox, 'python3', '3.9.18')
-    _Stub_Python(Sandbox, 'python3.11', '3.11.9')
-    process = Sandbox.Run(f'CONST_VENV_DIR="{Sandbox.Root}/venv"; Select_Python; Show PYTHON_VERSION')
+def test_python_search_prefers_a_suitable_versioned_interpreter(sandbox):
+    _Stub_Python(sandbox, 'python3', '3.9.18')
+    _Stub_Python(sandbox, 'python3.11', '3.11.9')
+    process = sandbox.Run(f'CONST_VENV_DIR="{sandbox.Root}/venv"; Select_Python; Show PYTHON_VERSION')
 
     assert process.returncode == 0
     assert _Results(process)['PYTHON_VERSION'] == '3.11.9'
     assert any('within the accepted range: 3.10 or newer, tested 3.10-3.12' in m for m in _Levels(process, 'INFO'))
 
 
-def test_python_above_tested_range_is_accepted_with_an_informative_warning(Sandbox):
-    _Stub_Python(Sandbox, 'python3.13', '3.13.1')
-    process = Sandbox.Run(f'CONST_VENV_DIR="{Sandbox.Root}/venv"; Select_Python; Show PYTHON_VERSION')
+def test_python_above_tested_range_is_accepted_with_an_informative_warning(sandbox):
+    _Stub_Python(sandbox, 'python3.13', '3.13.1')
+    process = sandbox.Run(f'CONST_VENV_DIR="{sandbox.Root}/venv"; Select_Python; Show PYTHON_VERSION')
 
     assert process.returncode == 0
     warning = _Levels(process, 'WARNING')[0]
@@ -375,29 +375,29 @@ def test_python_above_tested_range_is_accepted_with_an_informative_warning(Sandb
     assert 'newer than the tested range 3.10-3.12' in warning
 
 
-def test_python_from_environment_variable_below_floor(Sandbox):
-    path = _Stub_Python(Sandbox, 'oldpython', '3.8.20')
-    process = Sandbox.Run(f'CONST_VENV_DIR="{Sandbox.Root}/venv"; Select_Python', env={'PYTHON': path})
+def test_python_from_environment_variable_below_floor(sandbox):
+    path = _Stub_Python(sandbox, 'oldpython', '3.8.20')
+    process = sandbox.Run(f'CONST_VENV_DIR="{sandbox.Root}/venv"; Select_Python', env={'PYTHON': path})
 
     assert process.returncode == 1
     assert 'PYTHON=' in _Levels(process, 'ERROR')[0] and '3.8.20' in _Levels(process, 'ERROR')[0]
 
 
-def test_existing_venv_decides_and_an_old_one_is_not_deleted(Sandbox):
-    venv = os.path.join(Sandbox.Root, 'venv')
+def test_existing_venv_decides_and_an_old_one_is_not_deleted(sandbox):
+    venv = os.path.join(sandbox.Root, 'venv')
     os.makedirs(os.path.join(venv, 'bin'))
-    Sandbox.Stub('python-old', 'echo 3.9.6')
-    os.rename(os.path.join(Sandbox.Root, 'stubs', 'python-old'), os.path.join(venv, 'bin', 'python'))
-    process = Sandbox.Run(f'CONST_VENV_DIR="{venv}"; Select_Python')
+    sandbox.Stub('python-old', 'echo 3.9.6')
+    os.rename(os.path.join(sandbox.Root, 'stubs', 'python-old'), os.path.join(venv, 'bin', 'python'))
+    process = sandbox.Run(f'CONST_VENV_DIR="{venv}"; Select_Python')
 
     assert process.returncode == 1
     assert 'rm -rf .venv' in _Levels(process, 'ERROR')[-1]
     assert os.path.exists(os.path.join(venv, 'bin', 'python'))
 
 
-def test_x86_64_python_on_apple_silicon_stops(Sandbox):
-    path = _Stub_Python(Sandbox, 'python3', '3.10.14', machine='x86_64')
-    process = Sandbox.Run(f'PLATFORM_OS=macos; BASE_PYTHON="{path}"; PYTHON_VERSION=3.10.14; Check_Python_Architecture')
+def test_x86_64_python_on_apple_silicon_stops(sandbox):
+    path = _Stub_Python(sandbox, 'python3', '3.10.14', machine='x86_64')
+    process = sandbox.Run(f'PLATFORM_OS=macos; BASE_PYTHON="{path}"; PYTHON_VERSION=3.10.14; Check_Python_Architecture')
 
     assert process.returncode == 1
     assert 'Rosetta' in _Levels(process, 'ERROR')[0]
@@ -405,26 +405,26 @@ def test_x86_64_python_on_apple_silicon_stops(Sandbox):
 
 # ---- platform detection: macOS ----------------------------------------------
 
-def test_macos_apple_silicon_selects_metal(Sandbox):
-    _Stub_Macos(Sandbox)
-    process = Sandbox.Run('Detect_Platform; Show PLATFORM_OS MLX_BACKEND TORCH_INDEX')
+def test_macos_apple_silicon_selects_metal(sandbox):
+    _Stub_Macos(sandbox)
+    process = sandbox.Run('Detect_Platform; Show PLATFORM_OS MLX_BACKEND TORCH_INDEX')
 
     assert process.returncode == 0
     assert _Results(process) == {'PLATFORM_OS': 'macos', 'MLX_BACKEND': 'metal', 'TORCH_INDEX': ''}
     assert 'Detected macOS 15.1 on Apple silicon (Apple M2 Pro).' in _Levels(process, 'INFO')
 
 
-def test_macos_under_rosetta_is_still_apple_silicon(Sandbox):
-    _Stub_Macos(Sandbox, machine='x86_64')
-    process = Sandbox.Run('Detect_Platform; Show MLX_BACKEND')
+def test_macos_under_rosetta_is_still_apple_silicon(sandbox):
+    _Stub_Macos(sandbox, machine='x86_64')
+    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND')
 
     assert _Results(process)['MLX_BACKEND'] == 'metal'
 
 
 @pytest.mark.parametrize('arm64', ['0', None])
-def test_macos_intel_is_unsupported(Sandbox, arm64):
-    _Stub_Macos(Sandbox, arm64=arm64, machine='x86_64')
-    process = Sandbox.Run('Detect_Platform; echo "RESULT REACHED=yes"')
+def test_macos_intel_is_unsupported(sandbox, arm64):
+    _Stub_Macos(sandbox, arm64=arm64, machine='x86_64')
+    process = sandbox.Run('Detect_Platform; echo "RESULT REACHED=yes"')
 
     assert process.returncode == 1
     assert 'REACHED' not in _Results(process)
@@ -432,9 +432,9 @@ def test_macos_intel_is_unsupported(Sandbox, arm64):
     assert 'MLX needs Apple silicon' in _Levels(process, 'ERROR')[0]
 
 
-def test_macos_older_than_14_stops(Sandbox):
-    _Stub_Macos(Sandbox, version='13.6.1')
-    process = Sandbox.Run('Detect_Platform')
+def test_macos_older_than_14_stops(sandbox):
+    _Stub_Macos(sandbox, version='13.6.1')
+    process = sandbox.Run('Detect_Platform')
 
     assert process.returncode == 1
     assert 'macOS 14 or newer is required; this is 13.6.1' in _Levels(process, 'ERROR')[0]
@@ -448,10 +448,10 @@ def test_macos_older_than_14_stops(Sandbox):
     ('575.57.08', '12.9', 'cuda12', 'cu126'),
     ('580.65.06', '13.0', 'cuda13', 'cu130'),
     ('590.44.01', '13.1', 'cuda13', 'cu130')])
-def test_linux_nvidia_driver_selects_matching_builds(Sandbox, driver, cuda, backend, index):
-    _Stub_Linux(Sandbox)
-    _Stub_Nvidia(Sandbox, driver, cuda=cuda)
-    process = Sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
+def test_linux_nvidia_driver_selects_matching_builds(sandbox, driver, cuda, backend, index):
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, driver, cuda=cuda)
+    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
 
     assert process.returncode == 0
     assert _Results(process) == {'MLX_BACKEND': backend, 'TORCH_INDEX': index}
@@ -461,17 +461,17 @@ def test_linux_nvidia_driver_selects_matching_builds(Sandbox, driver, cuda, back
     assert not _Levels(process, 'WARNING')
 
 
-def test_linux_multiple_gpus_reports_the_count(Sandbox):
-    _Stub_Linux(Sandbox)
-    _Stub_Nvidia(Sandbox, '560.35.03', gpus=2)
-    process = Sandbox.Run('Detect_Platform')
+def test_linux_multiple_gpus_reports_the_count(sandbox):
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, '560.35.03', gpus=2)
+    process = sandbox.Run('Detect_Platform')
 
     assert any('with 2 GPUs; MLX uses the first' in m for m in _Levels(process, 'INFO'))
 
 
-def test_linux_without_nvidia_smi_uses_cpu_with_warning(Sandbox):
-    _Stub_Linux(Sandbox)
-    process = Sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
+def test_linux_without_nvidia_smi_uses_cpu_with_warning(sandbox):
+    _Stub_Linux(sandbox)
+    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
 
     assert process.returncode == 0
     assert _Results(process) == {'MLX_BACKEND': 'cpu', 'TORCH_INDEX': 'cpu'}
@@ -480,12 +480,12 @@ def test_linux_without_nvidia_smi_uses_cpu_with_warning(Sandbox):
     assert 'slow' in warning
 
 
-def test_linux_library_installed_but_no_working_gpu_uses_cpu(Sandbox):
+def test_linux_library_installed_but_no_working_gpu_uses_cpu(sandbox):
     # The case the driver check exists for: nvidia-smi is present but cannot reach a driver.
-    _Stub_Linux(Sandbox)
-    Sandbox.Stub('nvidia-smi', 'echo "NVIDIA-SMI has failed because it couldn\'t communicate with the NVIDIA driver. '
+    _Stub_Linux(sandbox)
+    sandbox.Stub('nvidia-smi', 'echo "NVIDIA-SMI has failed because it couldn\'t communicate with the NVIDIA driver. '
                                'Make sure that the latest NVIDIA driver is installed and running."; exit 9')
-    process = Sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
+    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
 
     assert process.returncode == 0
     assert _Results(process) == {'MLX_BACKEND': 'cpu', 'TORCH_INDEX': 'cpu'}
@@ -493,36 +493,36 @@ def test_linux_library_installed_but_no_working_gpu_uses_cpu(Sandbox):
         in _Levels(process, 'WARNING')[0]
 
 
-def test_linux_nvidia_smi_listing_no_gpu_uses_cpu(Sandbox):
-    _Stub_Linux(Sandbox)
-    Sandbox.Stub('nvidia-smi', 'echo "No devices were found"; exit 0')
-    process = Sandbox.Run('Detect_Platform; Show MLX_BACKEND')
+def test_linux_nvidia_smi_listing_no_gpu_uses_cpu(sandbox):
+    _Stub_Linux(sandbox)
+    sandbox.Stub('nvidia-smi', 'echo "No devices were found"; exit 0')
+    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND')
 
     assert _Results(process)['MLX_BACKEND'] == 'cpu'
     assert 'nvidia-smi reported no GPU (No devices were found)' in _Levels(process, 'WARNING')[0]
 
 
-def test_linux_driver_too_old_for_mlx_cuda_uses_cpu(Sandbox):
-    _Stub_Linux(Sandbox)
-    _Stub_Nvidia(Sandbox, '535.183.01', cuda='12.2')
-    process = Sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
+def test_linux_driver_too_old_for_mlx_cuda_uses_cpu(sandbox):
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, '535.183.01', cuda='12.2')
+    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
 
     assert _Results(process) == {'MLX_BACKEND': 'cpu', 'TORCH_INDEX': 'cpu'}
     assert 'older than 550.54.14' in _Levels(process, 'WARNING')[0]
 
 
-def test_linux_gpu_below_compute_capability_uses_cpu(Sandbox):
-    _Stub_Linux(Sandbox)
-    _Stub_Nvidia(Sandbox, '560.35.03', cap='7.0')
-    process = Sandbox.Run('Detect_Platform; Show MLX_BACKEND')
+def test_linux_gpu_below_compute_capability_uses_cpu(sandbox):
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, '560.35.03', cap='7.0')
+    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND')
 
     assert _Results(process)['MLX_BACKEND'] == 'cpu'
     assert 'compute capability 7.0' in _Levels(process, 'WARNING')[0]
 
 
-def test_linux_aarch64_stops_naming_pyqt5_and_what_would_be_needed(Sandbox):
-    _Stub_Linux(Sandbox, machine='aarch64')
-    process = Sandbox.Run('Detect_Platform')
+def test_linux_aarch64_stops_naming_pyqt5_and_what_would_be_needed(sandbox):
+    _Stub_Linux(sandbox, machine='aarch64')
+    process = sandbox.Run('Detect_Platform')
 
     assert process.returncode == 1
     errors = _Levels(process, 'ERROR')
@@ -530,17 +530,17 @@ def test_linux_aarch64_stops_naming_pyqt5_and_what_would_be_needed(Sandbox):
     assert 'python3-pyqt5' in errors[1] and 'PyQt6' in errors[1]
 
 
-def test_linux_old_glibc_stops(Sandbox):
-    _Stub_Linux(Sandbox, glibc='2.31')
-    process = Sandbox.Run('Detect_Platform')
+def test_linux_old_glibc_stops(sandbox):
+    _Stub_Linux(sandbox, glibc='2.31')
+    process = sandbox.Run('Detect_Platform')
 
     assert process.returncode == 1
     assert 'glibc 2.35 or newer is required; this system has 2.31' in _Levels(process, 'ERROR')[0]
 
 
-def test_linux_musl_stops(Sandbox):
-    _Stub_Linux(Sandbox, glibc=None)
-    process = Sandbox.Run('Detect_Platform')
+def test_linux_musl_stops(sandbox):
+    _Stub_Linux(sandbox, glibc=None)
+    process = sandbox.Run('Detect_Platform')
 
     assert process.returncode == 1
     assert 'without glibc' in _Levels(process, 'ERROR')[0]
@@ -581,85 +581,85 @@ def _Write(path: str, content: bytes) -> None:
 @pytest.mark.parametrize('content, kind, expected', [
     (b'weights', 'sha256', 0), (b'weightz', 'sha256', 3), (b'weight', 'sha256', 2), (None, 'sha256', 1),
     (b'{"a": 1}\n', 'blob', 0), (b'{"a": 2}\n', 'blob', 3)])
-def test_verify_file_statuses(Sandbox, content, kind, expected):
+def test_verify_file_statuses(sandbox, content, kind, expected):
     reference = b'weights' if kind == 'sha256' else b'{"a": 1}\n'
     digest = hashlib.sha256(reference).hexdigest() if kind == 'sha256' else _Blob_Sha1(reference)
-    path = os.path.join(Sandbox.Root, 'file.bin')
+    path = os.path.join(sandbox.Root, 'file.bin')
     if content is not None:
         _Write(path, content)
-    process = Sandbox.Run(f'status=0; Verify_File "{path}" {len(reference)} {kind} {digest} || status=$?; Show status')
+    process = sandbox.Run(f'status=0; Verify_File "{path}" {len(reference)} {kind} {digest} || status=$?; Show status')
 
     assert _Results(process)['status'] == str(expected)
 
 
-def test_blob_hash_matches_git(Sandbox):
+def test_blob_hash_matches_git(sandbox):
     if shutil.which('git') is None:
         pytest.skip('git is not installed')
-    path = os.path.join(Sandbox.Root, 'config.json')
+    path = os.path.join(sandbox.Root, 'config.json')
     _Write(path, b'{"model_type": "gemma4"}\n')
-    process = Sandbox.Run(f'echo "RESULT HASH=$(Hash_Git_Blob "{path}" 25)"')
+    process = sandbox.Run(f'echo "RESULT HASH=$(Hash_Git_Blob "{path}" 25)"')
     expected = subprocess.run(['git', 'hash-object', path], stdout=subprocess.PIPE, universal_newlines=True).stdout.strip()
 
     assert _Results(process)['HASH'] == expected
 
 
-def _Fastsam_Snippet(Sandbox: Sandbox_Cls, reference: bytes) -> str:
+def _Fastsam_Snippet(sandbox: Sandbox_Cls, reference: bytes) -> str:
     """
     Description:
         Point the FastSAM constants at a scratch root and a fixture checksum.
 
     Args:
-        (1) Sandbox [Sandbox_Cls(object)]: The sandbox.
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
         (2) reference [bytes]: The content the 'published' checksum is of.
 
     Returns:
         (1) parameter [string]: The bash assignments.
     """
 
-    return (f'CONST_ROOT="{Sandbox.Root}"; CONST_FASTSAM_URL=https://example.invalid/FastSAM-x.pt; '
+    return (f'CONST_ROOT="{sandbox.Root}"; CONST_FASTSAM_URL=https://example.invalid/FastSAM-x.pt; '
             f'CONST_FASTSAM_SIZE={len(reference)}; CONST_FASTSAM_SHA256={hashlib.sha256(reference).hexdigest()}; ')
 
 
-def _Stub_Curl(Sandbox: Sandbox_Cls, serves: bytes) -> str:
+def _Stub_Curl(sandbox: Sandbox_Cls, serves: bytes) -> str:
     """
     Description:
         A curl that records its arguments and writes the given content to --output.
 
     Args:
-        (1) Sandbox [Sandbox_Cls(object)]: The sandbox.
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
         (2) serves [bytes]: The content 'downloaded'.
 
     Returns:
         (1) parameter [string]: The file the call is recorded in.
     """
 
-    record = os.path.join(Sandbox.Root, 'curl.calls')
-    served = os.path.join(Sandbox.Root, 'served.bin')
+    record = os.path.join(sandbox.Root, 'curl.calls')
+    served = os.path.join(sandbox.Root, 'served.bin')
     _Write(served, serves)
-    Sandbox.Stub('curl', f'echo "$*" >> "{record}"\n'
+    sandbox.Stub('curl', f'echo "$*" >> "{record}"\n'
                          'while [ "$#" -gt 0 ]; do [ "$1" = --output ] && out="$2"; shift; done\n'
                          f'cp "{served}" "$out"')
 
     return record
 
 
-def test_fastsam_present_and_correct_is_not_downloaded(Sandbox):
+def test_fastsam_present_and_correct_is_not_downloaded(sandbox):
     reference = b'fastsam-weights'
-    _Write(os.path.join(Sandbox.Root, 'models', 'sam-1', 'FastSAM-x.pt'), reference)
-    record = _Stub_Curl(Sandbox, reference)
-    process = Sandbox.Run(_Fastsam_Snippet(Sandbox, reference) + 'Ensure_Fastsam')
+    _Write(os.path.join(sandbox.Root, 'models', 'sam-1', 'FastSAM-x.pt'), reference)
+    record = _Stub_Curl(sandbox, reference)
+    process = sandbox.Run(_Fastsam_Snippet(sandbox, reference) + 'Ensure_Fastsam')
 
     assert process.returncode == 0
     assert not os.path.exists(record)
     assert any('already present and matches the published SHA-256' in m for m in _Levels(process, 'INFO'))
 
 
-def test_fastsam_corrupt_is_downloaded_again_and_verified(Sandbox):
+def test_fastsam_corrupt_is_downloaded_again_and_verified(sandbox):
     reference = b'fastsam-weights'
-    target = os.path.join(Sandbox.Root, 'models', 'sam-1', 'FastSAM-x.pt')
+    target = os.path.join(sandbox.Root, 'models', 'sam-1', 'FastSAM-x.pt')
     _Write(target, b'fastsam-weightz')
-    record = _Stub_Curl(Sandbox, reference)
-    process = Sandbox.Run(_Fastsam_Snippet(Sandbox, reference) + 'Ensure_Fastsam')
+    record = _Stub_Curl(sandbox, reference)
+    process = sandbox.Run(_Fastsam_Snippet(sandbox, reference) + 'Ensure_Fastsam')
 
     assert process.returncode == 0
     assert 'https://example.invalid/FastSAM-x.pt' in open(record).read()
@@ -668,12 +668,12 @@ def test_fastsam_corrupt_is_downloaded_again_and_verified(Sandbox):
     assert 'checksum does not match' in _Levels(process, 'WARNING')[0]
 
 
-def test_fastsam_bad_download_replaces_nothing(Sandbox):
+def test_fastsam_bad_download_replaces_nothing(sandbox):
     reference = b'fastsam-weights'
-    target = os.path.join(Sandbox.Root, 'models', 'sam-1', 'FastSAM-x.pt')
+    target = os.path.join(sandbox.Root, 'models', 'sam-1', 'FastSAM-x.pt')
     _Write(target, b'fastsam-old!!!!')
-    _Stub_Curl(Sandbox, b'<html>rate limited</html>')
-    process = Sandbox.Run(_Fastsam_Snippet(Sandbox, reference) + 'Ensure_Fastsam')
+    _Stub_Curl(sandbox, b'<html>rate limited</html>')
+    process = sandbox.Run(_Fastsam_Snippet(sandbox, reference) + 'Ensure_Fastsam')
 
     assert process.returncode == 1
     assert open(target, 'rb').read() == b'fastsam-old!!!!'
@@ -689,13 +689,13 @@ CONST_GEMMA_FIXTURE = {'config.json': b'{"model_type": "gemma4"}\n',
                        'tokenizer.json': b'{"version": "1.0"}\n'}
 
 
-def _Gemma_Snippet(Sandbox: Sandbox_Cls) -> str:
+def _Gemma_Snippet(sandbox: Sandbox_Cls) -> str:
     """
     Description:
         Point the Gemma constants at a scratch root, a fixture manifest and a stub venv.
 
     Args:
-        (1) Sandbox [Sandbox_Cls(object)]: The sandbox.
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
 
     Returns:
         (1) parameter [string]: The bash assignments.
@@ -709,44 +709,44 @@ def _Gemma_Snippet(Sandbox: Sandbox_Cls) -> str:
             rows.append(f'{name} {len(content)} blob {_Blob_Sha1(content)}')
     manifest = '\n'.join(rows)
 
-    return (f'CONST_ROOT="{Sandbox.Root}"; CONST_VENV_DIR="{Sandbox.Root}/venv"; CONST_SLOW_HASH_BYTES=1024; '
+    return (f'CONST_ROOT="{sandbox.Root}"; CONST_VENV_DIR="{sandbox.Root}/venv"; CONST_SLOW_HASH_BYTES=1024; '
             f"CONST_GEMMA_FILES='{manifest}'; ")
 
 
-def _Stub_Hf(Sandbox: Sandbox_Cls, correct: bool = True) -> str:
+def _Stub_Hf(sandbox: Sandbox_Cls, correct: bool = True) -> str:
     """
     Description:
         A .venv/bin/hf that records its arguments and writes the fixture content (or wrong
         content) for each file named on its command line into --local-dir.
 
     Args:
-        (1) Sandbox [Sandbox_Cls(object)]: The sandbox.
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
         (2) correct [bool]: Whether it 'downloads' the right bytes.
 
     Returns:
         (1) parameter [string]: The file the call is recorded in.
     """
 
-    record = os.path.join(Sandbox.Root, 'hf.calls')
-    fixtures = os.path.join(Sandbox.Root, 'hf-fixtures')
+    record = os.path.join(sandbox.Root, 'hf.calls')
+    fixtures = os.path.join(sandbox.Root, 'hf-fixtures')
     for name, content in CONST_GEMMA_FIXTURE.items():
         _Write(os.path.join(fixtures, name), content if correct else content + b'!')
-    path = Sandbox.Stub('hf', f'echo "$*" >> "{record}"\n'
+    path = sandbox.Stub('hf', f'echo "$*" >> "{record}"\n'
                               'names=""; while [ "$#" -gt 0 ]; do case "$1" in\n'
                               '  --local-dir) dir="$2"; shift ;; --revision) shift ;; --*|download) ;;\n'
                               '  */*) ;; *) names="$names $1" ;; esac; shift; done\n'
                               f'for n in $names; do cp "{fixtures}/$n" "$dir/$n"; done')
-    os.makedirs(os.path.join(Sandbox.Root, 'venv', 'bin'))
-    os.rename(path, os.path.join(Sandbox.Root, 'venv', 'bin', 'hf'))
+    os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
+    os.rename(path, os.path.join(sandbox.Root, 'venv', 'bin', 'hf'))
 
     return record
 
 
-def test_gemma_present_and_correct_is_not_downloaded_and_reports_time(Sandbox):
+def test_gemma_present_and_correct_is_not_downloaded_and_reports_time(sandbox):
     for name, content in CONST_GEMMA_FIXTURE.items():
-        _Write(os.path.join(Sandbox.Root, 'models', 'gemma-4-e4b-it-4bit', name), content)
-    record = _Stub_Hf(Sandbox)
-    process = Sandbox.Run(_Gemma_Snippet(Sandbox) + 'Ensure_Gemma')
+        _Write(os.path.join(sandbox.Root, 'models', 'gemma-4-e4b-it-4bit', name), content)
+    record = _Stub_Hf(sandbox)
+    process = sandbox.Run(_Gemma_Snippet(sandbox) + 'Ensure_Gemma')
 
     assert process.returncode == 0
     assert not os.path.exists(record)
@@ -757,13 +757,13 @@ def test_gemma_present_and_correct_is_not_downloaded_and_reports_time(Sandbox):
                for m in infos)
 
 
-def test_gemma_fetches_only_the_mismatched_file(Sandbox):
-    directory = os.path.join(Sandbox.Root, 'models', 'gemma-4-e4b-it-4bit')
+def test_gemma_fetches_only_the_mismatched_file(sandbox):
+    directory = os.path.join(sandbox.Root, 'models', 'gemma-4-e4b-it-4bit')
     for name, content in CONST_GEMMA_FIXTURE.items():
         _Write(os.path.join(directory, name), content)
     _Write(os.path.join(directory, 'tokenizer.json'), b'{"version": "0.9"}\n')
-    record = _Stub_Hf(Sandbox)
-    process = Sandbox.Run(_Gemma_Snippet(Sandbox) + 'Ensure_Gemma')
+    record = _Stub_Hf(sandbox)
+    process = sandbox.Run(_Gemma_Snippet(sandbox) + 'Ensure_Gemma')
 
     assert process.returncode == 0
     call = open(record).read().split()
@@ -773,9 +773,9 @@ def test_gemma_fetches_only_the_mismatched_file(Sandbox):
     assert 'Gemma file tokenizer.json is present but its checksum does not match' in _Levels(process, 'WARNING')[0]
 
 
-def test_gemma_missing_directory_fetches_everything(Sandbox):
-    record = _Stub_Hf(Sandbox)
-    process = Sandbox.Run(_Gemma_Snippet(Sandbox) + 'Ensure_Gemma')
+def test_gemma_missing_directory_fetches_everything(sandbox):
+    record = _Stub_Hf(sandbox)
+    process = sandbox.Run(_Gemma_Snippet(sandbox) + 'Ensure_Gemma')
 
     assert process.returncode == 0
     call = open(record).read().split()
@@ -783,9 +783,9 @@ def test_gemma_missing_directory_fetches_everything(Sandbox):
     assert not _Levels(process, 'WARNING')
 
 
-def test_gemma_download_that_does_not_verify_fails(Sandbox):
-    _Stub_Hf(Sandbox, correct=False)
-    process = Sandbox.Run(_Gemma_Snippet(Sandbox) + 'Ensure_Gemma')
+def test_gemma_download_that_does_not_verify_fails(sandbox):
+    _Stub_Hf(sandbox, correct=False)
+    process = sandbox.Run(_Gemma_Snippet(sandbox) + 'Ensure_Gemma')
 
     assert process.returncode == 1
     assert 'After downloading, Gemma file' in _Levels(process, 'ERROR')[0]
@@ -795,13 +795,13 @@ def test_gemma_download_that_does_not_verify_fails(Sandbox):
 
 @pytest.mark.parametrize('gemma, expected_level', [('models/gemma-4-e4b-it-4bit', 'INFO'),
                                                    ('models/gemma-4-e4b-it-8bit', 'WARNING')])
-def test_configuration_pointing_elsewhere_names_the_field(Sandbox, gemma, expected_level):
+def test_configuration_pointing_elsewhere_names_the_field(sandbox, gemma, expected_level):
     pytest.importorskip('yaml')
-    _Write(os.path.join(Sandbox.Root, 'Configuration', 'Config_Test.yaml'),
+    _Write(os.path.join(sandbox.Root, 'Configuration', 'Config_Test.yaml'),
            f'Segmentation:\n  Model: models/sam-1/FastSAM-x.pt\nDescription:\n  Model: {gemma}\n'.encode())
-    os.makedirs(os.path.join(Sandbox.Root, 'venv', 'bin'))
-    os.symlink(sys.executable, os.path.join(Sandbox.Root, 'venv', 'bin', 'python'))
-    process = Sandbox.Run(f'CONST_ROOT="{Sandbox.Root}"; CONST_VENV_DIR="{Sandbox.Root}/venv"; Check_Configurations')
+    os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
+    os.symlink(sys.executable, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))
+    process = sandbox.Run(f'CONST_ROOT="{sandbox.Root}"; CONST_VENV_DIR="{sandbox.Root}/venv"; Check_Configurations')
 
     assert process.returncode == 0
     messages = _Levels(process, expected_level)
@@ -814,14 +814,14 @@ def test_configuration_pointing_elsewhere_names_the_field(Sandbox, gemma, expect
 
 # ---- the whole detection path -----------------------------------------------
 
-def test_detect_only_on_stubbed_linux_changes_nothing(Sandbox):
-    _Stub_Linux(Sandbox)
-    _Stub_Nvidia(Sandbox, '560.35.03')
-    _Stub_Python(Sandbox, 'python3.10', '3.10.14', machine='x86_64')
-    process = Sandbox.Run(f'CONST_ROOT="{Sandbox.Root}"; CONST_VENV_DIR="{Sandbox.Root}/.venv"; Main --detect-only')
+def test_detect_only_on_stubbed_linux_changes_nothing(sandbox):
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, '560.35.03')
+    _Stub_Python(sandbox, 'python3.10', '3.10.14', machine='x86_64')
+    process = sandbox.Run(f'CONST_ROOT="{sandbox.Root}"; CONST_VENV_DIR="{sandbox.Root}/.venv"; Main --detect-only')
 
     assert process.returncode == 0
-    assert not os.path.exists(os.path.join(Sandbox.Root, '.venv'))
+    assert not os.path.exists(os.path.join(sandbox.Root, '.venv'))
     infos = _Levels(process, 'INFO')
     assert any('requirements/linux-cuda12.txt' in m and 'whl/cu126' in m for m in infos)
     assert infos[-1] == 'Detection only (--detect-only): nothing was changed.'

@@ -23,8 +23,6 @@
 
 # System (Default)
 import sys
-# JSON (the capture manifest)
-import json
 #   Add access if it is not in the system path.
 if '../../' + 'src' not in sys.path:
     sys.path.append('../../' + 'src')
@@ -95,7 +93,7 @@ def Capture_Main(directory: str, config_path: str) -> int:
     Basler_Cfg_Str = configuration.Camera
     # One calibration set, one sensor window: frames from another window would be solved together
     # into a lens model that belongs to neither, so a set started at another window is not extended.
-    recorded = Captured_Window(directory)
+    recorded = Calibration.Core.Captured_Window(directory)
     configured = {'resolution': list(Basler_Cfg_Str.Resolution), 'offset': list(Basler_Cfg_Str.Offset)}
     if recorded is not None and recorded != configured:
         print('[ERROR] %s was captured at %d x %d, offset (%d, %d), but the configuration sets the camera to '
@@ -155,27 +153,6 @@ def Capture_Main(directory: str, config_path: str) -> int:
     return 0
 
 
-def Captured_Window(directory: str) -> tp.Optional[tp.Dict[str, tp.List[int]]]:
-    """
-    Description:
-        The sensor window a calibration set was captured at, from its capture.json.
-
-    Args:
-        (1) directory [string]: The capture directory.
-
-    Returns:
-        (1) parameter [Dict or None]: {'resolution': [w, h], 'offset': [x, y]}, or None when the
-                                      directory has no manifest or the manifest does not record it
-                                      (sets captured before the window was recorded).
-    """
-
-    path = os.path.join(directory, Calibration.Core.CONST_CALIB_MANIFEST)
-    if not os.path.isfile(path):
-        return None
-    with open(path, 'r', encoding='utf-8') as handle:
-        window = json.load(handle).get('window')
-    return window if isinstance(window, dict) else None
-
 def Parse_Board(text: str) -> tp.Tuple[int, int]:
     """
     Description:
@@ -228,7 +205,7 @@ def Images_Main(directory: str, board_squares: tp.Tuple[int, int], square_mm: fl
     # The window the images were captured at: its size is the images' own, its offset on the sensor
     # comes from the capture manifest. A set from before the manifest recorded it is accepted only
     # when its size is the configuration's, with the configuration's offset assumed - and said.
-    window = Captured_Window(directory)
+    window = Calibration.Core.Captured_Window(directory)
     configuration = Load_Configuration(config_path).Camera
     if window is not None:
         if tuple(window['resolution']) != tuple(report.Image_Size):
