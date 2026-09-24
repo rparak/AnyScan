@@ -36,6 +36,16 @@ transformers>=4.56
 einops>=0.8
 timm>=1.0
 
+# ---- the local Gemma 4 describer (models/gemma-4-e4b-it-4bit) --------------
+# An MLX conversion, run on Apple's Metal GPU through MLX — not PyTorch/MPS. MLX exists
+# only for macOS on Apple silicon, the machine that drives the camera; the marker keeps
+# an install elsewhere from failing, and the describer then reports that MLX is missing.
+# Pinned EXACTLY, not floored: mlx-vlm's model implementations change between releases
+# (gemma4 arrived recently) and an unpinned upgrade could change the descriptions.
+# mlx pins its own mlx-metal.
+mlx==0.32.2 ; sys_platform == "darwin" and platform_machine == "arm64"
+mlx-vlm==0.7.2 ; sys_platform == "darwin" and platform_machine == "arm64"
+
 # ---- FastSAM instance segmentation (stage 2 of the vision pipeline) --------
 # The bboxes= box-prompt keyword arrived in 8.2; the default everything-mode needs
 # nothing special. Pulls matplotlib transitively, so the Segmenter module imports
