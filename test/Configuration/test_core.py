@@ -120,7 +120,7 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
         ('Cfg. Segment Anything', 'JIC_AnyScan_All_v1', 'part inspection')
     assert (config.Camera.Model, config.Camera.Lens, config.Camera.Lighting) == \
         ('Basler a2A1920-51gcPRO', 'Computar M1228-MPW3', 'Effilux EFFI-FD-200-200-000')
-    assert config.Segmentation.Background_Reference == os.path.join(CONST_PROJECT_ROOT, 'Data', 'Camera',
+    assert config.Segmentation.Background_Reference == os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'Background',
                                                                     'Image_Background_001.png')
     assert (config.Confidence.Warn_Below, config.Confidence.Error_Below) == (80, 60)
     seg = config.Segmentation
@@ -482,7 +482,7 @@ def test_the_background_reference_must_exist(tmp_path: tp.Any) -> None:
     """
 
     mode, calibration = _Shipped()
-    mode['Segmentation']['Background']['Reference'] = 'Data/Camera/Image_Background_999.png'
+    mode['Segmentation']['Background']['Reference'] = 'Data/Images/Background/Image_Background_999.png'
     with pytest.raises(Configuration_Error_Cls, match='Segmentation.Background.Reference'):
         Load_Configuration(_Write(tmp_path, mode, calibration))
 
@@ -550,7 +550,7 @@ def _Reference_Copy(tmp_path: tp.Any, mode: tp.Dict[str, tp.Any], calibration: t
     """
 
     reference = os.path.join(str(tmp_path), 'Image_Background_002.png')
-    shutil.copyfile(os.path.join(CONST_PROJECT_ROOT, 'Data', 'Camera', 'Image_Background_001.png'), reference)
+    shutil.copyfile(os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'Background', 'Image_Background_001.png'), reference)
     mode['Segmentation']['Background']['Reference'] = reference
     if sidecar == 'default':
         block = calibration['Calibration']
@@ -651,3 +651,21 @@ def test_the_lighting_check_is_silent_when_the_configuration_names_no_lighting(t
     del mode['Camera']['Lighting']
     config = Load_Configuration(_Reference_Copy(tmp_path, mode, calibration)[0])
     assert config.Camera.Lighting == ''
+
+
+def test_the_test_frames_are_resolved_but_never_checked_at_load(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Evaluation.Frames is harness-only: the application never reads it, so a missing directory
+        must not stop the configuration loading — analyze.py checks it. The loader only resolves a
+        relative path against the repository root; an absent field is the documented default ''.
+    """
+
+    mode, calibration = _Shipped()
+    assert Load_Configuration(CONST_DEFAULT_CONFIG_FILE).Evaluation.Frames == os.path.join(
+        CONST_PROJECT_ROOT, 'Data', 'Images', 'Test')
+    mode['Evaluation']['Frames'] = 'Data/Images/No_Such_Directory'
+    config = Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert config.Evaluation.Frames == os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'No_Such_Directory')
+    del mode['Evaluation']
+    assert Load_Configuration(_Write(tmp_path, mode, calibration)).Evaluation.Frames == ''

@@ -556,7 +556,7 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
 - **Rotationally symmetric parts report a diameter and no angle.** `minAreaRect` assigns a round
   part an orientation that changes on noise, so a drawn rectangle would appear to spin on a part
   that has not moved. The test is elongation — the square root of the mask's second-moment
-  eigenvalue ratio — below **1.15**: the seven `Data/Camera` frames put round parts at 1.008–1.031
+  eigenvalue ratio — below **1.15**: the seven `Data/Images/Test` frames put round parts at 1.008–1.031
   and the least elongated real part at 1.498 (the plates in 002–005). **A square is the exception:**
   it is as un-elongated as a disc (1.02, the plate in 006/007) but its sides are real edges that
   `minAreaRect` finds reliably, so un-elongated parts are only called symmetric when also round —
@@ -1173,7 +1173,7 @@ It is **not** `Description.Background_Crop_Margin` (0.12). That one crops the em
 *inward* for the one background sentence and never touches an object crop. The two were once
 conflated, and the Florence history belongs to the padding alone.
 
-**The measurement (2026-09-24).** All seven `Data/Camera` frames were run at paddings 0.00, 0.04,
+**The measurement (2026-09-24).** All seven `Data/Images/Test` frames were run at paddings 0.00, 0.04,
 0.08, 0.12, 0.20, 0.28 and 0.36, through the application's pipeline. Each run used a copy of the
 shipped configuration with only this field changed, the same loaded models, greedy decoding and 15
 objects per padding. A warm re-run of 0.00 and 0.20 reproduced all 45 descriptions word for word,

@@ -98,7 +98,7 @@ def _Capture_Set(directory: tp.Any, window: tp.Optional[tp.Dict] = CONST_WINDOW,
     found = [Detection_Str(Label='object', Bbox=(1, 1, 5, 5), Sentence='a speck') for _ in range(objects)]
     metadata = Build_Set_Metadata('s1', '20260925-090000_1', '2026-09-25T09:00:00', found, size, 'task', 10, None,
                                   scale=None, configuration='Config_%s_Mode_Test.yaml' % CONST_HARDWARE,
-                                  background_reference='Data/Camera/Image_Background_001.png',
+                                  background_reference='Data/Images/Background/Image_Background_001.png',
                                   hardware=CONST_HARDWARE_RECORD, window=window)
     with open(prefix + '_objects.json', 'w', encoding='utf-8') as handle:
         json.dump(metadata, handle)
@@ -225,7 +225,8 @@ def test_scan_captures_through_the_application_camera_path(tmp_path, monkeypatch
     Description:
         scan.py no longer undistorts on its own without the processing step: it hands the configuration
         to the application's camera (Basler_Camera_Cls — window, processing, undistortion) and saves
-        exactly the frame that path delivers, converted from RGB for OpenCV.
+        exactly the frame that path delivers, converted from RGB for OpenCV — as a timestamped
+        Scan_*.png in its output directory, never into the pinned test set.
     """
 
     scan = _Load_Script('scan')
@@ -252,9 +253,10 @@ def test_scan_captures_through_the_application_camera_path(tmp_path, monkeypatch
             seen['disconnected'] = True
 
     monkeypatch.setattr(scan, 'Basler_Camera_Cls', _Camera_Cls)
-    monkeypatch.setattr(scan, 'CONST_PROJECT_ROOT', str(tmp_path))
-    (tmp_path / 'Data').mkdir()
+    monkeypatch.setattr(scan, 'CONST_OUTPUT_DIR', str(tmp_path / 'Results'))
     assert scan.main() == 0
-    saved = cv2.imread(str(tmp_path / 'Data' / 'Image_001.png'))
+    (saved_path,) = (tmp_path / 'Results').iterdir()
+    assert saved_path.name.startswith('Scan_') and saved_path.suffix == '.png'
+    saved = cv2.imread(str(saved_path))
     assert np.array_equal(saved[..., ::-1], frame)
     assert seen == {'window': ((1920, 1200), (8, 8)), 'connected': True, 'disconnected': True}

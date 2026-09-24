@@ -47,7 +47,7 @@ CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.absp
 # contract: segmentation differences a frame against this reference, so a frame
 # must match it. cv2 reports shape as (height, width, channels).
 #   Unit [string]
-CONST_REFERENCE_BACKGROUND = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Image_Background_001.png')
+CONST_REFERENCE_BACKGROUND = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Images', 'Background', 'Image_Background_001.png')
 #   Unit [Tuple<int> 1x3]
 CONST_REFERENCE_SHAPE = (1200, 1920, 3)
 
@@ -154,7 +154,7 @@ def reference_shape() -> tp.Tuple[int, int, int]:
 def reference_background_path() -> str:
     """
     Description:
-        Absolute path to the committed reference background (Data/Camera).
+        Absolute path to the committed reference background (Data/Images/Background).
 
     Returns:
         (1) parameter [string]: Absolute path to Image_Background_001.png.

@@ -29,8 +29,9 @@ here: the sizes are repeatable, not absolute, and the describer is not a defect 
 factory default, the full 1936 × 1216 sensor), start the application, load the configuration and
 CONNECT. The log must read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor …
 (read back from the camera)*, and the status bar 1920 × 1200. Anything else: stop and report it —
-every item below depends on the window. Capture the calibration set into a **new** directory: its
-`capture.json` records the window, and the calibration written from it carries it.
+every item below depends on the window. Each calibration set goes in its own directory
+(`calibrate.py --capture` makes a new one each run): its `capture.json` records the window, and the
+calibration written from it carries it.
 
 **Order: 1, then 2, then 3.**
 
@@ -57,11 +58,13 @@ tilted.
 
 ```bash
 cd Example/Camera
-python calibrate.py --capture DIR
+python calibrate.py --capture
 ```
 
-At each prompt, press `f` for a board **flat** on the table or `t` for a board **tilted**. Every
-frame is kept, and `DIR/capture.json` records that the frames are distorted.
+It captures into a new `Data/Images/Calibration/<timestamp>/` (git-ignored; pass a directory to
+choose another). At each prompt, press `f` for a board **flat** on the table or `t` for a board
+**tilted**. Every frame is kept, and the directory's `capture.json` records that the frames are
+distorted and the sensor window they were taken at.
 
 | Kind | How many | Conditions |
 |---|---|---|
@@ -82,7 +85,7 @@ frame is kept, and `DIR/capture.json` records that the frames are distorted.
 force untouched:
 
 ```bash
-python calibrate.py --images DIR --board-squares 11x8 --square-mm <calipered> --board-height-mm <h>
+python calibrate.py --images ../../Data/Images/Calibration/<timestamp> --board-squares 11x8 --square-mm <calipered> --board-height-mm <h>
 ```
 
 Check the report (principal point near the image centre, tilt spread above the 10° floor, the factor's
@@ -95,7 +98,7 @@ capture set keeps its frame before undistortion, so frames can be re-undistorted
 ## 2. Empty-surface reference (one frame)
 
 **Why.** After the sensor-window change every other artefact is captured at a pinned, recorded window.
-The reference in force (`Data/Camera/Image_Background_001.png`) is the right size, but the window it was
+The reference in force (`Data/Images/Background/Image_Background_001.png`) is the right size, but the window it was
 shot at is a guess — "probably (0, 0)" — and so are the calibration and lighting it was shot under. And
 it is an undistorted frame, so item 1's new lens model puts its geometry out of date. Re-shooting it
 removes the last unverified artefact. It is one frame of an empty table.
@@ -120,7 +123,7 @@ that set's own records, not from a person.
    python make_reference.py --from ../../logger/captures/<connection>/<set>_raw.png
    ```
 
-   It writes `Data/Camera/Image_Background_002.png` (the next free number — `_001` is never
+   It writes `Data/Images/Background/Image_Background_002.png` (the next free number — `_001` is never
    overwritten: the characterization baseline was analysed against it) and its sidecar
    `Image_Background_002.json`: the window the camera read back, the lens model that undistorted the
    frame, the configuration, the camera, lens and lighting, and the time. It refuses a set that records
@@ -130,7 +133,7 @@ that set's own records, not from a person.
    described above: run it again with `--accept-objects`, and the sidecar records what was accepted.
    One large box, or one near the centre (for example *1 object, 40 000 px, centre*), means something
    is on the table: clear it and shoot again.
-4. Set `Segmentation.Background.Reference: Data/Camera/Image_Background_002.png` and restart the
+4. Set `Segmentation.Background.Reference: Data/Images/Background/Image_Background_002.png` and restart the
    application: the load now checks the reference against its sidecar, and the *no provenance sidecar*
    warning is gone.
 

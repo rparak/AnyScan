@@ -393,7 +393,7 @@ def test_a_loaded_configuration_is_applied_and_logged(qt_app, tmp_path, configur
     log = _Log_Text(logger)
     assert "Loaded configuration '%s' ('Cfg. Strict'" % config.Name in log
     assert 'reads calibration ' in log and 'Calibration_%s.yaml and background reference' % CONST_HARDWARE in log
-    assert 'background reference Data/Camera/Image_Background_001.png' in log
+    assert 'background reference Data/Images/Background/Image_Background_001.png' in log
     assert "Models loaded for '%s' (JIC_AnyScan_Strict_v1, task 'part inspection')" % config.Name in log
     assert 'Identity.Task not set; using the default' in log
     assert 'Run reset' not in log
@@ -477,7 +477,7 @@ def test_each_capture_set_records_its_configuration_reference_and_hardware(qt_ap
         metadata = json.load(f)
     name = os.path.basename(configurations['seg'])
     assert metadata['configuration'] == name and metadata['classification'] is False
-    assert metadata['background_reference'] == os.path.join('Data', 'Camera', 'Image_Background_001.png')
+    assert metadata['background_reference'] == os.path.join('Data', 'Images', 'Background', 'Image_Background_001.png')
     assert metadata['hardware'] == {'hardware': CONST_HARDWARE, 'camera': 'Basler a2A1920-51gcPRO',
                                     'lens': 'Computar M1228-MPW3', 'lighting': 'Effilux EFFI-FD-200-200-000'}
     (cap,) = Discover_Capture_Sets(captures)

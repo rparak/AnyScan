@@ -336,7 +336,7 @@ class File_Camera_Cls(Camera_Backend_Cls):
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = File_Camera_Cls('Data/Camera/Image_Background_001.png')
+                Cls = File_Camera_Cls('Data/Images/Background/Image_Background_001.png')
     """
 
     Name = 'Saved frame (developer)'

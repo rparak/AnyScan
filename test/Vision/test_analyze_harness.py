@@ -114,25 +114,85 @@ def test_descriptions_file_opens_with_the_provenance_stamp(tmp_path) -> None:
     assert len(lines) > 1                                  # the reading follows the stamp
 
 
+def _Configured(monkeypatch, **changes) -> None:
+    """
+    Description:
+        Make analyze.py load the shipped configuration with some fields replaced — the reference,
+        the test frames — so a failure path can be reached without editing the real file.
+
+    Args:
+        (1) monkeypatch [MonkeyPatch(object)]: pytest's monkeypatch.
+        (2) changes [Dict]: 'reference' and/or 'frames' to set.
+    """
+
+    real = analyze.Load_Configuration
+
+    def _Load(path: str):
+        config = real(path)
+        if 'reference' in changes:
+            config.Segmentation.Background_Reference = changes['reference']
+        if 'frames' in changes:
+            config.Evaluation.Frames = changes['frames']
+        return config
+
+    monkeypatch.setattr(analyze, 'Load_Configuration', _Load)
+
+
+def _Frame(path, size=(1920, 1200)) -> None:
+    """Write a readable grey frame of (width, height) at path."""
+    import cv2
+    cv2.imwrite(str(path), np.full((size[1], size[0], 3), 90, np.uint8))
+
+
 def test_missing_reference_fails_before_writing_anything(tmp_path, monkeypatch) -> None:
     """
     Description:
-        The core anti-staleness guarantee: with a scene present but the reference
-        unreadable, main() returns non-zero and writes NOTHING — no output directory of
-        finished-looking artefacts from a run that did not succeed. This is the exact
-        failure that let a stale montage and .txt pass review.
+        The core anti-staleness guarantee: with a valid frame present but the configuration's
+        reference unreadable, main() returns non-zero and writes NOTHING — no output directory of
+        finished-looking artefacts from a run that did not succeed. This is the exact failure that
+        let a stale montage and .txt pass review.
     """
 
     in_dir = tmp_path / 'in'; in_dir.mkdir()
     out_dir = tmp_path / 'out'
-    # A discoverable scene, and a reference that exists by name but cannot be read.
-    (in_dir / 'Image_001.png').write_bytes(b'\x89PNG\r\n')     # discovered by glob, never read
-    (in_dir / 'Image_Background_001.png').write_bytes(b'')     # present but unreadable -> imread None
+    _Frame(in_dir / 'Image_001.png')
+    unreadable = tmp_path / 'Image_Background_001.png'
+    unreadable.write_bytes(b'')                                # present, but imread returns None
+    _Configured(monkeypatch, reference=str(unreadable))
 
-    monkeypatch.setattr('sys.argv',
-                        ['analyze.py', '--input-dir', str(in_dir), '--output-dir', str(out_dir)])
-    code = analyze.main()
-
-    assert code == 1
-    # Nothing written: the output directory was never even created past the gate.
+    monkeypatch.setattr('sys.argv', ['analyze.py', '--input-dir', str(in_dir), '--output-dir', str(out_dir)])
+    assert analyze.main() == 1
     assert (not out_dir.exists()) or (os.listdir(str(out_dir)) == [])
+
+
+def test_frames_default_to_the_configuration_and_are_required(tmp_path, monkeypatch, capsys) -> None:
+    """
+    Description:
+        The frames come from the configuration's Evaluation.Frames when --input-dir is not given;
+        with neither, the run stops and says which field to set — there is no default path in the
+        script.
+    """
+
+    _Configured(monkeypatch, frames='')
+    monkeypatch.setattr('sys.argv', ['analyze.py', '--output-dir', str(tmp_path / 'out')])
+    assert analyze.main() == 1
+    assert 'Evaluation.Frames' in capsys.readouterr().out
+    assert not (tmp_path / 'out').exists()
+
+
+def test_a_frame_of_another_size_fails_before_writing_anything(tmp_path, monkeypatch, capsys) -> None:
+    """
+    Description:
+        Every test frame must be the camera's window size, as the reference is; one that is not
+        (here the full 1936 x 1216 sensor) stops the run before anything is written, naming it.
+    """
+
+    in_dir = tmp_path / 'frames'; in_dir.mkdir()
+    _Frame(in_dir / 'Image_001.png')
+    _Frame(in_dir / 'Image_002.png', size=(1936, 1216))
+    _Configured(monkeypatch, frames=str(in_dir))
+    monkeypatch.setattr('sys.argv', ['analyze.py', '--output-dir', str(tmp_path / 'out')])
+    assert analyze.main() == 1
+    out = capsys.readouterr().out
+    assert 'Image_002.png: 1936 × 1216' in out and 'Image_001.png' not in out.split('not:')[-1]
+    assert not (tmp_path / 'out').exists()

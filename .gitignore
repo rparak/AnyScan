@@ -15,14 +15,15 @@ env/
 # repo root so it cannot also swallow a nested directory that happens to be named 'models'.
 /models/
 
-# Vision analysis outputs — Example/Vision/analyze.py writes the per-image annotated
-# image, label mask and descriptions here; the inputs (Image_00*.png and the
-# Image_Background_*.png reference) are committed, the regenerated outputs are not.
-Data/Camera/Results/
+# Tool output — Example/Vision/analyze.py writes each frame's annotated image, label mask
+# and descriptions here, and Example/Camera/scan.py its captured frames; regenerated on
+# demand, not committed. The inputs (Data/Images/Test/, Data/Images/Background/) are.
+/Data/Results/
 
-# Review renders — Example/UI/screenshot.py writes the stamped Camera-View, mask and
-# window images here; they are regenerated on demand, not committed.
-Data/Screenshots/
+# Calibration capture sets — Example/Camera/calibrate.py --capture writes a timestamped
+# directory of distorted frames (~4 MB each, 20+ a set) and its capture.json here. Kept on
+# the rig, not in git; the calibration file records which directory it was solved from.
+/Data/Images/Calibration/
 
 # Session logs and per-analysis captures — written by Logger/Core.py and UI/Capture.py
 # under the repo-root logger/ directory. A per-run artifact, never committed. Anchored to

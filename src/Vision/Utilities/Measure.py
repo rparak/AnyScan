@@ -55,7 +55,7 @@ Description:
 
 # The elongation below which an object is not elongated: the square root of the ratio of its
 # mask's second-moment eigenvalues (the axis-length ratio of the equivalent ellipse, 1.0 for a
-# disc or a square). Measured on the seven Data/Camera frames: round parts 1.008-1.031, the least
+# disc or a square). Measured on the seven Data/Images/Test frames: round parts 1.008-1.031, the least
 # elongated real part 1.498 (the plates in 002-005), Image_001's elongated parts 1.755-4.35. 1.15
 # sits five times the round parts' noise above 1.0 and far below any elongated part.
 #   Unit [float]

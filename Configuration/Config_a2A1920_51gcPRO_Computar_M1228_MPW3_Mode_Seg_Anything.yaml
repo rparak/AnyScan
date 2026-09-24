@@ -73,7 +73,7 @@ Segmentation:
     # REQUIRED, and the file must exist. The empty-surface reference every frame is differenced
     # against, relative to the repository root (or absolute). It decides every background-
     # subtraction result, so it is stated here rather than discovered; shoot it from this camera.
-    Reference: Data/Camera/Image_Background_001.png
+    Reference: Data/Images/Background/Image_Background_001.png
     # The floor under the Otsu threshold [grey level 0..255], so a near-empty frame cannot
     # promote the shadow halo and sensor noise to foreground. Default: 28
     Otsu_Floor: 28
@@ -189,3 +189,12 @@ Camera:
       Blue: 1.2
     # Sensor pixel format.
     Pixel_Format: BayerRG8
+
+# Harness-only settings: read by Example/Vision/analyze.py, never by the application, so the loader
+# only resolves them — a missing directory never stops the application from loading.
+Evaluation:
+  # The test frames analyze.py runs on (Image_NNN.png): the pinned set the tests' expectations refer
+  # to. analyze.py checks the directory, and each frame's size against Camera.Resolution. Adding a
+  # frame here changes what "the seven frames" means — a deliberate move, never a tool's side effect.
+  # Default: not set (analyze.py then needs --input-dir).
+  Frames: Data/Images/Test

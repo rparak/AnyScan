@@ -271,6 +271,7 @@ CONST_FIELDS = (
     (('Camera', 'Model'), ('Camera', 'Model'), 'text', False),
     (('Camera', 'Lens'), ('Camera', 'Lens'), 'text', False),
     (('Camera', 'Lighting'), ('Camera', 'Lighting'), 'text', False),
+    (('Evaluation', 'Frames'), ('Evaluation', 'Frames'), 'path', False),
 )
 # The keys a mode file may hold beyond CONST_FIELDS and CONST_WINDOW_FIELDS: free-form blocks
 # whose content is not checked key by key (the vendor acquisition settings).
@@ -783,6 +784,10 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     for Parameters_Str in (Configuration_Str_i.Segmentation, Configuration_Str_i.Description):
         if Parameters_Str.Model_Path:
             Parameters_Str.Model_Path = __Resolve_Model_Path(Parameters_Str.Model_Path)
+    # The harness-only test frames: resolved, never checked here — the application does not read
+    # them, so their absence must not stop it loading (analyze.py checks them).
+    if Configuration_Str_i.Evaluation.Frames:
+        Configuration_Str_i.Evaluation.Frames = __Resolve_Model_Path(Configuration_Str_i.Evaluation.Frames)
     # The background reference is data the repository tracks, so — unlike a model, checked when it
     # loads — its absence fails the load: without it the pipeline loses a fusion cue entirely.
     reference = Configuration_Str_i.Segmentation.Background_Reference

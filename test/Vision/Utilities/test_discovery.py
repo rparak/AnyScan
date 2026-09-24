@@ -33,7 +33,7 @@ import Vision.Utilities.Discovery as Discovery
 Description:
     Tests for the scene-frame discovery rule (the scene glob). They run on synthetic empty
     files created under tmp_path, so the rule is exercised deterministically with no camera,
-    no weights and no dependence on the committed Data/Camera/ set. (The background reference
+    no weights and no dependence on the committed Data/Images/Test/ set. (The background reference
     is not discovered any more — it is the configuration's Segmentation.Background.Reference —
     so its selection-rule tests went with the rule.)
 """

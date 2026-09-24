@@ -154,6 +154,22 @@ class Identity_Str:
 
 
 @dataclass
+class Evaluation_Parameters_Str:
+    """
+    Description:
+        Harness-only settings: read by Example/Vision/analyze.py, never by the application. The
+        loader resolves the path and does not check it, so a missing directory never stops the
+        application from loading; analyze.py checks it, and each frame's size.
+    """
+
+    # The directory of test frames (Image_NNN.png) analyze.py runs on — the pinned set the tests'
+    # expectations refer to. Absolute after loading; '' when the configuration does not set it
+    # (analyze.py then needs --input-dir).
+    #   Unit [string]
+    Frames: str = ''
+
+
+@dataclass
 class Configuration_Str:
     """
     Description:
@@ -181,6 +197,8 @@ class Configuration_Str:
     Description: Description_Parameters_Str = field(default_factory=Description_Parameters_Str)
     # The camera block, with its Calibration filled from the hardware's calibration file.
     Camera: Camera_Configuration_Str = field(default_factory=Camera_Configuration_Str)
+    # The harness-only settings (analyze.py's test frames).
+    Evaluation: Evaluation_Parameters_Str = field(default_factory=Evaluation_Parameters_Str)
     # The calibration file the camera block's Calibration came from (absolute).
     #   Unit [string]
     Calibration_Path: str = ''

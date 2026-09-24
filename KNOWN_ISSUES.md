@@ -48,7 +48,7 @@ Two constants in `Vision/Utilities/Fusion.py` also remain: the 0.10 cue-attribut
 only labels which cue found an object, and the row band / object cap, which order and limit the
 objects.
 
-Unlike the old gate, these have run on real captures: the seven `Data/Camera` frames, with object
+Unlike the old gate, these have run on real captures: the seven `Data/Images/Test` frames, with object
 counts pinned by tests (`Image_001` → nine objects, `Image_004` → one plate with its soft shadow
 rejected). But seven frames of one table, under one light, with mostly isolated parts, is a narrow
 base.
@@ -127,7 +127,7 @@ that filter (see git history: the FastSAM-∪-background-subtraction port), and 
 **real captures the defect is gone**: `Image_004`'s soft cast shadow is stripped
 by the background-subtraction opening (`Segmentation.Background.Open_Kernel` in the configuration) and the
 plate comes back as a single, tight silhouette (rectangularity ~0.88, no shadow
-tail). Measured across all seven `Data/Camera` frames, the counts are exactly the
+tail). Measured across all seven `Data/Images/Test` frames, the counts are exactly the
 inventory (15 objects, no over-count).
 
 What remains is the **opposite, narrower** failure, and only off real data: when a

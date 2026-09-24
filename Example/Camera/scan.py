@@ -31,6 +31,8 @@ if '../../' + 'src' not in sys.path:
 import cv2
 # OS module for file handling and accessing directories
 import os
+# Datetime (the frame's timestamped name)
+from datetime import datetime
 # Custom Lib.:
 #   ../Camera/Core — the application's own camera path (window, processing, undistortion)
 from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
@@ -41,15 +43,17 @@ from Configuration.Core import Load_Configuration, Display_Path, CONST_DEFAULT_C
 Description:
     Initialization of constants.
 """
-# The identification number of the iteration to save the image. It starts with the number 1.
-#   1 = 'Image_001', 2 = 'Image_002', etc.
-CONST_INIT_INDEX = 1
+# Where a scanned frame is saved (git-ignored), as Scan_<timestamp>.png — never into the pinned
+# test set (Data/Images/Test/): adding a frame there changes what every expectation refers to, so
+# it is a deliberate move, not a side effect of a scan.
+#   Unit [string]
+CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Results')
 
 def main():
     """
     Description:
         Capture one frame from the Basler camera (a2A1920-51gcPRO, lit by the EFFI-FD-200-200-000)
-        and save it as Data/Image_<NNN>.png.
+        and save it as Data/Results/Scan_<timestamp>.png (git-ignored).
 
         The frame goes through the APPLICATION's own camera path, Camera.Core.Basler_Camera_Cls —
         the sensor window set and read back, the image processing step, and the undistortion under
@@ -87,7 +91,8 @@ def main():
         camera.Disconnect()
 
     # Save the image (OpenCV writes BGR).
-    output_path = os.path.join(CONST_PROJECT_ROOT, 'Data', f'Image_{CONST_INIT_INDEX:03}.png')
+    os.makedirs(CONST_OUTPUT_DIR, exist_ok=True)
+    output_path = os.path.join(CONST_OUTPUT_DIR, 'Scan_%s.png' % datetime.now().strftime('%Y%m%d-%H%M%S'))
     cv2.imwrite(output_path, cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR))
     print(f'[INFO] Frame saved at: {Display_Path(output_path)} (the pipeline\'s frame; not a reference - see '
           f'make_reference.py)')

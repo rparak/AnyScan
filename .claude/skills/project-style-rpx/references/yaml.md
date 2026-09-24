@@ -28,7 +28,8 @@ overwrite a file holding any key it does not own, so content someone added is ne
 - Text the model receives (the prompts) lives here as data, with the reasoning behind the wording in
   the comment above it — iterated here, never in code.
 - The mode file's section order is `Hardware, General, Identity, Confidence, Segmentation,
-  Description, Camera`. There is one mode file, so that order is its order, not an observed rule.
+  Description, Camera, Evaluation`. There is one mode file, so that order is its order, not an
+  observed rule.
   The calibration's order is fixed by its writer.
 
 ## Loading ✅
@@ -39,6 +40,9 @@ overwrite a file holding any key it does not own, so content someone added is ne
   the load notes it.
 - Every problem is collected, then the load fails once, listing all of them.
 - A key no setting reads is reported as a WARNING (`unrecognised key … is ignored (misspelt?)`).
+- A **harness-only** field (the `Evaluation` block: `Evaluation.Frames`, read by `analyze.py`, never by
+  the application) is optional, and the loader only resolves it: data the application never touches
+  must not stop it loading. The harness that reads it checks it.
 - What depends on the camera's sensor window is checked against it at load: the background
   reference's size and its provenance sidecar, and the window the calibration was solved at.
 

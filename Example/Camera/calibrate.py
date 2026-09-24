@@ -45,7 +45,7 @@ from Camera.Basler import Basler_Cls
 from Camera.Core import CONST_BASLER_IMAGE_PROFILE
 #   ../Configuration/Core — the one configuration layer (read the camera, write the calibration)
 from Configuration.Core import (Load_Configuration, Write_Calibration, Hardware_And_Mode,
-                                Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE)
+                                Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE, CONST_PROJECT_ROOT)
 #   ../Calibration/Core
 import Calibration.Core
 
@@ -59,6 +59,11 @@ Description:
 # --write-calibration. Nothing else is ever written: no mode configuration is touched.
 #   Unit [string]
 CONST_OUTPUT_TEMPLATE = 'Calibration_{hardware}_calib-{stamp}.yaml'
+# Where --capture without a DIR writes: a NEW timestamped directory each run (one calibration set,
+# one window, one directory — a set is never extended across runs by accident). Git-ignored: a set
+# is 20+ frames of ~4 MB, and the calibration records the directory it was solved from.
+#   Unit [string]
+CONST_CAPTURE_ROOT = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'Calibration')
 
 
 def Capture_Main(directory: str, config_path: str) -> int:
@@ -260,7 +265,8 @@ def main():
         Camera calibration for the Basler a2A1920-51gcPRO with the Computar M1228-MPW3 lens, from
         several chessboard views solved together. Two modes:
 
-            --capture DIR   capture distorted frames interactively ('f' flat, 't' tilted)
+            --capture [DIR] capture distorted frames interactively ('f' flat, 't' tilted) into DIR,
+                            or into a new Data/Images/Calibration/<timestamp>/ when DIR is omitted
             --images DIR    solve from every image in DIR and write a NEW calibration file
                             (or overwrite the hardware's calibration in force with
                             --write-calibration)
@@ -272,7 +278,9 @@ def main():
 
     parser = argparse.ArgumentParser(description='Camera calibration from chessboard captures.')
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument('--capture', metavar='DIR', help='capture distorted calibration frames into DIR')
+    mode.add_argument('--capture', metavar='DIR', nargs='?', const='',
+                      help='capture distorted calibration frames into DIR (default: a new '
+                           'Data/Images/Calibration/<timestamp>/)')
     mode.add_argument('--images', metavar='DIR', help='calibrate from every image in DIR')
     parser.add_argument('--board-squares', type=Parse_Board, metavar='CxR',
                         help='the board\'s squares, columns x rows, e.g. 11x8 (--images)')
@@ -291,7 +299,8 @@ def main():
         parser.error('--write-config was renamed --write-calibration: the calibration now lives in its '
                      'own file (Calibration_<Hardware>.yaml), and that is all this harness writes.')
     if args.capture is not None:
-        return Capture_Main(args.capture, args.config)
+        directory = args.capture or os.path.join(CONST_CAPTURE_ROOT, datetime.now().strftime('%Y%m%d-%H%M%S'))
+        return Capture_Main(directory, args.config)
     missing = [flag for flag, value in (('--board-squares', args.board_squares),
                                         ('--square-mm', args.square_mm),
                                         ('--board-height-mm', args.board_height_mm)) if value is None]

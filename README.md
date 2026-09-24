@@ -118,6 +118,10 @@ holds:
 - **Description:** the Gemma model, the two prompts, temperature, max tokens, the background crop
   margin and the background-sentence limits.
 - **Confidence:** the 80% / 60% warning and error thresholds.
+- **Evaluation (harness-only):** `Evaluation.Frames`, the test frames `Example/Vision/analyze.py` runs
+  on (`Data/Images/Test`). The application never reads it, so the loader only resolves the path and a
+  missing directory never stops it loading; `analyze.py` checks the directory and each frame's size
+  against `Camera.Resolution`.
 - **General.Classification.**
 - **Camera:** acquisition settings; the **sensor window** (`Camera.Resolution`, `Camera.Offset`:
   1920 × 1200 centred at (8, 8) on the 1936 × 1216 sensor), which is set on the camera on every
@@ -340,8 +344,11 @@ App/
     icon.png                  fallback window icon
     fonts/                    optional: drop Inter.ttf and JetBrainsMono.ttf here
 src/                      Qt-free domain modules + the UI (see "Source layout")
-Example/                  runnable scripts (scan, calibrate, the vision harness)
-Data/                     runtime INPUT consumed by the app — committed
+Example/                  runnable scripts (scan, calibrate, make_reference, analyze)
+Data/Images/Test/         the seven frames analyze.py runs on, and the tests' pinned set — committed
+Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
+Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored
+Data/Results/             analyze.py and scan.py output — git-ignored
   Camera/                   the reference background and calibration-result images
     Image_Background_001.png  the empty-surface reference ANALYZE subtracts
 images/                   documentation illustrations for this README — committed
@@ -350,10 +357,11 @@ models/                   model weights — you supply these, NOT committed
   sam-1/FastSAM-x.pt        FastSAM, downloaded per Setup (git-ignored)
 ```
 
-`Data/` is application input and `images/` is documentation — kept apart on
-purpose. `Data/Camera/` holds the reference background and the calibration-result
-images `Example/Camera/calibrate.py` writes, and all of it is tracked. Only
-`models/` is user-supplied.
+`Data/` is input and output and `images/` is documentation — kept apart on purpose. The test
+frames and the reference are tracked; the calibration captures (about 4 MB a frame, 20+ a set) and
+the analysis output are not — a calibration records the directory it was solved from. Adding a
+frame to `Data/Images/Test/` changes what "the seven frames" means for every pinned expectation, so
+it is a deliberate move, never a side effect of a tool. Only `models/` is user-supplied.
 
 If a logo file is missing the console prints its filename in that slot rather
 than silently leaving a gap, so a broken asset path is visible immediately.
@@ -421,7 +429,7 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
   tested with stubbed commands only, so a working `install.sh` on macOS is no evidence
   that Linux was tested. The first Linux install is the first real run of those branches;
   please report the installer's output either way. Without MLX the describer stops with a message saying so.
-- **Making Linux measured** means running the seven `Data/Camera` frames there and
+- **Making Linux measured** means running the seven `Data/Images/Test` frames there and
   recording what was recorded for Apple silicon: time per object, peak memory, and
   word-for-word stability — then re-verifying every exact-text pin.
 - **Packaging:** the PyInstaller recipe this section used to give was for Windows and no

@@ -70,10 +70,11 @@ from Parameters.Configuration import Configuration_Str
 Description:
     Initialization of constants.
 
-    The validation harness for the ported vision pipeline. It runs EVERY committed
-    Data/Camera/Image_[0-9]*.png frame through the application's own Vision.Core.Analyze
-    (never a second copy of the pipeline) against the empty-surface reference, and for
-    each frame writes the three artefacts of §1c to Data/Camera/Results/:
+    The validation harness for the ported vision pipeline. It runs EVERY Image_[0-9]*.png frame
+    in the configuration's Evaluation.Frames directory (Data/Images/Test) through the
+    application's own Vision.Core.Analyze (never a second copy of the pipeline) against the
+    configuration's empty-surface reference, and for each frame writes three artefacts to
+    Data/Results/:
 
         <stem>_annotated.png     the frame with each object's fill, contour, box, index
         <stem>_mask.png          the label mask: black ground, each object its own colour
@@ -88,11 +89,10 @@ Description:
         like the PyQt application is a later step. The single job of this phase is to
         make the DETECTION visible so it can be checked before any UI is built on it.
 """
-# Committed inputs live here; the three per-frame artefacts are written here
-# (git-ignored) by default.
+# Where the three per-frame artefacts are written (git-ignored). The input frames are not a
+# default here: they come from the configuration's Evaluation.Frames, or --input-dir.
 #   Unit [string]
-CONST_INPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera')
-CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Results')
+CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Results')
 
 # Throwaway per-object colours (BGR), one per index, cycled past the tenth object.
 # The montage cell size (px) for the optional enhanced-crop debug view.
@@ -378,8 +378,9 @@ def main() -> int:
         (1) parameter [int]: The process exit code (0 on success).
     """
 
-    parser = argparse.ArgumentParser(description='Run the AnyScan vision pipeline over every Data/Camera frame.')
-    parser.add_argument('--input-dir', default=CONST_INPUT_DIR, help='directory holding the scene frames and the reference')
+    parser = argparse.ArgumentParser(description='Run the AnyScan vision pipeline over every test frame.')
+    parser.add_argument('--input-dir', default=None,
+                        help="directory of Image_NNN.png frames (default: the configuration's Evaluation.Frames)")
     parser.add_argument('--output-dir', default=CONST_OUTPUT_DIR, help='where to write the per-frame artefacts')
     parser.add_argument('--weights', default=None, help='FastSAM weights path (overrides the default)')
     parser.add_argument('--device', default=None,
@@ -399,9 +400,17 @@ def main() -> int:
         _Banner('CONFIGURATION REFUSED', [str(error)])
         return 1
 
-    # The scenes by the documented discovery rule; the reference is the configuration's own
-    # (Segmentation.Background.Reference) — the one the application subtracts against.
+    # The scenes by the documented discovery rule, from --input-dir or the configuration's
+    # Evaluation.Frames; the reference is the configuration's own (Segmentation.Background.Reference)
+    # — the one the application subtracts against.
     reference_path = configuration.Segmentation.Background_Reference
+    if args.input_dir is None:
+        args.input_dir = configuration.Evaluation.Frames
+    if not args.input_dir:
+        _Banner('NO TEST FRAMES CONFIGURED',
+                ["The configuration '%s' does not set Evaluation.Frames, and no --input-dir was given."
+                 % configuration.Name, 'Set Evaluation.Frames (e.g. Data/Images/Test) or pass --input-dir.'])
+        return 1
     try:
         scenes = Discover_Scenes(args.input_dir)
     except Discovery_Error_Cls as error:
@@ -423,6 +432,20 @@ def main() -> int:
                  'Refusing to write artefacts that would look finished. Restore the reference.'])
         return 1
     reference_hash = _Fingerprint(reference_path)
+
+    # Every frame must be the camera's window size, as the reference is: a frame of another size
+    # cannot be differenced against it. Checked before a single artefact is written.
+    wrong = []
+    for scene in scenes:
+        frame = cv2.imread(scene, cv2.IMREAD_UNCHANGED)
+        size = None if frame is None else (int(frame.shape[1]), int(frame.shape[0]))
+        if size != tuple(configuration.Camera.Resolution):
+            wrong.append('%s: %s' % (os.path.basename(scene), 'unreadable' if size is None else '%d × %d' % size))
+    if wrong:
+        _Banner('TEST FRAMES OF THE WRONG SIZE',
+                ['Camera.Resolution is %d × %d; these frames are not:' % tuple(configuration.Camera.Resolution)]
+                + wrong + ['Refusing to write artefacts. Use frames captured at this window.'])
+        return 1
 
     # Describe once through the application backend. One timestamp stamps every artefact of
     # this run.

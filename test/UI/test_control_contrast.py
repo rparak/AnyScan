@@ -115,7 +115,7 @@ CONST_TOOL_BUTTONS = (('CONNECT', '__button_connect'), ('DISCONNECT', '__button_
 # fixture is function-scoped; the matrix is measured once per module, so the path is built here.
 #   Unit [string]
 CONST_REFERENCE_BACKGROUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',
-                                          'Data', 'Camera', 'Image_Background_001.png')
+                                          'Data', 'Images', 'Background', 'Image_Background_001.png')
 
 # Render scale: at 2x the label strokes are several device pixels wide, so their core reaches the
 # label's true colour instead of an antialiased blend.

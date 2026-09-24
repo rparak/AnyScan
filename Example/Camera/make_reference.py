@@ -53,7 +53,7 @@ Description:
 """
 # Where references live, and their name: Image_Background_<NNN>.png, the next free index.
 #   Unit [string]
-CONST_REFERENCE_DIR = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Camera')
+CONST_REFERENCE_DIR = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'Background')
 CONST_REFERENCE_TEMPLATE = 'Image_Background_{index:03d}.png'
 CONST_REFERENCE_PATTERN = re.compile(r'^Image_Background_(\d{3})\.png$')
 
@@ -227,7 +227,7 @@ def main():
 
             python make_reference.py --from logger/captures/<connection>/<set>_raw.png
 
-        writes Data/Camera/Image_Background_<next>.png and its provenance sidecar (.json). The
+        writes Data/Images/Background/Image_Background_<next>.png and its provenance sidecar (.json). The
         configuration is not edited: set Segmentation.Background.Reference to the new file and
         restart, as a deliberate step.
     """
@@ -236,7 +236,7 @@ def main():
     parser.add_argument('--from', dest='source', required=True, metavar='SET',
                         help='the capture set: any of its files, e.g. logger/captures/<connection>/<set>_raw.png')
     parser.add_argument('--output', metavar='PNG', help='the reference to write (default: the next free '
-                                                        'Data/Camera/Image_Background_NNN.png)')
+                                                        'Data/Images/Background/Image_Background_NNN.png)')
     parser.add_argument('--accept-objects', action='store_true',
                         help='make it even though the analysis found objects (only if they are spurious)')
     args = parser.parse_args()

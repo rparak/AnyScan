@@ -72,7 +72,7 @@ def test_config_paths_point_where_expected() -> None:
     assert config.Segmentation.Model_Path.endswith(os.path.join('models', 'sam-1', 'FastSAM-x.pt'))
     assert set(Describers.CONST_DESCRIBERS) == {'gemma'}
     assert config.Segmentation.Background_Reference.endswith(
-        os.path.join('Data', 'Camera', 'Image_Background_001.png'))
+        os.path.join('Data', 'Images', 'Background', 'Image_Background_001.png'))
     assert not hasattr(Vision_Core, 'CONST_BACKGROUND_REF')          # the configuration is the one route
 
 
