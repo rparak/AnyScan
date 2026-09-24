@@ -371,6 +371,21 @@ see inside a hole … is the surface below showing through it") made it worse �
   comparison must not do. Revisit with a different input (e.g. a crop whose table is masked to a
   neutral colour) rather than more wording.
 
+## Surface-condition detection depends on the framing
+
+The rust on `Image_002`'s plate — the stain the describer's prompt was written to catch — is named
+at object-crop paddings 0.20 and 0.36, and missed at 0.00–0.12 and at 0.28. The result is
+deterministic (identical text on every run at a given padding), so this is not sampling noise. It is
+sensitivity: the same stain, equally visible in every crop, is reported or not depending on how the
+part is framed.
+
+- **Impact:** at the shipped padding (0.20) the rust is reported. The finding means a surface
+  condition can be missed on another part, or at another framing, with nothing in the output to say
+  so. An absent "stain" in a description is weaker evidence than a present one.
+- **Not fixed by picking the padding that catches it:** that would fit one frame (the frame the
+  prompt was also tuned on). docs/design-decisions.md (*The object crop padding stays at 0.20*)
+  records the full measurement. A real check needs more stained parts, photographed and labelled.
+
 ## The description and the measurement can disagree in the same panel — and the numbers are right
 
 The describer guesses shape from the pixels of one small crop; the measurement computes it from the

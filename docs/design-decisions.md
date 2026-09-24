@@ -1073,47 +1073,77 @@ shutdown rather than at startup.
 
 **What it is.** `Description.Object_Crop_Padding` pads each object's crop outward by a fraction of
 its longer side before the crop is enhanced and described. It was set to 0.20 for Florence-2, which
-described a part cut out onto a blank canvas poorly. Padding has a cost: it pulls neighbouring
-objects into the crop, which is why the crop is isolated (neighbours replaced by the reference).
+described a part cut out onto a blank canvas poorly. Padding pulls neighbouring objects into the
+crop, which is why the crop is isolated (neighbours replaced by the reference).
 
 It is **not** `Description.Background_Crop_Margin` (0.12). That one crops the empty reference
 *inward* for the one background sentence and never touches an object crop. The two were once
 conflated, and the Florence history belongs to the padding alone.
 
 **The measurement (2026-09-24).** All seven `Data/Camera` frames were run at paddings 0.00, 0.04,
-0.08, 0.12 and 0.20, through the application's pipeline. Each run used a copy of the shipped
-configuration with only this field changed, the same loaded models, greedy decoding and 15 objects
-per padding. A warm re-run of 0.00 and 0.20 reproduced all 45 descriptions word for word, so every
-difference between paddings is caused by the padding, not noise.
+0.08, 0.12, 0.20, 0.28 and 0.36, through the application's pipeline. Each run used a copy of the
+shipped configuration with only this field changed, the same loaded models, greedy decoding and 15
+objects per padding. A warm re-run of 0.00 and 0.20 reproduced all 45 descriptions word for word,
+so every difference between paddings is caused by the padding, not noise.
 
-- **Surface condition, which the prompt exists to catch.** Image_002's rust is plainly visible at
-  every padding, but Gemma names it ("brown, earthy-toned stains … in the upper section") only at
-  **0.20**. At 0.00–0.12 it reports "minor unevenness", "patina", "tarnish" or "signs of handling".
-  This is the decisive result, and it is also the frame the prompt's wording was tuned on, at 0.20:
-  the measurement may favour the incumbent value, but it cannot favour a smaller one.
-- **Shape.** The hex nut (Image_001 #7) reads as a circular washer or ring at 0.00 and 0.04, and as
-  polygonal from 0.08 ("outer hexagonal profile" at 0.12). That is the Florence failure mode — shape
-  misread without surroundings — in milder form. The other hex nut (#8) reads as circular at every
-  padding, so no padding fixes that one.
-- **Naming.** At 0.00 the bolt (#6) is "a metallic shaft", and "a bolt or screw" at 0.04 and above.
-  The washer (#3) is "light-coloured, possibly metallic" at 0.00, and silver or metallic above.
-  #2's label degrades to "at a central point" at 0.00, from how the description was phrased.
-- **Time: none saved.** Warm means were 2.42 s per object at 0.00 and 2.29 s at 0.20. Gemma scales
-  every crop to a fixed input size, so crop pixels do not reach the model's cost; the small
-  difference is most likely output length.
-- **Neighbours.** Across the seven frames only two crops ever take in a neighbour, both in Image_001:
-  the lattice bracket (#9) from 0.04 upward, reaching 4.7% of the crop at 0.20, and the bolt (#6) at
-  0.20 only (0.7%). Isolation replaces them, but not invisibly. Faint ghost outlines of the
-  neighbouring nuts and the terminal strip remain where the reference patch meets the real table.
-  No description mentions a neighbour at any padding.
+**The comparison was not neutral.** The describer's prompt was tuned on Image_002 — the rust-stained
+plate, the deciding frame below — with crops padded at 0.20. The test therefore favours the
+incumbent value. Anyone re-running it, or tuning the prompt again, should read "0.20 wins on the
+rust" with that in mind.
 
-**Decision: keep 0.20.** A smaller padding saves no time, loses the rust on the one stained plate, and
-misreads a hexagon as a circle. Larger paddings were not measured; that would be the next question
-if one were asked.
+**Padding costs no time; there was never a trade-off.** Crop size varied from 119×117 px (a nut at
+0.00) to 1617×709 px (the lattice bracket at 0.36), yet the mean time per object stayed at
+2.28–2.45 s at every padding. Gemma scales each crop to a fixed input size, so crop pixels never
+reach the model's cost. The padding was assumed to have a speed cost it does not have; the only
+costs are neighbours in the crop and what the framing does to the description.
 
-**Isolation stays.** At 0.20 it has neighbours to remove (#9, #6). Even at 0.00 the evidence could
-not retire it: six of the seven frames hold a single object, so Image_001 is the only frame that
-tests it. A part whose box is mostly table (the diagonal bracket) can take in a neighbour at any
-padding. Retiring isolation would need multi-object scenes to show that nothing intrudes. Its ghost
-outlines are a known imperfection: harmless in these runs, and worth revisiting (feathering the
-patch edge) if a description ever reports one.
+- **Surface condition: the rust is named only at 0.20 and 0.36.** Image_002's brown staining is
+  plainly visible in every crop. Gemma names it at **0.20** ("brown, earthy-toned stains … in the
+  upper section") and at **0.36** ("significant brown discoloration or staining across the top
+  edge"). It misses it at 0.00–0.12 ("unevenness", "patina", "signs of handling") and again at
+  **0.28** ("slight discoloration … upper section"). The result is deterministic but not
+  monotonic: whether the most important condition in the set is reported depends on the framing,
+  not on how much context there is (KNOWN_ISSUES, *Surface-condition detection depends on the
+  framing*).
+- **Shape.** The hex nut #7 reads as a circular washer or ring at 0.00 and 0.04, and as polygonal
+  from 0.08 ("outer hexagonal profile" at 0.12). That is the Florence failure mode in milder form.
+  The other hex nut, #8, reads as circular at **every** padding. This is the limitation already in
+  KNOWN_ISSUES (*The description and the measurement can disagree*), and the measurement confirms
+  padding is not its cause.
+- **Naming and material:**
+  - At 0.00 the bolt (#6) is "a metallic shaft", the washer (#3) is "light-coloured, possibly
+    metallic", and #2's label degrades to "at a central point".
+  - At the larger paddings, the terminal strip (#5) turns "metallic … silver" at 0.28 (it is white
+    plastic).
+  - #7 describes the green table through its hole as "greenish-tinged patina/oxidation" at 0.28 and
+    0.36.
+  - Image_005 gains "light corrosion" at 0.36.
+- **Neighbours in the crop grow; they never reach the text.** Only Image_001 has more than one
+  object:
+
+  | padding | lattice bracket #9 | bolt #6 | others |
+  |---|---|---|---|
+  | 0.04–0.12 | 0.2–2.7% | — | — |
+  | 0.20 | 4.7% | 0.7% | — |
+  | 0.28 | 8.2% | 2.7% | — |
+  | 0.36 | 11.4% | 4.7% | #3 and #4 begin |
+
+  For #9, the pixels left near a neighbour after isolation grow from 211 at 0.20 to 1,061 at 0.36.
+  No description at any padding mentions a neighbouring object.
+
+**Decision: keep 0.20.** Smaller paddings save no time, lose the rust and misread a hexagon. Of the
+larger ones, 0.28 loses the rust and 0.36 only ties 0.20 on it, with more than twice the neighbour
+material in the lattice bracket's crop and new misreadings. Nothing measured beats 0.20. Given how
+the rust flips between neighbouring values, choosing between 0.20 and 0.36 on that one frame would
+be fitting to noise in the framing, not to an effect.
+
+**Isolation stays, and it leaves ghosts.** At 0.20 it has neighbours to remove (#9, #6). The evidence
+cannot retire it even at 0.00: six of the seven frames hold one object, so Image_001 is the only
+frame that tests it, and a part whose box is mostly table (the diagonal bracket) can take in a
+neighbour at any padding.
+
+The replacement is not invisible. Faint ghost outlines of the neighbouring nuts and the terminal
+strip remain where the reference patch meets the real table, because the table in the frame is
+lit or shadowed slightly differently from the reference. No description has mentioned one, but a
+future prompt or model might. The fix identified — feathering the patch edge into the surrounding
+table — is **not built**.
