@@ -52,29 +52,41 @@ pipeline does not wire it up either: the segmenter's score is stored in the
   it deliberately, and re-check the 0.35 threshold against that model's score
   distribution. Do not point `Confidence` at `Segmenter_Score` as a shortcut.
 
-## FastSAM dilation and coverage gate are validated only on synthetic scenes
+## The fusion's parameters are validated on seven real frames only
 
-Two stage-tunables were set and checked against synthetic frames (solid shapes on
-the flat green reference), never against hardware captures:
+This entry used to describe a coverage gate and a mask dilation (`CONST_FILTER_CHANGE_COVERAGE`,
+`CONST_SEG_MASK_DILATE_KERNEL`) tuned on synthetic scenes. **Neither exists any more.** The gate
+was replaced by fusion: an object survives on *either* cue, FastSAM or background subtraction, so no
+coverage threshold decides whether a FastSAM mask counts (docs/design-decisions.md, *The fusion
+needs both cues*).
 
-- `Segmentation.CONST_SEG_MASK_DILATE_KERNEL = 5` — how much the stage-1 change mask
-  is grown before stage 3 scores coverage against it.
-- `Mask_Filter.CONST_FILTER_CHANGE_COVERAGE = 0.35` — the fraction of a FastSAM mask
-  that must overlap the change mask for it to count as an object.
+What decides detection now is set in the configuration:
 
-- **What the synthetic evidence showed:** the coverage distribution was degenerate —
-  real objects at ~1.0, a cast shadow at 0.0, with the 0.35 gate in a wide empty gap.
-  That validates *separation* but says nothing about where real parts land, because
-  solid shapes on flat green give artificially perfect masks.
-- **The failure signature to watch on real captures:** genuine objects coming back
-  with coverage sitting **just above 0.35** (say 0.4-0.6) rather than near 1.0. That
-  means the FastSAM mask spills past the change mask at textured/shiny/anti-aliased
-  edges the stage-1 subtraction missed — i.e. `CONST_SEG_MASK_DILATE_KERNEL` is too
-  small and is starving those edges. The fix is to grow the dilation until real
-  objects clear the gate comfortably, not to lower the gate.
-- **Revisit both** with a real parts run (the `Example/Vision` FastSAM script, once
-  it exists, is the vehicle), and record the observed real-object coverage range so
-  the gate and dilation can be set from data rather than from synthetic 1.0s.
+- `Segmentation.Background.*` — the background difference: the Otsu floor, and the opening and
+  dilation kernels.
+- `Segmentation.Fusion.*` — the closing kernel, the minimum component area, and the
+  background-rejection fractions and border count.
+
+Two constants in `Vision/Utilities/Fusion.py` also remain: the 0.10 cue-attribution overlap, which
+only labels which cue found an object, and the row band / object cap, which order and limit the
+objects.
+
+Unlike the old gate, these have run on real captures: the seven `Data/Camera` frames, with object
+counts pinned by tests (`Image_001` → nine objects, `Image_004` → one plate with its soft shadow
+rejected). But seven frames of one table, under one light, with mostly isolated parts, is a narrow
+base.
+
+- **Not yet seen on real data:** parts close to the table's colour or dark and featureless, parts
+  that touch, and any other lighting.
+- **The failure signatures to watch:**
+  - a real part missing from the count (a cue failed and the other did not carry it)
+  - one part split into two components (the closing kernel too small for its gaps)
+  - two neighbours merged into one (the closing kernel too large, or they touch)
+  - a part's outline running into its shadow (see the harsh-shadow entry below)
+- **The frames that widen the base:** the parts session in
+  [docs/capture-checklist.md](docs/capture-checklist.md) (item 3). Re-check the counts and outlines
+  there before trusting the parameters beyond these seven frames, and change them in the
+  configuration, not in code.
 
 ## Touching-object separation depends on the FastSAM prompt mode
 

@@ -1,7 +1,10 @@
 # FastSAM pipeline — branch summary
 
 > Historical record of the FastSAM branch. The describer it mentions (Florence-2) was later
-> replaced by Gemma 4 E4B — see `docs/design-decisions.md`.
+> replaced by Gemma 4 E4B — see `docs/design-decisions.md`. Its stage 3 (`Mask_Filter`, the
+> change-coverage gate, `CONST_FILTER_CHANGE_COVERAGE`, `CONST_SEG_MASK_DILATE_KERNEL`) no longer
+> exists either: fusion replaced it, and the detection parameters now live in the configuration.
+> For what is open today, read `KNOWN_ISSUES.md` and `docs/capture-checklist.md`, not this file.
 
 Review summary for `feat/fastsam-pipeline` (off `style/role-migration`). What
 changed, what is tested, what is tuned only against synthetic data, and what needs
