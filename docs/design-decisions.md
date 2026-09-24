@@ -869,3 +869,29 @@ change; it also shows the harness's fixture captions are Florence's phrasing, wh
 application no longer produces.
 Tests `test/Reporting/test_core.py::test_the_description_is_kept_as_written_and_only_tidied`,
 `test/Vision/Utilities/test_caption.py`.
+
+## Platform: three states — measured, target, not a target
+
+"Supported" and "verified" are kept apart, because "chosen not to support" and "not yet
+verified" are different things. The previous entry treated every platform but Apple silicon as
+one unverified state; the platforms are now scoped separately:
+
+- **macOS on Apple silicon — supported, measured.** MLX on the Apple GPU (Metal): 2.22 s per
+  object warm, 9.41 GB peak for the whole application, output identical word for word across
+  runs, processes and memory pressure.
+- **Linux — a supported target, unmeasured.** MLX runs there on a different backend (CUDA or
+  CPU), and nothing has been run on it: speed, memory and whether the text comes out identical
+  are unknown. On Linux `mlx` installs no compute backend by itself — the backend is an extra
+  (`mlx[cuda12]`, `[cuda13]` or `[cpu]`) chosen for the machine — so `requirements.txt` keeps
+  its macOS-only line, and the Linux line is added with the first measured Linux machine. The
+  README gives the install command meanwhile. Becoming *measured* means the same seven-frame
+  run: time per object, peak memory, word-for-word stability.
+- **Windows — not a target, untested.** Nothing known prevents it (`mlx` publishes Windows
+  wheels), but it is not supported and has never been tried.
+
+**Determinism is measured, not guaranteed.** Greedy decoding makes the sampler deterministic;
+it does not make the arithmetic identical across backends. A different backend can produce
+different text through floating-point differences inside the model, so word-for-word identical
+output is a measured property of the Apple-silicon build. On any new platform, everything pinned
+to exact description text — tests and the characterization baseline — must be re-verified
+before it is trusted there.

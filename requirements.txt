@@ -29,11 +29,12 @@ PyYAML>=6.0
 pypylon>=3.0          # only needed for the live camera; --frame runs without it
 
 # ---- the local Gemma 4 describer (models/gemma-4-e4b-it-4bit) --------------
-# An MLX conversion, run on Apple's Metal GPU through MLX — not PyTorch/MPS. The describer
-# is verified only on macOS on Apple silicon, the machine that drives the camera. mlx also
-# publishes Linux and Windows wheels (cpu / cuda extras), but this model has never been run
-# on them, so the marker installs it only on the verified platform; elsewhere the describer
-# reports that MLX is missing (README > Platform).
+# An MLX conversion, run on Apple's Metal GPU through MLX — not PyTorch/MPS. Measured on
+# macOS on Apple silicon, the machine that drives the camera. Linux is a target but
+# unmeasured: there mlx has no compute backend of its own and needs an extra chosen for the
+# machine (mlx[cuda12] / [cuda13] / [cpu]), so its line is added with the first measured
+# Linux machine. Windows is not a target. Elsewhere the describer reports that MLX is
+# missing (README > Platform).
 # Pinned EXACTLY, not floored: mlx-vlm's model implementations change between releases
 # (gemma4 arrived recently) and an unpinned upgrade could change the descriptions.
 # mlx pins its own mlx-metal.

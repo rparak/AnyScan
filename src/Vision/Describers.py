@@ -62,7 +62,11 @@ CONST_GEMMA_MODEL_DIR = os.path.abspath(
 # Generation. temperature 0 is greedy decoding: the same crop and prompt give the same text,
 # which the pipeline relies on (a description is a property of the object). The weights'
 # own generation_config samples (temperature 1.0, top-k 64, top-p 0.95); this overrides it.
-# Measured: repeated runs on the same crop, and runs on other threads, were identical.
+# Measured on Apple silicon (Metal): repeated runs on the same crop, runs on other threads,
+# in other processes and under memory pressure were identical word for word. Greedy decoding
+# fixes the sampler, not the arithmetic: another MLX backend (Linux CUDA / CPU) can differ in
+# floating point and so in text, so this is a measured property of that build, not a
+# guarantee that travels (README > Platform).
 #   Unit [float] / [int]
 CONST_GEMMA_TEMPERATURE = 0.0
 CONST_GEMMA_MAX_TOKENS = 256
@@ -215,8 +219,9 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
             from mlx_vlm.prompt_utils import apply_chat_template
         except ImportError as exc:
             raise Describer_Error_Cls(
-                'The Gemma describer needs MLX (mlx and mlx-vlm, requirements.txt), which is installed '
-                'on macOS on Apple silicon, the only platform it is verified on.') from exc
+                'The Gemma describer needs MLX (mlx and mlx-vlm). requirements.txt installs them on '
+                'macOS on Apple silicon; on Linux install mlx with the backend extra for the '
+                'machine (README > Platform).') from exc
         if not os.path.isdir(self.__model_dir):
             raise Describer_Error_Cls('The model weights are not at "%s". Check that the directory '
                                       'is complete and readable.' % self.__model_dir)

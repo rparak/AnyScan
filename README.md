@@ -7,7 +7,8 @@ application. Built at JIC within the EDIH-DIGIMAT project.
 
 ## Setup
 
-**Platform: macOS on Apple silicon only** (see [Platform](#platform)). Create an
+**Platform: macOS on Apple silicon** is the supported, measured platform; Linux is a
+target, not yet measured (see [Platform](#platform)). Create an
 isolated environment and install the runtime + test dependencies (Python 3.10–3.12;
 developed and characterized on 3.10):
 
@@ -239,28 +240,33 @@ through `Camera/Utilities/Configuration.py`.
 
 ## Platform
 
-**The application is supported on macOS on Apple silicon only.** That is the only platform
-the describer has been run and measured on, so it is the only one it can be relied on; it is
-not packaged for Windows or Linux, and nothing here says it would work there.
+The describer — Gemma 4 E4B as a 4-bit **MLX** conversion, run through `mlx` / `mlx-vlm` —
+is the component that decides where the application runs. Everything else (the Qt UI,
+OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three distinct states:
 
-- **Why:** the describer is Gemma 4 E4B as a 4-bit **MLX** conversion, run through `mlx` /
-  `mlx-vlm` on the Apple GPU (Metal). Its speed (≈2.2 s per object), memory (≈9.4 GB for the
-  whole application) and determinism (the same crop gives the same text, word for word) were
-  measured there. Everything else — the Qt UI, OpenCV, FastSAM on PyTorch, the Basler driver
-  — is portable, so the describer is the component that pins the platform.
-- **MLX itself is not Mac-only:** `mlx` 0.32.2 also publishes Linux (x86_64, aarch64) and
-  Windows (amd64, arm64) wheels, with `cpu` and `cuda` extras. This describer has **never
-  been run** on them: whether the 4-bit model and `mlx-vlm`'s Gemma 4 code work there, how
-  fast (a CPU backend would be far slower than Metal) and whether the text stays identical
-  are all unknown. `requirements.txt` installs `mlx` / `mlx-vlm` only on Apple-silicon macOS;
-  elsewhere the describer stops with a message saying MLX is missing.
-- **What running elsewhere would take:** one of — (1) MLX on that platform (its CUDA or CPU
-  backend), verified and re-measured on the seven `Data/Camera` frames; (2) a PyTorch build of
-  the same model (`google/gemma-4-E4B-it` through `transformers`, on CUDA) behind the same
-  describer interface, likewise re-measured — the MLX figures do not transfer; or (3) a
-  different describer (see [Swapping a component](#swapping-a-component)).
+| Platform | Status | What is known |
+|---|---|---|
+| **macOS, Apple silicon** | **Supported, measured** | MLX on the Apple GPU (Metal). 2.22 s per object (warm), 9.41 GB peak for the whole application, and output identical word for word across runs, processes and memory pressure. |
+| **Linux** | **Supported target, unmeasured** | MLX runs there on a different backend (CUDA or CPU), and nothing has been run on it. Speed, memory and whether the text comes out identical are all unknown. |
+| **Windows** | **Not a target, untested** | Nothing known prevents it — `mlx` publishes Windows wheels — but it is not supported and has never been tried. |
+
+- **Determinism does not travel.** Greedy decoding (`temperature=0`) makes the *sampler*
+  deterministic, but a different backend can still produce different text through
+  floating-point differences inside the model. Word-for-word identical output is a
+  *measured* property of the Apple-silicon build, not a guarantee. On a new platform,
+  anything pinned to exact description text — tests and the characterization baseline —
+  must be re-verified.
+- **Installing on Linux.** `requirements.txt` installs `mlx` / `mlx-vlm` on Apple-silicon
+  macOS only, because on Linux `mlx` has no compute backend of its own: the backend comes
+  from an extra, chosen for the machine — `pip install "mlx[cuda12]==0.32.2" mlx-vlm==0.7.2`
+  (or `[cuda13]`, or `[cpu]`, which would be far slower). The Linux line goes into
+  `requirements.txt` with the first measured Linux machine. Without MLX the describer stops
+  with a message saying so.
+- **Making Linux measured** means running the seven `Data/Camera` frames there and
+  recording what was recorded for Apple silicon: time per object, peak memory, and
+  word-for-word stability — then re-verifying every exact-text pin.
 - **Packaging:** the PyInstaller recipe this section used to give was for Windows and no
-  longer applies. No macOS packaging recipe has been verified; run from source
+  longer applies. No packaging recipe has been verified on any platform; run from source
   (`python App/run.py`).
 
 ## Swapping a component
