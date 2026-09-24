@@ -30,7 +30,7 @@ Analysis defaults: objects=[] note='' latency_ms=0 verdict='Idle' verdict_level=
   'The image shows a close-up of a hex bolt on a green surface.' -> 'hex bolt'
                             'In this image we can see a washer.' -> 'washer'
          'a photograph of two brass fittings sitting on a table' -> 'two brass fittings'
-    'This is an M6 stainless steel screw with a hexagonal head.' -> 'n m6 stainless steel'
+    'This is an M6 stainless steel screw with a hexagonal head.' -> 'm6 stainless steel screw'
                                                               '' -> 'object'
 
 -- segmentation --

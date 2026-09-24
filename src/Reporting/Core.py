@@ -107,16 +107,31 @@ CONST_LABEL_OPENERS = (
     "the item is", "this item is", "the component is", "this component is",
 )
 
-# The clause boundaries the label distiller cuts a noun phrase at. Verbatim.
+# The label is the noun phrase UP TO ITS HEAD NOUN, which in English comes last in the phrase:
+# 'a rectangular, flat plate of bright metal' -> 'rectangular flat plate'. So a comma does NOT end
+# the phrase by itself — it usually separates adjectives in front of the noun. It ends the phrase
+# only when the next word opens a new clause: an '-ing' participle ('ring, appearing …') or one of
+# these hedging adverbs ('plate, likely steel'). (Florence rarely listed adjectives with commas,
+# so cutting at every comma used to work; on Gemma's phrasing it left 8 of 15 labels a lone
+# adjective.)
+#   Unit [Tuple<string>]
+CONST_LABEL_HEDGES = ('likely', 'possibly', 'probably', 'perhaps', 'apparently', 'presumably')
+
+# The clause boundaries the label distiller cuts the joined phrase at. ' of ' ends it ('plate of
+# bright metal'); commas are handled by the rule above; ' or ' by Condense_Label's coordination
+# rule (a single word after it is an alternative noun and is dropped with it — 'washer or spacer'
+# -> 'washer'; more words mean it joined modifiers — 'plastic or ceramic component' -> 'plastic
+# component').
+#   Unit [Tuple<string>]
 CONST_LABEL_BOUNDARIES = (
-    ",", " is ", " are ", " was ", " with ", " that ", " which ", " has ",
+    " is ", " are ", " was ", " with ", " that ", " which ", " has ",
     " have ", " sitting", " lying", " laying", " placed", " resting",
     " standing", " scattered", " showing", " appears", " against ", " next to",
     " on top", " on a ", " on an ", " on the ", " in the ", " in a ", " in an ",
-    " across ", " and ",
+    " across ", " and ", " of ",
 )
 
-# The most words the distilled label keeps.
+# The most words the distilled label keeps — the LAST ones, where the head noun is.
 CONST_LABEL_MAX_WORDS = 4
 
 # ---- No background strip -------------------------------------------------------- #

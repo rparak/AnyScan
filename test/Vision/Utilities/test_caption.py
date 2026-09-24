@@ -52,16 +52,38 @@ def test_condense_label_peels_gemmas_opener_but_the_line_keeps_it() -> None:
     """
     Description:
         Gemma opens every description 'The object is a …'; the label distiller peels that opener
-        (it used to cut at ' is ' and every label read 'object'), while the object LINE keeps
-        the model's full sentence. A comma-separated adjective list still cuts the label at the
-        first adjective — a known weakness, pinned here so a change to it is deliberate.
+        (it used to cut at ' is ' and every label read 'object'), while the object LINE keeps the
+        model's full sentence.
     """
 
     assert Caption.Condense_Label('The object is a rectangular metallic plate, appearing silver.') == \
         'rectangular metallic plate'
-    assert Caption.Condense_Label('The part appears to be a metallic bolt or screw.') == 'metallic bolt or screw'
-    assert Caption.Condense_Label('The object is a rectangular, flat plate of bright metal.') == 'rectangular'
+    assert Caption.Condense_Label('The part appears to be a metallic bolt or screw.') == 'metallic bolt'
     assert Reporting.Caption_Sentence('The object is a circular ring.') == 'The object is a circular ring.'
+
+
+def test_condense_label_takes_the_phrase_up_to_its_head_noun() -> None:
+    """
+    Description:
+        The label runs up to the head noun, which ends an English noun phrase: a comma between
+        adjectives does not cut it ('a rectangular, flat plate' was 'rectangular'); a comma that
+        opens a clause (an '-ing' participle, a hedge) does. One word after 'or' is an alternative
+        noun and goes; more words mean 'or' joined modifiers, and only 'or <modifier>' goes. The
+        last words are kept, where the noun is. Part names ending in '-ing' and short '-ed' words
+        (a colour) are never dropped as participles.
+    """
+
+    cases = {'The object is a rectangular, flat plate of a bright, silvery-grey metal.': 'rectangular flat plate',
+             'a stainless steel washer or spacer.': 'stainless steel washer',
+             'The object is a small, white, rectangular plastic or ceramic component with holes.':
+                 'white rectangular plastic component',
+             'The object is a rectangular, metallic plate, likely steel.': 'rectangular metallic plate',
+             'The object is a rectangular, flat part rendered in a uniform red.': 'rectangular flat part',
+             'The object is a circular ring, appearing to be made of metal.': 'circular ring',
+             'a steel bearing housing with bolts': 'steel bearing housing',
+             'a small red block.': 'small red block'}
+    for caption, label in cases.items():
+        assert Caption.Condense_Label(caption) == label, caption
 
 
 def test_condense_label_empty_is_object() -> None:
@@ -92,8 +114,8 @@ def test_condense_label_known_leadin_ordering_quirk() -> None:
         regardless.
     """
 
-    assert Caption.Condense_Label('This is an M6 stainless steel screw with a hexagonal head.') == \
-        'n m6 stainless steel'
+    # A short caption, so the stranded 'n' stays inside the kept last words and remains visible.
+    assert Caption.Condense_Label('This is an M6 screw.') == 'n m6 screw'
 
 
 def test_module_has_no_toplevel_heavy_import() -> None:

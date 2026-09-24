@@ -26,7 +26,7 @@ import typing as tp
 # Custom Lib.: AnyScan domain — report composer (the label vocabulary lives there)
 #   ../Reporting/Core
 from Reporting.Core import (CONST_LABEL_LEADINS, CONST_LABEL_OPENERS, CONST_LABEL_BOUNDARIES,
-                            CONST_LABEL_MAX_WORDS)
+                            CONST_LABEL_HEDGES, CONST_LABEL_MAX_WORDS)
 
 """
 Description:
@@ -149,6 +149,16 @@ def Condense_Label(caption: str) -> str:
                 stripped = True
                 break
 
+    # Join the comma-separated adjective run; stop at a comma that opens a new clause.
+    segments = [segment.strip() for segment in text.split(',')]
+    phrase = segments[0]
+    for segment in segments[1:]:
+        first = segment.split()[0].lower() if segment.split() else ''
+        if not first or first.endswith('ing') or first in CONST_LABEL_HEDGES:
+            break
+        phrase += ' ' + segment
+    text = phrase
+
     low = text.lower()
     cut = len(text)
     for boundary in CONST_LABEL_BOUNDARIES:
@@ -157,11 +167,25 @@ def Condense_Label(caption: str) -> str:
             cut = min(cut, idx)
     text = text[:cut].strip(' ,')
 
+    # Coordination: one word after 'or' is an alternative noun (dropped with 'or'); more words
+    # mean 'or' joined modifiers in front of the noun (only 'or <modifier>' is dropped).
+    before, joined, after = text.partition(' or ')
+    if joined:
+        rest = after.split()
+        text = before if len(rest) <= 1 else ' '.join([before] + rest[1:])
+
     for article in ('a ', 'an ', 'the '):
         if text.lower().startswith(article):
             text = text[len(article):]
             break
 
-    words = text.split()[:CONST_LABEL_MAX_WORDS]
-    text = ' '.join(words).strip(' ,.')
+    # A trailing past participle is not the head noun ('part rendered in …' -> 'part'). Only
+    # '-ed' words of five letters or more: '-ing' is never dropped here because many part names
+    # end in it (ring, bearing, bushing, housing, fitting, spring), and a short '-ed' word may be
+    # a noun or colour ('red').
+    words = text.split()
+    while (len(words) > 1 and '-' not in words[-1] and len(words[-1]) >= 5
+           and words[-1].lower().endswith('ed')):
+        words.pop()
+    text = ' '.join(words[-CONST_LABEL_MAX_WORDS:]).strip(' ,.')
     return text.lower() if text else 'object'

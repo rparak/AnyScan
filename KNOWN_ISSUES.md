@@ -11,7 +11,10 @@ after the migration — each is pinned by a test so a fix is a visible diff.
 iterating `CONST_LABEL_LEADINS` and stripping the first match. `"this is a"`
 appears before `"this is an"` in that tuple and is a prefix of it, so a caption
 like `"This is an M6 stainless steel screw..."` matches `"this is a"` first,
-leaving a stranded `"n"`: the label becomes `"n m6 stainless steel"`.
+leaving a stranded `"n"`: `"This is an M6 screw."` distils to `"n m6 screw"`. (The label keeps its
+last four words, where the head noun is, so a longer caption can drop the `"n"` off the front —
+`"This is an M6 stainless steel screw …"` now reads `"m6 stainless steel screw"` — but the
+stranding itself is unchanged.)
 
 - **Impact:** cosmetic and low. Only the short `Label` is affected; the full
   caption is preserved in `Detection_Str.Detail` and is what the panel shows as

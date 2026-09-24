@@ -752,3 +752,35 @@ Fixing that by more boundary rules would be tuning a heuristic to one model's st
 three words") in `Describer_Prompts.yaml`, one more short generation per object — instead of
 distilling it from the description.
 Test `test/Vision/Utilities/test_caption.py::test_condense_label_peels_gemmas_opener_but_the_line_keeps_it`.
+
+## The label runs up to the head noun (supersedes the comma cut)
+
+The first opener fix left 8 of 15 labels a single adjective, because the distiller cut at the
+first comma and Gemma lists adjectives with commas ("a rectangular, flat plate"). The problem was
+the extraction rule, not missing information, so the fix is the rule — not a second generation per
+object to ask for a name the sentence already contains. The label is now the noun phrase **up to
+its head noun**, which ends an English noun phrase:
+
+- a comma **continues** the adjective run, and **ends** the phrase only when the next word opens a
+  clause — an "-ing" participle ("ring, appearing …") or a hedge (`CONST_LABEL_HEDGES`: likely,
+  possibly, …);
+- " of " is a boundary ("plate of a bright metal"); one word after " or " is an alternative noun
+  and goes ("washer or spacer" → "washer"), more words mean " or " joined modifiers and only
+  "or <modifier>" goes ("plastic or ceramic component" → "plastic component");
+- a trailing past participle of five letters or more goes ("part rendered in …"), but never an
+  "-ing" word — many part names end in it (ring, bearing, bushing, housing, fitting, spring; an
+  "-ing" rule first turned "circular ring" into "circular") — nor a short "-ed" word ("red");
+- the **last** four words are kept, where the noun is.
+
+All fifteen objects of the seven frames: circular ring; somewhat amorphous plastic part (was "dark
+blue" — the colour is gone); circular metallic washer; rectangular flat part; white rectangular
+plastic component; metallic bolt; roughly octagonal metal washer; circular metal washer; flat
+elongated piece; rectangular metallic plate ×2; rectangular plate; rectangular flat piece; small
+square metallic plate; rectangular flat plate. Every label ends in a part noun. The vague ones
+("part", "piece") are Gemma's own words, and objects 7 and 8 — hex nuts — are "washer" because
+Gemma calls them washers: the label is faithful to the text, and the text is wrong there. Known
+limit, not special-cased: a bare " in " is not a boundary ("a threaded rod coated in oil" keeps
+"coated in oil"). The Florence captions distil as before ("hex bolt", "washer", "two brass
+fittings"); the long M6 example now reads "m6 stainless steel screw", and the stranded-"n" quirk
+is pinned on a short caption where it still shows.
+Test `test/Vision/Utilities/test_caption.py::test_condense_label_takes_the_phrase_up_to_its_head_noun`.
