@@ -43,6 +43,8 @@ import cv2
 import Camera.Utilities.Image_Processing
 #   ../Camera/Basler
 from Camera.Basler import Basler_Cls
+#   ../Camera/Core — the application's processing profile, so this harness cannot drift from it
+from Camera.Core import CONST_BASLER_IMAGE_PROFILE
 #   ../Configuration/Core — the one configuration layer (read the camera, write the calibration)
 from Configuration.Core import (Load_Configuration, Write_Calibration, Hardware_And_Mode,
                                 Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE)
@@ -70,6 +72,16 @@ def Capture_Main(directory: str, config_path: str) -> int:
         is kept — also one where no board is found, which is reported but never deleted — and
         recorded in the directory's capture.json, which states that the frames are distorted.
 
+        Note:
+            This is the ONE harness that does not capture through the application's camera path
+            (Camera.Core.Basler_Camera_Cls), and deliberately: that path undistorts every frame with
+            the calibration in force, and a lens model can only be solved from frames that have NOT
+            been undistorted — least of all with the model being replaced. So it drives Basler_Cls
+            directly, and matches the application on everything else: the same sensor window (set and
+            read back by Basler_Cls from Camera.Resolution / Camera.Offset) and the same processing
+            step (Process_Image_Cls with the application's profile, Camera.Core.CONST_BASLER_IMAGE_PROFILE).
+            scan.py, which has no such reason, goes through the application's path.
+
     Args:
         (1) directory [string]: The directory the frames are written to (created if missing).
         (2) config_path [string]: The configuration whose camera settings the capture uses.
@@ -94,13 +106,13 @@ def Capture_Main(directory: str, config_path: str) -> int:
     Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg, resolution=Basler_Cfg_Str.Resolution,
                                  offset=Basler_Cfg_Str.Offset)
     applied = Basler_Cam_Id_1.Applied_Settings
-    Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls('real')
+    Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls(CONST_BASLER_IMAGE_PROFILE)
     header = {'distorted': True,
               'note': ('These frames are NOT undistorted: they are the camera\'s images after the '
                        'application\'s processing step (the same blur and colour adjustment) and '
                        'before undistortion, for solving the lens model. They are not the '
                        'application\'s <set>_raw.png, which is undistorted.'),
-              'processing': "Camera.Utilities.Image_Processing.Process_Image_Cls('real')",
+              'processing': "Camera.Utilities.Image_Processing.Process_Image_Cls('%s')" % CONST_BASLER_IMAGE_PROFILE,
               'configuration': configuration.Name,
               'camera': Basler_Cfg_Str.Name, 'custom_cfg': Basler_Cfg_Str.Custom_Cfg,
               # The sensor window the frames were captured at, as the camera read it back. The
