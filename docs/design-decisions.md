@@ -2,9 +2,10 @@
 
 The reasoning behind the non-obvious choices in the vision port, so the next person does
 not undo them. Each entry states the decision, the reason, and what would justify
-revisiting it. This is the counterpart to [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md): that
-file records latent quirks left unchanged; this file records deliberate choices whose
-motivation is not visible in the code. A change that contradicts one of these should cite
+revisiting it. This is the counterpart to [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md), which
+records open behaviours, and to README > Limitations, which records the two limitations that
+affect decisions; this file records deliberate choices whose motivation is not visible in the
+code. A change that contradicts one of these should cite
 why the reason no longer holds.
 
 ## The label mask is black ground, tinted fill, verdict contour
@@ -560,9 +561,8 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   confused shape. Symmetric and unmeasured objects keep the single solid axis box; the label mask
   is unchanged.
 
-**Revisit if** a part family needs orientation modulo 60° (hex). See KNOWN_ISSUES: the sizes may
-carry a systematic error of unknown magnitude and are not for acceptance decisions until checked
-against references of known size.
+**Revisit if** a part family needs orientation modulo 60° (hex). See README > Limitations: the
+sizes are repeatable, not absolute, and stand unverified against parts of known size.
 Tests `test/Vision/Utilities/test_measure.py`, `test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
 
 ## Symmetric parts: round ones report Ø, hexagonal ones report across flats (A/F)
@@ -1186,7 +1186,7 @@ costs are neighbours in the crop and what the framing does to the description.
   edge"). It misses it at 0.00–0.12 ("unevenness", "patina", "signs of handling") and again at
   **0.28** ("slight discoloration … upper section"). The result is deterministic but not
   monotonic: whether the most important condition in the set is reported depends on the framing,
-  not on how much context there is (KNOWN_ISSUES, *The describer is not a defect detector*).
+  not on how much context there is (README > Limitations, *The describer is not a defect detector*).
 - **Shape.** The hex nut #7 reads as a circular washer or ring at 0.00 and 0.04, and as polygonal
   from 0.08 ("outer hexagonal profile" at 0.12). That is the Florence failure mode in milder form.
   The other hex nut, #8, reads as circular at **every** padding. This is the limitation already in

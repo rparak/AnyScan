@@ -144,7 +144,7 @@ changes only the light.
 ### 3a. Defective parts, with clean controls
 
 **Why.** Whether a defect is reported depends on the framing: `Image_002`'s rust is named at crop
-paddings 0.20 and 0.36 and missed at others (KNOWN_ISSUES, *The describer is not a defect detector*).
+paddings 0.20 and 0.36 and missed at others (README > Limitations, *The describer is not a defect detector*).
 That is one stain on one frame. These frames measure detection across defects and framings, and they
 are the data an anomaly-detection rule — the route for defects, feeding the Classification verdict —
 would be built and tested on.

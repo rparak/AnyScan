@@ -71,7 +71,7 @@ class _Counting_Vision_Cls(Vision_Backend_Cls):
         super().__init__()
         self.calls = 0
 
-    def Analyze(self, image, progress_cb=None, stage_cb=None, log_cb=None) -> Analysis_Str:
+    def Analyze(self, image, progress_cb=None, stage_cb=None) -> Analysis_Str:
         self.calls += 1
         return Analysis_Str(Objects=[], Verdict='Empty',
                             Verdict_Level='idle', Task='count')

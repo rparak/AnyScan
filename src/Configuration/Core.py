@@ -102,9 +102,8 @@ CONST_REQUIRED_CUSTOM_CFG_KEYS = ('Exposure_Time', 'Gain', 'Balance_Ratios', 'Pi
 # The distortion coefficients a calibration must hold, in OpenCV's order.
 #   Unit [Tuple<string>]
 CONST_COEFFICIENT_KEYS = ('k1', 'k2', 'p1', 'p2', 'k3')
-# The FastSAM prompting modes and the compute devices a configuration may name.
+# The compute devices a configuration may name.
 #   Unit [Tuple<string>]
-CONST_SEGMENTATION_MODES = ('everything', 'box')
 CONST_DEVICES = ('auto', 'cpu', 'mps', 'cuda')
 # The keys the calibration writer owns. It refuses to overwrite a file holding anything else, so
 # content someone adds to a calibration file is never silently deleted.
@@ -193,7 +192,7 @@ def __Check(kind: str, value: tp.Any) -> tp.Tuple[bool, tp.Any, str]:
 
     Args:
         (1) kind [string]: The kind: 'bool', 'text', 'path', 'percent', 'unit', 'fraction', 'margin',
-                           'grey', 'count', 'size', 'kernel', 'nonnegative', 'device' or 'mode'.
+                           'grey', 'count', 'size', 'kernel', 'nonnegative' or 'device'.
         (2) value [Any]: The value read from the file.
 
     Returns:
@@ -224,8 +223,6 @@ def __Check(kind: str, value: tp.Any) -> tp.Tuple[bool, tp.Any, str]:
                         'a number of at least 0'),
         'device':      (isinstance(value, str) and (value in CONST_DEVICES or value.startswith('cuda:')),
                         value, 'one of %s (or cuda:N)' % ', '.join(CONST_DEVICES)),
-        'mode':        (value in CONST_SEGMENTATION_MODES, value,
-                        'one of %s' % ', '.join(CONST_SEGMENTATION_MODES)),
     }
     return rules[kind]
 
@@ -243,7 +240,6 @@ CONST_FIELDS = (
     (('Confidence', 'Error_Below'), ('Confidence', 'Error_Below'), 'percent', False),
     (('Segmentation', 'Model'), ('Segmentation', 'Model_Path'), 'path', True),
     (('Segmentation', 'Device'), ('Segmentation', 'Device'), 'device', False),
-    (('Segmentation', 'Mode'), ('Segmentation', 'Mode'), 'mode', False),
     (('Segmentation', 'Confidence'), ('Segmentation', 'Confidence'), 'unit', False),
     (('Segmentation', 'IoU'), ('Segmentation', 'IoU'), 'unit', False),
     (('Segmentation', 'Image_Size'), ('Segmentation', 'Image_Size'), 'size', False),

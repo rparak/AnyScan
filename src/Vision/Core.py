@@ -169,8 +169,7 @@ class Vision_Backend_Cls(object):
         """
 
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
-                stage_cb: tp.Optional[tp.Callable] = None,
-                log_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
+                stage_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
         """
         Description:
             Analyse one RGB frame and return the finished reading.
@@ -179,9 +178,6 @@ class Vision_Backend_Cls(object):
             (1) image [Matrix<uint8> HxWx3]: The frame as a contiguous RGB array.
             (2) progress_cb [function]: Optional (done, total) progress hook.
             (3) stage_cb [function]: Optional (text) phase hook.
-            (4) log_cb [function]: Optional (level, message) log sink for events worth
-                                   recording (e.g. a segmenter mode fallback). The Qt-free
-                                   layer emits through it rather than holding the logger.
 
         Returns:
             (1) parameter [Analysis_Str(object)]: The scene reading.
@@ -564,8 +560,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         return sentence, records
 
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
-                stage_cb: tp.Optional[tp.Callable] = None,
-                log_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
+                stage_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
         """
         Description:
             Analyse one RGB frame and return the finished reading. The default path is
@@ -577,7 +572,6 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             (1) image [Matrix<uint8> HxWx3]: The frame as a contiguous RGB array.
             (2) progress_cb [function]: Optional (done, total) progress hook.
             (3) stage_cb [function]: Optional (text) phase hook.
-            (4) log_cb [function]: Optional (level, message) log sink.
 
         Returns:
             (1) parameter [Analysis_Str(object)]: The finished scene reading.
@@ -601,11 +595,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                               Segmentation_Parameters_Str=self.__config.Segmentation)
 
         # ---- Stage 2 - instance segmentation (Vision.Segmenter) ----
-        # FastSAM (in the configured prompting mode) behind the Segmenter_Backend_Cls seam:
-        # the other fused cue. In its own module so the lazy ultralytics import keeps a bare
-        # Core import Qt-free and cheap. No region prompts are passed, so 'box' mode degrades
-        # to everything-mode (Segmenter logs it) — everything-mode is what separates parts.
-        masks, scores = self.__segmenter.Segment(frame_bgr, [], stage_cb, log_cb)
+        # FastSAM on the whole frame, behind the Segmenter_Backend_Cls seam: the other fused cue.
+        # In its own module so the lazy ultralytics import keeps a bare Core import Qt-free and
+        # cheap. Segmenting the whole frame is what separates touching parts.
+        masks, scores = self.__segmenter.Segment(frame_bgr, stage_cb)
 
         # ---- Stage 3 - fusion (Vision.Utilities.Fusion) ----
         # The objects: the FastSAM union OR the background mask, closed, split into

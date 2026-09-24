@@ -963,7 +963,6 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__thread.started.connect(self.__worker.Run)
         self.__worker.Stage_Changed.connect(self.__viewport.Set_Busy_Text)
         self.__worker.Progress_Changed.connect(self.__On_Analysis_Progress)
-        self.__worker.Log_Event.connect(self.__Log_Event)
         self.__worker.Analysis_Finished.connect(self.__On_Analysis_Finished)
         self.__worker.Analysis_Failed.connect(self.__On_Analysis_Failed)
 

@@ -110,7 +110,7 @@ holds:
 - **Identity:** the name shown in the Configuration dialog ("Cfg. Segment Anything"), the model set
   shown in the header ("JIC_AnyScan_All_v1"), and the Task a reading is labelled with.
 - **Segmentation:**
-  - the FastSAM model and its settings (device, mode, confidence, IoU, image size)
+  - the FastSAM model and its settings (device, confidence, IoU, image size)
   - the **background reference** (`Segmentation.Background.Reference`) every frame is differenced
     against. It carries a provenance sidecar (`Image_Background_NNN.json`), written by
     `Example/Camera/make_reference.py` from the capture set it was made from
@@ -171,14 +171,55 @@ in force instead: `python Example/Camera/calibrate.py --images DIR ... [--write-
 (`--write-config`, the old name, now fails with a message naming the new one.) The writer refuses to
 overwrite a calibration file holding anything it does not own.
 
-## Verifying the measurements
+## Limitations
 
-Nothing this application reports about size, and nothing it says about a part's condition, has been
-checked against ground truth yet. The captures that would check it can only be taken on the rig;
-they are listed, with their protocols and what to record, in
-[docs/capture-checklist.md](docs/capture-checklist.md). Read it before trusting — or trying to
-verify — a measurement, and read KNOWN_ISSUES (*Measured sizes may carry a systematic error*,
-*The describer is not a defect detector*) before building any acceptance decision on the output.
+Two limitations affect any decision built on this application's output. Both stand **unverified in
+this version**: nothing here checks them against ground truth, and none of the captures in
+[docs/capture-checklist.md](docs/capture-checklist.md) changes that. Behaviours that show up in the
+text but decide nothing are in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+### Measurements are repeatable, not absolute
+
+**Don't build a tolerance on these numbers.** A part's size varies with its thickness and with where
+it lies in the frame: a 12 mm hex nut, 6 mm thick, reads about 0.2 mm large at the frame centre and
+about 1.5 mm large near the edge, so a fixed tolerance would pass the part in one place and reject it
+in another. Nothing in this version verifies the absolute scale either, so the overall error's
+magnitude is unknown. Comparing like parts in like positions works; deciding whether a part is within
+a stated tolerance does not.
+
+- **Repeatable:** the same plate in `Image_002`–`005`, placed differently, measures 57.7–58.5 ×
+  37.9–39.1 mm. Repeatability says nothing about correctness — a wrong scale is the same in every frame.
+- **Position and thickness:** one camera with an ordinary lens, looking down, sees a thick part's
+  outline partly above the plane it was calibrated in, and off the optical axis sees its side wall
+  too. Along the direction away from the axis a size reads **W + X · t / (Z − t)** — footprint width W,
+  thickness t, the far edge X from the axis, the lens Z above the table (~360 mm). The excess grows
+  with the distance from the axis, not with the part's size: the nut above gains ≈ 1.5 mm at X ≈ 90 mm,
+  and even centred it gains W · t / (Z − t) ≈ 0.2 mm, so a 0.1 mm tolerance cannot be held for it
+  anywhere in the frame. An across-flats width is largely spared; a round Ø takes about half. Only a
+  telecentric lens removes this.
+- **Scale unverified:** the calibration in force was solved from a single image, and its principal
+  point, (160.7, 355.5), sits about 800 px from the frame centre. The multi-view recalibration
+  (checklist item 1) replaces the lens model, but nothing in this version checks the resulting scale
+  against parts of known size.
+- Sizes are shown to 0.1 mm because that is one pixel at 0.098 mm/px, not because they are accurate
+  to 0.1 mm.
+
+### The describer is not a defect detector
+
+**A description without a stain is not evidence there isn't one.** Whether a stain, scratch or
+corrosion is reported depends on how the part is framed, and nothing in the output marks a miss: a
+clean-sounding description of a stained part looks exactly like a correct description of a clean
+one. Treat surface condition in the text as a hint that may be absent, never as a finding.
+
+- **Evidence:** the rust on `Image_002`'s plate — the stain the object prompt was written to catch —
+  is named at crop paddings 0.20 and 0.36 and missed at 0.00–0.12 and 0.28. The text is identical on
+  every run at a given padding, so this is a step with the framing, not sampling noise. The shipped
+  padding (0.20) happens to report it. It rests on one stain on one frame, which is a reason for more
+  caution, not less.
+- **Why:** a stain is a texture on a surface, not an object with a boundary, and describing a part is
+  not detecting a defect on it. The route for defects is anomaly detection inside the part's mask,
+  feeding the classification switch (`General.Classification.Enabled`) that is already wired and has
+  no rule yet. It is not built in this version.
 
 ## Tests
 

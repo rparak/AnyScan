@@ -161,7 +161,7 @@ def configurations(tmp_path, monkeypatch) -> tp.Dict[str, str]:
     directory = tmp_path / 'Configuration'
     directory.mkdir()
     paths = {'seg': _Mode_File(directory, 'Seg_Anything'),
-             'box': _Mode_File(directory, 'Box', edit=lambda d: d['Identity'].update(Display_Name='Cfg. Box Prompts')),
+             'second': _Mode_File(directory, 'Inspect', edit=lambda d: d['Identity'].update(Display_Name='Cfg. Inspection')),
              'other': _Mode_File(directory, 'Seg_Anything', hardware='acA2500_14gc_Fujinon_HF16',
                                  edit=lambda d: d['Identity'].update(Display_Name='Cfg. Bench Camera')),
              'broken': _Mode_File(directory, 'Draft', edit=lambda d: d['Identity'].pop('Model_Set'))}
@@ -272,7 +272,7 @@ def test_the_dialog_lists_usable_configurations_and_logs_the_rest(qt_app, tmp_pa
     dialog = Configuration_Dialog_Cls(_Fake_Vision_Cls(), config, log_cb=lambda l, m: logged.append((l, m)))
     listed = dialog.findChild(QListWidget)
     items = [listed.item(row) for row in range(listed.count())]
-    assert [item.text() for item in items] == ['Cfg. Box Prompts', 'Cfg. Segment Anything', 'Cfg. Bench Camera']
+    assert [item.text() for item in items] == ['Cfg. Inspection', 'Cfg. Segment Anything', 'Cfg. Bench Camera']
     assert listed.currentItem() is items[1] and items[1].font().bold()
     assert not items[2].flags() & Qt.ItemIsEnabled and 'Other hardware' in items[2].toolTip()
     (level, message), = logged
@@ -322,7 +322,7 @@ def test_loading_runs_off_the_gui_thread_then_confirms_and_stays_open(qt_app, tm
     timer.timeout.connect(lambda: ticks.append(1))
     timer.start(20)
     dialog.show()
-    dialog.Select(configurations['box'])
+    dialog.Select(configurations['second'])
     dialog.Load()
     buttons = {button.text(): button for button in dialog.findChildren(QPushButton)}
     assert dialog.Loading and started and 'Loading configuration…' in _Texts(dialog)
@@ -334,11 +334,11 @@ def test_loading_runs_off_the_gui_thread_then_confirms_and_stays_open(qt_app, tm
     timer.stop()
 
     assert vision.threads[0] != threading.get_ident() and len(ticks) >= 5
-    assert len(loaded) == 1 and loaded[0].Mode == 'Box'
+    assert len(loaded) == 1 and loaded[0].Mode == 'Inspect'
     (sentence,) = [t for t in _Texts(dialog) if t.startswith('Configuration loaded.')]
     assert sentence == CONST_SENTENCE
     listed = dialog.findChild(QListWidget)
-    assert listed.currentItem().text() == 'Cfg. Box Prompts' and listed.currentItem().font().bold()
+    assert listed.currentItem().text() == 'Cfg. Inspection' and listed.currentItem().font().bold()
     assert not buttons['LOAD'].isEnabled() and buttons['CLOSE'].isEnabled()
     _Pump_Until(lambda: False, timeout=2.5)
     assert dialog.isVisible()                                         # no auto-close
@@ -358,7 +358,7 @@ def test_a_failed_load_says_so_and_the_previous_configuration_stays(qt_app, tmp_
     reason = 'The FastSAM weights are missing. Cfg. Segment Anything is still in force, not loaded.'
     window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(delay=0.05, fail=reason))
     before = _Private(window, '__config')
-    dialog = _Load_Through_Dialog(window, configurations['box'])
+    dialog = _Load_Through_Dialog(window, configurations['second'])
     dialog.show()
     assert 'Configuration was not loaded. %s' % reason in _Texts(dialog)
     assert _Private(window, '__config') is before
@@ -433,7 +433,7 @@ def test_the_window_dims_behind_the_dialog_and_the_dim_lifts_on_every_close(qt_a
     refused_mid_load = []
 
     def _Load_Then_Try_To_Close(dialog):
-        dialog.Select(configurations['box'])
+        dialog.Select(configurations['second'])
         dialog.Load()
         dialog.reject()                                               # mid-load: refused
         refused_mid_load.append(dialog.isVisible())
@@ -444,7 +444,7 @@ def test_the_window_dims_behind_the_dialog_and_the_dim_lifts_on_every_close(qt_a
     assert _Dim_While_Open(window, _Load_Then_Try_To_Close) == [True]
     assert refused_mid_load == [True]
     assert not _Private(window, '__scrim').isVisible()
-    assert _Private(window, '__config').Mode == 'Box'
+    assert _Private(window, '__config').Mode == 'Inspect'
     assert _Private(window, '__label_models_state').text().endswith('Configuration loaded.')
     assert _Private(window, '__button_connect').isEnabled()
     window.close()

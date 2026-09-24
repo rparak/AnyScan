@@ -125,7 +125,7 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
     assert (config.Confidence.Warn_Below, config.Confidence.Error_Below) == (80, 60)
     seg = config.Segmentation
     assert seg.Model_Path == os.path.join(CONST_PROJECT_ROOT, 'models', 'sam-1', 'FastSAM-x.pt')
-    assert (seg.Device, seg.Mode, seg.Confidence, seg.IoU, seg.Image_Size) == ('auto', 'everything', 0.4, 0.9, 1024)
+    assert (seg.Device, seg.Confidence, seg.IoU, seg.Image_Size) == ('auto', 0.4, 0.9, 1024)
     assert (seg.Otsu_Floor, seg.Open_Kernel, seg.Dilate, seg.Close_Kernel) == (28, 5, 3, 15)
     assert (seg.Min_Area_Fraction, seg.Hard_Background_Fraction, seg.Background_Area_Fraction,
             seg.Background_Borders) == (5e-4, 0.85, 0.50, 3)
@@ -215,7 +215,6 @@ def test_a_missing_optional_field_takes_its_documented_default_and_says_so(tmp_p
     (('General', 'Classification', 'Enabled'), 'yes'),
     (('Segmentation', 'Confidence'), 1.5),
     (('Segmentation', 'Image_Size'), 0),
-    (('Segmentation', 'Mode'), 'boxes'),
     (('Segmentation', 'Device'), 'gpu'),
     (('Segmentation', 'Background', 'Otsu_Floor'), 300),
     (('Segmentation', 'Fusion', 'Min_Area_Fraction'), 0.0),

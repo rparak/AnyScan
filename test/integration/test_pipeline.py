@@ -246,7 +246,7 @@ def test_synthetic_harsh_shadow_not_absorbed_xfail(monkeypatch) -> None:
     scene = cv2.addWeighted(scene, 0.6, shadow_layer, 0.4, 0.0)
 
     background_fg = Background_Foreground(bg, scene, cv2, np, Segmentation_Parameters_Str=params)
-    masks, scores = Fast_Sam_Cls(params).Segment(scene, [])
+    masks, scores = Fast_Sam_Cls(params).Segment(scene)
     objects = Fuse_Objects(masks, scores, background_fg, cv2, np, Segmentation_Parameters_Str=params)
 
     # Desired: no object's mask reaches past the parts (bottom edge y=520) into the

@@ -63,9 +63,6 @@ Segmentation:
   Model: models/sam-1/FastSAM-x.pt
   # Compute device: auto | cpu | mps | cuda (auto picks cuda, then mps, then cpu). Default: auto
   Device: auto
-  # FastSAM prompting: everything | box. 'everything' is what separates touching parts; 'box'
-  # prompts with candidate regions and inherits their merges (KNOWN_ISSUES). Default: everything
-  Mode: everything
   # FastSAM detection confidence and NMS-IoU thresholds (0..1). Defaults: 0.4 and 0.9
   Confidence: 0.4
   IoU: 0.9

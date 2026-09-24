@@ -60,10 +60,6 @@ class Segmentation_Parameters_Str:
     # Compute device: 'auto' picks cuda, then mps, then cpu. Chosen when the model loads.
     #   Unit [string]
     Device: str = 'auto'
-    # 'everything' segments the whole frame and lets fusion filter the clutter — it is what
-    # SEPARATES touching parts; 'box' prompts FastSAM with candidate regions (see KNOWN_ISSUES).
-    #   Unit [string]
-    Mode: str = 'everything'
     # FastSAM's own detection confidence and NMS-IoU thresholds, and its inference size.
     #   Unit [float] / [float] / [int] (px)
     Confidence: float = 0.4
