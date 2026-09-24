@@ -50,7 +50,7 @@ Description:
     make_reference.py turns a capture set into a background reference and writes its sidecar from the
     set's own records. The sets here are built with the application's record builders
     (Build_Set_Metadata, Distorted_Frame_Record), so the tool reads the format the application writes.
-    Its first run on a real set is checklist item 2.0.
+    Its first run on a real set is checklist item 2.
 
     scan.py now captures through the application's camera path; a stand-in camera checks that it
     does, and that it saves what that path delivers.

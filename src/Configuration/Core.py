@@ -527,7 +527,7 @@ def __Check_Reference_Sidecar(reference: str, Camera_Configuration_Str: tp.Any, 
     if not os.path.isfile(path):
         # LENIENT FOR NOW, deliberately. The reference in force predates sidecars; it is being
         # replaced by one made with Example/Camera/make_reference.py (docs/capture-checklist.md,
-        # item 2.0), which writes one. Once that reference is in force, make a missing sidecar a load
+        # item 2), which writes one. Once that reference is in force, make a missing sidecar a load
         # failure (a problem, like the mismatches below) so this lenient path does not outlive its
         # reason — the same as the calibration's unrecorded window in __Read_Calibration.
         notes.append(('WARNING', '%s has no provenance sidecar (%s), so the window, calibration and lighting '

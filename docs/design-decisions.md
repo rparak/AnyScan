@@ -415,7 +415,7 @@ a calibration that does not record its window.
 
 **Centred, (8, 8).** Symmetric about the lens axis; trims the sensor's border evenly. The old frames'
 window position is unrecoverable (the empty mat has no texture to register against), and both the
-calibration and the reference frames are being re-shot, so there was nothing to match back to.
+calibration and the background reference are being re-shot, so there was nothing to match back to.
 
 **Temporary leniency.** The calibration in force predates recorded windows, so an absent window is a
 WARNING that names the risk (measurements may be wrong by an unknown amount), not a load failure —
@@ -452,7 +452,7 @@ That gap is real and stays until lighting is measured rather than named.
 **Temporary leniency, twice.** A reference with no sidecar loads with a WARNING (the reference in force
 predates sidecars), like a calibration with no recorded window. Both paths say beside them in the code
 that they become load failures once their reason expires: the recalibration in force, and a reference
-made by the tool in force (checklist item 2.0).
+made by the tool in force (checklist item 2).
 
 **`scan.py` goes through the application's camera path.** It undistorted frames without the
 application's processing step, so its frames were not what the pipeline sees — and it is the harness
@@ -595,8 +595,8 @@ number.
   round Ø, which is what it was measured as.
 
 **Revisit if** another polygonal family appears (an octagonal part would need its own harmonic and
-its own evidence), or if the nuts' measured A/F disagrees with a caliper by more than the scale
-check in KNOWN_ISSUES explains.
+its own evidence), or if the nuts' measured A/F disagrees with a caliper by more than the position
+and thickness effect in README > Limitations explains.
 Tests `test/Vision/Utilities/test_measure.py` (`test_hexagonal_part_reports_across_flats`,
 `test_a_disc_of_any_size_is_round_not_across_flats`, label and stored-record tests),
 `test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
@@ -623,8 +623,9 @@ frame under the distorted name. The camera clears the original before every grab
 cannot pair a new frame with the previous frame's original. `keep_raw` governs both frames; the
 retention estimate rises from ~8 to ~12 MB per set (~600 MB at 50 sets).
 
-**Why now:** the reference check (known-size parts at the centre and in the corners) must stay
-usable whichever calibration ends up in force, and the calibration is about to be redone.
+**Why now:** the calibration is about to be redone, and a frame kept only undistorted is tied to the
+lens model that undistorted it; the original can be re-undistorted under whichever calibration ends up
+in force.
 Tests `test/UI/test_capture.py` (`test_distorted_frame_is_kept_with_a_sidecar_saying_so`,
 `test_no_distorted_frame_without_one_and_it_is_evicted_with_its_set`),
 `test/UI/test_logging_coverage.py::test_the_scanned_frames_distorted_original_reaches_the_capture_set`,

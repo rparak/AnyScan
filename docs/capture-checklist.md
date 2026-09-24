@@ -1,12 +1,11 @@
 # Capture checklist
 
-The real captures only the rig can produce. Each one closes a question the software cannot answer
-from the frames it already has. This is the **real-capture list** that KNOWN_ISSUES refers to: when an
-entry there says "on the capture list", it means an item below.
+The real captures only the rig can produce: a new calibration, the background reference that goes
+with it, and a parts session whose frames the software cannot invent.
 
-Read this before trying to verify anything about this project's measurements or its descriptions.
-Every number the application reports about size, and every claim about what the describer notices,
-is unverified until the relevant item here has been captured and checked.
+**None of them verifies the measurements.** This version does not check sizes against calipered
+references, so the limitations in the README (*Limitations*) stand unverified whatever is captured
+here: the sizes are repeatable, not absolute, and the describer is not a defect detector.
 
 **For every item:**
 
@@ -20,11 +19,11 @@ is unverified until the relevant item here has been captured and checked.
 - `<set>` numbers restart at 1 on every CONNECT. With one CONNECT per item and no retakes, the number
   is the frame's position in the item's table. On a retake, write down the number that replaced it.
 
-| # | Item | Frames | Closes |
+| # | Item | Frames | What it is for |
 |---|---|---|---|
-| 1 | Multi-view calibration set | 20+ | The camera's first multi-view calibration: the lens model, the principal point and the mm/px factor that item 2 then checks |
-| 2 | Empty-surface reference, then reference frames: scale and parallax | 1 + 9 | *Measured sizes may carry a systematic error*; *A part's measured size depends on where it lies in the frame* |
-| 3 | Parts session: defects, low-contrast parts, harsh shadow | ~40 | *The describer is not a defect detector*; *Open question: FastSAM's reliability on low-contrast shapes*; *A very harsh cast shadow can be absorbed* |
+| 1 | Multi-view calibration set | 20+ | The camera's first multi-view calibration: the lens model, the principal point and the mm/px factor. Not checked against known sizes in this version |
+| 2 | Empty-surface reference | 1 | The background reference, re-shot under the new calibration, with its provenance sidecar |
+| 3 | Parts session: defects, low-contrast parts, harsh shadow | ~40 | Real frames for the open questions in KNOWN_ISSUES (low-contrast parts, harsh shadow) and data for a future defect rule |
 
 **Before item 1: confirm the camera is pinned.** Power-cycle the camera (it then starts from its
 factory default, the full 1936 × 1216 sensor), start the application, load the configuration and
@@ -36,11 +35,10 @@ every item below depends on the window. Capture the calibration set into a **new
 **Order: 1, then 2, then 3.**
 
 1. **Calibrate first.** Adopt the new calibration, then restart the application so it is in force.
-2. **Then the empty-surface reference, then the reference frames, under the new calibration.** Frames
-   shot before recalibrating would measure a factor that is about to be replaced; the reference goes
-   first so the nine frames are analysed against it.
-3. **Then the parts session.** Its frames are then undistorted and measured under the calibration
-   that item 2 has checked.
+2. **Then the empty-surface reference, under the new calibration.** The reference is an undistorted
+   frame, so it belongs to one lens model: the one shot before recalibrating is out of date.
+3. **Then the parts session.** Its frames are then undistorted under the new calibration and
+   analysed against the new reference.
 
 ---
 
@@ -89,19 +87,18 @@ python calibrate.py --images DIR --board-squares 11x8 --square-mm <calipered> --
 
 Check the report (principal point near the image centre, tilt spread above the 10° floor, the factor's
 map), then adopt the new calibration by renaming it over `Calibration_<Hardware>.yaml` and restart the
-application so it is in force. Item 2 is shot under it. (The old calibration stays in git history; the
-reference frames' distorted originals can be re-measured under it for a before/after comparison.)
+application so it is in force. Item 2 is shot under it. (The old calibration stays in git history; every
+capture set keeps its frame before undistortion, so frames can be re-undistorted under either.)
 
 ---
 
-## 2. Reference frames — scale and parallax
-
-### 2.0 Empty-surface reference (one frame, first)
+## 2. Empty-surface reference (one frame)
 
 **Why.** After the sensor-window change every other artefact is captured at a pinned, recorded window.
 The reference in force (`Data/Camera/Image_Background_001.png`) is the right size, but the window it was
-shot at is a guess — "probably (0, 0)" — and so are the calibration and lighting it was shot under.
-Re-shooting it removes the last unverified one. It is one frame of an empty table.
+shot at is a guess — "probably (0, 0)" — and so are the calibration and lighting it was shot under. And
+it is an undistorted frame, so item 1's new lens model puts its geometry out of date. Re-shooting it
+removes the last unverified artefact. It is one frame of an empty table.
 
 **Conditions.** Item 1's calibration adopted and in force (application restarted), shipped
 configuration, shipped lighting, camera untouched since item 1, **the table empty** — nothing in view,
@@ -135,50 +132,7 @@ that set's own records, not from a person.
    is on the table: clear it and shoot again.
 4. Set `Segmentation.Background.Reference: Data/Camera/Image_Background_002.png` and restart the
    application: the load now checks the reference against its sidecar, and the *no provenance sidecar*
-   warning is gone. Then shoot the nine frames below.
-
-**Record alongside** (`Data/Reference/reference_check.yaml`, `background_reference`): only the file
-name. The sidecar holds the rest.
-
-**Why.** The mm/px factor has never been checked against a known size on this rig. These frames
-check the calibration from item 1 against calipered references: a uniform error means one correction
-to the factor; an error that varies with position means the calibration itself needs another look.
-Parts of known thickness at the centre and in the corners also give the parallax term directly.
-
-**Needed.** The same chessboard as item 1, one flat plate, one washer, one hex nut, and a caliper.
-
-### 2.1 The nine reference frames
-
-**Conditions.** **Item 1's calibration adopted and in force** (the application restarted after the
-rename), **and 2.0's reference in force** (restarted after setting it). Shipped configuration loaded,
-one CONNECT, shipped lighting, camera untouched since item 1.
-The board lies flat; the parts lie flat and do not touch each other.
-
-| n | What | Where (as seen in the Live view) | Note |
-|---|---|---|---|
-| 1 | chessboard | centre | edges parallel to the image edges |
-| 2 | chessboard | centre | **repeat of 1**: SCAN + ANALYZE again, touch nothing |
-| 3 | chessboard | top-left | overhang the corner by ~1–2 squares each way; at least half the board in view |
-| 4 | chessboard | top-right | as 3 |
-| 5 | chessboard | bottom-left | as 3 |
-| 6 | chessboard | bottom-right | as 3 |
-| 7 | plate + washer + nut | centre | not touching |
-| 8 | plate + washer + nut | top-left | ~10 mm clear of the frame edges |
-| 9 | plate + washer + nut | bottom-right | as 8 |
-
-**Record alongside** (the blank form is `Data/Reference/reference_check.yaml`):
-
-- [ ] the connection folder name under `logger/captures/`, and each frame's final `<set>` number
-- [ ] the calibration in force when the frames were shot
-- [ ] chessboard, with the caliper: across 9 squares horizontally (nominal 108.0 mm), across 6
-      vertically (nominal 72.0 mm), and its height above the table (print plus any backing)
-- [ ] whether the board and its mounting are the same as at the calibration
-- [ ] plate: length, width, thickness
-- [ ] washer: outer diameter, thickness
-- [ ] nut: across flats, across corners, thickness
-
-**Check.** Frames 1 and 2 must agree to within 0.1 mm; if not, repeatability comes before any
-correction. Then compare the error, in mm and %, per position.
+   warning is gone.
 
 ---
 
@@ -237,10 +191,12 @@ case is pinned only on a synthetic scene, by the strict xfail
 `test/integration/test_pipeline.py::test_synthetic_harsh_shadow_not_absorbed_xfail`. A real harsh
 shadow replaces the synthetic evidence either way.
 
-**Conditions.** Add one low-angle side light so the parts cast hard shadows. **First shoot an empty
-table under that same light** and set it as the configuration's `Segmentation.Background.Reference`
-(in a copy of the configuration). The subtraction is only meaningful against a reference lit the same
-way.
+**Conditions.** Add one low-angle side light so the parts cast hard shadows. Work in a **copy of the
+configuration** whose `Camera.Lighting` names the side light — the reference's sidecar records the
+lighting the configuration names, and the load refuses a reference shot under other lighting. **First
+shoot an empty table under that light** with the copy loaded, make the reference from that set with
+`make_reference.py` (as in item 2), and set it as the copy's `Segmentation.Background.Reference`. The
+subtraction is only meaningful against a reference lit the same way.
 
 | Frames | What |
 |---|---|
