@@ -7,12 +7,13 @@ application. Built at JIC within the EDIH-DIGIMAT project.
 
 ## Setup
 
-Create an isolated environment and install the runtime + test dependencies
-(Python 3.9–3.12; developed and characterized on 3.10):
+**Platform: macOS on Apple silicon only** (see [Platform](#platform)). Create an
+isolated environment and install the runtime + test dependencies (Python 3.10–3.12;
+developed and characterized on 3.10):
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -231,16 +232,31 @@ camera and calibrate it — but the app itself never imports `Transformation/` o
 the app. The camera setup itself lives in `Configuration/*.yaml`, read and written
 through `Camera/Utilities/Configuration.py`.
 
-## Packaging for Windows
+## Platform
 
-```bash
-pip install pyinstaller
-pyinstaller --noconsole --icon App/assets/anyscan-mark-white.ico \
-    --add-data "App/assets;assets" App/run.py
-```
+**The application is supported on macOS on Apple silicon only.** That is the only platform
+the describer has been run and measured on, so it is the only one it can be relied on; it is
+not packaged for Windows or Linux, and nothing here says it would work there.
 
-`--add-data` matters: without it the executable starts with no logos and no
-mark, because `assets/` is resolved next to the script.
+- **Why:** the describer is Gemma 4 E4B as a 4-bit **MLX** conversion, run through `mlx` /
+  `mlx-vlm` on the Apple GPU (Metal). Its speed (≈2.2 s per object), memory (≈9.4 GB for the
+  whole application) and determinism (the same crop gives the same text, word for word) were
+  measured there. Everything else — the Qt UI, OpenCV, FastSAM on PyTorch, the Basler driver
+  — is portable, so the describer is the component that pins the platform.
+- **MLX itself is not Mac-only:** `mlx` 0.32.2 also publishes Linux (x86_64, aarch64) and
+  Windows (amd64, arm64) wheels, with `cpu` and `cuda` extras. This describer has **never
+  been run** on them: whether the 4-bit model and `mlx-vlm`'s Gemma 4 code work there, how
+  fast (a CPU backend would be far slower than Metal) and whether the text stays identical
+  are all unknown. `requirements.txt` installs `mlx` / `mlx-vlm` only on Apple-silicon macOS;
+  elsewhere the describer stops with a message saying MLX is missing.
+- **What running elsewhere would take:** one of — (1) MLX on that platform (its CUDA or CPU
+  backend), verified and re-measured on the seven `Data/Camera` frames; (2) a PyTorch build of
+  the same model (`google/gemma-4-E4B-it` through `transformers`, on CUDA) behind the same
+  describer interface, likewise re-measured — the MLX figures do not transfer; or (3) a
+  different describer (see [Swapping a component](#swapping-a-component)).
+- **Packaging:** the PyInstaller recipe this section used to give was for Windows and no
+  longer applies. No macOS packaging recipe has been verified; run from source
+  (`python App/run.py`).
 
 ## Swapping a component
 

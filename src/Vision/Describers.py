@@ -215,8 +215,8 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
             from mlx_vlm.prompt_utils import apply_chat_template
         except ImportError as exc:
             raise Describer_Error_Cls(
-                'The Gemma describer needs MLX: install mlx and mlx-vlm (requirements.txt) on this '
-                'Apple-silicon Mac, then analyse again.') from exc
+                'The Gemma describer needs MLX (mlx and mlx-vlm, requirements.txt), which is installed '
+                'on macOS on Apple silicon, the only platform it is verified on.') from exc
         if not os.path.isdir(self.__model_dir):
             raise Describer_Error_Cls('The model weights are not at "%s". Check that the directory '
                                       'is complete and readable.' % self.__model_dir)

@@ -114,7 +114,7 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
         The real four-stage vision path — background subtraction -> FastSAM
         segmentation -> fusion -> description -> compose — through the real
         pipeline on a synthetic two-rectangle frame. FastSAM is forced onto the CPU so it
-        is portable; Gemma runs on MLX's Metal GPU, the only place it runs. It runs in the
+        is portable; Gemma runs on MLX's Metal GPU, the only place it is verified. It runs in the
         DEFAULT suite whenever the FastSAM and Gemma weights exist; when
         either is absent it warns loudly and passes, so a fresh clone is never broken
         before the weights are downloaded.

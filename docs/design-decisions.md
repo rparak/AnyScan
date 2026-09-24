@@ -826,3 +826,26 @@ each set's own value); the caption lead-ins (`CONST_LABEL_LEADINS`, Florence's t
 which Gemma's text never triggers but the label distiller and the characterization baseline still
 exercise. The crop margin's comment now says it was measured to ground Florence better and has not
 been re-measured for Gemma. The characterization baseline does not move.
+
+## Consequence of Gemma via MLX: the application is supported on Apple-silicon macOS only
+
+Choosing Gemma 4 E4B as a 4-bit MLX conversion pins the platform. The describer was run and
+measured only on macOS on Apple silicon (Metal): ≈2.2 s per object, ≈9.4 GB peak for the whole
+application, word-for-word identical text across runs. Those are the only figures that exist, so
+that is the only platform the application is supported on. The README's "Packaging for Windows"
+section (a PyInstaller recipe) described a capability that no longer holds and is replaced by a
+"Platform" section.
+
+**A correction to the record:** during Phase 1 this was stated as "MLX exists only for macOS on
+Apple silicon". That was wrong: `mlx` 0.32.2 publishes Linux (x86_64, aarch64) and Windows (amd64,
+arm64) wheels with `cpu` and `cuda` extras. The constraint is therefore *unverified*, not
+*impossible*: whether the 4-bit model and `mlx-vlm`'s Gemma 4 code run on those backends, how fast
+(a CPU backend would be far slower) and whether the text stays deterministic are unknown.
+`requirements.txt` keeps installing `mlx` / `mlx-vlm` only on Apple-silicon macOS, so an install
+elsewhere does not pretend to be supported; the describer then stops with a message.
+
+To run elsewhere: MLX's CUDA/CPU backend on that platform, verified and re-measured on the seven
+frames; or a PyTorch build of the same model (`google/gemma-4-E4B-it` through `transformers`)
+behind `Describer_Backend_Cls`, likewise re-measured; or a different describer. The rest of the
+application (Qt, OpenCV, FastSAM/PyTorch, pypylon) is portable. No macOS packaging recipe has been
+verified; the application runs from source.
