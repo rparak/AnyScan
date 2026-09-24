@@ -112,42 +112,36 @@ git diff Example/Vision/characterize_baseline.log     # expect no change
 
 ## Detection logic
 
-`Analyze` runs one frame through four stages, each in its own
-module. Background subtraction (stage 1) finds *what changed* against a fixed
-reference — cheap and class-agnostic — and returns two things: a change **mask**
-and padded **candidate regions**. FastSAM (stage 2) turns the scene into precise
-per-instance masks, which stage 3 filters down to the real objects. Its
-change-coverage gate scores each mask against the stage-1 change mask — which is
-why that mask skips stage 2 and reaches stage 3 directly: it is the evidence that
-a mask is a genuine change and not the static table or a cast shadow. Stage 4
-crops each survivor (masked by default, so a neighbour sharing the box is not
-described with it) and the Gemma describer, or the model-free fallback, writes its
-sentence.
+`Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) runs one frame through four stages,
+each in its own module, then measures the objects. Two cues find the objects and are
+**fused, not gated**: background subtraction (stage 1) finds *what changed* against a fixed
+empty-surface reference — cheap and class-agnostic — and FastSAM (stage 2) finds object
+instances in the frame. Stage 3 ORs the two, so an object survives if **either** cue sees it
+(a part FastSAM misses is kept by the difference; a dark part the difference barely sees is
+kept by FastSAM), then splits the result into objects. Stage 4 crops each object — padded,
+with every *other* object's pixels replaced by the reference so no neighbour is described
+with it, contrast-stretched from the object's own pixels — and the Gemma describer, or the
+model-free fallback, writes its description.
 
 ```
   current frame (RGB)  +  reference background
            |  (RGB -> BGR)
            v
-  (1) background subtraction ......... Segmentation.Build_Mask
-           |  returns TWO outputs:
-           |    - change mask ...... skips stage 2; feeds stage 3's
-           |                         coverage gate (below)
-           |    - candidate regions  prompt FastSAM only in 'box'
-           |                         mode; the default 'everything'
-           |                         mode ignores them
+  (1) background subtraction ......... Segmentation.Background_Foreground
+           |  the foreground mask: absdiff -> blur -> floored
+           |  Otsu -> open -> dilate; one of the two fused cues
            v
   (2) FastSAM segmentation ........... Segmenter.Fast_Sam_Cls
-           |
+           |  everything-mode instance masks + scores; the
+           |  other fused cue
            v
-      object masks + segmenter scores
-           |
+  (3) fusion ......................... Fusion.Fuse_Objects
+           |  FastSAM union (background-like masks dropped) OR
+           |  the stage-1 mask -> close -> connected components
+           |  -> area filter -> left to right in row bands; each
+           |  object records the cue(s) that found it
            v
-  (3) mask filtering ................. Mask_Filter.Filter_Masks
-           |  scores each mask's overlap with the stage-1 CHANGE
-           |  MASK (coverage gate), rejects by area/border,
-           |  suppresses part/whole (NMS), orders left-to-right
-           v
-      objects: mask + tight bbox (+ coverage, score)
+      objects: mask + tight bbox (+ cue, coverage, score)
            |
            v
   (4) description .................... Describers.Gemma_Describer_Cls
@@ -156,8 +150,12 @@ sentence.
            |  with the object prompt            the fallback reads
            |                                    mask + bbox directly)
            v
-      Compose -> summary + per-object sentences + verdict
+      Compose -> per-object lines + verdict  (Reporting.Compose)
            |
+           v
+      measurement ........................ Measure.Measure_Objects
+           |  size and rotation from each mask through the
+           |  configured mm/px (A x B, Ø, or A/F for hex parts)
            v
       Analysis_Str
 ```
