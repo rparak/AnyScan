@@ -28,9 +28,16 @@ the weights (~4.8 GB) must be present at that path before `python App/run.py`, o
 fails with a message naming the missing directory. Download them with:
 
 ```bash
-huggingface-cli download mlx-community/gemma-4-e4b-it-4bit \
+hf download mlx-community/gemma-4-e4b-it-4bit \
+    --revision 475b9088d29754a3379866cf5aeb6b41acd313c2 \
     --local-dir models/gemma-4-e4b-it-4bit
 ```
+
+`hf` is the Hugging Face CLI from `huggingface_hub` (in `requirements.txt`); the older
+`huggingface-cli` no longer works. The repository is public and needs no token. The pinned
+revision is the one this application was measured with: every file of it was checked
+byte-for-byte (SHA-256 / git blob hash) against the local weights, and the command was
+dry-run (10 files, 5.2 GB).
 
 The Gemma weights are under the Gemma Terms of Use, **not** MIT (see [Licence
 note](#licence-note)). The describer's prompts live in `Configuration/Describer_Prompts.yaml`.

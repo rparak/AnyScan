@@ -26,9 +26,12 @@ src/Vision/Describers.py, CONST_GEMMA_MODEL_DIR).
 
 How to fetch
 ------------
-Using the Hugging Face CLI (pip install -U "huggingface_hub[cli]"):
+With the Hugging Face CLI, `hf` (from huggingface_hub, in requirements.txt; the older
+`huggingface-cli` no longer works). Public, no token needed. The revision is pinned to
+the one the application was measured with — verified file by file against these weights:
 
-    huggingface-cli download mlx-community/gemma-4-e4b-it-4bit \
+    hf download mlx-community/gemma-4-e4b-it-4bit \
+        --revision 475b9088d29754a3379866cf5aeb6b41acd313c2 \
         --local-dir models/gemma-4-e4b-it-4bit
 
 (models/florence2-large-ft/, the previous describer, is no longer used and can be

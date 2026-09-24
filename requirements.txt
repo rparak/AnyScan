@@ -39,6 +39,10 @@ pypylon>=3.0          # only needed for the live camera; --frame runs without it
 # mlx pins its own mlx-metal.
 mlx==0.32.2 ; sys_platform == "darwin" and platform_machine == "arm64"
 mlx-vlm==0.7.2 ; sys_platform == "darwin" and platform_machine == "arm64"
+# The `hf` command the README's setup uses to download the Gemma weights. It arrives
+# transitively (mlx-vlm -> transformers), but setup depends on it directly, so it is declared.
+# Verified with 1.30; `huggingface-cli`, which older instructions used, no longer works there.
+huggingface_hub>=1.30
 
 # ---- FastSAM instance segmentation (stage 2 of the vision pipeline) --------
 # The bboxes= box-prompt keyword arrived in 8.2; the default everything-mode needs
