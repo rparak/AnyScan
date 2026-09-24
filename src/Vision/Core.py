@@ -526,7 +526,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         Description:
             Compose the panel's reading from the described objects: the per-object
             sentences, the summary, the note, the verdict badge, the latency, the global
-            background sentence and the post-processing audit. The objects are never
+            background sentence and its audit. The objects are never
             reordered here — their order is the index contract.
 
         Args:
@@ -542,7 +542,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         """
 
         caption = '' if objects else CONST_EMPTY_SCENE_EXPLANATION
-        objects, note, audit = Compose(objects, size, caption=caption)
+        objects, note = Compose(objects, size, caption=caption)
         badge, level = Verdict(objects)
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return Analysis_Str(Objects=objects, Note=note,
@@ -550,4 +550,4 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
                             Task=(self.__describer.Task_Label if self.__describer is not None
                                   else CONST_FALLBACK_TASK_LABEL),
                             Raw_Mask_Count=raw_mask_count,
-                            Background=background_sentence, Audit=background_audit + audit)
+                            Background=background_sentence, Audit=background_audit)

@@ -143,15 +143,6 @@ CONST_LABEL_MAX_WORDS = 4
 # removed rather than retuned (docs/design-decisions.md). The background is stated once,
 # globally, by the describer's background prompt (Screen_Header).
 
-# ---- Substance substitution (machined parts are never wood/paper) --------------- #
-# Florence occasionally reads the concentric machining marks as wood or the plate as
-# cardboard/paper; these parts are always machined metal/plastic, so the impossible
-# substance guess is neutralised. Whole words only, so 'cardboard' is replaced but a
-# word merely containing the letters is not. Every substitution is logged — rewriting
-# what the model said is a domain assumption and must be auditable.
-CONST_SUBSTANCE_WORDS = re.compile(r'\b(wood|woods|wooden|cardboard|paper)\b', re.IGNORECASE)
-CONST_SUBSTANCE_REPLACEMENT = 'metal'
-
 # ---- The global background sentence -------------------------------------------- #
 # The background is captioned with Florence's concise <CAPTION> task (not the
 # paragraph <MORE_DETAILED_CAPTION> the objects use): on a plain surface the detailed
@@ -267,71 +258,29 @@ def Caption_Sentence(caption: str) -> str:
     return Clean_Detail(text)
 
 
-def Substitute_Substance(text: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
+def Object_Description(det: Detection_Str) -> str:
     """
     Description:
-        Replace an impossible substance guess (wood / cardboard / paper) with 'metal'
-        at word boundaries only, and return every substitution made. These parts are
-        always machined metal/plastic, so the guess is neutralised — but rewriting
-        what the model said is a domain assumption, so each substitution is returned
-        for the audit log rather than done silently.
-
-    Args:
-        (1) text [string]: The caption text.
-
-    Returns:
-        (1) parameter [Tuple]: (the substituted text, a Vector of (level, message)
-                               audit records, one 'info' per substitution).
-    """
-
-    records = []
-
-    def _Replace(match: tp.Any) -> str:
-        """
-        Description:
-            Record one substitution and return the replacement word.
-
-        Args:
-            (1) match [re.Match]: The matched substance word.
-
-        Returns:
-            (1) parameter [string]: CONST_SUBSTANCE_REPLACEMENT.
-        """
-
-        records.append(('info', "substituted '%s' -> '%s'"
-                        % (match.group(0), CONST_SUBSTANCE_REPLACEMENT)))
-        return CONST_SUBSTANCE_REPLACEMENT
-
-    return CONST_SUBSTANCE_WORDS.sub(_Replace, text), records
-
-
-def Object_Description(det: Detection_Str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
-    """
-    Description:
-        The object's line and its audit trail. The model caption is peeled of any
-        template lead-in (Caption_Sentence) and its impossible substance guesses are
-        neutralised (Substitute_Substance). Nothing else is removed: the describer is
-        asked to describe only the part. When no usable caption remains, the short
-        'A <label>.' stands in; a reading, if any, is appended.
+        The object's line: the model's description, peeled of any template lead-in
+        (Caption_Sentence) and put into the panel's capitalisation and stop. Nothing is
+        rewritten or removed — the describer is asked to describe only the part. When no
+        usable description remains, the short 'A <label>.' stands in; a reading, if any, is
+        appended.
 
     Args:
         (1) det [Detection_Str(object)]: The detection to describe.
 
     Returns:
-        (1) parameter [Tuple]: (the object's line, a Vector of (level, message)
-                               audit records for this object).
+        (1) parameter [string]: The object's line.
     """
 
-    audit = []
     sentence = Caption_Sentence(det.Detail) if CONST_SHOW_OBJECT_DETAIL else ''
-    if sentence:
-        sentence, audit = Substitute_Substance(sentence)
     if not sentence:
         article = 'An' if det.Label[:1].lower() in 'aeiou' else 'A'
         sentence = '%s %s.' % (article, det.Label)
     if det.Text:
         sentence = sentence.rstrip('.') + ', reading “%s”.' % det.Text
-    return sentence, audit
+    return sentence
 
 
 def Background_Sentence(caption: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
@@ -366,8 +315,7 @@ def Describe_Object(det: Detection_Str, size: tp.Tuple[int, int]) -> str:
     Description:
         One line for one detection — what the object is, not where it is (the operator
         reads the number off the coloured box, so a location in words earns nothing).
-        Delegates to Object_Description and drops the audit; use Object_Description
-        directly when the audit is wanted. (`size` is unused now that the zone is gone;
+        Delegates to Object_Description. (`size` is unused now that the zone is gone;
         kept so the call site is unchanged.)
 
     Args:
@@ -378,7 +326,7 @@ def Describe_Object(det: Detection_Str, size: tp.Tuple[int, int]) -> str:
         (1) parameter [string]: The object's line of text.
     """
 
-    return Object_Description(det)[0]
+    return Object_Description(det)
 
 
 def Scene_Note(objects: tp.List[Detection_Str], size: tp.Tuple[int, int], caption: str = '') -> str:
@@ -645,14 +593,13 @@ def Yolo_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int]) -> tp.
 
 
 def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
-            caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str, tp.List[tp.Tuple[str, str]]]:
+            caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str]:
     """
     Description:
         Write the line for every object (into det.Sentence) and return the objects
-        alongside the note and the post-processing audit. Each line has its impossible
-        substance guesses neutralised; the audit records every substitution, tagged with
-        the object index, so nothing the composer rewrote is silent. The objects are never reordered here — their
-        order is the operator-visible index contract.
+        alongside the note. Nothing the model wrote is rewritten, so there is no
+        per-object audit. The objects are never reordered here — their order is the
+        operator-visible index contract.
 
         The lead line is NOT built here: the view and the descriptions file both render
         it from the shared Screen_Header, so there is one source for it and no second
@@ -664,12 +611,9 @@ def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
         (3) caption [string]: An optional leading explanation for the note.
 
     Returns:
-        (1) parameter [Tuple]: (objects, note, audit), where audit is a Vector of
-                               (level, message) records.
+        (1) parameter [Tuple]: (objects, note).
     """
 
-    audit = []
-    for i, det in enumerate(objects):
-        det.Sentence, records = Object_Description(det)
-        audit.extend(('%s' % level, 'Obj. %d: %s' % (i + 1, message)) for level, message in records)
-    return objects, Scene_Note(objects, size, caption), audit
+    for det in objects:
+        det.Sentence = Object_Description(det)
+    return objects, Scene_Note(objects, size, caption)

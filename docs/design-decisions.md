@@ -723,9 +723,9 @@ taking the holes with it. A safeguard with no job left and a real cost is remove
 the function, its noun lists, its patterns and its test are gone, and `Object_Description` now
 only peels a template lead-in and applies the substance substitution.
 
-- **Kept:** the substance substitution (wood / paper / cardboard → metal, every substitution
-  audited). It never fired on Gemma's text, but it is cheap and harmless; the seven-frame
-  comparison decides whether it stays. The background-sentence validator (one sentence, ≤ 20
+- **Kept at the time:** the substance substitution (wood / paper / cardboard → metal). The
+  seven-frame comparison then confirmed it never fires on Gemma's text, and it was removed too
+  (see "The substance substitution is removed"). The background-sentence validator (one sentence, ≤ 20
   words, else the neutral sentence) also stays.
 - **Consequence while Florence is reachable:** Florence's captions keep their table phrases
   ("A hex bolt on a green surface."), which is what the comparison should see.
@@ -784,3 +784,19 @@ limit, not special-cased: a bare " in " is not a boundary ("a threaded rod coate
 fittings"); the long M6 example now reads "m6 stainless steel screw", and the stranded-"n" quirk
 is pinned on a short caption where it still shows.
 Test `test/Vision/Utilities/test_caption.py::test_condense_label_takes_the_phrase_up_to_its_head_noun`.
+
+## The substance substitution is removed
+
+`Reporting.Substitute_Substance` rewrote "wood", "paper" and "cardboard" to "metal" in object
+descriptions, because Florence-2 read the concentric machining marks as wood grain. Over the seven
+frames it fired once, on Florence ("artwork … a light wood grain pattern", `Image_002`), and never
+on Gemma, which names the concentric machining marks for what they are (`Image_004`). A rewrite
+rule that never fires leaves a later reader wondering what it is for and whether it is still
+needed, so it goes with the model it existed for.
+
+With it gone, the composer rewrites nothing the describer wrote: `Object_Description` returns only
+the line (lead-in peeled, capitalisation and stop applied), and `Compose` returns `(objects, note)`
+— there is no per-object audit left to return. The analysis audit keeps the background-sentence
+records. The characterization baseline does not move.
+Test `test/Reporting/test_core.py::test_the_models_words_are_not_rewritten`.
+

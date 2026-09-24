@@ -117,18 +117,17 @@ def test_compose_sets_sentence_and_never_reorders() -> None:
     """
     Description:
         Compose writes each object's Sentence and returns the objects in the same
-        order (the index contract), plus the note and the audit.
+        order (the index contract), plus the note.
     """
 
     objects = [_Detection('washer', detail='A metal washer.'),
                _Detection('nut', detail='')]
-    returned, note, audit = Reporting.Compose(objects, CONST_SIZE)
+    returned, note = Reporting.Compose(objects, CONST_SIZE)
 
     assert returned is objects
     assert objects[0].Sentence == 'A metal washer.'
     assert objects[1].Sentence == 'A nut.'
     assert note == ''
-    assert audit == []                      # nothing substituted here
 
 
 def test_scene_note_empty_scene_carries_caption_and_advice() -> None:
@@ -159,7 +158,7 @@ def test_a_sentence_naming_the_surface_is_kept_whole() -> None:
     """
     Description:
         There is no background strip: a sentence that mentions the green surface is part of the
-        object's description and is kept word for word, with no audit record. This is the case
+        object's description and is kept word for word. This is the case
         the strip got wrong — Gemma's description of the red block's holes, which it deleted
         because the sentence named the surface showing through them.
     """
@@ -167,28 +166,21 @@ def test_a_sentence_naming_the_surface_is_kept_whole() -> None:
     holes = ('It features two circular holes, one near the top and one near the bottom, each '
              'appearing to have a passage allowing a view of a bright green surface through them.')
     det = _Detection('part', detail='The object is a rectangular, flat part. ' + holes)
-    sentence, audit = Reporting.Object_Description(det)
-    assert sentence.endswith(holes) and audit == []
+    assert Reporting.Object_Description(det).endswith(holes)
     assert not hasattr(Reporting, 'Strip_Background')
 
 
-def test_substitute_substance_word_boundaries() -> None:
+def test_the_models_words_are_not_rewritten() -> None:
     """
     Description:
-        The impossible-substance guess is replaced with 'metal' at word boundaries
-        only, and every substitution is recorded. A word merely containing the letters
-        (plywood) is left alone.
+        There is no substance substitution any more (it corrected Florence reading machined metal
+        as wood; Gemma reads the machining marks correctly and it never fired): a description
+        that names a material is kept as the model wrote it.
     """
 
-    out, records = Reporting.Substitute_Substance('A wooden block with a cardboard edge.')
-    assert out == 'A metal block with a metal edge.'
-    assert len(records) == 2 and all(level == 'info' for level, message in records)
-
-    # No substring damage: 'plywood' contains 'wood' but is not the word 'wood'.
-    out, records = Reporting.Substitute_Substance('The plywood sheet is thick.')
-    assert out == 'The plywood sheet is thick.'
-    assert records == []
-
+    det = _Detection('block', detail='A wooden block with a cardboard edge.')
+    assert Reporting.Object_Description(det) == 'A wooden block with a cardboard edge.'
+    assert not hasattr(Reporting, 'Substitute_Substance')
 
 def _Line(sentence: str, label: str = 'object') -> Detection_Str:
     """
