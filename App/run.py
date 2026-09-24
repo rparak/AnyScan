@@ -41,8 +41,8 @@ if CONST_SRC not in sys.path:
 #   ../Camera/Core
 from Camera.Core import File_Camera_Cls, Basler_Camera_Cls
 #   ../Configuration/Core — the one configuration layer
-from Configuration.Core import (Load_Configuration, Configuration_Error_Cls, Config_Loaded_Log_Line,
-                                Config_Sources_Log_Line, CONST_DEFAULT_CONFIG_FILE)
+from Configuration.Core import (Load_Configuration, Configuration_Error_Cls, Config_Offered_Log_Line,
+                                CONST_DEFAULT_CONFIG_FILE)
 # Custom Lib.: AnyScan UI — style helpers and the main window
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
@@ -51,8 +51,6 @@ from UI.Core import AnyScan_Window_Cls
 # Custom Lib.: AnyScan — the session logger
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
-#   ../Vision/Utilities/Measure — the scale's configuration-loaded line
-from Vision.Utilities.Measure import Scale_Log_Line
 
 # The Windows AppUserModelID: without it the taskbar groups the app under
 # python.exe's identity, so the title bar shows the AnyScan icon while the taskbar
@@ -150,16 +148,10 @@ def main() -> int:
         print('[ERROR] %s' % error)
         print('[ERROR] Fix the file, or start with --config pointing at a valid configuration.')
         return 1
-    logger.Log_Info("Startup configuration: '%s'. Its models load on the Configuration dialog's "
-                    'Load or at the first CONNECT.' % configuration.Name)
-    # When someone later asks why there is no OK/NOK in the UI, this line is the answer.
-    logger.Log_Info(Config_Loaded_Log_Line(configuration))
-    logger.Log_Info(Config_Sources_Log_Line(configuration))
-    # No factor means no measurement (logged as a warning), never a size from a default.
-    level, line = Scale_Log_Line(configuration.Name, configuration.Scale)
-    (logger.Log_Warning if level == 'WARNING' else logger.Log_Info)(line)
-    for level, note in configuration.Notes:
-        (logger.Log_Warning if level == 'WARNING' else logger.Log_Info)(note)
+    # The file was READ, to know it is usable and what to offer — nothing is loaded yet. Its
+    # calibration, reference, classification and scale are logged when it is loaded (the window,
+    # on the dialog's Load), so the log never says more than has happened.
+    logger.Log_Info(Config_Offered_Log_Line(configuration))
 
     # A File_Camera_Cls (developer --frame) or the real Basler_Camera_Cls.
     camera = File_Camera_Cls(os.path.abspath(args.frame)) if args.frame else Basler_Camera_Cls()

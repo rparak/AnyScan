@@ -664,6 +664,25 @@ def Hardware_Record(Configuration_Str: Configuration_Str) -> tp.Dict[str, str]:
             'lighting': camera.Lighting}
 
 
+def Config_Offered_Log_Line(Configuration_Str: Configuration_Str) -> str:
+    """
+    Description:
+        The startup line: which configuration the application found and will offer — and only
+        that. At startup the file has been READ (to know it is usable and what to call it), not
+        LOADED: its calibration, reference, classification and scale are logged when it is loaded
+        (Config_Loaded_Log_Line and the lines beside it), so the log never claims more than happened.
+
+    Args:
+        (1) Configuration_Str [Configuration_Str(object)]: The configuration read at startup.
+
+    Returns:
+        (1) parameter [string]: The log line.
+    """
+
+    return ("Configuration found: '%s' (%s). It is offered in the Configuration dialog; nothing is "
+            'loaded until it is loaded there.' % (Configuration_Str.Identity.Display_Name, Configuration_Str.Name))
+
+
 def Config_Loaded_Log_Line(Configuration_Str: Configuration_Str) -> str:
     """
     Description:

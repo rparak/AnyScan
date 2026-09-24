@@ -416,7 +416,7 @@ class AnyScan_Window_Cls(QMainWindow):
         pill_row.setContentsMargins(12, 0, 12, 0)
         pill_row.setSpacing(7)
         pill_row.addWidget(Icon_Cls('cube', 15, Style.CONST_INK_MUTE))
-        self.__label_model_name = QLabel(self.__vision.Name)
+        self.__label_model_name = QLabel(Style.CONST_NO_VALUE)
         self.__label_model_name.setFont(Font(9, QFont.DemiBold))
         self.__label_model_name.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
         pill_row.addWidget(self.__label_model_name)
@@ -738,6 +738,10 @@ class AnyScan_Window_Cls(QMainWindow):
                                                Style.CONST_CONTROL_BORDER, 'dashed', Style.CONST_INK_MUTE)
         self.__label_models_state.setText(text)
         self.__label_models_state.setStyleSheet('color: %s;' % color)
+        # The model set is named only once a configuration is in force: before that the name would
+        # come from a configuration that is merely offered, so the pill shows the no-value dash.
+        loaded = self.__vision.Models_Loaded and not self.__configuration_loading
+        self.__label_model_name.setText(self.__vision.Name if loaded else Style.CONST_NO_VALUE)
         self.__label_model_name.setStyleSheet('color: %s;' % name)
         self.__pill_model.setStyleSheet('#modelPill { border: 1px %s %s; border-radius: 15px; background: %s; }'
                                         % (line, border, Style.CONST_CARD))
@@ -1604,7 +1608,6 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__scale = Configuration_Str.Scale
         self.__camera.Set_Configuration(Configuration_Str.Camera, Configuration_Str.Name,
                                         os.path.basename(Configuration_Str.Calibration_Path))
-        self.__label_model_name.setText(self.__vision.Name)
         self.__object_list.Set_Thresholds(Configuration_Str.Confidence)
         self.__trends_view.Set_Configuration(Configuration_Str.Classification_Enabled,
                                              Configuration_Str.Confidence)

@@ -212,20 +212,23 @@ def test_a_run_starts_named_but_not_loaded_and_connect_waits_for_the_configurati
                                                                                     configurations) -> None:
     """
     Description:
-        At launch the configuration is named but not loaded: the header says so and CONNECT is
-        disabled — its tooltip says why, and a press on it is logged as a refusal. Loading the
-        configuration in the dialog makes CONNECT available and the header says it is loaded.
+        At launch the configuration is named but not loaded: the header says so — with a dash where
+        the model set goes, since no configuration is in force to name one — and CONNECT is
+        disabled; its tooltip says why, and a press on it is logged as a refusal. Loading the
+        configuration makes CONNECT available and the header names the model set.
     """
 
     window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(loaded=False))
     connect = _Private(window, '__button_connect')
     assert _Private(window, '__label_models_state').text().endswith('Configuration not loaded.')
+    assert _Private(window, '__label_model_name').text() == '—'
     assert not connect.isEnabled() and connect.toolTip() == 'Load a configuration first.'
     _Press(connect)
 
     _Load_Through_Dialog(window, configurations['seg'])
     assert connect.isEnabled() and connect.toolTip() == ''
     assert _Private(window, '__label_models_state').text().endswith('Configuration loaded.')
+    assert _Private(window, '__label_model_name').text() == 'JIC_AnyScan_All_v1'
     logger.Close()
     assert 'CONNECT refused: no configuration is loaded' in _Log_Text(logger)
 
@@ -298,14 +301,14 @@ def test_an_empty_directory_says_so_where_the_list_would_be(qt_app, tmp_path, mo
     dialog.reject()
 
 
-def test_loading_runs_off_the_gui_thread_then_confirms_what_was_loaded_and_closes(qt_app, tmp_path,
-                                                                                 configurations) -> None:
+def test_loading_runs_off_the_gui_thread_then_confirms_and_stays_open(qt_app, tmp_path, configurations) -> None:
     """
     Description:
         Load runs on a WORKER thread: the event loop keeps turning, 'Loading configuration…' and the
         progress show, the controls are locked and the dialog refuses to close. It then confirms in
         a sentence built from the configuration — the model set, camera, lens and lighting, nothing
-        about model files, load time or task — moves the marker, and closes itself.
+        about model files, load time or task — moves the marker, and STAYS OPEN, so the sentence can
+        be read: LOAD has nothing left to do until another configuration is selected.
     """
 
     vision = _Fake_Vision_Cls(delay=0.3)
@@ -336,9 +339,13 @@ def test_loading_runs_off_the_gui_thread_then_confirms_what_was_loaded_and_close
     assert sentence == CONST_SENTENCE
     listed = dialog.findChild(QListWidget)
     assert listed.currentItem().text() == 'Cfg. Box Prompts' and listed.currentItem().font().bold()
-    assert not buttons['LOAD'].isEnabled()
-    _Pump_Until(lambda: not dialog.isVisible(), timeout=5)
-    assert not dialog.isVisible()                                     # closed itself
+    assert not buttons['LOAD'].isEnabled() and buttons['CLOSE'].isEnabled()
+    _Pump_Until(lambda: False, timeout=2.5)
+    assert dialog.isVisible()                                         # no auto-close
+    dialog.Select(configurations['seg'])
+    assert buttons['LOAD'].isEnabled()                                # another one: something to do
+    dialog.reject()
+    assert not dialog.isVisible()
 
 
 def test_a_failed_load_says_so_and_the_previous_configuration_stays(qt_app, tmp_path, configurations) -> None:
@@ -412,10 +419,10 @@ def test_the_window_dims_behind_the_dialog_and_the_dim_lifts_on_every_close(qt_a
                                                                             configurations) -> None:
     """
     Description:
-        The window is dimmed while the dialog is open, and the dim lifts however it closes: CLOSE,
-        and Load's own close after a successful load. A close attempted mid-load is refused, so the
-        dim cannot be left behind by a dialog dismissed while loading — it lifts when the dialog
-        closes itself after the load.
+        The window is dimmed while the dialog is open, and the dim lifts however it closes: CLOSE
+        with nothing loaded, and CLOSE after a load. A close attempted mid-load is refused, so the dim
+        cannot be left behind by a dialog dismissed while loading. After the load and CLOSE the
+        sequence holds: the dim is gone, the header says loaded, CONNECT is available.
     """
 
     window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(delay=0.3))
@@ -423,14 +430,23 @@ def test_the_window_dims_behind_the_dialog_and_the_dim_lifts_on_every_close(qt_a
     assert _Dim_While_Open(window, lambda dialog: dialog.reject()) == [True]
     assert not _Private(window, '__scrim').isVisible()
 
+    refused_mid_load = []
+
     def _Load_Then_Try_To_Close(dialog):
         dialog.Select(configurations['box'])
         dialog.Load()
         dialog.reject()                                               # mid-load: refused
+        refused_mid_load.append(dialog.isVisible())
+        _Pump_Until(lambda: not dialog.Loading)
+        assert _Private(window, '__scrim').isVisible()                # still dimmed while it is read
+        dialog.reject()                                               # the deliberate CLOSE
 
     assert _Dim_While_Open(window, _Load_Then_Try_To_Close) == [True]
+    assert refused_mid_load == [True]
     assert not _Private(window, '__scrim').isVisible()
     assert _Private(window, '__config').Mode == 'Box'
+    assert _Private(window, '__label_models_state').text().endswith('Configuration loaded.')
+    assert _Private(window, '__button_connect').isEnabled()
     window.close()
     logger.Close()
 

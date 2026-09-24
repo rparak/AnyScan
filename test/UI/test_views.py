@@ -260,3 +260,39 @@ def test_config_loaded_log_line_carries_the_state() -> None:
         assert 'Seg_Anything' in line
     assert 'enabled' in on and 'OK/NOK' in on
     assert 'disabled' in off and 'detected objects only' in off
+
+
+def test_startup_names_the_configuration_it_offers_and_claims_nothing_loaded(tmp_path) -> None:
+    """
+    Description:
+        At startup the configuration file is READ, not loaded: the log names the configuration it
+        will offer and nothing more — no 'Loaded configuration', no calibration or reference line,
+        no classification state and no 'Measuring objects' scale line, all of which describe a
+        configuration in force. The launcher itself is run (in a subprocess, offscreen, quitting at
+        once) so this is the log the application really writes.
+    """
+
+    import subprocess
+    import sys
+    import glob as _glob
+    project = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+    driver = (
+        "import os, sys, functools\n"
+        "os.environ['QT_QPA_PLATFORM'] = 'offscreen'\n"
+        "sys.path.insert(0, %r); sys.path.insert(0, %r)\n"
+        "import run\n"
+        "from PyQt5.QtCore import QTimer\n"
+        "from PyQt5.QtWidgets import QApplication\n"
+        "run.Session_Logger_Cls = functools.partial(run.Session_Logger_Cls, log_dir=%r, install_handlers=False)\n"
+        "original = QApplication.exec_\n"
+        "QApplication.exec_ = lambda self: (QTimer.singleShot(200, self.quit), original())[1]\n"
+        "sys.argv = ['run.py']\n"
+        "sys.exit(run.main())\n") % (os.path.join(project, 'App'), os.path.join(project, 'src'), str(tmp_path))
+    result = subprocess.run([sys.executable, '-c', driver], capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr[-2000:]
+    (log_path,) = _glob.glob(os.path.join(str(tmp_path), '*.txt'))
+    log = open(log_path, encoding='utf-8').read()
+    assert "Configuration found: 'Cfg. Segment Anything' (%s)" % CONST_CONFIGURATION.Name in log
+    for claim in ('Loaded configuration', 'reads calibration', 'Classification is', 'Measuring objects',
+                  'will not be measured'):
+        assert claim not in log, claim

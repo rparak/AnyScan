@@ -105,9 +105,9 @@ Description:
   # Defaults: 0.0 and 256
   Temperature: 0.0
   Max_Tokens: 256
-  # The reference is centre-cropped by this fraction per side before the background is
-  # described, keeping the frame-edge vignette out. Tuned for Florence-2, not yet re-measured
-  # for Gemma. Default: 0.12
+  # The empty reference is centre-cropped inward by this fraction per side before the one
+  # background sentence is described, keeping the frame-edge vignette out. It does not affect
+  # the object crops. Default: 0.12
   Background_Crop_Margin: 0.12
   # The background sentence is replaced by a neutral one when it runs past these limits.
   # Defaults: 20 and 1

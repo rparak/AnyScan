@@ -26,7 +26,7 @@ import os
 # Typing (Support for type hints)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import Qt, QThread, QTimer, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, QSize, pyqtSignal
 from PyQt5.QtGui import QFont, QCloseEvent, QColor, QIcon, QPainter, QPixmap
 from PyQt5.QtWidgets import (QDialog, QWidget, QLabel, QListWidget, QListWidgetItem, QProgressBar,
                              QVBoxLayout, QHBoxLayout, QLayout)
@@ -53,10 +53,6 @@ Description:
 #   Unit [int] (px)
 CONST_DIALOG_WIDTH = 520
 CONST_DIALOG_MARGIN = 24
-# How long the success confirmation stays before the dialog closes itself — long enough to read
-# its two sentences.
-#   Unit [int] (ms)
-CONST_CONFIRM_MS = 1800
 # The list marker's size: a filled dot marks the configuration in force. The list shows up to
 # CONST_LIST_ROWS rows before it scrolls.
 #   Unit [int] (px) / [int]
@@ -95,8 +91,9 @@ class Configuration_Dialog_Cls(QDialog):
         The Configuration dialog: the usable configurations found in Configuration/, listed by
         their display name with the one in force marked, and Load. Loading validates the chosen
         file as a whole, then loads it on a worker thread (Model_Load_Worker_Cls: ~9 s) with the
-        progress showing. On success it confirms what was loaded, in a sentence, and closes; on
-        failure it says what was wrong and the previous configuration stays in force. The words
+        progress showing. On success it confirms what was loaded, in a sentence, and stays open
+        until the operator closes it — the confirmation is there to be read; on failure it says
+        what was wrong and the previous configuration stays in force. The words
         are the operator's — a configuration is loaded; its models are how — and model files, load
         times and the task go to the log. A file that cannot be loaded is not listed; it is logged
         at WARNING with the reason, so a corrupt file is told apart from a missing one.
@@ -217,6 +214,12 @@ class Configuration_Dialog_Cls(QDialog):
         self.__progress.setRange(0, 0)                   # indeterminate: the load reports steps, not %
         self.__progress.setTextVisible(False)
         self.__progress.setFixedHeight(6)
+        # From the palette like every other control: the divider tone for the track, the brand ink
+        # for the moving bar — not the platform's default blue.
+        self.__progress.setStyleSheet(
+            'QProgressBar { border: none; border-radius: 3px; background: %s; }'
+            'QProgressBar::chunk { border-radius: 3px; background: %s; }'
+            % (Style.CONST_LINE, Style.CONST_INK))
         self.__progress.hide()
         box.addWidget(self.__progress)
         self.__label_stage = QLabel()
@@ -251,7 +254,7 @@ class Configuration_Dialog_Cls(QDialog):
         self.__button_load.clicked.connect(self.Load)
         self.__button_close.clicked.connect(self.reject)
         self.__list.itemDoubleClicked.connect(lambda _item: self.Load())
-        self.__list.currentItemChanged.connect(lambda *_args: self.__label_result.hide())
+        self.__list.currentItemChanged.connect(lambda *_args: self.__On_Selection_Changed())
 
     def __Populate(self, log: bool = True) -> None:
         """
@@ -298,7 +301,7 @@ class Configuration_Dialog_Cls(QDialog):
         choosable = any(config.Hardware == self.__config.Hardware for _path, config in usable)
         self.__list.setVisible(bool(usable))
         self.__label_empty.setVisible(not choosable)
-        self.__button_load.setEnabled(choosable)
+        self.__Sync_Load()
         if not choosable:
             self.__label_empty.setText('No usable configuration for this camera in %s. Nothing can be '
                                        'loaded, so CONNECT stays unavailable. Add a valid configuration '
@@ -307,6 +310,29 @@ class Configuration_Dialog_Cls(QDialog):
             self.__Fit(self.__label_empty)
         rows = max(1, min(self.__list.count(), CONST_LIST_ROWS))
         self.__list.setFixedHeight(rows * max(self.__list.sizeHintForRow(0), 1) + 2 * self.__list.frameWidth() + 10)
+
+    def __On_Selection_Changed(self) -> None:
+        """
+        Description:
+            A new selection clears the last result and re-decides whether LOAD has anything to do.
+        """
+
+        self.__label_result.hide()
+        self.__Sync_Load()
+
+    def __Sync_Load(self) -> None:
+        """
+        Description:
+            LOAD is available when it would change something: a selected configuration other than
+            the one in force, or the one in force while it is not loaded. Right after a successful
+            load the one in force is selected and loaded, so there is nothing to do but close.
+        """
+
+        item = self.__list.currentItem()
+        chosen = item is not None and bool(item.flags() & Qt.ItemIsEnabled) and not self.Loading
+        in_force_loaded = (item is not None and os.path.abspath(item.data(Qt.UserRole)) == self.__config.Path
+                           and self.__vision.Models_Loaded)
+        self.__button_load.setEnabled(chosen and not in_force_loaded)
 
     def __Fit(self, label: QLabel) -> None:
         """
@@ -351,8 +377,12 @@ class Configuration_Dialog_Cls(QDialog):
 
         self.__progress.setVisible(busy)
         self.__label_stage.setVisible(busy)
-        for widget in (self.__list, self.__button_load, self.__button_close):
+        for widget in (self.__list, self.__button_close):
             widget.setEnabled(not busy)
+        if busy:
+            self.__button_load.setEnabled(False)
+        else:
+            self.__Sync_Load()
 
     def Select(self, path: str) -> None:
         """
@@ -421,7 +451,8 @@ class Configuration_Dialog_Cls(QDialog):
     def __On_Load_Finished(self, seconds: float) -> None:
         """
         Description:
-            The configuration is loaded: say what it is, in a sentence, then close.
+            The configuration is loaded: say what it is, in a sentence, and stay open — the
+            operator closes the dialog when they have read it.
 
         Args:
             (1) seconds [float]: How long the load took (passed on for the log).
@@ -431,11 +462,9 @@ class Configuration_Dialog_Cls(QDialog):
         self.__thread = self.__worker = None
         self.__Set_Busy(False)
         self.__config = candidate
-        self.__Populate(log=False)                        # the marker moves to the new one
-        self.__button_load.setEnabled(False)              # nothing to do while it closes itself
-        self.__Show_Result('Configuration loaded. %s' % Describe_Configuration(candidate), ok=True)
         self.Configuration_Loaded.emit(candidate, seconds)
-        QTimer.singleShot(CONST_CONFIRM_MS, self.accept)
+        self.__Populate(log=False)                        # the marker moves; LOAD has nothing to do
+        self.__Show_Result('Configuration loaded. %s' % Describe_Configuration(candidate), ok=True)
 
     def __On_Load_Failed(self, message: str) -> None:
         """

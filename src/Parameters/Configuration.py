@@ -118,9 +118,10 @@ class Description_Parameters_Str:
     #   Unit [float] / [int]
     Temperature: float = 0.0
     Max_Tokens: int = 256
-    # The reference is centre-cropped by this margin (fraction per side) before the background
-    # is described, so the frame-edge vignette stays out of it. Tuned for Florence-2 and not
-    # re-measured for Gemma — it is here so that can be tested by editing a file.
+    # The empty reference is centre-cropped INWARD by this margin (fraction per side) before the
+    # background sentence is described, so the frame-edge vignette stays out of it. It touches
+    # only that one sentence — not the object crops (their padding is Enhancement's
+    # CONST_ENHANCE_CROP_PAD_FRAC).
     #   Unit [float] (fraction per side)
     Background_Crop_Margin: float = 0.12
     # The background sentence is replaced by a neutral one when it runs past these limits.
