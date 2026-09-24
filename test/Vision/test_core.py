@@ -35,7 +35,7 @@ from Parameters.Vision import Analysis_Str
 """
 Description:
     Tests for the vision backend. The interface, the constants and the Qt-freeness
-    are checked without the model. The full Analyze path needs the Florence-2
+    are checked without the model. The full Analyze path needs the FastSAM and Gemma
     weights, so it is marked `slow` and skipped by default (and skips anyway when
     the weights are not present).
 """
@@ -66,7 +66,7 @@ def test_config_paths_point_where_expected() -> None:
     from Camera.Utilities.Configuration import CONST_DESCRIBER_PROMPTS_FILE
     assert Vision_Core.CONST_DESCRIBER == 'gemma'
     assert Describers.CONST_GEMMA_MODEL_DIR.endswith(os.path.join('models', 'gemma-4-e4b-it-4bit'))
-    assert Describers.CONST_FLORENCE_MODEL_DIR.endswith(os.path.join('models', 'florence2-large-ft'))
+    assert set(Describers.CONST_DESCRIBERS) == {'gemma'}
     assert CONST_DESCRIBER_PROMPTS_FILE.endswith(os.path.join('Configuration', 'Describer_Prompts.yaml'))
     assert Vision_Core.CONST_BACKGROUND_REF.endswith(
         os.path.join('Data', 'Camera', 'Image_Background_001.png'))

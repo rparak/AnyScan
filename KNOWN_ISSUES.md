@@ -55,8 +55,9 @@ driver's style, not the RP assert-inside-try-then-report pattern, and a bare
 ## `Verdict`'s confidence branch is dormant by design
 
 `Reporting.Core.Verdict` degrades the operator badge to `'Low confidence' / 'warn'`
-when any detection's `Confidence` is below its threshold (0.35). Florence-2 emits
-no score, so `Confidence` is `None` and that branch never fires. The FastSAM
+when any detection's `Confidence` is below its threshold (0.35). The describer (Gemma,
+like Florence-2 before it) emits no score, so `Confidence` is `None` and that branch never
+fires. The FastSAM
 pipeline does not wire it up either: the segmenter's score is stored in the
 **separate** `Detection_Str.Segmenter_Score`, and `Confidence` stays `None`.
 

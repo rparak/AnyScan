@@ -38,7 +38,7 @@ Description:
     Shared fixtures for the pipeline integration tests. The path and image fixtures
     come from the top-level test/conftest.py; this adds the hermetic fake vision
     backend used to exercise the camera -> vision -> reporting seams without the
-    Florence-2 weights.
+    model weights.
 """
 
 

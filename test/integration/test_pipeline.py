@@ -44,8 +44,8 @@ Description:
     End-to-end pipeline integration tests: acquire a frame -> detect -> describe ->
     compose the report, exercising the modules together across their seams. The
     default test is hermetic (a File_Camera_Cls source and a fake backend, no camera
-    and no weights). A second test runs the same flow through the real Florence-2 on
-    the CPU whenever the weights exist, and warns loudly (never fails) when they do
+    and no weights). A second test runs the same flow through the real FastSAM (on the
+    CPU) and Gemma whenever the weights exist, and warns loudly (never fails) when they do
     not, so the real path is covered by default without breaking a fresh clone.
 """
 
@@ -95,7 +95,7 @@ def _Warn_Weights_Absent(request) -> None:
         (1) request [pytest.FixtureRequest(object)]: The request, for the terminal reporter.
     """
 
-    message = ('MODEL WEIGHTS ABSENT: the real FastSAM + Florence-2 vision path was NOT '
+    message = ('MODEL WEIGHTS ABSENT: the real FastSAM + Gemma vision path was NOT '
                'verified. Download them (see README > Setup), then re-run `pytest` to cover Analyze().')
     warnings.warn(UserWarning(message))
     reporter = request.config.pluginmanager.getplugin('terminalreporter')
@@ -107,17 +107,15 @@ def _Warn_Weights_Absent(request) -> None:
         reporter.write_sep('!', red=True, bold=True)
 
 
-@pytest.mark.parametrize('describer', ['gemma', 'florence'])
 def test_pipeline_real_describer_smoke(request, reference_background, make_synthetic_frame,
-                                       monkeypatch, describer) -> None:
+                                       monkeypatch) -> None:
     """
     Description:
         The real four-stage vision path — background subtraction -> FastSAM
         segmentation -> fusion -> description -> compose — through the real
-        Florence_Vision_Cls on a synthetic two-rectangle frame, once per describer while
-        both are reachable. FastSAM (and Florence) are forced onto the CPU so it is
-        portable; Gemma runs on MLX's Metal GPU, the only place it runs. It runs in the
-        DEFAULT suite whenever the FastSAM weights and that describer's weights exist; when
+        pipeline on a synthetic two-rectangle frame. FastSAM is forced onto the CPU so it
+        is portable; Gemma runs on MLX's Metal GPU, the only place it runs. It runs in the
+        DEFAULT suite whenever the FastSAM and Gemma weights exist; when
         either is absent it warns loudly and passes, so a fresh clone is never broken
         before the weights are downloaded.
 
@@ -127,14 +125,11 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
     """
 
     import Vision.Describers as Describers
-    model_dir = {'gemma': Describers.CONST_GEMMA_MODEL_DIR,
-                 'florence': Describers.CONST_FLORENCE_MODEL_DIR}[describer]
-    if not (os.path.isdir(model_dir) and os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS)):
+    if not (os.path.isdir(Describers.CONST_GEMMA_MODEL_DIR)
+            and os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS)):
         _Warn_Weights_Absent(request)
         return
 
-    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', describer)
-    monkeypatch.setattr(Describers, 'CONST_FLORENCE_DEVICE', 'cpu')
     monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
 
     # OpenCV library for computer vision tasks [pip3 install opencv-python]
@@ -155,7 +150,7 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
         assert x + bw <= w and y + bh <= h
         # A described object always has a sentence; its exact words are not asserted.
         assert obj.Sentence
-    assert result.Task == Describers.CONST_DESCRIBERS[describer].Task_Label
+    assert result.Task == Describers.Gemma_Describer_Cls.Task_Label
     assert result.Latency_Ms >= 0
 
 

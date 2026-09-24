@@ -35,7 +35,7 @@
   <title
      id="title2">AnyScan-VLM architecture</title>
   <desc
-     id="desc4">How AnyScan-VLM works, top to bottom: a Basler camera and a reference background feed a vision pipeline combining OpenCV background subtraction, FastSAM segmentation, OpenCV mask filtering and the Florence-2 VLM description; the result is composed into a report and shown in the PyQt5 console.</desc>
+     id="desc4">How AnyScan-VLM works, top to bottom: a Basler camera and a reference background feed a vision pipeline combining OpenCV background subtraction, FastSAM segmentation, OpenCV mask filtering and the Gemma 4 VLM description; the result is composed into a report and shown in the PyQt5 console.</desc>
   <defs
      id="defs11">
     <style
@@ -183,7 +183,7 @@
      fill="#94a3b8"
      id="text45"
      transform="scale(0.93575112,1.0686602)"
-     style="stroke-width:0.935751">OpenCV + FastSAM + Florence-2 VLM</text>
+     style="stroke-width:0.935751">OpenCV + FastSAM + Gemma 4 VLM</text>
   <!-- step 1 -->
   <g
      id="g61">
@@ -410,7 +410,7 @@
        class="m"
        font-size="11"
        fill="#D6006E"
-       id="text107">Florence-2 VLM</text>
+       id="text107">Gemma 4 VLM</text>
   </g>
   <!-- Report -->
   <g

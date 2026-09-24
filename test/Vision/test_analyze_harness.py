@@ -69,13 +69,13 @@ def test_stamp_line_carries_timestamp_and_frame_fingerprint(tmp_path) -> None:
     """
 
     scene = tmp_path / 'Image_001.png'; scene.write_bytes(b'scene-bytes')
-    stamp = analyze._Stamp_Line('Image_001', str(scene), '2026-09-16T17:00:00', 'refhash0001', 'florence')
+    stamp = analyze._Stamp_Line('Image_001', str(scene), '2026-09-16T17:00:00', 'refhash0001', 'gemma')
 
     assert '2026-09-16T17:00:00' in stamp
     assert 'Image_001' in stamp
     assert analyze._Fingerprint(str(scene)) in stamp
     assert 'refhash0001' in stamp
-    assert 'florence' in stamp
+    assert 'gemma' in stamp
 
 
 def test_stamp_image_appends_a_visible_footer_band() -> None:
@@ -104,13 +104,13 @@ def test_descriptions_file_opens_with_the_provenance_stamp(tmp_path) -> None:
 
     result = types.SimpleNamespace(Objects=[], Background='A plain green surface.')
     # __file__ is a readable file to fingerprint; the stamp's exact frame does not matter here.
-    stamp = analyze._Stamp_Line('Image_001', __file__, '2026-09-16T17:00:00', 'refhash0001', 'florence')
+    stamp = analyze._Stamp_Line('Image_001', __file__, '2026-09-16T17:00:00', 'refhash0001', 'gemma')
     path = tmp_path / 'Image_001_descriptions.txt'
     analyze._Write_Descriptions(str(path), result, stamp)
 
     lines = path.read_text().splitlines()
     assert lines[0].startswith('# ')
-    assert '2026-09-16T17:00:00' in lines[0] and 'florence' in lines[0]
+    assert '2026-09-16T17:00:00' in lines[0] and 'gemma' in lines[0]
     assert len(lines) > 1                                  # the reading follows the stamp
 
 

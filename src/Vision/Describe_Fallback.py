@@ -32,7 +32,7 @@ Description:
     the mask and crop and writes a plain label and sentence, with no VLM. It is a
     real, config-selectable backend (CONST_DESCRIBER == 'fallback'), not a test
     stub — it lets stages 1-3 run and be judged end to end without loading
-    Florence-2, and it stands in when the weights are absent.
+    a model, and it stands in when the weights are absent.
 
     Colour is a per-pixel MAJORITY VOTE over the masked pixels, classified in HSV.
     The vote is deliberate, not an average: OpenCV hue wraps at 0/180, and red sits at

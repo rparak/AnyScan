@@ -6,8 +6,8 @@
 #     source .venv/bin/activate      # Windows: .venv\Scripts\activate
 #     pip install -r requirements.txt
 #
-# Python 3.9-3.12 (transformers >= 4.56 needs 3.9+); developed and characterized
-# on 3.10. Version floors below match the imports actually used across App/,
+# Python 3.10-3.12; developed and characterized on 3.10 (macOS on Apple silicon,
+# for the MLX describer). Version floors below match the imports actually used across App/,
 # src/ and Example/ — loosen only if a wheel is unavailable for your platform.
 
 # ---- UI --------------------------------------------------------------------
@@ -19,7 +19,7 @@ PyQt5>=5.15
 opencv-python>=4.10
 # numpy floor is 2.2, not 1.26: ultralytics' default dependency resolution otherwise
 # drags numpy down to 1.x (and opencv-python with it), which the rest of the
-# environment (torch, transformers) was reconciled against at 2.x. Install
+# environment (torch, mlx-vlm) was reconciled against at 2.x. Install
 # ultralytics WITH this pin held — `pip install -r requirements.txt` does that.
 numpy>=2.2
 Pillow>=10.0
@@ -27,14 +27,6 @@ Pillow>=10.0
 # Configuration/*.yaml by Camera.Utilities.Configuration.
 PyYAML>=6.0
 pypylon>=3.0          # only needed for the live camera; --frame runs without it
-
-# ---- the local Florence-2 model (FlorenceVision) --------------------------
-# transformers >= 4.56 ships the native Florence2ForConditionalGeneration class
-# these weights use — no trust_remote_code, no bundled modelling code.
-torch>=2.3
-transformers>=4.56
-einops>=0.8
-timm>=1.0
 
 # ---- the local Gemma 4 describer (models/gemma-4-e4b-it-4bit) --------------
 # An MLX conversion, run on Apple's Metal GPU through MLX — not PyTorch/MPS. MLX exists
@@ -49,11 +41,14 @@ mlx-vlm==0.7.2 ; sys_platform == "darwin" and platform_machine == "arm64"
 # ---- FastSAM instance segmentation (stage 2 of the vision pipeline) --------
 # The bboxes= box-prompt keyword arrived in 8.2; the default everything-mode needs
 # nothing special. Pulls matplotlib transitively, so the Segmenter module imports
-# ultralytics lazily to keep the Qt-free domain import clean.
+# ultralytics lazily to keep the Qt-free domain import clean. torch is declared
+# because the Segmenter imports it directly (device selection), not only through
+# ultralytics.
+torch>=2.3
 ultralytics>=8.2
 
 # ---- tests -----------------------------------------------------------------
 # The unit suite under test/ and the Example/Vision characterization harness.
-# Both run without camera hardware and without the Florence-2 weights; tests
+# Both run without camera hardware and without the model weights; tests
 # that genuinely need the weights are marked `slow` and skipped by default.
 pytest>=7.0

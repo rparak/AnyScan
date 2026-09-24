@@ -730,7 +730,7 @@ def test_parse_line_round_trips_real_lines(tmp_path: tp.Any) -> None:
 def test_parse_line_never_mis_splits_hostile_messages() -> None:
     """
     Description:
-        The seed file holds text the application does not control — Florence captions, driver
+        The seed file holds text the application does not control — model descriptions, driver
         error strings, file paths, audit lines quoting arbitrary caption text. Parse_Line must
         never mis-split any of it. A real line's fields survive even when the MESSAGE contains
         the delimiters or a level-shaped token; anything that is not a real line (no timestamp,

@@ -800,3 +800,28 @@ the line (lead-in peeled, capitalisation and stop applied), and `Compose` return
 records. The characterization baseline does not move.
 Test `test/Reporting/test_core.py::test_the_models_words_are_not_rewritten`.
 
+
+## Florence-2 is removed; Gemma is the only describer
+
+After the seven-frame comparison (both models on the same crops, the same pipeline, each in its own
+process) Gemma was kept: warm, after load, 2.22 s per object against Florence's 1.12 s — the
+nine-object `Image_001` 20.6 s against 11.1 s (the 18 s once quoted for Florence included its
+load) — for descriptions that do not invent "green lights", "black screws" or "artwork", never
+mention the table, and read machining marks as machining marks. Both models were deterministic
+word for word (same process, across processes, and with both resident at a 12.9 GB peak). Both miss
+the hex nuts (KNOWN_ISSUES).
+
+Removed with it: `Florence_Describer_Cls` and its constants, the Florence caption pass
+(`Caption.Describe` — `Vision/Utilities/Caption.py` now holds only the label distiller), the
+`florence` choice of `CONST_DESCRIBER` and of `analyze.py --describer` (the flag is gone; `--device`
+now sets FastSAM's device only), the Florence smoke test, and `transformers` / `einops` / `timm`
+from `requirements.txt` (nothing of ours imports them; `mlx-vlm` declares its own `transformers`;
+`torch` stays, declared under FastSAM, whose segmenter imports it). The README, `models/.gitkeep`,
+`.gitignore`, `pytest.ini` and the architecture diagram now name Gemma, with its fetch command and
+its licence. `models/florence2-large-ft/` on disk is unused and can be deleted.
+
+**Kept on purpose:** capture sets written by Florence keep `task: detailed caption` (History shows
+each set's own value); the caption lead-ins (`CONST_LABEL_LEADINS`, Florence's template phrasing),
+which Gemma's text never triggers but the label distiller and the characterization baseline still
+exercise. The crop margin's comment now says it was measured to ground Florence better and has not
+been re-measured for Gemma. The characterization baseline does not move.

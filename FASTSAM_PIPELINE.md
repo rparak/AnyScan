@@ -1,5 +1,8 @@
 # FastSAM pipeline — branch summary
 
+> Historical record of the FastSAM branch. The describer it mentions (Florence-2) was later
+> replaced by Gemma 4 E4B — see `docs/design-decisions.md`.
+
 Review summary for `feat/fastsam-pipeline` (off `style/role-migration`). What
 changed, what is tested, what is tuned only against synthetic data, and what needs
 a real capture before this is trustworthy on the shop floor.

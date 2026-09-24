@@ -44,7 +44,7 @@ Description:
         Qt-free separation test does — pulls no heavy runtime and no Qt backend.
 """
 # The local FastSAM weights. Resolved from this file's location the same way the
-# Florence-2 weights are (src/Vision -> ../../models/...), never a hub id, so there
+# describer's weights are (src/Vision -> ../../models/...), never a hub id, so there
 # is no network fetch at runtime.
 CONST_SEGMENTER_WEIGHTS = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',

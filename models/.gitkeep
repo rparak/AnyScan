@@ -1,33 +1,38 @@
-Florence-2 model weights — not tracked in git (see .gitignore).
+Gemma 4 describer weights — not tracked in git (see .gitignore)
+=================================================================
 
-The application loads the local vision-language model from:
+The vision pipeline's describer (stage 4) loads the local vision-language model from:
 
-    models/florence2-large-ft/
+    models/gemma-4-e4b-it-4bit/
 
-Expected contents: a standard Hugging Face model directory (config.json,
-model.safetensors, tokenizer / processor files, etc.).
+Expected contents: an MLX model directory (config.json, generation_config.json,
+processor_config.json, chat_template.jinja, tokenizer.json, model.safetensors and
+model.safetensors.index.json), about 4.8 GB. It runs through MLX / mlx-vlm on Apple
+silicon (see requirements.txt).
 
 Upstream source
 ---------------
-Microsoft Florence-2 (large, fine-tuned), MIT licensed:
+Google Gemma 4 E4B, instruction-tuned (google/gemma-4-E4B-it), converted to 4-bit MLX
+by mlx-community:
 
-    https://huggingface.co/microsoft/Florence-2-large-ft
+    https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit
 
-The app presents it to the operator as "JIC-AnyScan-VLM-v1"; the weights are
-unmodified Florence-2 (see App/run.py, MODEL_NAME / MODEL_DIR).
+LICENCE: the weights are governed by the Gemma Terms of Use
+(https://ai.google.dev/gemma/terms) and its Prohibited Use Policy — NOT the MIT licence
+of this repository's code. They are not redistributable under the repository's licence;
+anyone shipping them must pass on Google's terms. The app presents the model to the
+operator as "JIC-AnyScan-v1" (see src/Vision/Core.py, CONST_MODEL_NAME, and
+src/Vision/Describers.py, CONST_GEMMA_MODEL_DIR).
 
 How to fetch
 ------------
 Using the Hugging Face CLI (pip install -U "huggingface_hub[cli]"):
 
-    huggingface-cli download microsoft/Florence-2-large-ft \
-        --local-dir models/florence2-large-ft
+    huggingface-cli download mlx-community/gemma-4-e4b-it-4bit \
+        --local-dir models/gemma-4-e4b-it-4bit
 
-Or with git-lfs:
-
-    git lfs install
-    git clone https://huggingface.co/microsoft/Florence-2-large-ft \
-        models/florence2-large-ft
+(models/florence2-large-ft/, the previous describer, is no longer used and can be
+deleted.)
 
 
 FastSAM instance-segmentation weights — not tracked in git
@@ -55,5 +60,5 @@ Let ultralytics resolve and download the correct release, then move it into plac
     mkdir -p models/sam-1 && mv FastSAM-x.pt models/sam-1/
 
 The pipeline resolves this path from Vision/Segmenter.py the same way the
-Florence-2 path is resolved (CONST_SEGMENTER_WEIGHTS); override it per run with
+describer's path is resolved (CONST_SEGMENTER_WEIGHTS); override it per run with
 Example/Vision/analyze.py --weights.

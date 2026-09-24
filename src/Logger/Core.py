@@ -168,8 +168,8 @@ def Parse_Line(line: str) -> Log_Line_Str:
         '<date> <time> [LEVEL  ] message' shape __Write_Line produces. It lives beside that one
         formatter so the format and its inverse cannot drift, and it is the ONLY parser: it is
         used solely to SEED the view from the file (the live path is handed the fields directly
-        and never parses), and the file holds text the application does not control — Florence
-        captions, driver error strings, file paths, audit lines quoting arbitrary caption text.
+        and never parses), and the file holds text the application does not control — model
+        descriptions, driver error strings, file paths, audit lines quoting arbitrary caption text.
 
         So it never guesses: a bracketed field is treated as a level ONLY when it is a real
         level (CONST_LEVELS) AND the text before it is timestamp-shaped. Anything else — a

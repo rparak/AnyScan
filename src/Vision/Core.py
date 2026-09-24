@@ -66,7 +66,7 @@ Description:
         (3) fusion                   Vision.Utilities.Fusion.Fuse_Objects
                                          -> FastSAM union OR background mask, split
                                             into the objects, left to right
-        (4) description              Vision.Describers (Gemma / Florence) or
+        (4) description              Vision.Describers (Gemma) or
                                      Vision.Describe_Fallback.Describe_Fallback
                                          -> a label + sentence per object, from the
                                             alpha/beta-enhanced padded crop
@@ -83,9 +83,8 @@ Description:
 
     Note:
         This module is Qt-free. Analyze accepts an RGB image as a NumPy array; the
-        UI owns the QImage <-> array conversion. The describer's runtime (MLX for Gemma,
-        torch/transformers for Florence) and OpenCV are imported lazily on the first
-        Analyze, so importing this module (as App/run.py does at load time) pulls no
+        UI owns the QImage <-> array conversion. The describer's runtime (MLX) and
+        OpenCV are imported lazily on the first Analyze, so importing this module (as App/run.py does at load time) pulls no
         heavy runtime.
 """
 # The empty-surface reference photo. Segmentation is the difference between the
@@ -107,15 +106,15 @@ CONST_FALLBACK_TASK_LABEL = 'model-free description'
 CONST_BG_CROP_MARGIN = 0.12
 
 # Who writes each object's description (Vision.Describers.CONST_DESCRIBERS): 'gemma' is the
-# Gemma 4 vision-language model, prompted; 'florence' is Florence-2, kept reachable so both can
-# run over the same frames; 'fallback' is the model-free describer (size / position / aspect /
-# solidity / HSV colour), which lets stages 1-3 run and be judged without loading a model.
+# Gemma 4 vision-language model, prompted; 'fallback' is the model-free describer (size /
+# position / aspect / solidity / HSV colour), which lets stages 1-3 run and be judged without
+# loading a model (the weight-free tests use it).
 CONST_DESCRIBER = 'gemma'
 
 # The model name presented to the operator. The describer's weights carry their own licence,
 # which is NOT the repository's MIT licence: Gemma is under the Gemma Terms of Use
 # (https://ai.google.dev/gemma/terms) and is not redistributable under this repository's
-# licence; Florence-2 is MIT (keep Microsoft's notice). See Vision.Describers.
+# licence. See Vision.Describers.
 CONST_MODEL_NAME = 'JIC-AnyScan-v1'
 
 
@@ -178,10 +177,9 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
     """
     Description:
         The vision backend. It orchestrates the four-stage pipeline and owns the stage-4
-        describer (Vision.Describers: Gemma by default, Florence-2 reachable, or the
-        model-free fallback); the model is presented as JIC-AnyScan-v1. The describer's
-        weights carry their own licence (see CONST_MODEL_NAME). The class keeps its
-        historical name until the Florence path is removed.
+        describer (Vision.Describers: Gemma, or the model-free fallback); the model is
+        presented as JIC-AnyScan-v1. The describer's weights carry their own licence (see
+        CONST_MODEL_NAME).
 
         Pipeline of Analyze(). Read top to bottom; each stage delegates to the
         module named at the right.
@@ -305,7 +303,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
 
         if CONST_DESCRIBER != self.__describer_name:
             if CONST_DESCRIBER != 'fallback' and CONST_DESCRIBER not in CONST_DESCRIBERS:
-                raise Vision_Error_Cls('Unknown describer "%s": choose one of %s or fallback.'
+                raise Vision_Error_Cls('Unknown describer "%s": choose %s or fallback.'
                                        % (CONST_DESCRIBER, ', '.join(CONST_DESCRIBERS)))
             self.__describer = (None if CONST_DESCRIBER == 'fallback'
                                 else CONST_DESCRIBERS[CONST_DESCRIBER]())
@@ -359,8 +357,8 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             The one global background sentence, generated from the reference frame
             (not from any crop), so it is unaffected by what the model reads into
             individual object crops. The reference is centre-cropped (CONST_BG_CROP_MARGIN)
-            to skip the dark vignette and described for the background purpose (Florence's
-            concise <CAPTION>, Gemma's background prompt); Reporting.Background_Sentence
+            to skip the dark vignette and described for the background purpose (the
+            background prompt); Reporting.Background_Sentence
             cleans it and falls back to a neutral string (recording a warning) when it is
             empty, multi-sentence or too long.
 
@@ -470,7 +468,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             it holds one object plus the table and no neighbours, then it is contrast/
             brightness-stretched (the gain/bias estimated from the object's own pixels,
             the surround blended most of the way back to natural) and fed to the
-            describer — Gemma, Florence-2 or the model-free fallback (CONST_DESCRIBER). The
+            describer — Gemma or the model-free fallback (CONST_DESCRIBER). The
             enhanced crop is retained on the object (Enhanced_Crop) so the debug montage
             shows exactly what the model received, without re-enhancing it.
 

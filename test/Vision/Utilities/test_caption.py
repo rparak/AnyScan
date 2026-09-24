@@ -21,7 +21,7 @@
 # File Name: ../test/Vision/Utilities/test_caption.py
 ## =========================================================================== ##
 
-# Custom Lib.: AnyScan domain — Florence-2 captioning
+# Custom Lib.: AnyScan domain — the label distiller
 #   ../Vision/Utilities/Caption
 import Vision.Utilities.Caption as Caption
 #   ../Reporting/Core
@@ -29,9 +29,8 @@ import Reporting.Core as Reporting
 
 """
 Description:
-    Tests for the label distiller. Condense_Label is pure text and is pinned here.
-    Describe is a thin wrapper around a Florence-2 generate() call — it needs the
-    weights, so it is exercised by the slow end-to-end path, not here.
+    Tests for the label distiller. Condense_Label is pure text and is pinned here, on
+    Florence-2's caption phrasing (the characterization baseline's) and Gemma's.
 """
 
 
@@ -121,9 +120,8 @@ def test_condense_label_known_leadin_ordering_quirk() -> None:
 def test_module_has_no_toplevel_heavy_import() -> None:
     """
     Description:
-        The module imports no Qt and no heavy runtime at load time — Describe
-        injects cv2/np/torch/PIL, and Condense_Label needs none of them. This is
-        what lets App/run.py import it without pulling the runtime.
+        The module imports no Qt and no heavy runtime at load time — Condense_Label is
+        pure text. This is what lets App/run.py import it without pulling the runtime.
     """
 
     source = open(Caption.__file__).read()

@@ -325,7 +325,7 @@ def test_background_sentence_validation() -> None:
     Description:
         The global background sentence keeps a single short caption but rejects an
         empty, multi-sentence or over-long one for the fixed neutral fallback, with a
-        warning — so a Florence ramble never becomes the first line of the output.
+        warning — so a rambling model answer never becomes the first line of the output.
     """
 
     # A clean single sentence is kept as-is, no warning.

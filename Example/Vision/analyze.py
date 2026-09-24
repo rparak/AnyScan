@@ -44,8 +44,6 @@ import typing as tp
 # Custom Lib.: AnyScan vision — the pipeline, its errors, and data-file discovery
 #   ../Vision/Core
 import Vision.Core as Vision_Core
-#   ../Vision/Describers
-import Vision.Describers as Vision_Describers
 from Vision.Core import Florence_Vision_Cls, Vision_Error_Cls
 #   ../Vision/Segmenter
 import Vision.Segmenter as Vision_Segmenter
@@ -197,7 +195,7 @@ def _Montage(enhanced_crops: tp.List[tp.Any], cols: int = 3) -> tp.Optional[tp.A
     Description:
         Tile the already-enhanced object crops into a single inspection image. This is
         PURE rendering: it tiles the crops the pipeline produced (Detection_Str.Enhanced_Crop)
-        and does not re-enhance them, so the montage shows exactly what Florence-2
+        and does not re-enhance them, so the montage shows exactly what the describer
         received. It is a debug view, off by default, and is not one of the three
         standard per-frame artefacts.
 
@@ -257,20 +255,17 @@ def _Configure(args: argparse.Namespace) -> None:
     """
     Description:
         Push the CLI options onto the pipeline's CONST_* configuration interface — the
-        device for FastSAM and Florence (Gemma runs on MLX's Metal GPU regardless), the
-        FastSAM weights, and the describer.
+        FastSAM device (Gemma runs on MLX's Metal GPU regardless), the FastSAM weights,
+        and the model-free describer.
 
     Args:
         (1) args [argparse.Namespace(object)]: The parsed arguments.
     """
 
     if args.device:
-        Vision_Describers.CONST_FLORENCE_DEVICE = args.device
         Vision_Segmenter.CONST_SEGMENTER_DEVICE = args.device
     if args.weights:
         Vision_Segmenter.CONST_SEGMENTER_WEIGHTS = os.path.abspath(args.weights)
-    if args.describer:
-        Vision_Core.CONST_DESCRIBER = args.describer
     if args.no_describe:
         Vision_Core.CONST_DESCRIBER = 'fallback'
 
@@ -314,7 +309,7 @@ def _Analyze_Frame(backend: Florence_Vision_Cls, scene_path: str, output_dir: st
         analysis, or None on a vision error (already reported through a banner).
 
         The descriptions file is skipped under the fallback describer: its placeholder
-        captions are not the real reading, and silently overwriting a Florence
+        captions are not the real reading, and silently overwriting a model-written
         *_descriptions.txt with them is how a stale artefact ends up looking finished.
 
     Args:
@@ -378,10 +373,7 @@ def main() -> int:
     parser.add_argument('--background', default=None, help='explicit reference filename (overrides the highest-index rule)')
     parser.add_argument('--weights', default=None, help='FastSAM weights path (overrides the default)')
     parser.add_argument('--device', default=None,
-                        help="compute device for FastSAM and Florence: 'cpu', 'cuda', 'mps' or 'auto'")
-    parser.add_argument('--describer', default=None, choices=sorted(Vision_Describers.CONST_DESCRIBERS),
-                        help="which model describes the objects (default: the application's, %s)"
-                             % Vision_Core.CONST_DESCRIBER)
+                        help="compute device for FastSAM: 'cpu', 'cuda', 'mps' or 'auto'")
     parser.add_argument('--no-describe', action='store_true',
                         help='use the model-free fallback describer (no VLM); does NOT write descriptions files')
     parser.add_argument('--montage', action='store_true', help='also write the enhanced-crop debug montage (off by default)')

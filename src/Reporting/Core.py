@@ -73,9 +73,10 @@ CONST_EMPTY_SCENE_EXPLANATION = (
     'Either nothing is on the surface, or the model did not recognise what is there'
 )
 
-# The Florence caption template lead-ins, peeled from the front of a caption to
-# expose the description (Caption_Sentence) and the noun phrase (the label
-# distiller in ../Vision/Utilities/Caption, which imports this). Every granular
+# Caption template lead-ins, peeled from the front of a caption to expose the
+# description (Caption_Sentence) and the noun phrase (the label distiller in
+# ../Vision/Utilities/Caption, which imports this). They are Florence-2's template
+# phrasing ('In this image we can see a …'); Gemma's descriptions carry none of them. Every granular
 # piece must appear — 'in this image we can see a bolt' peels as 'in this image'
 # + 'we can see' + the article. Longest variants first, only as a readability aid.
 # The strings are kept verbatim; their exact content is behaviour.
@@ -144,10 +145,9 @@ CONST_LABEL_MAX_WORDS = 4
 # globally, by the describer's background prompt (Screen_Header).
 
 # ---- The global background sentence -------------------------------------------- #
-# The background is captioned with Florence's concise <CAPTION> task (not the
-# paragraph <MORE_DETAILED_CAPTION> the objects use): on a plain surface the detailed
-# task has nothing to work with and confabulates. Even <CAPTION> can misfire, so a
-# caption that is empty, runs to more than one sentence, or exceeds this many words is
+# The background is described once, from the reference, by the describer's background
+# prompt (one short sentence naming the surface). A model can still misfire, so a
+# sentence that is empty, runs to more than one sentence, or exceeds this many words is
 # rejected for a fixed neutral string rather than written into the file as a ramble.
 CONST_BACKGROUND_MAX_WORDS = 20
 CONST_BACKGROUND_FALLBACK = 'The background is a plain surface.'
@@ -232,9 +232,9 @@ def Clean_Detail(text: str) -> str:
 def Caption_Sentence(caption: str) -> str:
     """
     Description:
-        The model's full caption as a clean, standalone description. Florence
-        prefixes a fixed template ('In this image we can see a ...'); those
-        lead-ins are peeled from the front so the description reads naturally, then
+        The model's full caption as a clean, standalone description. Any caption
+        template lead-in ('In this image we can see a ...') is peeled from the front
+        so the description reads naturally, then
         Clean_Detail imposes the console's capitalisation and terminal stop. This
         is where the panel's one voice is put on the model's raw words.
 
@@ -286,8 +286,8 @@ def Object_Description(det: Detection_Str) -> str:
 def Background_Sentence(caption: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
     """
     Description:
-        The one global background sentence, from the reference caption. Florence's
-        concise <CAPTION> is expected to return a single short sentence; a caption that
+        The one global background sentence, from the reference caption. The background
+        prompt asks for a single short sentence; a caption that
         is empty, multi-sentence, or longer than CONST_BACKGROUND_MAX_WORDS is rejected
         for the fixed neutral CONST_BACKGROUND_FALLBACK and a warning is recorded,
         rather than writing a paragraph of confabulation as the first line.

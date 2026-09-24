@@ -70,8 +70,8 @@ for _path in CONST_IMPORT_PATHS:
 def pytest_addoption(parser: pytest.Parser) -> None:
     """
     Description:
-        Register the --runslow flag. Tests that genuinely need the Florence-2
-        weights (or other heavy runtime) are marked `slow` and skipped unless it
+        Register the --runslow flag. Tests that genuinely need the model weights
+        (FastSAM, Gemma) or other heavy runtime are marked `slow` and skipped unless it
         is given, so the default run needs no camera and no model.
 
     Args:
@@ -92,7 +92,8 @@ def pytest_configure(config: pytest.Config) -> None:
         (1) config [pytest.Config(object)]: The active pytest configuration.
     """
 
-    config.addinivalue_line('markers', 'slow: needs the Florence-2 weights; skipped unless --runslow.')
+    config.addinivalue_line('markers', 'slow: needs the model weights (FastSAM, Gemma) or other heavy runtime; '
+                            'skipped unless --runslow.')
 
 
 # << PYTEST HOOK >> #

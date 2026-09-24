@@ -34,7 +34,7 @@ from Vision.Describe_Fallback import Describe_Fallback
 """
 Description:
     Tests for the model-free fallback describer. Pure cv2/np on synthetic crops, so
-    no FastSAM and no Florence-2 weights are needed — this is the describer that lets
+    no FastSAM and no Gemma weights are needed — this is the describer that lets
     stages 1-3 run without a VLM. The colour tests pin the HSV classification.
 """
 

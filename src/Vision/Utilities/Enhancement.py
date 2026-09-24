@@ -30,7 +30,7 @@ Description:
 
     Stage 4 crop preparation: take the padded crop of an object and stretch its
     contrast/brightness before the describer sees it, so a washed-out part on the
-    green surface exposes its surface detail, edges and true colour to Florence-2.
+    green surface exposes its surface detail, edges and true colour to the describer.
 
     The stretch is deliberately asymmetric: the gain/bias (alpha/beta) are estimated
     from the OBJECT's own pixels only (a masked sample), so the uniform surround does
@@ -50,8 +50,8 @@ Description:
 CONST_ENHANCE_CLIP_LIMIT = 1.0
 
 # Padded-crop margin as a fraction of the object's longer side. The object keeps a
-# margin of its natural surroundings, which grounds Florence-2 better than a part cut
-# out onto a blank canvas.
+# margin of its natural surroundings, which grounded Florence-2 (the previous describer)
+# better than a part cut out onto a blank canvas; not re-measured for Gemma.
 CONST_ENHANCE_CROP_PAD_FRAC = 0.2
 
 # The largest gain the stretch may apply. A very dark part gives a tiny histogram

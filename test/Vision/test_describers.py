@@ -31,7 +31,7 @@ import pytest
 # Custom Lib.: AnyScan — the describers, the configuration layer and the pipeline
 #   ../Vision/Describers
 import Vision.Describers as Describers
-from Vision.Describers import (Gemma_Describer_Cls, Florence_Describer_Cls, Describer_Error_Cls,
+from Vision.Describers import (Gemma_Describer_Cls, Describer_Error_Cls,
                                CONST_PURPOSE_OBJECT, CONST_PURPOSE_BACKGROUND)
 #   ../Camera/Utilities/Configuration
 from Camera.Utilities.Configuration import Read_Describer_Prompts, CONST_DESCRIBER_PROMPTS_FILE
@@ -43,7 +43,7 @@ from Vision.Core import Florence_Vision_Cls, Vision_Error_Cls
 Description:
     The describer seam without weights: what Gemma is sent (the prompts from their data file,
     greedy decoding, thinking off, the crop as RGB), what fails loudly (no prompts, no MLX, no
-    weights), Florence's purpose-to-task-token mapping, and the pipeline's describer switch. A
+    weights), and the pipeline's describer switch. A
     stand-in mlx_vlm module records every call; nothing loads a model.
 """
 
@@ -147,31 +147,15 @@ def test_prompts_reader_has_no_default_wording(tmp_path) -> None:
     assert Read_Describer_Prompts(str(tmp_path / 'none.yaml')) is None
 
 
-def test_florence_maps_each_purpose_to_its_task_token(monkeypatch) -> None:
-    """
-    Description:
-        Florence is driven by task tokens, not prompts: the object purpose is the detailed
-        caption, the background purpose the concise one — the seam keeps both out of the
-        pipeline.
-    """
-
-    tasks = []
-    monkeypatch.setattr(Describers, 'Describe', lambda *args, task: tasks.append(task) or 'x')
-    describer = Florence_Describer_Cls()
-    describer.Describe(None, CONST_PURPOSE_OBJECT)
-    describer.Describe(None, CONST_PURPOSE_BACKGROUND)
-    assert tasks == ['<MORE_DETAILED_CAPTION>', '<CAPTION>']
-
-
 def test_each_describer_names_its_own_task() -> None:
     """
     Description:
         The Task row and each capture set's 'task' record what produced the reading: Gemma
-        'part inspection', Florence 'detailed caption', the model-free fallback its own.
+        'part inspection', the model-free fallback its own. (Older sets written by Florence-2
+        keep their 'detailed caption'.)
     """
 
     assert Gemma_Describer_Cls.Task_Label == 'part inspection'
-    assert Florence_Describer_Cls.Task_Label == 'detailed caption'
     assert Vision_Core.CONST_FALLBACK_TASK_LABEL == 'model-free description'
 
 
@@ -183,5 +167,5 @@ def test_an_unknown_describer_fails_before_any_work(monkeypatch) -> None:
     """
 
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'llava')
-    with pytest.raises(Vision_Error_Cls, match='gemma, florence or fallback'):
+    with pytest.raises(Vision_Error_Cls, match='gemma or fallback'):
         Florence_Vision_Cls(scale=None).Analyze(np.zeros((4, 4, 3), np.uint8))

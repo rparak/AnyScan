@@ -25,29 +25,28 @@
 import os
 # Typing (Support for type hints)
 import typing as tp
-# Custom Lib.: AnyScan — the configuration layer (the Gemma prompts) and Florence's caption pass
+# Custom Lib.: AnyScan — the configuration layer (the Gemma prompts)
 #   ../Camera/Utilities/Configuration
 from Camera.Utilities.Configuration import Read_Describer_Prompts, CONST_DESCRIBER_PROMPTS_FILE
-#   ../Vision/Utilities/Caption
-from Vision.Utilities.Caption import Describe
 
 """
 Description:
     Initialization of constants.
 
-    Stage 4's describers: the model that writes an object's description and the one background
-    sentence. Every describer answers the same call — Describe(crop, purpose) with purpose
-    'object' or 'background' — and maps the purpose to its own input: Florence-2 to a task
-    token, Gemma to a prompt. The pipeline (Vision.Core) never sees a token or a prompt, so it
-    reads the same whichever model runs. Each describer loads its runtime lazily (Load), so
-    importing this module pulls no heavy library.
+    Stage 4's describer: the model that writes an object's description and the one background
+    sentence. A describer answers one call — Describe(crop, purpose) with purpose 'object' or
+    'background' — and maps the purpose to its own input (Gemma: a prompt from the prompts file).
+    The pipeline (Vision.Core) never sees a prompt, so a future model plugs in behind the same
+    interface. The describer loads its runtime lazily (Load), so importing this module pulls no
+    heavy library. (Florence-2, the previous describer, was removed after the comparison over the
+    seven Data/Camera frames — docs/design-decisions.md.)
 """
 # The two things a describer is asked to describe.
 #   Unit [string]
 CONST_PURPOSE_OBJECT = 'object'
 CONST_PURPOSE_BACKGROUND = 'background'
 
-# ---- Gemma 4 (the default describer) ---------------------------------------- #
+# ---- Gemma 4 ------------------------------------------------------------------ #
 # The local Gemma 4 E4B instruction-tuned weights, an MLX 4-bit conversion
 # (mlx-community/gemma-4-e4b-it-4bit, from google/gemma-4-E4B-it revision fee6332), run on the
 # Metal GPU through MLX / mlx-vlm. Loaded from this directory only, never a hub id.
@@ -70,22 +69,6 @@ CONST_GEMMA_MAX_TOKENS = 256
 # Gemma 4's thinking mode stays off: the answer, not a reasoning trace, is the description.
 #   Unit [bool]
 CONST_GEMMA_THINKING = False
-
-# ---- Florence-2 (kept reachable for the comparison; CONST_DESCRIBER = 'florence') ---- #
-# The local Florence-2 weights (MIT licensed — keep Microsoft's notice with the project),
-# loaded with local_files_only, never a hub id.
-CONST_FLORENCE_MODEL_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',
-                 'models', 'florence2-large-ft'))
-# Florence's task token per purpose: the detailed paragraph per object, the concise caption
-# for the background (on a plain surface the detailed task confabulates).
-#   Unit [Dict<string, string>]
-CONST_FLORENCE_TASKS = {CONST_PURPOSE_OBJECT: '<MORE_DETAILED_CAPTION>',
-                        CONST_PURPOSE_BACKGROUND: '<CAPTION>'}
-# Torch device: 'auto' picks cuda, then mps, then cpu. float32 is deliberate — fp16 on
-# Apple's MPS backend is unreliable for this model.
-CONST_FLORENCE_DEVICE = 'auto'
-
 
 class Describer_Error_Cls(RuntimeError):
     """
@@ -269,123 +252,7 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
         return result.text.strip()
 
 
-class Florence_Describer_Cls(Describer_Backend_Cls):
-    """
-    Description:
-        Florence-2 (large, fine-tuned) driven by task tokens (CONST_FLORENCE_TASKS), run through
-        transformers on torch. Kept reachable (CONST_DESCRIBER = 'florence') so both models can
-        be run over the same frames; the caption pass itself is Vision.Utilities.Caption.Describe.
-
-    Initialization of the Class:
-        Args:
-            (1) model_dir [string or None]: The weights directory (None: CONST_FLORENCE_MODEL_DIR).
-
-        Example:
-            Initialization:
-                # Initialization of the class.
-                Cls = Florence_Describer_Cls()
-    """
-
-    Name = 'florence2-large-ft'
-    Task_Label = 'detailed caption'
-
-    def __init__(self, model_dir: tp.Optional[str] = None) -> None:
-        # << PRIVATE >> #
-        self.__model_dir = model_dir or CONST_FLORENCE_MODEL_DIR
-        self.__model = None
-        self.__processor = None
-        self.__device = None
-        self.__dtype = None
-        self.__torch = None
-        self.__pil = None
-        self.__cv2 = None
-        self.__np = None
-
-    @property
-    def Loaded(self) -> bool:
-        """
-        Description:
-            Whether the model is loaded.
-
-        Returns:
-            (1) parameter [bool]: True once Load has succeeded.
-        """
-
-        return self.__model is not None
-
-    def __Pick_Device(self, torch: tp.Any) -> tp.Any:
-        """
-        Description:
-            Choose the torch device from CONST_FLORENCE_DEVICE ('auto' -> cuda, then mps, then cpu).
-
-        Args:
-            (1) torch [module]: The torch module.
-
-        Returns:
-            (1) parameter [torch.device]: The selected device.
-        """
-
-        if CONST_FLORENCE_DEVICE != 'auto':
-            return torch.device(CONST_FLORENCE_DEVICE)
-        if torch.cuda.is_available():
-            return torch.device('cuda')
-        if torch.backends.mps.is_available():
-            return torch.device('mps')
-        return torch.device('cpu')
-
-    def Load(self) -> None:
-        """
-        Description:
-            Import torch / transformers and load the native Florence2ForConditionalGeneration
-            weights (local_files_only, no trust_remote_code), once.
-        """
-
-        if self.__model is not None:
-            return
-        try:
-            import cv2
-            import numpy as np
-            import torch
-            from PIL import Image as PILImage
-            from transformers import AutoProcessor, Florence2ForConditionalGeneration
-        except ImportError as exc:
-            raise Describer_Error_Cls(
-                'The vision runtime is not installed. Install torch, transformers '
-                'and Pillow into this environment, then scan again.') from exc
-        device = self.__Pick_Device(torch)
-        dtype = torch.float32  # fp16 on MPS is unreliable for this model
-        try:
-            model = Florence2ForConditionalGeneration.from_pretrained(
-                self.__model_dir, dtype=dtype, local_files_only=True)
-            model.to(device)
-            model.eval()
-            processor = AutoProcessor.from_pretrained(self.__model_dir, local_files_only=True)
-        except Exception as exc:                          # noqa: BLE001
-            raise Describer_Error_Cls('The model weights at "%s" could not be loaded. Check that the '
-                                      'directory is complete and readable.' % self.__model_dir) from exc
-        self.__torch, self.__pil, self.__cv2, self.__np = torch, PILImage, cv2, np
-        self.__model, self.__processor = model, processor
-        self.__device, self.__dtype = device, dtype
-
-    def Describe(self, crop_bgr: tp.Any, purpose: str) -> str:
-        """
-        Description:
-            One Florence-2 caption pass with the purpose's task token.
-
-        Args:
-            (1) crop_bgr [Matrix<uint8> HxWx3]: The image (BGR).
-            (2) purpose [string]: CONST_PURPOSE_OBJECT or CONST_PURPOSE_BACKGROUND.
-
-        Returns:
-            (1) parameter [string]: The raw caption.
-        """
-
-        return Describe(self.__model, self.__processor, self.__device, self.__dtype, crop_bgr,
-                        self.__cv2, self.__np, self.__torch, self.__pil,
-                        task=CONST_FLORENCE_TASKS[purpose])
-
-
 # The describers by the name CONST_DESCRIBER selects them with ('fallback' is model-free and
 # lives in Vision.Describe_Fallback).
 #   Unit [Dict<string, class>]
-CONST_DESCRIBERS = {'gemma': Gemma_Describer_Cls, 'florence': Florence_Describer_Cls}
+CONST_DESCRIBERS = {'gemma': Gemma_Describer_Cls}

@@ -68,7 +68,7 @@ def Parse_Args(argv: tp.List[str]) -> argparse.Namespace:
     """
     Description:
         Parse the developer-only command line. Absent all flags, this is the
-        console: the Basler camera and the Florence-2 model.
+        console: the Basler camera and the Gemma describer.
 
     Args:
         (1) argv [Vector<string>]: The process argument vector (sys.argv).
@@ -79,7 +79,7 @@ def Parse_Args(argv: tp.List[str]) -> argparse.Namespace:
 
     ap = argparse.ArgumentParser(
         description='AnyScan console. With no arguments it runs the Basler camera '
-                    'and the Florence-2 model.')
+                    'and the Gemma describer.')
     ap.add_argument(
         '--frame', metavar='PNG', default=None,
         help='Developer path: run the pipeline on a real frame previously saved '
@@ -152,7 +152,7 @@ def main() -> int:
         The application is split into Qt-free domain modules under ../src (Camera,
         Vision, Reporting, Parameters) and the Qt UI under ../src/UI; this launcher
         only wires them together. The console runs on real hardware — a Basler
-        camera and the local Florence-2 model — but the window opens without either
+        camera and the local Gemma model — but the window opens without either
         present and reports a usable sentence when a real component is missing.
 
     Returns:

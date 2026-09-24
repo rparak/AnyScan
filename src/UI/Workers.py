@@ -38,7 +38,7 @@ Description:
 class Analysis_Worker_Cls(QObject):
     """
     Description:
-        Runs one analysis off the GUI thread. The Florence-2 pipeline takes seconds;
+        Runs one analysis off the GUI thread. The vision pipeline takes seconds;
         on the GUI thread it would freeze the window and the busy animation with it.
         Moved onto a QThread, it reports progress per crop and hands back the
         finished Analysis_Str — or a failure sentence — through queued signals. It
