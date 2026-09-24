@@ -243,6 +243,7 @@ CONST_FIELDS = (
     (('Description', 'Max_Tokens'), ('Description', 'Max_Tokens'), 'size', False),
     (('Description', 'Background_Crop_Margin'), ('Description', 'Background_Crop_Margin'),
      'margin', False),
+    (('Description', 'Object_Crop_Padding'), ('Description', 'Object_Crop_Padding'), 'nonnegative', False),
     (('Description', 'Background_Max_Words'), ('Description', 'Background_Max_Words'), 'size', False),
     (('Description', 'Background_Max_Sentences'), ('Description', 'Background_Max_Sentences'),
      'size', False),

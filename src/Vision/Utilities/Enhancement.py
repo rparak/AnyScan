@@ -49,10 +49,8 @@ Description:
 # specular highlight or dark speck does not flatten the whole stretch.
 CONST_ENHANCE_CLIP_LIMIT = 1.0
 
-# Padded-crop margin as a fraction of the object's longer side. The object keeps a
-# margin of its natural surroundings, which grounded Florence-2 (the previous describer)
-# better than a part cut out onto a blank canvas; not re-measured for Gemma.
-CONST_ENHANCE_CROP_PAD_FRAC = 0.2
+# The padded-crop margin is configuration (Description.Object_Crop_Padding): it is passed to
+# Padded_Bbox, never read from a constant here.
 
 # The largest gain the stretch may apply. A very dark part gives a tiny histogram
 # range and so an enormous gain (6-7x), which blows the object to a garish colour and
@@ -73,16 +71,18 @@ CONST_ENHANCE_SURROUND_BLEND = 0.0
 CONST_ENHANCE_NEIGHBOUR_DILATE = 11
 
 
-def Padded_Bbox(bbox: tp.Tuple[int, int, int, int],
-                frame_shape: tp.Tuple[int, int, int]) -> tp.Tuple[int, int, int, int]:
+def Padded_Bbox(bbox: tp.Tuple[int, int, int, int], frame_shape: tp.Tuple[int, int, int],
+                padding: float) -> tp.Tuple[int, int, int, int]:
     """
     Description:
-        Grow a tight (x, y, w, h) box by CONST_ENHANCE_CROP_PAD_FRAC of its longer
-        side, clamped to the frame — the box the crop is taken from.
+        Grow a tight (x, y, w, h) box by `padding` times its longer side, clamped to the
+        frame — the box the crop is taken from.
 
     Args:
         (1) bbox [Vector<int> 1x4]: The tight box as (x, y, w, h).
         (2) frame_shape [Tuple<int>]: The frame's (h, w, c) shape.
+        (3) padding [float]: The margin as a fraction of the box's longer side
+                             (Description.Object_Crop_Padding).
 
     Returns:
         (1) parameter [Vector<int> 1x4]: The padded box as (x, y, w, h).
@@ -90,7 +90,7 @@ def Padded_Bbox(bbox: tp.Tuple[int, int, int, int],
 
     x, y, bw, bh = bbox
     h, w = frame_shape[:2]
-    pad = int(CONST_ENHANCE_CROP_PAD_FRAC * max(bw, bh))
+    pad = int(padding * max(bw, bh))
     x1, y1 = max(0, x - pad), max(0, y - pad)
     x2, y2 = min(w, x + bw + pad), min(h, y + bh + pad)
     return (x1, y1, x2 - x1, y2 - y1)

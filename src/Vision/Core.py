@@ -671,7 +671,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             # object's mask is grown before subtracting, so its bright edge goes too.
             own = det.Mask.astype(bool)
             others = cv2.dilate((all_mask & ~own).astype(np.uint8), dilate_kernel).astype(bool) & ~own
-            padded = Padded_Bbox(det.Bbox, frame_bgr.shape)
+            padded = Padded_Bbox(det.Bbox, frame_bgr.shape, self.__config.Description.Object_Crop_Padding)
             mask_crop = Crop(det.Mask, padded)
             others_crop = Crop(others, padded)
             isolated = Isolate_Crop(Crop(frame_bgr, padded), Crop(bg_bgr, padded),

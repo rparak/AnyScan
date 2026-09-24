@@ -120,10 +120,15 @@ class Description_Parameters_Str:
     Max_Tokens: int = 256
     # The empty reference is centre-cropped INWARD by this margin (fraction per side) before the
     # background sentence is described, so the frame-edge vignette stays out of it. It touches
-    # only that one sentence — not the object crops (their padding is Enhancement's
-    # CONST_ENHANCE_CROP_PAD_FRAC).
+    # only that one sentence — not the object crops (their padding is Object_Crop_Padding).
     #   Unit [float] (fraction per side)
     Background_Crop_Margin: float = 0.12
+    # Each object's crop is padded outward by this fraction of its longer side before it is
+    # enhanced and described — context around the part, at the cost of pulling neighbours in
+    # (which is why the crop is isolated). Set when Florence-2 described a cut-out part poorly;
+    # measured for Gemma: see docs/design-decisions.md.
+    #   Unit [float] (fraction of the longer side)
+    Object_Crop_Padding: float = 0.20
     # The background sentence is replaced by a neutral one when it runs past these limits.
     #   Unit [int]
     Background_Max_Words: int = 20

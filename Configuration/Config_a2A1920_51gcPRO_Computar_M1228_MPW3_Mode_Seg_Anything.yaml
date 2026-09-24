@@ -109,6 +109,10 @@ Description:
   # background sentence is described, keeping the frame-edge vignette out. It does not affect
   # the object crops. Default: 0.12
   Background_Crop_Margin: 0.12
+  # Each object's crop is padded outward by this fraction of its longer side before it is
+  # described: context around the part, at the cost of pulling neighbours in (the crop is then
+  # isolated). Measured for Gemma: see docs/design-decisions.md. Default: 0.20
+  Object_Crop_Padding: 0.20
   # The background sentence is replaced by a neutral one when it runs past these limits.
   # Defaults: 20 and 1
   Background_Max_Words: 20

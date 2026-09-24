@@ -824,8 +824,9 @@ its licence. `models/florence2-large-ft/` on disk is unused and can be deleted.
 **Kept on purpose:** capture sets written by Florence keep `task: detailed caption` (History shows
 each set's own value); the caption lead-ins (`CONST_LABEL_LEADINS`, Florence's template phrasing),
 which Gemma's text never triggers but the label distiller and the characterization baseline still
-exercise. The crop margin's comment now says it was measured to ground Florence better and has not
-been re-measured for Gemma. The characterization baseline does not move.
+exercise. The object crop padding, set when Florence described a cut-out part poorly, has since
+been measured for Gemma (see *The object crop padding stays at 0.20 for Gemma*). The
+characterization baseline does not move.
 
 ## Consequence of Gemma via MLX: the application is supported on Apple-silicon macOS only
 
@@ -1067,3 +1068,52 @@ unchanged, and each set names its configuration.
 Revisit the startup-only rule if a configuration ever has to change mid-run (it would need
 per-configuration run data). Revisit the hardware greying if the CSV path is ever resolved at
 shutdown rather than at startup.
+
+## The object crop padding stays at 0.20 for Gemma
+
+**What it is.** `Description.Object_Crop_Padding` pads each object's crop outward by a fraction of
+its longer side before the crop is enhanced and described. It was set to 0.20 for Florence-2, which
+described a part cut out onto a blank canvas poorly. Padding has a cost: it pulls neighbouring
+objects into the crop, which is why the crop is isolated (neighbours replaced by the reference).
+
+It is **not** `Description.Background_Crop_Margin` (0.12). That one crops the empty reference
+*inward* for the one background sentence and never touches an object crop. The two were once
+conflated, and the Florence history belongs to the padding alone.
+
+**The measurement (2026-09-24).** All seven `Data/Camera` frames were run at paddings 0.00, 0.04,
+0.08, 0.12 and 0.20, through the application's pipeline. Each run used a copy of the shipped
+configuration with only this field changed, the same loaded models, greedy decoding and 15 objects
+per padding. A warm re-run of 0.00 and 0.20 reproduced all 45 descriptions word for word, so every
+difference between paddings is caused by the padding, not noise.
+
+- **Surface condition, which the prompt exists to catch.** Image_002's rust is plainly visible at
+  every padding, but Gemma names it ("brown, earthy-toned stains … in the upper section") only at
+  **0.20**. At 0.00–0.12 it reports "minor unevenness", "patina", "tarnish" or "signs of handling".
+  This is the decisive result, and it is also the frame the prompt's wording was tuned on, at 0.20:
+  the measurement may favour the incumbent value, but it cannot favour a smaller one.
+- **Shape.** The hex nut (Image_001 #7) reads as a circular washer or ring at 0.00 and 0.04, and as
+  polygonal from 0.08 ("outer hexagonal profile" at 0.12). That is the Florence failure mode — shape
+  misread without surroundings — in milder form. The other hex nut (#8) reads as circular at every
+  padding, so no padding fixes that one.
+- **Naming.** At 0.00 the bolt (#6) is "a metallic shaft", and "a bolt or screw" at 0.04 and above.
+  The washer (#3) is "light-coloured, possibly metallic" at 0.00, and silver or metallic above.
+  #2's label degrades to "at a central point" at 0.00, from how the description was phrased.
+- **Time: none saved.** Warm means were 2.42 s per object at 0.00 and 2.29 s at 0.20. Gemma scales
+  every crop to a fixed input size, so crop pixels do not reach the model's cost; the small
+  difference is most likely output length.
+- **Neighbours.** Across the seven frames only two crops ever take in a neighbour, both in Image_001:
+  the lattice bracket (#9) from 0.04 upward, reaching 4.7% of the crop at 0.20, and the bolt (#6) at
+  0.20 only (0.7%). Isolation replaces them, but not invisibly. Faint ghost outlines of the
+  neighbouring nuts and the terminal strip remain where the reference patch meets the real table.
+  No description mentions a neighbour at any padding.
+
+**Decision: keep 0.20.** A smaller padding saves no time, loses the rust on the one stained plate, and
+misreads a hexagon as a circle. Larger paddings were not measured; that would be the next question
+if one were asked.
+
+**Isolation stays.** At 0.20 it has neighbours to remove (#9, #6). Even at 0.00 the evidence could
+not retire it: six of the seven frames hold a single object, so Image_001 is the only frame that
+tests it. A part whose box is mostly table (the diagonal bracket) can take in a neighbour at any
+padding. Retiring isolation would need multi-object scenes to show that nothing intrudes. Its ghost
+outlines are a known imperfection: harmless in these runs, and worth revisiting (feathering the
+patch edge) if a description ever reports one.

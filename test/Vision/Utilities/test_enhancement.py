@@ -43,17 +43,15 @@ Description:
 def test_padded_bbox_grows_and_clamps() -> None:
     """
     Description:
-        Padded_Bbox grows a tight box by the crop-pad fraction of its longer side and
-        never runs past the frame edge.
+        Padded_Bbox grows a tight box by the configured padding (a fraction of its longer side)
+        and never runs past the frame edge; a padding of 0 is the tight box itself.
     """
 
-    padded = Enhancement.Padded_Bbox((100, 100, 40, 40), (480, 640, 3))
-    x, y, w, h = padded
-    assert x < 100 and y < 100          # grown outward
-    assert w > 40 and h > 40
+    assert Enhancement.Padded_Bbox((100, 100, 40, 20), (480, 640, 3), 0.20) == (92, 92, 56, 36)
+    assert Enhancement.Padded_Bbox((100, 100, 40, 20), (480, 640, 3), 0.0) == (100, 100, 40, 20)
 
     # A box already at the top-left corner cannot grow to a negative origin.
-    edge = Enhancement.Padded_Bbox((0, 0, 40, 40), (480, 640, 3))
+    edge = Enhancement.Padded_Bbox((0, 0, 40, 40), (480, 640, 3), 0.20)
     assert edge[0] == 0 and edge[1] == 0
 
 
