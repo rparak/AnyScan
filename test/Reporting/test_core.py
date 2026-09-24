@@ -102,9 +102,9 @@ def test_describe_object_detail_reading_and_fallback() -> None:
         falls back to 'A <label>.'.
     """
 
-    # The background phrase 'on a green surface' is stripped from the object line.
+    # The lead-in is peeled; nothing else is removed (there is no background strip).
     verbose = _Detection('hex bolt', detail='In this image we can see a hex bolt on a green surface.')
-    assert Reporting.Describe_Object(verbose, CONST_SIZE) == 'A hex bolt.'
+    assert Reporting.Describe_Object(verbose, CONST_SIZE) == 'A hex bolt on a green surface.'
 
     reading = _Detection('screw', detail='A close-up of a screw.', text='M6')
     assert Reporting.Describe_Object(reading, CONST_SIZE) == 'A screw, reading “M6”.'
@@ -128,7 +128,7 @@ def test_compose_sets_sentence_and_never_reorders() -> None:
     assert objects[0].Sentence == 'A metal washer.'
     assert objects[1].Sentence == 'A nut.'
     assert note == ''
-    assert audit == []                      # nothing stripped or substituted here
+    assert audit == []                      # nothing substituted here
 
 
 def test_scene_note_empty_scene_carries_caption_and_advice() -> None:
@@ -155,45 +155,21 @@ def test_module_is_qt_free() -> None:
     assert 'import torch' not in source
 
 
-def test_strip_background_noun_binding() -> None:
+def test_a_sentence_naming_the_surface_is_kept_whole() -> None:
     """
     Description:
-        The background rule is a noun-BINDING rule, not a word match. A STRONG
-        background noun (table, cloth, …) drops a sentence when bare; the WEAK
-        'surface' drops one only when bound to the background (a colour before it),
-        never standing alone or bound to the object. A trailing locative background
-        phrase is trimmed off an object sentence, and an all-background caption is
-        returned unchanged with a warning.
+        There is no background strip: a sentence that mentions the green surface is part of the
+        object's description and is kept word for word, with no audit record. This is the case
+        the strip got wrong — Gemma's description of the red block's holes, which it deleted
+        because the sentence named the surface showing through them.
     """
 
-    # Kept: 'surface' as object detail — bare, bound to the object by 'of', or possessive.
-    for keep in ('The surface of the plate is machined with concentric marks.',
-                 'The surface is shiny and reflective.',
-                 'The surface of the plate is machined.',
-                 'Its surface has concentric marks.',
-                 'A green plastic terminal block.'):
-        assert Reporting.Strip_Background(keep)[0] == keep, keep
-
-    # Trimmed: the trailing locative background phrase goes, the object stays.
-    assert Reporting.Strip_Background('A metal washer on a green surface.')[0] == 'A metal washer.'
-    assert Reporting.Strip_Background('A square shaped maze is on a red surface.')[0] == \
-        'A square shaped maze.'
-
-    # Dropped, with an object sentence kept alongside: a bare STRONG noun ('table'),
-    # a colour-bound weak 'surface', and the boundary sentence that names BOTH the
-    # background and the object but is still about the ground.
-    for drop in ('The surface of the table is smooth.',
-                 'The green surface is very smooth.',
-                 'The green table under the metal has a smooth surface.'):
-        kept, records = Reporting.Strip_Background('A metal washer. ' + drop)
-        assert kept == 'A metal washer.', drop
-        assert any(level == 'info' for level, message in records), drop
-
-    # Fallback: a caption that is ALL background returns unchanged, with a warning.
-    only_bg = 'The green table under the metal has a smooth surface.'
-    kept, records = Reporting.Strip_Background(only_bg)
-    assert kept == only_bg
-    assert any(level == 'warning' for level, message in records)
+    holes = ('It features two circular holes, one near the top and one near the bottom, each '
+             'appearing to have a passage allowing a view of a bright green surface through them.')
+    det = _Detection('part', detail='The object is a rectangular, flat part. ' + holes)
+    sentence, audit = Reporting.Object_Description(det)
+    assert sentence.endswith(holes) and audit == []
+    assert not hasattr(Reporting, 'Strip_Background')
 
 
 def test_substitute_substance_word_boundaries() -> None:

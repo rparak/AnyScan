@@ -156,6 +156,9 @@ Commit `5461678`; tests `test/UI/test_camera_view.py::test_a_new_scan_makes_the_
 
 ## `strip_background` binds `surface` to a background noun instead of matching the word
 
+**Superseded — the strip is removed** (see "The background strip is removed, not retuned"). Kept
+for the record of why it was built the way it was.
+
 The background-stripping deletes a sentence only when it is *about* the background —
 requiring a background noun (`background`, `backdrop`, `table`, `tablecloth`, `cloth`,
 `felt`, `mat`, `desk`, `floor`, `sheet`) or a colour bound to one — rather than deleting
@@ -707,3 +710,26 @@ decoding, thinking off, RGB input, loud failures, Florence's token mapping, the 
 `test/UI/test_history.py::test_each_set_shows_the_task_that_produced_it`,
 `test/integration/test_pipeline.py::test_pipeline_real_describer_smoke` (both describers, when their
 weights exist).
+
+## The background strip is removed, not retuned
+
+`Reporting.Strip_Background` deleted any object sentence that was *about* the background and
+trimmed trailing phrases like "on a green surface". It existed because Florence-2 wrote table
+sentences into object captions. Gemma, told to "describe only the part, not the surface it lies
+on", wrote **none** in the prompt trials. Its one mention of the surface was part of the object's
+own description — the red block's "two circular holes … each appearing to have a passage allowing
+a view of a bright green surface through them" — and the strip deleted that whole sentence,
+taking the holes with it. A safeguard with no job left and a real cost is removed, not retuned:
+the function, its noun lists, its patterns and its test are gone, and `Object_Description` now
+only peels a template lead-in and applies the substance substitution.
+
+- **Kept:** the substance substitution (wood / paper / cardboard → metal, every substitution
+  audited). It never fired on Gemma's text, but it is cheap and harmless; the seven-frame
+  comparison decides whether it stays. The background-sentence validator (one sentence, ≤ 20
+  words, else the neutral sentence) also stays.
+- **Consequence while Florence is reachable:** Florence's captions keep their table phrases
+  ("A hex bolt on a green surface."), which is what the comparison should see.
+Tests `test/Reporting/test_core.py::test_a_sentence_naming_the_surface_is_kept_whole`,
+`::test_describe_object_detail_reading_and_fallback`,
+`test/integration/test_pipeline.py::test_pipeline_camera_to_reporting`.
+

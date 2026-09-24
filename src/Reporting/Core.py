@@ -107,48 +107,14 @@ CONST_LABEL_BOUNDARIES = (
 # The most words the distilled label keeps.
 CONST_LABEL_MAX_WORDS = 4
 
-# ---- Background stripping (§ object lines never mention the background) --------- #
-# STRONG background nouns — unambiguously the ground. A bare one (not bound to an
-# object by 'of') makes a sentence about the background and drops it. A colour word is
-# NEVER the trigger: Florence misreads the green table as 'red' as readily as 'green'
-# (Image_006/007), so a colour match is worthless and the noun carries the load.
-CONST_BG_NOUNS_STRONG = ('background', 'backdrop', 'table', 'tablecloth', 'cloth',
-                         'felt', 'mat', 'desk', 'floor', 'sheet')
-
-# 'surface' is a WEAK background noun: it is as often the OBJECT's surface ('the
-# surface of the plate is machined', 'the surface is shiny and reflective') as the
-# ground's. It counts as background ONLY when BOUND to the background — a colour word
-# before it ('green surface') or a locative phrase ('on a surface', caught by the
-# trailing trim) — never standing alone or bound to the object. This is what keeps
-# object detail that merely says 'surface' while still dropping 'a green surface'.
-CONST_BG_SURFACE_COLOURS = ('green', 'red', 'teal', 'turquoise', 'blue', 'cyan',
-                            'grey', 'gray', 'brown', 'white', 'black', 'tan', 'olive')
-
-# A trailing locative background phrase: an optional linking verb / gerund, a
-# locative preposition, then a background noun (strong OR 'surface' — a trailing 'on
-# a … surface' is always the ground) to the end of the sentence. This is what turns
-# 'A metal washer on a green surface' into 'A metal washer'.
-_BG_ALL = '(?:%s)' % '|'.join(CONST_BG_NOUNS_STRONG + ('surface',))
-CONST_BG_TRAIL = re.compile(
-    r'\s*(?:\b(?:is|are|was|were|it\s+is)\b\s*)?'
-    r'(?:\b(?:sitting|lying|resting|laying|placed|standing|scattered|sits|lies|rests)\b\s*)?'
-    r'\b(?:on|in|against|over|upon|atop|inside|beneath|under)\b\s+'
-    r'[^.]*?\b(%s)\b[^.]*$' % _BG_ALL, re.IGNORECASE)
-
-# A bare STRONG background noun — one NOT bound to an object by a following 'of'
-# ('the surface of the table' still matches on 'table', which is not followed by 'of').
-CONST_BG_BARE = re.compile(
-    r'\b(%s)\b(?!\s+of\b)' % ('(?:%s)' % '|'.join(CONST_BG_NOUNS_STRONG)), re.IGNORECASE)
-
-# A colour-bound 'surface' (the weak noun in a background binding): a colour word,
-# optionally one word, then 'surface' — 'green surface', 'bright green surface'.
-CONST_BG_SURFACE = re.compile(
-    r'\b(?:%s)\b\s+(?:\w+\s+)?surface\b' % '|'.join(CONST_BG_SURFACE_COLOURS), re.IGNORECASE)
-
-# A connective the trailing-phrase trim can leave dangling at the end ('The ring is
-# shiny and' -> 'The ring is shiny'), peeled off after the trim.
-CONST_BG_DANGLE = re.compile(
-    r'[\s,]+(?:and|with|on|in|is|are|was|were|that|of|the|a|an|it|sitting)?\s*$', re.IGNORECASE)
+# ---- No background strip -------------------------------------------------------- #
+# Object descriptions are NOT stripped of the background any more. The strip existed because
+# Florence-2 wrote sentences about the table into object captions; the Gemma describer is told
+# to describe only the part and writes none. On Gemma's text the strip's only effect was harmful:
+# it deleted "…a passage allowing a view of a bright green surface through them" — the red
+# block's description of its own holes — because the sentence named the green surface. It was
+# removed rather than retuned (docs/design-decisions.md). The background is stated once,
+# globally, by the describer's background prompt (Screen_Header).
 
 # ---- Substance substitution (machined parts are never wood/paper) --------------- #
 # Florence occasionally reads the concentric machining marks as wood or the plate as
@@ -312,118 +278,14 @@ def Substitute_Substance(text: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]
     return CONST_SUBSTANCE_WORDS.sub(_Replace, text), records
 
 
-def __Background_Trigger(text: str) -> tp.Optional[str]:
-    """
-    Description:
-        The background noun that makes a sentence about the background, or None. A bare
-        STRONG background noun triggers it; the weak 'surface' triggers it only when
-        colour-bound ('green surface'), never standing alone — so 'the surface is
-        shiny' and 'the surface of the plate is machined' are kept while 'a green
-        surface' and 'the surface of the table' (the latter on its bare 'table') go.
-
-    Args:
-        (1) text [string]: The sentence (or its object-side remainder) to test.
-
-    Returns:
-        (1) parameter [string]: The matched background noun, or None.
-    """
-
-    strong = CONST_BG_BARE.search(text)
-    if strong:
-        return strong.group(1)
-    if CONST_BG_SURFACE.search(text):
-        return 'surface'
-    return None
-
-
-def __Strip_Sentence(core: str) -> tp.Tuple[tp.Optional[str], tp.Optional[str]]:
-    """
-    Description:
-        Decide one sentence's fate under the background rule. `core` is the sentence
-        without terminal punctuation. A trailing locative background phrase is trimmed
-        ('A washer on a green surface' -> 'A washer'); if what remains is still about
-        the background (see __Background_Trigger), the whole sentence is dropped. A
-        sentence with no background trigger is kept untouched.
-
-    Args:
-        (1) core [string]: One sentence, without its terminal punctuation.
-
-    Returns:
-        (1) parameter [Tuple]: (the kept text or None to drop, the matched background
-                               noun or None).
-    """
-
-    trail = CONST_BG_TRAIL.search(core)
-    if trail:
-        trimmed = core[:trail.start()].strip()
-        previous = None
-        while trimmed != previous:
-            previous = trimmed
-            trimmed = CONST_BG_DANGLE.sub('', trimmed).strip()
-        if (not trimmed) or __Background_Trigger(trimmed):
-            return None, trail.group(1)
-        return trimmed, trail.group(1)
-    trigger = __Background_Trigger(core)
-    if trigger:
-        return None, trigger
-    return core, None
-
-
-def Strip_Background(text: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
-    """
-    Description:
-        Remove the background from an object caption so the object is described on its
-        own — the background is stated once, globally (Screen_Understanding), never per
-        object. A sentence is dropped only when it is ABOUT the background (a bare
-        background noun), and a trailing locative background phrase is trimmed from an
-        otherwise-object sentence. If stripping would empty the caption, the original is
-        returned and a WARNING is recorded rather than leaving the object with no
-        description.
-
-        Every dropped sentence and trimmed phrase is returned with the background noun
-        that matched, so over-stripping surfaces in the audit log instead of silently.
-
-    Args:
-        (1) text [string]: The object caption (lead-ins already peeled).
-
-    Returns:
-        (1) parameter [Tuple]: (the cleaned caption, a Vector of (level, message)
-                               audit records).
-    """
-
-    kept, records = [], []
-    for sentence in re.split(r'(?<=[.!?])\s+', text.strip()):
-        core = sentence.strip()
-        if not core:
-            continue
-        core_np = core.rstrip('.!?').rstrip()
-        out, noun = __Strip_Sentence(core_np)
-        if out is None:
-            records.append(('info', "stripped background sentence (%s): '%s'" % (noun, core)))
-            continue
-        cleaned = out if out.endswith(('.', '!', '?')) else out + '.'
-        if out != core_np:
-            records.append(('info', "trimmed background phrase (%s): '%s' -> '%s'"
-                            % (noun, core, cleaned)))
-        kept.append(cleaned)
-
-    result = ' '.join(kept).strip()
-    if not result:
-        records.append(('warning', "kept the original caption unchanged; stripping the "
-                        "background would have left it empty: '%s'" % text.strip()))
-        return text.strip(), records
-    return result, records
-
-
 def Object_Description(det: Detection_Str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
     """
     Description:
-        The object's line and its audit trail. The model caption is peeled of the
-        Florence template (Caption_Sentence), its impossible substance guesses are
-        neutralised (Substitute_Substance), and the background is stripped
-        (Strip_Background) so the line describes the object alone. When no usable
-        caption remains, the short 'A <label>.' stands in; a reading, if any, is
-        appended.
+        The object's line and its audit trail. The model caption is peeled of any
+        template lead-in (Caption_Sentence) and its impossible substance guesses are
+        neutralised (Substitute_Substance). Nothing else is removed: the describer is
+        asked to describe only the part. When no usable caption remains, the short
+        'A <label>.' stands in; a reading, if any, is appended.
 
     Args:
         (1) det [Detection_Str(object)]: The detection to describe.
@@ -436,9 +298,7 @@ def Object_Description(det: Detection_Str) -> tp.Tuple[str, tp.List[tp.Tuple[str
     audit = []
     sentence = Caption_Sentence(det.Detail) if CONST_SHOW_OBJECT_DETAIL else ''
     if sentence:
-        sentence, subs = Substitute_Substance(sentence)
-        sentence, strips = Strip_Background(sentence)
-        audit = subs + strips
+        sentence, audit = Substitute_Substance(sentence)
     if not sentence:
         article = 'An' if det.Label[:1].lower() in 'aeiou' else 'A'
         sentence = '%s %s.' % (article, det.Label)
@@ -547,8 +407,8 @@ def Screen_Understanding(objects: tp.List[Detection_Str], background_sentence: s
         The Screen-Understanding text: the ONE rendering shared by the file the
         validation harness writes and the panel the application shows. The background
         is stated exactly once, on the first line, and that line carries the object
-        count; every line below describes an object alone (each det.Sentence was
-        already stripped of the background by Compose).
+        count; every line below describes an object alone (the describer is asked to
+        describe only the part; Compose writes each det.Sentence).
 
         The count is len(objects) — the same list used to number the lines, never
         recomputed — so the header and the lines cannot disagree. Singular and plural
@@ -710,8 +570,8 @@ def Object_Line(index: int, det: Detection_Str) -> str:
         One numbered object line ('Object N · Confidence … - <sentence>') for the
         descriptions file — the full label from Object_Label_Full joined to the
         description, so the file keeps its one-line form while the panel renders the same
-        label and description on two levels. The sentence is det.Sentence (already stripped
-        of the background by Compose).
+        label and description on two levels. The sentence is det.Sentence (written by
+        Compose).
 
     Args:
         (1) index [int]: The object's 0-based position in the list.
@@ -762,10 +622,9 @@ def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
     """
     Description:
         Write the line for every object (into det.Sentence) and return the objects
-        alongside the note and the post-processing audit. Each line is stripped of the
-        background and has its impossible substance guesses neutralised; the audit
-        records every strip and substitution, tagged with the object index, so nothing
-        the composer rewrote is silent. The objects are never reordered here — their
+        alongside the note and the post-processing audit. Each line has its impossible
+        substance guesses neutralised; the audit records every substitution, tagged with
+        the object index, so nothing the composer rewrote is silent. The objects are never reordered here — their
         order is the operator-visible index contract.
 
         The lead line is NOT built here: the view and the descriptions file both render
