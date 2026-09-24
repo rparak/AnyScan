@@ -390,3 +390,26 @@ see inside a hole … is the surface below showing through it") made it worse �
   comparison must not do. Revisit with a different input (e.g. a crop whose table is masked to a
   neutral colour) rather than more wording.
 
+## The description and the measurement can disagree in the same panel — and the numbers are right
+
+The describer guesses shape from the pixels of one small crop; the measurement computes it from the
+mask. Where they disagree, the measurement is right, and the panel shows both side by side:
+
+- **Hex nuts** (`Image_001` objects 7 and 8): Gemma calls them "a small, roughly octagonal metal
+  washer or flange" and "a circular metal washer or ring" (Florence-2 called them rings too). The
+  measurement identifies them correctly: the across-flats detection finds the silhouette's 60°
+  periodicity and reports `A/F 11.7 mm` / `A/F 11.5 mm`, not `Ø`. The geometry knows it is a hex
+  nut; the text says washer.
+- **The square plate in `Image_007`**: Gemma calls it "a rectangular, flat plate"; the measurement
+  is 48.1 × 46.9 mm, i.e. square. (It calls the other square plate, `Image_006`'s maze plate,
+  47.8 × 47.0 mm, "square".)
+
+Both models miss the nuts, so this is a limitation of describing a small crop, not something prompt
+wording will fix.
+
+- **Impact:** the object's text can misname its shape or kind while its size line is correct.
+  Trust the numbers.
+- **The likely fix, not built:** give the describer what the measurement already knows — e.g. the
+  measured shape class and dimensions in the prompt ("this part measures A/F 11.7 mm, hexagonal") —
+  rather than letting the model guess shape from pixels.
+
