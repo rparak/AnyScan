@@ -70,9 +70,13 @@ for _path in CONST_IMPORT_PATHS:
 def pytest_addoption(parser: pytest.Parser) -> None:
     """
     Description:
-        Register the --runslow flag. Tests that genuinely need the model weights
-        (FastSAM, Gemma) or other heavy runtime are marked `slow` and skipped unless it
-        is given, so the default run needs no camera and no model.
+        Register the command-line flags:
+          --runslow        Tests that genuinely need the model weights (FastSAM, Gemma) or other
+                           heavy runtime are marked `slow` and skipped unless it is given, so the
+                           default run needs no camera and no model.
+          --update-golden  A golden-file test rewrites its committed file from the current
+                           output instead of comparing against it — for an INTENDED behaviour
+                           change; review the file's diff before committing it.
 
     Args:
         (1) parser [pytest.Parser(object)]: The pytest command-line parser.
@@ -80,6 +84,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
     parser.addoption('--runslow', action='store_true', default=False,
                      help='run tests marked slow (they need the model weights).')
+    parser.addoption('--update-golden', action='store_true', default=False,
+                     help='rewrite golden files from the current output (then review the diff).')
 
 
 # << PYTEST HOOK >> #

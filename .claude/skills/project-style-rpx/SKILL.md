@@ -98,8 +98,6 @@ Followed inconsistently; ask before writing new code either way.
   startup, so they are not constants and do not fit `CONST_*` (the checker reports them).
 - **One method connecting a widget's signals.** Two UI classes connect in a `__Connect_Signals`; the
   others connect where the widget is built. Explicit connection (no `connectSlotsByName`) is settled.
-- **How a script reaches `src/`.** Four scripts append the working-directory-relative
-  `'../../' + 'src'` (so they must be run from their own directory); `analyze.py` and `screenshot.py`
-  build the path from `__file__`, which works from anywhere.
-- **Literal colours in UI code.** Colours come from `Style` / `Parameters.Theme` tokens everywhere but
-  three places (`UI/Core.py:387`, `UI/Widgets.py:522`, `:529`).
+- **How a script reaches `src/`.** `scan.py`, `calibrate.py` and `make_reference.py` append the
+  working-directory-relative `'../../' + 'src'` (so they must be run from their own directory);
+  `analyze.py` builds the path from `__file__`, which works from anywhere.

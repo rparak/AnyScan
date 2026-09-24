@@ -29,26 +29,6 @@ sentence), and a bare `except Exception` can mask an unexpected error as a routi
   the remaining `except Exception` clauses in `__Connect`, `Capture`, `__Set_Optional` and
   `__Close` together with a real camera run.
 
-## `Verdict`'s confidence branch is dormant by design
-
-`Reporting.Core.Verdict` degrades the operator badge to `'Low confidence' / 'warn'`
-when any detection's `Confidence` is below its threshold (0.35). The describer (Gemma,
-like Florence-2 before it) emits no score, so `Confidence` is `None` and that branch never
-fires. The FastSAM
-pipeline does not wire it up either: the segmenter's score is stored in the
-**separate** `Detection_Str.Segmenter_Score`, and `Confidence` stays `None`.
-
-- **Why kept apart:** a segmenter's mask confidence and a detector's / classifier's
-  confidence are different quantities. Feeding FastSAM's mask score into `Confidence`
-  would silently activate a dormant, operator-visible verdict path — a busy frame
-  with one lower-scoring mask would flip the badge to amber for a reason that has
-  nothing to do with recognition quality. That is a behaviour change dressed up as
-  wiring, so it was declined.
-- **If a real detection/classification confidence ever exists** (a model that scores
-  *what* an object is, not merely how sharp its mask is), populate `Confidence` with
-  it deliberately, and re-check the 0.35 threshold against that model's score
-  distribution. Do not point `Confidence` at `Segmenter_Score` as a shortcut.
-
 ## The fusion's parameters are validated on seven real frames only
 
 This entry used to describe a coverage gate and a mask dilation (`CONST_FILTER_CHANGE_COVERAGE`,
@@ -197,48 +177,6 @@ reads `—` when no object has a score; the frame's own confidence shows the cov
   `::test_status_confidence_denominator_is_the_scored_count_not_the_total`,
   `::test_status_confidence_is_no_value_when_no_object_has_a_score` and
   `::test_frame_confidence_shows_coverage_when_partial_and_dash_when_none`.
-
-## The no-reference-background detection path was removed
-
-Analysis now **requires a reference background**. Every path through
-`Vision_Pipeline_Cls.Analyze` runs stage 1 (background subtraction against the configured
-`Segmentation.Background.Reference`, which the configuration requires), so there is no
-analysis without a reference.
-
-Until this change there was a second detector, `CONST_DETECTOR == 'florence'`,
-which ran Florence-2's own `<REGION_PROPOSAL>` on the whole frame with no
-background subtraction — the only path that could analyze an arbitrary image with
-no reference. It was removed deliberately: it was slower than FastSAM, no code
-set it (default was `'fastsam'`), and no test exercised it, so it was an untested
-branch carrying a capability nothing used.
-
-- **Capability lost:** analyzing an image when no reference-background capture
-  exists (e.g. a one-off photo from a different camera). The app, the example
-  script and the tests all supply a background, so none of them regressed.
-- **What it would take to restore:** re-add the whole-frame detector — a method
-  running the `<REGION_PROPOSAL>` task (task token, max-tokens and min-area
-  constants), a describe-the-boxes loop cropping each detection (the old
-  `Crop_With_Pad` helper, also removed), and a `CONST_DETECTOR` toggle selecting
-  it ahead of stage 1. The removed code is recoverable from git history (the
-  commit that removed the `<REGION_PROPOSAL>` path); restoring it should come with
-  the test the original never had.
-
-## The characterization baseline is pinned to the toolchain
-
-`Example/Vision/characterize.py` records the `python` / `numpy` / `opencv` versions
-in `characterize_baseline.log`, and the segmentation section pins exact box pixel
-coordinates. Those coordinates depend on the OpenCV build, so a `numpy`/`opencv`
-upgrade can change the committed `.log` — flipping the "empty diff" regression gate
-for a reason that has nothing to do with the application code.
-
-- **Impact:** the gate is a genuine behaviour net, but it couples "did the code
-  change behaviour?" to "did the toolchain change?" On a dependency bump someone
-  must re-run the harness and re-commit the baseline, and confirm by eye that only
-  the version header (not the composed sentences) moved.
-- **Options if it becomes annoying:** drop the version header and the exact box
-  coordinates from the pinned output (assert box *count* and ordering instead of
-  pixels), or split the log into a version-independent "behaviour" section that
-  gates and a separate informational "environment" section that does not.
 
 ## Gemma reads some through-holes as "a central green element"
 

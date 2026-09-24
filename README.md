@@ -221,6 +221,15 @@ one. Treat surface condition in the text as a hint that may be absent, never as 
   feeding the classification switch (`General.Classification.Enabled`) that is already wired and has
   no rule yet. It is not built in this version.
 
+## Captures on the rig
+
+Three captures only the rig can produce, in this order: a **multi-view calibration set**, then the
+**empty-surface reference** shot under the new calibration (made with `make_reference.py`, which
+writes its provenance sidecar), then a **parts session** — defective parts with clean controls,
+low-contrast parts, and a harsh shadow. The procedures, the conditions and what to record alongside
+each frame are in [docs/capture-checklist.md](docs/capture-checklist.md). None of them verifies the
+measurements (see [Limitations](#limitations)).
+
 ## Tests
 
 Three layers, none of which need a camera. Only the real-model smoke needs the
@@ -248,14 +257,16 @@ download the weights (see [Setup](#setup)) and run:
 pytest                 # the real-model smoke now runs
 ```
 
-**Characterization harness**, the coarser end-to-end regression baseline for the
-refactor. It exercises the composer, the label distiller, the dataclasses and the
-background subtraction on the committed `Data/Camera/` reference and writes a
-deterministic `Example/Vision/characterize_baseline.log`:
+**Characterization golden file.** `test/Vision/test_characterize.py` snapshots the logic that
+needs no camera and no model — the report composer's sentences for three scenes, the label
+distiller on Gemma's own descriptions, the dataclass defaults, and background subtraction's object
+count on the committed reference — and compares it with `test/Vision/data/characterization.txt` in
+every `pytest` run. It holds no toolchain detail (versions, pixel counts, box coordinates), so a
+dependency bump does not fail it. For an intended behaviour change, regenerate it and review the diff:
 
 ```bash
-.venv/bin/python Example/Vision/characterize.py
-git diff Example/Vision/characterize_baseline.log     # expect no change
+pytest test/Vision/test_characterize.py --update-golden
+git diff test/Vision/data/characterization.txt
 ```
 
 ## Detection logic

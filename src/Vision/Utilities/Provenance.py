@@ -32,7 +32,7 @@ Description:
 
     The ONE provenance stamp shared by everything that writes a review image — the
     validation harness (Example/Vision/analyze.py), the demo renderer
-    (Example/UI/screenshot.py) and the per-analysis capture writer (UI.Capture). A stamp
+    (Example/Vision/analyze.py) and the per-analysis capture writer (UI.Capture). A stamp
     is a slim footer band appended below the image naming the run and the source, so a
     file left over from an earlier or failed run, or two renders that look alike, are told
     apart by looking at the image rather than by remembering which script produced it.

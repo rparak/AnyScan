@@ -376,7 +376,7 @@ Tests `test/Reporting/test_trends.py`, `test/UI/test_trends_view.py`.
 `Draw_Annotated` and `Draw_Label_Mask` take `verdict_colored` as a **required, keyword-only**
 argument. It used to default to `True`, and two callers that never read the configuration fell
 back to it silently: `Example/Vision/analyze.py` painted OK-verdict boxes and the OK tint
-(`#E2E0F0`) on a detect-only run, and `Example/UI/screenshot.py` built its window detect-only but
+(`#E2E0F0`) on a detect-only run, and `Example/UI/screenshot.py` (since removed) built its window detect-only but
 rendered its `demo_*.png` beside it in verdict mode — two modes in one run. A default is a
 rendering mode chosen on the caller's behalf; with none, a caller that has not decided fails at
 the call site, and the keyword makes a bare `True`/`False` impossible to pass without naming it.
@@ -1239,3 +1239,39 @@ strip remain where the reference patch meets the real table, because the table i
 lit or shadowed slightly differently from the reference. No description has mentioned one, but a
 future prompt or model might. The fix identified — feathering the patch edge into the surrounding
 table — is **not built**.
+
+## `Verdict`'s confidence branch stays dormant: a mask score is not a confidence
+
+`Reporting.Core.Verdict` degrades the operator badge to `'Low confidence' / 'warn'` when any
+detection's `Confidence` is below 0.35. Nothing sets `Confidence`: the describer (Gemma, like
+Florence-2 before it) emits no score, and the FastSAM mask score is stored in the separate
+`Detection_Str.Segmenter_Score`. So the branch never fires, and that is deliberate.
+
+**Why.** A segmenter's mask confidence and a detector's or classifier's confidence are different
+quantities. Feeding FastSAM's mask score into `Confidence` would silently activate an
+operator-visible verdict path: a busy frame with one lower-scoring mask would turn the badge amber
+for a reason that has nothing to do with recognising the part. That is a behaviour change dressed up
+as wiring. (Moved here from KNOWN_ISSUES on 2026-09-24: it is a decision, not an open problem.)
+
+**Revisit if** a model that scores *what* an object is — a real detection or classification
+confidence — joins the pipeline. Populate `Confidence` with that score deliberately and re-check the
+0.35 threshold against its distribution; do not point `Confidence` at `Segmenter_Score` as a shortcut.
+Tests `test/Reporting/test_core.py::test_verdict_levels` (the branch itself, fed a score directly).
+
+## Analysis requires a background reference; the whole-frame detector was removed
+
+Every path through `Vision_Pipeline_Cls.Analyze` runs stage 1, background subtraction against the
+configured `Segmentation.Background.Reference`, which the configuration requires. There is no analysis
+without a reference.
+
+**Why.** Until commit `7b1559c` a second detector, `CONST_DETECTOR == 'florence'`, ran Florence-2's
+`<REGION_PROPOSAL>` on the whole frame with no reference — the only path that could analyse an
+arbitrary image. No code set it (the default was `'fastsam'`), no test exercised it, and it was slower
+than FastSAM: an untested branch carrying a capability nothing used. The application, `analyze.py` and
+the tests all supply a reference, so nothing regressed. The capability lost is analysing a one-off
+image from a camera with no reference capture. (Moved here from KNOWN_ISSUES on 2026-09-24.)
+
+**Revisit if** the application has to analyse images from a camera with no empty-surface reference.
+Restoring it means a whole-frame detector ahead of stage 1, the describe-each-box loop and its crop
+helper (all recoverable from `7b1559c`'s parent) — and the test the original never had.
+Tests `test/Vision/test_analyze_harness.py::test_missing_reference_fails_before_writing_anything`.
