@@ -27,7 +27,7 @@ import math
 import typing as tp
 # Custom Lib.: AnyScan domain — the detection, scale and measurement structures
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Scale_Str, Measurement_Str
+from Parameters.Vision import Detection_Str, Scale_Str, Measurement_Str, CONST_SCALE_UNITS
 
 """
 Description:
@@ -103,6 +103,31 @@ def Measure_Decimals(scale: Scale_Str) -> int:
 
     coarsest = max(scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y)
     return max(0, int(math.floor(-math.log10(coarsest))))
+
+
+def Scale_Log_Line(config_name: str, scale: tp.Optional[Scale_Str]) -> tp.Tuple[str, str]:
+    """
+    Description:
+        The configuration-loaded line for the measurement scale: at INFO, the scale in mm/px and
+        the precision sizes are shown to; at WARNING, when the configuration's calibration has no
+        Conversion_Factor — objects are then not measured at all, and this line says why, instead
+        of a size silently computed from a default.
+
+    Args:
+        (1) config_name [string]: The configuration file's name.
+        (2) scale [Scale_Str(object) or None]: Its scale, or None.
+
+    Returns:
+        (1) parameter [Tuple<string> 1x2]: (level 'INFO' or 'WARNING', the log line).
+    """
+
+    if scale is None:
+        return ('WARNING', "Configuration '%s' has no calibration Conversion_Factor; objects "
+                           "will not be measured." % config_name)
+    decimals = Measure_Decimals(scale)
+    return ('INFO', 'Measuring objects at %.5f x %.5f %s (sizes to %s mm).'
+            % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y, CONST_SCALE_UNITS,
+               '%.*f' % (decimals, 10.0 ** -decimals)))
 
 
 def __Edge_Mm(vector: tp.Tuple[float, float], scale: Scale_Str) -> tp.Tuple[float, float]:

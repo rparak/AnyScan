@@ -23,6 +23,9 @@
 
 # Typing (Support for type hints)
 import typing as tp
+# Custom Lib.: AnyScan — the configured stage parameters
+#   ../Parameters/Configuration
+from Parameters.Configuration import Segmentation_Parameters_Str
 
 """
 Description:
@@ -45,27 +48,20 @@ Description:
 # Gaussian blur kernel applied to the difference image, to erase sensor noise
 # before thresholding. Odd, as OpenCV requires.
 CONST_BG_BLUR = 5
-# Minimum grayscale difference that counts as foreground. Otsu picks the split
-# automatically, but on a near-empty frame it can land absurdly low and promote the
-# faint shadow halo / sensor noise to foreground; this floor keeps those out.
-CONST_BG_DIFF_FLOOR = 28
-# Opening kernel that erases the thin shadow halo and speckle left around a part
-# after thresholding (a hue-preserving cast shadow that survived the difference).
-CONST_BG_OPEN_KERNEL = 5
-# Small dilation after the opening, so object edges eroded by the opening are
-# recovered before the mask is fused. 0 disables it.
-CONST_BG_DILATE = 3
+# The Otsu floor and the opening/dilation kernels are configuration, not constants: they arrive
+# in Segmentation_Parameters_Str (the 'Segmentation.Background' block).
 
 
 def Background_Foreground(bg: tp.List[tp.List[int]], fg: tp.List[tp.List[int]],
-                          cv2: tp.Any, np: tp.Any) -> tp.List[tp.List[int]]:
+                          cv2: tp.Any, np: tp.Any, *,
+                          Segmentation_Parameters_Str: Segmentation_Parameters_Str) -> tp.List[tp.List[int]]:
     """
     Description:
         The background-subtracted foreground mask: a uint8 {0, 1} mask where 1 marks
         a pixel that differs from the empty-surface reference (an object pixel).
 
         The chain is the absolute difference against the reference, a Gaussian blur
-        to erase sensor noise, an Otsu threshold floored at CONST_BG_DIFF_FLOOR so a
+        to erase sensor noise, an Otsu threshold floored at the configured Otsu_Floor so a
         faint shadow is not promoted to foreground, a morphological opening that
         removes the thin shadow halo and speckle, and a small dilation that recovers
         the object edges the opening ate. It is illumination-robust and independent
@@ -80,6 +76,8 @@ def Background_Foreground(bg: tp.List[tp.List[int]], fg: tp.List[tp.List[int]],
         (2) fg [Matrix<uint8> HxWx3]: The captured frame (BGR).
         (3) cv2 [module]: The OpenCV module, injected by the caller.
         (4) np [module]: The NumPy module, injected by the caller.
+        (5) Segmentation_Parameters_Str [Segmentation_Parameters_Str(object)]: REQUIRED,
+            keyword-only: the configured Otsu_Floor, Open_Kernel and Dilate.
 
     Returns:
         (1) parameter [Matrix<uint8> HxW]: The foreground mask (0 or 1).
@@ -92,16 +90,16 @@ def Background_Foreground(bg: tp.List[tp.List[int]], fg: tp.List[tp.List[int]],
     # Otsu picks the split automatically; the floor keeps a faint shadow out when
     # Otsu (on a near-empty frame) lands below it.
     otsu, _ = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    thresh = max(float(otsu), float(CONST_BG_DIFF_FLOOR))
+    thresh = max(float(otsu), float(Segmentation_Parameters_Str.Otsu_Floor))
     mask = (gray >= thresh).astype(np.uint8)
 
     # Remove the thin shadow halo / speckle, then grow slightly to recover the object
     # edges eroded by the opening.
-    open_kernel = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE, (CONST_BG_OPEN_KERNEL, CONST_BG_OPEN_KERNEL))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, open_kernel)
-    if CONST_BG_DILATE > 0:
-        dilate_kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE, (CONST_BG_DILATE, CONST_BG_DILATE))
+    open_size, dilate_size = Segmentation_Parameters_Str.Open_Kernel, Segmentation_Parameters_Str.Dilate
+    if open_size > 0:
+        open_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_size, open_size))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, open_kernel)
+    if dilate_size > 0:
+        dilate_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (dilate_size, dilate_size))
         mask = cv2.dilate(mask, dilate_kernel)
     return mask

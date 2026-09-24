@@ -26,6 +26,8 @@ import typing as tp
 # Custom Lib.: AnyScan domain — the detection structure the objects become
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
+#   ../Parameters/Configuration
+from Parameters.Configuration import Segmentation_Parameters_Str
 
 """
 Description:
@@ -45,20 +47,9 @@ Description:
         imported here, the same contract the rest of the Qt-free vision domain uses:
         the module imports at load time but the heavy runtime does not.
 """
-# Background-like FastSAM-mask rejection, before the union. FastSAM in everything-mode
-# returns the table itself as a mask; a mask this large is the background regardless
-# of where it sits ...
-CONST_FUSE_HARD_BG_FRAC = 0.85
-# ... and a mask merely large (this fraction of the frame) that also touches at least
-# CONST_FUSE_BG_BORDERS of the four image borders is the background plane too.
-CONST_FUSE_BG_AREA_FRAC = 0.50
-CONST_FUSE_BG_BORDERS = 3
-# Morphological closing kernel applied to the fused foreground, to bridge the small
-# gaps between the parts of one object (e.g. FastSAM and the difference each seeing a
-# different half) before the components are counted.
-CONST_FUSE_CLOSE_KERNEL = 15
-# Drop a connected component smaller than this fraction of the frame (a speck).
-CONST_FUSE_MIN_AREA_FRAC = 5e-4
+# The background-like mask rejection (Hard_Background_Fraction, Background_Area_Fraction,
+# Background_Borders), the closing kernel and the area filter are configuration, not constants:
+# they arrive in Segmentation_Parameters_Str (the 'Segmentation.Fusion' block).
 # Row-band height in pixels for the ordering key: components whose top edges fall in
 # the same band are ordered left to right, so a slightly higher neighbour does not
 # jump the index order. Matches the reading order a human uses across a row.
@@ -72,13 +63,14 @@ CONST_FUSE_CUE_MIN_OVERLAP = 0.10
 CONST_FUSE_MAX_OBJECTS = 12
 
 
-def Foreground_Union(masks: tp.List, h: int, w: int, np: tp.Any) -> tp.List[tp.List[int]]:
+def Foreground_Union(masks: tp.List, h: int, w: int, np: tp.Any, *,
+                     Segmentation_Parameters_Str: Segmentation_Parameters_Str) -> tp.List[tp.List[int]]:
     """
     Description:
         The union of the FastSAM masks, excluding the background-like ones. A mask
-        covering at least CONST_FUSE_HARD_BG_FRAC of the frame is the background
-        outright; a mask covering at least CONST_FUSE_BG_AREA_FRAC that also touches
-        at least CONST_FUSE_BG_BORDERS image borders is the background plane. Every
+        covering at least Hard_Background_Fraction of the frame is the background
+        outright; a mask covering at least Background_Area_Fraction that also touches
+        at least Background_Borders image borders is the background plane. Every
         other mask contributes to the union — this is the FastSAM cue that stage 3
         fuses with the background-subtracted mask.
 
@@ -87,17 +79,21 @@ def Foreground_Union(masks: tp.List, h: int, w: int, np: tp.Any) -> tp.List[tp.L
         (2) h [int]: The frame height.
         (3) w [int]: The frame width.
         (4) np [module]: The NumPy module, injected by the caller.
+        (5) Segmentation_Parameters_Str [Segmentation_Parameters_Str(object)]: REQUIRED,
+            keyword-only: the configured background-rejection fractions and border count.
 
     Returns:
         (1) parameter [Matrix<uint8> HxW]: The union mask (0 or 1).
     """
 
+    Params = Segmentation_Parameters_Str
     union = np.zeros((h, w), np.uint8)
     for mask in masks:
         frac = float(np.count_nonzero(mask)) / float(h * w)
-        if frac >= CONST_FUSE_HARD_BG_FRAC:
+        if frac >= Params.Hard_Background_Fraction:
             continue
-        if frac >= CONST_FUSE_BG_AREA_FRAC and __Border_Count(mask, np) >= CONST_FUSE_BG_BORDERS:
+        if (frac >= Params.Background_Area_Fraction
+                and __Border_Count(mask, np) >= Params.Background_Borders):
             continue
         union |= mask.astype(np.uint8)
     return union
@@ -122,7 +118,8 @@ def __Border_Count(mask: tp.List[tp.List[int]], np: tp.Any) -> int:
 
 
 def Fuse_Objects(masks: tp.List, scores: tp.List[tp.Optional[float]],
-                 background_fg: tp.List[tp.List[int]], cv2: tp.Any, np: tp.Any) -> tp.List[Detection_Str]:
+                 background_fg: tp.List[tp.List[int]], cv2: tp.Any, np: tp.Any, *,
+                 Segmentation_Parameters_Str: Segmentation_Parameters_Str) -> tp.List[Detection_Str]:
     """
     Description:
         Fuse the FastSAM masks and the background-subtracted mask into the objects.
@@ -140,24 +137,28 @@ def Fuse_Objects(masks: tp.List, scores: tp.List[tp.Optional[float]],
         (3) background_fg [Matrix<uint8> HxW]: The background-subtracted mask (stage 1).
         (4) cv2 [module]: The OpenCV module, injected by the caller.
         (5) np [module]: The NumPy module, injected by the caller.
+        (6) Segmentation_Parameters_Str [Segmentation_Parameters_Str(object)]: REQUIRED,
+            keyword-only: the configured rejection, closing kernel and area filter.
 
     Returns:
         (1) parameter [Vector<Detection_Str(object)>]: The objects, left to right.
     """
 
     h, w = background_fg.shape[:2]
-    sam_fg = Foreground_Union(masks, h, w, np)
+    sam_fg = Foreground_Union(masks, h, w, np, Segmentation_Parameters_Str=Segmentation_Parameters_Str)
     bg_bool = background_fg > 0
     fused = (sam_fg.astype(bool) | bg_bool).astype(np.uint8)
     if int(fused.max()) == 0:
         return []
 
-    kernel = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE, (CONST_FUSE_CLOSE_KERNEL, CONST_FUSE_CLOSE_KERNEL))
-    closed = cv2.morphologyEx(fused * 255, cv2.MORPH_CLOSE, kernel)
+    closed = fused * 255
+    close_size = Segmentation_Parameters_Str.Close_Kernel
+    if close_size > 0:
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_size, close_size))
+        closed = cv2.morphologyEx(closed, cv2.MORPH_CLOSE, kernel)
 
     n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(closed, connectivity=8)
-    min_area = CONST_FUSE_MIN_AREA_FRAC * h * w
+    min_area = Segmentation_Parameters_Str.Min_Area_Fraction * h * w
     components = [i for i in range(1, n_labels)
                  if stats[i, cv2.CC_STAT_AREA] >= min_area]
 

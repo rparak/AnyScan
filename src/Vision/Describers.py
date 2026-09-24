@@ -23,11 +23,12 @@
 
 # System (Default)
 import os
+import gc
 # Typing (Support for type hints)
 import typing as tp
-# Custom Lib.: AnyScan — the configuration layer (the Gemma prompts)
-#   ../Camera/Utilities/Configuration
-from Camera.Utilities.Configuration import Read_Describer_Prompts, CONST_DESCRIBER_PROMPTS_FILE
+# Custom Lib.: AnyScan — the configured stage parameters (weights, prompts, generation)
+#   ../Parameters/Configuration
+from Parameters.Configuration import Description_Parameters_Str
 
 """
 Description:
@@ -35,7 +36,7 @@ Description:
 
     Stage 4's describer: the model that writes an object's description and the one background
     sentence. A describer answers one call — Describe(crop, purpose) with purpose 'object' or
-    'background' — and maps the purpose to its own input (Gemma: a prompt from the prompts file).
+    'background' — and maps the purpose to its own input (Gemma: a prompt from the configuration).
     The pipeline (Vision.Core) never sees a prompt, so a future model plugs in behind the same
     interface. The describer loads its runtime lazily (Load), so importing this module pulls no
     heavy library. (Florence-2, the previous describer, was removed after the comparison over the
@@ -49,27 +50,23 @@ CONST_PURPOSE_BACKGROUND = 'background'
 # ---- Gemma 4 ------------------------------------------------------------------ #
 # The local Gemma 4 E4B instruction-tuned weights, an MLX 4-bit conversion
 # (mlx-community/gemma-4-e4b-it-4bit, from google/gemma-4-E4B-it revision fee6332), run on the
-# Metal GPU through MLX / mlx-vlm. Loaded from this directory only, never a hub id.
+# Metal GPU through MLX / mlx-vlm. Loaded from the directory the configuration names
+# (Description.Model), never a hub id.
 #
 # LICENCE: the Gemma weights are governed by the Gemma Terms of Use
 # (https://ai.google.dev/gemma/terms) and its Prohibited Use Policy — NOT the MIT licence this
 # repository's code carries. They are not redistributable under the repository's licence;
 # anyone shipping them must pass on Google's terms. models/ is gitignored, so the weights are
 # not in the repository.
-CONST_GEMMA_MODEL_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',
-                 'models', 'gemma-4-e4b-it-4bit'))
-# Generation. temperature 0 is greedy decoding: the same crop and prompt give the same text,
-# which the pipeline relies on (a description is a property of the object). The weights'
-# own generation_config samples (temperature 1.0, top-k 64, top-p 0.95); this overrides it.
-# Measured on Apple silicon (Metal): repeated runs on the same crop, runs on other threads,
-# in other processes and under memory pressure were identical word for word. Greedy decoding
-# fixes the sampler, not the arithmetic: another MLX backend (Linux CUDA / CPU) can differ in
-# floating point and so in text, so this is a measured property of that build, not a
-# guarantee that travels (README > Platform).
-#   Unit [float] / [int]
-CONST_GEMMA_TEMPERATURE = 0.0
-CONST_GEMMA_MAX_TOKENS = 256
+#
+# Generation (Description.Temperature, Description.Max_Tokens) is configuration. Temperature 0 is
+# greedy decoding: the same crop and prompt give the same text, which the pipeline relies on (a
+# description is a property of the object). The weights' own generation_config samples
+# (temperature 1.0, top-k 64, top-p 0.95); the configured value overrides it. Measured on Apple
+# silicon (Metal): repeated runs on the same crop, runs on other threads, in other processes and
+# under memory pressure were identical word for word. Greedy decoding fixes the sampler, not the
+# arithmetic: another MLX backend (Linux CUDA / CPU) can differ in floating point and so in text,
+# so this is a measured property of that build, not a guarantee that travels (README > Platform).
 # Gemma 4's thinking mode stays off: the answer, not a reasoning trace, is the description.
 #   Unit [bool]
 CONST_GEMMA_THINKING = False
@@ -85,10 +82,10 @@ class Describer_Error_Cls(RuntimeError):
 class Describer_Backend_Cls(object):
     """
     Description:
-        The describer interface. Load() once (lazily, on the first analysis), then
-        Describe(crop_bgr, purpose) -> the model's text. Name identifies the model in the
-        audit; Task_Label is what the reading panel's Task row and each capture set's 'task'
-        record — what produced that reading.
+        The describer interface. Load() once (on a configuration load, the first CONNECT, or
+        lazily on the first analysis), then Describe(crop_bgr, purpose) -> the model's text.
+        Name identifies the model in the audit. (The Task a reading is labelled with is the
+        configuration's Identity.Task, not the describer's.)
 
     Initialization of the Class:
         Args:
@@ -105,7 +102,6 @@ class Describer_Backend_Cls(object):
     """
 
     Name = ''
-    Task_Label = ''
 
     @property
     def Loaded(self) -> bool:
@@ -147,9 +143,9 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
     """
     Description:
         Gemma 4 E4B (4-bit MLX) prompted in natural language: the per-object and background
-        prompts come from Configuration/Describer_Prompts.yaml (data, iterated without
-        touching code), the crop goes in as an RGB image, and generation is greedy
-        (CONST_GEMMA_TEMPERATURE = 0) with thinking off, so the same crop yields the same text.
+        prompts come from the configuration (Description.Prompts — data, iterated without
+        touching code), the crop goes in as an RGB image, and generation runs at the configured
+        temperature (0: greedy) with thinking off, so the same crop yields the same text.
 
         Note:
             mlx / mlx-vlm are imported inside Load, never at module level, so the window and
@@ -159,28 +155,31 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
 
     Initialization of the Class:
         Args:
-            (1) model_dir [string or None]: The weights directory (None: CONST_GEMMA_MODEL_DIR).
-            (2) prompts_file [string or None]: The prompts file (None: CONST_DESCRIBER_PROMPTS_FILE).
+            (1) Description_Parameters_Str [Description_Parameters_Str(object)]: The configured
+                weights directory, prompts and generation settings.
 
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = Gemma_Describer_Cls()
+                Cls = Gemma_Describer_Cls(Configuration_Str.Description)
+
+            Features:
+                # Properties of the class.
+                Cls.Loaded; Cls.Model_Key
+
+                # Functions of the class.
+                Cls.Load(); Cls.Describe(crop_bgr, CONST_PURPOSE_OBJECT); Cls.Release()
+                Cls.Set_Parameters(Description_Parameters_Str)
     """
 
     Name = 'gemma-4-e4b-it-4bit'
-    Task_Label = 'part inspection'
 
-    def __init__(self, model_dir: tp.Optional[str] = None,
-                 prompts_file: tp.Optional[str] = None) -> None:
+    def __init__(self, Description_Parameters_Str: Description_Parameters_Str) -> None:
         # << PRIVATE >> #
-        # The module constants are read here, not bound as argument defaults, so a caller (or a
-        # test) that repoints them before construction is honoured.
-        self.__model_dir = model_dir or CONST_GEMMA_MODEL_DIR
-        self.__prompts_file = prompts_file or CONST_DESCRIBER_PROMPTS_FILE
+        self.__params = Description_Parameters_Str
+        self.__model_dir = Description_Parameters_Str.Model_Path
         self.__model = None
         self.__processor = None
-        self.__prompts = None
         self.__generate = None
         self.__template = None
         self.__pil = None
@@ -198,20 +197,56 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
 
         return self.__model is not None
 
+    @property
+    def Model_Key(self) -> str:
+        """
+        Description:
+            What identifies the loaded model: its weights directory. Two configurations with the
+            same key can share this instance without a reload.
+
+        Returns:
+            (1) parameter [string]: The weights directory.
+        """
+
+        return self.__model_dir
+
+    def Set_Parameters(self, Description_Parameters_Str: Description_Parameters_Str) -> None:
+        """
+        Description:
+            Adopt another configuration's prompts and generation settings while keeping the
+            loaded model. Only valid when the new parameters have the same Model_Key.
+
+        Args:
+            (1) Description_Parameters_Str [Description_Parameters_Str(object)]: The parameters.
+        """
+
+        assert Description_Parameters_Str.Model_Path == self.Model_Key
+        self.__params = Description_Parameters_Str
+
+    def Release(self) -> None:
+        """
+        Description:
+            Drop the loaded model and return its GPU memory, so another model can load without
+            holding both at once. Best effort: a missing MLX cache API is skipped.
+        """
+
+        self.__model = self.__processor = None
+        gc.collect()
+        try:
+            import mlx.core as mx
+            (getattr(mx, 'clear_cache', None) or mx.metal.clear_cache)()
+        except (ImportError, AttributeError, RuntimeError):
+            pass
+
     def Load(self) -> None:
         """
         Description:
-            Read the prompts, import MLX / mlx-vlm and load the weights, once. The prompts are
-            read first, so a missing prompt fails before a 5 GB load.
+            Import MLX / mlx-vlm and load the weights, once. (The prompts are validated with
+            the configuration, before any model is touched.)
         """
 
         if self.__model is not None:
             return
-        prompts = Read_Describer_Prompts(self.__prompts_file)
-        if prompts is None:
-            raise Describer_Error_Cls(
-                'The describer prompts at "%s" are missing or incomplete: it must hold a non-empty '
-                '"Object" and "Background" prompt.' % self.__prompts_file)
         try:
             import cv2
             from PIL import Image as PILImage
@@ -230,7 +265,7 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
         except Exception as exc:                          # noqa: BLE001
             raise Describer_Error_Cls('The model weights at "%s" could not be loaded. Check that the '
                                       'directory is complete and readable.' % self.__model_dir) from exc
-        self.__prompts, self.__generate, self.__template = prompts, generate, apply_chat_template
+        self.__generate, self.__template = generate, apply_chat_template
         self.__pil, self.__cv2 = PILImage, cv2
         self.__model, self.__processor = model, processor
 
@@ -247,13 +282,14 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
             (1) parameter [string]: The model's text, stripped.
         """
 
-        prompt = self.__prompts['Object' if purpose == CONST_PURPOSE_OBJECT else 'Background']
+        params = self.__params
+        prompt = params.Prompt_Object if purpose == CONST_PURPOSE_OBJECT else params.Prompt_Background
         image = self.__pil.fromarray(self.__cv2.cvtColor(crop_bgr, self.__cv2.COLOR_BGR2RGB))
         formatted = self.__template(self.__processor, self.__model.config, prompt, num_images=1,
                                     enable_thinking=CONST_GEMMA_THINKING)
         result = self.__generate(self.__model, self.__processor, formatted, image=[image],
-                                 max_tokens=CONST_GEMMA_MAX_TOKENS,
-                                 temperature=CONST_GEMMA_TEMPERATURE, verbose=False)
+                                 max_tokens=params.Max_Tokens,
+                                 temperature=params.Temperature, verbose=False)
         return result.text.strip()
 
 

@@ -29,7 +29,9 @@ import hashlib
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures, composer, and vision utilities
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Analysis_Str, Scale_Str
+from Parameters.Vision import Detection_Str, Analysis_Str
+#   ../Parameters/Configuration
+from Parameters.Configuration import Configuration_Str
 #   ../Reporting/Core
 from Reporting.Core import (Compose, Verdict, Background_Sentence,
                             CONST_EMPTY_SCENE_EXPLANATION, CONST_BACKGROUND_FALLBACK)
@@ -41,7 +43,7 @@ from Vision.Utilities.Fusion import Fuse_Objects
 from Vision.Utilities.Enhancement import (Padded_Bbox, Crop, Enhance_Crop, Isolate_Crop,
                                           CONST_ENHANCE_CLIP_LIMIT, CONST_ENHANCE_NEIGHBOUR_DILATE)
 #   ../Vision/Segmenter
-from Vision.Segmenter import Fast_Sam_Cls
+from Vision.Segmenter import Fast_Sam_Cls, Segmenter_Error_Cls
 #   ../Vision/Describe_Fallback
 from Vision.Describe_Fallback import Describe_Fallback
 #   ../Vision/Utilities/Caption
@@ -87,23 +89,13 @@ Description:
         OpenCV are imported lazily on the first Analyze, so importing this module (as App/run.py does at load time) pulls no
         heavy runtime.
 """
-# The empty-surface reference photo. Segmentation is the difference between the
-# captured frame and this image, so it must come from the SAME fixed camera and
-# match the frame's pixel dimensions exactly. Overridable at runtime (the app's
-# --background flag reassigns this module attribute).
-CONST_BACKGROUND_REF = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',
-                 'Data', 'Camera', 'Image_Background_001.png'))
+# The empty-surface reference is configuration (Segmentation.Background.Reference): it must come
+# from the SAME fixed camera and match the frame's pixel dimensions exactly.
 
 # The reading panel's Task row (and the capture set's 'task') when the model-free fallback
-# describer wrote the reading; a model describer states its own (Describer_Backend_Cls.Task_Label).
+# describer wrote the reading; a model-written reading carries the configuration's Identity.Task.
 #   Unit [string]
 CONST_FALLBACK_TASK_LABEL = 'model-free description'
-
-# The reference is centre-cropped by this margin (fraction per side) before the
-# background is described, so the dark vignette at the frame edge does not leak into
-# the description of the surface itself.
-CONST_BG_CROP_MARGIN = 0.12
 
 # Who writes each object's description (Vision.Describers.CONST_DESCRIBERS): 'gemma' is the
 # Gemma 4 vision-language model, prompted; 'fallback' is the model-free describer (size /
@@ -111,11 +103,10 @@ CONST_BG_CROP_MARGIN = 0.12
 # loading a model (the weight-free tests use it).
 CONST_DESCRIBER = 'gemma'
 
-# The model name presented to the operator. The describer's weights carry their own licence,
-# which is NOT the repository's MIT licence: Gemma is under the Gemma Terms of Use
-# (https://ai.google.dev/gemma/terms) and is not redistributable under this repository's
-# licence. See Vision.Describers.
-CONST_MODEL_NAME = 'JIC-AnyScan-v1'
+# What the models are presented as to the operator is configuration (Identity.Model_Set). The describer's
+# weights carry their own licence, which is NOT the repository's MIT licence: Gemma is under the
+# Gemma Terms of Use (https://ai.google.dev/gemma/terms) and is not redistributable under this
+# repository's licence. See Vision.Describers.
 
 
 class Vision_Error_Cls(RuntimeError):
@@ -142,14 +133,40 @@ class Vision_Backend_Cls(object):
         Example:
             Initialization:
                 # Initialization of the class (a concrete subclass).
-                Cls = Vision_Pipeline_Cls(scale=scale)
+                Cls = Vision_Pipeline_Cls(Configuration_Str=Configuration_Str)
 
             Features:
                 # Functions of the class.
                 Cls.Analyze(image_rgb)
     """
 
-    Name = CONST_MODEL_NAME
+    # What the window reads from any backend: the presented name, the two model names, and whether
+    # the models are loaded. A backend with nothing to load (a test stand-in) is always loaded.
+    Name = ''
+    Model_Names = ('', '')
+    Models_Loaded = True
+
+    def Load_Models(self, stage_cb: tp.Optional[tp.Callable] = None) -> None:
+        """
+        Description:
+            Load the models now, so no analysis pays for them. A backend without models does
+            nothing.
+
+        Args:
+            (1) stage_cb [function]: Optional (text) phase hook.
+        """
+
+    def Configure(self, Configuration_Str: Configuration_Str,
+                  stage_cb: tp.Optional[tp.Callable] = None) -> None:
+        """
+        Description:
+            Put another configuration in force and load its models. A backend without
+            configuration does nothing.
+
+        Args:
+            (1) Configuration_Str [Configuration_Str(object)]: The configuration.
+            (2) stage_cb [function]: Optional (text) phase hook.
+        """
 
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
                 stage_cb: tp.Optional[tp.Callable] = None,
@@ -178,8 +195,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
     Description:
         The vision backend. It orchestrates the four-stage pipeline and owns the stage-4
         describer (Vision.Describers: Gemma, or the model-free fallback); the model is
-        presented as JIC-AnyScan-v1. The describer's weights carry their own licence (see
-        CONST_MODEL_NAME).
+        presented under the configuration's model set (Identity.Model_Set). Every stage reads its parameters
+        from the one Configuration_Str it holds; Configure swaps it for another.
 
         Pipeline of Analyze(). Read top to bottom; each stage delegates to the
         module named at the right.
@@ -229,10 +246,16 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             Notes that cost hours if missed:
               (1) Every model loads from a local directory, never a hub id; nothing
                   here touches the network at runtime.
-              (2) The describer's runtime and OpenCV are imported lazily on the first
-                  Analyze, so the window still opens on a machine without them.
-              (3) The model loads once and is kept; the first analysis pays a
-                  cold-load cost the busy indicator must cover ('Loading model…').
+              (2) The describer's runtime and OpenCV are imported lazily, so the window
+                  still opens on a machine without them.
+              (3) The models load once and are kept. The application preloads them
+                  (Load_Models / Configure: a configuration load or the first CONNECT), so an
+                  analysis never pays the ~9 s cold load; a caller that skips the preload (the
+                  harness, a test) pays it on the first Analyze instead.
+              (6) Configure releases a model that changes BEFORE loading its replacement, so
+                  two describers are never held at once (~9.4 GB each would not fit a 17 GB
+                  machine). The cost: when the replacement fails, the previous configuration's
+                  model must be loaded again.
               (4) It emits no confidence scores. Confidence stays None — the
                   verdict handles unscored detections. Never invent a number.
               (5) Boxes are in full-frame pixels whichever detector is used; the
@@ -241,26 +264,31 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
     Initialization of the Class:
         Args:
-            (1) scale [Scale_Str(object) or None]: REQUIRED, keyword-only: the configured image
-                scale (mm/px) that every object is measured with, or None when the configuration
-                has no Conversion_Factor — then nothing is measured, never a default.
+            (1) Configuration_Str [Configuration_Str(object)]: REQUIRED, keyword-only: the loaded
+                configuration — the stages' parameters, the models, the task label, and the
+                scale (mm/px) objects are measured with (None: nothing is measured, never a
+                default).
 
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = Vision_Pipeline_Cls(scale=Read_Conversion_Factor(config_path))
+                Cls = Vision_Pipeline_Cls(Configuration_Str=Load_Configuration(config_path))
 
             Features:
+                # Properties of the class.
+                Cls.Name; Cls.Model_Names; Cls.Models_Loaded
+
                 # Functions of the class.
+                Cls.Load_Models(stage_cb); Cls.Configure(Configuration_Str, stage_cb)
                 Cls.Analyze(image_rgb, progress_cb, stage_cb)
     """
 
-    def __init__(self, *, scale: tp.Optional[Scale_Str]) -> None:
+    def __init__(self, *, Configuration_Str: Configuration_Str) -> None:
         super().__init__()
 
         # << PRIVATE >> #
-        # The image scale the objects are measured with (None: measure nothing).
-        self.__scale = scale
+        # The configuration in force: every stage's parameters, the models, the scale.
+        self.__config = Configuration_Str
         # The describer CONST_DESCRIBER selected (None for the model-free fallback), created and
         # loaded on the first analysis, and the name it was created for.
         self.__describer = None
@@ -274,8 +302,146 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         self.__background_sentence = None
         self.__background_key = None
         # The stage-2 segmenter. Constructing it is cheap — ultralytics loads lazily
-        # on the first Segment, so this keeps the window and the tests light.
-        self.__segmenter = Fast_Sam_Cls()
+        # (Load_Models or the first Segment), so this keeps the window and the tests light.
+        self.__segmenter = Fast_Sam_Cls(Configuration_Str.Segmentation)
+
+    @property
+    def Name(self) -> str:
+        """
+        Description:
+            What the models are presented as: the configuration's model set (Identity.Model_Set).
+
+        Returns:
+            (1) parameter [string]: The name.
+        """
+
+        return self.__config.Identity.Model_Set
+
+    @property
+    def Model_Names(self) -> tp.Tuple[str, str]:
+        """
+        Description:
+            The two models of the configuration in force, by their file / directory names.
+
+        Returns:
+            (1) parameter [Tuple<string> 1x2]: (the segmenter's, the describer's).
+        """
+
+        return (os.path.basename(self.__config.Segmentation.Model_Path),
+                os.path.basename(self.__config.Description.Model_Path))
+
+    @property
+    def Models_Loaded(self) -> bool:
+        """
+        Description:
+            Whether every model the configuration needs is loaded (the model-free fallback
+            describer needs none), so the next analysis will not pay a cold load.
+
+        Returns:
+            (1) parameter [bool]: True when an analysis can start without loading a model.
+        """
+
+        describer_ready = (CONST_DESCRIBER == 'fallback'
+                           or (CONST_DESCRIBER == self.__describer_name
+                               and self.__describer is not None and self.__describer.Loaded))
+        return self.__segmenter.Loaded and describer_ready
+
+    def Load_Models(self, stage_cb: tp.Optional[tp.Callable] = None) -> None:
+        """
+        Description:
+            Load the configuration's models now — the segmenter, then the describer — so no
+            analysis pays for them. A model already loaded is kept.
+
+        Args:
+            (1) stage_cb [function]: Optional (text) phase hook ('Loading segmenter…', …).
+
+        Raises:
+            Vision_Error_Cls: A model could not be loaded; the message says which and why.
+        """
+
+        try:
+            self.__segmenter.Load(stage_cb)
+        except Segmenter_Error_Cls as exc:
+            raise Vision_Error_Cls(str(exc)) from exc
+        self.__Ensure_Loaded(stage_cb)
+
+    def Configure(self, Configuration_Str: Configuration_Str,
+                  stage_cb: tp.Optional[tp.Callable] = None) -> None:
+        """
+        Description:
+            Put another (already validated) configuration in force and load its models. A model
+            whose identity is unchanged (the same weights, and for FastSAM the same device) is
+            kept and only its per-call parameters change — no reload. A model that changes is
+            RELEASED FIRST and its replacement loaded after, so two are never held at once.
+
+            When the new models cannot be loaded, the previous configuration is put back in
+            force. Its models are reloaded if they were loaded before (they were released to
+            make room, so this costs the load time again), and the error says whether it is loaded.
+
+        Args:
+            (1) Configuration_Str [Configuration_Str(object)]: The configuration to put in force.
+            (2) stage_cb [function]: Optional (text) phase hook.
+
+        Raises:
+            Vision_Error_Cls: The new models could not be loaded. The previous configuration is
+                              in force; the message says whether its models were reloaded.
+        """
+
+        new = Configuration_Str
+        previous = (self.__config, self.__segmenter, self.__describer, self.__describer_name)
+        previous_loaded = self.Models_Loaded
+        old_config, old_segmenter, old_describer, _old_name = previous
+
+        # 1\ Keep a model whose identity is unchanged; release one that changes BEFORE loading.
+        if old_segmenter.Model_Key == (new.Segmentation.Model_Path, new.Segmentation.Device):
+            segmenter = old_segmenter
+            segmenter.Set_Parameters(new.Segmentation)
+        else:
+            old_segmenter.Release()
+            segmenter = Fast_Sam_Cls(new.Segmentation)
+        describer = old_describer
+        if describer is not None and describer.Model_Key == new.Description.Model_Path:
+            describer.Set_Parameters(new.Description)
+        elif describer is not None:
+            describer.Release()
+            describer = None
+        self.__config, self.__segmenter, self.__describer = new, segmenter, describer
+        if describer is None:
+            self.__describer_name = None
+
+        # 2\ Load the new configuration's models; on failure, put the previous one back.
+        try:
+            self.Load_Models(stage_cb)
+        except Vision_Error_Cls as exc:
+            if self.__segmenter is not old_segmenter:
+                self.__segmenter.Release()
+            if self.__describer is not None and self.__describer is not old_describer:
+                self.__describer.Release()
+            self.__config, self.__segmenter, self.__describer, self.__describer_name = previous
+            old_segmenter.Set_Parameters(old_config.Segmentation)
+            if old_describer is not None:
+                old_describer.Set_Parameters(old_config.Description)
+            # The reason, then what is in force — in configuration terms: the models are how a
+            # configuration is loaded, not something the operator chooses.
+            reason = str(exc).rstrip('.') + '.'
+            previous = old_config.Identity.Display_Name
+            if not previous_loaded:
+                raise Vision_Error_Cls('%s %s is still in force, not loaded.' % (reason, previous)) from exc
+            if stage_cb:
+                stage_cb('Reloading the previous configuration…')
+            try:
+                self.Load_Models(stage_cb)
+            except Vision_Error_Cls as again:
+                raise Vision_Error_Cls('%s %s is still in force but could not be loaded again (%s).'
+                                       % (reason, previous, str(again).rstrip('.'))) from exc
+            # Its models were released to make room for the new ones, so they were loaded again —
+            # that reload is the extra wait the operator saw.
+            raise Vision_Error_Cls('%s %s is still in force and was loaded again.' % (reason, previous)) from exc
+
+        # 3\ Committed: the reference may differ, and the background sentence depends on it, the
+        #    prompt, the crop margin and the limits — both are read again under the new configuration.
+        self.__background = None
+        self.__background_key = self.__background_sentence = None
 
     def __Ensure_Loaded(self, stage_cb: tp.Optional[tp.Callable]) -> None:
         """
@@ -306,7 +472,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                 raise Vision_Error_Cls('Unknown describer "%s": choose %s or fallback.'
                                        % (CONST_DESCRIBER, ', '.join(CONST_DESCRIBERS)))
             self.__describer = (None if CONST_DESCRIBER == 'fallback'
-                                else CONST_DESCRIBERS[CONST_DESCRIBER]())
+                                else CONST_DESCRIBERS[CONST_DESCRIBER](self.__config.Description))
             self.__describer_name = CONST_DESCRIBER
             self.__background_key = self.__background_sentence = None
         if self.__describer is None or self.__describer.Loaded:
@@ -333,12 +499,13 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         """
 
         if self.__background is None:
-            bg = cv2.imread(CONST_BACKGROUND_REF)
+            reference = self.__config.Segmentation.Background_Reference
+            bg = cv2.imread(reference)
             if bg is None:
                 raise Vision_Error_Cls(
                     'The background reference at "%s" could not be read. It is the '
                     'empty-surface photo the analysis subtracts from the frame; shoot '
-                    'one from this camera and save it there.' % CONST_BACKGROUND_REF
+                    'one from this camera and set Segmentation.Background.Reference to it.' % reference
                 )
             self.__background = bg
         if self.__background.shape != frame_shape:
@@ -356,7 +523,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         Description:
             The one global background sentence, generated from the reference frame
             (not from any crop), so it is unaffected by what the model reads into
-            individual object crops. The reference is centre-cropped (CONST_BG_CROP_MARGIN)
+            individual object crops. The reference is centre-cropped (Background_Crop_Margin)
             to skip the dark vignette and described for the background purpose (the
             background prompt); Reporting.Background_Sentence
             cleans it and falls back to a neutral string (recording a warning) when it is
@@ -389,10 +556,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
         cv2 = self.__cv2
         h, w = bg_bgr.shape[:2]
-        margin = CONST_BG_CROP_MARGIN
+        margin = self.__config.Description.Background_Crop_Margin
         crop = bg_bgr[int(h * margin):int(h * (1 - margin)), int(w * margin):int(w * (1 - margin))]
         caption = self.__describer.Describe(crop, CONST_PURPOSE_BACKGROUND)
-        sentence, records = Background_Sentence(caption)
+        sentence, records = Background_Sentence(caption, Description_Parameters_Str=self.__config.Description)
         self.__background_key, self.__background_sentence = key, sentence
         return sentence, records
 
@@ -430,19 +597,22 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         # The background-subtracted foreground mask: one of the two cues fused in
         # stage 3. Pure cv2/np differencing, so it lives in Segmentation, not here.
         bg_bgr = self.__Load_Background(cv2, frame_bgr.shape)
-        background_fg = Background_Foreground(bg_bgr, frame_bgr, cv2, np)
+        background_fg = Background_Foreground(bg_bgr, frame_bgr, cv2, np,
+                                              Segmentation_Parameters_Str=self.__config.Segmentation)
 
         # ---- Stage 2 - instance segmentation (Vision.Segmenter) ----
-        # FastSAM in everything-mode behind the Segmenter_Backend_Cls seam: the other
-        # fused cue. In its own module so the lazy ultralytics import keeps a bare Core
-        # import Qt-free and cheap. No region prompts — everything-mode separates parts.
+        # FastSAM (in the configured prompting mode) behind the Segmenter_Backend_Cls seam:
+        # the other fused cue. In its own module so the lazy ultralytics import keeps a bare
+        # Core import Qt-free and cheap. No region prompts are passed, so 'box' mode degrades
+        # to everything-mode (Segmenter logs it) — everything-mode is what separates parts.
         masks, scores = self.__segmenter.Segment(frame_bgr, [], stage_cb, log_cb)
 
         # ---- Stage 3 - fusion (Vision.Utilities.Fusion) ----
         # The objects: the FastSAM union OR the background mask, closed, split into
         # connected components, area-filtered and ordered left to right. An object
         # survives on EITHER cue; each records the cue(s) that located it.
-        objects = Fuse_Objects(masks, scores, background_fg, cv2, np)
+        objects = Fuse_Objects(masks, scores, background_fg, cv2, np,
+                               Segmentation_Parameters_Str=self.__config.Segmentation)
 
         # ---- Stage 4 - description (Vision.Describers / Vision.Describe_Fallback) ----
         # One caption per object, from the alpha/beta-enhanced padded crop: neighbours
@@ -455,7 +625,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         result = self.__Compose_Result(objects, size, t0, len(masks),
                                        background_sentence, background_audit)
         # Measure every masked object through the configured scale (none without one).
-        Measure_Objects(result.Objects, self.__scale, cv2, np)
+        Measure_Objects(result.Objects, self.__config.Scale, cv2, np)
         return result
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
@@ -545,7 +715,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return Analysis_Str(Objects=objects, Note=note,
                             Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
-                            Task=(self.__describer.Task_Label if self.__describer is not None
+                            Task=(self.__config.Identity.Task if self.__describer is not None
                                   else CONST_FALLBACK_TASK_LABEL),
                             Raw_Mask_Count=raw_mask_count,
                             Background=background_sentence, Audit=background_audit)

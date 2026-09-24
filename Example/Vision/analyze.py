@@ -28,6 +28,8 @@ import argparse
 # Provenance stamping: a content fingerprint of each source file and a run timestamp,
 # so an artefact left over from an earlier or failed run is identifiable on sight.
 import datetime
+# Dataclasses (a configuration copy with the CLI overrides applied)
+import dataclasses
 # Resolve the project folder from this file's own location (Example/Vision -> ..),
 # so the script runs the same whether launched from Example/Vision/ or the repo root.
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -46,10 +48,9 @@ import typing as tp
 import Vision.Core as Vision_Core
 from Vision.Core import Vision_Pipeline_Cls, Vision_Error_Cls
 #   ../Vision/Segmenter
-import Vision.Segmenter as Vision_Segmenter
 from Vision.Segmenter import Segmenter_Error_Cls
 #   ../Vision/Utilities/Discovery
-from Vision.Utilities.Discovery import Discover_Scenes, Select_Background, Discovery_Error_Cls
+from Vision.Utilities.Discovery import Discover_Scenes, Discovery_Error_Cls
 #   ../Vision/Utilities/Provenance
 import Vision.Utilities.Provenance as Provenance
 #   ../Vision/Utilities/Annotate
@@ -58,11 +59,12 @@ from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
 from Reporting.Core import Screen_Understanding, Object_Size
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
-# Custom Lib.: AnyScan — the ONE configuration layer the application reads the classification
-# flag through, so the harness renders exactly the mode the app renders
-#   ../Camera/Utilities/Configuration
-from Camera.Utilities.Configuration import (Read_Classification_Enabled, Read_Conversion_Factor,
-                                            CONST_BASLER_CONFIG_FILE)
+# Custom Lib.: AnyScan — the ONE configuration layer the application loads its configuration
+# through, so the harness runs exactly the stages, mode and scale the app runs
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, Configuration_Error_Cls, CONST_DEFAULT_CONFIG_FILE
+#   ../Parameters/Configuration
+from Parameters.Configuration import Configuration_Str
 
 """
 Description:
@@ -251,23 +253,32 @@ def _Banner(title: str, lines: tp.List[str]) -> None:
     print(rule + '\n')
 
 
-def _Configure(args: argparse.Namespace) -> None:
+def _Configure(args: argparse.Namespace, Configuration_Str: Configuration_Str) -> Configuration_Str:
     """
     Description:
-        Push the CLI options onto the pipeline's CONST_* configuration interface — the
-        FastSAM device (Gemma runs on MLX's Metal GPU regardless), the FastSAM weights,
-        and the model-free describer.
+        Apply the CLI overrides to a copy of the loaded configuration — the FastSAM device (Gemma
+        runs on MLX's Metal GPU regardless) and the FastSAM weights — and select the model-free
+        describer on --no-describe. The file itself is never edited.
 
     Args:
         (1) args [argparse.Namespace(object)]: The parsed arguments.
+        (2) Configuration_Str [Configuration_Str(object)]: The loaded configuration.
+
+    Returns:
+        (1) parameter [Configuration_Str(object)]: The configuration with the overrides applied.
     """
 
+    overrides = {}
     if args.device:
-        Vision_Segmenter.CONST_SEGMENTER_DEVICE = args.device
+        overrides['Device'] = args.device
     if args.weights:
-        Vision_Segmenter.CONST_SEGMENTER_WEIGHTS = os.path.abspath(args.weights)
+        overrides['Model_Path'] = os.path.abspath(args.weights)
     if args.no_describe:
         Vision_Core.CONST_DESCRIBER = 'fallback'
+    if not overrides:
+        return Configuration_Str
+    return dataclasses.replace(Configuration_Str,
+                               Segmentation=dataclasses.replace(Configuration_Str.Segmentation, **overrides))
 
 
 def Render_Views(scene_bgr: tp.Any, objects: tp.List[tp.Any],
@@ -370,24 +381,29 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Run the AnyScan vision pipeline over every Data/Camera frame.')
     parser.add_argument('--input-dir', default=CONST_INPUT_DIR, help='directory holding the scene frames and the reference')
     parser.add_argument('--output-dir', default=CONST_OUTPUT_DIR, help='where to write the per-frame artefacts')
-    parser.add_argument('--background', default=None, help='explicit reference filename (overrides the highest-index rule)')
     parser.add_argument('--weights', default=None, help='FastSAM weights path (overrides the default)')
     parser.add_argument('--device', default=None,
                         help="compute device for FastSAM: 'cpu', 'cuda', 'mps' or 'auto'")
     parser.add_argument('--no-describe', action='store_true',
                         help='use the model-free fallback describer (no VLM); does NOT write descriptions files')
     parser.add_argument('--montage', action='store_true', help='also write the enhanced-crop debug montage (off by default)')
-    parser.add_argument('--config', default=CONST_BASLER_CONFIG_FILE,
-                        help='configuration YAML to read General.Classification.Enabled from '
-                             '(default: the one the application loads)')
+    parser.add_argument('--config', default=CONST_DEFAULT_CONFIG_FILE,
+                        help='the configuration to run (default: the one the application loads)')
     args = parser.parse_args()
 
-    _Configure(args)
+    # The configuration, loaded ONCE through the application's configuration layer and validated
+    # as a whole, so the harness runs the same stages, mode and scale the application runs.
+    try:
+        configuration = _Configure(args, Load_Configuration(args.config))
+    except Configuration_Error_Cls as error:
+        _Banner('CONFIGURATION REFUSED', [str(error)])
+        return 1
 
-    # Resolve the scenes and the reference by the documented discovery rules.
+    # The scenes by the documented discovery rule; the reference is the configuration's own
+    # (Segmentation.Background.Reference) — the one the application subtracts against.
+    reference_path = configuration.Segmentation.Background_Reference
     try:
         scenes = Discover_Scenes(args.input_dir)
-        reference_path = Select_Background(args.input_dir, args.background)
     except Discovery_Error_Cls as error:
         _Banner('INPUT DISCOVERY FAILED', [str(error)])
         return 1
@@ -408,31 +424,29 @@ def main() -> int:
         return 1
     reference_hash = _Fingerprint(reference_path)
 
-    # Point the pipeline at this run's reference (the same mechanism the app's
-    # --background flag uses), and describe once through the application backend. One
-    # timestamp stamps every artefact of this run.
-    Vision_Core.CONST_BACKGROUND_REF = reference_path
+    # Describe once through the application backend. One timestamp stamps every artefact of
+    # this run.
     run_stamp = datetime.datetime.now().isoformat(timespec='seconds')
     os.makedirs(args.output_dir, exist_ok=True)
     print('[INFO] Reference: %s (%s)' % (reference_path, reference_hash))
     print('[INFO] Scenes   : %d frame(s) in %s' % (len(scenes), os.path.abspath(args.input_dir)))
     print('[INFO] Describer: %s' % Vision_Core.CONST_DESCRIBER)
-    # The classification flag, read ONCE through the application's configuration layer, so the
-    # harness renders the same mode (verdict colours vs the neutral detection colour) as the app.
-    classification_enabled = Read_Classification_Enabled(args.config)
-    print('[INFO] Classify : %s (%s)' % ('enabled' if classification_enabled else 'disabled',
-                                         os.path.basename(args.config)))
+    # The classification flag, from the one configuration, so the harness renders the same mode
+    # (verdict colours vs the neutral detection colour) as the app.
+    classification_enabled = configuration.Classification_Enabled
+    print('[INFO] Config   : %s' % configuration.Name)
+    print('[INFO] Classify : %s' % ('enabled' if classification_enabled else 'disabled'))
     print('[INFO] Run stamp: %s\n' % run_stamp)
 
-    # The measurement scale, read ONCE the same way as the flag; without a factor nothing is
+    # The measurement scale, from the configuration's calibration; without a factor nothing is
     # measured (and the harness says so), never a size from a default.
-    scale = Read_Conversion_Factor(args.config)
+    scale = configuration.Scale
     if scale is None:
-        print('[WARNING] %s has no valid Calibration.Conversion_Factor; objects will not be '
-              'measured.' % os.path.basename(args.config))
+        print('[WARNING] %s has no calibration Conversion_Factor; objects will not be measured.'
+              % configuration.Name)
     else:
         print('[INFO] Scale    : %.5f x %.5f mm/px' % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y))
-    backend = Vision_Pipeline_Cls(scale=scale)
+    backend = Vision_Pipeline_Cls(Configuration_Str=configuration)
     total_objects = 0
     rows = []
     for scene_path in scenes:

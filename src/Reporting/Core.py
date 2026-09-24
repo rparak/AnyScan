@@ -28,6 +28,8 @@ import typing as tp
 # Custom Lib.: AnyScan domain — data structures
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
+#   ../Parameters/Configuration
+from Parameters.Configuration import Description_Parameters_Str
 
 """
 Description:
@@ -126,9 +128,9 @@ CONST_LABEL_MAX_WORDS = 4
 # ---- The global background sentence -------------------------------------------- #
 # The background is described once, from the reference, by the describer's background
 # prompt (one short sentence naming the surface). A model can still misfire, so a
-# sentence that is empty, runs to more than one sentence, or exceeds this many words is
-# rejected for a fixed neutral string rather than written into the file as a ramble.
-CONST_BACKGROUND_MAX_WORDS = 20
+# sentence that is empty or runs past the configured limits (Description.Background_Max_Words,
+# Description.Background_Max_Sentences) is rejected for this fixed neutral string rather than
+# written into the file as a ramble.
 CONST_BACKGROUND_FALLBACK = 'The background is a plain surface.'
 
 
@@ -233,17 +235,20 @@ def Object_Description(det: Detection_Str) -> str:
     return sentence
 
 
-def Background_Sentence(caption: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
+def Background_Sentence(caption: str, *,
+                        Description_Parameters_Str: Description_Parameters_Str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
     """
     Description:
         The one global background sentence, from the reference caption. The background
-        prompt asks for a single short sentence; a caption that
-        is empty, multi-sentence, or longer than CONST_BACKGROUND_MAX_WORDS is rejected
+        prompt asks for a single short sentence; a caption that is empty, has more sentences
+        than Background_Max_Sentences, or more words than Background_Max_Words is rejected
         for the fixed neutral CONST_BACKGROUND_FALLBACK and a warning is recorded,
         rather than writing a paragraph of confabulation as the first line.
 
     Args:
         (1) caption [string]: The reference frame's raw caption.
+        (2) Description_Parameters_Str [Description_Parameters_Str(object)]: REQUIRED,
+            keyword-only: the configured Background_Max_Words and Background_Max_Sentences.
 
     Returns:
         (1) parameter [Tuple]: (the background sentence, a Vector of (level, message)
@@ -253,7 +258,8 @@ def Background_Sentence(caption: str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str
     sentence = Clean_Detail(caption)
     words = len(sentence.split())
     count = len([part for part in re.split(r'[.!?]+', sentence) if part.strip()])
-    if (not sentence) or count > 1 or words > CONST_BACKGROUND_MAX_WORDS:
+    if ((not sentence) or count > Description_Parameters_Str.Background_Max_Sentences
+            or words > Description_Parameters_Str.Background_Max_Words):
         return CONST_BACKGROUND_FALLBACK, [('warning',
                 "background caption unusable (%d words, %d sentence(s)); used the neutral "
                 "fallback instead of: '%s'" % (words, count, ' '.join(caption.split())))]

@@ -55,6 +55,8 @@ from Parameters.Vision import Detection_Str, Analysis_Str
 import Reporting.Core as Reporting
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import Background_Foreground
+#   ../Configuration/Core — the stage parameters the application runs with
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 #   ../Vision/Utilities/Caption
 from Vision.Utilities.Caption import Condense_Label
 
@@ -65,6 +67,9 @@ Description:
 # The committed reference background, at its Data/Camera/ path. The mixed pair
 # below differences it against a synthetic frame derived from itself — same size,
 # fully deterministic — so no second real image and no model weights are needed.
+# NOTE: a KNOWN second path to this file. The application's reference is the configuration's
+# Segmentation.Background.Reference and nothing else; this harness reaches the same file directly
+# because it pins a baseline on a fixed image, not because it chooses the app's reference.
 #   Unit [string]
 CONST_BACKGROUND_A = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Image_Background_001.png')
 
@@ -203,7 +208,8 @@ def _Characterize_Segmentation(bg: np.ndarray, fg: np.ndarray, frame_label: str)
     """
 
     lines = [f'  frame = {frame_label}']
-    mask = Background_Foreground(bg, fg, cv2, np)
+    mask = Background_Foreground(bg, fg, cv2, np,
+                                 Segmentation_Parameters_Str=Load_Configuration(CONST_DEFAULT_CONFIG_FILE).Segmentation)
     lines.append(f'  foreground pixels = {int(np.count_nonzero(mask))}')
 
     # The connected components of the foreground mask, above a small speck area, as

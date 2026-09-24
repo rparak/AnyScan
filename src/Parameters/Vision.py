@@ -245,13 +245,6 @@ class Analysis_Str(object):
     Audit: tp.List[tp.Tuple[str, str]] = field(default_factory=list)
 
 
-# The confidence severity thresholds, in PERCENT, defined ONCE here so every place a
-# confidence number is shown or logged (the object labels, the frame mean, the session mean,
-# the Trends reference lines) reads the same two lines. A number AT or ABOVE the warn line is
-# fine; below it is a warning; below the error line it is an error.
-#   Unit [int] (percent)
-CONST_CONFIDENCE_WARN_BELOW = 80
-CONST_CONFIDENCE_ERROR_BELOW = 60
 # The hysteresis margin, in percent, for the status-bar session-mean LOG crossings only: after
 # a threshold is crossed downward, the mean must climb this far back ABOVE it before a recovery
 # is logged, so a value hovering on a line does not emit a log record per analysis.
@@ -259,7 +252,32 @@ CONST_CONFIDENCE_ERROR_BELOW = 60
 CONST_CONFIDENCE_LOG_HYSTERESIS = 2
 
 
-def Confidence_Severity(percent: tp.Optional[float]) -> str:
+@dataclass
+class Confidence_Thresholds_Str(object):
+    """
+    Description:
+        The confidence severity thresholds, in PERCENT, from the configuration's 'Confidence'
+        block — ONE pair that every place a confidence number is shown or logged reads (the object
+        labels, the frame mean, the session mean and its log crossings, the Trends reference
+        lines). A number AT or ABOVE the warn line is fine; below it is a warning; below the error
+        line it is an error.
+
+        Note:
+            They are a VIEWING preference, applied to whatever is on screen: a past capture set
+            shown in History is coloured by the thresholds in force now, not the ones in force
+            when it was captured (docs/design-decisions.md).
+    """
+
+    # Below this a confidence is a warning.
+    #   Unit [int] (percent)
+    Warn_Below: int = 80
+    # Below this a confidence is an error.
+    #   Unit [int] (percent)
+    Error_Below: int = 60
+
+
+def Confidence_Severity(percent: tp.Optional[float],
+                        Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> str:
     """
     Description:
         The severity band of a confidence percentage, as the LOG-LEVEL string that names it
@@ -271,6 +289,7 @@ def Confidence_Severity(percent: tp.Optional[float]) -> str:
 
     Args:
         (1) percent [float]: The confidence in percent (0..100), or None when unscored.
+        (2) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: The thresholds in force.
 
     Returns:
         (1) parameter [string]: The severity level ('INFO', 'WARNING' or 'ERROR').
@@ -278,8 +297,8 @@ def Confidence_Severity(percent: tp.Optional[float]) -> str:
 
     if percent is None:
         return 'INFO'
-    if percent < CONST_CONFIDENCE_ERROR_BELOW:
+    if percent < Confidence_Thresholds_Str.Error_Below:
         return 'ERROR'
-    if percent < CONST_CONFIDENCE_WARN_BELOW:
+    if percent < Confidence_Thresholds_Str.Warn_Below:
         return 'WARNING'
     return 'INFO'

@@ -23,8 +23,12 @@
 
 # System (Default)
 import os
+import gc
 # Typing (Support for type hints)
 import typing as tp
+# Custom Lib.: AnyScan — the configured stage parameters
+#   ../Parameters/Configuration
+from Parameters.Configuration import Segmentation_Parameters_Str
 
 """
 Description:
@@ -43,35 +47,12 @@ Description:
         first Segment call, never at module load, so importing this module — as the
         Qt-free separation test does — pulls no heavy runtime and no Qt backend.
 """
-# The local FastSAM weights. Resolved from this file's location the same way the
-# describer's weights are (src/Vision -> ../../models/...), never a hub id, so there
-# is no network fetch at runtime.
-CONST_SEGMENTER_WEIGHTS = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',
-                 'models', 'sam-1', 'FastSAM-x.pt'))
-
 # The backend name presented in logs and the example script.
 CONST_SEGMENTER_NAME = 'FastSAM-x'
 
-# Compute device: 'auto' picks cuda, then mps, then cpu. Overridable per instance.
-CONST_SEGMENTER_DEVICE = 'auto'
-
-# FastSAM inference tunables. imgsz is the inference size; conf/iou are the
-# detection confidence and NMS-IoU thresholds inside ultralytics (distinct from
-# the stage-3 mask NMS). retina_masks returns full-resolution masks.
-CONST_SEGMENTER_IMGSZ = 1024
-CONST_SEGMENTER_CONF = 0.4
-CONST_SEGMENTER_IOU = 0.9
+# retina_masks returns full-resolution masks. (The weights, device, prompting mode and FastSAM's
+# confidence / IoU / inference size are configuration: Segmentation_Parameters_Str.)
 CONST_SEGMENTER_RETINA_MASKS = True
-
-# 'everything' segments the whole frame independently and lets stage 3 filter the
-# clutter; 'box' prompts FastSAM with the stage-1 candidate regions. Default is
-# 'everything' because it is what SEPARATES touching objects: stage 1 merges
-# touching parts into a single candidate region, and a box prompt returns one mask
-# per box, so 'box' inherits that merge. 'box' is cheaper and cleaner when the parts
-# are already well separated. See KNOWN_ISSUES. A failed box prompt degrades to
-# everything-mode rather than crashing.
-CONST_SEGMENTER_PROMPT_MODE = 'everything'
 
 # Safety valve: the most masks kept from everything-mode (highest confidence
 # first), so a busy frame cannot flood stage 3.
@@ -133,7 +114,7 @@ class Segmenter_Backend_Cls(object):
 class Fast_Sam_Cls(Segmenter_Backend_Cls):
     """
     Description:
-        FastSAM-x through ultralytics, loaded from the local CONST_SEGMENTER_WEIGHTS.
+        FastSAM-x through ultralytics, loaded from the configured local weights file.
 
         Note:
             Notes that cost hours if missed:
@@ -141,7 +122,10 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
                   load, so a bare import of this module stays cheap and Qt-free
                   (ultralytics pulls matplotlib). The one-time 'settings updated'
                   warning ultralytics logs on import is silenced at that boundary.
-              (2) The model loads once and is kept; the first Segment pays the load.
+              (2) The model loads once and is kept: Load() preloads it (the application
+                  does, on a configuration load or the first CONNECT), otherwise the first
+                  Segment pays the load. Release() drops it so its memory can be reclaimed
+                  before another model loads.
               (3) Box-prompting with the stage-1 regions is preferred. The bboxes=
                   keyword arrived in ultralytics 8.2; this probes it once and falls
                   back to everything-mode if it is unsupported or the prompt fails,
@@ -152,30 +136,32 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
 
     Initialization of the Class:
         Args:
-            (1) weights_path [string]: Override for the weights file (default
-                                       CONST_SEGMENTER_WEIGHTS).
-            (2) device [string]: Override for the compute device (default
-                                 CONST_SEGMENTER_DEVICE).
+            (1) Segmentation_Parameters_Str [Segmentation_Parameters_Str(object)]: The configured
+                weights, device, prompting mode and FastSAM thresholds.
 
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = Fast_Sam_Cls()
+                Cls = Fast_Sam_Cls(Configuration_Str.Segmentation)
 
             Features:
+                # Properties of the class.
+                Cls.Loaded; Cls.Model_Key
+
                 # Functions of the class.
-                Cls.Segment(image_bgr, regions)
+                Cls.Load(stage_cb); Cls.Segment(image_bgr, regions); Cls.Release()
+                Cls.Set_Parameters(Segmentation_Parameters_Str)
     """
 
     Name = CONST_SEGMENTER_NAME
 
-    def __init__(self, weights_path: tp.Optional[str] = None,
-                 device: tp.Optional[str] = None) -> None:
+    def __init__(self, Segmentation_Parameters_Str: Segmentation_Parameters_Str) -> None:
         super().__init__()
 
         # << PRIVATE >> #
-        self.__weights_path = weights_path or CONST_SEGMENTER_WEIGHTS
-        self.__device_override = device
+        self.__params = Segmentation_Parameters_Str
+        self.__weights_path = Segmentation_Parameters_Str.Model_Path
+        self.__device_setting = Segmentation_Parameters_Str.Device
         self.__model = None
         self.__device = None
         self.__np = None
@@ -183,11 +169,79 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
         # Tri-state box-prompt capability: None until probed, then True/False.
         self.__box_prompt_ok = None
 
+    @property
+    def Loaded(self) -> bool:
+        """
+        Description:
+            Whether the FastSAM model is loaded.
+
+        Returns:
+            (1) parameter [bool]: True once Load (or a Segment) has loaded it.
+        """
+
+        return self.__model is not None
+
+    @property
+    def Model_Key(self) -> tp.Tuple[str, str]:
+        """
+        Description:
+            What identifies the loaded model: the weights file and the device setting. Two
+            configurations with the same key can share this instance without a reload.
+
+        Returns:
+            (1) parameter [Tuple<string> 1x2]: (weights path, device setting).
+        """
+
+        return (self.__weights_path, self.__device_setting)
+
+    def Set_Parameters(self, Segmentation_Parameters_Str: Segmentation_Parameters_Str) -> None:
+        """
+        Description:
+            Adopt another configuration's per-call parameters (prompting mode, FastSAM
+            confidence, IoU, inference size) while keeping the loaded model. Only valid when the
+            new parameters have the same Model_Key.
+
+        Args:
+            (1) Segmentation_Parameters_Str [Segmentation_Parameters_Str(object)]: The parameters.
+        """
+
+        assert (Segmentation_Parameters_Str.Model_Path, Segmentation_Parameters_Str.Device) == self.Model_Key
+        self.__params = Segmentation_Parameters_Str
+
+    def Load(self, stage_cb: tp.Optional[tp.Callable] = None) -> None:
+        """
+        Description:
+            Load the model now (once), so the first Segment does not pay for it.
+
+        Args:
+            (1) stage_cb [function]: Optional (text) phase hook.
+        """
+
+        self.__Ensure_Loaded(stage_cb)
+
+    def Release(self) -> None:
+        """
+        Description:
+            Drop the loaded model and return its accelerator memory, so another model can load
+            without holding both at once. Best effort: a missing torch cache API is skipped.
+        """
+
+        self.__model = None
+        gc.collect()
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except (ImportError, AttributeError, RuntimeError):
+            pass
+
     def __Pick_Device(self, torch: tp.Any) -> str:
         """
         Description:
-            Choose the compute device string ('auto' -> cuda, then mps, then cpu),
-            honouring the per-instance override then CONST_SEGMENTER_DEVICE.
+            Choose the compute device string ('auto' -> cuda, then mps, then cpu) from the
+            configured device setting.
 
         Args:
             (1) torch [module]: The torch module.
@@ -196,7 +250,7 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
             (1) parameter [string]: The device string for ultralytics.
         """
 
-        device = self.__device_override or CONST_SEGMENTER_DEVICE
+        device = self.__device_setting
         if device != 'auto':
             return device
         if torch.cuda.is_available():
@@ -221,7 +275,8 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
         if not os.path.isfile(self.__weights_path):
             raise Segmenter_Error_Cls(
                 'The FastSAM weights at "%s" could not be found. Download FastSAM-x.pt '
-                '(see README > Setup) and save it there, then scan again.'
+                '(see README > Setup) and save it there, or point Segmentation.Model in the '
+                'configuration at it.'
                 % self.__weights_path
             )
         if stage_cb:
@@ -275,11 +330,12 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
             (1) parameter [Tuple]: (the ultralytics results, was_box_prompted [bool]).
         """
 
+        params = self.__params
         common = dict(device=self.__device, retina_masks=CONST_SEGMENTER_RETINA_MASKS,
-                      imgsz=CONST_SEGMENTER_IMGSZ, conf=CONST_SEGMENTER_CONF,
-                      iou=CONST_SEGMENTER_IOU, verbose=False)
+                      imgsz=params.Image_Size, conf=params.Confidence,
+                      iou=params.IoU, verbose=False)
 
-        want_box = (CONST_SEGMENTER_PROMPT_MODE == 'box' and bool(regions)
+        want_box = (params.Mode == 'box' and bool(regions)
                     and self.__box_prompt_ok is not False)
         if want_box:
             try:
