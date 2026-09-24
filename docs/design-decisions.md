@@ -386,6 +386,47 @@ harness artefact look like a real difference. **Do not reintroduce a default.**
 Tests `test/UI/test_harness_parity.py` (the harness mask equals the mask the window writes, for
 both flag values; the harness uses the app's config reader; the renderers reject an unstated mode).
 
+## The configuration sets the camera's sensor window
+
+`Camera.Resolution` (`x`, `y`) and `Camera.Offset` (`x`, `y`) — 1920 × 1200 centred at (8, 8) on the
+a2A1920-51gcPRO's 1936 × 1216 sensor — are REQUIRED, and `Basler_Cls` sets them on every connect
+(offsets to 0, then the size, then the offsets: the camera caps each by the other) and reads all four
+back. The read-back window, exposure, gain and pixel format go into the session log on connect.
+
+**Why.** `Camera.Resolution` already existed: it was loaded into the configuration and never read.
+Only `Custom_Cfg` reached the camera, and no code had ever set `Width` / `Height`. The camera ran at
+whatever it last remembered; the 1920 × 1200 frames came from a setting made outside the application
+and never saved to a user set, and a power cycle returned the camera to its factory default, the full
+1936 × 1216 sensor (found 2026-09-24, when a frame stopped matching the 1920 × 1200 reference). A
+missing field is honest; **a field that looks authoritative and does nothing is how someone concludes
+the sensor is pinned when it is not** — the same class of error as the hardware-id constant below that
+duplicated the configuration's, and removed for the same reason. Giving the existing field the job,
+rather than adding `Width` / `Height` beside it, keeps one source.
+
+**The dependency runs one way.** Configuration → camera (set on connect) → data validated against the
+configuration at load: a background reference of another size fails the load naming both sizes, and a
+calibration solved at another window fails it too — K's principal point and the mm/px factor are in
+that window's pixels. The camera never reads its size from the reference: that would make the hardware
+follow a picture on disk, and swapping the reference would silently reconfigure the sensor. The check
+at the grab (a delivered frame of another size) and the one at ANALYZE stay as safety nets, not the
+first line of defence. `calibrate.py` records the read-back window in `capture.json` and in the
+calibration it writes, refuses to extend a capture set taken at another window, and the writer refuses
+a calibration that does not record its window.
+
+**Centred, (8, 8).** Symmetric about the lens axis; trims the sensor's border evenly. The old frames'
+window position is unrecoverable (the empty mat has no texture to register against), and both the
+calibration and the reference frames are being re-shot, so there was nothing to match back to.
+
+**Temporary leniency.** The calibration in force predates recorded windows, so an absent window is a
+WARNING that names the risk (measurements may be wrong by an unknown amount), not a load failure —
+blocking live use over a calibration being replaced that week would gain nothing. **Once the
+multi-view recalibration is in force, make an absent window a load failure**; the code beside the
+warning (`Configuration.Core.__Read_Calibration`) says so.
+Tests `test/Configuration/test_core.py` (the window's validation, the reference and calibration
+checks, the writer's refusal), `test/Camera/test_basler.py` (the set order against a stand-in with the
+camera's constraints, the read-back, the log line, the grab check), `test/Calibration/test_core.py`
+(the window in `capture.json` and in the written calibration).
+
 ## The run-summary CSV is named after the loaded configuration
 
 `logger/log_<id>.csv` takes `<id>` from the configuration file the run loaded

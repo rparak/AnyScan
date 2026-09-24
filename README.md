@@ -118,7 +118,9 @@ holds:
   margin and the background-sentence limits.
 - **Confidence:** the 80% / 60% warning and error thresholds.
 - **General.Classification.**
-- **Camera:** acquisition settings, and the camera, lens and lighting as a person names them.
+- **Camera:** acquisition settings; the **sensor window** (`Camera.Resolution`, `Camera.Offset`:
+  1920 × 1200 centred at (8, 8) on the 1936 × 1216 sensor), which is set on the camera on every
+  connect and read back; and the camera, lens and lighting as a person names them.
 
 The calibration is not in the mode file. It lives once per camera in
 `Configuration/Calibration_<Hardware>.yaml`, and every mode on that hardware shares it, as it
@@ -130,7 +132,12 @@ loads, with a warning: frames are not undistorted and sizes are not reported unt
 file before anything is applied:
 
 - A missing **required** field (the hardware, a model path, the background reference, a prompt,
-  the display name or model set, the camera's acquisition settings) fails the load and names it.
+  the display name or model set, the camera's acquisition settings or sensor window) fails the
+  load and names it.
+- What depends on the sensor window is checked against it: a background reference of another size
+  fails the load, naming both sizes, and so does a calibration solved at another window. The
+  camera never takes its size from the reference. A calibration that does not record its window
+  loads with a warning for now (see `docs/design-decisions.md`).
 - A missing **optional** field takes the default written in the file's comments, and the log says so.
 - A value that is present but invalid fails the load; it never falls back to a default.
 

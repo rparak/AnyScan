@@ -77,15 +77,31 @@ CONST_FRAME_RATE = 5.0
 CONST_VERBOSE = False
 
 
+class Basler_Settings_Error_Cls(ValueError):
+    """
+    Description:
+        The camera was reached but rejected, or did not keep, a configured setting — a sensor window
+        that does not fit it, or a value that reads back different from what was set. Its message
+        names the setting and both values, so the caller reports it as it stands instead of as a
+        connection failure.
+    """
+
+
 class Basler_Cls:
     """
     Description:
         Initialize and configure a Basler camera from a configuration dictionary.
 
-        Only the image parameters are passed in through 'config'. The GigE
-        transport tuning lives in the module constants at the top of this file,
-        because it is a property of the network hardware rather than of the
-        capture.
+        Only the image parameters are passed in through 'config', and the sensor window
+        through 'resolution' and 'offset'. The GigE transport tuning lives in the module
+        constants at the top of this file, because it is a property of the network hardware
+        rather than of the capture.
+
+        The window is SET on every connect and read back, like exposure and gain: the camera
+        never runs at whatever it last remembered (after a power cycle, its factory default of
+        the full sensor). A window that does not fit, or does not read back as set, raises
+        Basler_Settings_Error_Cls - after the device is closed again, so a refused connect never
+        leaves it locked.
 
     Initialization of the Class:
         Args:
@@ -93,23 +109,33 @@ class Basler_Cls:
                 Balance_Ratios, Pixel_Format): the configuration's Camera.Custom_Cfg, loaded
                 by Configuration.Core.Load_Configuration, which validates that every required
                 key is present.
-            (2) max_retries [int]: Maximum number of connection attempts.
-            (3) retry_delay [int]: Delay in seconds between attempts.
+            (2) resolution [Vector<int> 1x2]: The sensor window's size (width, height) [px]: the
+                configuration's Camera.Resolution.
+            (3) offset [Vector<int> 1x2]: The window's offset on the sensor (x, y) [px]: the
+                configuration's Camera.Offset.
+            (4) max_retries [int]: Maximum number of connection attempts.
+            (5) retry_delay [int]: Delay in seconds between attempts.
 
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
+                Cls = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg, resolution=Basler_Cfg_Str.Resolution,
+                                 offset=Basler_Cfg_Str.Offset)
 
             Features:
+                # Properties of the class.
+                Cls.Applied_Settings
+
                 # Functions of the class.
                 Cls.Capture(); Cls.Is_Grabbing(); Cls.Print_Statistics()
     """
 
-    def __init__(self, config: tp.Dict[str, tp.Any], max_retries: int = 10,
-                 retry_delay: int = 1) -> None:
+    def __init__(self, config: tp.Dict[str, tp.Any], resolution: tp.Tuple[int, int], offset: tp.Tuple[int, int],
+                 max_retries: int = 10, retry_delay: int = 1) -> None:
         self.camera = None; self.tl_factory = None
         self.devices = None
+        # What the camera reports after configuration (read back, not what was asked for).
+        self.__applied = {}
 
         # Image configuration is required: a camera started with unset exposure/gain
         # must fail loudly, not silently. The values come from the *.yaml configuration
@@ -120,11 +146,19 @@ class Basler_Cls:
             raise ValueError('Basler_Cls requires a non-empty image configuration '
                              '(Exposure_Time, Gain, Balance_Ratios, Pixel_Format).')
         self.config = dict(config)
+        self.resolution = (int(resolution[0]), int(resolution[1]))
+        self.offset = (int(offset[0]), int(offset[1]))
 
         # Attempt to connect to the camera.
         self.__Connect(max_retries, retry_delay)
 
-        self.__Configure()
+        # A camera that cannot be configured is closed again before the error propagates: a device
+        # left open keeps its control channel, and the next connect would fail with 'device busy'.
+        try:
+            self.__Configure()
+        except Exception:
+            self.__Close()
+            raise
 
         # Setup converter for Bayer to BGR conversion.
         self.converter = pylon.ImageFormatConverter()
@@ -286,13 +320,87 @@ class Basler_Cls:
         if CONST_VERBOSE:
             print(message)
 
+    @property
+    def Applied_Settings(self) -> tp.Dict[str, tp.Any]:
+        """
+        Description:
+            The acquisition settings as the camera reports them after configuration - read back,
+            not what was asked for: the window's size and offset, the sensor's full size, the
+            exposure, the gain and the pixel format.
+
+        Returns:
+            (1) parameter [Dictionary]: {'resolution': (w, h), 'offset': (x, y), 'sensor': (w, h),
+                                         'exposure_us': float, 'gain': float, 'pixel_format': str}.
+        """
+
+        return dict(self.__applied)
+
+    def __Configure_Window(self) -> None:
+        """
+        Description:
+            Set the sensor window (Width, Height, OffsetX, OffsetY) and verify it by reading all four
+            back.
+
+            The order matters: the camera caps an offset by the current size (OffsetX <= WidthMax -
+            Width) and a size by the current offset, so the offsets go to 0 first, then the size, then
+            the offsets. The window is checked against the sensor and the step sizes first, so a window
+            that cannot fit is reported in the configuration's terms rather than as an SDK range error.
+        """
+
+        width, height = self.resolution
+        offset_x, offset_y = self.offset
+        # The window can only change while the camera is not acquiring.
+        self.__Stop_Grabbing()
+        self.camera.OffsetX.SetValue(0)
+        self.camera.OffsetY.SetValue(0)
+        sensor = (int(self.camera.Width.Max), int(self.camera.Height.Max))
+        if width + offset_x > sensor[0] or height + offset_y > sensor[1]:
+            raise Basler_Settings_Error_Cls(
+                'Camera.Resolution %d × %d at Camera.Offset (%d, %d) does not fit this camera\'s %d × %d sensor. '
+                'Correct the configuration.' % (width, height, offset_x, offset_y, sensor[0], sensor[1]))
+        for name, value in (('Width', width), ('Height', height), ('OffsetX', offset_x), ('OffsetY', offset_y)):
+            node = getattr(self.camera, name)
+            step, minimum = int(node.Inc), int(node.Min) if name in ('Width', 'Height') else 0
+            if value < minimum or (value - minimum) % step:
+                raise Basler_Settings_Error_Cls(
+                    'The camera cannot set %s to %d: it takes values from %d in steps of %d. Correct '
+                    'Camera.%s in the configuration.' % (name, value, minimum, step,
+                                                         'Resolution' if name in ('Width', 'Height') else 'Offset'))
+        # An SDK error here (a range the checks above did not foresee, a node locked by another
+        # client) is a settings failure, not a missing camera: it is reported as one, in the
+        # configuration's terms.
+        try:
+            self.camera.Width.SetValue(width)
+            self.camera.Height.SetValue(height)
+            self.camera.OffsetX.SetValue(offset_x)
+            self.camera.OffsetY.SetValue(offset_y)
+        except Exception as error:
+            raise Basler_Settings_Error_Cls(
+                'The camera refused the sensor window %d × %d at offset (%d, %d) (Camera.Resolution, Camera.Offset): '
+                '%s. Power-cycle the camera and connect again.'
+                % (width, height, offset_x, offset_y, str(error).splitlines()[0])) from error
+
+        # Read back: a camera that silently keeps another value must fail here, not at the first
+        # frame of the wrong size.
+        applied = {name: int(getattr(self.camera, name).Value) for name in ('Width', 'Height', 'OffsetX', 'OffsetY')}
+        wanted = {'Width': width, 'Height': height, 'OffsetX': offset_x, 'OffsetY': offset_y}
+        wrong = ['%s %d (set %d)' % (name, applied[name], wanted[name]) for name in wanted if applied[name] != wanted[name]]
+        if wrong:
+            raise Basler_Settings_Error_Cls('The camera did not keep the configured sensor window: it reports %s. '
+                                            'Power-cycle the camera and connect again.' % ', '.join(wrong))
+        self.__applied.update({'resolution': (applied['Width'], applied['Height']),
+                               'offset': (applied['OffsetX'], applied['OffsetY']), 'sensor': sensor})
+        print(f'[INFO] Sensor window set to: {width} x {height} at offset ({offset_x}, {offset_y}) '
+              f'of the {sensor[0]} x {sensor[1]} sensor (read back)')
+
     def __Configure(self) -> None:
         """
         Description:
-            Apply the image settings from the configuration dictionary, then the
-            transport settings from the module constants.
+            Apply the sensor window, then the image settings from the configuration dictionary,
+            then the transport settings from the module constants.
         """
 
+        self.__Configure_Window()
         self.camera.Gain.SetValue(self.config['Gain'])
         # Disable Auto White Balance.
         self.camera.BalanceWhiteAuto.SetValue('Off')
@@ -311,6 +419,9 @@ class Basler_Cls:
         # Set the exposure time in microseconds.
         self.camera.ExposureTime.SetValue(self.config['Exposure_Time'])
         print(f'[INFO] Exposure Time set to: {self.config["Exposure_Time"]} µs')
+        self.__applied.update({'exposure_us': float(self.camera.ExposureTime.Value),
+                               'gain': float(self.camera.Gain.Value),
+                               'pixel_format': str(self.camera.PixelFormat.Value)})
 
         self.__Configure_Transport()
 

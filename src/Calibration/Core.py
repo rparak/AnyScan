@@ -551,14 +551,16 @@ def Report_Lines(report: Calibration_Report_Str) -> tp.List[str]:
     return lines
 
 
-def Calibration_Parameters(report: Calibration_Report_Str) -> Camera_Calibration_Parameters_Str:
+def Calibration_Parameters(report: Calibration_Report_Str, offset: tp.Tuple[int, int]) -> Camera_Calibration_Parameters_Str:
     """
     Description:
-        The report's result as the configuration's calibration structure (K, coefficients and
-        the mm/px factor), for writing.
+        The report's result as the configuration's calibration structure (K, coefficients, the
+        mm/px factor and the sensor window it was solved at), for writing. The window's size is the
+        images' own; its offset on the sensor is not in the images and comes from the capture.
 
     Args:
         (1) report [Calibration_Report_Str(object)]: The report.
+        (2) offset [Vector<int> 1x2]: The sensor window's offset (x, y) the images were captured at.
 
     Returns:
         (1) parameter [Camera_Calibration_Parameters_Str(object)]: The calibration parameters.
@@ -566,4 +568,6 @@ def Calibration_Parameters(report: Calibration_Report_Str) -> Camera_Calibration
 
     return Camera_Calibration_Parameters_Str(K=report.K, Coefficients=dict(report.Coefficients),
                                              Conversion_Factor={'x': report.Factor[0],
-                                                                'y': report.Factor[1]})
+                                                                'y': report.Factor[1]},
+                                             Resolution=(int(report.Image_Size[0]), int(report.Image_Size[1])),
+                                             Offset=(int(offset[0]), int(offset[1])))

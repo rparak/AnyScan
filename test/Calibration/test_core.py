@@ -154,8 +154,8 @@ def test_capture_harness_keeps_every_frame_and_marks_them_distorted(tmp_path, mo
     class _Camera_Cls:
         """A stand-in for Basler_Cls that hands out the scripted frames."""
 
-        def __init__(self, config):
-            pass
+        def __init__(self, config, resolution, offset):
+            self.Applied_Settings = {'resolution': tuple(resolution), 'offset': tuple(offset)}
 
         def Capture(self):
             return next(frames)
@@ -171,6 +171,14 @@ def test_capture_harness_keeps_every_frame_and_marks_them_distorted(tmp_path, mo
     flat, view = manifest['frames']
     assert (flat['kind'], flat['board_found'], flat['corners']) == ('flat', True, 70)
     assert (view['kind'], view['board_found']) == ('view', False) and view['reason']
+    # The window the camera read back is recorded, so the solve can record it in the calibration.
+    assert manifest['window'] == {'resolution': [1920, 1200], 'offset': [8, 8]}
+
+    # A set captured at another window is not extended: its frames would be solved together.
+    manifest['window'] = {'resolution': [1936, 1216], 'offset': [0, 0]}
+    (tmp_path / 'capture.json').write_text(json.dumps(manifest))
+    keys = iter(['q'])
+    assert calibrate.Capture_Main(str(tmp_path), CONST_DEFAULT_CONFIG_FILE) == 1
 
 
 # The rendering camera for the solve tests: a 960 x 600 frame, a principal point off the centre,
@@ -326,11 +334,26 @@ def test_no_flat_view_fails_loudly(render) -> None:
         Calibrate(_Tilted(render), CONST_RENDER_SQUARE, 0.0, CONST_SQUARES)
 
 
-def _Configuration_Copy(directory: tp.Any) -> tp.Tuple[str, str]:
-    """A copy of the shipped mode file and its hardware's calibration in a directory: (mode, calibration)."""
+def _Configuration_Copy(directory: tp.Any, window: tp.Optional[tp.Tuple[int, int]] = None) -> tp.Tuple[str, str]:
+    """
+    A copy of the shipped mode file and its hardware's calibration in a directory: (mode, calibration).
+    With a window (width, height), the copy sets the camera to it at offset (0, 0), with a grey
+    background reference of that size — the configuration the rendered 960 x 600 boards belong to.
+    """
+    import yaml
     hardware = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
     mode = os.path.join(str(directory), 'Config_%s_Mode_Test.yaml' % hardware)
     shutil.copy(CONST_DEFAULT_CONFIG_FILE, mode)
+    if window is not None:
+        with open(mode, 'r', encoding='utf-8') as handle:
+            data = yaml.safe_load(handle)
+        reference = os.path.join(str(directory), 'Background_%dx%d.png' % window)
+        cv2.imwrite(reference, np.full((window[1], window[0], 3), 90, np.uint8))
+        data['Camera']['Resolution'] = {'x': window[0], 'y': window[1]}
+        data['Camera']['Offset'] = {'x': 0, 'y': 0}
+        data['Segmentation']['Background']['Reference'] = reference
+        with open(mode, 'w', encoding='utf-8') as handle:
+            yaml.safe_dump(data, handle, sort_keys=False)
     calibration = Calibration_Path_For(mode, hardware)
     shutil.copy(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware), calibration)
     return mode, calibration
@@ -346,16 +369,18 @@ def test_result_goes_to_a_new_calibration_file_and_leaves_the_one_in_force(tmp_p
     """
 
     import yaml
-    mode, in_force = _Configuration_Copy(tmp_path)
+    mode, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
     before = (open(mode, 'rb').read(), open(in_force, 'rb').read())
     output = tmp_path / 'Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_calib-1.yaml'
     record = {'date': '2026-09-23T10:00:00', 'images': str(tmp_path), 'rms_px': solved.Rms_Px,
               'views': {'total': 11, 'flat': 3, 'tilted': 8}, 'square_mm': 12.0, 'board_height_mm': 4.5}
-    assert Write_Calibration(Calibration_Parameters(solved), hardware='a2A1920_51gcPRO_Computar_M1228_MPW3',
+    assert Write_Calibration(Calibration_Parameters(solved, (0, 0)), hardware='a2A1920_51gcPRO_Computar_M1228_MPW3',
                              header_source=in_force, output_path=str(output), record=record)
     assert (open(mode, 'rb').read(), open(in_force, 'rb').read()) == before
     written = yaml.safe_load(output.read_text())['Calibration']
     assert written['Solved']['Views'] == {'Total': 11, 'Flat': 3, 'Tilted': 8}
+    # The window the images were solved at: their own size, and the offset they were captured at.
+    assert (written['Resolution'], written['Offset']) == ({'x': 960, 'y': 600}, {'x': 0, 'y': 0})
     assert written['Solved']['Board_Height_Mm'] == 4.5 and written['Solved']['Square_Size_Mm'] == 12.0
 
     shutil.move(str(output), in_force)                            # adopt it
@@ -378,7 +403,7 @@ def test_images_harness_writes_a_new_calibration_and_says_adoption_is_separate(t
         'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
     calibrate = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(calibrate)
-    mode, in_force = _Configuration_Copy(tmp_path)
+    mode, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
     before = (open(mode, 'rb').read(), open(in_force, 'rb').read())
     images = tmp_path / 'images'
     images.mkdir()
@@ -392,7 +417,7 @@ def test_images_harness_writes_a_new_calibration_and_says_adoption_is_separate(t
     written = [name for name in os.listdir(tmp_path) if name.startswith('Calibration_') and '_calib-' in name]
     assert len(written) == 1
     assert sorted(os.listdir(tmp_path)) == sorted([os.path.basename(mode), os.path.basename(in_force),
-                                                   'images'] + written)
+                                                   'Background_960x600.png', 'images'] + written)
 
     for name in os.listdir(images):
         if name.startswith('flat_'):
@@ -414,7 +439,7 @@ def test_a_first_calibration_is_written_straight_into_force(tmp_path, render, ca
         'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
     calibrate = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(calibrate)
-    mode, in_force = _Configuration_Copy(tmp_path)
+    mode, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
     os.remove(in_force)
     assert Load_Configuration(mode).Camera.Calibration is None
     images = tmp_path / 'images'

@@ -30,6 +30,8 @@ import json
 import yaml
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
+# Pillow (Image header reading: the background reference's size, without decoding it) [pip3 install Pillow]
+from PIL import Image
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan — the structures a configuration becomes
@@ -53,7 +55,12 @@ Description:
     The rules:
         - A REQUIRED field (the hardware, both model paths, the background reference — which must
           exist — both prompts, the identity's display name and model set, the camera's acquisition
-          settings) has no default: its absence fails the load, naming the field.
+          settings and its sensor window) has no default: its absence fails the load, naming the field.
+        - The SENSOR WINDOW (Camera.Resolution, Camera.Offset) is set on the camera on connect, and
+          what depends on it is checked against it here, at load: a background reference of another
+          size fails the load, naming both sizes, and so does a calibration solved at another window.
+          The camera never takes its size from the reference — the hardware follows the
+          configuration, and the data is validated against it.
         - The CALIBRATION is optional as a whole: a hardware without a calibration file loads with
           no lens model and no scale (frames are not undistorted, objects are not measured) and a
           warning saying to run calibrate.py — the honest degraded state, and the one a camera
@@ -96,7 +103,12 @@ CONST_DEVICES = ('auto', 'cpu', 'mps', 'cuda')
 # content someone adds to a calibration file is never silently deleted.
 #   Unit [Tuple<string>]
 CONST_CALIBRATION_FILE_KEYS = ('Hardware', 'Calibration')
-CONST_CALIBRATION_BLOCK_KEYS = ('Solved', 'K', 'Coefficients', 'Conversion_Factor')
+CONST_CALIBRATION_BLOCK_KEYS = ('Solved', 'Resolution', 'Offset', 'K', 'Coefficients', 'Conversion_Factor')
+# The sensor window: (the key path, the smallest valid value). Each is an {x, y} pair in pixels,
+# REQUIRED in a mode file and recorded in a calibration file. The camera is set to it on connect;
+# the background reference and the calibration must match it.
+#   Unit [Tuple<Tuple>]
+CONST_WINDOW_FIELDS = ((('Camera', 'Resolution'), 1), (('Camera', 'Offset'), 0))
 
 
 class Configuration_Error_Cls(ValueError):
@@ -254,10 +266,10 @@ CONST_FIELDS = (
     (('Camera', 'Lens'), ('Camera', 'Lens'), 'text', False),
     (('Camera', 'Lighting'), ('Camera', 'Lighting'), 'text', False),
 )
-# The keys a mode file may hold beyond CONST_FIELDS: free-form blocks whose content is not
-# checked key by key (the vendor acquisition settings, the resolution).
+# The keys a mode file may hold beyond CONST_FIELDS and CONST_WINDOW_FIELDS: free-form blocks
+# whose content is not checked key by key (the vendor acquisition settings).
 #   Unit [Tuple<Tuple<string>>]
-CONST_FREE_BLOCKS = (('Camera', 'Custom_Cfg'), ('Camera', 'Resolution'))
+CONST_FREE_BLOCKS = (('Camera', 'Custom_Cfg'),)
 
 
 def __Lookup(data: tp.Any, path: tp.Tuple[str, ...]) -> tp.Tuple[bool, tp.Any]:
@@ -298,6 +310,9 @@ def __Unknown_Keys(data: tp.Dict[str, tp.Any]) -> tp.List[str]:
         known.update(path[:i] for i in range(1, len(path) + 1))
     for path in CONST_FREE_BLOCKS:
         known.update(path[:i] for i in range(1, len(path) + 1))
+    for path, _minimum in CONST_WINDOW_FIELDS:
+        known.update(path[:i] for i in range(1, len(path) + 1))
+        known.update({path + ('x',), path + ('y',)})
     unknown = []
 
     def _Walk(node: tp.Any, prefix: tp.Tuple[str, ...]) -> None:
@@ -353,7 +368,72 @@ def __Read_Yaml(path: str, what: str, problems: tp.List[str]) -> tp.Optional[tp.
     return data
 
 
-def __Read_Calibration(path: str, hardware: str, problems: tp.List[str],
+def __Read_Window(block: tp.Any, dotted: str, minimum: int, problems: tp.List[str]) -> tp.Optional[tp.Tuple[int, int]]:
+    """
+    Description:
+        Read one {x, y} pair of whole pixels (a sensor window's size or offset), recording (not
+        raising) what is wrong with it.
+
+    Args:
+        (1) block [Any]: The value read from the file.
+        (2) dotted [string]: Its key path, for the message.
+        (3) minimum [int]: The smallest valid value (1 for a size, 0 for an offset).
+        (4) problems [Vector<string>]: The problem list, appended to.
+
+    Returns:
+        (1) parameter [Tuple<int> 1x2 or None]: (x, y), or None when it is not valid.
+    """
+
+    if not isinstance(block, dict):
+        problems.append('%s is required but missing (x and y, in pixels)' % dotted)
+        return None
+    values = []
+    for axis in ('x', 'y'):
+        value = block.get(axis)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= minimum:
+            values.append(value)
+        else:
+            problems.append('%s.%s must be a whole number of at least %d (found %r)' % (dotted, axis, minimum, value))
+    return (values[0], values[1]) if len(values) == 2 else None
+
+
+def __Describe_Window(resolution: tp.Tuple[int, int], offset: tp.Tuple[int, int]) -> str:
+    """
+    Description:
+        A sensor window as a message names it: '1920 × 1200 at offset (8, 8)'.
+
+    Args:
+        (1) resolution [Vector<int> 1x2]: (width, height).
+        (2) offset [Vector<int> 1x2]: (x, y).
+
+    Returns:
+        (1) parameter [string]: The description.
+    """
+
+    return '%d × %d at offset (%d, %d)' % (resolution[0], resolution[1], offset[0], offset[1])
+
+
+def __Image_Size(path: str) -> tp.Optional[tp.Tuple[int, int]]:
+    """
+    Description:
+        An image's (width, height) from its header, without decoding the pixels.
+
+    Args:
+        (1) path [string]: The image file.
+
+    Returns:
+        (1) parameter [Tuple<int> 1x2 or None]: (width, height), or None when it is not a readable image.
+    """
+
+    try:
+        with Image.open(path) as image:
+            return (int(image.size[0]), int(image.size[1]))
+    except (OSError, ValueError):
+        return None
+
+
+def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tuple[int, int]],
+                       offset: tp.Optional[tp.Tuple[int, int]], problems: tp.List[str],
                        notes: tp.List[tp.Tuple[str, str]]) -> tp.Tuple[tp.Optional[Camera_Calibration_Parameters_Str],
                                                                         tp.Optional[Scale_Str]]:
     """
@@ -364,11 +444,18 @@ def __Read_Calibration(path: str, hardware: str, problems: tp.List[str],
         optional, and its documented default is 'no scale' — objects are then not measured, never
         measured from an invented factor.
 
+        The sensor window it was solved at (Resolution, Offset) must equal the camera's: K's
+        principal point and the factor are in that window's pixels, so a calibration of another
+        window fails the load rather than producing wrong millimetres. A file that does not record
+        its window loads with a warning (see the note in the code on when that tightens).
+
     Args:
         (1) path [string]: The calibration file path.
         (2) hardware [string]: The hardware id the mode file names.
-        (3) problems [Vector<string>]: The problem list, appended to.
-        (4) notes [Vector<Tuple<string> 1x2>]: The (level, message) notes, appended to.
+        (3 - 4) resolution, offset [Vector<int> 1x2 or None]: The camera's sensor window from the mode
+                                                            file (None when invalid there).
+        (5) problems [Vector<string>]: The problem list, appended to.
+        (6) notes [Vector<Tuple<string> 1x2>]: The (level, message) notes, appended to.
 
     Returns:
         (1) parameter [Tuple]: (the calibration parameters or None, the scale or None).
@@ -391,6 +478,30 @@ def __Read_Calibration(path: str, hardware: str, problems: tp.List[str],
     if not isinstance(block, dict):
         problems.append('%s: Calibration is required but missing' % name)
         return calibration, None
+
+    # The window the calibration was solved at, against the camera's.
+    if 'Resolution' not in block and 'Offset' not in block:
+        # LENIENT FOR NOW, deliberately. The calibration in force predates recorded windows and is
+        # being replaced by the multi-view recalibration (docs/capture-checklist.md, item 1), which
+        # records its window. Once that calibration is in force, make an absent window a load
+        # failure (a problem, like the mismatch below) so this lenient path does not outlive its
+        # reason: a calibration whose window is unknown can be wrong by an unknown amount.
+        camera = __Describe_Window(resolution, offset) if resolution and offset else 'the configured window'
+        notes.append(('WARNING', '%s does not record the sensor window it was solved at, so it cannot be '
+                                 'checked against the camera (%s). If they differ, its principal point and '
+                                 'conversion factor are in the wrong pixels: undistortion and every '
+                                 'measurement may be wrong by an unknown amount. Recalibrate with '
+                                 'Example/Camera/calibrate.py, which records the window.' % (name, camera)))
+    else:
+        solved_at = __Read_Window(block.get('Resolution'), '%s: Calibration.Resolution' % name, 1, problems)
+        solved_offset = __Read_Window(block.get('Offset'), '%s: Calibration.Offset' % name, 0, problems)
+        calibration.Resolution, calibration.Offset = solved_at, solved_offset
+        if solved_at and solved_offset and resolution and offset and (solved_at, solved_offset) != (resolution, offset):
+            problems.append('%s was solved at %s, but Camera.Resolution and Camera.Offset set the camera to %s: '
+                            'its principal point and conversion factor are in the other window\'s pixels. '
+                            'Recalibrate at this window, or set the camera back to the one the calibration '
+                            'belongs to' % (name, __Describe_Window(solved_at, solved_offset),
+                                            __Describe_Window(resolution, offset)))
 
     try:
         K = np.array(block.get('K'), dtype=np.float64)
@@ -504,8 +615,10 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
         reference = Configuration_Str_i.Segmentation.Background_Reference = __Resolve_Model_Path(reference)
         if not os.path.isfile(reference):
             problems.append('Segmentation.Background.Reference: the file "%s" does not exist' % reference)
+            reference = ''
 
-    # 4\ The camera: the acquisition settings Basler_Cls cannot start without, and the resolution.
+    # 4\ The camera: the acquisition settings Basler_Cls cannot start without, and the sensor window
+    #    it is set to on connect.
     custom = __Lookup(data, ('Camera', 'Custom_Cfg'))[1]
     if not isinstance(custom, dict):
         problems.append('Camera.Custom_Cfg is required but missing')
@@ -514,14 +627,32 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     if missing and custom:
         problems.append('Camera.Custom_Cfg is missing the required %s' % ', '.join(missing))
     Configuration_Str_i.Camera.Custom_Cfg = dict(custom)
-    resolution = __Lookup(data, ('Camera', 'Resolution'))[1]
-    Configuration_Str_i.Camera.Resolution = dict(resolution) if isinstance(resolution, dict) else {}
+    window = {}
+    for path, minimum in CONST_WINDOW_FIELDS:
+        window[path[-1]] = __Read_Window(__Lookup(data, path)[1], '.'.join(path), minimum, problems)
+    resolution, offset = window['Resolution'], window['Offset']
+    Configuration_Str_i.Camera.Resolution = resolution or (0, 0)
+    Configuration_Str_i.Camera.Offset = offset or (0, 0)
+    # The reference is validated against the camera's resolution — never the other way round: the
+    # camera does not read its size from a picture on disk, so swapping the reference cannot
+    # silently reconfigure the sensor. A mismatch fails here, at load, naming both sizes, instead of
+    # surfacing at the first ANALYZE.
+    if reference and resolution:
+        size = __Image_Size(reference)
+        if size is None:
+            problems.append('Segmentation.Background.Reference: the file "%s" could not be read as an image'
+                            % reference)
+        elif size != resolution:
+            problems.append("Segmentation.Background.Reference is %d × %d but Camera.Resolution is %d × %d: this "
+                            "configuration's reference does not match its camera resolution. Re-shoot the "
+                            'empty-surface reference at %d × %d, or correct Camera.Resolution'
+                            % (size + resolution + resolution))
 
-    # 5\ The hardware's calibration, shared by every mode on it.
+    # 5\ The hardware's calibration, shared by every mode on it, checked against the sensor window.
     if hardware:
         Configuration_Str_i.Calibration_Path = Calibration_Path_For(config_path, hardware)
         Configuration_Str_i.Camera.Calibration, Configuration_Str_i.Scale = __Read_Calibration(
-            Configuration_Str_i.Calibration_Path, hardware, problems, notes)
+            Configuration_Str_i.Calibration_Path, hardware, resolution, offset, problems, notes)
 
     # 6\ Keys nothing reads — usually a misspelt optional field.
     for key in __Unknown_Keys(data):
@@ -726,7 +857,9 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
 
     Args:
         (1) Camera_Calibration_Parameters_Str [Camera_Calibration_Parameters_Str(object)]: The
-            solved calibration: K, the distortion coefficients and the mm/px factors.
+            solved calibration: K, the distortion coefficients, the mm/px factors, and the sensor
+            window it was solved at (Resolution and Offset — REQUIRED: a calibration that does not
+            say which pixels it is in is refused).
         (2) hardware [string]: REQUIRED, keyword-only: the hardware id the calibration belongs to.
         (3) header_source [string or None]: REQUIRED, keyword-only: a calibration file whose
             header comment is copied (the one in force); None writes a minimal header.
@@ -740,7 +873,10 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
     """
 
     try:
-        # 1\ Refuse to overwrite anything the writer does not own.
+        # 1\ Refuse a calibration that does not record its window, and anything the writer does not own.
+        assert (Camera_Calibration_Parameters_Str.Resolution is not None
+                and Camera_Calibration_Parameters_Str.Offset is not None), (
+            'the calibration does not record the sensor window (Resolution and Offset) it was solved at')
         if os.path.exists(output_path):
             with open(output_path, 'r', encoding='utf-8') as f:
                 existing = yaml.safe_load(f)
@@ -790,6 +926,11 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
                 '    # The reference plane: the flat boards\' surface height above the table [mm].\n'
                 '    # The factor is exact in this plane only.\n'
                 f'    Board_Height_Mm: {repr(float(record["board_height_mm"]))}\n'
+                '  # The sensor window this calibration was solved at [px]: its size and its offset on the\n'
+                '  # sensor. K and the conversion factor are in this window\'s pixels; a configuration that\n'
+                '  # sets the camera to any other window fails to load with this calibration.\n'
+                '  Resolution: {x: %d, y: %d}\n' % tuple(int(v) for v in Camera_Calibration_Parameters_Str.Resolution) +
+                '  Offset: {x: %d, y: %d}\n' % tuple(int(v) for v in Camera_Calibration_Parameters_Str.Offset) +
                 '  # Camera calibration (intrinsic) matrix K, 3 x 3, row-major.\n'
                 f'  K:\n{matrix_rows}\n'
                 '  # Distortion coefficients: [k1, k2, p1, p2, k3].\n'

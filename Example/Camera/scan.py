@@ -64,7 +64,8 @@ def main():
     Basler_Cfg_Str = Load_Configuration(CONST_DEFAULT_CONFIG_FILE).Camera
 
     # Initialize and configure the Basler camera.
-    Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
+    Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg, resolution=Basler_Cfg_Str.Resolution,
+                                 offset=Basler_Cfg_Str.Offset)
 
     # Capture a single image.
     image = Basler_Cam_Id_1.Capture()

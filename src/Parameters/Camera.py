@@ -45,6 +45,13 @@ class Camera_Calibration_Parameters_Str:
     Coefficients: tp.Dict[str, float] = field(default_factory=dict)
     # Pixel to millimeter conversion factors for x and y axes.
     Conversion_Factor: tp.Dict[str, float] = field(default_factory=dict)
+    # The sensor window the calibration was solved at: its size (width, height) and its offset
+    # on the sensor (x, y). K's principal point and the conversion factor are in this window's
+    # pixels, so a camera running any other window must not use them. None when the calibration
+    # file does not record them (files written before the window was recorded).
+    #   Unit [Vector<int> 1x2] (px)
+    Resolution: tp.Optional[tp.Tuple[int, int]] = None
+    Offset: tp.Optional[tp.Tuple[int, int]] = None
 
 @dataclass
 class Camera_Configuration_Str:
@@ -69,8 +76,12 @@ class Camera_Configuration_Str:
     Model: str = ''
     Lens: str = ''
     Lighting: str = ''
-    # Camera resolution in pixels (x, y).
-    Resolution: tp.Dict[str, int] = field(default_factory=dict)
+    # The sensor window the camera is set to on connect: its size (width, height) and its offset
+    # on the sensor (x, y). The configuration is the only source — the camera never takes its size
+    # from the background reference or from what the device last remembered.
+    #   Unit [Vector<int> 1x2] (px)
+    Resolution: tp.Tuple[int, int] = (0, 0)
+    Offset: tp.Tuple[int, int] = (0, 0)
     # Custom camera configuration.
     #   Note:
     #       Optional structure for vendor/API specific settings (e.g., exposure, gain, white balance, pixel format).

@@ -166,10 +166,18 @@ Camera:
   Lens: Computar M1228-MPW3
   Lighting: Effilux EFFI-FD-200-200-000
 
-  # Camera resolution in pixels (x, y).
+  # REQUIRED. The sensor window the camera is SET to on connect [px]: its size and its offset on
+  # the sensor. Without it the camera runs at whatever it last remembered - after a power cycle,
+  # its factory default of the full 1936 x 1216 sensor. 1920 x 1200 is the camera's nominal size;
+  # the offset (8, 8) centres it on the sensor, trimming the border evenly. Everything that
+  # depends on the window is checked against it when the configuration loads: the background
+  # reference must be this size, and the calibration must have been solved at this window.
   Resolution:
     x: 1920
     y: 1200
+  Offset:
+    x: 8
+    y: 8
 
   # REQUIRED: Exposure_Time, Gain, Balance_Ratios, Pixel_Format. Vendor / API specific.
   Custom_Cfg:

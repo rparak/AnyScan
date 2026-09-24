@@ -23,6 +23,7 @@
 
 # System (Default)
 import os
+import re
 import shutil
 # Typing (Support for type hints)
 import typing as tp
@@ -137,11 +138,15 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
     assert config.Camera.Calibration.K.shape == (3, 3)
     assert set(config.Camera.Calibration.Coefficients) == set(CONST_COEFFICIENT_KEYS)
     assert config.Scale is not None and abs(config.Scale.Mm_Per_Px_X - 0.09797791724417174) < 1e-15
-    assert config.Notes == []
+    assert (config.Camera.Resolution, config.Camera.Offset) == ((1920, 1200), (8, 8))
+    # The one note: the calibration in force predates recorded windows, so it cannot be checked
+    # against the camera's. It goes when the recalibration (which records its window) is in force.
+    (note,) = config.Notes
+    assert note[0] == 'WARNING' and 'does not record the sensor window' in note[1]
 
 
 @pytest.mark.parametrize('path', [path for path, _a, _k, required in CONST_FIELDS if required]
-                         + [('Hardware',), ('Camera', 'Custom_Cfg')]
+                         + [('Hardware',), ('Camera', 'Custom_Cfg'), ('Camera', 'Resolution'), ('Camera', 'Offset')]
                          + [('Camera', 'Custom_Cfg', key) for key in CONST_REQUIRED_CUSTOM_CFG_KEYS],
                          ids=lambda path: '.'.join(path))
 def test_a_missing_required_field_fails_the_load_naming_it(tmp_path: tp.Any, path: tp.Tuple[str, ...]) -> None:
@@ -317,7 +322,7 @@ def _Solved() -> Camera_Calibration_Parameters_Str:
     return Camera_Calibration_Parameters_Str(
         K=np.array([[4000.0, 0.0, 960.0], [0.0, 4000.0, 600.0], [0.0, 0.0, 1.0]]),
         Coefficients={'k1': -0.1, 'k2': 0.2, 'p1': 0.001, 'p2': 0.002, 'k3': -0.3},
-        Conversion_Factor={'x': 0.1, 'y': 0.1001})
+        Conversion_Factor={'x': 0.1, 'y': 0.1001}, Resolution=(1920, 1200), Offset=(8, 8))
 
 
 def test_the_calibration_writer_output_loads_back(tmp_path: tp.Any) -> None:
@@ -338,6 +343,98 @@ def test_the_calibration_writer_output_loads_back(tmp_path: tp.Any) -> None:
     config = Load_Configuration(config_path)
     assert config.Camera.Calibration.K[0, 0] == 4000.0
     assert (config.Scale.Mm_Per_Px_X, config.Scale.Mm_Per_Px_Y) == (0.1, 0.1001)
+    # It records its window, which matches the camera's: no warning about an unknown window.
+    assert (config.Camera.Calibration.Resolution, config.Camera.Calibration.Offset) == ((1920, 1200), (8, 8))
+    assert config.Notes == []
+
+
+def test_the_calibration_writer_refuses_a_calibration_without_its_window(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A new calibration must say which pixels it is in: one without Resolution and Offset is
+        refused, and nothing is written.
+    """
+
+    unrecorded = _Solved()
+    unrecorded.Resolution = unrecorded.Offset = None
+    target = tmp_path / ('Calibration_%s.yaml' % CONST_HARDWARE)
+    assert not Write_Calibration(unrecorded, hardware=CONST_HARDWARE, header_source=None,
+                                 output_path=str(target), record=CONST_RECORD)
+    assert not target.exists()
+
+
+@pytest.mark.parametrize('path, value', [
+    (('Camera', 'Resolution', 'x'), 0), (('Camera', 'Resolution', 'y'), 1200.5),
+    (('Camera', 'Resolution', 'x'), True), (('Camera', 'Offset', 'x'), -8), (('Camera', 'Offset', 'y'), '8')],
+    ids=lambda v: str(v))
+def test_an_invalid_sensor_window_fails_the_load_naming_it(tmp_path: tp.Any, path: tp.Tuple[str, ...],
+                                                           value: tp.Any) -> None:
+    """
+    Description:
+        The window is whole pixels: a size of at least 1, an offset of at least 0. Anything else
+        fails the load, naming the field and the value.
+    """
+
+    mode, calibration = _Shipped()
+    _Set(mode, path, value)
+    with pytest.raises(Configuration_Error_Cls, match=r'%s must be a whole number' % re.escape('.'.join(path))):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+
+
+def test_a_reference_of_another_size_fails_the_load_naming_both_sizes(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The reference is validated against the camera's resolution when the configuration loads —
+        the camera never takes its size from the reference. A mismatch refuses the configuration
+        with both sizes named, instead of surfacing at the first ANALYZE.
+    """
+
+    mode, calibration = _Shipped()
+    mode['Camera']['Resolution'] = {'x': 1936, 'y': 1216}
+    mode['Camera']['Offset'] = {'x': 0, 'y': 0}
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+    message = str(error.value)
+    assert ('Segmentation.Background.Reference is 1920 × 1200 but Camera.Resolution is 1936 × 1216' in message
+            and "reference does not match its camera resolution" in message)
+
+
+def test_a_calibration_solved_at_another_window_fails_the_load(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        K's principal point and the factor are in the pixels of the window the calibration was
+        solved at. Another window — even the same size at another offset — fails the load, naming
+        both, rather than producing wrong millimetres.
+    """
+
+    mode, calibration = _Shipped()
+    calibration['Calibration']['Resolution'] = {'x': 1920, 'y': 1200}
+    calibration['Calibration']['Offset'] = {'x': 0, 'y': 0}
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert ('was solved at 1920 × 1200 at offset (0, 0), but Camera.Resolution and Camera.Offset set the '
+            'camera to 1920 × 1200 at offset (8, 8)') in str(error.value)
+
+    calibration['Calibration']['Offset'] = {'x': 8, 'y': 8}
+    config = Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert config.Notes == []
+
+    del calibration['Calibration']['Offset']
+    with pytest.raises(Configuration_Error_Cls, match='Calibration.Offset is required'):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+
+
+def test_a_misspelt_window_key_is_a_warning(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Resolution and Offset are read key by key now, so a stray key inside them is reported like
+        any other unrecognised key rather than ignored inside a free-form block.
+    """
+
+    mode, calibration = _Shipped()
+    mode['Camera']['Resolution']['z'] = 3
+    config = Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert any('Camera.Resolution.z' in message for level, message in config.Notes if level == 'WARNING')
 
 
 def test_the_calibration_writer_refuses_to_delete_content_it_does_not_own(tmp_path: tp.Any) -> None:

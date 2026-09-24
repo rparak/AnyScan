@@ -26,6 +26,13 @@ is unverified until the relevant item here has been captured and checked.
 | 2 | Reference frames: scale and parallax | 9 | *Measured sizes may carry a systematic error*; *A part's measured size depends on where it lies in the frame* |
 | 3 | Parts session: defects, low-contrast parts, harsh shadow | ~40 | *The describer is not a defect detector*; *Open question: FastSAM's reliability on low-contrast shapes*; *A very harsh cast shadow can be absorbed* |
 
+**Before item 1: confirm the camera is pinned.** Power-cycle the camera (it then starts from its
+factory default, the full 1936 × 1216 sensor), start the application, load the configuration and
+CONNECT. The log must read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor …
+(read back from the camera)*, and the status bar 1920 × 1200. Anything else: stop and report it —
+every item below depends on the window. Capture the calibration set into a **new** directory: its
+`capture.json` records the window, and the calibration written from it carries it.
+
 **Order: 1, then 2, then 3.**
 
 1. **Calibrate first.** Adopt the new calibration, then restart the application so it is in force.

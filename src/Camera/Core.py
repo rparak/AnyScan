@@ -436,9 +436,10 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
 
         # << PRIVATE >> #
         self.__cam = None
-        # A placeholder until the device is open; overwritten with the real device
-        # size in _Open and again with the delivered size in _Grab.
-        self.__resolution = (1920, 1200)
+        # The window the device reported after it was configured (_Open), then the delivered frame's
+        # size (_Grab). None until connected: before that Resolution is the configuration's window,
+        # never a constant that merely happens to match it today.
+        self.__resolution = None
         self.__processor = None
         self.__calib = None
         self.__cv2 = None
@@ -450,13 +451,19 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
     def Resolution(self) -> tp.Tuple[int, int]:
         """
         Description:
-            The device / last-delivered frame size as (width, height).
+            The frame size as (width, height): the last delivered frame's once one is grabbed, the
+            window the device reported after configuration once connected, and before that the
+            configuration's Camera.Resolution — (0, 0) when no configuration has been handed over.
 
         Returns:
             (1) parameter [Tuple<int> 1x2]: (width, height).
         """
 
-        return self.__resolution
+        if self.__resolution is not None:
+            return self.__resolution
+        if self._camera_config is not None:
+            return tuple(self._camera_config.Resolution)
+        return (0, 0)
 
     def _Open(self) -> None:
         """
@@ -472,7 +479,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                 sys.path.insert(0, CONST_BASLER_SRC)
             import cv2
             import numpy as np
-            from Camera.Basler import Basler_Cls
+            from Camera.Basler import Basler_Cls, Basler_Settings_Error_Cls
             import Camera.Utilities.Image_Processing as Image_Processing
         except ImportError as exc:
             raise Camera_Error_Cls(
@@ -489,11 +496,16 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
             raise Camera_Error_Cls('No configuration has been loaded, so the camera settings are '
                                    'unknown. Load a configuration, then connect.')
 
-        # Basler_Cls connects inside its constructor and raises if no device is
-        # found, so a failure here is a connection failure. The image settings come
-        # straight from the configuration's Custom_Cfg block.
+        # Basler_Cls connects inside its constructor and raises if no device is found, so a failure
+        # here is a connection failure — except a settings error: the camera was reached but refused
+        # (or did not keep) the configured window, and its message says which and how. The image
+        # settings come from Custom_Cfg, the sensor window from Resolution and Offset.
         try:
-            self.__cam = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
+            self.__cam = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg, resolution=Basler_Cfg_Str.Resolution,
+                                    offset=Basler_Cfg_Str.Offset)
+        except Basler_Settings_Error_Cls as exc:
+            self.__cam = None
+            raise Camera_Error_Cls(str(exc)) from exc
         except Exception as exc:                          # noqa: BLE001
             self.__cam = None
             raise Camera_Error_Cls(
@@ -518,13 +530,15 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                                  'are not measured. Run Example/Camera/calibrate.py to create it.')
         self.__undistort_cache = {}
 
-        # Report the device's actual sensor size straight away, so the status strip
-        # is right at CONNECT and not only after the first SCAN.
-        try:
-            self.__resolution = (int(self.__cam.camera.Width.Value),
-                                 int(self.__cam.camera.Height.Value))
-        except Exception:                                 # noqa: BLE001
-            pass  # the delivered frame in _Grab is the authoritative size
+        # What the camera reports after configuration — read back, not what was asked for — goes into
+        # the session log on every connect, so a camera that ever reverts again is visible in the log
+        # before the next mismatch error, and the status strip is right at CONNECT.
+        applied = self.__cam.Applied_Settings
+        self.__resolution = tuple(applied['resolution'])
+        self._Log('INFO', 'Camera set to %d × %d at offset (%d, %d) of its %d × %d sensor, exposure %g µs, gain '
+                          '%.2f, %s (read back from the camera).'
+                  % (applied['resolution'] + applied['offset'] + applied['sensor']
+                     + (applied['exposure_us'], applied['gain'], applied['pixel_format'])))
 
     def _Close(self) -> None:
         """
@@ -576,6 +590,17 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                 'The camera returned an empty frame. Check the exposure time and '
                 'the scene lighting, then scan again.'
             )
+
+        # A safety net behind the window set on connect: a frame of another size than the
+        # configuration's is refused here, before it reaches undistortion or the pipeline.
+        if self._camera_config is not None:
+            expected = tuple(self._camera_config.Resolution)
+            delivered = (int(raw.shape[1]), int(raw.shape[0]))
+            if delivered != expected:
+                raise Camera_Error_Cls(
+                    'The camera delivered a %d × %d frame, but the configuration sets it to %d × %d. '
+                    'Disconnect and connect again so the window is set; if it recurs, power-cycle '
+                    'the camera.' % (delivered + expected))
 
         # Project image pipeline (BGR in, BGR out), then undistort with the cached
         # optimal camera matrix.

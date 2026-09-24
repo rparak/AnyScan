@@ -23,6 +23,8 @@
 
 # System (Default)
 import sys
+# JSON (the capture manifest)
+import json
 #   Add access if it is not in the system path.
 if '../../' + 'src' not in sys.path:
     sys.path.append('../../' + 'src')
@@ -79,7 +81,19 @@ def Capture_Main(directory: str, config_path: str) -> int:
     os.makedirs(directory, exist_ok=True)
     configuration = Load_Configuration(config_path)
     Basler_Cfg_Str = configuration.Camera
-    Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
+    # One calibration set, one sensor window: frames from another window would be solved together
+    # into a lens model that belongs to neither, so a set started at another window is not extended.
+    recorded = Captured_Window(directory)
+    configured = {'resolution': list(Basler_Cfg_Str.Resolution), 'offset': list(Basler_Cfg_Str.Offset)}
+    if recorded is not None and recorded != configured:
+        print('[ERROR] %s was captured at %d x %d, offset (%d, %d), but the configuration sets the camera to '
+              '%d x %d, offset (%d, %d). Capture into a new directory.'
+              % ((directory,) + tuple(recorded['resolution']) + tuple(recorded['offset'])
+                 + tuple(configured['resolution']) + tuple(configured['offset'])))
+        return 1
+    Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg, resolution=Basler_Cfg_Str.Resolution,
+                                 offset=Basler_Cfg_Str.Offset)
+    applied = Basler_Cam_Id_1.Applied_Settings
     Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls('real')
     header = {'distorted': True,
               'note': ('These frames are NOT undistorted: they are the camera\'s images after the '
@@ -89,6 +103,9 @@ def Capture_Main(directory: str, config_path: str) -> int:
               'processing': "Camera.Utilities.Image_Processing.Process_Image_Cls('real')",
               'configuration': configuration.Name,
               'camera': Basler_Cfg_Str.Name, 'custom_cfg': Basler_Cfg_Str.Custom_Cfg,
+              # The sensor window the frames were captured at, as the camera read it back. The
+              # solve records it in the calibration: K and the factor are in this window's pixels.
+              'window': {'resolution': list(applied['resolution']), 'offset': list(applied['offset'])},
               'kinds': {Calibration.Core.CONST_CALIB_FLAT_PREFIX: 'board flat on the table: lens '
                         'model and mm/px factor', Calibration.Core.CONST_CALIB_VIEW_PREFIX: 'board '
                         'tilted or raised: lens model only'},
@@ -125,6 +142,27 @@ def Capture_Main(directory: str, config_path: str) -> int:
     del Basler_Cam_Id_1, Process_Image_Cls
     return 0
 
+
+def Captured_Window(directory: str) -> tp.Optional[tp.Dict[str, tp.List[int]]]:
+    """
+    Description:
+        The sensor window a calibration set was captured at, from its capture.json.
+
+    Args:
+        (1) directory [string]: The capture directory.
+
+    Returns:
+        (1) parameter [Dict or None]: {'resolution': [w, h], 'offset': [x, y]}, or None when the
+                                      directory has no manifest or the manifest does not record it
+                                      (sets captured before the window was recorded).
+    """
+
+    path = os.path.join(directory, Calibration.Core.CONST_CALIB_MANIFEST)
+    if not os.path.isfile(path):
+        return None
+    with open(path, 'r', encoding='utf-8') as handle:
+        window = json.load(handle).get('window')
+    return window if isinstance(window, dict) else None
 
 def Parse_Board(text: str) -> tp.Tuple[int, int]:
     """
@@ -175,6 +213,26 @@ def Images_Main(directory: str, board_squares: tp.Tuple[int, int], square_mm: fl
         return 1
     for line in Calibration.Core.Report_Lines(report):
         print(line)
+    # The window the images were captured at: its size is the images' own, its offset on the sensor
+    # comes from the capture manifest. A set from before the manifest recorded it is accepted only
+    # when its size is the configuration's, with the configuration's offset assumed - and said.
+    window = Captured_Window(directory)
+    configuration = Load_Configuration(config_path).Camera
+    if window is not None:
+        if tuple(window['resolution']) != tuple(report.Image_Size):
+            print('[ERROR] The images are %d x %d but capture.json records %d x %d; nothing was written.'
+                  % (tuple(report.Image_Size) + tuple(window['resolution'])))
+            return 1
+        offset = tuple(window['offset'])
+    elif tuple(report.Image_Size) == tuple(configuration.Resolution):
+        offset = tuple(configuration.Offset)
+        print('[WARNING] capture.json does not record the sensor window; assuming the configuration\'s offset '
+              '(%d, %d). Only true if the camera was set to it when these frames were taken.' % offset)
+    else:
+        print('[ERROR] The images are %d x %d, the configuration sets the camera to %d x %d, and capture.json '
+              'does not record the window they were taken at; nothing was written. Recapture with --capture.'
+              % (tuple(report.Image_Size) + tuple(configuration.Resolution)))
+        return 1
 
     views = [view for view in report.Views if view.Detection.Found]
     flat = sum(view.Flat for view in views)
@@ -194,7 +252,7 @@ def Images_Main(directory: str, board_squares: tp.Tuple[int, int], square_mm: fl
               os.path.join(os.path.dirname(in_force),
                            CONST_OUTPUT_TEMPLATE.format(hardware=hardware,
                                                         stamp=datetime.now().strftime('%Y%m%d-%H%M%S'))))
-    if not Write_Calibration(Calibration.Core.Calibration_Parameters(report), hardware=hardware,
+    if not Write_Calibration(Calibration.Core.Calibration_Parameters(report, offset), hardware=hardware,
                              header_source=in_force, output_path=output, record=record):
         return 1
     print('[INFO] Calibration written to: %s' % output)
