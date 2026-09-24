@@ -371,3 +371,19 @@ the optical axis to the part's edge farther from it:
   in two corners, with their thicknesses and the board's height, give the parallax term directly,
   alongside the chessboard's own scale in its own plane.
 
+## Gemma reads some through-holes as "a central green element"
+
+On the `Image_002` plate, whose two through-holes have dark rims, Gemma describes "two circular
+cutouts each containing a central green element" — the green is the table showing through the
+hole. The object prompt says "A hole may show the green surface through it; that green is not part
+of the part", which fixed the same misreading on `Image_001`'s red block ("a passage allowing a view
+of a bright green surface through them") but not on this plate. A sharper wording ("Any green you
+see inside a hole … is the surface below showing through it") made it worse — the holes became
+"indentations" — so the prompt was not tuned further.
+
+- **Impact:** a false detail in one object's text on dark-rimmed through-holes; the object, its
+  holes and its condition are otherwise described correctly (the rust on the same plate is found).
+- **Not fixed by tuning:** a prompt adjusted until one frame reads right is the thing the
+  comparison must not do. Revisit with a different input (e.g. a crop whose table is masked to a
+  neutral colour) rather than more wording.
+
