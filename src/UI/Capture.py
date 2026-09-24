@@ -185,6 +185,14 @@ class Capture_Set_Str:
     # Whether classification was enabled when this set was written — so History renders the
     # verdict UI (filter, outline colour) per set, not by the current config. False when absent.
     Classification: bool = False
+    # The configuration file the set was analysed under — the mode and hardware, so a History
+    # holding sets from several configurations says which is which. Empty for a set written
+    # before configurations were recorded.
+    Configuration: str = ''
+    # The empty-surface reference the frame was differenced against. Empty for an older set.
+    Background_Reference: str = ''
+    # The camera, lens and lighting the set was captured with ({} for an older set).
+    Hardware: tp.Dict[str, str] = field(default_factory=dict)
     # The objects, in order.
     Objects: tp.List[Capture_Object_Str] = field(default_factory=list)
     # The absolute paths of the artefacts that exist (None when absent).
@@ -341,7 +349,9 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                        objects: tp.List[Detection_Str], size: tp.Tuple[int, int], task: str,
                        inference_ms: int, frame_mean_confidence: tp.Optional[int],
                        background: str = '', classification: bool = False,
-                       run_id: str = '', *, scale: tp.Optional[Scale_Str]) -> tp.Dict[str, tp.Any]:
+                       run_id: str = '', *, scale: tp.Optional[Scale_Str],
+                       configuration: str, background_reference: str,
+                       hardware: tp.Dict[str, str]) -> tp.Dict[str, tp.Any]:
     """
     Description:
         Build the machine-readable metadata for one set from the SAME detection list that
@@ -378,6 +388,15 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                                                 stored size can always be traced back to the scale
                                                 that produced it; None (no factor) is recorded as
                                                 null and no object carries a measurement.
+        (13) configuration [string]: REQUIRED, keyword-only: the name of the configuration file
+                                     the set was analysed under, beside the classification flag,
+                                     so sets from different configurations stay distinguishable.
+        (14) background_reference [string]: REQUIRED, keyword-only: the empty-surface reference the
+                                            frame was differenced against (repository-relative),
+                                            so a stored analysis can be traced to it.
+        (15) hardware [Dict<string, string>]: REQUIRED, keyword-only: the camera, lens and lighting
+                                              the configuration names (Hardware_Record) — what
+                                              photographed the set and what lit it.
 
     Returns:
         (1) parameter [Dict]: The metadata, ready to serialise as '_objects.json'.
@@ -395,6 +414,8 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
             'frame_width': int(size[0]), 'frame_height': int(size[1]), 'task': task,
             'inference_ms': int(inference_ms), 'frame_mean_confidence': frame_mean_confidence,
             'background': background, 'classification': bool(classification),
+            'configuration': configuration, 'background_reference': background_reference,
+            'hardware': dict(hardware),
             'conversion_factor': (None if scale is None else
                                   {'x': scale.Mm_Per_Px_X, 'y': scale.Mm_Per_Px_Y,
                                    'units': CONST_SCALE_UNITS}),
@@ -521,6 +542,9 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
         cap.Frame_Mean_Confidence = int(mean) if mean is not None else None
         cap.Background = str(data.get('background', ''))
         cap.Classification = bool(data.get('classification', False))
+        cap.Configuration = str(data.get('configuration', ''))
+        cap.Background_Reference = str(data.get('background_reference', ''))
+        cap.Hardware = {str(k): str(v) for k, v in (data.get('hardware') or {}).items()}
         cap.Run_Id = str(data.get('run_id', ''))
         cap.Objects = [Capture_Object_Str(
             Index=int(record.get('index', i)),

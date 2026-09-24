@@ -34,7 +34,7 @@ from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import QApplication, QWidget
 # Custom Lib.: AnyScan domain — the confidence severity bands (Qt-free)
 #   ../Parameters/Vision
-from Parameters.Vision import Confidence_Severity
+from Parameters.Vision import Confidence_Severity, Confidence_Thresholds_Str
 # Custom Lib.: AnyScan domain — the colour palette (Qt-free, the single source)
 #   ../Parameters/Theme
 from Parameters.Theme import (                                             # noqa: F401
@@ -42,7 +42,7 @@ from Parameters.Theme import (                                             # noq
     CONST_INK_MUTE, CONST_LINE, CONST_BRAND, CONST_CONTROL_BORDER, CONST_CONTROL_HOVER,
     CONST_CONTROL_HOVER_BORDER, CONST_INK_HOVER, CONST_INK_PRESSED, CONST_ON_INK,
     CONST_CONTROL_DISABLED_TEXT, CONST_CONTROL_DISABLED_BORDER, CONST_PRIMARY_DISABLED_FILL,
-    CONST_PRIMARY_DISABLED_TEXT, CONST_OK, CONST_OK_INK,
+    CONST_PRIMARY_DISABLED_TEXT, CONST_SCRIM, CONST_SCRIM_ALPHA, Hex_To_Rgb, CONST_OK, CONST_OK_INK,
     CONST_OK_SOFT, CONST_OK_BORDER, CONST_WARN, CONST_WARN_INK, CONST_WARN_SOFT,
     CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_BAND,
     CONST_BAND_LINE, CONST_BAND_TEXT,
@@ -140,6 +140,19 @@ CONST_LEVEL_WEIGHTS = {'INFO': QFont.Normal, 'WARNING': QFont.DemiBold, 'ERROR':
 CONST_LEVEL_CSS_WEIGHTS = {'INFO': 400, 'WARNING': 600, 'ERROR': 700}
 
 
+def Scrim_Color() -> str:
+    """
+    Description:
+        The scrim's stylesheet colour: the theme's scrim ink at the theme's scrim opacity.
+
+    Returns:
+        (1) parameter [string]: The colour as 'rgba(r, g, b, a)'.
+    """
+
+    r, g, b = Hex_To_Rgb(CONST_SCRIM)
+    return 'rgba(%d, %d, %d, %d)' % (r, g, b, int(round(255 * CONST_SCRIM_ALPHA)))
+
+
 def Log_Level_Weight(level: str) -> int:
     """
     Description:
@@ -156,7 +169,8 @@ def Log_Level_Weight(level: str) -> int:
     return CONST_LEVEL_WEIGHTS.get(level, QFont.Normal)
 
 
-def Confidence_Number_Html(number: str, percent: tp.Optional[float]) -> str:
+def Confidence_Number_Html(number: str, percent: tp.Optional[float],
+                           Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> str:
     """
     Description:
         A confidence number as rich text, coloured and weighted by its severity band so the
@@ -169,12 +183,13 @@ def Confidence_Number_Html(number: str, percent: tp.Optional[float]) -> str:
     Args:
         (1) number [string]: The already-formatted number (e.g. '73%').
         (2) percent [float]: Its value in percent (0..100), or None when unscored.
+        (3) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: The thresholds in force.
 
     Returns:
         (1) parameter [string]: The number as an HTML span for WARNING/ERROR, else plain.
     """
 
-    level = Confidence_Severity(percent)
+    level = Confidence_Severity(percent, Confidence_Thresholds_Str)
     if percent is None or level == 'INFO':
         return number
     return '<span style="color: %s; font-weight: %d;">%s</span>' % (

@@ -60,11 +60,14 @@ from Vision.Utilities.Measure import Measure_Objects
 import Vision.Utilities.Provenance as Provenance
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
-# Custom Lib.: AnyScan — the configuration layer the application reads the classification flag
+# Custom Lib.: AnyScan — the configuration layer the application loads its configuration
 # through, so the stamped renders and the window grab are in the same mode as the app
-#   ../Camera/Utilities/Configuration
-from Camera.Utilities.Configuration import (Read_Classification_Enabled, Read_Conversion_Factor,
-                                            CONST_BASLER_CONFIG_FILE)
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
+#   ../Parameters/Configuration
+from Parameters.Configuration import Configuration_Str
+#   ../Vision/Core — the describer selector (the demo describes nothing, so it loads no describer)
+import Vision.Core as Vision_Core
 
 """
 Description:
@@ -172,8 +175,7 @@ def _Scene_Objects() -> tp.List[Detection_Str]:
     ]
 
 
-def _Render(output_dir: str, stamp: str, classification_enabled: bool,
-            scale: tp.Optional[tp.Any]) -> None:
+def _Render(output_dir: str, stamp: str, Configuration_Str: Configuration_Str) -> None:
     """
     Description:
         Render and stamp the three review images — the annotated frame, the label mask
@@ -182,11 +184,10 @@ def _Render(output_dir: str, stamp: str, classification_enabled: bool,
     Args:
         (1) output_dir [string]: The directory to write into.
         (2) stamp [string]: The scene/run stamp appended to every image.
-        (3) classification_enabled [bool]: General.Classification.Enabled, read by the caller
-                                           through the application's configuration layer; the
-                                           window AND the two stamped renders use this one value.
-        (4) scale [Scale_Str(object) or None]: The configured image scale; the synthetic demo
-                                               objects are measured with it, as the backend would.
+        (3) Configuration_Str [Configuration_Str(object)]: The configuration, loaded by the caller
+            through the application's configuration layer: the window AND the two stamped renders
+            use its one classification flag, and the synthetic objects are measured with its scale,
+            as the backend would.
     """
 
     app = QApplication.instance() or QApplication([])
@@ -195,17 +196,23 @@ def _Render(output_dir: str, stamp: str, classification_enabled: bool,
     reference = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Camera', 'Image_Background_001.png')
     # ONE flag for the window AND the two stamped renders — previously the window used the default
     # (off) while the renders defaulted to verdict colours, two modes in one run.
-    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference),
-                                classification_enabled=classification_enabled, scale=scale)
+    classification_enabled, scale = Configuration_Str.Classification_Enabled, Configuration_Str.Scale
+    # The demo injects its reading, so it describes nothing: the model-free describer keeps the
+    # CONNECT-time model load to FastSAM alone instead of the ~9 GB describer.
+    Vision_Core.CONST_DESCRIBER = 'fallback'
+    window = AnyScan_Window_Cls(camera=File_Camera_Cls(reference), Configuration_Str=Configuration_Str)
     window.resize(1500, 950)
 
     mangle = '_AnyScan_Window_Cls'
     # Connect through the SAME path the app uses — the Connect button, which runs a worker
     # thread and lands in __On_Connect_Finished — so the demo shows the state the app actually
-    # shows (camera Connected, resolution set), not a half-updated bypass. Pump the event loop
-    # until the connect worker has finished (its thread is torn down to None).
+    # shows (camera Connected, resolution set), not a half-updated bypass.
+    # CONNECT needs a loaded configuration, as in the app: load it first (the demo's model-free
+    # describer keeps this to FastSAM), then connect and wait for the connect worker.
+    getattr(window, mangle + '__vision').Configure(Configuration_Str)
+    getattr(window, mangle + '__Sync_Controls')()
     getattr(window, mangle + '__On_Connect_Button_Clicked')()
-    deadline = time.time() + 10.0
+    deadline = time.time() + 60.0
     while getattr(window, mangle + '__conn_thread') is not None and time.time() < deadline:
         app.processEvents()
         time.sleep(0.01)
@@ -246,21 +253,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Render the stamped Camera-View / mask / window review images.')
     parser.add_argument('--output-dir', default=CONST_OUTPUT_DIR, help='where to write the stamped renders')
     parser.add_argument('--scene', default='demo', help='the scene name recorded in the stamp')
-    parser.add_argument('--config', default=CONST_BASLER_CONFIG_FILE,
-                        help='configuration YAML to read General.Classification.Enabled from '
-                             '(default: the one the application loads)')
+    parser.add_argument('--config', default=CONST_DEFAULT_CONFIG_FILE,
+                        help='configuration to render in (default: the one the application loads)')
     args = parser.parse_args()
 
     # The classification flag, read ONCE through the application's configuration layer. The
     # stamp names the mode, so every image states which rendering it is and a render in the
     # wrong mode is visible on sight.
-    classification_enabled = Read_Classification_Enabled(args.config)
-    scale = Read_Conversion_Factor(args.config)
+    configuration = Load_Configuration(args.config)
+    classification_enabled = configuration.Classification_Enabled
     mode = 'classification %s' % ('on' if classification_enabled else 'off')
     os.makedirs(args.output_dir, exist_ok=True)
     run_stamp = datetime.datetime.now().isoformat(timespec='seconds')
     stamp = 'scene %s | %s | %s (%s)' % (args.scene, run_stamp, mode, os.path.basename(args.config))
-    _Render(args.output_dir, stamp, classification_enabled, scale)
+    _Render(args.output_dir, stamp, configuration)
     print('[INFO] Stamped review renders written to: %s' % os.path.abspath(args.output_dir))
     print('[INFO] Stamp: %s' % stamp)
     return 0

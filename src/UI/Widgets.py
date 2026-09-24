@@ -35,6 +35,9 @@ from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup,
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline, Load_Logo
+# Custom Lib.: AnyScan domain — the confidence thresholds the object list colours numbers by
+#   ../Parameters/Vision
+from Parameters.Vision import Confidence_Thresholds_Str
 # Custom Lib.: AnyScan domain — the shared Scene-Understanding formatter
 #   ../Reporting/Core
 from Reporting.Core import Object_Label, Object_Confidence, Object_Size, CONST_LABEL_SEPARATOR
@@ -808,6 +811,9 @@ class Object_List_Cls(QWidget):
         default to the LIVE Scene-Understanding tokens; a caller reading up close (the History
         Info panel) passes the smaller Info tokens instead, so the same widget serves both
         distances without either set of sizes moving the other.
+
+        Each confidence number is coloured by the configuration's thresholds, passed in (and
+        replaced by Set_Thresholds when another configuration is loaded) — never a default here.
     """
 
     # << SIGNAL >> #
@@ -815,11 +821,13 @@ class Object_List_Cls(QWidget):
 
     def __init__(self, selectable: bool = False, label_size: tp.Optional[float] = None,
                  body_size: tp.Optional[float] = None, confidence_size: tp.Optional[float] = None,
-                 parent: tp.Optional[QWidget] = None) -> None:
+                 parent: tp.Optional[QWidget] = None, *,
+                 Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
         super().__init__(parent)
 
         # << PRIVATE >> #
         self.__selectable = selectable
+        self.__thresholds = Confidence_Thresholds_Str
         # The type sizes, from the theme (defaults are the Live tokens); a caller may pass the
         # smaller Info-panel tokens.
         self.__label_size = label_size if label_size is not None else Style.CONST_TYPE_OBJECT_LABEL
@@ -831,6 +839,18 @@ class Object_List_Cls(QWidget):
         self.box = QVBoxLayout(self)
         self.box.setContentsMargins(0, 0, 0, 0)
         self.box.setSpacing(16)                          # vertical space between objects
+
+    def Set_Thresholds(self, Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
+        """
+        Description:
+            Colour confidence numbers by another configuration's thresholds from the next
+            Set_Objects on.
+
+        Args:
+            (1) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: The thresholds.
+        """
+
+        self.__thresholds = Confidence_Thresholds_Str
 
     def Set_Objects(self, objects: tp.List) -> None:
         """
@@ -941,7 +961,8 @@ class Object_List_Cls(QWidget):
         suffix = Object_Confidence(det)
         if det.Segmenter_Score is not None:
             number = '%d%%' % int(round(100.0 * det.Segmenter_Score))
-            suffix = suffix.replace(number, Style.Confidence_Number_Html(number, int(number[:-1])))
+            suffix = suffix.replace(number, Style.Confidence_Number_Html(number, int(number[:-1]),
+                                                                            self.__thresholds))
         confidence = QLabel(CONST_LABEL_SEPARATOR + suffix)
         confidence.setTextFormat(Qt.RichText)
         # Smaller than the name and a lighter weight — secondary metadata, not a continuation

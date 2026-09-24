@@ -73,6 +73,12 @@ CONST_PRIMARY_DISABLED_FILL   = '#cbc8db'  # disabled primary (ANALYZE) fill
 # reads as muted, not active. It was '#f2f1f6' (1.46:1), which was never a chosen pairing.
 CONST_PRIMARY_DISABLED_TEXT   = CONST_INK_MUTE
 
+# The scrim laid over the window behind a modal dialog: the brand ink at low opacity, so the window
+# recedes without going dark and the dialog reads as the one thing to act on.
+#   Unit [string] (hex colour) / [float] (opacity 0..1)
+CONST_SCRIM       = CONST_INK
+CONST_SCRIM_ALPHA = 0.16
+
 # The verdict colours. Green, red and amber are RESERVED here: they mean pass,
 # degraded and fail on the badge, so they must never appear as an object colour.
 CONST_OK            = '#16a34a'   # connected, pass

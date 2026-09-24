@@ -39,7 +39,7 @@ from UI.Widgets import Card_Cls, Card_Head_Cls, Segmented_Control_Cls, Object_Li
 from UI.Capture import Discover_Capture_Sets, CONST_CAPTURE_RETENTION_SETS
 # Custom Lib.: AnyScan domain — the detection structure, the shared formatter, the palette
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str
+from Parameters.Vision import Detection_Str, Confidence_Thresholds_Str
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header
 #   ../Parameters/Theme
@@ -362,7 +362,8 @@ class History_View_Cls(QWidget):
 
     def __init__(self, captures_root: tp.Optional[str] = None, run_id: str = '',
                  classification_enabled: bool = False,
-                 parent: tp.Optional[QWidget] = None) -> None:
+                 parent: tp.Optional[QWidget] = None, *,
+                 Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
         super().__init__(parent)
 
         # << PRIVATE >> #
@@ -370,10 +371,13 @@ class History_View_Cls(QWidget):
         # The current application run: History lists ONLY the sets written in it (matched by
         # run id), so earlier runs stay on disk but are not shown.
         self.__run_id = run_id
-        # Whether this run classifies. The flag is read once at startup, so every set in the run
-        # shares it: the OK/NOK filter shows iff the run classifies, and there is no mixed history
-        # to mark per card.
+        # Whether the configuration in force classifies: the OK/NOK filter shows iff it does. It can
+        # change only before the run's first CONNECT (Set_Configuration) — before any set of the run
+        # exists — so every set listed shares it; each set also names its configuration.
         self.__classification_enabled = classification_enabled
+        # The confidence thresholds numbers are coloured by — the ones in force NOW, applied to
+        # every set shown, whatever was in force when it was captured (a viewing preference).
+        self.__thresholds = Confidence_Thresholds_Str
         self.__sets = []
         self.__cards = []
         self.__selected_id = None
@@ -498,6 +502,7 @@ class History_View_Cls(QWidget):
         self.__meta_session = self.__Meta_Row(meta, 'Connection', mono=True, first=True)
         self.__meta_objects = self.__Meta_Row(meta, 'Objects')
         self.__meta_task = self.__Meta_Row(meta, 'Task')
+        self.__meta_configuration = self.__Meta_Row(meta, 'Configuration')
         self.__meta_latency = self.__Meta_Row(meta, 'Inference time', mono=True)
         self.__meta_confidence = self.__Meta_Row(meta, 'Confidence (mean)', mono=True)
         card.box.addLayout(meta)
@@ -594,7 +599,8 @@ class History_View_Cls(QWidget):
         self.__object_list = Object_List_Cls(selectable=True,
                                              label_size=Style.CONST_TYPE_INFO_LABEL,
                                              body_size=Style.CONST_TYPE_INFO_BODY,
-                                             confidence_size=Style.CONST_TYPE_INFO_META)
+                                             confidence_size=Style.CONST_TYPE_INFO_META,
+                                             Confidence_Thresholds_Str=self.__thresholds)
         self.__object_list.Object_Selected.connect(self.__On_Object_Selected)
         body_col.addWidget(self.__object_list)
         self.__score_note = QLabel()
@@ -671,6 +677,24 @@ class History_View_Cls(QWidget):
 
     # -------------------------------------------------------------------- public API
 
+    def Set_Configuration(self, classification_enabled: bool,
+                          Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
+        """
+        Description:
+            Adopt a newly loaded configuration's classification flag and confidence thresholds,
+            and redraw: the filter follows the flag, every number the thresholds.
+
+        Args:
+            (1) classification_enabled [bool]: Whether the configuration classifies.
+            (2) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: Its thresholds.
+        """
+
+        self.__classification_enabled = classification_enabled
+        self.__thresholds = Confidence_Thresholds_Str
+        self.__object_list.Set_Thresholds(Confidence_Thresholds_Str)
+        self.__selected_id = None
+        self.Refresh()
+
     def Refresh(self) -> None:
         """
         Description:
@@ -725,12 +749,11 @@ class History_View_Cls(QWidget):
             (1) removed_prior [bool]: True when the previously selected set was evicted.
         """
 
-        # The OK/NOK filter is shown only when this RUN classifies — its images carry verdict
-        # colours, so the filter must exist to explain and narrow them. When the run only detects
-        # there is no verdict state to filter, so the filter is removed (hidden) and forced to
-        # 'All', not merely disabled: nothing on screen then implies a feature this history does
-        # not contain. The run's flag is read once at startup, so every set in it shares it — no
-        # mixed history, so no per-set scan and no per-card marker.
+        # The OK/NOK filter is shown only when the configuration in force classifies — its images
+        # carry verdict colours, so the filter must exist to explain and narrow them. When it only
+        # detects there is no verdict state to filter, so the filter is removed (hidden) and forced
+        # to 'All', not merely disabled: nothing on screen then implies a feature it does not have.
+        # History lists only this run's sets, and a run has one configuration.
         self.__filter.setVisible(self.__classification_enabled)
         if not self.__classification_enabled:
             self.__filter.Set_Selection('all')
@@ -957,11 +980,13 @@ class History_View_Cls(QWidget):
 
         self.__meta_objects.setText('%d' % len(cap.Objects))
         self.__meta_task.setText(cap.Task or Style.CONST_NO_VALUE)
+        self.__meta_configuration.setText(cap.Configuration or Style.CONST_NO_VALUE)
         self.__meta_latency.setText('%d ms' % cap.Inference_Ms)
         # The frame-mean number carries its severity colour and weight, like the Live panel.
         if cap.Frame_Mean_Confidence is not None:
             percent = int(cap.Frame_Mean_Confidence)
-            self.__meta_confidence.setText(Style.Confidence_Number_Html('%d%%' % percent, percent))
+            self.__meta_confidence.setText(Style.Confidence_Number_Html('%d%%' % percent, percent,
+                                                                        self.__thresholds))
         else:
             self.__meta_confidence.setText(Style.CONST_NO_VALUE)
 
@@ -993,6 +1018,7 @@ class History_View_Cls(QWidget):
         self.__score_note.hide()
         self.__meta_objects.setText(Style.CONST_NO_VALUE)
         self.__meta_task.setText(Style.CONST_NO_VALUE)
+        self.__meta_configuration.setText(Style.CONST_NO_VALUE)
         self.__meta_latency.setText(Style.CONST_NO_VALUE)
         self.__meta_confidence.setText(Style.CONST_NO_VALUE)
 
@@ -1017,7 +1043,7 @@ class History_View_Cls(QWidget):
         self.__info_lead.setText('')
         self.__score_note.hide()
         for value in (self.__meta_session, self.__meta_objects, self.__meta_task,
-                      self.__meta_latency, self.__meta_confidence):
+                      self.__meta_configuration, self.__meta_latency, self.__meta_confidence):
             value.setText(Style.CONST_NO_VALUE)
 
     def __Show_Removed(self) -> None:

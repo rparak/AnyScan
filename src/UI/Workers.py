@@ -21,6 +21,8 @@
 # File Name: ../UI/Workers.py
 ## =========================================================================== ##
 
+# System (Default)
+import time
 # Typing (Support for type hints)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
@@ -28,8 +30,8 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 """
 Description:
-    The off-thread workers. Long-running work (a scan, model inference, a Basler
-    handshake) never runs on the GUI thread; each worker is moved onto a QThread
+    The off-thread workers. Long-running work (a scan, model inference, a model load, a
+    Basler handshake) never runs on the GUI thread; each worker is moved onto a QThread
     owned by the window and reports back only through signals. The window quits and
     waits on the thread once a worker's terminal signal fires, then deletes both.
 """
@@ -159,3 +161,63 @@ class Connect_Worker_Cls(QObject):
             self.Connect_Failed.emit(str(exc))
         else:
             self.Connect_Finished.emit()
+
+
+class Model_Load_Worker_Cls(QObject):
+    """
+    Description:
+        Loads a configuration off the GUI thread — its models take about 9 s — so the window and
+        its progress indication stay live. It puts the configuration in force through
+        Vision_Pipeline_Cls.Configure (keep unchanged models, release changed ones first, restore
+        the previous configuration on failure). Used by the Configuration dialog, the one place a
+        configuration is loaded. It never touches a widget.
+
+    Initialization of the Class:
+        Args:
+            (1) vision [Vision_Pipeline_Cls(object)]: The vision backend.
+            (2) Configuration_Str [Configuration_Str(object)]: The configuration to put in force.
+
+        Example:
+            Initialization:
+                # Assignment of the variables.
+                thread = QThread()
+
+                # Initialization of the class.
+                Cls = Model_Load_Worker_Cls(vision, Configuration_Str)
+                Cls.moveToThread(thread)
+                thread.started.connect(Cls.Run)
+
+            Features:
+                # Signals of the class.
+                Cls.Stage_Changed; Cls.Load_Finished; Cls.Load_Failed
+
+                # Functions of the class.
+                Cls.Run()
+    """
+
+    # << SIGNALS >> #
+    Stage_Changed = pyqtSignal(str)          # phase text: 'Loading segmenter…', 'Loading model…'
+    Load_Finished = pyqtSignal(float)        # the load time in seconds
+    Load_Failed = pyqtSignal(str)            # a sentence naming what failed and what is in force
+
+    def __init__(self, vision: tp.Any, Configuration_Str: tp.Any) -> None:
+        super().__init__()
+
+        # << PRIVATE >> #
+        self.__vision = vision
+        self.__config = Configuration_Str
+
+    def Run(self) -> None:
+        """
+        Description:
+            Load, then report done-or-failed through signals only.
+        """
+
+        stage_cb = lambda text: self.Stage_Changed.emit(text)
+        started = time.perf_counter()
+        try:
+            self.__vision.Configure(self.__config, stage_cb)
+        except Exception as exc:                          # noqa: BLE001
+            self.Load_Failed.emit(str(exc))
+        else:
+            self.Load_Finished.emit(time.perf_counter() - started)

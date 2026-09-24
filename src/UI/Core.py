@@ -32,7 +32,7 @@ import cv2
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import Qt, QThread, QTimer
+from PyQt5.QtCore import Qt, QThread, QTimer, QEvent, QObject
 from PyQt5.QtGui import QFont, QKeyEvent, QCloseEvent
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
                              QGridLayout, QScrollArea, QFrame, QStackedWidget)
@@ -52,6 +52,8 @@ from UI.Views.Trends import Trends_View_Cls
 from UI.Views.Log import Log_View_Cls
 #   ../UI/Workers
 from UI.Workers import Analysis_Worker_Cls, Connect_Worker_Cls
+#   ../UI/Configuration_Dialog
+from UI.Configuration_Dialog import Configuration_Dialog_Cls
 # Custom Lib.: AnyScan domain — backends, renderers and the result structure
 #   ../Camera/Core
 from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
@@ -65,11 +67,16 @@ from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines
 #   ../Reporting/Trends
 from Reporting.Trends import Trends_Accumulator_Cls
 #   ../Parameters/Vision
-from Parameters.Vision import (Analysis_Str, Detection_Str, Confidence_Severity, Scale_Str,
-                               CONST_CONFIDENCE_WARN_BELOW, CONST_CONFIDENCE_ERROR_BELOW,
+from Parameters.Vision import (Analysis_Str, Detection_Str, Confidence_Severity,
                                CONST_CONFIDENCE_LOG_HYSTERESIS)
-#   ../Parameters/General — the single default for the classification flag
-from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
+#   ../Parameters/Configuration
+from Parameters.Configuration import Configuration_Str
+# Custom Lib.: AnyScan — the configuration-loaded and scale log lines
+#   ../Configuration/Core
+from Configuration.Core import (Config_Loaded_Log_Line, Config_Sources_Log_Line, Display_Path,
+                                Hardware_Record)
+#   ../Vision/Utilities/Measure
+from Vision.Utilities.Measure import Scale_Log_Line
 # Custom Lib.: AnyScan — the session logger and the per-analysis capture writer
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
@@ -90,13 +97,15 @@ class AnyScan_Window_Cls(QMainWindow):
             (1) camera [Camera_Backend_Cls(object)]: An injected camera backend, or
                 None to use the real Basler_Camera_Cls (the --frame path injects a
                 File_Camera_Cls).
-            (2) scale [Scale_Str(object) or None]: REQUIRED, keyword-only: the configured image
-                scale (mm/px) objects are measured with, or None to measure nothing.
+            (2) logger [Session_Logger_Cls(object) or None]: The session logger (None: no logging).
+            (3) Configuration_Str [Configuration_Str(object)]: REQUIRED, keyword-only: the
+                configuration loaded at startup. The Configuration dialog may replace it until the
+                camera first connects; from then on it is fixed for the rest of the run.
 
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = AnyScan_Window_Cls(camera=File_Camera_Cls(path), scale=scale)
+                Cls = AnyScan_Window_Cls(camera=File_Camera_Cls(path), Configuration_Str=config)
                 Cls.showMaximized()
 
             Features:
@@ -121,33 +130,50 @@ class AnyScan_Window_Cls(QMainWindow):
     CONST_READING_HAS_FRAME = ('Frame captured. Press Analyze to read the scene. The result '
                                'appears here as plain English text.')
 
+    # The disabled CONFIGURATION button's tooltip: configuration is decided before the first
+    # CONNECT of a run, and changing it afterwards means restarting the application.
+    CONST_CONFIGURATION_RESTART = 'Restart to change configuration.'
+    # The disabled CONNECT button's tooltip before a configuration is loaded.
+    CONST_CONNECT_NEEDS_CONFIGURATION = 'Load a configuration first.'
+
     def __init__(self, camera: tp.Optional[tp.Any] = None,
-                 logger: tp.Optional[Session_Logger_Cls] = None,
-                 classification_enabled: bool = CONST_CLASSIFICATION_ENABLED_DEFAULT, *,
-                 scale: tp.Optional[Scale_Str]) -> None:
+                 logger: tp.Optional[Session_Logger_Cls] = None, *,
+                 Configuration_Str: Configuration_Str) -> None:
         super().__init__()
         self.setWindowTitle('AnyScan  ·  %s' % Style.CONST_TAGLINE)
 
         # << PRIVATE >> #
-        # Whether this configuration classifies (OK/NOK) or only detects. Read once from the
-        # configuration by the launcher and passed in; it governs what LIVE produces — the
+        # The configuration in force — a property of the whole run: it can be replaced only before
+        # the camera first connects, so no measurement of the run can ever span two configurations
+        # (and nothing has accumulated that a change would have to reset).
+        self.__config = Configuration_Str
+        # Whether the camera has connected in this run: from then on configuration is fixed, and
+        # it stays fixed through DISCONNECT — changing it means restarting the application.
+        self.__has_connected = False
+        # Whether it classifies (OK/NOK) or only detects: it governs what LIVE produces — the
         # annotation colours (verdict vs one neutral colour) and the flag recorded on each new
-        # capture set. It does NOT govern History, which reads how each set was written from that
-        # set's own metadata (a set written under a different flag keeps its own colours).
-        self.__classification_enabled = classification_enabled
+        # capture set. It does NOT govern how History renders a set, which reads how each set was
+        # written from its own metadata (a set written under a different flag keeps its colours).
+        self.__classification_enabled = Configuration_Str.Classification_Enabled
         # A unique id for THIS application run, generated once at startup and stable across every
         # camera connection in the run. It is written into each set's metadata; History lists only
         # the current run's sets by matching it — not by comparing timestamps, which a clock
         # adjustment would break. Earlier runs' sets stay on disk under retention, simply unshown.
         self.__run_id = uuid.uuid4().hex
         # One real implementation each. `camera` is injected so the developer
-        # --frame path can supply a File_Camera_Cls; production is the Basler.
+        # --frame path can supply a File_Camera_Cls; production is the Basler. The camera is
+        # handed the configuration's camera block — it never reads a configuration file itself.
         self.__camera = camera if camera is not None else Basler_Camera_Cls()
-        # The image scale (mm/px) from the configuration, read once by the launcher: the backend
-        # measures every object with it, and each capture set records it beside its measurements.
-        # None — the configuration has no Conversion_Factor — measures nothing (the launcher warns).
-        self.__scale = scale
-        self.__vision = Vision_Pipeline_Cls(scale=scale)
+        self.__camera.Set_Configuration(Configuration_Str.Camera, Configuration_Str.Name,
+                                        os.path.basename(Configuration_Str.Calibration_Path))
+        # The image scale (mm/px) from the configuration's calibration: the backend measures every
+        # object with it, and each capture set records it beside its measurements. None — the
+        # calibration has no Conversion_Factor — measures nothing (logged as a warning).
+        self.__scale = Configuration_Str.Scale
+        # The vision backend. Its models are NOT loaded here — opening the app to browse History
+        # must not cost ~9 s and ~9.4 GB — but on the dialog's Load or at the first CONNECT, so an
+        # analysis never pays for them.
+        self.__vision = Vision_Pipeline_Cls(Configuration_Str=Configuration_Str)
         # The session logger is injected by the launcher; None disables logging so the
         # window still builds under test and in the screenshot harness.
         self.__logger = logger
@@ -211,6 +237,8 @@ class AnyScan_Window_Cls(QMainWindow):
         # Camera-connect worker plumbing; None when idle.
         self.__conn_thread = None
         self.__conn_worker = None
+        # Whether the Configuration dialog is loading a configuration (the header shows it).
+        self.__configuration_loading = False
         # Widgets, populated by __Build_Ui.
         # The central view stack (Live / History / Log) and the header switch that drives it.
         # The header, status strip and funding row sit OUTSIDE the stack, so they stay fixed
@@ -238,6 +266,11 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_scan = None
         self.__button_analyze = None
         self.__button_clear = None
+        self.__button_configuration = None
+        self.__pill_model = None
+        self.__scrim = None
+        self.__label_model_name = None
+        self.__label_models_state = None
 
         self.__Build_Ui()
         self.__Connect_Signals()
@@ -276,11 +309,13 @@ class AnyScan_Window_Cls(QMainWindow):
         # cards while another view is on top.
         self.__stack = QStackedWidget()
         self.__stack.addWidget(self.__Build_Live_View())    # index 0 — Live
-        self.__trends_view = Trends_View_Cls(classification_enabled=self.__classification_enabled)
+        self.__trends_view = Trends_View_Cls(classification_enabled=self.__classification_enabled,
+                                             Confidence_Thresholds_Str=self.__config.Confidence)
         self.__trends_view.Set_Accumulator(self.__trends)
         self.__stack.addWidget(self.__trends_view)           # index 1 — Trends
         self.__history_view = History_View_Cls(self.__captures_root, run_id=self.__run_id,
-                                               classification_enabled=self.__classification_enabled)
+                                               classification_enabled=self.__classification_enabled,
+                                               Confidence_Thresholds_Str=self.__config.Confidence)
         self.__stack.addWidget(self.__history_view)          # index 2 — History
         self.__log_view = Log_View_Cls()
         self.__stack.addWidget(self.__log_view)              # index 3 — Log
@@ -296,6 +331,13 @@ class AnyScan_Window_Cls(QMainWindow):
         grid.addWidget(Funding_Row_Cls(), 2, 0)
 
         outer.addLayout(grid, 1)
+
+        # The scrim laid over the window while the Configuration dialog is open (__Set_Dimmed).
+        self.__scrim = QWidget(self)
+        self.__scrim.setObjectName('scrim')
+        self.__scrim.setAttribute(Qt.WA_StyledBackground, True)
+        self.__scrim.setStyleSheet('#scrim { background: %s; }' % Style.Scrim_Color())
+        self.__scrim.hide()
 
     def __Build_Live_View(self) -> QWidget:
         """
@@ -362,19 +404,25 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__pill_camera = self.__Pill('Camera offline', dot=True)
         row.addWidget(self.__pill_camera)
 
+        # The model pill: the configuration's model set and whether its models are loaded. It is
+        # the one place that state is visible, so its two states differ on three channels at once —
+        # the dot (hollow / filled), the colour (grey / green) and the outline (dashed / solid) —
+        # the same grey-to-green language as the camera pill beside it.
         model_pill = QWidget()
         model_pill.setObjectName('modelPill')
         model_pill.setFixedHeight(31)
-        model_pill.setStyleSheet(
-            '#modelPill { border: 1px solid %s; border-radius: 15px; }' % Style.CONST_CARD_BORDER)
+        self.__pill_model = model_pill
         pill_row = QHBoxLayout(model_pill)
         pill_row.setContentsMargins(12, 0, 12, 0)
         pill_row.setSpacing(7)
         pill_row.addWidget(Icon_Cls('cube', 15, Style.CONST_INK_MUTE))
-        model_label = QLabel(self.__vision.Name)
-        model_label.setFont(Font(9, QFont.DemiBold))
-        model_label.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
-        pill_row.addWidget(model_label)
+        self.__label_model_name = QLabel(self.__vision.Name)
+        self.__label_model_name.setFont(Font(9, QFont.DemiBold))
+        self.__label_model_name.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
+        pill_row.addWidget(self.__label_model_name)
+        self.__label_models_state = QLabel()
+        self.__label_models_state.setFont(Font(9))
+        pill_row.addWidget(self.__label_models_state)
         row.addWidget(model_pill)
         return bar
 
@@ -431,8 +479,10 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_scan = Tool_Button_Cls('SCAN')
         self.__button_analyze = Tool_Button_Cls('ANALYZE', primary=True)
         self.__button_clear = Tool_Button_Cls('CLEAR')
-        for b in (self.__button_connect, self.__button_disconnect, self.__button_scan,
-                  self.__button_analyze, self.__button_clear):
+        # Configuration comes first: it is what a session starts from, before CONNECT.
+        self.__button_configuration = Tool_Button_Cls('CONFIGURATION')
+        for b in (self.__button_configuration, self.__button_connect, self.__button_disconnect,
+                  self.__button_scan, self.__button_analyze, self.__button_clear):
             bar.addWidget(b)
         card.box.addLayout(bar)
         return card
@@ -478,7 +528,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__reading_lead.hide()
         col.addWidget(self.__reading_lead)
 
-        self.__object_list = Object_List_Cls()
+        self.__object_list = Object_List_Cls(Confidence_Thresholds_Str=self.__config.Confidence)
         col.addWidget(self.__object_list)
 
         self.__reading_note = QLabel()
@@ -568,6 +618,11 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_scan.clicked.connect(self.__On_Scan_Button_Clicked)
         self.__button_analyze.clicked.connect(self.__On_Analyze_Button_Clicked)
         self.__button_clear.clicked.connect(self.__On_Clear_Button_Clicked)
+        self.__button_configuration.clicked.connect(self.__On_Configuration_Button_Clicked)
+        # A disabled button swallows clicks without a signal; the filter sees the press, so an
+        # attempt to reconfigure after the first CONNECT is logged as a refusal rather than lost.
+        self.__button_configuration.installEventFilter(self)
+        self.__button_connect.installEventFilter(self)
         self.__view_toggle.View_Changed.connect(self.__On_View_Toggle)
         self.__view_switch.Segment_Selected.connect(self.__On_View_Selected)
 
@@ -630,11 +685,20 @@ class AnyScan_Window_Cls(QMainWindow):
 
         connected = self.__camera.Connected
         running = self.__worker_running
-        self.__button_connect.setEnabled(not connected and not running)
+        # A loaded configuration gates the whole session: CONNECT waits for it, and so — structurally,
+        # not only because a frame needs a connection — does ANALYZE.
+        loaded = self.__vision.Models_Loaded
+        self.__button_connect.setEnabled(loaded and not connected and not running)
+        self.__button_connect.setToolTip('' if loaded else self.CONST_CONNECT_NEEDS_CONFIGURATION)
         self.__button_disconnect.setEnabled(connected and not running)
         self.__button_scan.setEnabled(connected and not running)
-        self.__button_analyze.setEnabled(self.__frame is not None and not running)
+        self.__button_analyze.setEnabled(self.__frame is not None and loaded and not running)
         self.__button_clear.setEnabled(not running)
+        # Configuration is decided before the first CONNECT of the run and fixed from then on — it
+        # does not come back on DISCONNECT. The disabled button says so in its tooltip.
+        self.__button_configuration.setEnabled(not self.__has_connected and not running)
+        self.__button_configuration.setToolTip(self.CONST_CONFIGURATION_RESTART if self.__has_connected else '')
+        self.__Sync_Model_State()
 
         # The annotated/mask toggle is meaningful only once an analysis has delivered
         # both renders, and never while a worker runs. Its visibility follows the held
@@ -656,6 +720,27 @@ class AnyScan_Window_Cls(QMainWindow):
                 'border-radius: 15px; padding: 0 12px;'
                 % (Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK_MUTE))
         self.__Sync_Prompts()
+
+    def __Sync_Model_State(self) -> None:
+        """
+        Description:
+            Say in the header whether the configuration is loaded, loading or not loaded.
+        """
+
+        if self.__configuration_loading:
+            text, color, border, line, name = ('◐  Loading configuration…', Style.CONST_WARN_INK,
+                                               Style.CONST_WARN_BORDER, 'solid', Style.CONST_INK_MUTE)
+        elif self.__vision.Models_Loaded:
+            text, color, border, line, name = ('●  Configuration loaded.', Style.CONST_OK_INK, Style.CONST_OK_BORDER,
+                                               'solid', Style.CONST_INK)
+        else:
+            text, color, border, line, name = ('○  Configuration not loaded.', Style.CONST_INK_MUTE,
+                                               Style.CONST_CONTROL_BORDER, 'dashed', Style.CONST_INK_MUTE)
+        self.__label_models_state.setText(text)
+        self.__label_models_state.setStyleSheet('color: %s;' % color)
+        self.__label_model_name.setStyleSheet('color: %s;' % name)
+        self.__pill_model.setStyleSheet('#modelPill { border: 1px %s %s; border-radius: 15px; background: %s; }'
+                                        % (line, border, Style.CONST_CARD))
 
     def __Fail(self, message: str) -> None:
         """
@@ -683,6 +768,12 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         if self.__worker_running or self.__camera.Connected:
+            return
+
+        # CONNECT needs a loaded configuration: the camera settings, the calibration and the models
+        # all come from it. The button is disabled until then; this is the same rule, enforced.
+        if not self.__vision.Models_Loaded:
+            self.__Log_Connect_Refusal()
             return
 
         if self.__logger is not None:
@@ -720,8 +811,10 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__conn_thread = None
         self.__conn_worker = None
         self.__viewport.Stop_Busy()
-        # A new camera session: the per-session analysis index (capture-set <n>) restarts.
+        # A new camera session: the per-session analysis index (capture-set <n>) restarts. The run
+        # has now connected, so its configuration is fixed until the application restarts.
         self.__session_analyses = 0
+        self.__has_connected = True
         w, h = self.__camera.Resolution
         self.__status.camera.Set_Value('Connected', Style.CONST_OK, Style.CONST_OK)
         self.__status.resolution.Set_Value('%d × %d' % (w, h))
@@ -730,7 +823,9 @@ class AnyScan_Window_Cls(QMainWindow):
             if self.__camera_error_id is not None:
                 self.__logger.Log_Error_Resolved(self.__camera_error_id)
                 self.__camera_error_id = None
-            session_index = self.__logger.Log_Camera_Connected('%d × %d' % (w, h))
+            # The configuration is a property of the whole session: named on its start line.
+            session_index = self.__logger.Log_Camera_Connected(
+                "%d × %d, configuration '%s'" % (w, h, self.__config.Name))
             # The capture-session id matches the logger's session — its start timestamp
             # plus the index — so its directory and the log refer to the same session, and
             # reconnecting in the same run yields a distinct session (and directory).
@@ -979,7 +1074,11 @@ class AnyScan_Window_Cls(QMainWindow):
         metadata = Build_Set_Metadata(self.__session_id, set_id, timestamp, result.Objects,
                                       size, result.Task, result.Latency_Ms, frame_mean,
                                       result.Background, self.__classification_enabled,
-                                      self.__run_id, scale=self.__scale)
+                                      self.__run_id, scale=self.__scale,
+                                      configuration=self.__config.Name,
+                                      background_reference=Display_Path(
+                                          self.__config.Segmentation.Background_Reference),
+                                      hardware=Hardware_Record(self.__config))
         stamp = 'set %s | %s' % (set_id, timestamp)
         try:
             evicted, created = self.__capture_writer.Write(
@@ -1226,7 +1325,7 @@ class AnyScan_Window_Cls(QMainWindow):
 
         percent = self.__trends.Run_Mean()
         if percent is not None:
-            level = Confidence_Severity(percent)
+            level = Confidence_Severity(percent, self.__config.Confidence)
             self.__status.confidence.Set_Value('%d%%' % percent, color=Style.Log_Level_Color(level),
                                                weight=Style.Log_Level_Weight(level))
             self.__Log_Confidence_Crossing(percent)
@@ -1250,7 +1349,7 @@ class AnyScan_Window_Cls(QMainWindow):
 
         if self.__logger is None:
             return
-        warn, error, h = (CONST_CONFIDENCE_WARN_BELOW, CONST_CONFIDENCE_ERROR_BELOW,
+        warn, error, h = (self.__config.Confidence.Warn_Below, self.__config.Confidence.Error_Below,
                           CONST_CONFIDENCE_LOG_HYSTERESIS)
         previous = self.__confidence_band
         # The new band, with hysteresis on the UPWARD (recovery) crossings only: a downward
@@ -1299,7 +1398,7 @@ class AnyScan_Window_Cls(QMainWindow):
             return Style.CONST_NO_VALUE
         mean = int(round(100.0 * sum(scores) / len(scores)))
         # The number carries its severity colour and weight (rich text); the coverage stays plain.
-        number = Style.Confidence_Number_Html('%d%%' % mean, mean)
+        number = Style.Confidence_Number_Html('%d%%' % mean, mean, self.__config.Confidence)
         if len(scores) < len(objects):
             return '%s over %d of %d' % (number, len(scores), len(objects))
         return number
@@ -1383,6 +1482,190 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__trends_view.Refresh()
         self.__Clear_Reading()
         self.__Sync_Controls()
+
+    def __On_Configuration_Button_Clicked(self) -> None:
+        """
+        Description:
+            Open the Configuration dialog (modal). It validates and loads; this window applies what
+            it reports.
+        """
+
+        if self.__has_connected or self.__worker_running:
+            self.__Log_Configuration_Refusal()
+            return
+        # The window dims behind the dialog so the dialog is the focus. The dialog cannot close while
+        # it loads, and whichever way it closes (Load's own close, CLOSE, the title bar) exec_
+        # returns here — the finally lifts the dim on every path.
+        self.__Set_Dimmed(True)
+        try:
+            self.__Make_Configuration_Dialog().exec_()
+        finally:
+            self.__Set_Dimmed(False)
+            self.__configuration_loading = False
+            self.__Sync_Controls()
+
+    def __Set_Dimmed(self, dimmed: bool) -> None:
+        """
+        Description:
+            Lay the scrim over the whole window (behind the modal dialog), or lift it.
+
+        Args:
+            (1) dimmed [bool]: Whether the window is dimmed.
+        """
+
+        if dimmed:
+            self.__scrim.setGeometry(self.rect())
+            self.__scrim.raise_()
+        self.__scrim.setVisible(dimmed)
+
+    def __Make_Configuration_Dialog(self) -> Configuration_Dialog_Cls:
+        """
+        Description:
+            The Configuration dialog, wired to this window: it loads into this window's vision
+            backend, and this window applies, refuses or reports what it says.
+
+        Returns:
+            (1) parameter [Configuration_Dialog_Cls(object)]: The wired dialog (not yet shown).
+        """
+
+        log_cb = ((lambda level, message: (self.__logger.Log_Warning if level == 'WARNING' else
+                                           self.__logger.Log_Info)(message))
+                  if self.__logger is not None else None)
+        dialog = Configuration_Dialog_Cls(self.__vision, self.__config, self, log_cb=log_cb)
+        dialog.Load_Started.connect(lambda: self.__On_Configuration_Loading(True))
+        dialog.Configuration_Loaded.connect(self.__On_Configuration_Loaded)
+        dialog.Load_Refused.connect(self.__On_Configuration_Refused)
+        dialog.Load_Failed.connect(self.__On_Configuration_Load_Failed)
+        return dialog
+
+    def __Log_Configuration_Refusal(self) -> None:
+        """
+        Description:
+            Record an attempt to change the configuration after the run's first CONNECT.
+        """
+
+        if self.__logger is not None:
+            self.__logger.Log_Warning('Configuration change refused: the camera has connected in this run. %s'
+                                      % self.CONST_CONFIGURATION_RESTART)
+
+    def __Log_Connect_Refusal(self) -> None:
+        """
+        Description:
+            Record an attempt to connect before a configuration is loaded.
+        """
+
+        if self.__logger is not None:
+            self.__logger.Log_Warning('CONNECT refused: no configuration is loaded. %s'
+                                      % self.CONST_CONNECT_NEEDS_CONFIGURATION)
+
+    def __On_Configuration_Loading(self, loading: bool) -> None:
+        """
+        Description:
+            Show in the header that the dialog is loading a configuration (or has stopped).
+
+        Args:
+            (1) loading [bool]: Whether a load is in progress.
+        """
+
+        self.__configuration_loading = loading
+        self.__Sync_Controls()
+
+    def __On_Configuration_Loaded(self, Configuration_Str: Configuration_Str, seconds: float) -> None:
+        """
+        Description:
+            A new configuration is in force with its models loaded (the pipeline has it already):
+            apply it everywhere and log it. Nothing needs resetting: a configuration can only change
+            before the run's first CONNECT, so nothing has accumulated under the previous one.
+
+        Args:
+            (1) Configuration_Str [Configuration_Str(object)]: The loaded configuration.
+            (2) seconds [float]: How long its models took to load.
+        """
+
+        self.__configuration_loading = False
+        self.__Apply_Configuration(Configuration_Str)
+        if self.__logger is not None:
+            segmenter, describer = self.__vision.Model_Names
+            self.__logger.Log_Info("Models loaded for '%s' (%s, task '%s'): %s and %s (%.1f s)."
+                                   % (Configuration_Str.Name, Configuration_Str.Identity.Model_Set,
+                                      Configuration_Str.Identity.Task, segmenter, describer, seconds))
+
+    def __Apply_Configuration(self, Configuration_Str: Configuration_Str) -> None:
+        """
+        Description:
+            Put a configuration in force in the window and the camera, and log what it is.
+
+        Args:
+            (1) Configuration_Str [Configuration_Str(object)]: The configuration.
+        """
+
+        self.__config = Configuration_Str
+        self.__classification_enabled = Configuration_Str.Classification_Enabled
+        self.__scale = Configuration_Str.Scale
+        self.__camera.Set_Configuration(Configuration_Str.Camera, Configuration_Str.Name,
+                                        os.path.basename(Configuration_Str.Calibration_Path))
+        self.__label_model_name.setText(self.__vision.Name)
+        self.__object_list.Set_Thresholds(Configuration_Str.Confidence)
+        self.__trends_view.Set_Configuration(Configuration_Str.Classification_Enabled,
+                                             Configuration_Str.Confidence)
+        self.__history_view.Set_Configuration(Configuration_Str.Classification_Enabled,
+                                              Configuration_Str.Confidence)
+        if self.__logger is not None:
+            self.__logger.Log_Info(Config_Loaded_Log_Line(Configuration_Str))
+            self.__logger.Log_Info(Config_Sources_Log_Line(Configuration_Str))
+            level, line = Scale_Log_Line(Configuration_Str.Name, Configuration_Str.Scale)
+            (self.__logger.Log_Warning if level == 'WARNING' else self.__logger.Log_Info)(line)
+            for level, note in Configuration_Str.Notes:
+                (self.__logger.Log_Warning if level == 'WARNING' else self.__logger.Log_Info)(note)
+        self.__Sync_Controls()
+
+    def __On_Configuration_Refused(self, message: str) -> None:
+        """
+        Description:
+            A configuration was refused before anything loaded (invalid, or other hardware).
+
+        Args:
+            (1) message [string]: Why.
+        """
+
+        if self.__logger is not None:
+            self.__logger.Log_Warning('Configuration not loaded: %s' % message)
+
+    def __On_Configuration_Load_Failed(self, message: str) -> None:
+        """
+        Description:
+            A configuration's models failed to load; the previous configuration is in force.
+
+        Args:
+            (1) message [string]: The failure, naming what is in force.
+        """
+
+        self.__configuration_loading = False
+        if self.__logger is not None:
+            self.__logger.Log_Error('Configuration was not loaded. %s' % message)
+        self.__Sync_Controls()
+
+    # << QT OVERRIDE >> #
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        """
+        Description:
+            Catch a press on the DISABLED CONFIGURATION or CONNECT button — which Qt otherwise
+            swallows — and log it as a refusal, so the attempt and its reason show in the log.
+
+        Args:
+            (1) watched [QObject(object)]: The object the event is for.
+            (2) event [QEvent(object)]: The event.
+
+        Returns:
+            (1) parameter [bool]: False — the event continues as normal.
+        """
+
+        if event.type() == QEvent.MouseButtonPress and not getattr(watched, 'isEnabled', lambda: True)():
+            if watched is self.__button_configuration and self.__has_connected:
+                self.__Log_Configuration_Refusal()
+            elif watched is self.__button_connect and not self.__vision.Models_Loaded:
+                self.__Log_Connect_Refusal()
+        return super().eventFilter(watched, event)
 
     # << QT OVERRIDE >> #
     def keyPressEvent(self, event: QKeyEvent) -> None:

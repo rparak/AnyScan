@@ -39,7 +39,7 @@ from Reporting.Trends import Nice_Ticks, Value_To_Pixel, Nearest_Index, Thin_Lab
 #   ../Parameters/Theme
 from Parameters.Theme import Verdict_Color, Detection_Color
 #   ../Parameters/Vision
-from Parameters.Vision import CONST_CONFIDENCE_WARN_BELOW, CONST_CONFIDENCE_ERROR_BELOW
+from Parameters.Vision import Confidence_Thresholds_Str
 
 """
 Description:
@@ -541,19 +541,24 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         super().__init__('Analysed image', 'Confidence (%)', parent)
         self.__rows = []
         self.__classified = False
+        self.__thresholds = None
 
-    def Set_Data(self, rows: tp.List[tp.Any], classification_enabled: bool) -> None:
+    def Set_Data(self, rows: tp.List[tp.Any], classification_enabled: bool,
+                 Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
         """
         Description:
-            Take the accumulator's per-image rows and the run's classification flag, set the fixed
-            0..100% axis, thin the x labels, and repaint.
+            Take the accumulator's per-image rows, the run's classification flag and the
+            thresholds in force, set the fixed 0..100% axis, thin the x labels, and repaint.
 
         Args:
             (1) rows [Vector<Trend_Image_Str(object)>]: The per-image trend rows.
             (2) classification_enabled [bool]: Whether the dots take their verdict colour.
+            (3) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: Where the dashed
+                warn / error reference lines are drawn.
         """
 
         self.__rows, self.__classified = rows, classification_enabled
+        self.__thresholds = Confidence_Thresholds_Str
         n = len(rows)
         labeled = set(Thin_Label_Indices(n, max(2, int(self.width() / CONST_X_LABEL_PX) or 2)))
         x_text = {float(rows[i].Index): str(rows[i].Index) for i in labeled} if rows else {}
@@ -575,8 +580,11 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         """
 
         # The dashed reference lines at the warn / error thresholds (§5), behind everything.
-        for value, color in ((CONST_CONFIDENCE_WARN_BELOW, Style.CONST_LOG_WARNING),
-                             (CONST_CONFIDENCE_ERROR_BELOW, Style.CONST_LOG_ERROR)):
+        thresholds = self.__thresholds
+        references = (() if thresholds is None else
+                      ((thresholds.Warn_Below, Style.CONST_LOG_WARNING),
+                       (thresholds.Error_Below, Style.CONST_LOG_ERROR)))
+        for value, color in references:
             y = self._Px_Y(value, rect)
             painter.setPen(QPen(QColor(color), 1, Qt.DashLine))
             painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
@@ -662,14 +670,18 @@ class Trends_View_Cls(QWidget):
         Args:
             (1) classification_enabled [bool]: Whether the run classifies (drives the OK/NOK split
                                                and the verdict dot colours).
+            (2) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: REQUIRED,
+                keyword-only: where the confidence chart's reference lines are drawn.
     """
 
     def __init__(self, classification_enabled: bool = False,
-                 parent: tp.Optional[QWidget] = None) -> None:
+                 parent: tp.Optional[QWidget] = None, *,
+                 Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
         super().__init__(parent)
 
         # << PRIVATE >> #
         self.__classification_enabled = classification_enabled
+        self.__thresholds = Confidence_Thresholds_Str
         self.__accumulator = None
 
         grid = QGridLayout(self)
@@ -683,6 +695,8 @@ class Trends_View_Cls(QWidget):
                                          'run mean.', self.__Build_Confidence_Chart()), 1, 0)
         grid.setRowStretch(0, 1)
         grid.setRowStretch(1, 1)
+        # Hand the charts the flag and thresholds now, so the first paint already has them.
+        self.Refresh()
 
     def __Build_Objects_Chart(self) -> Objects_Chart_Cls:
         """
@@ -752,4 +766,19 @@ class Trends_View_Cls(QWidget):
 
         rows = self.__accumulator.Images() if self.__accumulator is not None else []
         self.__objects_chart.Set_Data(rows, self.__classification_enabled)
-        self.__confidence_chart.Set_Data(rows, self.__classification_enabled)
+        self.__confidence_chart.Set_Data(rows, self.__classification_enabled, self.__thresholds)
+
+    def Set_Configuration(self, classification_enabled: bool,
+                          Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
+        """
+        Description:
+            Adopt a newly loaded configuration's classification flag and thresholds, and redraw.
+
+        Args:
+            (1) classification_enabled [bool]: Whether the configuration classifies.
+            (2) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: Its thresholds.
+        """
+
+        self.__classification_enabled = classification_enabled
+        self.__thresholds = Confidence_Thresholds_Str
+        self.Refresh()
