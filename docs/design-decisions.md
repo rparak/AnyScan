@@ -1313,6 +1313,19 @@ and `hf --force-download` over single Gemma files — none can remove whole dire
 sessions working in this repository were last active hours before. The weights were restored from
 verified copies (every file against the published hashes, before and after).
 
+`logger/` went too, earlier the same afternoon (the session logs and the one capture set, last read
+around 15:40, missing by the next check) — and it was never linked into any worktree. What the two
+share: untracked content inside the repository was removed (all of `logger/`, everything in `models/`
+but the tracked `.gitkeep`), while the untracked `.venv/` and `.pytest_cache/` were untouched. No code in
+the repository deletes log files or the `logger/` directory (capture retention evicts only sets beyond
+50). The logs are not recoverable.
+
+**What the investigation did find** is one real exposure, now closed: the installer tests sourced the
+real `install.sh`, so `CONST_ROOT` pointed at the real repository until each test overrode it. Every
+test did — but by convention only, and a test that forgot would have run the installer's writes
+against the real `models/`. That mechanism could have destroyed the weights; the cause stays
+unexplained, but this mechanism is removed by construction rather than by discipline.
+
 Two measures make `models/` structurally out of reach, instead of a note asking to be careful:
 
 - **The installer tests source a copy of `install.sh` inside their sandbox.** `CONST_ROOT` is resolved
