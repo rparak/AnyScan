@@ -6,7 +6,7 @@ detail-sentences (SHOW_OBJECT_DETAIL) = True
 
 -- dataclasses --
 Detection: label='hex bolt' bbox=(10, 20, 30, 40) confidence=None text=None detail='a hex bolt on a green surface' sentence=''
-Analysis defaults: objects=[] note='' latency_ms=0 verdict='Idle' verdict_level='idle' task='detailed caption'
+Analysis defaults: objects=[] note='' latency_ms=0 verdict='Idle' verdict_level='idle' task=''
 
 -- report composer --
 [scene: empty]

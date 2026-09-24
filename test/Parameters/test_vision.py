@@ -84,7 +84,7 @@ def test_analysis_str_defaults() -> None:
     assert analysis.Latency_Ms == 0
     assert analysis.Verdict == 'Idle'
     assert analysis.Verdict_Level == 'idle'
-    assert analysis.Task == 'detailed caption'
+    assert analysis.Task == ''                       # no producer, no model named
 
 
 def test_analysis_str_objects_default_is_independent() -> None:

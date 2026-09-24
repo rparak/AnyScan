@@ -223,9 +223,11 @@ class Analysis_Str(object):
     # The verdict severity that drives the badge colour: 'ok' | 'warn' | 'idle'.
     #   Unit [string]
     Verdict_Level: str = 'idle'
-    # The human-readable name of the model task that produced the reading.
+    # The human-readable name of what produced the reading — the describer's task
+    # (Vision.Describers.*.Task_Label, or the fallback's). Empty by default: a reading nothing has
+    # produced names no model.
     #   Unit [string]
-    Task: str = 'detailed caption'
+    Task: str = ''
     # The number of raw segmenter masks the frame produced before fusion — a
     # diagnostic (like Latency_Ms) the validation harness reports alongside the
     # object count, never shown to the operator.
