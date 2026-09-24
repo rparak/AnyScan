@@ -68,7 +68,10 @@ CONST_ON_INK                  = '#ffffff'  # the label on any CONST_INK-family f
 CONST_CONTROL_DISABLED_TEXT   = '#b6b2ca'  # label of a disabled segment / plain button (2.06:1 on white)
 CONST_CONTROL_DISABLED_BORDER = CONST_LINE # the outline fades to the divider tone
 CONST_PRIMARY_DISABLED_FILL   = '#cbc8db'  # disabled primary (ANALYZE) fill
-CONST_PRIMARY_DISABLED_TEXT   = '#f2f1f6'  # disabled primary label (1.46:1; the fill carries the state)
+# The disabled primary label is the existing muted ink, not a near-white: exempt from 4.5:1 means the
+# FILL signals 'disabled' (ΔE 68 from enabled), not that the label should vanish. 2.19:1 on the fill
+# reads as muted, not active. It was '#f2f1f6' (1.46:1), which was never a chosen pairing.
+CONST_PRIMARY_DISABLED_TEXT   = CONST_INK_MUTE
 
 # The verdict colours. Green, red and amber are RESERVED here: they mean pass,
 # degraded and fail on the badge, so they must never appear as an object colour.

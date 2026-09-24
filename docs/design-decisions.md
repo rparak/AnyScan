@@ -946,9 +946,20 @@ itself under the pointer stays visibly disabled. The exemption is a named consta
 |---|---|---|---|
 | unselected segment, plain button | `#b6b2ca` on `#ffffff` | 2.06:1 | 59.7 / 0.0 |
 | selected segment | `#b6b2ca` on `#2b2455` | 6.87:1 | 29.5 / 0.0 |
-| ANALYZE (primary) | `#f2f1f6` on `#cbc8db` | 1.46:1 | 5.3 / 68.0 |
+| ANALYZE (primary) | `#8983a6` (`CONST_INK_MUTE`) on `#cbc8db` | 2.19:1 | 48.1 / 68.0 |
 
-Revisit this if a control needs a disabled label that stays readable, or if the console moves to
-a different Qt version. The hover forcing was checked against Qt 5.15's `QPushButton` only, so
-on another version, confirm the 'hover' rows still differ from 'rest' first. The test's own
-completeness check fails if they don't.
+**Exempt means the fill signals, not that the label disappears.** Disabled ANALYZE first shipped
+with a `#f2f1f6` label on its `#cbc8db` fill: 1.46:1, ΔE 5.3 from the enabled label. It was nearly
+invisible instead of looking greyed out. It was not a deliberate pairing. Both values arrived as
+bare literals in a commit about the Annotated/Mask toggle (`5461678`), with no comment or reason,
+apparently each lightened on its own to "fade" the button. The fill already carries the disabled
+signal (ΔE 68 from enabled), so the label is now the existing `CONST_INK_MUTE`: 2.19:1, clearly
+muted and still readable. The more legible `#6b6590` (3.30:1) was turned down because it would
+add a colour to the palette for one state, for little gain. A disabled label should read as
+greyed. It should not be the fill's own colour.
+
+Revisit this if a disabled control has no fill change to carry the signal, since then the label
+has to do it alone. Also revisit it if the console moves to a different Qt version. The hover
+simulation was checked against Qt 5.15's `QPushButton` only, so on another version, confirm the
+hovered renders still differ from the resting ones first. The test's self-check fails if they
+don't.
