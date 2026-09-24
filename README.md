@@ -8,9 +8,26 @@ application. Built at JIC within the EDIH-DIGIMAT project.
 ## Setup
 
 **Platform: macOS on Apple silicon** is the supported, measured platform; Linux is a
-target, not yet measured (see [Platform](#platform)). Create an
-isolated environment and install the runtime + test dependencies (Python 3.10–3.12;
-developed and characterized on 3.10):
+target, not yet measured (see [Platform](#platform)). The installer does
+the whole setup below — the virtual environment, the dependencies matched to the hardware
+(Metal on Apple silicon; CUDA 12, CUDA 13 or CPU on Linux, chosen from the NVIDIA driver), and
+both models, each verified by checksum and skipped when already present. It is safe to re-run:
+
+```bash
+./install.sh                 # or ./install.sh --detect-only to see what it would do
+```
+
+**Two installer paths have never run for real, and a fresh install is their first test.**
+The installer has been run only on an Apple-silicon Mac that already had both models. There,
+it has checked existing files and downloaded FastSAM, but it has never downloaded Gemma (the
+5.2 GB `hf download` and its verification), and none of its Linux branches (CUDA 12,
+CUDA 13, CPU) has run on a Linux machine. Those paths are covered by tests with stubbed
+commands only. If you are the first to install on a fresh machine or on Linux, you are the
+first real run of that path: if it fails, or finishes but the application does not start,
+please report it with the installer's full output. Only that report can confirm the path.
+
+By hand instead, create an isolated environment and install the runtime + test dependencies
+(Python 3.10 or newer; tested on 3.10–3.12, developed and characterized on 3.10):
 
 ```bash
 python -m venv .venv
@@ -327,12 +344,18 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
   *measured* property of the Apple-silicon build, not a guarantee. On a new platform,
   anything pinned to exact description text — tests and the characterization baseline —
   must be re-verified.
-- **Installing on Linux.** `requirements.txt` installs `mlx` / `mlx-vlm` on Apple-silicon
-  macOS only, because on Linux `mlx` has no compute backend of its own: the backend comes
-  from an extra, chosen for the machine — `pip install "mlx[cuda12]==0.32.2" mlx-vlm==0.7.2`
-  (or `[cuda13]`, or `[cpu]`, which would be far slower). The Linux line goes into
-  `requirements.txt` with the first measured Linux machine. Without MLX the describer stops
-  with a message saying so.
+- **Installing on Linux: installable, still unmeasured.** On Linux `mlx` has no compute
+  backend of its own; the backend comes from an extra chosen for the machine, kept in one
+  selectable file per backend — `requirements/linux-cuda12.txt`, `linux-cuda13.txt` or
+  `linux-cpu.txt` (far slower) — installed together with `requirements.txt`, which holds the
+  version pin. PyTorch's CUDA build cannot be chosen by a requirements marker, so it comes
+  from the matching PyTorch index (`cu126`, `cu130` or `cpu`). `./install.sh` makes both
+  choices from the NVIDIA driver it finds. This makes Linux *possible*, not *verified*: no
+  Linux machine has run it yet, and that includes the installer. Its Linux branches — driver
+  detection, the choice of backend and PyTorch build, and the installs themselves — are
+  tested with stubbed commands only, so a working `install.sh` on macOS is no evidence
+  that Linux was tested. The first Linux install is the first real run of those branches;
+  please report the installer's output either way. Without MLX the describer stops with a message saying so.
 - **Making Linux measured** means running the seven `Data/Camera` frames there and
   recording what was recorded for Apple silicon: time per object, peak memory, and
   word-for-word stability — then re-verifying every exact-text pin.

@@ -1,0 +1,4 @@
+# The MLX compute backend for Linux, cuda13: NVIDIA driver 580+, compute capability 7.5+; PyTorch from the cu130 index.
+# Selected by install.sh; install together with requirements.txt, which pins the version:
+#     pip install -r requirements.txt -r requirements/linux-cuda13.txt
+mlx[cuda13] ; sys_platform == "linux"
