@@ -45,7 +45,10 @@ from Vision.Segmenter import Fast_Sam_Cls
 #   ../Vision/Describe_Fallback
 from Vision.Describe_Fallback import Describe_Fallback
 #   ../Vision/Utilities/Caption
-from Vision.Utilities.Caption import Describe, Condense_Label
+from Vision.Utilities.Caption import Condense_Label
+#   ../Vision/Describers
+from Vision.Describers import (CONST_DESCRIBERS, CONST_PURPOSE_OBJECT, CONST_PURPOSE_BACKGROUND,
+                               Describer_Error_Cls)
 #   ../Vision/Utilities/Measure
 from Vision.Utilities.Measure import Measure_Objects
 
@@ -63,7 +66,7 @@ Description:
         (3) fusion                   Vision.Utilities.Fusion.Fuse_Objects
                                          -> FastSAM union OR background mask, split
                                             into the objects, left to right
-        (4) description              Vision.Utilities.Caption.Describe or
+        (4) description              Vision.Describers (Gemma / Florence) or
                                      Vision.Describe_Fallback.Describe_Fallback
                                          -> a label + sentence per object, from the
                                             alpha/beta-enhanced padded crop
@@ -80,17 +83,11 @@ Description:
 
     Note:
         This module is Qt-free. Analyze accepts an RGB image as a NumPy array; the
-        UI owns the QImage <-> array conversion. torch, transformers and OpenCV are
-        imported lazily on the first Analyze, so importing this module (as App/run.py
-        does at load time) pulls no heavy runtime.
+        UI owns the QImage <-> array conversion. The describer's runtime (MLX for Gemma,
+        torch/transformers for Florence) and OpenCV are imported lazily on the first
+        Analyze, so importing this module (as App/run.py does at load time) pulls no
+        heavy runtime.
 """
-# The local Florence-2 weights, presented to the operator as CONST_MODEL_NAME.
-# Loaded from this directory only, never a hub id, so there is no network call at
-# runtime. Derived from this file's location (src/Vision -> ../../models/...).
-CONST_MODEL_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',
-                 'models', 'florence2-large-ft'))
-
 # The empty-surface reference photo. Segmentation is the difference between the
 # captured frame and this image, so it must come from the SAME fixed camera and
 # match the frame's pixel dimensions exactly. Overridable at runtime (the app's
@@ -99,30 +96,26 @@ CONST_BACKGROUND_REF = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',
                  'Data', 'Camera', 'Image_Background_001.png'))
 
-# Torch device: 'auto' picks cuda, then mps, then cpu. float32 is deliberate —
-# fp16 on Apple's MPS backend is unreliable for this model.
-CONST_VISION_DEVICE = 'auto'
-
-# The human-readable task name shown in the reading panel's meta row.
-CONST_VISION_TASK_LABEL = 'detailed caption'
+# The reading panel's Task row (and the capture set's 'task') when the model-free fallback
+# describer wrote the reading; a model describer states its own (Describer_Backend_Cls.Task_Label).
+#   Unit [string]
+CONST_FALLBACK_TASK_LABEL = 'model-free description'
 
 # The reference is centre-cropped by this margin (fraction per side) before the
 # background is described, so the dark vignette at the frame edge does not leak into
 # the description of the surface itself.
 CONST_BG_CROP_MARGIN = 0.12
 
-# The background is captioned with Florence's concise <CAPTION> task, not the detailed
-# object task: on a plain surface the detailed task confabulates a paragraph. See
-# Reporting.Background_Sentence, which validates the result and falls back if needed.
-CONST_BG_CAPTION_TASK = '<CAPTION>'
+# Who writes each object's description (Vision.Describers.CONST_DESCRIBERS): 'gemma' is the
+# Gemma 4 vision-language model, prompted; 'florence' is Florence-2, kept reachable so both can
+# run over the same frames; 'fallback' is the model-free describer (size / position / aspect /
+# solidity / HSV colour), which lets stages 1-3 run and be judged without loading a model.
+CONST_DESCRIBER = 'gemma'
 
-# Who writes each object's caption. 'florence' is the Florence-2 VLM; 'fallback' is
-# the model-free describer (size / position / aspect / solidity / HSV colour), which
-# lets stages 1-3 run and be judged without loading a VLM.
-CONST_DESCRIBER = 'florence'
-
-# The model name presented to the operator. The weights are Florence-2, MIT
-# licensed — keep Microsoft's notice with the project.
+# The model name presented to the operator. The describer's weights carry their own licence,
+# which is NOT the repository's MIT licence: Gemma is under the Gemma Terms of Use
+# (https://ai.google.dev/gemma/terms) and is not redistributable under this repository's
+# licence; Florence-2 is MIT (keep Microsoft's notice). See Vision.Describers.
 CONST_MODEL_NAME = 'JIC-AnyScan-v1'
 
 
@@ -184,9 +177,11 @@ class Vision_Backend_Cls(object):
 class Florence_Vision_Cls(Vision_Backend_Cls):
     """
     Description:
-        The vision backend. It orchestrates the four-stage pipeline and owns the
-        Florence-2 describer; the model is presented as JIC-AnyScan-v1 and the
-        weights are Florence-2, MIT licensed — keep Microsoft's notice with the project.
+        The vision backend. It orchestrates the four-stage pipeline and owns the stage-4
+        describer (Vision.Describers: Gemma by default, Florence-2 reachable, or the
+        model-free fallback); the model is presented as JIC-AnyScan-v1. The describer's
+        weights carry their own licence (see CONST_MODEL_NAME). The class keeps its
+        historical name until the Florence path is removed.
 
         Pipeline of Analyze(). Read top to bottom; each stage delegates to the
         module named at the right.
@@ -215,11 +210,11 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
               objects: component mask + tight bbox (+ cue, coverage, score)
                    |
                    v
-          (4) description .................... Caption.Describe  OR
-                   |  the alpha/beta-enhanced padded      Describe_Fallback
+          (4) description .................... Describers.<describer>.Describe
+                   |  the alpha/beta-enhanced padded      OR Describe_Fallback
                    |  crop (estimated from object         (per CONST_DESCRIBER;
                    |  pixels, applied to the whole        the fallback reads
-                   |  crop) feeds Florence-2;             mask + bbox directly)
+                   |  crop) feeds the describer;          mask + bbox directly)
                    v
               Compose -> summary + per-object sentences + verdict
                    |
@@ -229,16 +224,14 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         The two cues are fused, not gated: an object survives if EITHER stage 1 or
         stage 2 sees it. Every analysis needs a reference background (stage 1); there
         is no background-free path. Each stage lives in its own module so the heavy
-        imports (ultralytics, torch) stay behind their lazy loaders and this class
+        imports (ultralytics, torch, mlx) stay behind their lazy loaders and this class
         reads as the flow.
 
         Note:
             Notes that cost hours if missed:
-              (1) These are the native transformers Florence2ForConditionalGeneration
-                  weights (no bundled modelling code, no auto_map), so they load
-                  with local_files_only=True and NOT trust_remote_code. Nothing
+              (1) Every model loads from a local directory, never a hub id; nothing
                   here touches the network at runtime.
-              (2) torch, transformers and OpenCV are imported lazily on the first
+              (2) The describer's runtime and OpenCV are imported lazily on the first
                   Analyze, so the window still opens on a machine without them.
               (3) The model loads once and is kept; the first analysis pays a
                   cold-load cost the busy indicator must cover ('Loading model…').
@@ -270,17 +263,15 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         # << PRIVATE >> #
         # The image scale the objects are measured with (None: measure nothing).
         self.__scale = scale
-        self.__model = None
-        self.__processor = None
-        self.__device = None
-        self.__dtype = None
-        self.__torch = None
+        # The describer CONST_DESCRIBER selected (None for the model-free fallback), created and
+        # loaded on the first analysis, and the name it was created for.
+        self.__describer = None
+        self.__describer_name = None
         self.__cv2 = None
         self.__np = None
-        self.__pil = None
         # Cached BGR reference array, and the one global background sentence derived
-        # from it — cached against the reference image's content hash, so a new
-        # reference re-describes but the same reference never re-runs Florence.
+        # from it — cached against the reference image's content hash AND the describer, so a
+        # new reference (or another model) re-describes but the same one never re-runs.
         self.__background = None
         self.__background_sentence = None
         self.__background_key = None
@@ -288,38 +279,17 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         # on the first Segment, so this keeps the window and the tests light.
         self.__segmenter = Fast_Sam_Cls()
 
-    def __Pick_Device(self, torch: tp.Any) -> tp.Any:
+    def __Ensure_Loaded(self, stage_cb: tp.Optional[tp.Callable]) -> None:
         """
         Description:
-            Choose the torch device from CONST_VISION_DEVICE ('auto' -> cuda, then
-            mps, then cpu).
-
-        Args:
-            (1) torch [module]: The torch module.
-
-        Returns:
-            (1) parameter [torch.device]: The selected device.
-        """
-
-        if CONST_VISION_DEVICE != 'auto':
-            return torch.device(CONST_VISION_DEVICE)
-        if torch.cuda.is_available():
-            return torch.device('cuda')
-        if torch.backends.mps.is_available():
-            return torch.device('mps')
-        return torch.device('cpu')
-
-    def __Ensure_Loaded(self, stage_cb: tp.Optional[tp.Callable], need_florence: bool) -> None:
-        """
-        Description:
-            Ensure the runtime the selected pipeline needs is imported and cached.
-            cv2/numpy are always required (stages 1-3). The Florence-2 model is loaded
-            only when a Florence path is selected — the fallback describer skips it —
-            so stages 1-3 can run without a VLM. Reports the cold load through stage_cb.
+            Ensure the runtime the selected pipeline needs is imported and cached. cv2/numpy
+            are always required (stages 1-3). The describer CONST_DESCRIBER names is created
+            and loaded once — the model-free fallback loads none — so stages 1-3 can run
+            without a model. Selecting another describer between analyses replaces it. Reports
+            the cold load through stage_cb.
 
         Args:
             (1) stage_cb [function]: Optional (text) phase hook.
-            (2) need_florence [bool]: Load the Florence-2 model and its runtime.
         """
 
         if self.__cv2 is None:
@@ -333,39 +303,22 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
                 ) from exc
             self.__cv2, self.__np = cv2, np
 
-        if not need_florence or self.__model is not None:
+        if CONST_DESCRIBER != self.__describer_name:
+            if CONST_DESCRIBER != 'fallback' and CONST_DESCRIBER not in CONST_DESCRIBERS:
+                raise Vision_Error_Cls('Unknown describer "%s": choose one of %s or fallback.'
+                                       % (CONST_DESCRIBER, ', '.join(CONST_DESCRIBERS)))
+            self.__describer = (None if CONST_DESCRIBER == 'fallback'
+                                else CONST_DESCRIBERS[CONST_DESCRIBER]())
+            self.__describer_name = CONST_DESCRIBER
+            self.__background_key = self.__background_sentence = None
+        if self.__describer is None or self.__describer.Loaded:
             return
         if stage_cb:
             stage_cb('Loading model…')
         try:
-            import torch
-            from PIL import Image as PILImage
-            from transformers import (AutoProcessor,
-                                      Florence2ForConditionalGeneration)
-        except ImportError as exc:
-            raise Vision_Error_Cls(
-                'The vision runtime is not installed. Install torch, transformers '
-                'and Pillow into this environment, then scan again.'
-            ) from exc
-
-        device = self.__Pick_Device(torch)
-        dtype = torch.float32  # fp16 on MPS is unreliable for this model
-        try:
-            model = Florence2ForConditionalGeneration.from_pretrained(
-                CONST_MODEL_DIR, dtype=dtype, local_files_only=True)
-            model.to(device)
-            model.eval()
-            processor = AutoProcessor.from_pretrained(
-                CONST_MODEL_DIR, local_files_only=True)
-        except Exception as exc:                          # noqa: BLE001
-            raise Vision_Error_Cls(
-                'The model weights at "%s" could not be loaded. Check that the '
-                'directory is complete and readable.' % CONST_MODEL_DIR
-            ) from exc
-
-        self.__torch, self.__pil = torch, PILImage
-        self.__model, self.__processor = model, processor
-        self.__device, self.__dtype = device, dtype
+            self.__describer.Load()
+        except Describer_Error_Cls as exc:
+            raise Vision_Error_Cls(str(exc)) from exc
 
     def __Load_Background(self, cv2: tp.Any, frame_shape: tp.Tuple[int, int, int]) -> tp.List[tp.List[int]]:
         """
@@ -404,15 +357,15 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         """
         Description:
             The one global background sentence, generated from the reference frame
-            (not from any crop), so it is unaffected by what Florence hallucinates
-            inside individual object crops. The reference is centre-cropped
-            (CONST_BG_CROP_MARGIN) to skip the dark vignette and captioned with the
-            concise <CAPTION> task; Reporting.Background_Sentence cleans it and falls
-            back to a neutral string (recording a warning) when the caption is empty,
-            multi-sentence or too long.
+            (not from any crop), so it is unaffected by what the model reads into
+            individual object crops. The reference is centre-cropped (CONST_BG_CROP_MARGIN)
+            to skip the dark vignette and described for the background purpose (Florence's
+            concise <CAPTION>, Gemma's background prompt); Reporting.Background_Sentence
+            cleans it and falls back to a neutral string (recording a warning) when it is
+            empty, multi-sentence or too long.
 
             The result is cached against the reference image's content hash: the same
-            reference never re-runs Florence, and a changed reference re-describes.
+            reference never re-runs the model, and a changed reference re-describes.
             When no scene model is loaded (the fallback describer) it returns the
             neutral CONST_BACKGROUND_FALLBACK with a warning, never an empty sentence,
             so the reading always has a background line before the count.
@@ -426,7 +379,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
                                    fallback was used, else empty).
         """
 
-        if self.__model is None:
+        if self.__describer is None:
             # The fallback describer loads no scene model, so there is no caption —
             # but the reading must never show the count line without a background line
             # first. Use the neutral fallback and record why.
@@ -440,9 +393,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         h, w = bg_bgr.shape[:2]
         margin = CONST_BG_CROP_MARGIN
         crop = bg_bgr[int(h * margin):int(h * (1 - margin)), int(w * margin):int(w * (1 - margin))]
-        caption = Describe(self.__model, self.__processor, self.__device, self.__dtype,
-                           crop, cv2, self.__np, self.__torch, self.__pil,
-                           task=CONST_BG_CAPTION_TASK)
+        caption = self.__describer.Describe(crop, CONST_PURPOSE_BACKGROUND)
         sentence, records = Background_Sentence(caption)
         self.__background_key, self.__background_sentence = key, sentence
         return sentence, records
@@ -468,9 +419,9 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         """
 
         t0 = time.perf_counter()
-        # The Florence-2 model is loaded only when it writes the captions; the
-        # model-free fallback describer needs no VLM.
-        self.__Ensure_Loaded(stage_cb, need_florence=(CONST_DESCRIBER == 'florence'))
+        # The describer's model is loaded only when one writes the descriptions; the
+        # model-free fallback describer needs none.
+        self.__Ensure_Loaded(stage_cb)
         cv2, np = self.__cv2, self.__np
         size = (image.shape[1], image.shape[0])   # (width, height)
 
@@ -495,7 +446,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         # survives on EITHER cue; each records the cue(s) that located it.
         objects = Fuse_Objects(masks, scores, background_fg, cv2, np)
 
-        # ---- Stage 4 - description (Vision.Utilities.Caption / Vision.Describe_Fallback) ----
+        # ---- Stage 4 - description (Vision.Describers / Vision.Describe_Fallback) ----
         # One caption per object, from the alpha/beta-enhanced padded crop: neighbours
         # are masked out (filled from the reference) so the crop holds one object plus
         # table, and the stretch is estimated from the object's own pixels.
@@ -519,7 +470,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
             it holds one object plus the table and no neighbours, then it is contrast/
             brightness-stretched (the gain/bias estimated from the object's own pixels,
             the surround blended most of the way back to natural) and fed to the
-            describer — Florence-2 or the model-free fallback (CONST_DESCRIBER). The
+            describer — Gemma, Florence-2 or the model-free fallback (CONST_DESCRIBER). The
             enhanced crop is retained on the object (Enhanced_Crop) so the debug montage
             shows exactly what the model received, without re-enhancing it.
 
@@ -559,12 +510,11 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
                                     mask_crop, others_crop, np)
             enhanced = Enhance_Crop(isolated, mask_crop, CONST_ENHANCE_CLIP_LIMIT, cv2, np)
             det.Enhanced_Crop = enhanced
-            if CONST_DESCRIBER == 'fallback':
+            if self.__describer is None:
                 det.Label, det.Detail = Describe_Fallback(
                     frame_bgr, det.Mask, det.Bbox, frame_bgr.shape, cv2, np)
             else:
-                det.Detail = Describe(self.__model, self.__processor, self.__device,
-                                      self.__dtype, enhanced, cv2, np, self.__torch, self.__pil)
+                det.Detail = self.__describer.Describe(enhanced, CONST_PURPOSE_OBJECT)
                 det.Label = Condense_Label(det.Detail)
         if progress_cb:
             progress_cb(total, total)
@@ -597,5 +547,7 @@ class Florence_Vision_Cls(Vision_Backend_Cls):
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return Analysis_Str(Objects=objects, Note=note,
                             Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
-                            Task=CONST_VISION_TASK_LABEL, Raw_Mask_Count=raw_mask_count,
+                            Task=(self.__describer.Task_Label if self.__describer is not None
+                                  else CONST_FALLBACK_TASK_LABEL),
+                            Raw_Mask_Count=raw_mask_count,
                             Background=background_sentence, Audit=background_audit + audit)

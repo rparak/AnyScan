@@ -648,3 +648,62 @@ basename, so no author string is encoded anywhere that would fail.
 **Deliberately unchanged:** the skill's `SKILL.md` and `README.md` lines saying the style is derived
 from `rparak/RoLE`, "MIT License, © 2023 Roman Parak". They credit where the style came from, in
 another repository; rewriting them would misstate that origin.
+
+## The describer is Gemma 4 E4B, prompted, behind a describer seam
+
+Stage 4 (the per-object description and the one background sentence) moves from Florence-2 to
+**Gemma 4 E4B-it**, the local `models/gemma-4-e4b-it-4bit`. Segmentation stays on FastSAM.
+
+- **What the weights are.** `config.json` says `gemma4` / `Gemma4ForConditionalGeneration`; the
+  README names `google/gemma-4-E4B-it` (revision `fee6332`), converted to MLX by
+  `mlx-community`. The language model is 4-bit affine (group 64, 3.7 GB packed); the vision tower
+  (0.33 GB) and an unused audio tower (0.61 GB) stay bf16. It runs through **MLX on the Metal GPU**
+  (`mlx` 0.32.2, `mlx-vlm` 0.7.2, pinned exactly in `requirements.txt` for Apple-silicon macOS —
+  the machine that drives the camera), not PyTorch MPS. Measured on the M2 Pro: load ~3.3 s, peak
+  5.15 GB loaded and 5.9 GB while generating, 2.1–2.7 s per object crop.
+- **The seam.** `Vision.Describers`: every describer answers `Describe(crop, purpose)` with
+  purpose `object` or `background` and maps it to its own input — Florence to a task token
+  (`<MORE_DETAILED_CAPTION>` / `<CAPTION>`), Gemma to a prompt. The pipeline never sees a token or
+  a prompt. `Vision.Core.CONST_DESCRIBER` selects `gemma` (default), `florence` (kept reachable so
+  both run over the same frames; `Example/Vision/analyze.py --describer`) or the model-free
+  `fallback`, which the weight-free tests use. Each describer loads its runtime lazily.
+- **The prompts are data.** `Configuration/Describer_Prompts.yaml` holds the `Object` and
+  `Background` prompts, read through `Read_Describer_Prompts`; a missing or empty prompt stops the
+  load before the weights are touched — there is no built-in wording.
+- **Deterministic.** The weights' own generation config samples (temperature 1.0, top-k 64,
+  top-p 0.95). The describer decodes greedily (`temperature=0.0`) with thinking off, so the same
+  crop and prompt give the same text: repeated runs, and runs on other threads, were identical.
+  A model loaded on one worker thread describes on later ones (measured), which is how the app
+  uses it.
+- **The Task field names the producer.** The Live Task row and each capture set's `task` record
+  what produced the reading: `part inspection` (Gemma), `detailed caption` (Florence),
+  `model-free description` (fallback). History shows each set's own value, so older sets keep
+  `detailed caption`. `Analysis_Str`'s *default* Task (a reading nothing produced) is still
+  `detailed caption`, pinned by `test_vision` and the characterization baseline; left for a
+  deliberate decision.
+
+**How the object prompt was chosen** (measured, temperature 0, on the `Image_002` rust-stained
+plate, the `Image_007` clean plate and four plastic parts of `Image_001`): the starting prompt
+("…explicitly noting any discolouration, stains, rust…") found the rust and did not invent staining
+on the clean plate. A softer rewording ("if you can see …") **missed the rust entirely**, and naming
+"threads" as a feature made the model report threads that are not there. The shipped wording keeps
+the firm "look carefully … name any you find and where", makes "the surface looks clean" an
+acceptable answer, asks only for features "you can actually see", asks for the "apparent" material
+(the plastic parts come back as plastic, with no machining marks), and says a hole may show the
+green surface through it. The background prompt asks for one short sentence naming the surface's
+colour and finish ("A deep teal surface presents a uniform, matte finish."); the one-sentence /
+20-word validator stays as a safety net.
+
+**Licence: not MIT, not redistributable under this repository's licence.** The Gemma weights are
+governed by the Gemma Terms of Use (https://ai.google.dev/gemma/terms) and its Prohibited Use
+Policy. The repository's code is MIT; the weights are not, and are not redistributed with it:
+`models/` is gitignored, so they sit in the working tree but are not in the repository. Anyone
+shipping them must pass on Google's terms. (Florence-2, while it remains, is MIT.)
+
+**Revisit if** the comparison over all seven frames (Phase 2) shows the new model worse somewhere;
+the Florence path and `Vision_Core.Florence_Vision_Cls`'s historical name go in Phase 3.
+Tests `test/Vision/test_describers.py` (with a stand-in `mlx_vlm`: the data-file prompts, greedy
+decoding, thinking off, RGB input, loud failures, Florence's token mapping, the Task labels),
+`test/UI/test_history.py::test_each_set_shows_the_task_that_produced_it`,
+`test/integration/test_pipeline.py::test_pipeline_real_describer_smoke` (both describers, when their
+weights exist).

@@ -107,31 +107,34 @@ def _Warn_Weights_Absent(request) -> None:
         reporter.write_sep('!', red=True, bold=True)
 
 
-def test_pipeline_real_florence_smoke(request, reference_background, make_synthetic_frame,
-                                      monkeypatch) -> None:
+@pytest.mark.parametrize('describer', ['gemma', 'florence'])
+def test_pipeline_real_describer_smoke(request, reference_background, make_synthetic_frame,
+                                       monkeypatch, describer) -> None:
     """
     Description:
         The real four-stage vision path — background subtraction -> FastSAM
-        segmentation -> mask filtering -> Florence-2 description -> compose — through
-        the real Florence_Vision_Cls on a synthetic two-rectangle frame, forced onto
-        the CPU so it is portable and deterministic (no CUDA/MPS dependency). It runs
-        in the DEFAULT suite whenever BOTH the FastSAM and Florence-2 weights exist;
-        when either is absent it warns loudly and passes, so a fresh clone is never
-        broken before the weights are downloaded.
+        segmentation -> fusion -> description -> compose — through the real
+        Florence_Vision_Cls on a synthetic two-rectangle frame, once per describer while
+        both are reachable. FastSAM (and Florence) are forced onto the CPU so it is
+        portable; Gemma runs on MLX's Metal GPU, the only place it runs. It runs in the
+        DEFAULT suite whenever the FastSAM weights and that describer's weights exist; when
+        either is absent it warns loudly and passes, so a fresh clone is never broken
+        before the weights are downloaded.
 
         Structural assertions only — object count and box bounds come from the
-        deterministic scene, and every described object has a non-empty sentence. The
-        caption text itself is never asserted (it is not deterministic).
+        deterministic scene, every described object has a non-empty sentence, and the Task
+        row names the describer that wrote the reading. The text itself is not asserted.
     """
 
-    if not (os.path.isdir(Vision_Core.CONST_MODEL_DIR)
-            and os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS)):
+    import Vision.Describers as Describers
+    model_dir = {'gemma': Describers.CONST_GEMMA_MODEL_DIR,
+                 'florence': Describers.CONST_FLORENCE_MODEL_DIR}[describer]
+    if not (os.path.isdir(model_dir) and os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS)):
         _Warn_Weights_Absent(request)
         return
 
-    # Force the CPU so the smoke behaves identically on every machine — both the
-    # Florence describer and the FastSAM segmenter.
-    monkeypatch.setattr(Vision_Core, 'CONST_VISION_DEVICE', 'cpu')
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', describer)
+    monkeypatch.setattr(Describers, 'CONST_FLORENCE_DEVICE', 'cpu')
     monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
 
     # OpenCV library for computer vision tasks [pip3 install opencv-python]
@@ -152,7 +155,7 @@ def test_pipeline_real_florence_smoke(request, reference_background, make_synthe
         assert x + bw <= w and y + bh <= h
         # A described object always has a sentence; its exact words are not asserted.
         assert obj.Sentence
-    assert result.Objects
+    assert result.Task == Describers.CONST_DESCRIBERS[describer].Task_Label
     assert result.Latency_Ms >= 0
 
 

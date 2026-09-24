@@ -44,6 +44,8 @@ import typing as tp
 # Custom Lib.: AnyScan vision — the pipeline, its errors, and data-file discovery
 #   ../Vision/Core
 import Vision.Core as Vision_Core
+#   ../Vision/Describers
+import Vision.Describers as Vision_Describers
 from Vision.Core import Florence_Vision_Cls, Vision_Error_Cls
 #   ../Vision/Segmenter
 import Vision.Segmenter as Vision_Segmenter
@@ -255,17 +257,20 @@ def _Configure(args: argparse.Namespace) -> None:
     """
     Description:
         Push the CLI options onto the pipeline's CONST_* configuration interface — the
-        device for both models, the FastSAM weights, and the describer.
+        device for FastSAM and Florence (Gemma runs on MLX's Metal GPU regardless), the
+        FastSAM weights, and the describer.
 
     Args:
         (1) args [argparse.Namespace(object)]: The parsed arguments.
     """
 
     if args.device:
-        Vision_Core.CONST_VISION_DEVICE = args.device
+        Vision_Describers.CONST_FLORENCE_DEVICE = args.device
         Vision_Segmenter.CONST_SEGMENTER_DEVICE = args.device
     if args.weights:
         Vision_Segmenter.CONST_SEGMENTER_WEIGHTS = os.path.abspath(args.weights)
+    if args.describer:
+        Vision_Core.CONST_DESCRIBER = args.describer
     if args.no_describe:
         Vision_Core.CONST_DESCRIBER = 'fallback'
 
@@ -372,7 +377,11 @@ def main() -> int:
     parser.add_argument('--output-dir', default=CONST_OUTPUT_DIR, help='where to write the per-frame artefacts')
     parser.add_argument('--background', default=None, help='explicit reference filename (overrides the highest-index rule)')
     parser.add_argument('--weights', default=None, help='FastSAM weights path (overrides the default)')
-    parser.add_argument('--device', default=None, help="compute device: 'cpu', 'cuda', 'mps' or 'auto'")
+    parser.add_argument('--device', default=None,
+                        help="compute device for FastSAM and Florence: 'cpu', 'cuda', 'mps' or 'auto'")
+    parser.add_argument('--describer', default=None, choices=sorted(Vision_Describers.CONST_DESCRIBERS),
+                        help="which model describes the objects (default: the application's, %s)"
+                             % Vision_Core.CONST_DESCRIBER)
     parser.add_argument('--no-describe', action='store_true',
                         help='use the model-free fallback describer (no VLM); does NOT write descriptions files')
     parser.add_argument('--montage', action='store_true', help='also write the enhanced-crop debug montage (off by default)')

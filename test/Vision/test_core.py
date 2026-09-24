@@ -57,11 +57,17 @@ def test_backend_interface() -> None:
 def test_config_paths_point_where_expected() -> None:
     """
     Description:
-        The model directory and the background reference resolve to their repo
-        locations, so a moved file fails loudly rather than silently.
+        Each describer's model directory, its prompts file and the background reference
+        resolve to their repo locations, so a moved file fails loudly rather than silently;
+        Gemma is the default describer.
     """
 
-    assert Vision_Core.CONST_MODEL_DIR.endswith(os.path.join('models', 'florence2-large-ft'))
+    import Vision.Describers as Describers
+    from Camera.Utilities.Configuration import CONST_DESCRIBER_PROMPTS_FILE
+    assert Vision_Core.CONST_DESCRIBER == 'gemma'
+    assert Describers.CONST_GEMMA_MODEL_DIR.endswith(os.path.join('models', 'gemma-4-e4b-it-4bit'))
+    assert Describers.CONST_FLORENCE_MODEL_DIR.endswith(os.path.join('models', 'florence2-large-ft'))
+    assert CONST_DESCRIBER_PROMPTS_FILE.endswith(os.path.join('Configuration', 'Describer_Prompts.yaml'))
     assert Vision_Core.CONST_BACKGROUND_REF.endswith(
         os.path.join('Data', 'Camera', 'Image_Background_001.png'))
 
@@ -86,11 +92,12 @@ def test_analyze_end_to_end(reference_background, make_synthetic_frame) -> None:
     Description:
         The full pipeline on a synthetic frame (the reference with two rectangles
         drawn on it): Analyze takes an RGB array and returns a populated
-        Analysis_Str. Needs the Florence-2 weights; skipped otherwise.
+        Analysis_Str. Needs the default describer's weights; skipped otherwise.
     """
 
-    if not os.path.isdir(Vision_Core.CONST_MODEL_DIR):
-        pytest.skip(f'model weights not present at {Vision_Core.CONST_MODEL_DIR}')
+    import Vision.Describers as Describers
+    if not os.path.isdir(Describers.CONST_GEMMA_MODEL_DIR):
+        pytest.skip(f'model weights not present at {Describers.CONST_GEMMA_MODEL_DIR}')
 
     import cv2
 

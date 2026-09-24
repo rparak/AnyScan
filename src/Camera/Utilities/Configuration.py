@@ -51,6 +51,12 @@ CONST_CONFIG_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(
 # The default Basler a2A1920-51gcPRO (Computar M1228-MPW3 lens) configuration file.
 CONST_BASLER_CONFIG_FILE = os.path.join(CONST_CONFIG_DIR,
                                         'Config_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml')
+# The describer's prompts — data, kept apart from the camera configuration because they are
+# the model's wording, iterated on their own (Read_Describer_Prompts).
+CONST_DESCRIBER_PROMPTS_FILE = os.path.join(CONST_CONFIG_DIR, 'Describer_Prompts.yaml')
+# The prompts that file must hold, one per describer purpose.
+#   Unit [Tuple<string>]
+CONST_DESCRIBER_PROMPT_KEYS = ('Object', 'Background')
 # The acquisition settings the Basler camera cannot start without. Read_Configuration
 # requires every one of these keys in the 'Custom_Cfg' block, so a *.yaml missing one
 # fails at read time rather than deep inside the Basler SDK.
@@ -128,6 +134,31 @@ def Read_Classification_Enabled(file_path: str) -> bool:
         return bool(value) if isinstance(value, bool) else CONST_CLASSIFICATION_ENABLED_DEFAULT
     except (OSError, yaml.YAMLError, AttributeError):
         return CONST_CLASSIFICATION_ENABLED_DEFAULT
+
+
+def Read_Describer_Prompts(file_path: str) -> tp.Optional[tp.Dict[str, str]]:
+    """
+    Description:
+        Read the describer's prompts — one per purpose (CONST_DESCRIBER_PROMPT_KEYS: the
+        per-object 'Object' prompt and the reference's 'Background' prompt) — from their *.yaml
+        file, whitespace-normalised. It never raises and has NO default wording: a missing
+        file, a missing key or an empty prompt yields None, and the describer refuses to run
+        rather than send a prompt nobody wrote.
+
+    Args:
+        (1) file_path [string]: The absolute path to the prompts *.yaml file.
+
+    Returns:
+        (1) parameter [Dict<string, string> or None]: {'Object': ..., 'Background': ...}, or None.
+    """
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        prompts = {key: ' '.join(str(data[key]).split()) for key in CONST_DESCRIBER_PROMPT_KEYS}
+    except (OSError, yaml.YAMLError, TypeError, KeyError):
+        return None
+    return prompts if all(prompts.values()) else None
 
 
 def Read_Conversion_Factor(file_path: str) -> tp.Optional[Scale_Str]:

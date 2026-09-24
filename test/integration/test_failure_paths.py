@@ -54,13 +54,14 @@ def test_missing_model_directory_surfaces_cleanly(reference_background) -> None:
 
     image_rgb = cv2.cvtColor(reference_background, cv2.COLOR_BGR2RGB)
 
-    original = Vision_Core.CONST_MODEL_DIR
-    Vision_Core.CONST_MODEL_DIR = '/no/such/model/directory'
+    import Vision.Describers as Describers
+    original = Describers.CONST_GEMMA_MODEL_DIR
+    Describers.CONST_GEMMA_MODEL_DIR = '/no/such/model/directory'
     try:
-        with pytest.raises(Vision_Error_Cls):
+        with pytest.raises(Vision_Error_Cls, match='/no/such/model/directory'):
             Florence_Vision_Cls(scale=None).Analyze(image_rgb)
     finally:
-        Vision_Core.CONST_MODEL_DIR = original
+        Describers.CONST_GEMMA_MODEL_DIR = original
 
 
 @pytest.mark.slow
@@ -73,8 +74,9 @@ def test_frame_size_mismatch_surfaces_cleanly(reference_background) -> None:
         the model has loaded; skipped otherwise.
     """
 
-    if not os.path.isdir(Vision_Core.CONST_MODEL_DIR):
-        pytest.skip(f'model weights not present at {Vision_Core.CONST_MODEL_DIR}')
+    import Vision.Describers as Describers
+    if not os.path.isdir(Describers.CONST_GEMMA_MODEL_DIR):
+        pytest.skip(f'model weights not present at {Describers.CONST_GEMMA_MODEL_DIR}')
 
     # A frame deliberately a different size from the reference background.
     h, w, _ = reference_background.shape

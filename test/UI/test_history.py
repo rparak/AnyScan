@@ -40,7 +40,7 @@ from PyQt5.QtWidgets import QApplication, QLabel
 #   ../UI/Views/History
 from UI.Views.History import History_View_Cls
 #   ../UI/Capture
-from UI.Capture import Capture_Writer_Cls, Build_Set_Metadata
+from UI.Capture import Capture_Writer_Cls, Build_Set_Metadata, Discover_Capture_Sets
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -73,14 +73,14 @@ def _Objects():
                           Sentence='A hex nut.', Verdict='OK', Cue='both')]
 
 
-def _Write_Full(writer, session_id, set_id, classification=False, run_id=''):
-    """Write a full (successful) set through the real writer, recording the flags and run id."""
+def _Write_Full(writer, session_id, set_id, classification=False, run_id='', task='caption'):
+    """Write a full (successful) set through the real writer, recording the flags, run id and task."""
     raw = np.full((40, 60, 3), 30, np.uint8)
     annotated = np.full((40, 60, 3), 60, np.uint8)
     mask = np.zeros((40, 60, 3), np.uint8)
     objects = _Objects()
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
-                                  'caption', 1180, 91, '', classification, run_id, scale=None)
+                                  task, 1180, 91, '', classification, run_id, scale=None)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                  ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
@@ -152,6 +152,26 @@ def test_selecting_a_full_set_renders_the_object_list(qt_app, tmp_path) -> None:
     assert _Private(view, '__meta_task').text() == 'caption'
     assert _Private(view, '__meta_latency').text() == '1180 ms'
     assert _Private(view, '__meta_confidence').text() == '91%'
+
+
+def test_each_set_shows_the_task_that_produced_it(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The Task row records what produced a set, so History shows each set's OWN value: a set
+        written by Florence keeps 'detailed caption' next to one written by Gemma ('part
+        inspection') — never the describer currently selected.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'florence_set', task='detailed caption')
+    _Write_Full(writer, 'sessionA', 'gemma_set', task='part inspection')
+    view = History_View_Cls(str(tmp_path))
+    view.Refresh()
+    shown = {}
+    for cap in Discover_Capture_Sets(str(tmp_path)):
+        _Private(view, '__Select')(cap)
+        shown[cap.Set_Id] = _Private(view, '__meta_task').text()
+    assert shown == {'florence_set': 'detailed caption', 'gemma_set': 'part inspection'}
 
 
 def test_detect_only_sets_have_no_filter_and_a_neutral_outline(qt_app, tmp_path) -> None:
