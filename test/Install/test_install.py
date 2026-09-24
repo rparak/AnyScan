@@ -645,7 +645,7 @@ def _Stub_Curl(sandbox: Sandbox_Cls, serves: bytes) -> str:
 
 def test_fastsam_present_and_correct_is_not_downloaded(sandbox):
     reference = b'fastsam-weights'
-    _Write(os.path.join(sandbox.Root, 'models', 'sam-1', 'FastSAM-x.pt'), reference)
+    _Write(os.path.join(sandbox.Root, 'models', 'FastSAM', 'FastSAM-x.pt'), reference)
     record = _Stub_Curl(sandbox, reference)
     process = sandbox.Run(_Fastsam_Snippet(sandbox, reference) + 'Ensure_Fastsam')
 
@@ -656,7 +656,7 @@ def test_fastsam_present_and_correct_is_not_downloaded(sandbox):
 
 def test_fastsam_corrupt_is_downloaded_again_and_verified(sandbox):
     reference = b'fastsam-weights'
-    target = os.path.join(sandbox.Root, 'models', 'sam-1', 'FastSAM-x.pt')
+    target = os.path.join(sandbox.Root, 'models', 'FastSAM', 'FastSAM-x.pt')
     _Write(target, b'fastsam-weightz')
     record = _Stub_Curl(sandbox, reference)
     process = sandbox.Run(_Fastsam_Snippet(sandbox, reference) + 'Ensure_Fastsam')
@@ -670,7 +670,7 @@ def test_fastsam_corrupt_is_downloaded_again_and_verified(sandbox):
 
 def test_fastsam_bad_download_replaces_nothing(sandbox):
     reference = b'fastsam-weights'
-    target = os.path.join(sandbox.Root, 'models', 'sam-1', 'FastSAM-x.pt')
+    target = os.path.join(sandbox.Root, 'models', 'FastSAM', 'FastSAM-x.pt')
     _Write(target, b'fastsam-old!!!!')
     _Stub_Curl(sandbox, b'<html>rate limited</html>')
     process = sandbox.Run(_Fastsam_Snippet(sandbox, reference) + 'Ensure_Fastsam')
@@ -798,7 +798,7 @@ def test_gemma_download_that_does_not_verify_fails(sandbox):
 def test_configuration_pointing_elsewhere_names_the_field(sandbox, gemma, expected_level):
     pytest.importorskip('yaml')
     _Write(os.path.join(sandbox.Root, 'Configuration', 'Config_Test.yaml'),
-           f'Segmentation:\n  Model: models/sam-1/FastSAM-x.pt\nDescription:\n  Model: {gemma}\n'.encode())
+           f'Segmentation:\n  Model: models/FastSAM/FastSAM-x.pt\nDescription:\n  Model: {gemma}\n'.encode())
     os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
     os.symlink(sys.executable, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))
     process = sandbox.Run(f'CONST_ROOT="{sandbox.Root}"; CONST_VENV_DIR="{sandbox.Root}/venv"; Check_Configurations')

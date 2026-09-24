@@ -46,7 +46,7 @@ FastSAM instance-segmentation weights — not tracked in git
 
 The vision pipeline's stage 2 loads FastSAM-x from:
 
-    models/sam-1/FastSAM-x.pt
+    models/FastSAM/FastSAM-x.pt
 
 Expected contents: the single ~140 MB FastSAM-x.pt checkpoint.
 
@@ -63,7 +63,7 @@ Let ultralytics resolve and download the correct release, then move it into plac
 (version-robust — no pinned URL to rot):
 
     python -c "from ultralytics import FastSAM; FastSAM('FastSAM-x.pt')"
-    mkdir -p models/sam-1 && mv FastSAM-x.pt models/sam-1/
+    mkdir -p models/FastSAM && mv FastSAM-x.pt models/FastSAM/
 
 The pipeline resolves this path from Vision/Segmenter.py the same way the
 describer's path is resolved (CONST_SEGMENTER_WEIGHTS); override it per run with

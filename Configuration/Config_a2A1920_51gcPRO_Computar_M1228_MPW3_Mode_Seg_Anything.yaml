@@ -60,7 +60,7 @@ Confidence:
 # Stages 1-3: FastSAM instance segmentation, the background difference, and their fusion.
 Segmentation:
   # REQUIRED. The FastSAM weights, relative to the repository root (or absolute).
-  Model: models/sam-1/FastSAM-x.pt
+  Model: models/FastSAM/FastSAM-x.pt
   # Compute device: auto | cpu | mps | cuda (auto picks cuda, then mps, then cpu). Default: auto
   Device: auto
   # FastSAM detection confidence and NMS-IoU thresholds (0..1). Defaults: 0.4 and 0.9

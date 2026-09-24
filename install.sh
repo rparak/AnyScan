@@ -90,7 +90,7 @@ CONST_REQUIREMENTS_DIR="${CONST_ROOT}/requirements"
 # as the configuration writes them.
 #   Unit [string]
 CONST_FASTSAM_URL='https://github.com/ultralytics/assets/releases/download/v8.4.0/FastSAM-x.pt'
-CONST_FASTSAM_REL='models/sam-1/FastSAM-x.pt'
+CONST_FASTSAM_REL='models/FastSAM/FastSAM-x.pt'
 CONST_FASTSAM_SIZE='144972346'
 CONST_FASTSAM_SHA256='752cadc2828edb1cd4bc4f9eb587100631af06ea2108f4c9ed56df4755701e76'
 # Gemma 4 E4B, 4-bit MLX, at the revision the application was measured with. The same

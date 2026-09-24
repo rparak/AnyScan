@@ -63,12 +63,12 @@ note](#licence-note)). The describer's prompts live in the configuration file (s
 See `models/.gitkeep` for the expected directory contents.
 
 The vision pipeline's segmentation stage also loads a local **FastSAM-x** model
-from `models/sam-1/FastSAM-x.pt` (~140 MB), likewise **not** tracked in git.
+from `models/FastSAM/FastSAM-x.pt` (~140 MB), likewise **not** tracked in git.
 Fetch it with ultralytics and move it into place:
 
 ```bash
 python -c "from ultralytics import FastSAM; FastSAM('FastSAM-x.pt')"
-mkdir -p models/sam-1 && mv FastSAM-x.pt models/sam-1/
+mkdir -p models/FastSAM && mv FastSAM-x.pt models/FastSAM/
 ```
 
 Upstream: <https://docs.ultralytics.com/models/fast-sam/>. `ultralytics` is in
@@ -252,7 +252,7 @@ pytest --runslow       # also runs the `slow` failure-path tests (need the weigh
 `pytest` run includes a smoke test through the real `Analyze` (background
 subtraction → FastSAM segmentation on the CPU → fusion → Gemma description → compose)
 that runs **whenever both the FastSAM and Gemma weights are present**
-(`models/sam-1/FastSAM-x.pt` and `models/gemma-4-e4b-it-4bit/`). When either is absent it prints an unmissable
+(`models/FastSAM/FastSAM-x.pt` and `models/gemma-4-e4b-it-4bit/`). When either is absent it prints an unmissable
 `REAL VISION PATH NOT VERIFIED` banner and passes,
 so a fresh clone is never broken — but that path is then unverified. To verify it,
 download the weights (see [Setup](#setup)) and run:
@@ -354,7 +354,7 @@ Data/Results/             analyze.py and scan.py output — git-ignored
 images/                   documentation illustrations for this README — committed
 models/                   model weights — you supply these, NOT committed
   gemma-4-e4b-it-4bit/      Gemma 4 E4B (MLX), downloaded per Setup (git-ignored)
-  sam-1/FastSAM-x.pt        FastSAM, downloaded per Setup (git-ignored)
+  FastSAM/FastSAM-x.pt      FastSAM, downloaded per Setup (git-ignored)
 ```
 
 `Data/` is input and output and `images/` is documentation — kept apart on purpose. The test

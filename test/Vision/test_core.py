@@ -69,7 +69,7 @@ def test_config_paths_point_where_expected() -> None:
     config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
     assert Vision_Core.CONST_DESCRIBER == 'gemma'
     assert config.Description.Model_Path.endswith(os.path.join('models', 'gemma-4-e4b-it-4bit'))
-    assert config.Segmentation.Model_Path.endswith(os.path.join('models', 'sam-1', 'FastSAM-x.pt'))
+    assert config.Segmentation.Model_Path.endswith(os.path.join('models', 'FastSAM', 'FastSAM-x.pt'))
     assert set(Describers.CONST_DESCRIBERS) == {'gemma'}
     assert config.Segmentation.Background_Reference.endswith(
         os.path.join('Data', 'Images', 'Background', 'Image_Background_001.png'))
