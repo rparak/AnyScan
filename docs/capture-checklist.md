@@ -22,52 +22,21 @@ is unverified until the relevant item here has been captured and checked.
 
 | # | Item | Frames | Closes |
 |---|---|---|---|
-| 1 | Reference frames: scale and parallax | 9 | *Measured sizes may carry a systematic error*; *A part's measured size depends on where it lies in the frame* |
-| 2 | Multi-view calibration set | 20+ | The same two entries, from the calibration side; the camera's first multi-view calibration |
+| 1 | Multi-view calibration set | 20+ | The camera's first multi-view calibration: the lens model, the principal point and the mm/px factor that item 2 then checks |
+| 2 | Reference frames: scale and parallax | 9 | *Measured sizes may carry a systematic error*; *A part's measured size depends on where it lies in the frame* |
 | 3 | Parts session: defects, low-contrast parts, harsh shadow | ~40 | *The describer is not a defect detector*; *Open question: FastSAM's reliability on low-contrast shapes*; *A very harsh cast shadow can be absorbed* |
 
----
+**Order: 1, then 2, then 3.**
 
-## 1. Reference frames — scale and parallax
-
-**Why.** The mm/px factor has never been checked against a known size on this rig. KNOWN_ISSUES
-predicts roughly +0.5 to +1.0 % at the centre and ±0.3 % in the corners from the calibration's own
-model, but a prediction is not evidence. A uniform error means one correction to the factor. An error
-that varies with position means recalibrating (item 2).
-
-**Needed.** The 12 mm calibration chessboard, one flat plate, one washer, one hex nut, and a caliper.
-
-**Conditions.** Shipped configuration loaded, one CONNECT, shipped lighting, camera untouched since
-the last calibration. The board lies flat; the parts lie flat and do not touch each other.
-
-| n | What | Where (as seen in the Live view) | Note |
-|---|---|---|---|
-| 1 | chessboard | centre | edges parallel to the image edges |
-| 2 | chessboard | centre | **repeat of 1**: SCAN + ANALYZE again, touch nothing |
-| 3 | chessboard | top-left | overhang the corner by ~1–2 squares each way; at least half the board in view |
-| 4 | chessboard | top-right | as 3 |
-| 5 | chessboard | bottom-left | as 3 |
-| 6 | chessboard | bottom-right | as 3 |
-| 7 | plate + washer + nut | centre | not touching |
-| 8 | plate + washer + nut | top-left | ~10 mm clear of the frame edges |
-| 9 | plate + washer + nut | bottom-right | as 8 |
-
-**Record alongside** (the sheet is `Data/Reference/reference_check.yaml`):
-
-- [ ] the connection folder name under `logger/captures/`, and each frame's final `<set>` number
-- [ ] chessboard, with the caliper: across 9 squares horizontally (nominal 108.0 mm), across 6
-      vertically (nominal 72.0 mm), and its height above the table (print plus any backing)
-- [ ] whether the board and its mounting are the same as at the calibration
-- [ ] plate: length, width, thickness
-- [ ] washer: outer diameter, thickness
-- [ ] nut: across flats, across corners, thickness
-
-**Check.** Frames 1 and 2 must agree to within 0.1 mm; if not, repeatability comes before any
-correction. Then compare the error, in mm and %, per position.
+1. **Calibrate first.** Adopt the new calibration, then restart the application so it is in force.
+2. **Then shoot the reference frames, under the new calibration.** Frames shot before recalibrating
+   would measure a factor that is about to be replaced.
+3. **Then the parts session.** Its frames are then undistorted and measured under the calibration
+   that item 2 has checked.
 
 ---
 
-## 2. Multi-view calibration set
+## 1. Multi-view calibration set
 
 **Why.** The calibration in force was solved from a single view; its principal point sits ~800 px off
 centre. A multi-view solve needs flat boards (for the lens model and the mm/px factor) and tilted
@@ -75,7 +44,8 @@ boards (the lens model only). The tilts are what pin the principal point: the sy
 `Calibration.Core` shows recovery degrades sharply below 5° of tilt, and plateaus from three views of
 at least 10°.
 
-**Needed.** The same chessboard (11 × 8 squares), a caliper, and something to hold it tilted.
+**Needed.** The 12 mm calibration chessboard (11 × 8 squares), a caliper, and something to hold it
+tilted.
 
 **Conditions.** Shipped lighting, camera untouched. Capture with the calibration harness, not the app:
 
@@ -109,8 +79,51 @@ force untouched:
 python calibrate.py --images DIR --board-squares 11x8 --square-mm <calipered> --board-height-mm <h>
 ```
 
-Re-measure item 1's frames under the old and the new calibration (their distorted originals are kept
-for exactly this) before adopting the new one by renaming it over `Calibration_<Hardware>.yaml`.
+Check the report (principal point near the image centre, tilt spread above the 10° floor, the factor's
+map), then adopt the new calibration by renaming it over `Calibration_<Hardware>.yaml` and restart the
+application so it is in force. Item 2 is shot under it. (The old calibration stays in git history; the
+reference frames' distorted originals can be re-measured under it for a before/after comparison.)
+
+---
+
+## 2. Reference frames — scale and parallax
+
+**Why.** The mm/px factor has never been checked against a known size on this rig. These frames
+check the calibration from item 1 against calipered references: a uniform error means one correction
+to the factor; an error that varies with position means the calibration itself needs another look.
+Parts of known thickness at the centre and in the corners also give the parallax term directly.
+
+**Needed.** The same chessboard as item 1, one flat plate, one washer, one hex nut, and a caliper.
+
+**Conditions.** **Item 1's calibration adopted and in force** (the application restarted after the
+rename). Shipped configuration loaded, one CONNECT, shipped lighting, camera untouched since item 1.
+The board lies flat; the parts lie flat and do not touch each other.
+
+| n | What | Where (as seen in the Live view) | Note |
+|---|---|---|---|
+| 1 | chessboard | centre | edges parallel to the image edges |
+| 2 | chessboard | centre | **repeat of 1**: SCAN + ANALYZE again, touch nothing |
+| 3 | chessboard | top-left | overhang the corner by ~1–2 squares each way; at least half the board in view |
+| 4 | chessboard | top-right | as 3 |
+| 5 | chessboard | bottom-left | as 3 |
+| 6 | chessboard | bottom-right | as 3 |
+| 7 | plate + washer + nut | centre | not touching |
+| 8 | plate + washer + nut | top-left | ~10 mm clear of the frame edges |
+| 9 | plate + washer + nut | bottom-right | as 8 |
+
+**Record alongside** (the blank form is `Data/Reference/reference_check.yaml`):
+
+- [ ] the connection folder name under `logger/captures/`, and each frame's final `<set>` number
+- [ ] the calibration in force when the frames were shot
+- [ ] chessboard, with the caliper: across 9 squares horizontally (nominal 108.0 mm), across 6
+      vertically (nominal 72.0 mm), and its height above the table (print plus any backing)
+- [ ] whether the board and its mounting are the same as at the calibration
+- [ ] plate: length, width, thickness
+- [ ] washer: outer diameter, thickness
+- [ ] nut: across flats, across corners, thickness
+
+**Check.** Frames 1 and 2 must agree to within 0.1 mm; if not, repeatability comes before any
+correction. Then compare the error, in mm and %, per position.
 
 ---
 

@@ -1,0 +1,48 @@
+# Reference check — scale and parallax. THE BLANK FORM: copy it (or fill it in place) when shooting
+# docs/capture-checklist.md item 2; do not commit a filled-in copy over this one.
+# See KNOWN_ISSUES: "Measured sizes may carry a systematic error..." and "A part's measured size
+# depends on where it lies in the frame...".
+#
+# Order: shoot these AFTER the recalibration (checklist item 1), with the new calibration in force —
+# frames shot before it would measure a factor that is about to be replaced.
+#
+# Capture: CONFIGURATION -> Load, ONE Connect, then for each position below, in this order: place,
+# SCAN, ANALYZE. Each ANALYZE writes logger/captures/<connection>/<timestamp>_<n>_raw.png (the
+# undistorted frame) AND <timestamp>_<n>_distorted.png (the same frame before undistortion, with a
+# _distorted.json sidecar), so the frames can be re-measured under any later calibration. <n>
+# restarts at 1 on every Connect — so with one Connect and no retakes, <n> = position.
+# Write each frame's final <n> in its 'set' field (on a retake, the retake's <n>).
+# Corners are as seen in the Live view (image orientation), not the table's.
+
+connection: ''          # the folder name under logger/captures/, e.g. 20260923-091500_s1
+calibration: ''         # the calibration in force when shot, e.g. Calibration_<Hardware>.yaml adopted <date>
+
+frames:
+  - {n: 1, set: null, what: chessboard, where: centre, note: 'edges parallel to the image edges'}
+  - {n: 2, set: null, what: chessboard, where: centre, note: 'REPEAT of 1 - SCAN + ANALYZE again, touch nothing'}
+  - {n: 3, set: null, what: chessboard, where: top-left,     note: 'overhang the frame corner by ~1-2 squares each way; keep at least half the board in view'}
+  - {n: 4, set: null, what: chessboard, where: top-right,    note: ''}
+  - {n: 5, set: null, what: chessboard, where: bottom-left,  note: ''}
+  - {n: 6, set: null, what: chessboard, where: bottom-right, note: ''}
+  - {n: 7, set: null, what: parts,      where: centre,       note: 'plate + washer + nut, not touching'}
+  - {n: 8, set: null, what: parts,      where: top-left,     note: '~10 mm clear of the frame edges'}
+  - {n: 9, set: null, what: parts,      where: bottom-right, note: ''}
+
+# Caliper readings in mm (leave null if not measured).
+calipers:
+  chessboard:
+    across_9_squares_horizontal: null     # nominal 108.0 (between inner-corner lines)
+    across_6_squares_vertical: null       # nominal 72.0
+    height_above_table: null              # total: print + any backing (0 if a flat print on the table)
+    same_board_and_mounting_at_calibration: null   # true / false / unknown
+  plate:
+    length: null
+    width: null
+    thickness: null
+  washer:
+    outer_diameter: null
+    thickness: null
+  nut:
+    across_flats: null
+    across_corners: null
+    thickness: null

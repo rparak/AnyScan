@@ -298,14 +298,14 @@ inside exactly that stability. The calibration in force gives specific reasons t
   calibration redone from several board poses before any size is relied on. Capture sets now keep
   each frame before undistortion too (`<set>_distorted.png`), so the same reference frames can be
   re-measured under any later calibration. The frames, their order and the caliper readings to take:
-  [docs/capture-checklist.md](docs/capture-checklist.md), item 1.
+  [docs/capture-checklist.md](docs/capture-checklist.md), item 2 (shot after item 1's recalibration).
 - **The tool to redo it exists; the result does not yet.** `Example/Camera/calibrate.py --capture`
   records distorted frames (flat and tilted boards, all kept) and `--images` solves them together,
   derives the factor from the flat boards' undistorted corners in the application's pixel space,
   and reports the principal point, the tilt spread and the factor's spread across the frame. It
   writes a NEW calibration file (`Calibration_<Hardware>_calib-<date>.yaml`); the calibration in force
   is still the single-view one above until a new set is solved, compared against it, and adopted by
-  renaming it over `Calibration_<Hardware>.yaml`. The set to capture: [docs/capture-checklist.md](docs/capture-checklist.md), item 2.
+  renaming it over `Calibration_<Hardware>.yaml`. The set to capture: [docs/capture-checklist.md](docs/capture-checklist.md), item 1.
 
 ## A part's measured size depends on where it lies in the frame, and on its thickness
 
@@ -355,7 +355,7 @@ the optical axis to the part's edge farther from it:
 - **What a size means, then:** the extent of the part's silhouette from above, converted in the
   reference plane. For thin parts near the frame centre that is within the pixel resolution of
   the footprint; for thick or off-centre parts it is not.
-- **Measured by** the reference check in the previous entry ([docs/capture-checklist.md](docs/capture-checklist.md), item 1): the
+- **Measured by** the reference check in the previous entry ([docs/capture-checklist.md](docs/capture-checklist.md), item 2): the
   calipered parts at the centre and in two corners, with their thicknesses and the board's height, give the parallax term directly,
   alongside the chessboard's own scale in its own plane.
 
