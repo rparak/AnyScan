@@ -1103,8 +1103,7 @@ costs are neighbours in the crop and what the framing does to the description.
   edge"). It misses it at 0.00–0.12 ("unevenness", "patina", "signs of handling") and again at
   **0.28** ("slight discoloration … upper section"). The result is deterministic but not
   monotonic: whether the most important condition in the set is reported depends on the framing,
-  not on how much context there is (KNOWN_ISSUES, *Surface-condition detection depends on the
-  framing*).
+  not on how much context there is (KNOWN_ISSUES, *The describer is not a defect detector*).
 - **Shape.** The hex nut #7 reads as a circular washer or ring at 0.00 and 0.04, and as polygonal
   from 0.08 ("outer hexagonal profile" at 0.12). That is the Florence failure mode in milder form.
   The other hex nut, #8, reads as circular at **every** padding. This is the limitation already in

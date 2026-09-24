@@ -371,20 +371,36 @@ see inside a hole … is the surface below showing through it") made it worse �
   comparison must not do. Revisit with a different input (e.g. a crop whose table is masked to a
   neutral colour) rather than more wording.
 
-## Surface-condition detection depends on the framing
+## The describer is not a defect detector: whether a stain is reported depends on the framing
 
-The rust on `Image_002`'s plate — the stain the describer's prompt was written to catch — is named
-at object-crop paddings 0.20 and 0.36, and missed at 0.00–0.12 and at 0.28. The result is
-deterministic (identical text on every run at a given padding), so this is not sampling noise. It is
-sensitivity: the same stain, equally visible in every crop, is reported or not depending on how the
-part is framed.
+**Read this before building any acceptance decision on the text.** The describer is not a reliable
+defect detector. A description that does not mention a stain, scratch or corrosion is **not
+evidence that there is none**. Nothing in the output marks a miss: a clean-sounding description of
+a stained part looks exactly like a correct description of a clean one. For an application meant to
+flag defects, this is the most serious limitation recorded here.
 
-- **Impact:** at the shipped padding (0.20) the rust is reported. The finding means a surface
-  condition can be missed on another part, or at another framing, with nothing in the output to say
-  so. An absent "stain" in a description is weaker evidence than a present one.
-- **Not fixed by picking the padding that catches it:** that would fit one frame (the frame the
-  prompt was also tuned on). docs/design-decisions.md (*The object crop padding stays at 0.20*)
-  records the full measurement. A real check needs more stained parts, photographed and labelled.
+**The evidence.** The rust on `Image_002`'s plate is the stain the describer's prompt was written to
+catch. It is named at object-crop paddings 0.20 and 0.36, and missed at 0.00–0.12 and at 0.28. The
+result is deterministic (identical text on every run at a given padding), so this is not sampling
+noise. It is a step, not a slope: the same stain, equally visible in every crop, is reported or not
+depending on how the part is framed. At the shipped padding (0.20) it happens to be reported. The
+whole finding rests on one stain on one frame — which is a reason for more caution, not less.
+
+**Why, and the route that would work.** This is the same conclusion reached earlier from a
+different direction (in discussion, not previously written down here). A stain is a *texture on a
+surface*, not an object with a boundary. Describing a part in a sentence is not the same task as
+detecting a defect on it, and no amount of prompt wording turns the one into the other. The route
+for defects is **anomaly detection inside the part's mask**: compare the part's surface against
+what a good part looks like, and localise what differs. Its verdict feeds the classification that is
+already wired and waiting for a rule (`General.Classification.Enabled`, the OK/NOK verdict UI; see
+docs/design-decisions.md, *Classification is a per-configuration switch …*). Until that exists,
+treat surface condition in the text as a hint that may be absent, never as a finding.
+
+- **Not fixed by picking the padding that catches it:** that would fit one stain on one frame — the
+  frame the prompt was also tuned on. docs/design-decisions.md (*The object crop padding stays at
+  0.20*) records the full measurement.
+- **What would test it:** more stained parts, photographed and labelled (a real-capture task, on the
+  capture list), so detection can be measured across defects rather than inferred from one.
 
 ## The description and the measurement can disagree in the same panel — and the numbers are right
 
