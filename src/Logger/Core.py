@@ -32,6 +32,9 @@ from datetime import datetime
 from dataclasses import dataclass
 # Typing (Support for type hints)
 import typing as tp
+# Custom Lib.: AnyScan — the one parser of a configuration file's name (hardware / mode)
+#   ../Configuration/Core
+from Configuration.Core import Hardware_And_Mode
 
 """
 Description:
@@ -69,15 +72,15 @@ CONST_FILENAME_TIME_FORMAT = '%H-%M'
 # above, so the injected line formats never change the CSV layout.
 #   Unit [string]
 CONST_CSV_DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
-# The run-summary CSV is named after the LOADED configuration, never a constant here: the
-# configuration file is the one source of which camera + lens setup a run used, so a run on
-# 'Config_<id>.yaml' summarises into 'log_<id>.csv' and a different YAML starts its own file
-# instead of silently appending into another camera's summary. The 'Config_' prefix is dropped
-# so the existing name is unchanged. A logger given no configuration (tests, tooling) writes to
-# an explicitly unattributed file that belongs to no hardware.
+# The run-summary CSV is named after the HARDWARE of the loaded configuration, never a constant
+# here: a run on 'Config_<Hardware>_Mode_<Mode>.yaml' summarises into 'log_<Hardware>.csv', so
+# two modes on one camera share one summary and another camera starts its own file instead of
+# silently appending into this one's. (The row is a time account only, so modes never mix
+# measurements in it.) A name without a mode part keeps its whole stem, so the pre-mode
+# 'Config_<id>.yaml' gave, and still gives, 'log_<id>.csv'. A logger given no configuration
+# (tests, tooling) writes to an explicitly unattributed file that belongs to no hardware.
 #   Unit [string]
 CONST_CSV_FILENAME_TEMPLATE = 'log_{config_id}.csv'
-CONST_CSV_CONFIG_PREFIX = 'Config_'
 CONST_CSV_UNCONFIGURED_ID = 'unconfigured'
 # The supported CSV delimiters. The default is a comma; a semicolon is exposed
 # because Excel in a Czech locale expects it.
@@ -305,11 +308,12 @@ class Summary_Str:
 def Csv_Filename_For_Config(config_path: tp.Optional[str]) -> str:
     """
     Description:
-        The run-summary CSV filename for a configuration file: 'log_<id>.csv', where <id> is the
-        configuration's filename without its extension and without the leading 'Config_' — so
-        'Config_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml' gives the existing
-        'log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv'. No configuration (None) gives
-        'log_unconfigured.csv', a file no camera's summary shares.
+        The run-summary CSV filename for a configuration file: 'log_<Hardware>.csv', the hardware
+        part of 'Config_<Hardware>_Mode_<Mode>.yaml' (Configuration.Core.Hardware_And_Mode, the
+        one parser of that name) — so 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything
+        .yaml' keeps the existing 'log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv', shared by every
+        mode on that camera. No configuration (None) gives 'log_unconfigured.csv', a file no
+        camera's summary shares.
 
     Args:
         (1) config_path [string or None]: The loaded configuration file path, or None.
@@ -320,10 +324,10 @@ def Csv_Filename_For_Config(config_path: tp.Optional[str]) -> str:
 
     if not config_path:
         return CONST_CSV_FILENAME_TEMPLATE.format(config_id=CONST_CSV_UNCONFIGURED_ID)
-    stem = os.path.splitext(os.path.basename(config_path))[0]
-    if stem.startswith(CONST_CSV_CONFIG_PREFIX) and len(stem) > len(CONST_CSV_CONFIG_PREFIX):
-        stem = stem[len(CONST_CSV_CONFIG_PREFIX):]
-    return CONST_CSV_FILENAME_TEMPLATE.format(config_id=stem)
+    hardware, _mode = Hardware_And_Mode(config_path)
+    if not hardware:
+        hardware = os.path.splitext(os.path.basename(config_path))[0]
+    return CONST_CSV_FILENAME_TEMPLATE.format(config_id=hardware)
 
 
 def Render_Summary_Csv_Row(Summary_Str: Summary_Str) -> tp.List[str]:
@@ -390,7 +394,7 @@ class Session_Logger_Cls(object):
         Example:
             Initialization:
                 # Initialize the class.
-                Cls = Session_Logger_Cls(config_path=CONST_BASLER_CONFIG_FILE)
+                Cls = Session_Logger_Cls(config_path=CONST_DEFAULT_CONFIG_FILE)
 
             Features:
                 # Log lifecycle events and close (which appends the CSV summary row).

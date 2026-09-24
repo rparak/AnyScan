@@ -40,12 +40,9 @@ if CONST_SRC not in sys.path:
 # Custom Lib.: AnyScan — camera backends
 #   ../Camera/Core
 from Camera.Core import File_Camera_Cls, Basler_Camera_Cls
-#   ../Camera/Utilities/Configuration — the one configuration layer (classification flag, scale)
-from Camera.Utilities.Configuration import (Read_Classification_Enabled, Read_Conversion_Factor,
-                                            CONST_BASLER_CONFIG_FILE)
-# Custom Lib.: AnyScan — vision backend (for the --background override)
-#   ../Vision/Core
-import Vision.Core as Vision_Core
+#   ../Configuration/Core — the one configuration layer
+from Configuration.Core import (Load_Configuration, Configuration_Error_Cls, Config_Loaded_Log_Line,
+                                Config_Sources_Log_Line, CONST_DEFAULT_CONFIG_FILE)
 # Custom Lib.: AnyScan UI — style helpers and the main window
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
@@ -54,9 +51,8 @@ from UI.Core import AnyScan_Window_Cls
 # Custom Lib.: AnyScan — the session logger
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
-#   ../Vision/Utilities/Measure — the measurement precision, and the scale's units
-from Vision.Utilities.Measure import Measure_Decimals
-from Parameters.Vision import CONST_SCALE_UNITS
+#   ../Vision/Utilities/Measure — the scale's configuration-loaded line
+from Vision.Utilities.Measure import Scale_Log_Line
 
 # The Windows AppUserModelID: without it the taskbar groups the app under
 # python.exe's identity, so the title bar shows the AnyScan icon while the taskbar
@@ -74,7 +70,7 @@ def Parse_Args(argv: tp.List[str]) -> argparse.Namespace:
         (1) argv [Vector<string>]: The process argument vector (sys.argv).
 
     Returns:
-        (1) parameter [argparse.Namespace(object)]: The parsed --frame / --background.
+        (1) parameter [argparse.Namespace(object)]: The parsed --frame / --config.
     """
 
     ap = argparse.ArgumentParser(
@@ -87,60 +83,13 @@ def Parse_Args(argv: tp.List[str]) -> argparse.Namespace:
              'the frame against the reference background, so the frame must match '
              "that background's resolution (1920x1200). Real data, no hardware.")
     ap.add_argument(
-        '--background', metavar='PNG', default=None,
-        help='Override the empty-surface reference (default: the reference '
-             'background under Data/Camera/).')
+        '--config', metavar='YAML', default=CONST_DEFAULT_CONFIG_FILE,
+        help='The configuration loaded at startup (default: %(default)s). The Configuration '
+             'dialog can replace it with another mode on the same hardware; a different camera '
+             'means restarting with this flag.')
     # parse_known_args so Qt's own flags (-style, -platform, …) pass through.
     args, _ = ap.parse_known_args(argv[1:])
     return args
-
-
-def Config_Loaded_Log_Line(config_basename: str, classification_enabled: bool) -> str:
-    """
-    Description:
-        The one-line configuration-loaded message: which configuration was loaded and whether it
-        classifies. This is the answer when someone later asks why the UI shows (or does not show)
-        OK/NOK. Pure, so it is testable without launching the app.
-
-    Args:
-        (1) config_basename [string]: The configuration file name.
-        (2) classification_enabled [bool]: Whether classification is enabled.
-
-    Returns:
-        (1) parameter [string]: The log line.
-    """
-
-    if classification_enabled:
-        state = ('enabled — the UI shows OK/NOK verdicts (no classifier assigns NOK yet, so '
-                 'every object is OK)')
-    else:
-        state = 'disabled — the UI shows detected objects only, no OK/NOK verdicts'
-    return "Loaded configuration '%s'. Classification is %s." % (config_basename, state)
-
-
-def Scale_Log_Line(config_basename: str, scale: tp.Optional[tp.Any]) -> tp.Tuple[str, str]:
-    """
-    Description:
-        The configuration-loaded line for the measurement scale: at INFO, the scale in mm/px and
-        the precision sizes are shown to; at WARNING, when the configuration has no valid
-        Calibration.Conversion_Factor — objects are then not measured at all, and this line says
-        why, instead of a size silently computed from a default.
-
-    Args:
-        (1) config_basename [string]: The configuration file's name.
-        (2) scale [Scale_Str(object) or None]: The scale read from it, or None.
-
-    Returns:
-        (1) parameter [Tuple<string> 1x2]: (level 'INFO' or 'WARNING', the log line).
-    """
-
-    if scale is None:
-        return ('WARNING', "Configuration '%s' has no valid Calibration.Conversion_Factor; objects "
-                           "will not be measured." % config_basename)
-    decimals = Measure_Decimals(scale)
-    return ('INFO', 'Measuring objects at %.5f x %.5f %s (sizes to %s mm).'
-            % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y, CONST_SCALE_UNITS,
-               '%.*f' % (decimals, 10.0 ** -decimals)))
 
 
 def main() -> int:
@@ -160,8 +109,6 @@ def main() -> int:
     """
 
     args = Parse_Args(sys.argv)
-    if args.background:
-        Vision_Core.CONST_BACKGROUND_REF = os.path.abspath(args.background)
 
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
@@ -183,29 +130,40 @@ def main() -> int:
     # writes the statistical summary when the run ends. The try/finally guarantees the
     # summary is written even if the event loop raises; a normal window close and the
     # logger's own atexit/signal hooks are the other, idempotent, shutdown paths.
-    # The ONE configuration this run loads. It names the run-summary CSV (so a different setup
-    # summarises into its own file), supplies the classification flag, and is what the camera
-    # reads — the same path everywhere, never a second copy of the hardware id.
-    config_path = CONST_BASLER_CONFIG_FILE
+    # The startup configuration names the run-summary CSV by its HARDWARE, so the CSV is fixed for
+    # the run: the Configuration dialog may change the mode, never the hardware.
+    config_path = os.path.abspath(args.config)
     logger = Session_Logger_Cls(config_path=config_path)
     logger.Log_Info('Application started.')
 
-    # Read the classification flag ONCE, through the configuration layer, and log the state on
-    # the configuration-loaded line — when someone later asks why there is no OK/NOK in the UI,
-    # this line is the answer. The flag is then passed to the window; no other module reads it.
-    classification_enabled = Read_Classification_Enabled(config_path)
-    logger.Log_Info(Config_Loaded_Log_Line(os.path.basename(config_path), classification_enabled))
-
-    # Read the measurement scale ONCE, the same way, and pass it to the window. No factor means no
-    # measurement (logged as a warning), never a size from a default.
-    scale = Read_Conversion_Factor(config_path)
-    level, line = Scale_Log_Line(os.path.basename(config_path), scale)
+    # Load the startup configuration through the one configuration layer, validated as a whole.
+    # The application is usable at once (History, Log, Trends); its models are NOT loaded here —
+    # that waits for the dialog's Load or the first CONNECT, so a launch to browse History costs
+    # no ~9 s and no ~9.4 GB. A startup configuration that is invalid stops the launch with every
+    # problem named: there is no previous configuration to fall back to, and a partly valid one is
+    # never used.
+    try:
+        configuration = Load_Configuration(config_path)
+    except Configuration_Error_Cls as error:
+        logger.Log_Error('Startup configuration refused: %s' % error)
+        logger.Close()
+        print('[ERROR] %s' % error)
+        print('[ERROR] Fix the file, or start with --config pointing at a valid configuration.')
+        return 1
+    logger.Log_Info("Startup configuration: '%s'. Its models load on the Configuration dialog's "
+                    'Load or at the first CONNECT.' % configuration.Name)
+    # When someone later asks why there is no OK/NOK in the UI, this line is the answer.
+    logger.Log_Info(Config_Loaded_Log_Line(configuration))
+    logger.Log_Info(Config_Sources_Log_Line(configuration))
+    # No factor means no measurement (logged as a warning), never a size from a default.
+    level, line = Scale_Log_Line(configuration.Name, configuration.Scale)
     (logger.Log_Warning if level == 'WARNING' else logger.Log_Info)(line)
+    for level, note in configuration.Notes:
+        (logger.Log_Warning if level == 'WARNING' else logger.Log_Info)(note)
 
     # A File_Camera_Cls (developer --frame) or the real Basler_Camera_Cls.
     camera = File_Camera_Cls(os.path.abspath(args.frame)) if args.frame else Basler_Camera_Cls()
-    window = AnyScan_Window_Cls(camera=camera, logger=logger,
-                                classification_enabled=classification_enabled, scale=scale)
+    window = AnyScan_Window_Cls(camera=camera, logger=logger, Configuration_Str=configuration)
     window.setWindowIcon(icon)
     window.resize(1720, 1020)
     window.showMaximized()   # F11 toggles fullscreen, Esc closes

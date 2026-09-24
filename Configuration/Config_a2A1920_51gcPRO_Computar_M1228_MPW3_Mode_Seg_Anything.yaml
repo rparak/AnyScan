@@ -1,0 +1,182 @@
+## =========================================================================== ##
+#   Description:
+#     One AnyScan configuration: a MODE (how the scene is segmented and described,
+#     what the UI calls itself, the confidence thresholds) on one piece of HARDWARE.
+#     Read, validated as a whole and applied by Configuration.Core.Load_Configuration;
+#     no other module reads this file.
+#
+#   File name:
+#     Config_<Hardware>_Mode_<Mode>.yaml. The hardware part keys everything that
+#     belongs to the camera rather than the mode: the calibration (read from
+#     Calibration_<Hardware>.yaml beside this file) and the run-summary CSV
+#     (log_<Hardware>.csv), so two modes on one camera share both.
+#
+#   Required and optional:
+#     A field marked REQUIRED has no default: a file without it fails to load, naming
+#     the field. The calibration file is optional: without it the configuration loads
+#     with a warning, frames are not undistorted and objects are not measured. Every other field is optional: when it is absent the documented default
+#     (the value in the comment) is used and the log says so. An unrecognised key is
+#     logged as a warning, so a misspelt optional field does not pass silently.
+#
+#   Hardware setup:
+#     - Camera : Basler a2A1920-51gcPRO
+#     - Lens   : Computar M1228-MPW3
+#     - Light  : Effilux EFFI-FD-200-200-000
+## =========================================================================== ##
+
+# REQUIRED. The hardware this mode runs on; must equal the hardware part of this file's name.
+Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
+
+# General (non-hardware) settings for this configuration.
+General:
+  # Does this configuration perform OK/NOK classification, or only detect objects?
+  #   true  - the UI shows verdict state (the Captures OK/NOK filter, verdict colours on
+  #           annotations, the verdict per object). No classifier exists yet, so every object is
+  #           OK and the NOK filter stays empty until one does.
+  #   false - none of that appears: objects are annotated in a single neutral colour and the UI
+  #           speaks only of detected objects.
+  # Default: false. Enabling it exposes the verdict UI; it does not create classification.
+  Classification:
+    Enabled: false
+
+# What the UI calls this configuration and its models, and the task a reading is labelled with.
+# Model files never appear in the UI: the header names the model set, the dialog the configuration.
+Identity:
+  # REQUIRED. The configuration's name in the Configuration dialog's list.
+  Display_Name: Cfg. Segment Anything
+  # REQUIRED. The model set's name in the header pill.
+  Model_Set: JIC_AnyScan_All_v1
+  # The Scene Understanding Task row and each capture set's 'task'. Default: part inspection
+  Task: part inspection
+
+# Confidence severity thresholds [%]: below Warn_Below a confidence shows (and logs) as a
+# warning, below Error_Below as an error. Must be 0 <= Error_Below < Warn_Below <= 100.
+Confidence:
+  # Default: 80
+  Warn_Below: 80
+  # Default: 60
+  Error_Below: 60
+
+# Stages 1-3: FastSAM instance segmentation, the background difference, and their fusion.
+Segmentation:
+  # REQUIRED. The FastSAM weights, relative to the repository root (or absolute).
+  Model: models/sam-1/FastSAM-x.pt
+  # Compute device: auto | cpu | mps | cuda (auto picks cuda, then mps, then cpu). Default: auto
+  Device: auto
+  # FastSAM prompting: everything | box. 'everything' is what separates touching parts; 'box'
+  # prompts with candidate regions and inherits their merges (KNOWN_ISSUES). Default: everything
+  Mode: everything
+  # FastSAM detection confidence and NMS-IoU thresholds (0..1). Defaults: 0.4 and 0.9
+  Confidence: 0.4
+  IoU: 0.9
+  # FastSAM inference size [px]. Default: 1024
+  Image_Size: 1024
+  # Stage 1, the background difference.
+  Background:
+    # REQUIRED, and the file must exist. The empty-surface reference every frame is differenced
+    # against, relative to the repository root (or absolute). It decides every background-
+    # subtraction result, so it is stated here rather than discovered; shoot it from this camera.
+    Reference: Data/Camera/Image_Background_001.png
+    # The floor under the Otsu threshold [grey level 0..255], so a near-empty frame cannot
+    # promote the shadow halo and sensor noise to foreground. Default: 28
+    Otsu_Floor: 28
+    # Opening kernel [px] that erases the shadow halo and speckle. Default: 5
+    Open_Kernel: 5
+    # Dilation [px] that recovers edges the opening eroded; 0 disables it. Default: 3
+    Dilate: 3
+  # Stage 3, the fusion of the FastSAM masks and the background difference.
+  Fusion:
+    # Closing kernel [px] that bridges gaps between the parts of one object. Default: 15
+    Close_Kernel: 15
+    # A component smaller than this fraction of the frame is a speck. Default: 0.0005
+    Min_Area_Fraction: 0.0005
+    # A FastSAM mask covering this fraction of the frame is the table outright. Default: 0.85
+    Hard_Background_Fraction: 0.85
+    # ...and one covering this fraction that touches Background_Borders of the four image
+    # borders is the background plane too. Defaults: 0.50 and 3
+    Background_Area_Fraction: 0.50
+    Background_Borders: 3
+
+# Stage 4: the Gemma describer.
+Description:
+  # REQUIRED. The Gemma weights directory, relative to the repository root (or absolute).
+  Model: models/gemma-4-e4b-it-4bit
+  # Generation. Temperature 0 is greedy decoding: the same crop gives the same text.
+  # Defaults: 0.0 and 256
+  Temperature: 0.0
+  Max_Tokens: 256
+  # The reference is centre-cropped by this fraction per side before the background is
+  # described, keeping the frame-edge vignette out. Tuned for Florence-2, not yet re-measured
+  # for Gemma. Default: 0.12
+  Background_Crop_Margin: 0.12
+  # The background sentence is replaced by a neutral one when it runs past these limits.
+  # Defaults: 20 and 1
+  Background_Max_Words: 20
+  Background_Max_Sentences: 1
+
+  # REQUIRED, both. The prompts sent with each image. They are DATA: iterate the wording here,
+  # never in code.
+  #
+  # How the wording was chosen (Phase 0 of the describer swap, docs/design-decisions.md):
+  #   measured on the Image_002 (rust-stained) and Image_007 (clean) plates and on four
+  #   plastic parts of Image_001, at temperature 0.
+  #   - "look carefully for ... name any you find and where they are" is kept firm: a
+  #     softer "if you can see ..." missed the rust on Image_002 entirely.
+  #   - "if there are none, say that the surface looks clean" makes a clean answer
+  #     acceptable; the clean plate did not come back with invented staining.
+  #   - "the features you can actually see" with no fixed list: naming "threads" made the
+  #     model report threads that are not there. Material is asked as "apparent", not
+  #     assumed: the plastic parts come back as plastic, with no machining marks.
+  #   - "Describe only the part" removes the table sentences at the source.
+  Prompts:
+    # Sent with each object's enhanced crop. Its answer is the object's description.
+    Object: >-
+      You are inspecting a single part photographed from above on a plain green surface.
+      In one flowing paragraph of two or three sentences (no lists, no markdown), describe
+      the part: its overall shape, colour and apparent material; the features you can
+      actually see, such as holes, slots, edges or surface texture; and its surface
+      condition. For the condition, look carefully for discolouration, stains, rust,
+      tarnish, scratches or dirt and name any you find and where they are; if there are
+      none, say that the surface looks clean. A hole may show the green surface through it;
+      that green is not part of the part. Describe only the part, not the surface it lies on.
+
+    # Sent once with the centre of the empty-surface reference. Its answer opens the reading
+    # ('<this sentence> There are N objects on it'), so it must name the surface; it is still
+    # validated (Background_Max_Sentences, Background_Max_Words) and replaced by a neutral
+    # sentence if not.
+    Background: >-
+      This photograph shows an empty work surface with nothing on it. Describe the surface
+      in one short sentence of no more than twelve words: begin with 'A', and name its
+      colour and finish. Do not mention objects, lighting or the camera.
+
+# The camera: identity, resolution and acquisition settings. Its calibration is NOT here — it
+# lives in Calibration_<Hardware>.yaml, shared by every mode on this hardware.
+Camera:
+  # Name of the camera (sensor + lens identifier). Default: Camera
+  Name: Basler_a2A1920_51gcPRO_Computar_M1228_MPW3
+  # The camera, lens and lighting as a person names them: named in the Configuration dialog's
+  # confirmation and recorded in every capture set. The lighting matters as much as the optics:
+  # the colour readings, the background subtraction and the surface-condition descriptions all
+  # depend on it. Each is left out when not set. Defaults: empty.
+  Model: Basler a2A1920-51gcPRO
+  Lens: Computar M1228-MPW3
+  Lighting: Effilux EFFI-FD-200-200-000
+
+  # Camera resolution in pixels (x, y).
+  Resolution:
+    x: 1920
+    y: 1200
+
+  # REQUIRED: Exposure_Time, Gain, Balance_Ratios, Pixel_Format. Vendor / API specific.
+  Custom_Cfg:
+    # How long the sensor is exposed to light during acquisition [us].
+    Exposure_Time: 10000
+    # Increases the brightness of the images output by the camera.
+    Gain: 10
+    # Manual white-balance correction so white objects appear white.
+    Balance_Ratios:
+      Red: 0.95
+      Green: 0.9
+      Blue: 1.2
+    # Sensor pixel format.
+    Pixel_Format: BayerRG8
