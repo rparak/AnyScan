@@ -65,7 +65,8 @@ def _Write_Set(writer, session_id, set_id, objects, task='caption', latency=1180
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, size,
                                   task, latency, mean, '', classification, scale=None,
                                   configuration='Config_Test_Mode_A.yaml',
-                                  background_reference='Data/Camera/Image_Background_001.png', hardware={})
+                                  background_reference='Data/Camera/Image_Background_001.png', hardware={},
+                                  window=None)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                  ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 

@@ -14,15 +14,10 @@
 # Write each frame's final <n> in its 'set' field (on a retake, the retake's <n>).
 # Corners are as seen in the Live view (image orientation), not the table's.
 
-# The empty-surface reference (checklist item 2.0), shot first, in its own CONNECT: where it came from
-# and what it was shot under. Its window is otherwise a guess; this records it.
-background_reference:
-  file: ''              # e.g. Data/Camera/Image_Background_002.png
-  source: ''            # the capture set it was copied from: <connection>/<timestamp>_<n>_raw.png
-  window: ''            # from the connect log line, e.g. '1920 x 1200 at offset (8, 8)'
-  calibration: ''       # the calibration in force when shot
-  lighting: ''          # e.g. Effilux EFFI-FD-200-200-000, shipped position and intensity
-  time: ''              # when it was shot
+# The empty-surface reference (checklist item 2.0), made with Example/Camera/make_reference.py. Its
+# provenance - window, calibration, lighting, time, source set - is in its sidecar (<reference>.json),
+# written from the capture set's own records; it is not repeated here.
+background_reference: ''   # e.g. Data/Camera/Image_Background_002.png
 
 connection: ''          # the folder name under logger/captures/, e.g. 20260923-091500_s1
 calibration: ''         # the calibration in force when shot, e.g. Calibration_<Hardware>.yaml adopted <date>

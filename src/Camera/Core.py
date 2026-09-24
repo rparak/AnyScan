@@ -173,6 +173,20 @@ class Camera_Backend_Cls(object):
             pass
 
     @property
+    def Window(self) -> tp.Optional[tp.Dict[str, tp.List[int]]]:
+        """
+        Description:
+            The sensor window the camera was set to, as it read it back on connect — recorded with
+            every capture set, so what was captured at which window is a fact, not a guess. None for a
+            backend that has no sensor window (a saved frame) or before it is connected.
+
+        Returns:
+            (1) parameter [Dict or None]: {'resolution': [w, h], 'offset': [x, y]}, or None.
+        """
+
+        return None
+
+    @property
     def Last_Capture_Retries(self) -> int:
         """
         Description:
@@ -440,6 +454,8 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         # size (_Grab). None until connected: before that Resolution is the configuration's window,
         # never a constant that merely happens to match it today.
         self.__resolution = None
+        # The window the device read back on connect ({'resolution', 'offset'}), None until then.
+        self.__window = None
         self.__processor = None
         self.__calib = None
         self.__cv2 = None
@@ -464,6 +480,18 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         if self._camera_config is not None:
             return tuple(self._camera_config.Resolution)
         return (0, 0)
+
+    @property
+    def Window(self) -> tp.Optional[tp.Dict[str, tp.List[int]]]:
+        """
+        Description:
+            The sensor window as the device read it back on connect, or None before connecting.
+
+        Returns:
+            (1) parameter [Dict or None]: {'resolution': [w, h], 'offset': [x, y]}, or None.
+        """
+
+        return None if self.__window is None else {key: list(value) for key, value in self.__window.items()}
 
     def _Open(self) -> None:
         """
@@ -535,6 +563,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         # before the next mismatch error, and the status strip is right at CONNECT.
         applied = self.__cam.Applied_Settings
         self.__resolution = tuple(applied['resolution'])
+        self.__window = {'resolution': list(applied['resolution']), 'offset': list(applied['offset'])}
         self._Log('INFO', 'Camera set to %d × %d at offset (%d, %d) of its %d × %d sensor, exposure %g µs, gain '
                           '%.2f, %s (read back from the camera).'
                   % (applied['resolution'] + applied['offset'] + applied['sensor']

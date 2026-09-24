@@ -107,20 +107,38 @@ Re-shooting it removes the last unverified one. It is one frame of an empty tabl
 configuration, shipped lighting, camera untouched since item 1, **the table empty** — nothing in view,
 no shadows from the operator.
 
-**Shoot it with the application, not `scan.py`.** The reference must be the frame the pipeline
-compares against: the application's processing step, then undistortion under the calibration in force.
-`scan.py` undistorts but skips the processing step, so its frame is not that.
+**Shoot it with the application, and make it with `make_reference.py`.** The reference must be the
+frame the pipeline compares against — the application's capture set — and its provenance must come from
+that set's own records, not from a person.
 
 1. CONFIGURATION → Load, CONNECT, confirm the log's *Camera set to 1920 × 1200 at offset (8, 8)* line.
-2. SCAN + ANALYZE on the empty table. The capture set's `<set>_raw.png` is the reference frame.
-3. Copy it to `Data/Camera/Image_Background_002.png` (do not overwrite `_001`: the characterization
-   baseline and the seven `Data/Camera` frames were analysed against it), and set
-   `Segmentation.Background.Reference` to it.
-4. Restart the application so the new reference is in force, then shoot the nine frames below.
+2. SCAN + ANALYZE on the empty table. **Spurious detections are expected here, and are not a
+   failure.** The empty table is analysed against the *old* reference, which was shot at another
+   window position, under another calibration, and perhaps in other light. The small differences
+   between the two frames can show up as objects.
+3. Make the reference from that set:
 
-**Record alongside** (in `Data/Reference/reference_check.yaml`, `background_reference`): the source
-capture set and `<set>`, the calibration in force, the window from the connect log line, the lighting,
-and the time.
+   ```bash
+   cd Example/Camera
+   python make_reference.py --from ../../logger/captures/<connection>/<set>_raw.png
+   ```
+
+   It writes `Data/Camera/Image_Background_002.png` (the next free number — `_001` is never
+   overwritten: the characterization baseline was analysed against it) and its sidecar
+   `Image_Background_002.json`: the window the camera read back, the lens model that undistorted the
+   frame, the configuration, the camera, lens and lighting, and the time. It refuses a set that records
+   no window and an existing file. If the analysis found objects, it refuses too, and lists each one:
+   its size in pixels, its share of the frame, and where it lies. Read the list before overriding.
+   A few small boxes scattered near the edges (for example *3 objects, all under 200 px*) are the noise
+   described above: run it again with `--accept-objects`, and the sidecar records what was accepted.
+   One large box, or one near the centre (for example *1 object, 40 000 px, centre*), means something
+   is on the table: clear it and shoot again.
+4. Set `Segmentation.Background.Reference: Data/Camera/Image_Background_002.png` and restart the
+   application: the load now checks the reference against its sidecar, and the *no provenance sidecar*
+   warning is gone. Then shoot the nine frames below.
+
+**Record alongside** (`Data/Reference/reference_check.yaml`, `background_reference`): only the file
+name. The sidecar holds the rest.
 
 **Why.** The mm/px factor has never been checked against a known size on this rig. These frames
 check the calibration from item 1 against calipered references: a uniform error means one correction

@@ -351,7 +351,8 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                        background: str = '', classification: bool = False,
                        run_id: str = '', *, scale: tp.Optional[Scale_Str],
                        configuration: str, background_reference: str,
-                       hardware: tp.Dict[str, str]) -> tp.Dict[str, tp.Any]:
+                       hardware: tp.Dict[str, str],
+                       window: tp.Optional[tp.Dict[str, tp.List[int]]]) -> tp.Dict[str, tp.Any]:
     """
     Description:
         Build the machine-readable metadata for one set from the SAME detection list that
@@ -397,6 +398,11 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
         (15) hardware [Dict<string, string>]: REQUIRED, keyword-only: the camera, lens and lighting
                                               the configuration names (Hardware_Record) — what
                                               photographed the set and what lit it.
+        (16) window [Dict or None]: REQUIRED, keyword-only: the sensor window the camera read back
+                                    on connect ({'resolution': [w, h], 'offset': [x, y]}, the camera's
+                                    Window), or None for a frame from no camera (a saved file). The
+                                    offset is not in the pixels, so without this record the window a
+                                    set was captured at would be a guess.
 
     Returns:
         (1) parameter [Dict]: The metadata, ready to serialise as '_objects.json'.
@@ -416,6 +422,8 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
             'background': background, 'classification': bool(classification),
             'configuration': configuration, 'background_reference': background_reference,
             'hardware': dict(hardware),
+            'window': None if window is None else {'resolution': [int(v) for v in window['resolution']],
+                                                   'offset': [int(v) for v in window['offset']]},
             'conversion_factor': (None if scale is None else
                                   {'x': scale.Mm_Per_Px_X, 'y': scale.Mm_Per_Px_Y,
                                    'units': CONST_SCALE_UNITS}),

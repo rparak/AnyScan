@@ -427,6 +427,44 @@ checks, the writer's refusal), `test/Camera/test_basler.py` (the set order again
 camera's constraints, the read-back, the log line, the grab check), `test/Calibration/test_core.py`
 (the window in `capture.json` and in the written calibration).
 
+## The background reference carries its provenance; harnesses capture through the app's path
+
+A reference is made by `Example/Camera/make_reference.py` from a capture set of the empty table: it
+copies the set's `_raw.png` byte for byte and writes `Image_Background_NNN.json` from the set's own
+records — the window the camera read back (capture sets now record it: the offset is not in the
+pixels), the fingerprint of the lens model that undistorted the frame (from the set's undistortion
+record, a SHA-256 over K and the coefficients), the configuration, the camera, lens and lighting,
+the time and the source. Nothing in it is typed by a person. `Load_Configuration` checks the reference
+against it: the image must match the sidecar's SHA-256, and the window, lens model and lighting must be
+the configuration's; any mismatch fails the load.
+
+**Why a sidecar, not the size check alone.** Size cannot tell two frames of one size apart: not the
+window's position, not the lens model that undistorted it (a reference is an undistorted frame, so a
+recalibration puts it out of date), not the light it was shot under. And provenance belongs with the
+file: the configuration says which reference to use; only the file can say how it was made.
+
+**The guarantees are not equal.** The window and calibration checks are structural — both sides are
+recorded by the software. The lighting check compares `Camera.Lighting` with the lighting the
+configuration named when the reference was made: two fields a person types. **It fires only when
+someone updates `Camera.Lighting`; whoever changes the lamp and not the configuration gets no warning.**
+That gap is real and stays until lighting is measured rather than named.
+
+**Temporary leniency, twice.** A reference with no sidecar loads with a WARNING (the reference in force
+predates sidecars), like a calibration with no recorded window. Both paths say beside them in the code
+that they become load failures once their reason expires: the recalibration in force, and a reference
+made by the tool in force (checklist item 2.0).
+
+**`scan.py` goes through the application's camera path.** It undistorted frames without the
+application's processing step, so its frames were not what the pipeline sees — and it is the harness
+someone would reach for to shoot a reference or grab a test frame. The same class of defect as
+`analyze.py`'s `verdict_colored`, made required so a harness could not render differently from the app.
+`scan.py` now captures with `Camera.Core.Basler_Camera_Cls` (window, processing, undistortion), and
+says in its docstring and output that its frame carries no provenance and is not a reference.
+`calibrate.py --capture` keeps its own path on purpose — it needs frames before undistortion — and
+applies the application's processing profile to them.
+Tests `test/Configuration/test_core.py` (the sidecar checks), `test/Camera/test_reference_harnesses.py`
+(the tool against sets built with the application's record builders; `scan.py` against a stand-in).
+
 ## The run-summary CSV is named after the loaded configuration
 
 `logger/log_<id>.csv` takes `<id>` from the configuration file the run loaded

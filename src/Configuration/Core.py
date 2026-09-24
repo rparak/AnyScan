@@ -24,6 +24,8 @@
 # System (Default)
 import os
 import math
+# Hashlib (the reference image's and the calibration's fingerprints)
+import hashlib
 # JSON (quoting a path safely in YAML)
 import json
 # PyYAML (YAML parser and emitter) [pip3 install pyyaml]
@@ -61,6 +63,11 @@ Description:
           size fails the load, naming both sizes, and so does a calibration solved at another window.
           The camera never takes its size from the reference — the hardware follows the
           configuration, and the data is validated against it.
+        - The BACKGROUND REFERENCE carries its provenance in a sidecar (<reference>.json), written by
+          Example/Camera/make_reference.py from a capture set's own record, never by hand. The load
+          checks it: the image must be the one the sidecar describes, and its window, calibration
+          and lighting must be the configuration's. The window and calibration checks are structural;
+          the lighting check compares two fields a person types (see __Check_Reference_Sidecar).
         - The CALIBRATION is optional as a whole: a hardware without a calibration file loads with
           no lens model and no scale (frames are not undistorted, objects are not measured) and a
           warning saying to run calibrate.py — the honest degraded state, and the one a camera
@@ -104,6 +111,9 @@ CONST_DEVICES = ('auto', 'cpu', 'mps', 'cuda')
 #   Unit [Tuple<string>]
 CONST_CALIBRATION_FILE_KEYS = ('Hardware', 'Calibration')
 CONST_CALIBRATION_BLOCK_KEYS = ('Solved', 'Resolution', 'Offset', 'K', 'Coefficients', 'Conversion_Factor')
+# The background reference's sidecar: the same name with this suffix (Image_Background_002.json).
+#   Unit [string]
+CONST_REFERENCE_SIDECAR_SUFFIX = '.json'
 # The sensor window: (the key path, the smallest valid value). Each is an {x, y} pair in pixels,
 # REQUIRED in a mode file and recorded in a calibration file. The camera is set to it on connect;
 # the background reference and the calibration must match it.
@@ -432,6 +442,175 @@ def __Image_Size(path: str) -> tp.Optional[tp.Tuple[int, int]]:
         return None
 
 
+def Calibration_Fingerprint(K: tp.Any, coefficients: tp.Dict[str, float]) -> str:
+    """
+    Description:
+        What identifies a lens model: a SHA-256 over K and the five distortion coefficients, as
+        exact floats. It is computed from the numbers, not the file, so a comment edit does not
+        change it, and it can be computed both from a calibration file and from the undistortion
+        record a capture set stores — which is how a reference made from a set says which lens model
+        undistorted it.
+
+    Args:
+        (1) K [Matrix<float> 3x3]: The camera matrix.
+        (2) coefficients [Dict<string, float>]: k1, k2, p1, p2, k3.
+
+    Returns:
+        (1) parameter [string]: The hex digest.
+    """
+
+    canonical = json.dumps({'K': [[float(value) for value in row] for row in K],
+                            'coefficients': [float(coefficients[key]) for key in CONST_COEFFICIENT_KEYS]})
+    return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+
+def File_Sha256(path: str) -> str:
+    """
+    Description:
+        The SHA-256 of a file's bytes: binds a reference's sidecar to the one image it describes.
+
+    Args:
+        (1) path [string]: The file.
+
+    Returns:
+        (1) parameter [string]: The hex digest.
+    """
+
+    digest = hashlib.sha256()
+    with open(path, 'rb') as handle:
+        for block in iter(lambda: handle.read(1 << 20), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def Reference_Sidecar_Path(reference: str) -> str:
+    """
+    Description:
+        The sidecar of a background reference: the same path with CONST_REFERENCE_SIDECAR_SUFFIX.
+
+    Args:
+        (1) reference [string]: The reference image path.
+
+    Returns:
+        (1) parameter [string]: The sidecar path.
+    """
+
+    return os.path.splitext(reference)[0] + CONST_REFERENCE_SIDECAR_SUFFIX
+
+
+def __Check_Reference_Sidecar(reference: str, Camera_Configuration_Str: tp.Any, problems: tp.List[str],
+                              notes: tp.List[tp.Tuple[str, str]]) -> None:
+    """
+    Description:
+        Check the background reference against its sidecar: the image is the one the sidecar
+        describes (its SHA-256), and it was shot at the camera's window, undistorted with the lens
+        model in force, and under the lighting the configuration names. Any mismatch fails the load.
+
+        Note:
+            The guarantees are not equal. The WINDOW and CALIBRATION checks are structural: both
+            sides are recorded by the software (the camera's read-back window, the fingerprint of
+            the lens model that undistorted the frame). The LIGHTING check compares Camera.Lighting
+            with the lighting the configuration named when the reference was made — two fields a
+            person types. It fires only when someone updates Camera.Lighting: whoever changes the
+            lamp and not the configuration gets no warning. That is the gap.
+
+    Args:
+        (1) reference [string]: The reference image path (it exists).
+        (2) Camera_Configuration_Str [Camera_Configuration_Str(object)]: The camera block, with its
+            window and its calibration (None when the hardware has none).
+        (3) problems [Vector<string>]: The problem list, appended to.
+        (4) notes [Vector<Tuple<string> 1x2>]: The (level, message) notes, appended to.
+    """
+
+    path = Reference_Sidecar_Path(reference)
+    name = os.path.basename(reference)
+    if not os.path.isfile(path):
+        # LENIENT FOR NOW, deliberately. The reference in force predates sidecars; it is being
+        # replaced by one made with Example/Camera/make_reference.py (docs/capture-checklist.md,
+        # item 2.0), which writes one. Once that reference is in force, make a missing sidecar a load
+        # failure (a problem, like the mismatches below) so this lenient path does not outlive its
+        # reason — the same as the calibration's unrecorded window in __Read_Calibration.
+        notes.append(('WARNING', '%s has no provenance sidecar (%s), so the window, calibration and lighting '
+                                 'it was shot under are unknown: background subtraction may be comparing '
+                                 'frames against a reference from another window, lens model or light. '
+                                 'Make references with Example/Camera/make_reference.py, which writes it.'
+                                 % (name, os.path.basename(path))))
+        return
+    try:
+        with open(path, 'r', encoding='utf-8') as handle:
+            sidecar = json.load(handle)
+        assert isinstance(sidecar, dict)
+        image_sha256 = str(sidecar['image_sha256'])
+        window = (tuple(int(v) for v in sidecar['window']['resolution']),
+                  tuple(int(v) for v in sidecar['window']['offset']))
+        calibration = sidecar['calibration']
+        fingerprint = None if calibration is None else str(calibration['fingerprint'])
+        lighting = str((sidecar.get('hardware') or {}).get('lighting', ''))
+    except (OSError, ValueError, TypeError, KeyError, AssertionError) as error:
+        problems.append('the reference sidecar %s could not be read (%s: %s); remake the reference with '
+                        'Example/Camera/make_reference.py' % (os.path.basename(path), type(error).__name__, error))
+        return
+
+    if File_Sha256(reference) != image_sha256:
+        problems.append('%s is not the image its sidecar %s describes (the file was replaced or edited after the '
+                        'sidecar was written); remake the reference with Example/Camera/make_reference.py'
+                        % (name, os.path.basename(path)))
+        return
+    camera_window = (tuple(Camera_Configuration_Str.Resolution), tuple(Camera_Configuration_Str.Offset))
+    if window != camera_window:
+        problems.append('%s was shot at %s, but Camera.Resolution and Camera.Offset set the camera to %s: '
+                        're-shoot the reference at this window' % (name, __Describe_Window(*window),
+                                                                  __Describe_Window(*camera_window)))
+    calibration_now = Camera_Configuration_Str.Calibration
+    fingerprint_now = (None if calibration_now is None or not calibration_now.Coefficients
+                       else Calibration_Fingerprint(calibration_now.K, calibration_now.Coefficients))
+    if fingerprint != fingerprint_now:
+        shot_with = 'no calibration' if fingerprint is None else 'another lens model (%s)' % calibration.get('file', '?')
+        now = 'none' if fingerprint_now is None else 'the calibration in force'
+        problems.append('%s was undistorted with %s, but this configuration uses %s: its geometry does not match '
+                        'the frames it would be compared with. Re-shoot the reference under the calibration in '
+                        'force' % (name, shot_with, now))
+    if lighting and Camera_Configuration_Str.Lighting and lighting != Camera_Configuration_Str.Lighting:
+        problems.append("%s was shot under lighting '%s', but Camera.Lighting is '%s': re-shoot the reference under "
+                        'this lighting, or correct Camera.Lighting' % (name, lighting, Camera_Configuration_Str.Lighting))
+
+
+def Build_Reference_Sidecar(image_path: str, *, source: str, shot: str, configuration: str,
+                            window: tp.Dict[str, tp.List[int]], undistortion: tp.Optional[tp.Dict[str, tp.Any]],
+                            hardware: tp.Dict[str, str]) -> tp.Dict[str, tp.Any]:
+    """
+    Description:
+        The sidecar of a background reference, from the record of the capture set it was made from —
+        the one format __Check_Reference_Sidecar reads, defined beside it so the two cannot drift.
+
+    Args:
+        (1) image_path [string]: The reference image (as written: its bytes are hashed).
+        (2) source [string]: REQUIRED, keyword-only: the capture-set frame it was copied from.
+        (3) shot [string]: REQUIRED, keyword-only: when the set was captured (ISO 8601).
+        (4) configuration [string]: REQUIRED, keyword-only: the configuration the set was captured under.
+        (5) window [Dict]: REQUIRED, keyword-only: the set's read-back window {'resolution', 'offset'}.
+        (6) undistortion [Dict or None]: REQUIRED, keyword-only: the set's undistortion record (K,
+                                         coefficients, the calibration file) or None when uncalibrated.
+        (7) hardware [Dict<string, string>]: REQUIRED, keyword-only: the set's camera, lens and lighting.
+
+    Returns:
+        (1) parameter [Dict]: The sidecar, ready to serialise.
+    """
+
+    calibration = None
+    if undistortion is not None:
+        calibration = {'file': str(undistortion.get('calibration', '')),
+                       'fingerprint': Calibration_Fingerprint(undistortion['K'], undistortion['coefficients'])}
+    return {'note': ('Provenance of this background reference, written by Example/Camera/make_reference.py from '
+                     'the capture set named in source. Do not edit: Load_Configuration checks the image against '
+                     'image_sha256 and the window, calibration and lighting against the configuration.'),
+            'image_sha256': File_Sha256(image_path), 'source': source, 'shot': shot,
+            'configuration': configuration,
+            'window': {'resolution': [int(v) for v in window['resolution']],
+                       'offset': [int(v) for v in window['offset']]},
+            'calibration': calibration, 'hardware': dict(hardware)}
+
+
 def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tuple[int, int]],
                        offset: tp.Optional[tp.Tuple[int, int]], problems: tp.List[str],
                        notes: tp.List[tp.Tuple[str, str]]) -> tp.Tuple[tp.Optional[Camera_Calibration_Parameters_Str],
@@ -654,7 +833,12 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
         Configuration_Str_i.Camera.Calibration, Configuration_Str_i.Scale = __Read_Calibration(
             Configuration_Str_i.Calibration_Path, hardware, resolution, offset, problems, notes)
 
-    # 6\ Keys nothing reads — usually a misspelt optional field.
+    # 6\ The reference's provenance, against the window, the calibration and the lighting — after
+    #    the calibration is read, since the reference must have been undistorted with it.
+    if reference and resolution and offset and os.path.isfile(reference):
+        __Check_Reference_Sidecar(reference, Configuration_Str_i.Camera, problems, notes)
+
+    # 7\ Keys nothing reads — usually a misspelt optional field.
     for key in __Unknown_Keys(data):
         notes.append(('WARNING', 'unrecognised key %s is ignored (misspelt?).' % key))
 

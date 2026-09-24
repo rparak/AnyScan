@@ -1082,7 +1082,8 @@ class AnyScan_Window_Cls(QMainWindow):
                                       configuration=self.__config.Name,
                                       background_reference=Display_Path(
                                           self.__config.Segmentation.Background_Reference),
-                                      hardware=Hardware_Record(self.__config))
+                                      hardware=Hardware_Record(self.__config),
+                                      window=self.__camera.Window)
         stamp = 'set %s | %s' % (set_id, timestamp)
         try:
             evicted, created = self.__capture_writer.Write(

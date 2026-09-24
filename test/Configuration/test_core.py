@@ -24,6 +24,7 @@
 # System (Default)
 import os
 import re
+import json
 import shutil
 # Typing (Support for type hints)
 import typing as tp
@@ -139,10 +140,12 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
     assert set(config.Camera.Calibration.Coefficients) == set(CONST_COEFFICIENT_KEYS)
     assert config.Scale is not None and abs(config.Scale.Mm_Per_Px_X - 0.09797791724417174) < 1e-15
     assert (config.Camera.Resolution, config.Camera.Offset) == ((1920, 1200), (8, 8))
-    # The one note: the calibration in force predates recorded windows, so it cannot be checked
-    # against the camera's. It goes when the recalibration (which records its window) is in force.
-    (note,) = config.Notes
-    assert note[0] == 'WARNING' and 'does not record the sensor window' in note[1]
+    # The two notes, both lenient paths with a known end: the calibration in force predates recorded
+    # windows, and the reference predates sidecars. They go when the recalibration and the reference
+    # made by make_reference.py are in force.
+    window_note, sidecar_note = config.Notes
+    assert window_note[0] == 'WARNING' and 'does not record the sensor window' in window_note[1]
+    assert sidecar_note[0] == 'WARNING' and 'no provenance sidecar' in sidecar_note[1]
 
 
 @pytest.mark.parametrize('path', [path for path, _a, _k, required in CONST_FIELDS if required]
@@ -345,7 +348,7 @@ def test_the_calibration_writer_output_loads_back(tmp_path: tp.Any) -> None:
     assert (config.Scale.Mm_Per_Px_X, config.Scale.Mm_Per_Px_Y) == (0.1, 0.1001)
     # It records its window, which matches the camera's: no warning about an unknown window.
     assert (config.Camera.Calibration.Resolution, config.Camera.Calibration.Offset) == ((1920, 1200), (8, 8))
-    assert config.Notes == []
+    assert not [message for _level, message in config.Notes if 'sensor window' in message]
 
 
 def test_the_calibration_writer_refuses_a_calibration_without_its_window(tmp_path: tp.Any) -> None:
@@ -417,7 +420,7 @@ def test_a_calibration_solved_at_another_window_fails_the_load(tmp_path: tp.Any)
 
     calibration['Calibration']['Offset'] = {'x': 8, 'y': 8}
     config = Load_Configuration(_Write(tmp_path, mode, calibration))
-    assert config.Notes == []
+    assert not [message for _level, message in config.Notes if 'sensor window' in message]
 
     del calibration['Calibration']['Offset']
     with pytest.raises(Configuration_Error_Cls, match='Calibration.Offset is required'):
@@ -468,7 +471,7 @@ def test_a_camera_without_a_calibration_file_loads_uncalibrated_with_a_warning(t
     mode, _calibration = _Shipped()
     config = Load_Configuration(_Write(tmp_path, mode, None))
     assert config.Camera.Calibration is None and config.Scale is None
-    (warning,) = [message for level, message in config.Notes if level == 'WARNING']
+    (warning,) = [message for level, message in config.Notes if level == 'WARNING' and 'calibration file' in message]
     assert 'Calibration_%s.yaml' % CONST_HARDWARE in warning and 'calibrate.py' in warning
 
 
@@ -533,3 +536,119 @@ def test_discovery_lists_usable_configurations_and_says_why_the_others_are_not(t
         ['Cfg. Alpha', 'Cfg. Segment Anything', None]
     assert 'Identity.Model_Set is required but missing' in found[2][2]
     assert Discover_Configurations(str(tmp_path / 'nowhere')) == []
+
+
+def _Reference_Copy(tmp_path: tp.Any, mode: tp.Dict[str, tp.Any], calibration: tp.Dict[str, tp.Any],
+                    sidecar: tp.Optional[tp.Dict[str, tp.Any]] = 'default') -> tp.Tuple[str, str]:
+    """
+    Description:
+        Copy the shipped reference into tmp_path, point the mode file at it and, unless None, write a
+        sidecar beside it — by default the one make_reference.py would write for a reference shot at
+        the shipped window, undistorted with the shipped calibration, under the shipped lighting.
+
+    Returns:
+        (1) parameter [Tuple<string> 1x2]: (the mode file, the reference copy).
+    """
+
+    reference = os.path.join(str(tmp_path), 'Image_Background_002.png')
+    shutil.copyfile(os.path.join(CONST_PROJECT_ROOT, 'Data', 'Camera', 'Image_Background_001.png'), reference)
+    mode['Segmentation']['Background']['Reference'] = reference
+    if sidecar == 'default':
+        block = calibration['Calibration']
+        sidecar = Configuration.Build_Reference_Sidecar(
+            reference, source='logger/captures/c/s_raw.png', shot='2026-09-25T09:00:00', configuration=CONST_COPY_NAME,
+            window={'resolution': [1920, 1200], 'offset': [8, 8]},
+            undistortion={'calibration': 'Calibration_%s.yaml' % CONST_HARDWARE, 'K': block['K'],
+                          'coefficients': block['Coefficients']},
+            hardware={'camera': 'Basler a2A1920-51gcPRO', 'lens': 'Computar M1228-MPW3',
+                      'lighting': 'Effilux EFFI-FD-200-200-000'})
+    if sidecar is not None:
+        with open(Configuration.Reference_Sidecar_Path(reference), 'w', encoding='utf-8') as handle:
+            json.dump(sidecar, handle)
+    return _Write(tmp_path, mode, calibration), reference
+
+
+def test_a_reference_without_a_sidecar_loads_with_a_warning_naming_what_is_unknown(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The reference in force predates sidecars: it loads, with a WARNING that the window, calibration
+        and lighting it was shot under are unknown and that make_reference.py writes the record. (The
+        leniency ends once a reference made by the tool is in force; see __Check_Reference_Sidecar.)
+    """
+
+    mode, calibration = _Shipped()
+    config = Load_Configuration(_Reference_Copy(tmp_path, mode, calibration, sidecar=None)[0])
+    (warning,) = [message for level, message in config.Notes if 'sidecar' in message]
+    assert 'no provenance sidecar' in warning and 'make_reference.py' in warning
+
+
+def test_a_reference_whose_sidecar_matches_loads_silently(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A reference shot at the camera's window, undistorted with the calibration in force, under the
+        configuration's lighting: no sidecar note at all.
+    """
+
+    mode, calibration = _Shipped()
+    config = Load_Configuration(_Reference_Copy(tmp_path, mode, calibration)[0])
+    assert not [message for _level, message in config.Notes if 'Image_Background_002' in message]
+
+
+@pytest.mark.parametrize('change, words', [
+    (lambda s: s['window'].update(offset=[0, 0]),
+     'was shot at 1920 × 1200 at offset (0, 0), but Camera.Resolution and Camera.Offset set the camera to 1920 × 1200 '
+     'at offset (8, 8)'),
+    (lambda s: s.update(calibration={'file': 'Calibration_old.yaml', 'fingerprint': '0' * 64}),
+     'was undistorted with another lens model (Calibration_old.yaml), but this configuration uses the calibration in force'),
+    (lambda s: s.update(calibration=None), 'was undistorted with no calibration'),
+    (lambda s: s['hardware'].update(lighting='Effilux EFFI-FD-200-200-000, 45 degree ring'),
+     "was shot under lighting 'Effilux EFFI-FD-200-200-000, 45 degree ring', but Camera.Lighting is"),
+    (lambda s: s.pop('window'), 'could not be read (KeyError')],
+    ids=['window', 'calibration', 'uncalibrated', 'lighting', 'malformed'])
+def test_a_reference_shot_under_other_conditions_fails_the_load(tmp_path: tp.Any, change: tp.Any, words: str) -> None:
+    """
+    Description:
+        The sidecar says what the reference was shot under; a window, a lens model or a lighting
+        other than the configuration's fails the load, naming both. (Lighting is the weaker check: it
+        compares two typed fields, so it fires only when Camera.Lighting was updated.)
+    """
+
+    mode, calibration = _Shipped()
+    _config, reference = _Reference_Copy(tmp_path, mode, calibration)
+    path = Configuration.Reference_Sidecar_Path(reference)
+    with open(path, 'r', encoding='utf-8') as handle:
+        sidecar = json.load(handle)
+    change(sidecar)
+    with open(path, 'w', encoding='utf-8') as handle:
+        json.dump(sidecar, handle)
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(os.path.join(str(tmp_path), CONST_COPY_NAME))
+    assert words in str(error.value)
+
+
+def test_a_reference_replaced_under_its_sidecar_fails_the_load(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The sidecar is bound to one image by its SHA-256: a different image of the same size put in the
+        reference's place (a re-shoot copied over it, an edit) does not inherit the old provenance.
+    """
+
+    import cv2
+    mode, calibration = _Shipped()
+    config_path, reference = _Reference_Copy(tmp_path, mode, calibration)
+    cv2.imwrite(reference, np.full((1200, 1920, 3), 90, np.uint8))
+    with pytest.raises(Configuration_Error_Cls, match='is not the image its sidecar'):
+        Load_Configuration(config_path)
+
+
+def test_the_lighting_check_is_silent_when_the_configuration_names_no_lighting(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The lighting check can only compare what was typed: a configuration that names no lighting is
+        not checked (the documented gap), rather than failing on an empty field.
+    """
+
+    mode, calibration = _Shipped()
+    del mode['Camera']['Lighting']
+    config = Load_Configuration(_Reference_Copy(tmp_path, mode, calibration)[0])
+    assert config.Camera.Lighting == ''

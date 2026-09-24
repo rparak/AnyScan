@@ -112,7 +112,8 @@ holds:
 - **Segmentation:**
   - the FastSAM model and its settings (device, mode, confidence, IoU, image size)
   - the **background reference** (`Segmentation.Background.Reference`) every frame is differenced
-    against
+    against. It carries a provenance sidecar (`Image_Background_NNN.json`), written by
+    `Example/Camera/make_reference.py` from the capture set it was made from
   - the background-difference and fusion parameters
 - **Description:** the Gemma model, the two prompts, temperature, max tokens, the background crop
   margin and the background-sentence limits.
@@ -138,6 +139,11 @@ file before anything is applied:
   fails the load, naming both sizes, and so does a calibration solved at another window. The
   camera never takes its size from the reference. A calibration that does not record its window
   loads with a warning for now (see `docs/design-decisions.md`).
+- The background reference is checked against its sidecar: it must be the image the sidecar
+  describes, shot at the camera's window, undistorted with the calibration in force, and under the
+  lighting `Camera.Lighting` names. The window and calibration checks are structural; the lighting
+  check compares two typed fields, so **changing the lamp without updating `Camera.Lighting` goes
+  unnoticed**. A reference without a sidecar loads with a warning for now.
 - A missing **optional** field takes the default written in the file's comments, and the log says so.
 - A value that is present but invalid fails the load; it never falls back to a default.
 
