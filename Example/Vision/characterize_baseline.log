@@ -10,28 +10,30 @@ Analysis defaults: objects=[] note='' latency_ms=0 verdict='Idle' verdict_level=
 
 -- report composer --
 [scene: empty]
-  header  = The background is a plain green table. No objects were detected on it.
+  header  = A deep teal surface presents a uniform, matte finish. No objects were detected on it.
   note    = Either nothing is on the surface, or the model did not recognise what is there. Check the lighting and the focus, then scan again.
   verdict = Empty (idle)
 [scene: one object]
-  header  = The background is a plain green table. There is 1 object on it, described below.
-  object1 = In this image we can see a hex bolt on a green surface.
+  header  = A deep teal surface presents a uniform, matte finish. There is 1 object on it, described below.
+  object1 = The object is a rectangular metallic plate, appearing to be silver or a similar bright metal, featuring two circular cutouts each containing a central green element. The surface exhibits numerous fine, concentric scratches across the entire body, and there are noticeable brown, earthy-toned stains or deposits clustered in the upper section of the plate.
   note    = ''
   verdict = 1 found (ok)
 [scene: several objects]
-  header  = The background is a plain green table. There are 3 objects on it, described below.
-  object1 = A metal washer.
-  object2 = A close-up of a screw, reading “M6”.
+  header  = A deep teal surface presents a uniform, matte finish. There are 3 objects on it, described below.
+  object1 = The object is a circular metallic washer or ring, appearing silver or bright in color, with a central through-hole. The outer edge is clearly defined, and the inner hole allows a view into the green surface beneath. The surface of the part appears generally clean with no visible scratches, stains, or tarnish.
+  object2 = The object is a metallic bolt or screw, appearing silver in color and likely made of steel or a similar alloy. It features a cylindrical head and a threaded shaft extending from it. The surface appears relatively clean, though there are some minor streaks or slight variations in tone across the body, reading “M6”.
   object3 = A nut.
   note    = ''
   verdict = Low confidence (warn)
 
 -- label distiller (_condense_label) --
-  'The image shows a close-up of a hex bolt on a green surface.' -> 'image shows a close-up'
-                            'In this image we can see a washer.' -> 'can see a washer'
-         'a photograph of two brass fittings sitting on a table' -> 'photograph'
-    'This is an M6 stainless steel screw with a hexagonal head.' -> 'this'
-                                                              '' -> 'object'
+  Image_007 obj 1  -> 'rectangular flat plate'
+  Image_001 obj 5  -> 'white rectangular plastic component'
+  Image_001 obj 1  -> 'circular ring'
+  Image_001 obj 6  -> 'metallic bolt'
+  Image_001 obj 2  -> 'somewhat amorphous plastic part'
+  Image_001 obj 7  -> 'roughly octagonal metal washer'
+  empty            -> 'object'
 
 -- segmentation --
 reference 001 shape = (1200, 1920, 3)

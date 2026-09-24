@@ -84,22 +84,60 @@ CONST_OUTPUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ch
 #   Unit [Vector<int> 1x2]
 CONST_FRAME_SIZE = (1920, 1200)
 
-# A fixed background sentence for pinning the shared Screen-Understanding header (the
-# panel's first line) in the baseline. Any stable string works — it only has to be
-# deterministic, not real.
+# The fixtures below are REAL describer output — verbatim Gemma 4 E4B text from the seven-frame
+# run of 2026-09-24 (Apple silicon, temperature 0), so the baseline pins what the pipeline
+# produces now, not phrasing no model writes. Frame and object are named at each one.
+#
+# The background sentence Gemma wrote for the Data/Camera reference; it opens the
+# Screen-Understanding header (the panel's first line) in the baseline.
 #   Unit [string]
-CONST_BASELINE_BACKGROUND = 'The background is a plain green table.'
+CONST_BASELINE_BACKGROUND = 'A deep teal surface presents a uniform, matte finish.'
 
-# Captions fed to the label distiller, chosen to exercise the lead-in stripping,
-# the clause boundaries and the word cap.
-#   Unit [Vector<string>]
+# Descriptions fed to the label distiller (Gemma's, verbatim), chosen to cover the range of
+# the head-noun rule — including one it handles poorly and one where the text itself is wrong.
+# Printed in the baseline by frame and object, with the label they distil to; '' is the
+# empty-description default.
+#   Unit [Vector<Tuple<string, string>>]
 CONST_CAPTION_SAMPLES = [
-    'The image shows a close-up of a hex bolt on a green surface.',
-    'In this image we can see a washer.',
-    'a photograph of two brass fittings sitting on a table',
-    'This is an M6 stainless steel screw with a hexagonal head.',
-    '',
+    ('Image_007 obj 1',
+     'The object is a rectangular, flat plate of a bright, silvery-grey metal, likely '
+     'steel or aluminum. It features four small, drilled holes near the corners, and the '
+     'main surface exhibits numerous fine scratches and minor scuffs consistent with '
+     'handling or machining. Overall, the surface appears relatively clean, though it '
+     'bears the marks of use.'),
+    ('Image_001 obj 5',
+     'The object is a small, white, rectangular plastic or ceramic component with a '
+     'series of evenly spaced vertical slots on its base. Through these slots, several '
+     'circular holes are visible, each containing a small, metallic, screw-like element, '
+     'and the overall surface appears clean with no visible signs of dirt or '
+     'discoloration.'),
+    ('Image_001 obj 1',
+     'The object is a circular ring, appearing to be made of a dull, metallic material '
+     'with a silvery-grey tone. It features a central through-hole, and the outer rim '
+     'exhibits several faint, parallel linear markings across its surface. The part '
+     'appears generally clean, though there is some slight unevenness in the finish.'),
+    ('Image_001 obj 6',
+     'The object is a metallic bolt or screw, appearing silver in color and likely made '
+     'of steel or a similar alloy. It features a cylindrical head and a threaded shaft '
+     'extending from it. The surface appears relatively clean, though there are some '
+     'minor streaks or slight variations in tone across the body.'),
+    ('Image_001 obj 2',
+     'The object is a dark blue, somewhat amorphous plastic or rubber-like part with a '
+     'shape resembling a stylized arrow or a wide, uneven bracket. Its surface appears '
+     'mostly uniform in color, though there is a slight variation in tone across its '
+     'expanse, and it seems to be in generally clean condition with no immediately '
+     'visible scratches or significant stains.'),
+    ('Image_001 obj 7',
+     'The object is a small, roughly octagonal metal washer or flange with a central '
+     'circular depression. The piece appears to be made of a dull, silvery-grey metal, '
+     'and its surface shows some minor signs of tarnish or slight discoloration, '
+     'particularly around the edges.'),
+    ('empty', ''),
 ]
+# What each sample exercises (in order): the comma-separated adjective run and ' of '
+# (handled well); 'or' joining modifiers before the noun; an '-ing' clause after the noun and a
+# part name ending in '-ing'; 'or' between alternative nouns; handled poorly (vague, with a
+# degree adverb kept); faithful to a wrong text (a hex nut Gemma calls a washer); the default.
 
 
 def _Format_Boxes(boxes: tp.List[tp.Tuple[int, int, int, int]]) -> tp.List[str]:
@@ -259,8 +297,8 @@ def main() -> None:
 
     """
     Description:
-        Report composer. Three scenes — empty, a single object with a verbose
-        Florence caption, and several objects with a reading and a low score —
+        Report composer. Three scenes — empty, a single object with a real Gemma
+        description, and several objects with a reading and a low score —
         pin every sentence the panel would show, plus the verdict wording/level.
     """
     lines.append('-- report composer --')
@@ -274,9 +312,13 @@ def main() -> None:
     lines.append(f'  note    = {empty_note}')
     lines.append(f'  verdict = {e_badge} ({e_level})')
 
-    # 2) One object, verbose caption exercising the lead-in stripping.
-    one = [_Make_Detection('hex bolt', (100, 120, 80, 80),
-                           detail='In this image we can see a hex bolt on a green surface.')]
+    # 2) One object: Gemma's description of the rust-stained plate (Image_002 obj 1).
+    one = [_Make_Detection('rectangular metallic plate', (100, 120, 80, 80),
+                           detail='The object is a rectangular metallic plate, appearing to be silver or a similar '
+                              'bright metal, featuring two circular cutouts each containing a central green '
+                              'element. The surface exhibits numerous fine, concentric scratches across the '
+                              'entire body, and there are noticeable brown, earthy-toned stains or deposits '
+                              'clustered in the upper section of the plate.')]
     one_objs, one_note = Reporting.Compose(one, CONST_FRAME_SIZE, caption='')
     o_badge, o_level = Reporting.Verdict(one_objs)
     lines.append('[scene: one object]')
@@ -287,9 +329,18 @@ def main() -> None:
 
     # 3) Several objects: a plain one, one with a reading and a low score, one
     #    with an empty caption that falls back to "A <label>.".
+    #    The two descriptions are Gemma's (Image_001 obj 3 and obj 6).
     many = [
-        _Make_Detection('washer', (10, 10, 50, 50), detail='A metal washer.'),
-        _Make_Detection('screw', (200, 50, 40, 90), detail='A close-up of a screw.',
+        _Make_Detection('circular metallic washer', (10, 10, 50, 50),
+                        detail='The object is a circular metallic washer or ring, appearing silver or bright in '
+                               'color, with a central through-hole. The outer edge is clearly defined, and the '
+                               'inner hole allows a view into the green surface beneath. The surface of the part '
+                               'appears generally clean with no visible scratches, stains, or tarnish.'),
+        _Make_Detection('metallic bolt', (200, 50, 40, 90),
+                        detail='The object is a metallic bolt or screw, appearing silver in color and likely made '
+                               'of steel or a similar alloy. It features a cylindrical head and a threaded shaft '
+                               'extending from it. The surface appears relatively clean, though there are some '
+                               'minor streaks or slight variations in tone across the body.',
                         confidence=0.20, text='M6'),
         _Make_Detection('nut', (300, 300, 60, 60), detail=''),
     ]
@@ -310,8 +361,8 @@ def main() -> None:
         stable, so it is pinned here directly.
     """
     lines.append('-- label distiller (_condense_label) --')
-    for caption in CONST_CAPTION_SAMPLES:
-        lines.append(f'  {caption!r:>62} -> {Condense_Label(caption)!r}')
+    for source, caption in CONST_CAPTION_SAMPLES:
+        lines.append(f'  {source:<16} -> {Condense_Label(caption)!r}')
     lines.append('')
 
     """
