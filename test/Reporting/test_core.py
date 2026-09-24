@@ -29,6 +29,8 @@ from Parameters.Vision import Detection_Str
 #   ../Reporting/Core
 import Reporting.Core as Reporting
 
+#   ../Parameters/Configuration — the background-sentence limits (their documented defaults)
+from Parameters.Configuration import Description_Parameters_Str
 """
 Description:
     Tests for the report composer. This is the panel's one voice, so the sentences
@@ -330,23 +332,23 @@ def test_background_sentence_validation() -> None:
     """
 
     # A clean single sentence is kept as-is, no warning.
-    kept, records = Reporting.Background_Sentence('a plain green surface')
+    kept, records = Reporting.Background_Sentence('a plain green surface', Description_Parameters_Str=Description_Parameters_Str())
     assert kept == 'A plain green surface.'
     assert records == []
 
     # A multi-sentence ramble falls back, with a warning.
     ramble = 'The image is a solid green color. The color is a shade of teal. It has no color.'
-    kept, records = Reporting.Background_Sentence(ramble)
+    kept, records = Reporting.Background_Sentence(ramble, Description_Parameters_Str=Description_Parameters_Str())
     assert kept == Reporting.CONST_BACKGROUND_FALLBACK
     assert any(level == 'warning' for level, message in records)
 
     # An over-long single sentence falls back too.
     long_one = 'a ' * 30 + 'surface'
-    kept, records = Reporting.Background_Sentence(long_one)
+    kept, records = Reporting.Background_Sentence(long_one, Description_Parameters_Str=Description_Parameters_Str())
     assert kept == Reporting.CONST_BACKGROUND_FALLBACK
     assert records and records[0][0] == 'warning'
 
     # An empty caption falls back.
-    kept, records = Reporting.Background_Sentence('')
+    kept, records = Reporting.Background_Sentence('', Description_Parameters_Str=Description_Parameters_Str())
     assert kept == Reporting.CONST_BACKGROUND_FALLBACK
     assert records and records[0][0] == 'warning'

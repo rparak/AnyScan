@@ -204,24 +204,27 @@ def test_filename_from_start_timestamp(tmp_path: tp.Any) -> None:
     Session_Logger.Close()
 
 
-def test_csv_filename_follows_the_loaded_configuration(tmp_path: tp.Any) -> None:
+def test_csv_filename_follows_the_hardware_of_the_loaded_configuration(tmp_path: tp.Any) -> None:
     """
     Description:
-        The CSV is named after the configuration the run loaded, not a constant: the shipped
-        config gives the existing 'log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv' (so current files
-        keep their name), a different YAML gives its own file, and a logger with no configuration
+        The CSV is named after the HARDWARE of the configuration the run loaded, not a constant and
+        not the mode: the shipped 'Config_<hw>_Mode_Seg_Anything.yaml' keeps the existing
+        'log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv' (so current files keep their name), two modes
+        on one camera share it, another camera gets its own file, and a logger with no configuration
         writes to an unattributed file rather than into some camera's summary. The CSV lives beside
         the '.txt' log.
     """
 
-    from Camera.Utilities.Configuration import CONST_BASLER_CONFIG_FILE
+    from Configuration.Core import CONST_DEFAULT_CONFIG_FILE
 
     Session_Logger = Session_Logger_Cls(log_dir=str(tmp_path), clock=Clock_Cls(_T('09:00:00')),
-                                        install_handlers=False, config_path=CONST_BASLER_CONFIG_FILE)
+                                        install_handlers=False, config_path=CONST_DEFAULT_CONFIG_FILE)
     assert os.path.basename(Session_Logger.Csv_Path) == 'log_a2A1920_51gcPRO_Computar_M1228_MPW3.csv'
     assert os.path.dirname(Session_Logger.Csv_Path) == str(tmp_path)
     Session_Logger.Close()
 
+    assert Csv_Filename_For_Config('/cfg/Config_hw1_Mode_Seg_Anything.yaml') == \
+        Csv_Filename_For_Config('/cfg/Config_hw1_Mode_Box.yaml') == 'log_hw1.csv'
     assert Csv_Filename_For_Config('/cfg/Config_acA2500_14gc_Fujinon_HF16.yaml') == \
         'log_acA2500_14gc_Fujinon_HF16.csv'
     assert Csv_Filename_For_Config('/cfg/bench_rig.yml') == 'log_bench_rig.csv'

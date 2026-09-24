@@ -40,6 +40,11 @@ from Camera.Core import File_Camera_Cls
 from Parameters.Vision import Analysis_Str, Detection_Str
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -49,6 +54,10 @@ Description:
     that the Log view is seeded from the file at startup and then follows live via the logger
     sink. No weights needed.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 # The window's name-mangling prefix, for reaching its private state.
 CONST_MANGLE = '_AnyScan_Window_Cls'
 
@@ -66,7 +75,7 @@ def _Private(window, name: str):
 
 def _Framed_Window(reference_background_path, logger=None) -> AnyScan_Window_Cls:
     """A window with a frame set, ready to receive completed analyses."""
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path), logger=logger)
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path), logger=logger)
     setattr(window, CONST_MANGLE + '__frame', np.zeros((20, 30, 3), dtype=np.uint8))
     return window
 
@@ -243,8 +252,11 @@ def test_config_loaded_log_line_carries_the_state() -> None:
         in both directions — this is the line that answers 'why is there no OK/NOK in the UI?'.
     """
 
-    import run
-    on = run.Config_Loaded_Log_Line('Config_x.yaml', True)
-    off = run.Config_Loaded_Log_Line('Config_x.yaml', False)
-    assert 'Config_x.yaml' in on and 'enabled' in on and 'OK/NOK' in on
-    assert 'Config_x.yaml' in off and 'disabled' in off and 'detected objects only' in off
+    from Configuration.Core import Config_Loaded_Log_Line
+    on = Config_Loaded_Log_Line(dataclasses.replace(CONST_CONFIGURATION, Classification_Enabled=True))
+    off = Config_Loaded_Log_Line(CONST_CONFIGURATION)
+    for line in (on, off):
+        assert CONST_CONFIGURATION.Name in line and 'a2A1920_51gcPRO_Computar_M1228_MPW3' in line
+        assert 'Seg_Anything' in line
+    assert 'enabled' in on and 'OK/NOK' in on
+    assert 'disabled' in off and 'detected objects only' in off

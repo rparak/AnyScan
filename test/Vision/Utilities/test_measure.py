@@ -35,8 +35,8 @@ import Vision.Utilities.Measure as Measure
 from Vision.Utilities.Measure import Measure_Mask, Measure_Objects, Measure_Decimals
 #   ../Reporting/Core
 from Reporting.Core import Object_Size, Object_Label_Full
-#   ../Camera/Utilities/Configuration
-from Camera.Utilities.Configuration import Read_Conversion_Factor, CONST_BASLER_CONFIG_FILE
+#   ../Vision/Utilities/Measure — the scale's configuration-loaded line
+from Vision.Utilities.Measure import Scale_Log_Line
 #   ../Vision/Utilities/Annotate
 import Vision.Utilities.Annotate as Annotate
 #   ../UI/Capture
@@ -253,31 +253,20 @@ def test_label_carries_the_size_after_the_confidence() -> None:
 def test_missing_factor_degrades_to_no_measurement_with_a_warning(tmp_path) -> None:
     """
     Description:
-        A configuration without a Conversion_Factor (or with a non-positive one) yields no scale;
-        with no scale nothing is measured — every Measurement stays None and the label has no size
-        — and the launcher logs a WARNING saying so. Never a number from a default.
+        With no scale (a calibration without a Conversion_Factor — the configuration layer's tests
+        pin that it loads as None, and that a non-positive factor is refused) nothing is measured:
+        every Measurement stays None and the label has no size, and the configuration-loaded line
+        is a WARNING saying so. Never a number from a default.
     """
-
-    import App.run as run
-
-    shipped = open(CONST_BASLER_CONFIG_FILE, encoding='utf-8').read()
-    without = tmp_path / 'no_factor.yaml'
-    without.write_text(shipped.replace('Conversion_Factor:', 'Conversion_Factor_Removed:'),
-                       encoding='utf-8')
-    negative = tmp_path / 'bad_factor.yaml'
-    negative.write_text(shipped.replace('x: 0.09797791724417174', 'x: -0.1'), encoding='utf-8')
-    assert Read_Conversion_Factor(CONST_BASLER_CONFIG_FILE) is not None
-    assert Read_Conversion_Factor(str(without)) is None
-    assert Read_Conversion_Factor(str(negative)) is None
 
     objects = [Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Mask=_Rectangle(200, 100, 0.0))]
     Measure_Objects(objects, None, cv2, np)
     assert objects[0].Measurement is None
     assert Object_Size(objects[0]) == ''
 
-    level, line = run.Scale_Log_Line('no_factor.yaml', None)
+    level, line = Scale_Log_Line('no_factor.yaml', None)
     assert level == 'WARNING' and 'will not be measured' in line
-    level, line = run.Scale_Log_Line('cfg.yaml', CONST_SCALE)
+    level, line = Scale_Log_Line('cfg.yaml', CONST_SCALE)
     assert level == 'INFO' and 'mm/px' in line and '0.1 mm' in line
 
 
@@ -300,7 +289,8 @@ def test_stored_set_records_the_measurements_and_the_scale_that_produced_them(tm
     for set_id, scale, objects in (('with', CONST_SCALE, [measured, nut]),
                                    ('without', None, [Detection_Str(Label='p', Bbox=(0, 0, 1, 1))])):
         metadata = Build_Set_Metadata('s', set_id, '2026-09-22T10:00:00', objects, (60, 40), 't', 1,
-                                      90, scale=scale)
+                                      90, scale=scale, configuration='Config_Test_Mode_A.yaml',
+                                  background_reference='Data/Camera/Image_Background_001.png', hardware={})
         writer.Write('s', set_id, raw, raw, raw, 'text', [], [], metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
     sets = {cap.Set_Id: cap for cap in Discover_Capture_Sets(str(tmp_path))}

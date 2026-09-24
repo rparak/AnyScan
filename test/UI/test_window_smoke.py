@@ -37,6 +37,11 @@ import UI.Utilities.Style as Style
 from UI.Core import AnyScan_Window_Cls
 #   ../Camera/Core
 from Camera.Core import File_Camera_Cls
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -49,6 +54,10 @@ Description:
     The private state is reached through name-mangling on purpose: the window
     exposes no test hooks, and a smoke test should not force it to.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 # The window's name-mangling prefix, for reaching private state in the smoke test.
 CONST_MANGLE = '_AnyScan_Window_Cls'
@@ -75,7 +84,7 @@ def _Private(window: AnyScan_Window_Cls, name: str):
         Fetch a name-mangled private attribute or method of the window.
 
     Args:
-        (1) window [AnyScan_Window_Cls(scale=None, object)]: The window.
+        (1) window [AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, object)]: The window.
         (2) name [string]: The bare private name (e.g. '__viewport').
 
     Returns:
@@ -92,7 +101,7 @@ def test_window_builds(qt_app, reference_background_path) -> None:
         against a File_Camera_Cls, with the model backend present but unloaded.
     """
 
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
     window.resize(1280, 800)
 
     assert window.windowTitle().startswith('AnyScan')
@@ -101,15 +110,21 @@ def test_window_builds(qt_app, reference_background_path) -> None:
     assert _Private(window, '__vision').Name
 
 
+class _Loaded_Vision_Cls(object):
+    """A stand-in backend whose configuration is loaded; it is never asked to analyse."""
+    Name, Models_Loaded, Model_Names = 'JIC_AnyScan_All_v1', True, ('FastSAM-x.pt', 'gemma')
+
+
 def test_scan_path_displays_frame(qt_app, reference_background_path, reference_shape) -> None:
     """
     Description:
         Connect the camera and run the synchronous scan slot: the frame is captured
         as an ndarray, converted to a QImage for the viewport, and the badge shows
-        the frame size. Then clear and disconnect return to the empty state.
+        the frame size. ANALYZE needs the frame AND a loaded configuration — with a frame but no
+        loaded configuration it stays disabled. Then clear and disconnect return to the empty state.
     """
 
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
 
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()
@@ -117,6 +132,9 @@ def test_scan_path_displays_frame(qt_app, reference_background_path, reference_s
 
     height, width, _ = reference_shape
     assert _Private(window, '__frame_badge').text() == '%d × %d · RGB' % (width, height)
+    assert not _Private(window, '__button_analyze').isEnabled()          # no configuration loaded
+    setattr(window, CONST_MANGLE + '__vision', _Loaded_Vision_Cls())
+    _Private(window, '__Sync_Controls')()
     assert _Private(window, '__button_analyze').isEnabled()
 
     _Private(window, '__On_Clear_Button_Clicked')()

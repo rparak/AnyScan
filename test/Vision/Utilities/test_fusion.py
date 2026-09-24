@@ -29,6 +29,9 @@ import numpy as np
 #   ../Vision/Utilities/Fusion
 import Vision.Utilities.Fusion as Fusion
 
+# Custom Lib.: AnyScan — the stage parameters (their documented defaults: the shipped values)
+#   ../Parameters/Configuration
+from Parameters.Configuration import Segmentation_Parameters_Str
 """
 Description:
     Tests for the stage-3 fusion (Foreground_Union + Fuse_Objects). They run on small
@@ -37,8 +40,11 @@ Description:
     cue attribution are exercised deterministically with no camera and no weights.
     cv2 and np are injected, as the module and the pipeline expect.
 """
+# The stage parameters: the documented defaults, which are the values the shipped configuration sets.
+#   Unit [Segmentation_Parameters_Str(object)]
+CONST_PARAMETERS = Segmentation_Parameters_Str()
 # The synthetic frame size for the fusion tests (h, w). Small, but large enough that
-# a 60x60 block clears CONST_FUSE_MIN_AREA_FRAC of it.
+# a 60x60 block clears the configured Min_Area_Fraction of it.
 CONST_H = 400
 CONST_W = 400
 
@@ -71,7 +77,7 @@ def test_union_rejects_full_frame_border_mask() -> None:
     """
 
     full = np.ones((CONST_H, CONST_W), dtype=bool)
-    union = Fusion.Foreground_Union([full], CONST_H, CONST_W, np)
+    union = Fusion.Foreground_Union([full], CONST_H, CONST_W, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
     assert int(np.count_nonzero(union)) == 0
 
 
@@ -87,14 +93,14 @@ def test_union_keeps_large_non_border_mask() -> None:
     top = (CONST_H - side) // 2
     left = (CONST_W - side) // 2
     big = __Block(CONST_H, CONST_W, top, left, side)
-    union = Fusion.Foreground_Union([big], CONST_H, CONST_W, np)
+    union = Fusion.Foreground_Union([big], CONST_H, CONST_W, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
     assert int(np.count_nonzero(union)) > 0
 
 
 def test_union_hard_bg_frac_rejects_regardless_of_borders() -> None:
     """
     Description:
-        A mask above CONST_FUSE_HARD_BG_FRAC of the frame is the background outright,
+        A mask above the configured Hard_Background_Fraction of the frame is the background outright,
         even when it touches no border — the hard cap overrides the border test.
     """
 
@@ -102,7 +108,7 @@ def test_union_hard_bg_frac_rejects_regardless_of_borders() -> None:
     top = (CONST_H - side) // 2
     left = (CONST_W - side) // 2
     huge = __Block(CONST_H, CONST_W, top, left, side)
-    union = Fusion.Foreground_Union([huge], CONST_H, CONST_W, np)
+    union = Fusion.Foreground_Union([huge], CONST_H, CONST_W, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
     assert int(np.count_nonzero(union)) == 0
 
 
@@ -115,7 +121,7 @@ def test_object_seen_only_by_fastsam_survives() -> None:
 
     mask = __Block(CONST_H, CONST_W, 150, 150)
     empty_bg = np.zeros((CONST_H, CONST_W), np.uint8)
-    objects = Fusion.Fuse_Objects([mask], [0.9], empty_bg, cv2, np)
+    objects = Fusion.Fuse_Objects([mask], [0.9], empty_bg, cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
     assert len(objects) == 1
     assert objects[0].Cue == 'fastsam'
 
@@ -128,7 +134,7 @@ def test_object_seen_only_by_background_survives() -> None:
     """
 
     bg_fg = __Block(CONST_H, CONST_W, 150, 150).astype(np.uint8)
-    objects = Fusion.Fuse_Objects([], [], bg_fg, cv2, np)
+    objects = Fusion.Fuse_Objects([], [], bg_fg, cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
     assert len(objects) == 1
     assert objects[0].Cue == 'background'
 
@@ -142,7 +148,7 @@ def test_object_seen_by_both_is_not_double_counted() -> None:
 
     region = __Block(CONST_H, CONST_W, 150, 150)
     bg_fg = region.astype(np.uint8)
-    objects = Fusion.Fuse_Objects([region], [0.9], bg_fg, cv2, np)
+    objects = Fusion.Fuse_Objects([region], [0.9], bg_fg, cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
     assert len(objects) == 1
     assert objects[0].Cue == 'both'
 
@@ -161,7 +167,7 @@ def test_component_order_is_row_banded_left_to_right() -> None:
     # Deliberately out of order on input; the fusion imposes the index order.
     objects = Fusion.Fuse_Objects([top_right, lower, top_left],
                                   [0.9, 0.9, 0.9],
-                                  np.zeros((CONST_H, CONST_W), np.uint8), cv2, np)
+                                  np.zeros((CONST_H, CONST_W), np.uint8), cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
     assert len(objects) == 3
     lefts = [obj.Bbox[0] for obj in objects]
     # top_left (~40) before top_right (~300), both before the lower-band block.

@@ -37,8 +37,12 @@ import UI.Utilities.Style as Style
 #   ../Camera/Core
 from Camera.Core import File_Camera_Cls
 #   ../Parameters/Vision
-from Parameters.Vision import (Confidence_Severity, CONST_CONFIDENCE_WARN_BELOW,
-                               CONST_CONFIDENCE_ERROR_BELOW)
+from Parameters.Vision import Confidence_Severity, Confidence_Thresholds_Str
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -46,6 +50,10 @@ Description:
     number-only rich-text styling that reuses the log palette AND weight, and the status-bar
     run-mean log crossings with hysteresis. No camera and no weights needed.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 # The window's name-mangling prefix, for reaching its private state.
 CONST_MANGLE = '_AnyScan_Window_Cls'
@@ -97,14 +105,30 @@ def test_confidence_severity_bands_at_the_thresholds() -> None:
         ERROR. An unscored value has no severity (INFO, styled plain by the caller).
     """
 
-    assert (CONST_CONFIDENCE_WARN_BELOW, CONST_CONFIDENCE_ERROR_BELOW) == (80, 60)
-    assert Confidence_Severity(81) == 'INFO'
-    assert Confidence_Severity(80) == 'INFO'
-    assert Confidence_Severity(79) == 'WARNING'
-    assert Confidence_Severity(61) == 'WARNING'
-    assert Confidence_Severity(60) == 'WARNING'
-    assert Confidence_Severity(59) == 'ERROR'
-    assert Confidence_Severity(None) == 'INFO'
+    thresholds = CONST_CONFIGURATION.Confidence
+    assert (thresholds.Warn_Below, thresholds.Error_Below) == (80, 60)
+    assert Confidence_Severity(81, thresholds) == 'INFO'
+    assert Confidence_Severity(80, thresholds) == 'INFO'
+    assert Confidence_Severity(79, thresholds) == 'WARNING'
+    assert Confidence_Severity(61, thresholds) == 'WARNING'
+    assert Confidence_Severity(60, thresholds) == 'WARNING'
+    assert Confidence_Severity(59, thresholds) == 'ERROR'
+    assert Confidence_Severity(None, thresholds) == 'INFO'
+
+
+def test_the_configured_thresholds_move_the_bands() -> None:
+    """
+    Description:
+        The bands follow the configuration's thresholds, not a constant: with 90 / 70 a 85% reads
+        WARNING and a 65% reads ERROR, where the shipped 80 / 60 read them INFO and WARNING.
+    """
+
+    strict = Confidence_Thresholds_Str(Warn_Below=90, Error_Below=70)
+    assert (Confidence_Severity(85, strict), Confidence_Severity(65, strict)) == ('WARNING', 'ERROR')
+    shipped = CONST_CONFIGURATION.Confidence
+    assert (Confidence_Severity(85, shipped), Confidence_Severity(65, shipped)) == ('INFO', 'WARNING')
+    assert Style.Confidence_Number_Html('85%', 85, shipped) == '85%'
+    assert Style.Log_Level_Color('WARNING') in Style.Confidence_Number_Html('85%', 85, strict)
 
 
 def test_confidence_number_html_colours_and_weights_only_below_the_line() -> None:
@@ -116,14 +140,14 @@ def test_confidence_number_html_colours_and_weights_only_below_the_line() -> Non
         on two channels, colour AND weight, for a red-green-deficient viewer).
     """
 
-    assert Style.Confidence_Number_Html('81%', 81) == '81%'
-    assert Style.Confidence_Number_Html('—', None) == '—'
+    assert Style.Confidence_Number_Html('81%', 81, CONST_CONFIGURATION.Confidence) == '81%'
+    assert Style.Confidence_Number_Html('—', None, CONST_CONFIGURATION.Confidence) == '—'
 
-    warn = Style.Confidence_Number_Html('79%', 79)
+    warn = Style.Confidence_Number_Html('79%', 79, CONST_CONFIGURATION.Confidence)
     assert Style.Log_Level_Color('WARNING') in warn and '79%' in warn
     assert 'font-weight: %d' % Style.CONST_LEVEL_CSS_WEIGHTS['WARNING'] in warn
 
-    error = Style.Confidence_Number_Html('59%', 59)
+    error = Style.Confidence_Number_Html('59%', 59, CONST_CONFIGURATION.Confidence)
     assert Style.Log_Level_Color('ERROR') in error and '59%' in error
     assert 'font-weight: %d' % Style.CONST_LEVEL_CSS_WEIGHTS['ERROR'] in error
     # The two severities are a different weight, so they stay apart without colour.
@@ -140,7 +164,7 @@ def test_run_mean_log_crossings_with_hysteresis(qt_app, reference_background_pat
     """
 
     logger = _Spy_Logger_Cls()
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path), logger=logger)
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path), logger=logger)
     cross = _Private(window, '__Log_Confidence_Crossing')
 
     cross(85)                       # stays OK — no log

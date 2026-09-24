@@ -24,6 +24,8 @@
 # System (Default)
 import sys
 import types
+# Dataclasses (a configuration copy pointed at the test's weights directory)
+import dataclasses
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
 # Pytest (Testing framework) [pip3 install pytest]
@@ -33,19 +35,23 @@ import pytest
 import Vision.Describers as Describers
 from Vision.Describers import (Gemma_Describer_Cls, Describer_Error_Cls,
                                CONST_PURPOSE_OBJECT, CONST_PURPOSE_BACKGROUND)
-#   ../Camera/Utilities/Configuration
-from Camera.Utilities.Configuration import Read_Describer_Prompts, CONST_DESCRIBER_PROMPTS_FILE
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 #   ../Vision/Core
 import Vision.Core as Vision_Core
 from Vision.Core import Vision_Pipeline_Cls, Vision_Error_Cls
 
 """
 Description:
-    The describer seam without weights: what Gemma is sent (the prompts from their data file,
-    greedy decoding, thinking off, the crop as RGB), what fails loudly (no prompts, no MLX, no
-    weights), and the pipeline's describer switch. A
-    stand-in mlx_vlm module records every call; nothing loads a model.
+    The describer seam without weights: what Gemma is sent (the configuration's prompts and
+    generation settings, thinking off, the crop as RGB), what fails loudly (no MLX, no weights),
+    and the pipeline's describer switch. A stand-in mlx_vlm module records every call; nothing
+    loads a model. (That a configuration without both prompts never loads is the configuration
+    layer's test.)
 """
+# The shipped configuration: the describer's prompts and generation settings come from it.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
 
 
 class _Mlx_Vlm_Cls(object):
@@ -78,21 +84,22 @@ def fake_mlx(monkeypatch, tmp_path):
     utils.apply_chat_template = fake.Apply_Chat_Template
     monkeypatch.setitem(sys.modules, 'mlx_vlm', package)
     monkeypatch.setitem(sys.modules, 'mlx_vlm.prompt_utils', utils)
-    monkeypatch.setattr(Describers, 'CONST_GEMMA_MODEL_DIR', str(tmp_path))
+    fake.params = dataclasses.replace(CONST_CONFIGURATION.Description, Model_Path=str(tmp_path))
     return fake
 
 
-def test_gemma_sends_the_data_file_prompts_greedily_with_the_crop_as_rgb(fake_mlx) -> None:
+def test_gemma_sends_the_configured_prompts_greedily_with_the_crop_as_rgb(fake_mlx) -> None:
     """
     Description:
-        Each purpose sends its own prompt, read from Configuration/Describer_Prompts.yaml; the
-        crop goes in as an RGB image (the pipeline's BGR converted); decoding is greedy
-        (temperature 0) with thinking off, so the same crop yields the same text; the answer
-        comes back stripped. The weights directory is loaded once, however many describes.
+        Each purpose sends its own prompt, from the configuration (Description.Prompts); the
+        crop goes in as an RGB image (the pipeline's BGR converted); decoding uses the configured
+        temperature (0: greedy) and token limit with thinking off, so the same crop yields the same
+        text; the answer comes back stripped. The weights directory is loaded once, however many
+        describes.
     """
 
-    prompts = Read_Describer_Prompts(CONST_DESCRIBER_PROMPTS_FILE)
-    describer = Gemma_Describer_Cls()
+    params = fake_mlx.params
+    describer = Gemma_Describer_Cls(params)
     describer.Load()
     describer.Load()
     crop = np.zeros((8, 8, 3), np.uint8)
@@ -100,62 +107,60 @@ def test_gemma_sends_the_data_file_prompts_greedily_with_the_crop_as_rgb(fake_ml
     assert describer.Describe(crop, CONST_PURPOSE_OBJECT) == 'A plate.'
     describer.Describe(crop, CONST_PURPOSE_BACKGROUND)
 
-    assert fake_mlx.loaded == [Describers.CONST_GEMMA_MODEL_DIR]
-    assert [prompt for prompt, _ in fake_mlx.templates] == [prompts['Object'], prompts['Background']]
+    assert fake_mlx.loaded == [params.Model_Path]
+    assert [prompt for prompt, _ in fake_mlx.templates] == [params.Prompt_Object, params.Prompt_Background]
     assert all(kwargs == {'num_images': 1, 'enable_thinking': False} for _, kwargs in fake_mlx.templates)
     for formatted, kwargs in fake_mlx.generated:
-        assert kwargs['temperature'] == 0.0 and kwargs['max_tokens'] == Describers.CONST_GEMMA_MAX_TOKENS
+        assert kwargs['temperature'] == 0.0 and kwargs['max_tokens'] == 256
         image = kwargs['image'][0]
         assert image.mode == 'RGB' and image.getpixel((0, 0)) == (0, 0, 200)
-    assert fake_mlx.generated[0][0] == 'formatted:' + prompts['Object']
+    assert fake_mlx.generated[0][0] == 'formatted:' + params.Prompt_Object
 
 
-def test_gemma_fails_loudly_without_prompts_mlx_or_weights(fake_mlx, monkeypatch, tmp_path) -> None:
+def test_gemma_follows_another_configurations_prompts_without_reloading(fake_mlx) -> None:
     """
     Description:
-        No prompt is sent that nobody wrote: a prompts file missing a purpose stops the load
-        BEFORE the weights are touched. Without MLX, or without the weights directory, the
-        message says what to install or where the weights should be.
+        Set_Parameters swaps the prompts and generation settings of a loaded describer with the
+        same weights — a mode change that needs no ~9 s reload — and the next describe uses them.
     """
 
-    incomplete = tmp_path / 'prompts.yaml'
-    incomplete.write_text('Object: Describe the part.\n', encoding='utf-8')
-    with pytest.raises(Describer_Error_Cls, match='prompts'):
-        Gemma_Describer_Cls(prompts_file=str(incomplete)).Load()
-    assert fake_mlx.loaded == []
+    describer = Gemma_Describer_Cls(fake_mlx.params)
+    describer.Load()
+    other = dataclasses.replace(fake_mlx.params, Prompt_Object='Name the part.', Max_Tokens=64)
+    describer.Set_Parameters(other)
+    describer.Describe(np.zeros((8, 8, 3), np.uint8), CONST_PURPOSE_OBJECT)
+    assert fake_mlx.loaded == [fake_mlx.params.Model_Path]                # loaded once
+    assert fake_mlx.templates[-1][0] == 'Name the part.'
+    assert fake_mlx.generated[-1][1]['max_tokens'] == 64
 
+
+def test_gemma_fails_loudly_without_mlx_or_weights(fake_mlx, monkeypatch, tmp_path) -> None:
+    """
+    Description:
+        Without the weights directory, or without MLX, the message says where the weights should
+        be or what to install.
+    """
+
+    absent = dataclasses.replace(fake_mlx.params, Model_Path=str(tmp_path / 'absent'))
     with pytest.raises(Describer_Error_Cls, match='not at'):
-        Gemma_Describer_Cls(model_dir=str(tmp_path / 'absent')).Load()
+        Gemma_Describer_Cls(absent).Load()
 
     monkeypatch.setitem(sys.modules, 'mlx_vlm', None)             # import now fails
     with pytest.raises(Describer_Error_Cls, match='mlx'):
-        Gemma_Describer_Cls().Load()
+        Gemma_Describer_Cls(fake_mlx.params).Load()
 
 
-def test_prompts_reader_has_no_default_wording(tmp_path) -> None:
+def test_the_task_a_reading_carries() -> None:
     """
     Description:
-        The shipped file holds both prompts; a missing file, a missing key or an empty prompt
-        reads as None, never as a built-in fallback prompt.
+        The Task row and each capture set's 'task' record what produced the reading: a model
+        reading carries the configuration's Identity.Task ('part inspection' as shipped), the
+        model-free fallback its own label. (Older sets written by Florence-2 keep their
+        'detailed caption'.)
     """
 
-    shipped = Read_Describer_Prompts(CONST_DESCRIBER_PROMPTS_FILE)
-    assert set(shipped) == {'Object', 'Background'} and all(shipped.values())
-    empty = tmp_path / 'empty.yaml'
-    empty.write_text('Object: ""\nBackground: A surface.\n', encoding='utf-8')
-    assert Read_Describer_Prompts(str(empty)) is None
-    assert Read_Describer_Prompts(str(tmp_path / 'none.yaml')) is None
-
-
-def test_each_describer_names_its_own_task() -> None:
-    """
-    Description:
-        The Task row and each capture set's 'task' record what produced the reading: Gemma
-        'part inspection', the model-free fallback its own. (Older sets written by Florence-2
-        keep their 'detailed caption'.)
-    """
-
-    assert Gemma_Describer_Cls.Task_Label == 'part inspection'
+    assert CONST_CONFIGURATION.Identity.Task == 'part inspection'
+    assert not hasattr(Gemma_Describer_Cls, 'Task_Label')
     assert Vision_Core.CONST_FALLBACK_TASK_LABEL == 'model-free description'
 
 
@@ -168,4 +173,4 @@ def test_an_unknown_describer_fails_before_any_work(monkeypatch) -> None:
 
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'llava')
     with pytest.raises(Vision_Error_Cls, match='gemma or fallback'):
-        Vision_Pipeline_Cls(scale=None).Analyze(np.zeros((4, 4, 3), np.uint8))
+        Vision_Pipeline_Cls(Configuration_Str=CONST_CONFIGURATION).Analyze(np.zeros((4, 4, 3), np.uint8))

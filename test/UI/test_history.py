@@ -44,6 +44,8 @@ from UI.Capture import Capture_Writer_Cls, Build_Set_Metadata, Discover_Capture_
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
+#   ../Parameters/Vision — the confidence thresholds (their documented defaults)
+from Parameters.Vision import Confidence_Thresholds_Str
 """
 Description:
     Headless (offscreen) tests for the History view: the OK/NOK filter including the always-empty
@@ -80,7 +82,9 @@ def _Write_Full(writer, session_id, set_id, classification=False, run_id='', tas
     mask = np.zeros((40, 60, 3), np.uint8)
     objects = _Objects()
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
-                                  task, 1180, 91, '', classification, run_id, scale=None)
+                                  task, 1180, 91, '', classification, run_id, scale=None,
+                                  configuration='Config_Test_Mode_A.yaml',
+                                  background_reference='Data/Camera/Image_Background_001.png', hardware={})
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                  ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
@@ -112,7 +116,7 @@ def test_filter_including_the_always_empty_nok_case(qt_app, tmp_path) -> None:
     _Write_Full(writer, 'sessionA', 'set1', classification=True)
     _Write_Full(writer, 'sessionA', 'set2', classification=True)
 
-    view = History_View_Cls(str(tmp_path), classification_enabled=True)
+    view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     assert _Private(view, '__filter').isVisibleTo(view)   # a classified run -> filter present
     assert len(_Private(view, '__cards')) == 2            # All
@@ -141,7 +145,7 @@ def test_selecting_a_full_set_renders_the_object_list(qt_app, tmp_path) -> None:
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set1')
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     # Refresh selects the first (only) set.
     assert _Private(view, '__object_list').box.count() == 2
@@ -165,7 +169,7 @@ def test_each_set_shows_the_task_that_produced_it(qt_app, tmp_path) -> None:
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'florence_set', task='detailed caption')
     _Write_Full(writer, 'sessionA', 'gemma_set', task='part inspection')
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     shown = {}
     for cap in Discover_Capture_Sets(str(tmp_path)):
@@ -187,7 +191,7 @@ def test_detect_only_sets_have_no_filter_and_a_neutral_outline(qt_app, tmp_path)
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set1', classification=False)
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     assert not _Private(view, '__filter').isVisibleTo(view)   # the filter is removed
     cap = _Private(view, '__detail_cap')
@@ -207,7 +211,7 @@ def test_classified_sets_get_the_filter_and_a_verdict_outline(qt_app, tmp_path) 
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set1', classification=True)
 
-    view = History_View_Cls(str(tmp_path), classification_enabled=True)
+    view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     assert _Private(view, '__filter').isVisibleTo(view)
     cap = _Private(view, '__detail_cap')
@@ -227,7 +231,7 @@ def test_history_lists_only_the_current_run(qt_app, tmp_path) -> None:
     _Write_Full(writer, 'sessionA', 'new1', run_id='run-current')
     _Write_Full(writer, 'sessionB', 'new2', run_id='run-current')   # a second camera connection
 
-    view = History_View_Cls(str(tmp_path), run_id='run-current')
+    view = History_View_Cls(str(tmp_path), run_id='run-current', Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     shown = sorted(c.Cap().Set_Id for c in _Private(view, '__cards'))
     assert shown == ['new1', 'new2']                     # both connections of THIS run, not 'old'
@@ -243,7 +247,7 @@ def test_empty_run_shows_the_run_scoped_message(qt_app, tmp_path) -> None:
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'old', run_id='run-earlier')      # a different run's set
 
-    view = History_View_Cls(str(tmp_path), run_id='run-current')
+    view = History_View_Cls(str(tmp_path), run_id='run-current', Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     assert len(_Private(view, '__cards')) == 0
     message = _Private(view, '__list_box').itemAt(0).widget()
@@ -262,13 +266,13 @@ def test_the_two_empty_nok_states_are_distinguishable(qt_app, tmp_path) -> None:
 
     off_root = tmp_path / 'off'
     _Write_Full(Capture_Writer_Cls(str(off_root)), 's', 'a', classification=False)
-    off = History_View_Cls(str(off_root), classification_enabled=False)
+    off = History_View_Cls(str(off_root), classification_enabled=False, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     off.Refresh()
     assert not _Private(off, '__filter').isVisibleTo(off)     # no filter — the absence is the signal
 
     on_root = tmp_path / 'on'
     _Write_Full(Capture_Writer_Cls(str(on_root)), 's', 'a', classification=True)
-    on = History_View_Cls(str(on_root), classification_enabled=True)
+    on = History_View_Cls(str(on_root), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     on.Refresh()
     assert _Private(on, '__filter').isVisibleTo(on)          # filter present
     _Set_Filter(on, 'nok')
@@ -283,7 +287,7 @@ def test_the_browser_panel_is_labelled_captures(qt_app, tmp_path) -> None:
         main switch and this panel.
     """
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     titles = [w.text() for w in view.findChildren(QLabel) if w.text() in ('Captures', 'History')]
     assert 'Captures' in titles and 'History' not in titles
 
@@ -299,7 +303,7 @@ def test_two_panes_are_equal_size_and_scale_together(qt_app, tmp_path) -> None:
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set1')
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.resize(1400, 780)
     view.show()
     view.Refresh()
@@ -327,7 +331,7 @@ def test_clicking_an_object_highlights_the_annotated_pane_with_info_open(qt_app,
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set1')
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     _Private(view, '__Open_Info')()
     cap = _Private(view, '__detail_cap')
@@ -355,11 +359,12 @@ def test_missing_score_note_explains_unscored_objects(qt_app, tmp_path) -> None:
                              Verdict='OK', Cue='background')
     raw = np.full((40, 60, 3), 30, np.uint8)
     md = Build_Set_Metadata('sessionA', 'set1', '2026-09-20T10:00:00', [scored, unscored],
-                            (60, 40), 'caption', 1000, 90, scale=None)
+                            (60, 40), 'caption', 1000, 90, scale=None, configuration='Config_Test_Mode_A.yaml',
+                                  background_reference='Data/Camera/Image_Background_001.png', hardware={})
     writer.Write('sessionA', 'set1', raw, raw, np.zeros((40, 60, 3), np.uint8), 'text',
                  ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     note = _Private(view, '__score_note')
     assert not note.isHidden()
@@ -379,7 +384,7 @@ def test_evicting_the_selected_set_clears_the_detail_with_a_note(qt_app, tmp_pat
     _Write_Full(writer, 'sessionA', 'keep')
     _Write_Full(writer, 'sessionA', 'gone')
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     getattr(view, '_History_View_Cls__Select')(
         next(c for c in _Private(view, '__sets') if c.Set_Id == 'gone'))
@@ -407,7 +412,7 @@ def test_a_new_set_appears_on_refresh_keeping_the_selection(qt_app, tmp_path) ->
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'first')
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     assert len(_Private(view, '__cards')) == 1
     assert view.Selected_Set_Id() == 'first'
@@ -433,7 +438,7 @@ def test_partial_set_renders_raw_full_width_with_the_banner(qt_app, tmp_path) ->
                          'Analysis FAILED — partial capture (raw frame only). Failure: boom',
                          'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.show()
     view.Refresh()
 
@@ -461,7 +466,7 @@ def test_info_panel_opens_closes_and_narrows_without_covering(qt_app, tmp_path) 
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set1')
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.resize(1400, 780)
     view.show()
     view.Refresh()
@@ -505,7 +510,7 @@ def test_info_panel_type_hierarchy_heading_is_largest(qt_app, tmp_path) -> None:
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set1')
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
 
     heading = _Private(view, '__info_title').font().pointSizeF()
@@ -554,12 +559,14 @@ def test_info_text_matches_the_shared_formatter(qt_app, tmp_path) -> None:
     writer = Capture_Writer_Cls(str(tmp_path))
     objects = _Objects()
     md = Build_Set_Metadata('sessionA', 'set1', '2026-09-20T10:00:00', objects, (60, 40),
-                            'caption', 1180, 91, 'A green background.', scale=None)
+                            'caption', 1180, 91, 'A green background.', scale=None,
+                            configuration='Config_Test_Mode_A.yaml',
+                                  background_reference='Data/Camera/Image_Background_001.png', hardware={})
     raw = np.full((40, 60, 3), 30, np.uint8)
     writer.Write('sessionA', 'set1', raw, raw, np.zeros((40, 60, 3), np.uint8), 'text',
                  ['0 0.5 0.5 0.1 0.1'], ['0 0.4 0.4 0.6 0.6'], md, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     cap = _Private(view, '__detail_cap')
     detections = _Private(view, '__Detections')(cap)
@@ -587,7 +594,7 @@ def test_malformed_metadata_does_not_crash_the_view(qt_app, tmp_path) -> None:
     _Write_Full(writer, 'sessionA', 'set1')
     (tmp_path / 'sessionA' / 'set1_objects.json').write_text('{ not valid json ]')
 
-    view = History_View_Cls(str(tmp_path))
+    view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()                                        # must not raise
     cap = next(cap for cap in _Private(view, '__sets') if cap.Set_Id == 'set1')
     assert cap.Partial
@@ -602,7 +609,7 @@ def test_missing_captures_root_shows_empty_grid(qt_app, tmp_path) -> None:
         message, never a crash.
     """
 
-    view = History_View_Cls(None)
+    view = History_View_Cls(None, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     assert _Private(view, '__cards') == []
     body = _Private(view, '__list_box')

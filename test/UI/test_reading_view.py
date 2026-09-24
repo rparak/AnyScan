@@ -43,6 +43,11 @@ from Reporting.Core import (Screen_Header, Object_Line, Object_Label, Object_Con
                            Object_Label_Full, CONST_LABEL_SEPARATOR)
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -51,6 +56,10 @@ Description:
     the count, one label) and each object line carries the shared Object_Line text, so the
     panel and the descriptions file cannot drift. No camera and no weights needed.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 # The window's name-mangling prefix, for reaching its private state.
 CONST_MANGLE = '_AnyScan_Window_Cls'
@@ -75,7 +84,7 @@ def _Object(sentence: str, score=None) -> Detection_Str:
 
 def _Window_With(reference_background_path, result: Analysis_Str) -> AnyScan_Window_Cls:
     """A window that has scanned a frame and rendered the given result."""
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()
     _Private(window, '__On_Scan_Button_Clicked')()

@@ -38,6 +38,11 @@ from UI.Core import AnyScan_Window_Cls
 from Camera.Core import File_Camera_Cls
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -47,6 +52,10 @@ Description:
     composer rewrote passes silently, and a view switch is NOT logged. No camera and no
     weights needed.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 # The window's name-mangling prefix, for reaching its private state.
 CONST_MANGLE = '_AnyScan_Window_Cls'
@@ -97,7 +106,7 @@ def test_analysis_audit_is_logged_by_level(qt_app, reference_background_path) ->
     """
 
     spy = _Spy_Logger_Cls()
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path), logger=spy)
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path), logger=spy)
     # A frame is needed to render the views; the objects are empty, which both renderers
     # handle, so the test isolates the audit logging.
     setattr(window, CONST_MANGLE + '__frame', np.zeros((20, 30, 3), dtype=np.uint8))

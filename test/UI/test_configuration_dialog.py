@@ -1,0 +1,469 @@
+## =========================================================================== ##
+# MIT License
+# Copyright (c) 2025 JIC Smart Factory
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+## =========================================================================== ##
+# Author   : JIC Smart Factory
+# File Name: ../test/UI/test_configuration_dialog.py
+## =========================================================================== ##
+
+# System (Default)
+import os
+import json
+import time
+import threading
+# Qt must render headless; set the platform before any QApplication is constructed.
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+# Typing (Support for type hints)
+import typing as tp
+# PyYAML (YAML parser and emitter) [pip3 install pyyaml]
+import yaml
+# Numpy (Array computing) [pip3 install numpy]
+import numpy as np
+# Pytest (Testing framework) [pip3 install pytest]
+import pytest
+# PyQt5 (Qt bindings) [pip3 install PyQt5]
+from PyQt5.QtCore import Qt, QEvent, QPointF, QTimer
+from PyQt5.QtGui import QMouseEvent
+from PyQt5.QtWidgets import QApplication, QPushButton, QLabel, QListWidget, QProgressBar
+# Custom Lib.: AnyScan UI — the window and the dialog under test
+#   ../UI/Core
+from UI.Core import AnyScan_Window_Cls
+#   ../UI/Configuration_Dialog
+import UI.Configuration_Dialog as Dialog
+from UI.Configuration_Dialog import Configuration_Dialog_Cls
+# Custom Lib.: AnyScan domain — the camera, the vision interface, the logger, the capture reader
+#   ../Camera/Core
+from Camera.Core import Camera_Backend_Cls
+#   ../Vision/Core
+from Vision.Core import Vision_Backend_Cls, Vision_Error_Cls
+#   ../Logger/Core
+from Logger.Core import Session_Logger_Cls
+#   ../UI/Capture
+from UI.Capture import Discover_Capture_Sets
+#   ../Parameters/Vision
+from Parameters.Vision import Analysis_Str
+# Custom Lib.: AnyScan — the configuration layer
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE
+
+"""
+Description:
+    The Configuration dialog and the configuration gates, without weights. A run starts with a
+    configuration named but not loaded, so CONNECT (and with it everything after) waits for the
+    dialog; the dialog lists the usable configurations in Configuration/, loads the chosen one on a
+    worker thread, confirms what it loaded in a sentence and closes, or says why it did not; files
+    it cannot load are logged, not listed; an empty directory says so. After the first CONNECT the
+    configuration is fixed for the run. The window dims behind the dialog and the dim lifts on every
+    close path. Capture sets record the configuration, its background reference and its hardware.
+    A stand-in vision backend stands for the models (it sleeps where they would load).
+"""
+# The window's name-mangling prefix, and the shipped hardware.
+#   Unit [string]
+CONST_MANGLE = '_AnyScan_Window_Cls'
+CONST_HARDWARE = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
+# The confirmation for the shipped configuration's camera, lens and lighting.
+#   Unit [string]
+CONST_SENTENCE = ('Configuration loaded. Model set JIC_AnyScan_All_v1 on a Basler a2A1920-51gcPRO with a '
+                  'Computar M1228-MPW3 lens, lit by an Effilux EFFI-FD-200-200-000.')
+
+
+@pytest.fixture(scope='module')
+def qt_app() -> QApplication:
+    """A single offscreen QApplication for the module."""
+    return QApplication.instance() or QApplication([])
+
+
+def _Private(owner: tp.Any, name: str) -> tp.Any:
+    """A name-mangled private attribute of the window."""
+    return getattr(owner, CONST_MANGLE + name)
+
+
+class _Fake_Vision_Cls(Vision_Backend_Cls):
+    """A vision backend whose configuration takes `delay` seconds to load on whatever thread loads it."""
+
+    def __init__(self, loaded: bool = False, delay: float = 0.2, fail: tp.Optional[str] = None) -> None:
+        self.Models_Loaded, self.delay, self.fail = loaded, delay, fail
+        self.Name, self.Model_Names = 'JIC_AnyScan_All_v1', ('FastSAM-x.pt', 'gemma-4-e4b-it-4bit')
+        self.threads = []
+
+    def Configure(self, Configuration_Str, stage_cb=None) -> None:
+        self.threads.append(threading.get_ident())
+        time.sleep(self.delay)
+        if self.fail:
+            raise Vision_Error_Cls(self.fail)
+        self.Models_Loaded, self.Name = True, Configuration_Str.Identity.Model_Set
+
+
+class _Idle_Camera_Cls(Camera_Backend_Cls):
+    """A camera that connects at once and grabs a fixed frame."""
+
+    def _Open(self) -> None:
+        pass
+
+    def _Close(self) -> None:
+        pass
+
+    def _Grab(self):
+        return np.zeros((40, 60, 3), dtype=np.uint8)
+
+    @property
+    def Resolution(self):
+        return (60, 40)
+
+
+def _Pump_Until(condition: tp.Callable[[], bool], timeout: float = 10.0) -> None:
+    """Run the event loop until the condition holds (or the timeout passes)."""
+    app, deadline = QApplication.instance(), time.time() + timeout
+    while not condition() and time.time() < deadline:
+        app.processEvents()
+        time.sleep(0.005)
+
+
+def _Mode_File(directory: tp.Any, mode: str, hardware: str = CONST_HARDWARE,
+               edit: tp.Optional[tp.Callable[[tp.Dict], None]] = None) -> str:
+    """A mode file (from the shipped one, optionally edited) and its hardware's calibration."""
+    with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+    data['Hardware'] = hardware
+    if edit is not None:
+        edit(data)
+    path = os.path.join(str(directory), 'Config_%s_Mode_%s.yaml' % (hardware, mode))
+    with open(path, 'w', encoding='utf-8') as f:
+        yaml.safe_dump(data, f, sort_keys=False)
+    calibration = Calibration_Path_For(path, hardware)
+    if not os.path.exists(calibration):
+        with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
+            content = f.read().replace(CONST_HARDWARE, hardware)
+        with open(calibration, 'w', encoding='utf-8') as f:
+            f.write(content)
+    return path
+
+
+@pytest.fixture
+def configurations(tmp_path, monkeypatch) -> tp.Dict[str, str]:
+    """A Configuration/ directory the dialog discovers: two modes on this camera, one on another
+    camera, one broken file (Model_Set missing) and an unrelated YAML."""
+    directory = tmp_path / 'Configuration'
+    directory.mkdir()
+    paths = {'seg': _Mode_File(directory, 'Seg_Anything'),
+             'box': _Mode_File(directory, 'Box', edit=lambda d: d['Identity'].update(Display_Name='Cfg. Box Prompts')),
+             'other': _Mode_File(directory, 'Seg_Anything', hardware='acA2500_14gc_Fujinon_HF16',
+                                 edit=lambda d: d['Identity'].update(Display_Name='Cfg. Bench Camera')),
+             'broken': _Mode_File(directory, 'Draft', edit=lambda d: d['Identity'].pop('Model_Set'))}
+    (directory / 'notes.yaml').write_text('Hardware: x\n')
+    monkeypatch.setattr(Dialog, 'CONST_CONFIG_DIR', str(directory))
+    paths['dir'] = str(directory)
+    return paths
+
+
+def _Window(tmp_path: tp.Any, config_path: str, vision: _Fake_Vision_Cls) -> tp.Tuple[AnyScan_Window_Cls,
+                                                                                    Session_Logger_Cls]:
+    """A window started with a configuration (named, not loaded), a real logger, an idle camera."""
+    logger = Session_Logger_Cls(config_path=config_path, log_dir=str(tmp_path / 'log'), install_handlers=False)
+    window = AnyScan_Window_Cls(camera=_Idle_Camera_Cls(), logger=logger,
+                                Configuration_Str=Load_Configuration(config_path))
+    setattr(window, CONST_MANGLE + '__vision', vision)
+    _Private(window, '__Sync_Controls')()
+    return window, logger
+
+
+def _Log_Text(logger: Session_Logger_Cls) -> str:
+    """The current log file content."""
+    with open(logger.Path, 'r', encoding='utf-8') as handle:
+        return handle.read()
+
+
+def _Press(button: QPushButton) -> None:
+    """A mouse press on a (possibly disabled) button, delivered the way Qt delivers a click."""
+    QApplication.sendEvent(button, QMouseEvent(QEvent.MouseButtonPress, QPointF(5, 5), Qt.LeftButton,
+                                               Qt.LeftButton, Qt.NoModifier))
+
+
+def _Load_Through_Dialog(window: AnyScan_Window_Cls, path: str) -> Configuration_Dialog_Cls:
+    """Open the window's wired dialog (without its modal loop), choose a file, Load, and wait."""
+    dialog = _Private(window, '__Make_Configuration_Dialog')()
+    dialog.Select(path)
+    dialog.Load()
+    _Pump_Until(lambda: not dialog.Loading)
+    return dialog
+
+
+def _Texts(widget: tp.Any) -> tp.List[str]:
+    """The visible label texts of a widget, with the display-only wrap points removed."""
+    return [label.text().replace('​', '') for label in widget.findChildren(QLabel) if label.isVisible()]
+
+
+def test_a_run_starts_named_but_not_loaded_and_connect_waits_for_the_configuration(qt_app, tmp_path,
+                                                                                    configurations) -> None:
+    """
+    Description:
+        At launch the configuration is named but not loaded: the header says so and CONNECT is
+        disabled — its tooltip says why, and a press on it is logged as a refusal. Loading the
+        configuration in the dialog makes CONNECT available and the header says it is loaded.
+    """
+
+    window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(loaded=False))
+    connect = _Private(window, '__button_connect')
+    assert _Private(window, '__label_models_state').text().endswith('Configuration not loaded.')
+    assert not connect.isEnabled() and connect.toolTip() == 'Load a configuration first.'
+    _Press(connect)
+
+    _Load_Through_Dialog(window, configurations['seg'])
+    assert connect.isEnabled() and connect.toolTip() == ''
+    assert _Private(window, '__label_models_state').text().endswith('Configuration loaded.')
+    logger.Close()
+    assert 'CONNECT refused: no configuration is loaded' in _Log_Text(logger)
+
+
+def test_after_the_first_connect_the_configuration_is_fixed_for_the_run(qt_app, tmp_path, configurations) -> None:
+    """
+    Description:
+        CONFIGURATION is available until the first CONNECT; from then on it is disabled for the rest
+        of the run — it does NOT come back on DISCONNECT — with the one-line tooltip, and a press is
+        logged. CONNECT itself is restored on DISCONNECT: the configuration is still loaded.
+    """
+
+    window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(loaded=True))
+    button, connect = _Private(window, '__button_configuration'), _Private(window, '__button_connect')
+    assert button.isEnabled() and button.toolTip() == ''
+
+    _Private(window, '__On_Connect_Button_Clicked')()
+    _Pump_Until(lambda: _Private(window, '__camera').Connected and _Private(window, '__conn_thread') is None)
+    assert not button.isEnabled() and button.toolTip() == 'Restart to change configuration.'
+    _Private(window, '__On_Disconnect_Button_Clicked')()
+    assert not button.isEnabled() and button.toolTip() == 'Restart to change configuration.'
+    assert connect.isEnabled()                                          # restored: still loaded
+    _Press(button)
+    logger.Close()
+    log = _Log_Text(logger)
+    assert 'Configuration change refused: the camera has connected in this run. Restart to change configuration.' in log
+    assert "configuration '%s'" % os.path.basename(configurations['seg']) in log     # session-start line
+
+
+def test_the_dialog_lists_usable_configurations_and_logs_the_rest(qt_app, tmp_path, configurations) -> None:
+    """
+    Description:
+        The list holds the usable configurations by display name, the one in force marked (bold)
+        and selected, this camera's first; another camera's is shown greyed and cannot be chosen.
+        A file that cannot be loaded is not listed — it is logged at WARNING with its name and the
+        reason, once — and a YAML that is not a mode file is ignored.
+    """
+
+    logged = []
+    config = Load_Configuration(configurations['seg'])
+    dialog = Configuration_Dialog_Cls(_Fake_Vision_Cls(), config, log_cb=lambda l, m: logged.append((l, m)))
+    listed = dialog.findChild(QListWidget)
+    items = [listed.item(row) for row in range(listed.count())]
+    assert [item.text() for item in items] == ['Cfg. Box Prompts', 'Cfg. Segment Anything', 'Cfg. Bench Camera']
+    assert listed.currentItem() is items[1] and items[1].font().bold()
+    assert not items[2].flags() & Qt.ItemIsEnabled and 'Other hardware' in items[2].toolTip()
+    (level, message), = logged
+    assert level == 'WARNING' and os.path.basename(configurations['broken']) in message
+    assert 'Identity.Model_Set is required but missing' in message
+
+
+def test_an_empty_directory_says_so_where_the_list_would_be(qt_app, tmp_path, monkeypatch) -> None:
+    """
+    Description:
+        With no usable configuration the list is replaced by a message naming the directory searched
+        and saying CONNECT stays unavailable — and there is nothing to Load.
+    """
+
+    empty = tmp_path / 'Empty'
+    empty.mkdir()
+    monkeypatch.setattr(Dialog, 'CONST_CONFIG_DIR', str(empty))
+    config = Load_Configuration(_Mode_File(tmp_path, 'Seg_Anything'))
+    os.remove(config.Path)                                            # the one in force is gone too
+    dialog = Configuration_Dialog_Cls(_Fake_Vision_Cls(), config)
+    dialog.show()
+    assert not dialog.findChild(QListWidget).isVisible()
+    (text,) = [t for t in _Texts(dialog) if t.startswith('No usable configuration')]
+    assert 'CONNECT stays unavailable' in text and os.path.basename(str(empty)) in text
+    assert not {b.text(): b for b in dialog.findChildren(QPushButton)}['LOAD'].isEnabled()
+    dialog.reject()
+
+
+def test_loading_runs_off_the_gui_thread_then_confirms_what_was_loaded_and_closes(qt_app, tmp_path,
+                                                                                 configurations) -> None:
+    """
+    Description:
+        Load runs on a WORKER thread: the event loop keeps turning, 'Loading configuration…' and the
+        progress show, the controls are locked and the dialog refuses to close. It then confirms in
+        a sentence built from the configuration — the model set, camera, lens and lighting, nothing
+        about model files, load time or task — moves the marker, and closes itself.
+    """
+
+    vision = _Fake_Vision_Cls(delay=0.3)
+    config = Load_Configuration(configurations['seg'])
+    dialog = Configuration_Dialog_Cls(vision, config)
+    loaded, started = [], []
+    dialog.Configuration_Loaded.connect(lambda c, s: loaded.append(c))
+    dialog.Load_Started.connect(lambda: started.append(1))
+    ticks = []
+    timer = QTimer()
+    timer.timeout.connect(lambda: ticks.append(1))
+    timer.start(20)
+    dialog.show()
+    dialog.Select(configurations['box'])
+    dialog.Load()
+    buttons = {button.text(): button for button in dialog.findChildren(QPushButton)}
+    assert dialog.Loading and started and 'Loading configuration…' in _Texts(dialog)
+    assert dialog.findChild(QProgressBar).isVisible()
+    assert not buttons['LOAD'].isEnabled() and not buttons['CLOSE'].isEnabled()
+    dialog.reject()
+    assert dialog.isVisible()                                         # refused while loading
+    _Pump_Until(lambda: not dialog.Loading)
+    timer.stop()
+
+    assert vision.threads[0] != threading.get_ident() and len(ticks) >= 5
+    assert len(loaded) == 1 and loaded[0].Mode == 'Box'
+    (sentence,) = [t for t in _Texts(dialog) if t.startswith('Configuration loaded.')]
+    assert sentence == CONST_SENTENCE
+    listed = dialog.findChild(QListWidget)
+    assert listed.currentItem().text() == 'Cfg. Box Prompts' and listed.currentItem().font().bold()
+    assert not buttons['LOAD'].isEnabled()
+    _Pump_Until(lambda: not dialog.isVisible(), timeout=5)
+    assert not dialog.isVisible()                                     # closed itself
+
+
+def test_a_failed_load_says_so_and_the_previous_configuration_stays(qt_app, tmp_path, configurations) -> None:
+    """
+    Description:
+        When the configuration cannot be loaded the dialog says 'Configuration was not loaded.' with
+        the reason, stays open, and the window keeps its configuration; the error is logged.
+    """
+
+    reason = 'The FastSAM weights are missing. Cfg. Segment Anything is still in force, not loaded.'
+    window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(delay=0.05, fail=reason))
+    before = _Private(window, '__config')
+    dialog = _Load_Through_Dialog(window, configurations['box'])
+    dialog.show()
+    assert 'Configuration was not loaded. %s' % reason in _Texts(dialog)
+    assert _Private(window, '__config') is before
+    assert not _Private(window, '__button_connect').isEnabled()
+    dialog.reject()
+    logger.Close()
+    assert 'Configuration was not loaded. %s' % reason in _Log_Text(logger)
+
+
+def test_a_loaded_configuration_is_applied_and_logged(qt_app, tmp_path, configurations) -> None:
+    """
+    Description:
+        A loaded configuration is applied to the window — classification, the header's model set,
+        the camera — and logged with its calibration and background reference, and the detail the
+        dialog leaves out (model files, load time, task). Nothing is reset: nothing can have
+        accumulated before the first CONNECT.
+    """
+
+    def _Edit(data):
+        data['General']['Classification']['Enabled'] = True
+        data['Identity'].update(Display_Name='Cfg. Strict', Model_Set='JIC_AnyScan_Strict_v1')
+        data['Identity'].pop('Task')
+
+    strict = _Mode_File(configurations['dir'], 'Strict', edit=_Edit)
+    window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(delay=0.05))
+    _Load_Through_Dialog(window, strict)
+    config = _Private(window, '__config')
+    assert config.Mode == 'Strict' and _Private(window, '__classification_enabled') is True
+    assert _Private(window, '__label_model_name').text() == 'JIC_AnyScan_Strict_v1'
+    assert _Private(window, '__camera')._configuration_name == config.Name
+    logger.Close()
+    log = _Log_Text(logger)
+    assert "Loaded configuration '%s' ('Cfg. Strict'" % config.Name in log
+    assert 'reads calibration ' in log and 'Calibration_%s.yaml and background reference' % CONST_HARDWARE in log
+    assert 'background reference Data/Camera/Image_Background_001.png' in log
+    assert "Models loaded for '%s' (JIC_AnyScan_Strict_v1, task 'part inspection')" % config.Name in log
+    assert 'Identity.Task not set; using the default' in log
+    assert 'Run reset' not in log
+
+
+def _Dim_While_Open(window: AnyScan_Window_Cls, act: tp.Callable[[Configuration_Dialog_Cls], None]) -> tp.List[bool]:
+    """Open the dialog through the button (its real modal loop), run `act` inside it, and record
+    whether the window was dimmed while it was open."""
+    seen = []
+
+    def _Inside():
+        dialog = QApplication.activeModalWidget()
+        seen.append(_Private(window, '__scrim').isVisible())
+        act(dialog)
+
+    QTimer.singleShot(50, _Inside)
+    window.show()
+    _Private(window, '__On_Configuration_Button_Clicked')()
+    return seen
+
+
+def test_the_window_dims_behind_the_dialog_and_the_dim_lifts_on_every_close(qt_app, tmp_path,
+                                                                            configurations) -> None:
+    """
+    Description:
+        The window is dimmed while the dialog is open, and the dim lifts however it closes: CLOSE,
+        and Load's own close after a successful load. A close attempted mid-load is refused, so the
+        dim cannot be left behind by a dialog dismissed while loading — it lifts when the dialog
+        closes itself after the load.
+    """
+
+    window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(delay=0.3))
+    assert not _Private(window, '__scrim').isVisible()
+    assert _Dim_While_Open(window, lambda dialog: dialog.reject()) == [True]
+    assert not _Private(window, '__scrim').isVisible()
+
+    def _Load_Then_Try_To_Close(dialog):
+        dialog.Select(configurations['box'])
+        dialog.Load()
+        dialog.reject()                                               # mid-load: refused
+
+    assert _Dim_While_Open(window, _Load_Then_Try_To_Close) == [True]
+    assert not _Private(window, '__scrim').isVisible()
+    assert _Private(window, '__config').Mode == 'Box'
+    window.close()
+    logger.Close()
+
+
+def test_each_capture_set_records_its_configuration_reference_and_hardware(qt_app, tmp_path,
+                                                                          configurations) -> None:
+    """
+    Description:
+        Every capture set stores the configuration's name, the background reference it was
+        differenced against, and the camera, lens and lighting — what photographed it and what lit
+        it — and the set read back carries all three.
+    """
+
+    window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(loaded=True))
+    _Private(window, '__On_Connect_Button_Clicked')()
+    _Pump_Until(lambda: _Private(window, '__camera').Connected and _Private(window, '__conn_thread') is None)
+    _Private(window, '__On_Scan_Button_Clicked')()
+    setattr(window, CONST_MANGLE + '__current_set_id', '20260924-100000_1')
+    _Private(window, '__On_Analysis_Finished')(
+        Analysis_Str(Objects=[], Background='A plain surface.', Latency_Ms=100, Verdict='Empty',
+                     Verdict_Level='ok', Task='part inspection'))
+    logger.Close()
+
+    captures = os.path.join(str(tmp_path / 'log'), 'captures')
+    (metadata_path,) = [os.path.join(root, name) for root, _dirs, names in os.walk(captures)
+                        for name in names if name.endswith('_objects.json')]
+    with open(metadata_path, 'r', encoding='utf-8') as f:
+        metadata = json.load(f)
+    name = os.path.basename(configurations['seg'])
+    assert metadata['configuration'] == name and metadata['classification'] is False
+    assert metadata['background_reference'] == os.path.join('Data', 'Camera', 'Image_Background_001.png')
+    assert metadata['hardware'] == {'hardware': CONST_HARDWARE, 'camera': 'Basler a2A1920-51gcPRO',
+                                    'lens': 'Computar M1228-MPW3', 'lighting': 'Effilux EFFI-FD-200-200-000'}
+    (cap,) = Discover_Capture_Sets(captures)
+    assert (cap.Configuration, cap.Background_Reference) == (name, metadata['background_reference'])
+    assert cap.Hardware['lighting'] == 'Effilux EFFI-FD-200-200-000'

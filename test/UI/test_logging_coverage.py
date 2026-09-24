@@ -43,6 +43,11 @@ from Camera.Core import Camera_Backend_Cls, Camera_Error_Cls
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Reporting/Core
 from Reporting.Core import Screen_Understanding
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -53,6 +58,10 @@ Description:
     connection-lost ERROR. A real logger writes to tmp_path so the lines and files are read
     back. No camera hardware and no weights.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 CONST_MANGLE = '_AnyScan_Window_Cls'
 
@@ -104,7 +113,7 @@ def _Window(tmp_path, camera=None):
     """A window with a real logger writing to tmp_path and a working idle camera."""
     os.makedirs(str(tmp_path), exist_ok=True)
     logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), install_handlers=False)
-    window = AnyScan_Window_Cls(scale=None, camera=camera or _Idle_Camera_Cls(), logger=logger)
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=camera or _Idle_Camera_Cls(), logger=logger)
     return window, logger
 
 
@@ -321,8 +330,8 @@ def test_the_scanned_frames_distorted_original_reaches_the_capture_set(qt_app, t
 
     import json
     camera = _Undistorting_Camera_Cls()
+    window, logger = _Window(tmp_path, camera=camera)     # built before CONNECT, as in the app
     camera.Connect()
-    window, logger = _Window(tmp_path, camera=camera)
     _Private(window, '__On_Scan_Button_Clicked')()
     setattr(window, CONST_MANGLE + '__current_set_id', '20260923-100000_1')
     setattr(window, CONST_MANGLE + '__session_id', '20260923-095900_s1')

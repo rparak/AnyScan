@@ -24,6 +24,8 @@
 # System (Default)
 import os
 import warnings
+# Typing (Support for type hints)
+import typing as tp
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # Custom Lib.: AnyScan domain — the camera and vision backends, the result structure
@@ -32,8 +34,8 @@ from Camera.Core import File_Camera_Cls
 #   ../Vision/Core
 import Vision.Core as Vision_Core
 from Vision.Core import Vision_Pipeline_Cls
-#   ../Vision/Segmenter
-import Vision.Segmenter as Vision_Segmenter
+#   ../Configuration/Core — the shipped configuration the pipeline runs with
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
 #   ../Reporting/Core
@@ -52,6 +54,17 @@ Description:
 # Two rectangles drawn onto the reference to synthesize a frame with real objects.
 CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 
+
+
+def _Configuration(scaled: bool = False) -> tp.Any:
+    """
+    The shipped configuration with FastSAM on the CPU (portable), unscaled unless asked: every
+    stage runs with the parameters the application runs with.
+    """
+    import dataclasses
+    config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
+    config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
+    return config if scaled else dataclasses.replace(config, Scale=None)
 
 def test_pipeline_camera_to_reporting(reference_background_path, fake_backend) -> None:
     """
@@ -124,13 +137,11 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
         row names the describer that wrote the reading. The text itself is not asserted.
     """
 
-    import Vision.Describers as Describers
-    if not (os.path.isdir(Describers.CONST_GEMMA_MODEL_DIR)
-            and os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS)):
+    config = _Configuration()
+    if not (os.path.isdir(config.Description.Model_Path)
+            and os.path.isfile(config.Segmentation.Model_Path)):
         _Warn_Weights_Absent(request)
         return
-
-    monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
 
     # OpenCV library for computer vision tasks [pip3 install opencv-python]
     import cv2
@@ -139,7 +150,7 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
     image_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     h, w = image_rgb.shape[:2]
 
-    result = Vision_Pipeline_Cls(scale=None).Analyze(image_rgb)
+    result = Vision_Pipeline_Cls(Configuration_Str=config).Analyze(image_rgb)
 
     assert isinstance(result, Analysis_Str)
     assert len(result.Objects) == len(CONST_RECTS)
@@ -150,7 +161,7 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
         assert x + bw <= w and y + bh <= h
         # A described object always has a sentence; its exact words are not asserted.
         assert obj.Sentence
-    assert result.Task == Describers.Gemma_Describer_Cls.Task_Label
+    assert result.Task == config.Identity.Task
     assert result.Latency_Ms >= 0
 
 
@@ -170,7 +181,8 @@ def test_shadow_rejected_on_real_capture(request, monkeypatch, reference_backgro
         because it runs FastSAM; skips when the weights or the frame are absent.
     """
 
-    if not os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS):
+    config = _Configuration()
+    if not os.path.isfile(config.Segmentation.Model_Path):
         _Warn_Weights_Absent(request)
         return
     frame_path = os.path.join(os.path.dirname(reference_background_path), 'Image_004.png')
@@ -179,11 +191,10 @@ def test_shadow_rejected_on_real_capture(request, monkeypatch, reference_backgro
 
     import cv2
     import numpy as np
-    monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # count/mask only, no VLM
 
     scene_bgr = cv2.imread(frame_path)
-    result = Vision_Pipeline_Cls(scale=None).Analyze(cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB))
+    result = Vision_Pipeline_Cls(Configuration_Str=config).Analyze(cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB))
 
     assert len(result.Objects) == 1
     det = result.Objects[0]
@@ -211,7 +222,8 @@ def test_synthetic_harsh_shadow_not_absorbed_xfail(monkeypatch) -> None:
         skip is never mistaken for an unexpected pass.
     """
 
-    if not os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS):
+    params = _Configuration().Segmentation
+    if not os.path.isfile(params.Model_Path):
         pytest.skip('FastSAM weights absent')
 
     import cv2
@@ -219,7 +231,6 @@ def test_synthetic_harsh_shadow_not_absorbed_xfail(monkeypatch) -> None:
     from Vision.Utilities.Segmentation import Background_Foreground
     from Vision.Utilities.Fusion import Fuse_Objects
     from Vision.Segmenter import Fast_Sam_Cls
-    monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
 
     # Two objects 10 px apart (they merge after the closing), with a harsh cast
     # shadow abutting their lower edges — the parts end at y=520, the shadow reaches
@@ -234,9 +245,9 @@ def test_synthetic_harsh_shadow_not_absorbed_xfail(monkeypatch) -> None:
     cv2.ellipse(shadow_layer, (515, 560), (200, 80), 0, 0, 360, (0, 0, 0), thickness=-1)
     scene = cv2.addWeighted(scene, 0.6, shadow_layer, 0.4, 0.0)
 
-    background_fg = Background_Foreground(bg, scene, cv2, np)
-    masks, scores = Fast_Sam_Cls(device='cpu').Segment(scene, [])
-    objects = Fuse_Objects(masks, scores, background_fg, cv2, np)
+    background_fg = Background_Foreground(bg, scene, cv2, np, Segmentation_Parameters_Str=params)
+    masks, scores = Fast_Sam_Cls(params).Segment(scene, [])
+    objects = Fuse_Objects(masks, scores, background_fg, cv2, np, Segmentation_Parameters_Str=params)
 
     # Desired: no object's mask reaches past the parts (bottom edge y=520) into the
     # shadow band. Currently one object extends to ~y=641, so this fails (xfail).
@@ -259,14 +270,13 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(request, monkeypa
         extent marks it square). Slow because it runs FastSAM; skips when the weights are absent.
     """
 
-    if not os.path.isfile(Vision_Segmenter.CONST_SEGMENTER_WEIGHTS):
+    config = _Configuration(scaled=True)
+    if not os.path.isfile(config.Segmentation.Model_Path):
         _Warn_Weights_Absent(request)
         return
     import cv2
-    from Camera.Utilities.Configuration import Read_Conversion_Factor, CONST_BASLER_CONFIG_FILE
-    monkeypatch.setattr(Vision_Segmenter, 'CONST_SEGMENTER_DEVICE', 'cpu')
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # masks only, no VLM
-    backend = Vision_Pipeline_Cls(scale=Read_Conversion_Factor(CONST_BASLER_CONFIG_FILE))
+    backend = Vision_Pipeline_Cls(Configuration_Str=config)
     folder = os.path.dirname(reference_background_path)
 
     def _Analyze(name):

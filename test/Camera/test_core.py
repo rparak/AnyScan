@@ -23,6 +23,8 @@
 
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
+# Typing (Support for type hints)
+import typing as tp
 # Custom Lib.: AnyScan domain — camera backends
 #   ../Camera/Core
 import Camera.Core as Camera_Core
@@ -194,3 +196,68 @@ def test_distorted_original_belongs_to_one_frame_only() -> None:
         cam.Capture()
     assert cam.Last_Distorted_Frame is None and cam.Last_Undistortion is None
     assert File_Camera_Cls('/no/such/frame.png').Last_Distorted_Frame is None
+
+
+class _Fake_Device_Cls(object):
+    """A stand-in pypylon device: every Capture returns the same BGR frame."""
+
+    def __init__(self, frame) -> None:
+        self.frame = frame
+
+    def Capture(self):
+        return self.frame.copy()
+
+
+class _Identity_Processor_Cls(object):
+    """A stand-in image pipeline that passes the frame through."""
+
+    def Apply(self, image):
+        return image
+
+
+def _Basler_Grabbing(calibration) -> tp.Tuple[Basler_Camera_Cls, tp.Any]:
+    """A Basler backend with its device and pipeline stood in, so _Grab runs without hardware."""
+    import cv2
+    import numpy as np
+    frame = np.zeros((120, 160, 3), np.uint8)
+    cv2.rectangle(frame, (20, 20), (140, 100), (0, 0, 255), 2)
+    cam = Basler_Camera_Cls()
+    for name, value in (('__cam', _Fake_Device_Cls(frame)), ('__processor', _Identity_Processor_Cls()),
+                        ('__calib', calibration), ('__cv2', cv2), ('__np', np)):
+        setattr(cam, '_Basler_Camera_Cls' + name, value)
+    return cam, frame
+
+
+def test_a_camera_without_calibration_delivers_frames_without_undistortion() -> None:
+    """
+    Description:
+        A camera whose hardware has no calibration file yet (the state calibrate.py starts from)
+        does not crash on the missing K: the processed frame is delivered as it is, and there is no
+        separate distorted original or undistortion record, because nothing was undistorted.
+    """
+
+    import numpy as np
+    cam, frame = _Basler_Grabbing(None)
+    rgb = cam._Grab()
+    assert rgb.shape == frame.shape and np.array_equal(rgb[..., ::-1], frame)
+    assert cam.Last_Distorted_Frame is None and cam.Last_Undistortion is None
+    assert cam.Resolution == (160, 120)
+
+
+def test_a_calibrated_camera_still_undistorts_and_records_how() -> None:
+    """
+    Description:
+        With a calibration the frame is undistorted and the original kept, with the record of the
+        undistortion that was applied — the path the no-calibration branch must not have disturbed.
+    """
+
+    import numpy as np
+    from Parameters.Camera import Camera_Calibration_Parameters_Str
+    calibration = Camera_Calibration_Parameters_Str(
+        K=np.array([[200.0, 0.0, 80.0], [0.0, 200.0, 60.0], [0.0, 0.0, 1.0]]),
+        Coefficients={'k1': -0.3, 'k2': 0.1, 'p1': 0.0, 'p2': 0.0, 'k3': 0.0})
+    cam, frame = _Basler_Grabbing(calibration)
+    rgb = cam._Grab()
+    assert not np.array_equal(rgb[..., ::-1], frame)                   # the lens model was applied
+    assert np.array_equal(cam.Last_Distorted_Frame[..., ::-1], frame)
+    assert cam.Last_Undistortion['coefficients']['k1'] == -0.3

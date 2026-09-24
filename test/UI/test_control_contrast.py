@@ -44,6 +44,11 @@ from Camera.Core import File_Camera_Cls
 # Custom Lib.: AnyScan domain — the palette's contrast and ΔE maths
 #   ../Parameters/Theme
 import Parameters.Theme as Theme
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -60,6 +65,10 @@ Description:
     full colour, and measured in the label area: the background is the dominant colour there, the
     label the pixel of highest contrast against it.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 # The window's name-mangling prefix, for reaching its private widgets.
 #   Unit [string]
 CONST_MANGLE = '_AnyScan_Window_Cls'
@@ -286,7 +295,7 @@ def Measure_All(window: AnyScan_Window_Cls) -> tp.List[tp.Dict[str, tp.Any]]:
 def records() -> tp.List[tp.Dict[str, tp.Any]]:
     """Every control state measured once, from one shown and active window."""
     app = QApplication.instance() or QApplication([])
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(CONST_REFERENCE_BACKGROUND))
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(CONST_REFERENCE_BACKGROUND))
     window.show()
     QApplication.setActiveWindow(window)
     # Keyboard focus is what draws a focus indicator; set it as a Tab would.

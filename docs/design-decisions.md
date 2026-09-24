@@ -963,3 +963,107 @@ has to do it alone. Also revisit it if the console moves to a different Qt versi
 simulation was checked against Qt 5.15's `QPushButton` only, so on another version, confirm the
 hovered renders still differ from the resting ones first. The test's self-check fails if they
 don't.
+
+## One configuration file per mode, one calibration per camera, decided before the first CONNECT
+
+**The layout.** A configuration is one file per mode on one camera:
+`Config_<Hardware>_Mode_<Mode>.yaml`. The hardware comes first so camera-specific data still
+separates by camera, and the mode comes after so it stays visible. It holds everything a user
+may change without touching code:
+
+- segmentation, fusion and the background reference
+- the describer's model, prompts and limits
+- the configuration's display name, model set and Task
+- the confidence thresholds
+- the camera block: acquisition settings, and the camera, lens and lighting as a person names them
+
+Every value that moved into the file from a module constant kept its value. The shipped file sets
+each one explicitly, and `test/Configuration` pins them.
+
+**One reader, the whole file.** `Configuration.Core.Load_Configuration` is the **only** reader. It
+supersedes the readers named in earlier entries (`Read_Classification_Enabled`,
+`Read_Conversion_Factor`, `Read_Describer_Prompts`) and `Describer_Prompts.yaml`. It validates the
+whole file and raises once with every problem listed, so a file wrong halfway through is never
+applied halfway.
+
+- A **required** field has no default: its absence fails the load, naming it. The required fields
+  are the hardware, both model paths, both prompts, the display name and model set, the camera's
+  acquisition settings and the background reference.
+- An **optional** field takes its documented default and says so in the log.
+- A value that is **present but invalid** fails the load. **This strictness is deliberate.** The old
+  readers read a non-boolean `Classification.Enabled` as false, and a negative conversion factor as
+  "no measurement". Both were silent wrong answers, not tolerance. Do not restore the lenient
+  parsing as a bug fix.
+- An **unrecognised key** is a warning, because a misspelt optional field would otherwise default
+  in silence.
+
+**Calibration lives once per camera, and is optional as a whole.**
+- It is in `Calibration_<Hardware>.yaml`, and every mode naming that hardware reads it. With a copy
+  inside each mode file, recalibrating one mode would leave the other measuring with a stale scale,
+  silently. That is the failure the measurement work exists to prevent.
+- A hardware **without** a calibration file loads with a warning to run `calibrate.py`. Frames are
+  not undistorted, because the camera passes them through when there is no K. Objects are not
+  measured. This is the honest degraded state. It is also what lets `calibrate.py --capture` run for
+  a new camera: otherwise the tool that produces calibration would refuse to run without one.
+- A calibration file that **exists** must be complete.
+- `calibrate.py` writes the calibration file and nothing else. `Write_Calibration` refuses to
+  overwrite keys it doesn't own; its predecessor assumed its block was last in the file and rewrote
+  everything below it.
+
+**The background reference is stated, never discovered.** `Segmentation.Background.Reference` is
+required, and its file must exist. It is the one path checked at load, because the repository
+tracks it; models are only checked when they load. The reference decides every
+background-subtraction result, and without it the pipeline loses one of its two fusion cues.
+
+The glob (`Image_Background_*.png`) and its highest-index selection rule were **removed**, along
+with `--background` on `run.py` and `analyze.py`. They existed to resolve an ambiguity — several
+references, which one? — that the field now ends. Two ways of choosing the reference would bring
+the ambiguity back, so **do not reintroduce discovery as a convenience**. The reference is logged
+beside the calibration on every load and recorded in every capture set.
+
+**Keyed by hardware.** The run-summary CSV is `log_<Hardware>.csv`, which keeps the existing file
+name, and two modes share it. That is safe because the row is a time account. The CSV path is fixed
+when the logger starts, so the dialog greys out configurations for other hardware; changing camera
+means restarting with `--config`.
+
+**Configuration is decided before the first CONNECT, and fixed for the run.**
+- CONNECT is disabled until a configuration is loaded: the camera settings, the calibration and the
+  models all come from it. ANALYZE requires it too, structurally, not only through the frame it
+  needs.
+- The application starts with its configuration named but not loaded. The dialog is always used
+  once, which makes the choice explicit and means a launch to browse History costs no ~9 s and no
+  ~9.4 GB.
+- After the first CONNECT, CONFIGURATION is disabled for the rest of the run, including after
+  DISCONNECT; changing configuration means restarting. A run's measurements can therefore never span
+  two configurations, and nothing ever needs resetting on a load.
+- Both disabled buttons carry a one-line tooltip, and a press on either is logged as a refusal.
+- The UI speaks of **loading a configuration**. The models are how a configuration is loaded, not
+  something the operator chooses. The dialog says what was loaded in a sentence built from the
+  configuration's own fields (model set, camera, lens, lighting). Model files, load time and task go
+  to the log.
+
+**Lighting is data.** `Camera.Lighting` sits beside `Camera.Model` and `Camera.Lens`, and each
+capture set records all three. The describer's colour readings, the background subtraction and the
+surface-condition descriptions depend on the lighting, so a capture set that couldn't say what lit
+it would be missing something a future comparison needs.
+
+**Models are released before a replacement loads.** A mode that keeps the same weights reuses them
+(measured at 0.00 s). A model that changes is released **before** its replacement loads: two
+describers would need ~19 GB on a 17 GB machine. The cost is that a failed load must reload the
+previous configuration's models to keep it in force, and the failure message says whether it is
+loaded. Measured on the real weights:
+
+| Measurement | Result |
+|---|---|
+| Load on a worker thread | 6.8 s |
+| Analyse on another thread | 5.8 s, with no load stage |
+| GPU memory after a failed swap and reload | back at 5.15 GB |
+
+**Past sets are coloured by today's thresholds.** A capture set in History has its confidence
+numbers coloured by the thresholds in force **now**, not those in force when it was captured. That
+is defensible because the thresholds are a viewing preference. The numbers themselves are stored
+unchanged, and each set names its configuration.
+
+Revisit the startup-only rule if a configuration ever has to change mid-run (it would need
+per-configuration run data). Revisit the hardware greying if the CSV path is ever resolved at
+shutdown rather than at startup.

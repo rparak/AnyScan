@@ -46,6 +46,11 @@ from Camera.Core import File_Camera_Cls
 from Vision.Core import Vision_Backend_Cls
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str, Detection_Str
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -55,6 +60,10 @@ Description:
     cross-thread signal handoff, and the window's closeEvent teardown is exercised
     while an analysis is still running. No camera and no model weights are needed.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 # The window's name-mangling prefix, for reaching its private state.
 CONST_MANGLE = '_AnyScan_Window_Cls'
@@ -228,7 +237,7 @@ def test_closeevent_stops_a_running_analysis_thread(qt_app, reference_background
         must never appear.
     """
 
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
     # Inject a blocking backend and a frame so an analysis genuinely starts and runs.
     setattr(window, CONST_MANGLE + '__vision', _Blocking_Vision_Cls(0.3))
     camera = _Private(window, '__camera')
@@ -285,7 +294,7 @@ def test_view_toggle_available_only_after_the_worker_delivers(qt_app, reference_
         thread — never mid-flight.
     """
 
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
     setattr(window, CONST_MANGLE + '__vision', _Blocking_Vision_Cls(0.2))
     camera = _Private(window, '__camera')
     camera.Connect()
@@ -319,7 +328,7 @@ def test_two_analyses_in_quick_succession_do_not_mix(qt_app, reference_backgroun
         is ignored (a single run is serviced), so both held renders come from one run.
     """
 
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
     vision = _Blocking_Vision_Cls(0.2)
     setattr(window, CONST_MANGLE + '__vision', vision)
     camera = _Private(window, '__camera')

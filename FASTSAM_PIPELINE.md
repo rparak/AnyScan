@@ -60,7 +60,7 @@ the flat green reference), never against hardware. See `KNOWN_ISSUES.md`.
 - `CONST_FILTER_CHANGE_COVERAGE = 0.35` and `CONST_SEG_MASK_DILATE_KERNEL = 5` —
   validated on a degenerate distribution (objects ~1.0, shadow 0.0); real-object
   coverage is unknown.
-- Everything-mode at the default `CONST_SEGMENTER_CONF`, the NMS overlap threshold,
+- Everything-mode at the configured `Segmentation.Confidence`, the NMS overlap threshold,
   and the area / border limits.
 
 ## Needs a real capture before shop-floor trust

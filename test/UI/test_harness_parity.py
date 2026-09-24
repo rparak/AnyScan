@@ -45,14 +45,19 @@ from UI.Core import AnyScan_Window_Cls
 from Logger.Core import Session_Logger_Cls
 #   ../Camera/Core
 from Camera.Core import File_Camera_Cls
-#   ../Camera/Utilities/Configuration
-import Camera.Utilities.Configuration as Configuration
+#   ../Configuration/Core
+import Configuration.Core as Configuration
 #   ../Vision/Utilities/Annotate
 import Vision.Utilities.Annotate as Annotate
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
 #   ../Parameters/Theme
 from Parameters.Theme import Verdict_Color, Detection_Color, Hex_To_Bgr
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -63,6 +68,10 @@ Description:
     the harness reads the flag through the app's own configuration layer; and that the renderers
     cannot be called without stating the mode.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 # The window's name-mangling prefix, for reaching its private state.
 CONST_MANGLE = '_AnyScan_Window_Cls'
@@ -87,14 +96,23 @@ def _Objects(shape) -> list:
                           Segmenter_Score=0.9, Sentence='A part.')]
 
 
+class _Loaded_Vision_Cls(object):
+    """A stand-in vision backend whose models are already loaded; it is never asked to analyse."""
+    Name, Models_Loaded, Model_Names = 'JIC-AnyScan-v1', True, ('FastSAM-x.pt', 'gemma')
+
+
 def _Ui_Written_Mask(reference_background_path: str, log_dir: str,
                      classification_enabled: bool) -> np.ndarray:
     """The label mask the WINDOW writes to its capture set for one analysis (BGR, as on disk)."""
     app = QApplication.instance()
     logger = Session_Logger_Cls(config_path=None, log_dir=log_dir, install_handlers=False)
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path), logger=logger,
-                                classification_enabled=classification_enabled)
+    configuration = dataclasses.replace(CONST_CONFIGURATION, Classification_Enabled=classification_enabled)
+    window = AnyScan_Window_Cls(Configuration_Str=configuration, camera=File_Camera_Cls(reference_background_path),
+                                logger=logger)
     private = lambda name: getattr(window, CONST_MANGLE + name)
+    # The analysis is injected below, so no model runs: a stand-in pipeline reports its models
+    # loaded, and CONNECT goes straight to the camera instead of loading ~9 GB of weights.
+    setattr(window, CONST_MANGLE + '__vision', _Loaded_Vision_Cls())
     private('__On_Connect_Button_Clicked')()
     deadline = time.time() + 10
     while private('__conn_thread') is not None and time.time() < deadline:
@@ -136,15 +154,16 @@ def test_harness_mask_fill_matches_the_window_for_the_same_flag(qt_app, referenc
     assert np.array_equal(harness_mask, ui_mask)
 
 
-def test_harness_reads_the_flag_through_the_application_config_layer() -> None:
+def test_harness_loads_its_configuration_through_the_application_config_layer() -> None:
     """
     Description:
-        The harness reads General.Classification.Enabled through the SAME function and the SAME
-        default configuration file as the application launcher — not a copy, and not a default.
+        The harness loads its configuration — the classification flag, the stage parameters, the
+        scale — through the SAME function and the SAME default file as the application launcher:
+        not a copy, and not a default.
     """
 
-    assert analyze.Read_Classification_Enabled is Configuration.Read_Classification_Enabled
-    assert analyze.CONST_BASLER_CONFIG_FILE == Configuration.CONST_BASLER_CONFIG_FILE
+    assert analyze.Load_Configuration is Configuration.Load_Configuration
+    assert analyze.CONST_DEFAULT_CONFIG_FILE == Configuration.CONST_DEFAULT_CONFIG_FILE
 
 
 def test_renderers_cannot_be_called_without_stating_the_mode() -> None:

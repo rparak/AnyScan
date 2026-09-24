@@ -38,6 +38,11 @@ from UI.Core import AnyScan_Window_Cls
 from Camera.Core import File_Camera_Cls
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Analysis_Str
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -46,6 +51,10 @@ Description:
     failed analysis advances neither; unscored objects never reach the confidence chart; and
     Clear empties the charts with the aggregates. No camera and no weights needed.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 # The window's name-mangling prefix, for reaching its private state.
 CONST_MANGLE = '_AnyScan_Window_Cls'
@@ -71,7 +80,7 @@ def _Result(scores) -> Analysis_Str:
 
 def _Window(reference_background_path) -> AnyScan_Window_Cls:
     """A window with a frame set, ready to receive completed analyses."""
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
     setattr(window, CONST_MANGLE + '__frame', np.zeros((20, 30, 3), dtype=np.uint8))
     return window
 

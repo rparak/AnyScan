@@ -41,7 +41,8 @@ byte-for-byte (SHA-256 / git blob hash) against the local weights, and the comma
 dry-run (10 files, 5.2 GB).
 
 The Gemma weights are under the Gemma Terms of Use, **not** MIT (see [Licence
-note](#licence-note)). The describer's prompts live in `Configuration/Describer_Prompts.yaml`.
+note](#licence-note)). The describer's prompts live in the configuration file (see
+[Configuration](#configuration)).
 See `models/.gitkeep` for the expected directory contents.
 
 The vision pipeline's segmentation stage also loads a local **FastSAM-x** model
@@ -70,9 +71,9 @@ degrades one step at a time rather than failing at startup. `F11` toggles
 fullscreen, `Esc` closes.
 
 For a run without the camera, pass a real frame previously saved from it. The
-pipeline differences the frame against the reference background, so the frame
-must match that background's resolution — 1920×1200 (ANALYZE still needs the
-model weights):
+pipeline differences the frame against the configured reference background, so the
+frame must match that background's resolution — 1920×1200 (a configuration must still be
+loaded, which needs the model weights):
 
 ```bash
 python App/run.py --frame path/to/frame.png
@@ -80,6 +81,65 @@ python App/run.py --frame path/to/frame.png
 
 Without Inter and JetBrains Mono installed, the nearest system faces are used.
 The layout holds either way; the metrics shift slightly.
+
+## Configuration
+
+Everything a user can change without touching code lives in one file per mode,
+`Configuration/Config_<Hardware>_Mode_<Mode>.yaml`, for example
+`Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml`. The hardware comes first so
+camera-specific data still separates by camera; the mode comes after, so it is visible. The file
+holds:
+
+- **Identity:** the name shown in the Configuration dialog ("Cfg. Segment Anything"), the model set
+  shown in the header ("JIC_AnyScan_All_v1"), and the Task a reading is labelled with.
+- **Segmentation:**
+  - the FastSAM model and its settings (device, mode, confidence, IoU, image size)
+  - the **background reference** (`Segmentation.Background.Reference`) every frame is differenced
+    against
+  - the background-difference and fusion parameters
+- **Description:** the Gemma model, the two prompts, temperature, max tokens, the background crop
+  margin and the background-sentence limits.
+- **Confidence:** the 80% / 60% warning and error thresholds.
+- **General.Classification.**
+- **Camera:** acquisition settings, and the camera, lens and lighting as a person names them.
+
+The calibration is not in the mode file. It lives once per camera in
+`Configuration/Calibration_<Hardware>.yaml`, and every mode on that hardware shares it, as it
+shares the run summary (`logger/log_<Hardware>.csv`). A camera with no calibration file yet still
+loads, with a warning: frames are not undistorted and sizes are not reported until
+`Example/Camera/calibrate.py` has created the file.
+
+`Configuration.Core.Load_Configuration` is the only code that reads these files. It checks the whole
+file before anything is applied:
+
+- A missing **required** field (the hardware, a model path, the background reference, a prompt,
+  the display name or model set, the camera's acquisition settings) fails the load and names it.
+- A missing **optional** field takes the default written in the file's comments, and the log says so.
+- A value that is present but invalid fails the load; it never falls back to a default.
+
+**Order of a run:**
+
+1. The application starts with its configuration (`--config`, default above) named but **not
+   loaded**. The header's model pill reads *Configuration not loaded.* (dashed outline), and
+   CONNECT is unavailable until a configuration is loaded.
+2. **CONFIGURATION** opens a dialog listing the configurations in `Configuration/` by name, with the
+   one in force marked. Pick one and press **Load**: it loads in the background with a progress bar,
+   then says what was loaded and closes. On failure it says why, and the previous configuration
+   stays in force.
+   - Files that cannot be loaded are not listed; the log names each with the reason.
+   - Configurations for other hardware are shown greyed; changing camera means restarting with
+     `--config`.
+3. The header reads *Configuration loaded.* and CONNECT becomes available.
+4. After the first CONNECT, the configuration is fixed for the rest of the run. Changing it means
+   restarting the application. The configuration's name is on the session-start log line, and every
+   capture set records the configuration, its background reference, and the camera, lens and
+   lighting.
+
+Recalibrating writes a new `Calibration_<Hardware>_calib-<date>.yaml` beside the one in force; a
+camera's first calibration goes straight into place. Pass `--write-calibration` to overwrite the one
+in force instead: `python Example/Camera/calibrate.py --images DIR ... [--write-calibration]`.
+(`--write-config`, the old name, now fails with a message naming the new one.) The writer refuses to
+overwrite a calibration file holding anything it does not own.
 
 ## Tests
 
@@ -220,8 +280,10 @@ than silently leaving a gap, so a broken asset path is visible immediately.
 - `Reporting/` — the report composer, the panel's one voice.
 - `UI/` — the widgets, the window, the threaded workers and the style helpers.
 - `Parameters/Vision.py` — the app's data structures (`Detection_Str`, `Analysis_Str`);
-  `Parameters/Camera.py` — the camera / calibration structures, populated from
-  `Configuration/*.yaml` by `Camera/Utilities/Configuration.py` (the camera backend reads it).
+  `Parameters/Camera.py` — the camera / calibration structures; `Parameters/Configuration.py`
+  — the loaded configuration (`Configuration_Str`) and its documented defaults.
+- `Configuration/` — `Configuration/Core.py`, the one reader of `Configuration/*.yaml` (and
+  the calibration writer). Every module receives its settings from it.
 
 These are the Qt-free domain modules plus the Qt UI; `App/run.py` imports only
 these, and the domain half imports with PyQt5 unavailable (a tested contract).
@@ -236,7 +298,7 @@ application; reached only from `Example/`:
 camera and calibrate it — but the app itself never imports `Transformation/` or
 `Calibration/`. That is why those modules are held to a lighter style touch than
 the app. The camera setup itself lives in `Configuration/*.yaml`, read and written
-through `Camera/Utilities/Configuration.py`.
+through `Configuration/Core.py`.
 
 ## Platform
 
@@ -295,7 +357,8 @@ Both hardware-facing parts sit behind an interface, so a replacement touches one
 
 ## Licence note
 
-The model is presented as `JIC-AnyScan-v1`. The describer's weights are Google's Gemma 4
+The models are presented as the configuration's model set (`Identity.Model_Set`, shipped as
+`JIC_AnyScan_All_v1`). The describer's weights are Google's Gemma 4
 E4B (via the `mlx-community` 4-bit MLX conversion), governed by the **Gemma Terms of Use**
 (<https://ai.google.dev/gemma/terms>) and its Prohibited Use Policy — **not** the MIT licence
 of this repository's code. They are not redistributed with the repository (`models/` is

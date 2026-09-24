@@ -38,6 +38,11 @@ from Camera.Core import File_Camera_Cls
 from Vision.Core import Vision_Backend_Cls
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
+# Dataclasses (the shipped configuration, unscaled, for the window)
+import dataclasses
+# Custom Lib.: AnyScan — the configuration layer the window is built from
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -48,6 +53,10 @@ Description:
     chosen view persists across a second analysis; and a stale frame (a new scan or a
     disconnect) drops the renders and hides the toggle. No camera and no weights needed.
 """
+# The window's configuration: the shipped one, loaded through the configuration layer, without a
+# scale (nothing measured) — what these tests built the window with before configurations existed.
+#   Unit [Configuration_Str(object)]
+CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 # The window's name-mangling prefix, for reaching its private state.
 CONST_MANGLE = '_AnyScan_Window_Cls'
@@ -81,7 +90,7 @@ def _Private(window, name: str):
 
 def _Scanned_Window(reference_background_path):
     """A window with the camera connected, a frame scanned, and a counting backend."""
-    window = AnyScan_Window_Cls(scale=None, camera=File_Camera_Cls(reference_background_path))
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
     setattr(window, CONST_MANGLE + '__vision', _Counting_Vision_Cls())
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()

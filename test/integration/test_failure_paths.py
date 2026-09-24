@@ -23,6 +23,10 @@
 
 # System (Default)
 import os
+# Dataclasses (a configuration copy pointed at a missing model)
+import dataclasses
+# Typing (Support for type hints)
+import typing as tp
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
 # Pytest (Testing framework) [pip3 install pytest]
@@ -31,6 +35,9 @@ import pytest
 #   ../Vision/Core
 import Vision.Core as Vision_Core
 from Vision.Core import Vision_Pipeline_Cls, Vision_Error_Cls
+# Custom Lib.: AnyScan — the configuration layer
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -40,6 +47,11 @@ Description:
     raw traceback the panel could not print.
 """
 
+
+
+def _Configuration() -> tp.Any:
+    """The shipped configuration, unscaled — the pipeline runs with the application's parameters."""
+    return dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 @pytest.mark.slow
 def test_missing_model_directory_surfaces_cleanly(reference_background) -> None:
@@ -54,14 +66,11 @@ def test_missing_model_directory_surfaces_cleanly(reference_background) -> None:
 
     image_rgb = cv2.cvtColor(reference_background, cv2.COLOR_BGR2RGB)
 
-    import Vision.Describers as Describers
-    original = Describers.CONST_GEMMA_MODEL_DIR
-    Describers.CONST_GEMMA_MODEL_DIR = '/no/such/model/directory'
-    try:
-        with pytest.raises(Vision_Error_Cls, match='/no/such/model/directory'):
-            Vision_Pipeline_Cls(scale=None).Analyze(image_rgb)
-    finally:
-        Describers.CONST_GEMMA_MODEL_DIR = original
+    config = _Configuration()
+    config = dataclasses.replace(config, Description=dataclasses.replace(
+        config.Description, Model_Path='/no/such/model/directory'))
+    with pytest.raises(Vision_Error_Cls, match='/no/such/model/directory'):
+        Vision_Pipeline_Cls(Configuration_Str=config).Analyze(image_rgb)
 
 
 @pytest.mark.slow
@@ -74,13 +83,13 @@ def test_frame_size_mismatch_surfaces_cleanly(reference_background) -> None:
         the model has loaded; skipped otherwise.
     """
 
-    import Vision.Describers as Describers
-    if not os.path.isdir(Describers.CONST_GEMMA_MODEL_DIR):
-        pytest.skip(f'model weights not present at {Describers.CONST_GEMMA_MODEL_DIR}')
+    config = _Configuration()
+    if not os.path.isdir(config.Description.Model_Path):
+        pytest.skip(f'model weights not present at {config.Description.Model_Path}')
 
     # A frame deliberately a different size from the reference background.
     h, w, _ = reference_background.shape
     wrong_size = np.zeros((h // 2, w // 2, 3), dtype=np.uint8)
 
     with pytest.raises(Vision_Error_Cls):
-        Vision_Pipeline_Cls(scale=None).Analyze(wrong_size)
+        Vision_Pipeline_Cls(Configuration_Str=config).Analyze(wrong_size)

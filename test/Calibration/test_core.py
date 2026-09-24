@@ -23,10 +23,13 @@
 
 # System (Default)
 import os
+import sys
 import json
 import math
 import shutil
 import importlib.util
+# Typing (Support for type hints)
+import typing as tp
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
 import cv2
 # Numpy (Array computing) [pip3 install numpy]
@@ -38,9 +41,9 @@ import pytest
 import Calibration.Core as Calibration_Core
 from Calibration.Core import (Detect_Board, Next_Capture_Name, Record_Capture, Calibrate,
                               Report_Lines, Calibration_Error_Cls, Calibration_Parameters)
-#   ../Camera/Utilities/Configuration
-from Camera.Utilities.Configuration import (Read_Configuration, Read_Conversion_Factor,
-                                            Write_Calibration, CONST_BASLER_CONFIG_FILE)
+#   ../Configuration/Core — the configuration layer the calibration is written and read through
+from Configuration.Core import (Load_Configuration, Write_Calibration, Calibration_Path_For,
+                                CONST_DEFAULT_CONFIG_FILE)
 
 """
 Description:
@@ -160,7 +163,7 @@ def test_capture_harness_keeps_every_frame_and_marks_them_distorted(tmp_path, mo
     keys = iter(['f', 'x', 't', 'q'])
     monkeypatch.setattr(calibrate, 'Basler_Cls', _Camera_Cls)
     monkeypatch.setattr('builtins.input', lambda prompt='': next(keys))
-    assert calibrate.Capture_Main(str(tmp_path)) == 0
+    assert calibrate.Capture_Main(str(tmp_path), CONST_DEFAULT_CONFIG_FILE) == 0
 
     assert sorted(os.listdir(tmp_path)) == ['capture.json', 'flat_001.png', 'view_002.png']
     manifest = json.loads((tmp_path / 'capture.json').read_text())
@@ -323,65 +326,120 @@ def test_no_flat_view_fails_loudly(render) -> None:
         Calibrate(_Tilted(render), CONST_RENDER_SQUARE, 0.0, CONST_SQUARES)
 
 
-def test_result_goes_to_a_new_file_and_leaves_the_configuration_in_force(tmp_path, solved) -> None:
+def _Configuration_Copy(directory: tp.Any) -> tp.Tuple[str, str]:
+    """A copy of the shipped mode file and its hardware's calibration in a directory: (mode, calibration)."""
+    hardware = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
+    mode = os.path.join(str(directory), 'Config_%s_Mode_Test.yaml' % hardware)
+    shutil.copy(CONST_DEFAULT_CONFIG_FILE, mode)
+    calibration = Calibration_Path_For(mode, hardware)
+    shutil.copy(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware), calibration)
+    return mode, calibration
+
+
+def test_result_goes_to_a_new_calibration_file_and_leaves_the_one_in_force(tmp_path, solved) -> None:
     """
     Description:
-        Writing a solved calibration to a new file copies the source's header, regenerates the
-        block with the solve's record (views, RMS, square size, board height), reads back through
-        the configuration layer, and leaves the source byte-for-byte unchanged.
+        Writing a solved calibration to a new file copies the header of the calibration in force,
+        regenerates the block with the solve's record (views, RMS, square size, board height), and
+        leaves the calibration in force and the mode file byte-for-byte unchanged. Adopted (moved
+        over the one in force), it reads back through the configuration layer.
     """
 
     import yaml
-    source = tmp_path / 'Config_test.yaml'
-    shutil.copy(CONST_BASLER_CONFIG_FILE, source)
-    before = source.read_bytes()
-    output = tmp_path / 'Config_test_calib-1.yaml'
+    mode, in_force = _Configuration_Copy(tmp_path)
+    before = (open(mode, 'rb').read(), open(in_force, 'rb').read())
+    output = tmp_path / 'Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_calib-1.yaml'
     record = {'date': '2026-09-23T10:00:00', 'images': str(tmp_path), 'rms_px': solved.Rms_Px,
               'views': {'total': 11, 'flat': 3, 'tilted': 8}, 'square_mm': 12.0, 'board_height_mm': 4.5}
-    assert Write_Calibration(Calibration_Parameters(solved), str(source), output_path=str(output),
-                             record=record)
-    assert source.read_bytes() == before
-    written = yaml.safe_load(output.read_text())['Camera']['Calibration']
+    assert Write_Calibration(Calibration_Parameters(solved), hardware='a2A1920_51gcPRO_Computar_M1228_MPW3',
+                             header_source=in_force, output_path=str(output), record=record)
+    assert (open(mode, 'rb').read(), open(in_force, 'rb').read()) == before
+    written = yaml.safe_load(output.read_text())['Calibration']
     assert written['Solved']['Views'] == {'Total': 11, 'Flat': 3, 'Tilted': 8}
     assert written['Solved']['Board_Height_Mm'] == 4.5 and written['Solved']['Square_Size_Mm'] == 12.0
-    scale = Read_Conversion_Factor(str(output))
-    assert (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y) == pytest.approx(solved.Factor)
-    assert Read_Configuration(str(output)).Calibration.K[0, 2] == pytest.approx(solved.K[0, 2])
+
+    shutil.move(str(output), in_force)                            # adopt it
+    config = Load_Configuration(mode)
+    assert (config.Scale.Mm_Per_Px_X, config.Scale.Mm_Per_Px_Y) == pytest.approx(solved.Factor)
+    assert config.Camera.Calibration.K[0, 2] == pytest.approx(solved.K[0, 2])
 
 
-def test_images_harness_writes_a_new_file_and_says_adoption_is_separate(tmp_path, monkeypatch,
-                                                                        render, capsys) -> None:
+def test_images_harness_writes_a_new_calibration_and_says_adoption_is_separate(tmp_path, render,
+                                                                               capsys) -> None:
     """
     Description:
         'calibrate.py --images DIR' prints the report, writes the result to a new
-        '<config>_calib-<date>.yaml', leaves the configuration in force untouched and says that
-        adopting it is a separate step (run.py hardcodes its path). An all-tilted directory fails
-        with exit code 1 and no file.
+        'Calibration_<Hardware>_calib-<date>.yaml' — and nothing else: the calibration in force and
+        the mode file are untouched — and says adopting it is a separate step shared by every mode
+        on the hardware. An all-tilted directory fails with exit code 1 and no file.
     """
 
     spec = importlib.util.spec_from_file_location(
         'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
     calibrate = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(calibrate)
-    config = tmp_path / 'Config_test.yaml'
-    shutil.copy(CONST_BASLER_CONFIG_FILE, config)
-    before = config.read_bytes()
-    monkeypatch.setattr(calibrate, 'CONST_BASLER_CONFIG_FILE', str(config))
+    mode, in_force = _Configuration_Copy(tmp_path)
+    before = (open(mode, 'rb').read(), open(in_force, 'rb').read())
     images = tmp_path / 'images'
     images.mkdir()
     for name, image in _Flats(render) + _Tilted(render):
         cv2.imwrite(str(images / name), image)
 
-    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False) == 0
+    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False, mode) == 0
     out = capsys.readouterr().out
-    assert 'PRINCIPAL POINT' in out and 'run.py hardcodes its path' in out and 'Caliper' in out
-    assert config.read_bytes() == before
-    written = [name for name in os.listdir(tmp_path) if name.startswith('Config_test_calib-')]
+    assert 'PRINCIPAL POINT' in out and 'separate, deliberate step' in out and 'Caliper' in out
+    assert (open(mode, 'rb').read(), open(in_force, 'rb').read()) == before
+    written = [name for name in os.listdir(tmp_path) if name.startswith('Calibration_') and '_calib-' in name]
     assert len(written) == 1
+    assert sorted(os.listdir(tmp_path)) == sorted([os.path.basename(mode), os.path.basename(in_force),
+                                                   'images'] + written)
 
     for name in os.listdir(images):
         if name.startswith('flat_'):
             os.remove(images / name)
-    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False) == 1
+    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False, mode) == 1
     assert '[ERROR]' in capsys.readouterr().out
-    assert len([n for n in os.listdir(tmp_path) if n.startswith('Config_test_calib-')]) == 1
+    assert len([n for n in os.listdir(tmp_path) if '_calib-' in n]) == 1
+
+
+def test_a_first_calibration_is_written_straight_into_force(tmp_path, render, capsys) -> None:
+    """
+    Description:
+        A camera with no calibration yet (its configuration loads uncalibrated) has nothing in force
+        to keep, so 'calibrate.py --images' writes the result as the hardware's calibration directly
+        — and the configuration then loads calibrated. This is the loop a new camera starts from.
+    """
+
+    spec = importlib.util.spec_from_file_location(
+        'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
+    calibrate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(calibrate)
+    mode, in_force = _Configuration_Copy(tmp_path)
+    os.remove(in_force)
+    assert Load_Configuration(mode).Camera.Calibration is None
+    images = tmp_path / 'images'
+    images.mkdir()
+    for name, image in _Flats(render) + _Tilted(render):
+        cv2.imwrite(str(images / name), image)
+
+    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False, mode) == 0
+    assert 'is now in force' in capsys.readouterr().out
+    assert os.path.isfile(in_force)
+    assert Load_Configuration(mode).Scale is not None
+
+
+def test_the_old_write_config_flag_names_its_replacement(monkeypatch, capsys) -> None:
+    """
+    Description:
+        '--write-config' may be in someone's shell history: it fails with a message naming
+        '--write-calibration', not with an unrecognised-argument error.
+    """
+
+    spec = importlib.util.spec_from_file_location(
+        'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
+    calibrate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(calibrate)
+    monkeypatch.setattr(sys, 'argv', ['calibrate.py', '--images', 'x', '--write-config'])
+    with pytest.raises(SystemExit):
+        calibrate.main()
+    assert '--write-config was renamed --write-calibration' in capsys.readouterr().err

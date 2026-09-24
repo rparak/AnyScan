@@ -28,14 +28,14 @@ import pytest
 # Custom Lib.: AnyScan domain — data-file discovery
 #   ../Vision/Utilities/Discovery
 import Vision.Utilities.Discovery as Discovery
-from Vision.Utilities.Discovery import Discovery_Error_Cls
 
 """
 Description:
-    Tests for the data-file discovery rules (scene glob + background selection).
-    They run on synthetic empty files created under tmp_path, so the rules are
-    exercised deterministically with no camera, no weights and no dependence on the
-    committed Data/Camera/ set.
+    Tests for the scene-frame discovery rule (the scene glob). They run on synthetic empty
+    files created under tmp_path, so the rule is exercised deterministically with no camera,
+    no weights and no dependence on the committed Data/Camera/ set. (The background reference
+    is not discovered any more — it is the configuration's Segmentation.Background.Reference —
+    so its selection-rule tests went with the rule.)
 """
 
 
@@ -82,79 +82,3 @@ def test_scene_glob_empty_directory_returns_empty(tmp_path) -> None:
     """
 
     assert Discovery.Discover_Scenes(str(tmp_path)) == []
-
-
-def test_background_single_reference_is_returned(tmp_path) -> None:
-    """
-    Description:
-        A lone reference is unambiguous and is returned whatever its index.
-    """
-
-    __Touch(str(tmp_path), 'Image_Background_001.png', 'Image_002.png')
-
-    chosen = Discovery.Select_Background(str(tmp_path))
-    assert os.path.basename(chosen) == 'Image_Background_001.png'
-
-
-def test_background_highest_index_wins(tmp_path) -> None:
-    """
-    Description:
-        With several references present, the highest index wins — never the first
-        match by name.
-    """
-
-    __Touch(str(tmp_path), 'Image_Background_001.png', 'Image_Background_002.png',
-            'Image_Background_010.png')
-
-    chosen = Discovery.Select_Background(str(tmp_path))
-    assert os.path.basename(chosen) == 'Image_Background_010.png'
-
-
-def test_background_configured_name_wins(tmp_path) -> None:
-    """
-    Description:
-        A configured name overrides the highest-index rule, as long as it exists.
-    """
-
-    __Touch(str(tmp_path), 'Image_Background_001.png', 'Image_Background_009.png')
-
-    chosen = Discovery.Select_Background(str(tmp_path), configured_name='Image_Background_001.png')
-    assert os.path.basename(chosen) == 'Image_Background_001.png'
-
-
-def test_background_configured_name_missing_raises(tmp_path) -> None:
-    """
-    Description:
-        A configured name that is not present is an error, not a silent fallback to
-        the highest index.
-    """
-
-    __Touch(str(tmp_path), 'Image_Background_001.png')
-
-    with pytest.raises(Discovery_Error_Cls):
-        Discovery.Select_Background(str(tmp_path), configured_name='Image_Background_099.png')
-
-
-def test_background_none_present_raises(tmp_path) -> None:
-    """
-    Description:
-        No reference at all is a clear error naming the glob and the directory.
-    """
-
-    __Touch(str(tmp_path), 'Image_002.png')
-
-    with pytest.raises(Discovery_Error_Cls):
-        Discovery.Select_Background(str(tmp_path))
-
-
-def test_background_ambiguous_set_raises(tmp_path) -> None:
-    """
-    Description:
-        References whose names carry no comparable index leave no unique highest
-        one, so the choice is refused rather than made by filename luck.
-    """
-
-    __Touch(str(tmp_path), 'Image_Background_left.png', 'Image_Background_right.png')
-
-    with pytest.raises(Discovery_Error_Cls):
-        Discovery.Select_Background(str(tmp_path))

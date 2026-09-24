@@ -129,7 +129,7 @@ carry specular highlights and surface texture FastSAM may segment well.
 - **The specific check before trusting it:** photograph real low-contrast parts
   (grey/metallic and dark) on the reference background, run `Example/Vision/
   analyze.py`, and confirm each segments (a mask survives Stage 3). If real parts
-  are missed, lower the segmenter confidence (`CONST_SEGMENTER_CONF`), try `'box'`
+  are missed, lower the segmenter confidence (`Segmentation.Confidence` in the configuration), try `'box'`
   mode for those, or revisit the segmenter choice; if they segment, close this note.
 
 ## A very harsh cast shadow can be absorbed into a part's component
@@ -139,14 +139,14 @@ surviving stage 3 as an extra sliver, so N parts reported as more than N — was
 property of the old coverage-gate + mask-NMS filter. The fusion pipeline replaced
 that filter (see git history: the FastSAM-∪-background-subtraction port), and on
 **real captures the defect is gone**: `Image_004`'s soft cast shadow is stripped
-by the background-subtraction opening (`Segmentation.CONST_BG_OPEN_KERNEL`) and the
+by the background-subtraction opening (`Segmentation.Background.Open_Kernel` in the configuration) and the
 plate comes back as a single, tight silhouette (rectangularity ~0.88, no shadow
 tail). Measured across all seven `Data/Camera` frames, the counts are exactly the
 inventory (15 objects, no over-count).
 
 What remains is the **opposite, narrower** failure, and only off real data: when a
 shadow is far darker and larger than any real capture — a 40%-darkening ellipse too
-big for the opening to erase — its absdiff clears `CONST_BG_DIFF_FLOOR`, and the
+big for the opening to erase — its absdiff clears the Otsu floor (`Segmentation.Background.Otsu_Floor`), and the
 fusion **absorbs** it into the object's component rather than rejecting it, so the
 mask extends past the part into the shadow band. This does not over-count (it stays
 one object), but the silhouette is no longer tight, and the enhanced crop fed to the

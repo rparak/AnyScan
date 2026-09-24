@@ -29,6 +29,9 @@ import numpy as np
 #   ../Vision/Utilities/Segmentation
 import Vision.Utilities.Segmentation as Segmentation
 
+# Custom Lib.: AnyScan — the stage parameters (their documented defaults: the shipped values)
+#   ../Parameters/Configuration
+from Parameters.Configuration import Segmentation_Parameters_Str
 """
 Description:
     Tests for the stage-1 background-subtracted foreground mask (Background_Foreground).
@@ -37,6 +40,9 @@ Description:
     with no camera and no weights. cv2 and np are injected, as the module and the
     pipeline expect.
 """
+# The stage parameters: the documented defaults, which are the values the shipped configuration sets.
+#   Unit [Segmentation_Parameters_Str(object)]
+CONST_PARAMETERS = Segmentation_Parameters_Str()
 
 
 def test_identical_frame_finds_no_foreground() -> None:
@@ -47,7 +53,7 @@ def test_identical_frame_finds_no_foreground() -> None:
     """
 
     bg = np.full((200, 200, 3), 100, np.uint8)
-    mask = Segmentation.Background_Foreground(bg, bg.copy(), cv2, np)
+    mask = Segmentation.Background_Foreground(bg, bg.copy(), cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
     assert mask.shape == (200, 200)
     assert int(np.count_nonzero(mask)) == 0
 
@@ -63,7 +69,7 @@ def test_known_difference_marks_the_object() -> None:
     bg = np.full((200, 200, 3), 100, np.uint8)
     fg = bg.copy()
     fg[70:130, 70:130] = 200
-    mask = Segmentation.Background_Foreground(bg, fg, cv2, np)
+    mask = Segmentation.Background_Foreground(bg, fg, cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
 
     assert mask.dtype == np.uint8 and int(mask.max()) == 1
     assert float(mask[80:120, 80:120].mean()) > 0.95   # block interior is foreground
@@ -82,11 +88,11 @@ def test_opening_removes_a_thin_halo() -> None:
 
     solid = bg.copy()
     solid[70:130, 70:130] = 200
-    solid_mask = Segmentation.Background_Foreground(bg, solid, cv2, np)
+    solid_mask = Segmentation.Background_Foreground(bg, solid, cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
 
     thin = bg.copy()
     thin[100, 40:160] = 200            # a 1-pixel-tall line of the same contrast
-    thin_mask = Segmentation.Background_Foreground(bg, thin, cv2, np)
+    thin_mask = Segmentation.Background_Foreground(bg, thin, cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
 
     assert int(np.count_nonzero(solid_mask)) > 2000     # the block survives
     assert int(np.count_nonzero(thin_mask)) < 200       # the thin line is opened away
@@ -95,7 +101,7 @@ def test_opening_removes_a_thin_halo() -> None:
 def test_diff_floor_rejects_a_faint_change() -> None:
     """
     Description:
-        A change fainter than CONST_BG_DIFF_FLOOR is rejected even though Otsu, on a
+        A change fainter than the configured Otsu_Floor is rejected even though Otsu, on a
         near-empty frame, would threshold below it — while a strong change of the same
         shape is kept. This is the floor keeping a faint shadow out of the foreground.
     """
@@ -103,12 +109,12 @@ def test_diff_floor_rejects_a_faint_change() -> None:
     bg = np.full((200, 200, 3), 100, np.uint8)
 
     faint = bg.copy()
-    faint[70:130, 70:130] = 100 + (Segmentation.CONST_BG_DIFF_FLOOR // 2)   # below the floor
-    faint_mask = Segmentation.Background_Foreground(bg, faint, cv2, np)
+    faint[70:130, 70:130] = 100 + (CONST_PARAMETERS.Otsu_Floor // 2)   # below the floor
+    faint_mask = Segmentation.Background_Foreground(bg, faint, cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
 
     strong = bg.copy()
     strong[70:130, 70:130] = 200                                           # well above it
-    strong_mask = Segmentation.Background_Foreground(bg, strong, cv2, np)
+    strong_mask = Segmentation.Background_Foreground(bg, strong, cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
 
     assert int(np.count_nonzero(faint_mask)) == 0       # floored out
     assert int(np.count_nonzero(strong_mask)) > 2000    # kept
