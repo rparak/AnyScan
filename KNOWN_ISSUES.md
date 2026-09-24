@@ -130,7 +130,8 @@ carry specular highlights and surface texture FastSAM may segment well.
   (grey/metallic and dark) on the reference background, run `Example/Vision/
   analyze.py`, and confirm each segments (a mask survives Stage 3). If real parts
   are missed, lower the segmenter confidence (`Segmentation.Confidence` in the configuration), try `'box'`
-  mode for those, or revisit the segmenter choice; if they segment, close this note.
+  mode for those, or revisit the segmenter choice; if they segment, close this note. The frames:
+  [docs/capture-checklist.md](docs/capture-checklist.md), item 3b.
 
 ## A very harsh cast shadow can be absorbed into a part's component
 
@@ -162,7 +163,8 @@ describer would then contain a strip of table.
 - **Not fixed here:** rejecting a shadow this harsh is a threshold problem, and the
   background-subtraction thresholds are set against real captures, not a synthetic
   scene darker than any real one. Tuning them against this scene would just move the
-  failure. It stays on the real-capture list.
+  failure. It stays on the real-capture list ([docs/capture-checklist.md](docs/capture-checklist.md), item 3c: a real harsh
+  shadow, against a reference shot under the same light).
 
 ## The no-reference-background detection path was removed
 
@@ -295,13 +297,15 @@ inside exactly that stability. The calibration in force gives specific reasons t
   varies across the frame, the factor must be recomputed from undistorted corners and the
   calibration redone from several board poses before any size is relied on. Capture sets now keep
   each frame before undistortion too (`<set>_distorted.png`), so the same reference frames can be
-  re-measured under any later calibration.
+  re-measured under any later calibration. The frames, their order and the caliper readings to take:
+  [docs/capture-checklist.md](docs/capture-checklist.md), item 1.
 - **The tool to redo it exists; the result does not yet.** `Example/Camera/calibrate.py --capture`
   records distorted frames (flat and tilted boards, all kept) and `--images` solves them together,
   derives the factor from the flat boards' undistorted corners in the application's pixel space,
   and reports the principal point, the tilt spread and the factor's spread across the frame. It
-  writes a NEW configuration file; the configuration in force is still the single-view one above
-  until a new set is solved, compared against it, and adopted (App/run.py hardcodes its path).
+  writes a NEW calibration file (`Calibration_<Hardware>_calib-<date>.yaml`); the calibration in force
+  is still the single-view one above until a new set is solved, compared against it, and adopted by
+  renaming it over `Calibration_<Hardware>.yaml`. The set to capture: [docs/capture-checklist.md](docs/capture-checklist.md), item 2.
 
 ## A part's measured size depends on where it lies in the frame, and on its thickness
 
@@ -351,8 +355,8 @@ the optical axis to the part's edge farther from it:
 - **What a size means, then:** the extent of the part's silhouette from above, converted in the
   reference plane. For thin parts near the frame centre that is within the pixel resolution of
   the footprint; for thick or off-centre parts it is not.
-- **Measured by** the reference check in the previous entry: the calipered parts at the centre and
-  in two corners, with their thicknesses and the board's height, give the parallax term directly,
+- **Measured by** the reference check in the previous entry ([docs/capture-checklist.md](docs/capture-checklist.md), item 1): the
+  calipered parts at the centre and in two corners, with their thicknesses and the board's height, give the parallax term directly,
   alongside the chessboard's own scale in its own plane.
 
 ## Gemma reads some through-holes as "a central green element"
@@ -399,8 +403,8 @@ treat surface condition in the text as a hint that may be absent, never as a fin
 - **Not fixed by picking the padding that catches it:** that would fit one stain on one frame — the
   frame the prompt was also tuned on. docs/design-decisions.md (*The object crop padding stays at
   0.20*) records the full measurement.
-- **What would test it:** more stained parts, photographed and labelled (a real-capture task, on the
-  capture list), so detection can be measured across defects rather than inferred from one.
+- **What would test it:** more stained parts, photographed and labelled, so detection can be
+  measured across defects rather than inferred from one ([docs/capture-checklist.md](docs/capture-checklist.md), item 3a).
 
 ## The description and the measurement can disagree in the same panel — and the numbers are right
 

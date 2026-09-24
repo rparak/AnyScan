@@ -141,6 +141,15 @@ in force instead: `python Example/Camera/calibrate.py --images DIR ... [--write-
 (`--write-config`, the old name, now fails with a message naming the new one.) The writer refuses to
 overwrite a calibration file holding anything it does not own.
 
+## Verifying the measurements
+
+Nothing this application reports about size, and nothing it says about a part's condition, has been
+checked against ground truth yet. The captures that would check it can only be taken on the rig;
+they are listed, with their protocols and what to record, in
+[docs/capture-checklist.md](docs/capture-checklist.md). Read it before trusting — or trying to
+verify — a measurement, and read KNOWN_ISSUES (*Measured sizes may carry a systematic error*,
+*The describer is not a defect detector*) before building any acceptance decision on the output.
+
 ## Tests
 
 Three layers, none of which need a camera. Only the real-model smoke needs the
