@@ -26,6 +26,9 @@ import os
 import sys
 # Typing (Support for type hints)
 import typing as tp
+# Custom Lib.: AnyScan — the camera block of a loaded configuration
+#   ../Parameters/Camera
+from Parameters.Camera import Camera_Configuration_Str
 
 """
 Description:
@@ -42,7 +45,7 @@ Description:
         with no pylon and this module imports with none of them present.
 """
 # Absolute path to the project's src/ directory (this file lives in src/Camera/),
-# holding Camera.Basler, Camera.Utilities.Image_Processing and Camera.Utilities.Configuration.
+# holding Camera.Basler and Camera.Utilities.Image_Processing.
 CONST_BASLER_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 # Which Camera.Utilities.Image_Processing.Process_Image_Cls profile is applied to each
@@ -111,6 +114,32 @@ class Camera_Backend_Cls(object):
         # the only form a future calibration can re-undistort.
         self._last_distorted = None
         self._last_undistortion = None
+        # The camera block of the configuration in force (acquisition settings + calibration) and
+        # the names of the files it came from. Set by the application before CONNECT; a camera
+        # never reads a configuration file itself.
+        self._camera_config = None
+        self._configuration_name = ''
+        self._calibration_name = ''
+
+    def Set_Configuration(self, Camera_Configuration_Str: Camera_Configuration_Str,
+                          configuration_name: str, calibration_name: str) -> None:
+        """
+        Description:
+            Hand the camera the configuration it will connect with. Refused while connected: the
+            acquisition settings and the calibration are fixed for a whole session.
+
+        Args:
+            (1) Camera_Configuration_Str [Camera_Configuration_Str(object)]: The camera block,
+                with the hardware's calibration.
+            (2) configuration_name [string]: The mode file's name (recorded with each frame).
+            (3) calibration_name [string]: The calibration file's name (recorded with each frame).
+        """
+
+        if self.__connected:
+            raise Camera_Error_Cls('The configuration cannot change while the camera is connected. '
+                                   'Disconnect the camera first.')
+        self._camera_config = Camera_Configuration_Str
+        self._configuration_name, self._calibration_name = configuration_name, calibration_name
 
     def Set_Log_Callback(self, log_cb: tp.Optional[tp.Callable[[str, str], None]]) -> None:
         """
@@ -412,7 +441,6 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         self.__resolution = (1920, 1200)
         self.__processor = None
         self.__calib = None
-        self.__config_path = ''
         self.__cv2 = None
         self.__np = None
         # (width, height) -> (K, distortion coeffs, optimal new camera matrix)
@@ -446,7 +474,6 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
             import numpy as np
             from Camera.Basler import Basler_Cls
             import Camera.Utilities.Image_Processing as Image_Processing
-            from Camera.Utilities.Configuration import Read_Configuration, CONST_BASLER_CONFIG_FILE
         except ImportError as exc:
             raise Camera_Error_Cls(
                 'The Basler libraries could not be loaded from "%s". Check that '
@@ -454,13 +481,13 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                 "the project's src directory." % CONST_BASLER_SRC
             ) from exc
 
-        # The acquisition settings and the calibration are read from the project's
-        # single *.yaml configuration source, not hard-coded here. Reading it first
-        # means a missing or invalid configuration fails before the device is touched.
-        Basler_Cfg_Str = Read_Configuration(CONST_BASLER_CONFIG_FILE)
+        # The acquisition settings and the calibration come from the configuration in force,
+        # handed over by the application (Set_Configuration) — never read from a file here.
+        # Checking first means a missing configuration fails before the device is touched.
+        Basler_Cfg_Str = self._camera_config
         if Basler_Cfg_Str is None:
-            raise Camera_Error_Cls(
-                'The camera configuration could not be read from "%s".' % CONST_BASLER_CONFIG_FILE)
+            raise Camera_Error_Cls('No configuration has been loaded, so the camera settings are '
+                                   'unknown. Load a configuration, then connect.')
 
         # Basler_Cls connects inside its constructor and raises if no device is
         # found, so a failure here is a connection failure. The image settings come
@@ -486,7 +513,9 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         self.__np = np
         self.__processor = Image_Processing.Process_Image_Cls(CONST_BASLER_IMAGE_PROFILE)
         self.__calib = Basler_Cfg_Str.Calibration
-        self.__config_path = CONST_BASLER_CONFIG_FILE
+        if self.__calib is None:
+            self._Log('WARNING', 'No calibration for this camera: frames are not undistorted and objects '
+                                 'are not measured. Run Example/Camera/calibrate.py to create it.')
         self.__undistort_cache = {}
 
         # Report the device's actual sensor size straight away, so the status strip
@@ -551,6 +580,14 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         # Project image pipeline (BGR in, BGR out), then undistort with the cached
         # optimal camera matrix.
         processed = self.__processor.Apply(raw)
+
+        # Without a calibration there is no lens model: the processed frame is delivered as it is,
+        # and there is no separate 'distorted original' to keep — the delivered frame is it.
+        if self.__calib is None:
+            rgb = np.ascontiguousarray(cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
+            self.__resolution = (rgb.shape[1], rgb.shape[0])
+            self._last_distorted = self._last_undistortion = None
+            return rgb
         undistorted = self.__Undistort(processed)
 
         # The pipeline works in BGR; the application exchanges RGB. The processed frame is also
@@ -561,7 +598,8 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         K, coeffs, new_K = self.__undistort_cache[(w, h)]
         self._last_distorted = np.ascontiguousarray(cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
         self._last_undistortion = {
-            'configuration': os.path.basename(self.__config_path),
+            'configuration': self._configuration_name,
+            'calibration': self._calibration_name,
             'frame_size': [int(w), int(h)],
             'K': [[float(v) for v in row] for row in K],
             'coefficients': {key: float(value) for key, value in self.__calib.Coefficients.items()},

@@ -35,8 +35,8 @@ class Camera_Calibration_Parameters_Str:
         The structure of the main parameters of the camera calibration.
 
         Note:
-            Populated from a *.yaml configuration file; see
-            ../Camera/Utilities/Configuration.py (Read_Configuration).
+            Populated from the hardware's calibration file (Calibration_<Hardware>.yaml); see
+            ../Configuration/Core.py (Load_Configuration).
     """
 
     # Camera calibration (intrinsic) matrix.
@@ -55,20 +55,30 @@ class Camera_Configuration_Str:
 
         Note:
             The parameter structure mainly focuses on the 2D representation of the
-            image. It is populated from a *.yaml configuration file; see
-            ../Camera/Utilities/Configuration.py (Read_Configuration).
+            image. It is populated from a configuration's 'Camera' block and its hardware's
+            calibration file; see ../Configuration/Core.py (Load_Configuration).
     """
 
     # Name of the camera (sensor + lens identifier).
     Name: str = 'Camera'
+    # The camera, lens and lighting as a person names them ('Basler a2A1920-51gcPRO', 'Computar
+    # M1228-MPW3', 'Effilux EFFI-FD-200-200-000'): named in the Configuration dialog's confirmation
+    # and recorded in every capture set. The lighting matters as much as the optics — the colour
+    # readings, the background subtraction and the surface-condition descriptions all depend on
+    # it. Empty when the configuration does not say.
+    Model: str = ''
+    Lens: str = ''
+    Lighting: str = ''
     # Camera resolution in pixels (x, y).
     Resolution: tp.Dict[str, int] = field(default_factory=dict)
     # Custom camera configuration.
     #   Note:
     #       Optional structure for vendor/API specific settings (e.g., exposure, gain, white balance, pixel format).
     Custom_Cfg: tp.Dict[str, tp.Any] = field(default_factory=dict)
-    # Calibration of the camera above.
-    Calibration: Camera_Calibration_Parameters_Str = field(default_factory=Camera_Calibration_Parameters_Str)
+    # Calibration of the camera above, or None when the hardware has no calibration file yet: frames
+    # are then not undistorted and objects are not measured (a camera being calibrated for the first
+    # time has none — Example/Camera/calibrate.py creates it).
+    Calibration: tp.Optional[Camera_Calibration_Parameters_Str] = None
 
 @dataclass
 class Board_Detection_Str:

@@ -41,8 +41,9 @@ import cv2
 import Camera.Utilities.Image_Processing
 #   ../Camera/Basler
 from Camera.Basler import Basler_Cls
-#   ../Camera/Utilities/Configuration
-from Camera.Utilities.Configuration import Read_Configuration, Write_Calibration, CONST_BASLER_CONFIG_FILE
+#   ../Configuration/Core — the one configuration layer (read the camera, write the calibration)
+from Configuration.Core import (Load_Configuration, Write_Calibration, Hardware_And_Mode,
+                                Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE)
 #   ../Calibration/Core
 import Calibration.Core
 
@@ -50,13 +51,15 @@ import Calibration.Core
 Description:
     Initialization of constants.
 """
-# The new configuration file a solved calibration is written to, beside the one in force:
-# '<source stem>_calib-<date>.yaml'. The source is overwritten only with --write-config.
+# The new calibration file a solved calibration is written to, beside the one in force:
+# 'Calibration_<Hardware>_calib-<date>.yaml'. The hardware's calibration in force
+# ('Calibration_<Hardware>.yaml', shared by every mode on it) is overwritten only with
+# --write-calibration. Nothing else is ever written: no mode configuration is touched.
 #   Unit [string]
-CONST_OUTPUT_TEMPLATE = '{stem}_calib-{stamp}.yaml'
+CONST_OUTPUT_TEMPLATE = 'Calibration_{hardware}_calib-{stamp}.yaml'
 
 
-def Capture_Main(directory: str) -> int:
+def Capture_Main(directory: str, config_path: str) -> int:
     """
     Description:
         Capture calibration frames interactively into a directory, one per key press, until 'q'.
@@ -67,13 +70,15 @@ def Capture_Main(directory: str) -> int:
 
     Args:
         (1) directory [string]: The directory the frames are written to (created if missing).
+        (2) config_path [string]: The configuration whose camera settings the capture uses.
 
     Returns:
         (1) parameter [int]: The process exit code.
     """
 
     os.makedirs(directory, exist_ok=True)
-    Basler_Cfg_Str = Read_Configuration(CONST_BASLER_CONFIG_FILE)
+    configuration = Load_Configuration(config_path)
+    Basler_Cfg_Str = configuration.Camera
     Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg)
     Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls('real')
     header = {'distorted': True,
@@ -82,7 +87,7 @@ def Capture_Main(directory: str) -> int:
                        'before undistortion, for solving the lens model. They are not the '
                        'application\'s <set>_raw.png, which is undistorted.'),
               'processing': "Camera.Utilities.Image_Processing.Process_Image_Cls('real')",
-              'configuration': os.path.basename(CONST_BASLER_CONFIG_FILE),
+              'configuration': configuration.Name,
               'camera': Basler_Cfg_Str.Name, 'custom_cfg': Basler_Cfg_Str.Custom_Cfg,
               'kinds': {Calibration.Core.CONST_CALIB_FLAT_PREFIX: 'board flat on the table: lens '
                         'model and mm/px factor', Calibration.Core.CONST_CALIB_VIEW_PREFIX: 'board '
@@ -142,19 +147,21 @@ def Parse_Board(text: str) -> tp.Tuple[int, int]:
 
 
 def Images_Main(directory: str, board_squares: tp.Tuple[int, int], square_mm: float,
-                board_height_mm: float, write_config: bool) -> int:
+                board_height_mm: float, write_calibration: bool, config_path: str) -> int:
     """
     Description:
         Calibrate from every image in a directory and print the report. The result is written to
-        a NEW configuration file beside the one in force (which stays untouched), unless
-        --write-config asks to overwrite the configuration in force.
+        a NEW calibration file beside the hardware's calibration in force (which stays untouched),
+        unless --write-calibration asks to overwrite it. Only a calibration file is ever written.
 
     Args:
         (1) directory [string]: The calibration capture directory.
         (2) board_squares [Vector<int> 1x2]: The board's squares (columns, rows).
         (3) square_mm [float]: The calipered square size (mm).
         (4) board_height_mm [float]: The flat boards' surface height above the table (mm).
-        (5) write_config [bool]: Overwrite the configuration in force instead of writing a new one.
+        (5) write_calibration [bool]: Overwrite the calibration in force instead of writing a new one.
+        (6) config_path [string]: A configuration on the hardware being calibrated (its name
+                                  names the hardware, and so the calibration file).
 
     Returns:
         (1) parameter [int]: The process exit code (1 when nothing trustworthy could be solved).
@@ -175,17 +182,28 @@ def Images_Main(directory: str, board_squares: tp.Tuple[int, int], square_mm: fl
               'images': os.path.abspath(directory),
               'views': {'total': len(views), 'flat': flat, 'tilted': len(views) - flat},
               'rms_px': report.Rms_Px, 'square_mm': square_mm, 'board_height_mm': board_height_mm}
-    stem = os.path.splitext(CONST_BASLER_CONFIG_FILE)[0]
-    output = (CONST_BASLER_CONFIG_FILE if write_config else
-              CONST_OUTPUT_TEMPLATE.format(stem=stem, stamp=datetime.now().strftime('%Y%m%d-%H%M%S')))
-    if not Write_Calibration(Calibration.Core.Calibration_Parameters(report), CONST_BASLER_CONFIG_FILE,
-                             output_path=output, record=record):
+    hardware, _mode = Hardware_And_Mode(config_path)
+    if not hardware:
+        print('[ERROR] "%s" does not name its hardware (Config_<Hardware>_Mode_<Mode>.yaml).' % config_path)
+        return 1
+    in_force = Calibration_Path_For(config_path, hardware)
+    # A camera calibrated for the first time has no calibration in force: there is nothing to keep,
+    # so the result becomes it directly and the application measures from its next start.
+    first = not os.path.exists(in_force)
+    output = (in_force if write_calibration or first else
+              os.path.join(os.path.dirname(in_force),
+                           CONST_OUTPUT_TEMPLATE.format(hardware=hardware,
+                                                        stamp=datetime.now().strftime('%Y%m%d-%H%M%S'))))
+    if not Write_Calibration(Calibration.Core.Calibration_Parameters(report), hardware=hardware,
+                             header_source=in_force, output_path=output, record=record):
         return 1
     print('[INFO] Calibration written to: %s' % output)
-    if not write_config:
-        print('[INFO] The configuration in force (%s) is UNCHANGED. App/run.py hardcodes its path, '
-              'so adopting this calibration is a separate, deliberate step.'
-              % os.path.basename(CONST_BASLER_CONFIG_FILE))
+    if first:
+        print('[INFO] %s had no calibration, so this one is now in force for every mode on it.' % hardware)
+    elif not write_calibration:
+        print('[INFO] The calibration in force (%s) is UNCHANGED. Every mode on %s reads it, so '
+              'adopting this one — renaming it over that file — is a separate, deliberate step.'
+              % (os.path.basename(in_force), hardware))
     return 0
 
 
@@ -196,8 +214,9 @@ def main():
         several chessboard views solved together. Two modes:
 
             --capture DIR   capture distorted frames interactively ('f' flat, 't' tilted)
-            --images DIR    solve from every image in DIR and write a NEW configuration file
-                            (or overwrite the one in force with --write-config)
+            --images DIR    solve from every image in DIR and write a NEW calibration file
+                            (or overwrite the hardware's calibration in force with
+                            --write-calibration)
 
         Setup:
             Camera Model: Basler a2A1920-51gcPRO GigE Camera
@@ -214,18 +233,25 @@ def main():
                         help='the CALIPERED square size in mm (--images)')
     parser.add_argument('--board-height-mm', type=float, metavar='MM',
                         help='the flat boards\' surface height above the table in mm (--images)')
-    parser.add_argument('--write-config', action='store_true',
-                        help='overwrite the configuration in force instead of writing a new file')
+    parser.add_argument('--config', default=CONST_DEFAULT_CONFIG_FILE,
+                        help='a configuration on the hardware being calibrated (default: %(default)s)')
+    parser.add_argument('--write-calibration', action='store_true',
+                        help='overwrite the hardware\'s calibration in force instead of writing a new file')
+    # The pre-split flag, kept only to say what replaced it: it would be in someone's shell history.
+    parser.add_argument('--write-config', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.write_config:
+        parser.error('--write-config was renamed --write-calibration: the calibration now lives in its '
+                     'own file (Calibration_<Hardware>.yaml), and that is all this harness writes.')
     if args.capture is not None:
-        return Capture_Main(args.capture)
+        return Capture_Main(args.capture, args.config)
     missing = [flag for flag, value in (('--board-squares', args.board_squares),
                                         ('--square-mm', args.square_mm),
                                         ('--board-height-mm', args.board_height_mm)) if value is None]
     if missing:
         parser.error('--images requires %s (no defaults: each changes the result)' % ', '.join(missing))
     return Images_Main(args.images, args.board_squares, args.square_mm, args.board_height_mm,
-                       args.write_config)
+                       args.write_calibration, args.config)
 
 if __name__ == '__main__':
     sys.exit(main())

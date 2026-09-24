@@ -90,9 +90,9 @@ class Basler_Cls:
     Initialization of the Class:
         Args:
             (1) config [dict]: Required image parameters (Exposure_Time, Gain,
-                Balance_Ratios, Pixel_Format). Read from the *.yaml configuration by
-                Camera.Utilities.Configuration.Read_Configuration, which validates that
-                every required key is present.
+                Balance_Ratios, Pixel_Format): the configuration's Camera.Custom_Cfg, loaded
+                by Configuration.Core.Load_Configuration, which validates that every required
+                key is present.
             (2) max_retries [int]: Maximum number of connection attempts.
             (3) retry_delay [int]: Delay in seconds between attempts.
 
@@ -113,7 +113,7 @@ class Basler_Cls:
 
         # Image configuration is required: a camera started with unset exposure/gain
         # must fail loudly, not silently. The values come from the *.yaml configuration
-        # (its required keys are validated by Read_Configuration). Transport tuning
+        # (its required keys are validated by Load_Configuration). Transport tuning
         # lives in the module constants above (a property of the network hardware, not
         # of the scene being captured).
         if not config:
