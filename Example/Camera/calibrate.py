@@ -43,8 +43,6 @@ import cv2
 import Camera.Utilities.Image_Processing
 #   ../Camera/Basler
 from Camera.Basler import Basler_Cls
-#   ../Camera/Core — the application's processing profile, so this harness cannot drift from it
-from Camera.Core import CONST_BASLER_IMAGE_PROFILE
 #   ../Configuration/Core — the one configuration layer (read the camera, write the calibration)
 from Configuration.Core import (Load_Configuration, Write_Calibration, Hardware_And_Mode, Hardware_Record,
                                 Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE, CONST_PROJECT_ROOT)
@@ -84,7 +82,7 @@ def Capture_Main(directory: str, config_path: str) -> int:
             been undistorted — least of all with the model being replaced. So it drives Basler_Cls
             directly, and matches the application on everything else: the same sensor window (set and
             read back by Basler_Cls from Camera.Resolution / Camera.Offset) and the same processing
-            step (Process_Image_Cls with the application's profile, Camera.Core.CONST_BASLER_IMAGE_PROFILE).
+            step (Camera.Utilities.Image_Processing.Process_Image_Cls, the class the application applies).
             scan.py, which has no such reason, goes through the application's path.
 
     Args:
@@ -111,13 +109,13 @@ def Capture_Main(directory: str, config_path: str) -> int:
     Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg, resolution=Basler_Cfg_Str.Resolution,
                                  offset=Basler_Cfg_Str.Offset)
     applied = Basler_Cam_Id_1.Applied_Settings
-    Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls(CONST_BASLER_IMAGE_PROFILE)
+    Process_Image_Cls = Camera.Utilities.Image_Processing.Process_Image_Cls()
     header = {'distorted': True,
               'note': ('These frames are NOT undistorted: they are the camera\'s images after the '
                        'application\'s processing step (the same blur and colour adjustment) and '
                        'before undistortion, for solving the lens model. They are not the '
                        'application\'s <set>_raw.png, which is undistorted.'),
-              'processing': "Camera.Utilities.Image_Processing.Process_Image_Cls('%s')" % CONST_BASLER_IMAGE_PROFILE,
+              'processing': 'Camera.Utilities.Image_Processing.Process_Image_Cls',
               'configuration': configuration.Name,
               'hardware': Hardware_Record(configuration), 'custom_cfg': Basler_Cfg_Str.Custom_Cfg,
               # The sensor window the frames were captured at, as the camera read it back. The

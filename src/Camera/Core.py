@@ -48,9 +48,6 @@ Description:
 # holding Camera.Basler and Camera.Utilities.Image_Processing.
 CONST_BASLER_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-# Which Camera.Utilities.Image_Processing.Process_Image_Cls profile is applied to each
-# raw frame. 'real' is the profile written for the physical camera.
-CONST_BASLER_IMAGE_PROFILE = 'real'
 # getOptimalNewCameraMatrix's free-scaling parameter for undistortion: 1 keeps every source
 # pixel (black corners, no crop). The new camera matrix it yields defines the pixel space every
 # measurement happens in, so it is recorded with each distorted frame the capture set keeps.
@@ -551,7 +548,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         # Cache what _Grab needs so it never re-imports or re-reads config.
         self.__cv2 = cv2
         self.__np = np
-        self.__processor = Image_Processing.Process_Image_Cls(CONST_BASLER_IMAGE_PROFILE)
+        self.__processor = Image_Processing.Process_Image_Cls()
         self.__calib = Basler_Cfg_Str.Calibration
         if self.__calib is None:
             self._Log('WARNING', 'No calibration for this camera: frames are not undistorted and objects '

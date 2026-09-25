@@ -289,8 +289,3 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
                                  temperature=params.Temperature, verbose=False)
         return result.text.strip()
 
-
-# The describers by the name CONST_DESCRIBER selects them with ('fallback' is model-free and
-# lives in Vision.Describe_Fallback).
-#   Unit [Dict<string, class>]
-CONST_DESCRIBERS = {'gemma': Gemma_Describer_Cls}

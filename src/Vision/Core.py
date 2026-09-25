@@ -48,7 +48,7 @@ from Vision.Describe_Fallback import Describe_Fallback
 #   ../Vision/Utilities/Caption
 from Vision.Utilities.Caption import Condense_Label
 #   ../Vision/Describers
-from Vision.Describers import (CONST_DESCRIBERS, CONST_PURPOSE_OBJECT, CONST_PURPOSE_BACKGROUND,
+from Vision.Describers import (Gemma_Describer_Cls, CONST_PURPOSE_OBJECT, CONST_PURPOSE_BACKGROUND,
                                Describer_Error_Cls)
 #   ../Vision/Utilities/Measure
 from Vision.Utilities.Measure import Measure_Objects
@@ -96,7 +96,7 @@ Description:
 #   Unit [string]
 CONST_FALLBACK_TASK_LABEL = 'model-free description'
 
-# Who writes each object's description (Vision.Describers.CONST_DESCRIBERS): 'gemma' is the
+# Who writes each object's description: 'gemma' is the
 # Gemma 4 vision-language model, prompted; 'fallback' is the model-free describer (size /
 # position / aspect / solidity / HSV colour), which lets stages 1-3 run and be judged without
 # loading a model. A code constant, deliberately not configuration: one describer ships. The
@@ -468,11 +468,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             self.__cv2, self.__np = cv2, np
 
         if CONST_DESCRIBER != self.__describer_name:
-            if CONST_DESCRIBER != 'fallback' and CONST_DESCRIBER not in CONST_DESCRIBERS:
-                raise Vision_Error_Cls('Unknown describer "%s": choose %s or fallback.'
-                                       % (CONST_DESCRIBER, ', '.join(CONST_DESCRIBERS)))
+            if CONST_DESCRIBER not in ('gemma', 'fallback'):
+                raise Vision_Error_Cls('Unknown describer "%s": choose gemma or fallback.' % CONST_DESCRIBER)
             self.__describer = (None if CONST_DESCRIBER == 'fallback'
-                                else CONST_DESCRIBERS[CONST_DESCRIBER](self.__config.Description))
+                                else Gemma_Describer_Cls(self.__config.Description))
             self.__describer_name = CONST_DESCRIBER
             self.__background_sentence = None
         if self.__describer is None or self.__describer.Loaded:

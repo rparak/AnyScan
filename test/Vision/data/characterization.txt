@@ -1,5 +1,4 @@
 == AnyScan vision characterization ==
-detail-sentences (SHOW_OBJECT_DETAIL) = True
 
 -- dataclasses --
 Detection: label='hex bolt' bbox=(10, 20, 30, 40) confidence=None text=None detail='a hex bolt on a green surface' sentence=''

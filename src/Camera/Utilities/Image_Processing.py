@@ -94,22 +94,17 @@ class Process_Image_Cls:
 
     Initialization of the Class:
         Args:
-            (1) image_type [string]: Type of the image to process. Must be 'real'.
+            None.
 
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = Process_Image_Cls('real')
+                Cls = Process_Image_Cls()
 
             Features:
                 # Functions of the class.
                 Cls.Apply(image)
     """
-
-    def __init__(self, image_type: str) -> None:
-        if image_type != 'real':
-            raise ValueError("[ERROR] Image type must be 'real'.")
-        self.__image_type = image_type
 
     def __Color_Style(self, image: np.ndarray, alpha: float = 0.95, beta: int = 5) -> np.ndarray:
         """

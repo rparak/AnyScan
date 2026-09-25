@@ -62,12 +62,10 @@ def test_config_paths_point_where_expected() -> None:
         locations, so a moved file fails loudly rather than silently; Gemma is the default describer.
     """
 
-    import Vision.Describers as Describers
     config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
     assert Vision_Core.CONST_DESCRIBER == 'gemma'
     assert config.Description.Model_Path.endswith(os.path.join('models', 'gemma-4-e4b-it-4bit'))
     assert config.Segmentation.Model_Path.endswith(os.path.join('models', 'FastSAM', 'FastSAM-x.pt'))
-    assert set(Describers.CONST_DESCRIBERS) == {'gemma'}
     assert config.Segmentation.Background_Reference.endswith(
         os.path.join('Data', 'Images', 'Background', 'Image_Background_001.png'))
     assert not hasattr(Vision_Core, 'CONST_BACKGROUND_REF')          # the configuration is the one route
@@ -172,7 +170,7 @@ def fake_models(monkeypatch):
     import dataclasses
     _Fake_Segmenter_Cls.events.clear()
     monkeypatch.setattr(Vision_Core, 'Fast_Sam_Cls', _Fake_Segmenter_Cls)
-    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBERS', {'gemma': _Fake_Describer_Cls})
+    monkeypatch.setattr(Vision_Core, 'Gemma_Describer_Cls', _Fake_Describer_Cls)
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'gemma')
     config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
 

@@ -173,8 +173,7 @@ def _Characterization(reference: np.ndarray) -> tp.List[str]:
         (1) parameter [Vector<string>]: The lines, in the golden file's order.
     """
 
-    lines = ['== AnyScan vision characterization ==',
-             f'detail-sentences (SHOW_OBJECT_DETAIL) = {Reporting.CONST_SHOW_OBJECT_DETAIL}', '']
+    lines = ['== AnyScan vision characterization ==', '']
 
     # 1\ The dataclasses' field defaults, under fixed labels (not the repr), so a rename leaves it.
     det = _Detection('hex bolt', (10, 20, 30, 40), detail='a hex bolt on a green surface')

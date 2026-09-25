@@ -142,6 +142,11 @@ CONST_MASK_FILL_MIN_BOX_DELTA_E = 25.0
 # 21 costs neutral fill lightness (L* <= 100 - sqrt(floor² - C*²)).
 CONST_MASK_FILL_MIN_WHITE_DELTA_E = 21.0
 CONST_MASK_FILL_MIN_GROUND_CONTRAST = 4.5
+# The chromatic-fill floors (hue within 5° of the box, >= 40% of its chroma). No derivation code
+# reads these two — they are the CONTRACT every verdict fill must meet, enforced by
+# test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box. They stay here,
+# beside the floors the derivation does read, so the constraint never drifts away from the colours
+# it constrains (the neutral fill once drifted toward white with no floor beside it).
 CONST_MASK_FILL_MAX_HUE_SHIFT = 5.0
 CONST_MASK_FILL_MIN_CHROMA_FRACTION = 0.4
 CONST_MASK_FILL_WINDOW_MARGIN = 0.5

@@ -469,8 +469,9 @@ Both hardware-facing parts sit behind an interface, so a replacement touches one
   `_Close` and `_Grab`; `_Grab` returns an **RGB NumPy array**, the exchange format for the
   whole application.
 - **Describer** — subclass `Describer_Backend_Cls` (`src/Vision/Describers.py`), implement
-  `Load` and `Describe(crop, purpose)`, register it in `CONST_DESCRIBERS` and select it with
-  `Vision.Core.CONST_DESCRIBER`. The pipeline never sees a prompt or a task token.
+  `Load` and `Describe(crop, purpose)`, and create it where `Vision.Core` creates
+  `Gemma_Describer_Cls` (one describer ships, so there is no registry to add it to). The pipeline
+  never sees a prompt or a task token.
 
 ## What the design encodes
 

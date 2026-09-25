@@ -47,7 +47,7 @@ def test_apply_is_the_blur_then_the_contrast_brightness_step_on_a_real_frame(ref
     """
 
     frame = reference_background.copy()
-    processed = Process_Image_Cls('real').Apply(frame)
+    processed = Process_Image_Cls().Apply(frame)
 
     expected = cv2.convertScaleAbs(cv2.GaussianBlur(reference_background, (3, 3), sigmaX=0.5), alpha=0.95, beta=1)
     assert processed.dtype == np.uint8 and np.array_equal(processed, expected)

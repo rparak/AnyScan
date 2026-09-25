@@ -44,11 +44,6 @@ Description:
     no self-reference, and an empty result is a statement with a next action rather
     than an apology.
 """
-# The object line's wording:
-#   True  — the model's full detailed description, cleaned into the panel's voice
-#           ('A silver key on a green surface with a keyring attached to it.').
-#   False — a short 'A <label>.' distilled from the caption.
-CONST_SHOW_OBJECT_DETAIL = True
 
 # The middot that joins an object's name and its confidence in the label ('Object 1 ·
 # Confidence 91%'). One definition, so the panel (which renders the two parts in different
@@ -206,7 +201,7 @@ def Object_Description(det: Detection_Str) -> str:
         (1) parameter [string]: The object's line.
     """
 
-    sentence = Clean_Detail(det.Detail) if CONST_SHOW_OBJECT_DETAIL else ''
+    sentence = Clean_Detail(det.Detail)
     if not sentence:
         article = 'An' if det.Label[:1].lower() in 'aeiou' else 'A'
         sentence = '%s %s.' % (article, det.Label)
