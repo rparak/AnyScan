@@ -1370,13 +1370,20 @@ Qt-free boundary. It now sits at the top of the README, where a stale diagram ge
 
 - **It is generated, not drawn: regenerating is the way to change it.**
   `Example/UI/architecture_diagram.py` writes it. The colours come from `Parameters/Theme.py`, and
-  the type scale and font fallbacks from `UI/Utilities/Style.py`, whose font candidates became
-  constants for this. The generator is what ties the figure to the palette. A hand-edited SVG
-  would drift the moment the theme moved, the same failure as the hand-copied ink value and the
-  duplicated hardware id. **A hand edit fails the suite:**
-  `test_the_diagram_is_the_generators_output` compares the committed file with the generator's
-  output, and `--check` reports the same. As a second line of defence,
-  `test_the_diagram_draws_only_theme_tokens` fails on any colour that is not a token.
+  the type scale and font fallbacks from `UI/Utilities/Style.py`. The generator is what ties the
+  figure to the palette. A hand-edited SVG would drift the moment the theme moved, the same
+  failure as the hand-copied ink value and the duplicated hardware id. The font fallback lists
+  were moved out of `Load_Fonts` into `Style.CONST_FONT_UI_CANDIDATES` /
+  `CONST_FONT_MONO_CANDIDATES` for the same reason: otherwise the generator would have carried its
+  own copy of the font stack.
+- **Two tests guard the SVG, and each does a different job. Keep both.**
+  - `test_the_diagram_is_the_generators_output` compares the whole committed file with the
+    generator's output (`--check` does the same from the command line). It is the stronger guard:
+    it catches any hand edit (a colour, text, layout) and a theme change nobody regenerated for.
+  - `test_the_diagram_draws_only_theme_tokens` catches only a colour that is not a token. It
+    overlaps the first test but is not redundant. Its failure names the offending colour, whereas
+    the whole-file test only says "stale or hand-edited". That clearer message is its remaining
+    value.
 - **The layout is checked against fallback font metrics, not Inter.** The README shows the SVG
   through `<img>`, which cannot load web fonts, so most readers see Helvetica/Arial and Courier.
   The spacing was set and reviewed with those faces, at README width (830 px) on light and dark

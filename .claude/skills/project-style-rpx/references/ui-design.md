@@ -16,6 +16,10 @@ practices followed inconsistently are under **Unsettled**.
   is how drift starts: the busy overlay once filled with `QColor(43, 36, 85, 158)`, the ink token's
   value at another opacity, which nothing would have kept in step with the ink.
 - A new colour is a new token, commented with what it is for.
+- The same holds outside the application: the README's architecture diagram takes every colour from
+  the theme, and its type scale and font fallbacks from `Style.py`, through its generator
+  (`Example/UI/architecture_diagram.py`). It is regenerated, never edited by hand
+  (`test/UI/test_brand_figures.py`).
 - ✅ `test/UI/test_colour_tokens.py` scans every UI module (except `Style.py`) with the Python tokenizer
   for a hex colour in a string or a numeric `QColor(`.
 
