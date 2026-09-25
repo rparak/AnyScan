@@ -483,3 +483,35 @@ def test_each_capture_set_records_its_configuration_reference_and_hardware(qt_ap
     (cap,) = Discover_Capture_Sets(captures)
     assert (cap.Configuration, cap.Background_Reference) == (name, metadata['background_reference'])
     assert cap.Hardware['lighting'] == 'Effilux EFFI-FD-200-200-000'
+
+
+class _Staged_Vision_Cls(_Fake_Vision_Cls):
+    """A vision backend whose Configure reports the loader's real phases, a moment apart."""
+
+    def Configure(self, Configuration_Str, stage_cb=None) -> None:
+        for stage in ('Loading segmenter…', 'Loading model…'):
+            if stage_cb:
+                stage_cb(stage)
+            time.sleep(0.25)
+        self.Models_Loaded, self.Name = True, Configuration_Str.Identity.Model_Set
+
+
+def test_the_loading_line_follows_the_loaders_phases(qt_app, configurations) -> None:
+    """
+    Description:
+        While the models load, the line under the list follows the loader's own phases — it opens
+        on 'Loading configuration…' and then reads 'Loading segmenter…' and 'Loading model…' as they
+        happen — so a nine-second load visibly moves instead of looking hung.
+    """
+
+    dialog = Configuration_Dialog_Cls(_Staged_Vision_Cls(), Load_Configuration(configurations['seg']))
+    dialog.show()
+    dialog.Select(configurations['second'])
+    dialog.Load()
+    shown = []
+    _Pump_Until(lambda: shown.append(next((t for t in _Texts(dialog) if t.startswith('Loading')), None)) or
+                not dialog.Loading)
+    seen = [text for i, text in enumerate(shown) if text and (i == 0 or text != shown[i - 1])]
+    assert 'Loading segmenter…' in seen and 'Loading model…' in seen
+    assert seen.index('Loading segmenter…') < seen.index('Loading model…')
+    dialog.reject()
