@@ -66,8 +66,6 @@ class Camera_Configuration_Str:
             calibration file; see ../Configuration/Core.py (Load_Configuration).
     """
 
-    # Name of the camera (sensor + lens identifier).
-    Name: str = 'Camera'
     # The camera, lens and lighting as a person names them ('Basler a2A1920-51gcPRO', 'Computar
     # M1228-MPW3', 'Effilux EFFI-FD-200-200-000'): named in the Configuration dialog's confirmation
     # and recorded in every capture set. The lighting matters as much as the optics — the colour

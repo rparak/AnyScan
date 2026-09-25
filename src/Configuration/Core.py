@@ -278,7 +278,6 @@ CONST_FIELDS = (
      'size', False),
     (('Description', 'Prompts', 'Object'), ('Description', 'Prompt_Object'), 'text', True),
     (('Description', 'Prompts', 'Background'), ('Description', 'Prompt_Background'), 'text', True),
-    (('Camera', 'Name'), ('Camera', 'Name'), 'text', False),
     (('Camera', 'Model'), ('Camera', 'Model'), 'text', False),
     (('Camera', 'Lens'), ('Camera', 'Lens'), 'text', False),
     (('Camera', 'Lighting'), ('Camera', 'Lighting'), 'text', False),

@@ -153,8 +153,6 @@ Description:
 # The camera: identity, resolution and acquisition settings. Its calibration is NOT here — it
 # lives in Calibration_<Hardware>.yaml, shared by every mode on this hardware.
 Camera:
-  # Name of the camera (sensor + lens identifier). Default: Camera
-  Name: Basler_a2A1920_51gcPRO_Computar_M1228_MPW3
   # The camera, lens and lighting as a person names them: named in the Configuration dialog's
   # confirmation and recorded in every capture set. The lighting matters as much as the optics:
   # the colour readings, the background subtraction and the surface-condition descriptions all

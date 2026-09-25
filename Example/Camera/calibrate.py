@@ -44,7 +44,7 @@ from Camera.Basler import Basler_Cls
 #   ../Camera/Core — the application's processing profile, so this harness cannot drift from it
 from Camera.Core import CONST_BASLER_IMAGE_PROFILE
 #   ../Configuration/Core — the one configuration layer (read the camera, write the calibration)
-from Configuration.Core import (Load_Configuration, Write_Calibration, Hardware_And_Mode,
+from Configuration.Core import (Load_Configuration, Write_Calibration, Hardware_And_Mode, Hardware_Record,
                                 Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE, CONST_PROJECT_ROOT)
 #   ../Calibration/Core
 import Calibration.Core
@@ -117,7 +117,7 @@ def Capture_Main(directory: str, config_path: str) -> int:
                        'application\'s <set>_raw.png, which is undistorted.'),
               'processing': "Camera.Utilities.Image_Processing.Process_Image_Cls('%s')" % CONST_BASLER_IMAGE_PROFILE,
               'configuration': configuration.Name,
-              'camera': Basler_Cfg_Str.Name, 'custom_cfg': Basler_Cfg_Str.Custom_Cfg,
+              'hardware': Hardware_Record(configuration), 'custom_cfg': Basler_Cfg_Str.Custom_Cfg,
               # The sensor window the frames were captured at, as the camera read it back. The
               # solve records it in the calibration: K and the factor are in this window's pixels.
               'window': {'resolution': list(applied['resolution']), 'offset': list(applied['offset'])},

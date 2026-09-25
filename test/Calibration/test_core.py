@@ -43,7 +43,7 @@ from Calibration.Core import (Detect_Board, Next_Capture_Name, Record_Capture, C
                               Report_Lines, Calibration_Error_Cls, Calibration_Parameters)
 #   ../Configuration/Core — the configuration layer the calibration is written and read through
 from Configuration.Core import (Load_Configuration, Write_Calibration, Calibration_Path_For,
-                                CONST_DEFAULT_CONFIG_FILE)
+                                Hardware_Record, CONST_DEFAULT_CONFIG_FILE)
 
 """
 Description:
@@ -168,6 +168,8 @@ def test_capture_harness_keeps_every_frame_and_marks_them_distorted(tmp_path, mo
     assert sorted(os.listdir(tmp_path)) == ['capture.json', 'flat_001.png', 'view_002.png']
     manifest = json.loads((tmp_path / 'capture.json').read_text())
     assert manifest['distorted'] is True and 'NOT undistorted' in manifest['note']
+    # The camera is identified by the configuration's hardware record, not a separate name field.
+    assert manifest['hardware'] == Hardware_Record(Load_Configuration(CONST_DEFAULT_CONFIG_FILE))
     flat, view = manifest['frames']
     assert (flat['kind'], flat['board_found'], flat['corners']) == ('flat', True, 70)
     assert (view['kind'], view['board_found']) == ('view', False) and view['reason']
