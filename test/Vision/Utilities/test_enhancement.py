@@ -88,7 +88,7 @@ def test_enhance_masked_sample_differs_from_unmasked() -> None:
         The stretch estimated from the object's own pixels differs from the stretch
         estimated from the whole crop, on a crop where a small dark object sits in a
         large uniform bright surround — the deliberate asymmetry (estimate from the
-        object, apply to the whole crop) that keeps the surround from washing out the
+        object, stretch only the object) that keeps the surround from washing out the
         stretch.
     """
 

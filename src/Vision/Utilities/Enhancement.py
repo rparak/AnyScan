@@ -34,8 +34,9 @@ Description:
 
     The gain/bias (alpha/beta) are estimated from the OBJECT's own pixels only (a masked
     sample), so the uniform surround does not bias the histogram, and the stretch is given to
-    the object: the surround keeps CONST_ENHANCE_SURROUND_BLEND of it — 0 as shipped, so the
-    object sits on its natural table for the model, not on a stretched, garish one.
+    the object alone: the surround is left as it was, so the object sits on its natural table
+    for the model, not on a stretched, garish one. (A partial surround blend was a constant set
+    to 0, which did nothing; it comes back only with a measurement showing a blend helps.)
 
     Note:
         OpenCV (cv2) and NumPy (np) are injected by the caller, the Qt-free contract
@@ -57,12 +58,6 @@ CONST_ENHANCE_CLIP_LIMIT = 1.0
 # makes the describer hallucinate texture; capping it keeps the stretch a stretch, not
 # a solarisation. beta is rescaled with it so the object's floor still maps to black.
 CONST_ENHANCE_MAX_ALPHA = 3.5
-
-# How much of the stretch the SURROUND keeps (0 = surround left at the natural table,
-# 1 = surround fully stretched). The gain/bias are estimated from the object, so any
-# of the stretch on the table pushes it toward a garish cyan/green; the object is
-# stretched and the surround is left as the real table it sits on.
-CONST_ENHANCE_SURROUND_BLEND = 0.0
 
 # The neighbour masks are the fused components, which sit slightly inside a part's
 # bright edge; replacing only those pixels leaves a thin outline of the neighbour that
@@ -149,10 +144,10 @@ def Enhance_Crop(crop_bgr: tp.List[tp.List[int]], sample_mask: tp.Optional[tp.Li
         every channel as g = alpha * f + beta.
 
         When sample_mask is given and non-empty, ONLY the object pixels feed the
-        histogram, so the uniform green surround does not bias the stretch, and the
-        surround keeps CONST_ENHANCE_SURROUND_BLEND of the stretch (0 as shipped: the
-        table is left as it was). Without a mask the whole crop is stretched. A flat
-        histogram returns (1.0, 0.0), i.e. the crop unchanged.
+        histogram, so the uniform green surround does not bias the stretch, and only the
+        object's pixels are stretched: the table around it is left as it was. Without a
+        mask the whole crop is stretched. A flat histogram returns (1.0, 0.0), i.e. the
+        crop unchanged.
 
     Args:
         (1) crop_bgr [Matrix<uint8> hxwx3]: The padded object crop (BGR).
@@ -184,11 +179,8 @@ def Enhance_Crop(crop_bgr: tp.List[tp.List[int]], sample_mask: tp.Optional[tp.Li
         alpha = CONST_ENHANCE_MAX_ALPHA
     stretched = cv2.convertScaleAbs(crop_bgr, alpha=alpha, beta=beta)
 
-    # The stretch is tuned to the OBJECT; applied at full strength to the surround it
-    # can push the table to a garish colour. Give the object the full stretch and the
-    # surround CONST_ENHANCE_SURROUND_BLEND of it, so it stays a natural table.
+    # The stretch is tuned to the OBJECT; applied to the surround it can push the table to a
+    # garish colour. The object gets the stretch and the table keeps its own pixels.
     if sample_mask is None or int(np.count_nonzero(sample_mask)) == 0:
         return stretched
-    weight = np.where(sample_mask > 0, 1.0, CONST_ENHANCE_SURROUND_BLEND)[..., None]
-    blended = crop_bgr.astype(np.float32) * (1.0 - weight) + stretched.astype(np.float32) * weight
-    return blended.astype(np.uint8)
+    return np.where(sample_mask[..., None] > 0, stretched, crop_bgr)
