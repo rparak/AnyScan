@@ -112,7 +112,7 @@ def _Hms_To_Seconds(hms: str) -> int:
     return hours * 3600 + minutes * 60 + seconds
 
 
-def _Read_Rows(path: str, delimiter: str = ',') -> tp.List[tp.Dict[str, str]]:
+def _Read_Rows(path: str) -> tp.List[tp.Dict[str, str]]:
     """
     Description:
         Read every data row of a run-summary CSV back as an ordered list of dicts,
@@ -120,14 +120,13 @@ def _Read_Rows(path: str, delimiter: str = ',') -> tp.List[tp.Dict[str, str]]:
 
     Args:
         (1) path [string]: The CSV file path.
-        (2) delimiter [string]: The CSV delimiter.
 
     Returns:
         (1) parameter [Vector<Dict[string, string]>]: The data rows.
     """
 
     with open(path, 'r', newline='', encoding='utf-8-sig') as csv_file:
-        return list(csv.DictReader(csv_file, delimiter=delimiter))
+        return list(csv.DictReader(csv_file))
 
 
 def _Read_Header_Line(path: str) -> str:
@@ -620,24 +619,6 @@ def test_summary_arithmetic_is_self_consistent_at_sub_second_times(tmp_path: tp.
     assert cycle == printed == 3
     assert cycle == _Hms_To_Seconds(row['total_session_time']) + _Hms_To_Seconds(row['idle_time'])
     assert _Hms_To_Seconds(row['total_session_time']) == round(1.586 + 0.650) == 2
-
-
-def test_semicolon_delimiter_is_configurable(tmp_path: tp.Any) -> None:
-    """
-    Description:
-        The delimiter is configurable; a ';' file (for Excel in a Czech locale) is
-        written and read back with the same delimiter.
-    """
-
-    clock = Clock_Cls(_T('09:00:00'))
-    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False,
-                                        csv_delimiter=';')
-    clock.now = _T('09:00:06'); Session_Logger.Close()
-
-    assert _Read_Header_Line(Session_Logger.Csv_Path) == ';'.join(CONST_CSV_COLUMNS)
-    rows = _Read_Rows(Session_Logger.Csv_Path, delimiter=';')
-    assert len(rows) == 1
-    assert rows[0]['cycle_time'] == '00:00:06'
 
 
 def test_csv_row_written_on_exception_exit(tmp_path: tp.Any) -> None:

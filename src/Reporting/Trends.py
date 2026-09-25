@@ -50,15 +50,13 @@ Description:
 class Trend_Object_Str:
     """
     Description:
-        One SCORED object's point for the confidence chart: the image it belongs to (1-based),
-        its confidence percentage and its verdict (for the dot colour when classification is on).
+        One SCORED object's point for the confidence chart: its confidence percentage and its
+        verdict (for the dot colour when classification is on). The image it belongs to is the
+        Trend_Image_Str that holds it.
         Unscored objects are NOT represented here — plotting them at 0% would draw a false
         low-confidence point — they are counted in the owning image's Unscored field instead.
     """
 
-    # The 1-based index of the image the object was found in (the chart x position).
-    #   Unit [int]
-    Image: int = 0
     # The confidence percentage (0..100). Always present — an unscored object is not a point.
     #   Unit [int]
     Confidence: int = 0
@@ -156,8 +154,7 @@ class Trends_Accumulator_Cls(object):
                 row.Unscored += 1
                 continue
             percent = int(round(100.0 * det.Segmenter_Score))
-            row.Objects.append(Trend_Object_Str(Image=index, Confidence=percent,
-                                                Verdict=det.Verdict))
+            row.Objects.append(Trend_Object_Str(Confidence=percent, Verdict=det.Verdict))
             self.__scores.append(percent)
 
         frame_scores = [obj.Confidence for obj in row.Objects]

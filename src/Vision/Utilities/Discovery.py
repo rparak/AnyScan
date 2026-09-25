@@ -40,8 +40,8 @@ Description:
 
     Note:
         Pure stdlib (os, re, glob) — no OpenCV, no NumPy, no Qt. It resolves file
-        paths, it does not read pixels, so App/run.py can import it at load time
-        and the tests exercise it with synthetic files and no camera.
+        paths, it does not read pixels, so the tests exercise it with synthetic files
+        and no camera. Only Example/Vision/analyze.py uses it.
 """
 # The scene-frame glob. Image_<n>.png (any number of digits) are the scene
 # captures, so Image_010 and beyond are found rather than silently skipped. The
@@ -50,14 +50,6 @@ Description:
 # patterns never overlap.
 #   Unit [string]
 CONST_SCENE_GLOB = 'Image_[0-9]*.png'
-
-
-class Discovery_Error_Cls(RuntimeError):
-    """
-    Description:
-        Raised when the scene set cannot be resolved. Its message is a full, actionable sentence — the harness
-        prints it straight to the operator, the same contract as Vision_Error_Cls.
-    """
 
 
 def __Natural_Key(path: str) -> tp.Tuple[tp.Any, ...]:

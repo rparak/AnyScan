@@ -102,8 +102,6 @@ class Describer_Backend_Cls(object):
                 Cls.Load(); Cls.Describe(crop_bgr, CONST_PURPOSE_OBJECT)
     """
 
-    Name = ''
-
     @property
     def Loaded(self) -> bool:
         """
@@ -172,8 +170,6 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
                 Cls.Load(); Cls.Describe(crop_bgr, CONST_PURPOSE_OBJECT); Cls.Release()
                 Cls.Set_Parameters(Description_Parameters_Str)
     """
-
-    Name = 'gemma-4-e4b-it-4bit'
 
     def __init__(self, Description_Parameters_Str: Description_Parameters_Str) -> None:
         # << PRIVATE >> #

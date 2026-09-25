@@ -128,8 +128,8 @@ def Fuse_Objects(masks: tp.List, scores: tp.List[tp.Optional[float]],
         closed to merge the parts of one object, split with connectedComponentsWithStats,
         filtered by area and ordered left to right in row bands. Each surviving
         component becomes a Detection_Str carrying its Mask, tight Bbox, the cue(s)
-        that located it, the fraction the background cue covered (Change_Coverage) and
-        the best overlapping FastSAM score. Label and Detail are left for stage 4.
+        that located it and the best overlapping FastSAM score. Label and Detail are
+        left for stage 4.
 
     Args:
         (1) masks [Vector<Matrix<bool> HxW>]: The FastSAM instance masks (stage 2).
@@ -180,7 +180,7 @@ def Fuse_Objects(masks: tp.List, scores: tp.List[tp.Optional[float]],
         sam_overlap = float(np.count_nonzero(comp_mask & sam_bool)) / area
         objects.append(Detection_Str(
             Label='object', Bbox=(x, y, bw, bh), Confidence=None, Mask=comp_mask,
-            Change_Coverage=bg_overlap, Segmenter_Score=__Component_Score(comp_mask, masks, scores, np),
+            Segmenter_Score=__Component_Score(comp_mask, masks, scores, np),
             Cue=__Cue(sam_overlap, bg_overlap)))
     return objects
 

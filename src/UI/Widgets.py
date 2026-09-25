@@ -322,17 +322,6 @@ class Viewport_Cls(QWidget):
 
         return self.__annotated is not None
 
-    def Current_View(self) -> str:
-        """
-        Description:
-            The view currently selected ('annotated' or 'mask').
-
-        Returns:
-            (1) parameter [string]: The selected view.
-        """
-
-        return self.__view
-
     def __Displayed(self) -> tp.Optional[QImage]:
         """
         Description:
@@ -1007,14 +996,9 @@ class Stat_Cell_Cls(QWidget):
         the states by the person at the keyboard.
     """
 
-    def __init__(self, label: str, value: str = '', big: bool = False, dot: bool = False,
+    def __init__(self, label: str, value: str = '', big: bool = False,
                  mono: bool = False, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
-
-        # << PRIVATE >> #
-        self.__dot = dot
-        self.__dot_color = None
-        self.__color = Style.CONST_INK
 
         col = QVBoxLayout(self)
         col.setContentsMargins(20, 13, 20, 13)
@@ -1064,7 +1048,6 @@ class Stat_Cell_Cls(QWidget):
             (4) weight [int]: Optional QFont weight; None keeps the cell's own weight.
         """
 
-        self.__dot_color = dot_color
         if weight is not None:
             font = self.__value.font()
             font.setWeight(weight)
@@ -1098,9 +1081,9 @@ class Status_Strip_Cls(Card_Cls):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(0)
 
-        self.camera = Stat_Cell_Cls('Camera', 'Disconnected', dot=True)
+        self.camera = Stat_Cell_Cls('Camera', 'Disconnected')
         self.resolution = Stat_Cell_Cls('Resolution', Style.CONST_NO_VALUE, mono=True)
-        self.system = Stat_Cell_Cls('System', 'Ready', dot=True)
+        self.system = Stat_Cell_Cls('System', 'Ready')
         self.updated = Stat_Cell_Cls('Last update', Style.CONST_NO_VALUE, mono=True)
         self.images = Stat_Cell_Cls('Images analysed', '0', big=True)
         self.objects = Stat_Cell_Cls('Objects detected', '0', big=True)

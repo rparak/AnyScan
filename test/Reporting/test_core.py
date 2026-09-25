@@ -21,8 +21,6 @@
 # File Name: ../test/Reporting/test_core.py
 ## =========================================================================== ##
 
-# System (Default)
-import os
 # Custom Lib.: AnyScan domain — data structures and report composer
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
@@ -38,9 +36,6 @@ Description:
     structures, so nothing here needs a camera or the model.
 """
 
-# The frame size passed to the composer. Position is not part of any sentence, so
-# only its being fixed matters.
-CONST_SIZE = (1920, 1200)
 
 
 def _Detection(label: str, detail: str = '', confidence=None, text=None) -> Detection_Str:
@@ -60,18 +55,6 @@ def _Detection(label: str, detail: str = '', confidence=None, text=None) -> Dete
 
     return Detection_Str(Label=label, Bbox=(0, 0, 10, 10), Detail=detail,
                          Confidence=confidence, Text=text)
-
-
-def test_count_word() -> None:
-    """
-    Description:
-        Numbers zero to ten are words; anything past ten falls back to digits.
-    """
-
-    assert Reporting.Count_Word(0) == 'no'
-    assert Reporting.Count_Word(1) == 'one'
-    assert Reporting.Count_Word(10) == 'ten'
-    assert Reporting.Count_Word(11) == '11'
 
 
 def test_verdict_levels() -> None:
@@ -98,7 +81,7 @@ def test_the_description_is_kept_as_written_and_only_tidied() -> None:
     assert not hasattr(Reporting, 'Caption_Sentence') and not hasattr(Reporting, 'CONST_LABEL_LEADINS')
 
 
-def test_describe_object_detail_reading_and_fallback() -> None:
+def test_object_description_detail_reading_and_fallback() -> None:
     """
     Description:
         The full detail becomes the line; a reading is appended; an empty detail
@@ -107,13 +90,13 @@ def test_describe_object_detail_reading_and_fallback() -> None:
 
     # Nothing is removed from the description (there is no background strip).
     verbose = _Detection('hex bolt', detail='The object is a hex bolt on a green surface.')
-    assert Reporting.Describe_Object(verbose, CONST_SIZE) == 'The object is a hex bolt on a green surface.'
+    assert Reporting.Object_Description(verbose) == 'The object is a hex bolt on a green surface.'
 
     reading = _Detection('screw', detail='The object is a screw.', text='M6')
-    assert Reporting.Describe_Object(reading, CONST_SIZE) == 'The object is a screw, reading “M6”.'
+    assert Reporting.Object_Description(reading) == 'The object is a screw, reading “M6”.'
 
     fallback = _Detection('nut', detail='')
-    assert Reporting.Describe_Object(fallback, CONST_SIZE) == 'A nut.'
+    assert Reporting.Object_Description(fallback) == 'A nut.'
 
 
 def test_compose_sets_sentence_and_never_reorders() -> None:
@@ -125,7 +108,7 @@ def test_compose_sets_sentence_and_never_reorders() -> None:
 
     objects = [_Detection('washer', detail='A metal washer.'),
                _Detection('nut', detail='')]
-    returned, note = Reporting.Compose(objects, CONST_SIZE)
+    returned, note = Reporting.Compose(objects)
 
     assert returned is objects
     assert objects[0].Sentence == 'A metal washer.'
@@ -140,7 +123,7 @@ def test_scene_note_empty_scene_carries_caption_and_advice() -> None:
         next action.
     """
 
-    note = Reporting.Scene_Note([], CONST_SIZE, caption=Reporting.CONST_EMPTY_SCENE_EXPLANATION)
+    note = Reporting.Scene_Note([], caption=Reporting.CONST_EMPTY_SCENE_EXPLANATION)
     assert note == (Reporting.CONST_EMPTY_SCENE_EXPLANATION.rstrip('.') + '.'
                     + ' Check the lighting and the focus, then scan again.')
 

@@ -50,7 +50,7 @@ from Vision.Core import Vision_Pipeline_Cls, Vision_Error_Cls
 #   ../Vision/Segmenter
 from Vision.Segmenter import Segmenter_Error_Cls
 #   ../Vision/Utilities/Discovery
-from Vision.Utilities.Discovery import Discover_Scenes, Discovery_Error_Cls
+from Vision.Utilities.Discovery import Discover_Scenes
 #   ../Vision/Utilities/Provenance
 import Vision.Utilities.Provenance as Provenance
 #   ../Vision/Utilities/Annotate
@@ -94,7 +94,6 @@ Description:
 #   Unit [string]
 CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Results')
 
-# Throwaway per-object colours (BGR), one per index, cycled past the tenth object.
 # The montage cell size (px) for the optional enhanced-crop debug view.
 #   Unit [int]
 CONST_MONTAGE_CELL = 260
@@ -107,8 +106,6 @@ CONST_MONTAGE_CELL = 260
 # written before the reference went missing, pass review as if they were fresh.
 #   Unit [int]
 CONST_STAMP_BAND_H = Provenance.CONST_STAMP_BAND_H
-#   Unit [float]
-CONST_STAMP_FONT_SCALE = Provenance.CONST_STAMP_FONT_SCALE
 #   Unit [int]
 CONST_FINGERPRINT_LEN = Provenance.CONST_FINGERPRINT_LEN
 
@@ -411,11 +408,7 @@ def main() -> int:
                 ["The configuration '%s' does not set Evaluation.Frames, and no --input-dir was given."
                  % configuration.Name, 'Set Evaluation.Frames (e.g. Data/Images/Test) or pass --input-dir.'])
         return 1
-    try:
-        scenes = Discover_Scenes(args.input_dir)
-    except Discovery_Error_Cls as error:
-        _Banner('INPUT DISCOVERY FAILED', [str(error)])
-        return 1
+    scenes = Discover_Scenes(args.input_dir)
     if not scenes:
         _Banner('NO SCENE FRAMES FOUND',
                 ['No Image_[0-9]*.png scene frames were found in: %s' % os.path.abspath(args.input_dir)])

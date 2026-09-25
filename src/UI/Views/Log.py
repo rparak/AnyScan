@@ -25,7 +25,7 @@
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QFontMetrics
+from PyQt5.QtGui import QFontMetrics
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
                              QScrollArea, QFrame)
 # Custom Lib.: AnyScan UI — design tokens, style helpers and shared widgets

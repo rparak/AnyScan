@@ -442,7 +442,6 @@ def Calibrate(views: tp.List[tp.Tuple[str, tp.Optional[np.ndarray]]], square_mm:
         view.Rms_Px = float(np.sqrt(np.mean(np.sum((projected - img) ** 2, axis=2))))
         normal = cv2.Rodrigues(rvec)[0][:, 2]
         view.Tilt_Deg = float(np.degrees(np.arccos(min(1.0, abs(float(normal[2]))))))
-        view.Tilt_Azimuth_Deg = float(np.degrees(np.arctan2(normal[1], normal[0])) % 360.0)
     median_rms = float(np.median([view.Rms_Px for view in detected]))
     for view in detected:
         view.Outlier = view.Rms_Px > CONST_CALIB_OUTLIER_RATIO * median_rms
@@ -472,7 +471,6 @@ def Calibrate(views: tp.List[tp.Tuple[str, tp.Optional[np.ndarray]]], square_mm:
 
     # 5\ The factor from the flat views' undistorted corners, in the application's pixel space.
     new_K, _ = cv2.getOptimalNewCameraMatrix(K, coeffs, size, CONST_BASLER_UNDISTORT_ALPHA, size)
-    report.New_K = new_K
     report.Undistortion_Rescale = (float(new_K[0, 0] / K[0, 0]), float(new_K[1, 1] / K[1, 1]))
     all_vectors, all_midpoints = [], []
     for view in flats:

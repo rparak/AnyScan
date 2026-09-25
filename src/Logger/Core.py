@@ -84,12 +84,9 @@ CONST_CSV_DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 #   Unit [string]
 CONST_CSV_FILENAME_TEMPLATE = 'log_{config_id}.csv'
 CONST_CSV_UNCONFIGURED_ID = 'unconfigured'
-# The supported CSV delimiters. The default is a comma; a semicolon is exposed
-# because Excel in a Czech locale expects it.
+# The run-summary CSV's delimiter.
 #   Unit [string]
-CONST_CSV_DELIMITER_COMMA = ','
-CONST_CSV_DELIMITER_SEMICOLON = ';'
-CONST_CSV_DEFAULT_DELIMITER = CONST_CSV_DELIMITER_COMMA
+CONST_CSV_DELIMITER = ','
 # The run-summary CSV columns, in the exact order they are written. The header row is this list;
 # each data row is rendered one-to-one from a Summary_Str. The row is the run's TIME ACCOUNT only:
 # when the application ran, for how long, how much of that a camera was connected, and how much
@@ -257,20 +254,16 @@ class Session_Str:
     # The connection time; the disconnection time (None while still open).
     Start: tp.Optional[datetime] = None
     End: tp.Optional[datetime] = None
-    # True when the session was still open at shutdown and closed at the stop time.
-    Closed_At_Shutdown: bool = False
 
 
 @dataclass
 class Error_Str:
     """
     Description:
-        One tracked error: the identifier, its message, the time it occurred and the
-        time it was resolved (None while unresolved).
+        One tracked error: its message, the time it occurred and the time it was resolved
+        (None while unresolved). The run keys it by its identifier (Log_Error's return value).
     """
 
-    # The 1-based identifier of the error within the run.
-    Id: int = 0
     # The human-readable error message.
     Message: str = ''
     # The time the error occurred; the time it was resolved (None while unresolved).
@@ -386,9 +379,7 @@ class Session_Logger_Cls(object):
             (6) csv_filename [string]: An explicit run-summary CSV filename, overriding the
                 name derived from config_path. An absolute path is honoured as-is; otherwise it
                 is resolved inside log_dir.
-            (7) csv_delimiter [string]: The CSV delimiter (default ','; ';' for Excel in a
-                Czech locale).
-            (8) config_path [string or None]: REQUIRED, keyword-only: the configuration file the
+            (7) config_path [string or None]: REQUIRED, keyword-only: the configuration file the
                 run loaded, which names the CSV (Csv_Filename_For_Config). It has no default so
                 every caller states which setup the summary belongs to; None is an explicit 'no
                 configuration' and writes to log_unconfigured.csv.
@@ -406,8 +397,7 @@ class Session_Logger_Cls(object):
     def __init__(self, log_dir: tp.Optional[str] = None,
                  clock: tp.Callable[[], datetime] = datetime.now,
                  date_format: str = CONST_DATE_FORMAT, time_format: str = CONST_TIME_FORMAT,
-                 install_handlers: bool = True, csv_filename: tp.Optional[str] = None,
-                 csv_delimiter: str = CONST_CSV_DEFAULT_DELIMITER, *,
+                 install_handlers: bool = True, csv_filename: tp.Optional[str] = None, *,
                  config_path: tp.Optional[str]) -> None:
 
         # << PRIVATE >> #
@@ -449,7 +439,6 @@ class Session_Logger_Cls(object):
         # The run-summary CSV, named after the loaded configuration (Csv_Filename_For_Config);
         # an explicit csv_filename overrides it, an absolute one is honoured as-is, otherwise it
         # is resolved inside the log directory alongside the '.txt' file.
-        self.__csv_delimiter = csv_delimiter
         csv_name = (csv_filename if csv_filename is not None
                     else Csv_Filename_For_Config(config_path))
         self.__csv_path = os.path.join(self.__log_dir, csv_name)
@@ -679,7 +668,7 @@ class Session_Logger_Cls(object):
             now = self.__clock()
             error_id = self.__next_error_id
             self.__next_error_id += 1
-            Error_Str_i = Error_Str(Id=error_id, Message=message, Start=now)
+            Error_Str_i = Error_Str(Message=message, Start=now)
             self.__errors.append(Error_Str_i)
             self.__errors_by_id[error_id] = Error_Str_i
             self.__Write_Line(f'{message} (error_id={error_id})', now, CONST_LEVEL_ERROR)
@@ -1065,7 +1054,7 @@ class Session_Logger_Cls(object):
                     if not self.__Is_Current_File(csv_file):
                         continue
                     first = csv_file.readline().decode('utf-8-sig', errors='replace').rstrip('\r\n')
-                    header = next(csv.reader([first], delimiter=self.__csv_delimiter), [])
+                    header = next(csv.reader([first], delimiter=CONST_CSV_DELIMITER), [])
                     if not first or header == CONST_CSV_COLUMNS:
                         return
                     archive = self.__Archive_Path(os.fstat(csv_file.fileno()).st_mtime)
@@ -1119,7 +1108,7 @@ class Session_Logger_Cls(object):
         with csv_file:
             try:
                 write_header = os.fstat(csv_file.fileno()).st_size == 0
-                writer = csv.writer(csv_file, delimiter=self.__csv_delimiter)
+                writer = csv.writer(csv_file, delimiter=CONST_CSV_DELIMITER)
                 if write_header:
                     csv_file.write(CONST_CSV_BOM)
                     writer.writerow(CONST_CSV_COLUMNS)
@@ -1157,7 +1146,6 @@ class Session_Logger_Cls(object):
             if self.__open_session is not None:
                 Session_Str_i = self.__open_session
                 Session_Str_i.End = now
-                Session_Str_i.Closed_At_Shutdown = True
                 self.__open_session = None
                 duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
                 self.__Write_Line(f'Connection {Session_Str_i.Index} ended after {duration} '

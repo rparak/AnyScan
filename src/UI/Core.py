@@ -60,7 +60,6 @@ from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
 #   ../Vision/Core
 from Vision.Core import Vision_Pipeline_Cls
 #   ../Vision/Utilities/Annotate
-import Vision.Utilities.Annotate as Annotate
 from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask, Seg_Lines
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines

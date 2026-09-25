@@ -915,7 +915,6 @@ Verify_Imports() {
 import PyQt5.QtCore, cv2, ultralytics, mlx_vlm
 import mlx.core as mx
 import torch
-gpu = torch.cuda.is_available() or torch.backends.mps.is_available()
 print('MLX', mx.default_device())
 print('TORCH', torch.__version__, 'cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu'))
 PY

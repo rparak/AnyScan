@@ -26,7 +26,7 @@ import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QRectF, QPointF
 from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QFontMetrics
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGridLayout, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QLabel, QGridLayout, QSizePolicy
 # Custom Lib.: AnyScan UI — design tokens, style helpers and shared widgets
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
@@ -269,7 +269,6 @@ class Chart_Base_Cls(QWidget):
         """
 
         painter.setFont(Font(Style.CONST_TYPE_SCALE[0]))
-        metrics = QFontMetrics(painter.font())
         for value in self._y_ticks:
             if value < self._y_min - 1e-9 or value > self._y_max + 1e-9:
                 continue

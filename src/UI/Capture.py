@@ -704,7 +704,9 @@ class Capture_Writer_Cls(object):
             (9) metadata [Dict]: The set metadata (Build_Set_Metadata), written as JSON.
             (10) stamp [string]: The provenance stamp for the '_understanding.txt' header.
             (11) cv2 [module]: The OpenCV module, injected by the caller.
-            (12) np [module]: The NumPy module, injected by the caller.
+            (12) np [module]: The NumPy module, injected by the caller. Unused here, and kept on
+                 purpose: every writer and renderer takes the injected (cv2, np) pair, and dropping
+                 it would change 17 call sites for no behaviour change (cleanup audit 2026-09-25).
             (13) distorted_bgr [Matrix<uint8> HxWx3 or None]: REQUIRED, keyword-only: the frame
                  BEFORE undistortion (BGR), or None when the camera does not undistort.
             (14) undistortion [Dict or None]: REQUIRED, keyword-only: the undistortion that
@@ -757,7 +759,8 @@ class Capture_Writer_Cls(object):
             (4) note [string]: The failure note written into the '_understanding.txt'.
             (5) stamp [string]: The provenance stamp.
             (6) cv2 [module]: The OpenCV module, injected by the caller.
-            (7) np [module]: The NumPy module, injected by the caller.
+            (7) np [module]: The NumPy module, injected by the caller. Unused here, and kept on
+                purpose, like Write's: the (cv2, np) pair is injected together everywhere.
             (8) distorted_bgr [Matrix<uint8> HxWx3 or None]: REQUIRED, keyword-only: the frame
                 BEFORE undistortion (BGR), or None — as for Write.
             (9) undistortion [Dict or None]: REQUIRED, keyword-only: its undistortion, or None.

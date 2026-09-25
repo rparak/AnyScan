@@ -429,7 +429,7 @@ def Draw_Architecture(logo_svg: str) -> str:
            'each object records the cue(s) that located it'], number='3', stroke=T.CONST_BRAND, stroke_width=2)
     c.Arrow(536, 594, 536, 674)
     c.Chip(536, 634, ['per object: Mask · Bbox · Cue = both | fastsam | background',
-                      'Change_Coverage · Segmenter_Score (a FastSAM cue only)'])
+                      'Segmenter_Score (a FastSAM cue only)'])
 
     """
     Description:

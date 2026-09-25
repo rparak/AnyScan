@@ -32,7 +32,6 @@ import numpy as np
 import pytest
 # Custom Lib.: AnyScan — the describers, the configuration layer and the pipeline
 #   ../Vision/Describers
-import Vision.Describers as Describers
 from Vision.Describers import (Gemma_Describer_Cls, Describer_Error_Cls,
                                CONST_PURPOSE_OBJECT, CONST_PURPOSE_BACKGROUND)
 #   ../Configuration/Core

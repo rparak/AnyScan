@@ -68,10 +68,8 @@ CONST_GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 
 # must find exactly these two objects.
 #   Unit [Vector<Tuple<int> 1x4>] (x1, y1, x2, y2)
 CONST_SYNTHETIC_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
-# The frame size the composer is given, and the background sentence Gemma wrote for the reference
-# (it opens the Scene-Understanding header).
-#   Unit [Tuple<int> 1x2] / [string]
-CONST_FRAME_SIZE = (1920, 1200)
+# The background sentence Gemma wrote for the reference (it opens the Scene-Understanding header).
+#   Unit [string]
 CONST_BASELINE_BACKGROUND = 'A deep teal surface presents a uniform, matte finish.'
 # Descriptions fed to the label distiller (Gemma's, verbatim), chosen to cover the range of the
 # head-noun rule — including one it handles poorly and one where the text itself is wrong. In
@@ -190,7 +188,7 @@ def _Characterization(reference: np.ndarray) -> tp.List[str]:
 
     # 2\ The report composer: three scenes, every sentence the panel shows, and the verdict.
     lines.append('-- report composer --')
-    empty_objs, empty_note = Reporting.Compose([], CONST_FRAME_SIZE, caption=Reporting.CONST_EMPTY_SCENE_EXPLANATION)
+    empty_objs, empty_note = Reporting.Compose([], caption=Reporting.CONST_EMPTY_SCENE_EXPLANATION)
     badge, level = Reporting.Verdict(empty_objs)
     lines += ['[scene: empty]', f'  header  = {Reporting.Screen_Header(empty_objs, CONST_BASELINE_BACKGROUND)}',
               f'  note    = {empty_note}', f'  verdict = {badge} ({level})']
@@ -201,7 +199,7 @@ def _Characterization(reference: np.ndarray) -> tp.List[str]:
                              'element. The surface exhibits numerous fine, concentric scratches across the '
                              'entire body, and there are noticeable brown, earthy-toned stains or deposits '
                              'clustered in the upper section of the plate.')]
-    one_objs, one_note = Reporting.Compose(one, CONST_FRAME_SIZE, caption='')
+    one_objs, one_note = Reporting.Compose(one, caption='')
     badge, level = Reporting.Verdict(one_objs)
     lines += ['[scene: one object]', f'  header  = {Reporting.Screen_Header(one_objs, CONST_BASELINE_BACKGROUND)}',
               f'  object1 = {one_objs[0].Sentence}', f'  note    = {one_note!r}', f'  verdict = {badge} ({level})']
@@ -219,7 +217,7 @@ def _Characterization(reference: np.ndarray) -> tp.List[str]:
                               'minor streaks or slight variations in tone across the body.',
                        confidence=0.20, text='M6'),
             _Detection('nut', (300, 300, 60, 60), detail='')]
-    many_objs, many_note = Reporting.Compose(many, CONST_FRAME_SIZE, caption='')
+    many_objs, many_note = Reporting.Compose(many, caption='')
     badge, level = Reporting.Verdict(many_objs)
     lines += ['[scene: several objects]', f'  header  = {Reporting.Screen_Header(many_objs, CONST_BASELINE_BACKGROUND)}']
     lines += [f'  object{i} = {obj.Sentence}' for i, obj in enumerate(many_objs, start=1)]

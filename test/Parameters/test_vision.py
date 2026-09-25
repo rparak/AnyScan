@@ -54,7 +54,6 @@ def test_detection_str_defaults() -> None:
     assert det.Sentence == ''
     # The mask-pipeline fields carry their documented defaults.
     assert det.Mask is None
-    assert det.Change_Coverage == 0.0
     assert det.Segmenter_Score is None
     # The verdict defaults to OK: until classification lands, every object is OK.
     assert det.Verdict == 'OK'
@@ -115,7 +114,7 @@ def test_field_names_are_pascal_snake_case() -> None:
     # The mask-pipeline fields are appended after Sentence; the original order is
     # preserved so positional construction and the operator-visible contract hold.
     assert detection_field_order == ['Label', 'Bbox', 'Confidence', 'Text', 'Detail',
-                                     'Sentence', 'Mask', 'Change_Coverage', 'Segmenter_Score',
+                                     'Sentence', 'Mask', 'Segmenter_Score',
                                      'Cue', 'Verdict', 'Enhanced_Crop', 'Measurement']
     assert analysis_fields == {'Objects', 'Note', 'Latency_Ms',
                                'Verdict', 'Verdict_Level', 'Task', 'Raw_Mask_Count',

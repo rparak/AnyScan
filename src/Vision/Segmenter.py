@@ -48,9 +48,6 @@ Description:
         first Segment call, never at module load, so importing this module — as the
         Qt-free separation test does — pulls no heavy runtime and no Qt backend.
 """
-# The backend name presented in logs and the example script.
-CONST_SEGMENTER_NAME = 'FastSAM-x'
-
 # retina_masks returns full-resolution masks. (The weights, device and FastSAM's confidence / IoU /
 # inference size are configuration: Segmentation_Parameters_Str.)
 CONST_SEGMENTER_RETINA_MASKS = True
@@ -88,8 +85,6 @@ class Segmenter_Backend_Cls(object):
                 # Functions of the class.
                 Cls.Segment(image_bgr)
     """
-
-    Name = 'segmenter'
 
     def Segment(self, image: tp.List[tp.List[int]],
                 stage_cb: tp.Optional[tp.Callable] = None) -> tp.Tuple[tp.List, tp.List[tp.Optional[float]]]:
@@ -147,8 +142,6 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
                 Cls.Load(stage_cb); Cls.Segment(image_bgr); Cls.Release()
                 Cls.Set_Parameters(Segmentation_Parameters_Str)
     """
-
-    Name = CONST_SEGMENTER_NAME
 
     def __init__(self, Segmentation_Parameters_Str: Segmentation_Parameters_Str) -> None:
         super().__init__()

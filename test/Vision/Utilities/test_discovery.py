@@ -23,8 +23,6 @@
 
 # System (Default)
 import os
-# Pytest (Testing framework) [pip3 install pytest]
-import pytest
 # Custom Lib.: AnyScan domain — data-file discovery
 #   ../Vision/Utilities/Discovery
 import Vision.Utilities.Discovery as Discovery

@@ -21,8 +21,6 @@
 # File Name: ../Vision/Utilities/Caption.py
 ## =========================================================================== ##
 
-# Typing (Support for type hints)
-import typing as tp
 # Custom Lib.: AnyScan domain — report composer (the label vocabulary lives there)
 #   ../Reporting/Core
 from Reporting.Core import (CONST_LABEL_OPENERS, CONST_LABEL_BOUNDARIES, CONST_LABEL_HEDGES,
@@ -43,7 +41,7 @@ def Condense_Label(caption: str) -> str:
     Description:
         A two-to-three word noun phrase for the label, distilled from a caption.
 
-        Describe_Object renders the label as 'A <label>.', so a paragraph there
+        Object_Description renders the label as 'A <label>.', so a paragraph there
         produces a line that is not a sentence. The front matter and any trailing
         clause are stripped and the phrase is capped; the full caption survives
         untouched in Detection_Str.Detail as the line's second sentence, so an

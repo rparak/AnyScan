@@ -135,7 +135,7 @@
 <line x1="536" y1="594" x2="536" y2="674" stroke="#4a4180" stroke-width="1.8" stroke-linecap="round" marker-end="url(#arch-tip)"/>
 <rect x="293.54600000000005" y="612.0" width="484.90799999999996" height="44" rx="10" fill="#ffffff" stroke="#e3e0ee" stroke-width="1"/>
 <text x="536" y="631.0" class="m" font-size="12.6" fill="#4a4180" text-anchor="middle">per object: Mask · Bbox · Cue = both | fastsam | background</text>
-<text x="536" y="647.0" class="m" font-size="12.6" fill="#4a4180" text-anchor="middle">Change_Coverage · Segmenter_Score (a FastSAM cue only)</text>
+<text x="536" y="647.0" class="m" font-size="12.6" fill="#4a4180" text-anchor="middle">Segmenter_Score (a FastSAM cue only)</text>
 <rect x="32" y="708" width="176" height="98" rx="10" fill="#ffffff" stroke="#e3e0ee" stroke-width="1"/>
 <text x="42" y="728" class="m" font-size="11.8" fill="#2b2455" font-weight="700">Description.*</text>
 <text x="42" y="744" class="m" font-size="11.8" fill="#4a4180">Model · Prompts</text>

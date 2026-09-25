@@ -555,7 +555,6 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         if key == self.__background_key:
             return self.__background_sentence, []
 
-        cv2 = self.__cv2
         h, w = bg_bgr.shape[:2]
         margin = self.__config.Description.Background_Crop_Margin
         crop = bg_bgr[int(h * margin):int(h * (1 - margin)), int(w * margin):int(w * (1 - margin))]
@@ -587,7 +586,6 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         # model-free fallback describer needs none.
         self.__Ensure_Loaded(stage_cb)
         cv2, np = self.__cv2, self.__np
-        size = (image.shape[1], image.shape[0])   # (width, height)
 
         # RGB -> BGR: the pipeline works in BGR, the exchange format is RGB.
         frame_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -620,7 +618,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
         # The one global background sentence, from the reference (cached across frames).
         background_sentence, background_audit = self.__Describe_Background(bg_bgr)
-        result = self.__Compose_Result(objects, size, t0, len(masks),
+        result = self.__Compose_Result(objects, t0, len(masks),
                                        background_sentence, background_audit)
         # Measure every masked object through the configured scale (none without one).
         Measure_Objects(result.Objects, self.__config.Scale, cv2, np)
@@ -685,7 +683,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         if progress_cb:
             progress_cb(total, total)
 
-    def __Compose_Result(self, objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
+    def __Compose_Result(self, objects: tp.List[Detection_Str],
                          t0: float, raw_mask_count: int, background_sentence: str,
                          background_audit: tp.List[tp.Tuple[str, str]]) -> Analysis_Str:
         """
@@ -697,18 +695,17 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The described objects, in order.
-            (2) size [Vector<int> 1x2]: The frame size as (width, height).
-            (3) t0 [float]: The analysis start time (perf_counter).
-            (4) raw_mask_count [int]: The raw segmenter mask count (a diagnostic).
-            (5) background_sentence [string]: The one global background description.
-            (6) background_audit [Vector<Tuple<string> 1x2>]: The background-caption audit.
+            (2) t0 [float]: The analysis start time (perf_counter).
+            (3) raw_mask_count [int]: The raw segmenter mask count (a diagnostic).
+            (4) background_sentence [string]: The one global background description.
+            (5) background_audit [Vector<Tuple<string> 1x2>]: The background-caption audit.
 
         Returns:
             (1) parameter [Analysis_Str(object)]: The finished scene reading.
         """
 
         caption = '' if objects else CONST_EMPTY_SCENE_EXPLANATION
-        objects, note = Compose(objects, size, caption=caption)
+        objects, note = Compose(objects, caption=caption)
         badge, level = Verdict(objects)
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return Analysis_Str(Objects=objects, Note=note,

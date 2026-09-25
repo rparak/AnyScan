@@ -41,14 +41,9 @@ Description:
     on the Parameters data structures; it never imports torch, OpenCV or a model.
 
     House style: plain declarative sentences, present tense, no hedging adverbs,
-    no self-reference, numbers one to ten spelled out, and an empty result is a
-    statement with a next action rather than an apology.
+    no self-reference, and an empty result is a statement with a next action rather
+    than an apology.
 """
-# The whole-number words the summary spells out; anything past ten falls back to
-# digits (see Count_Word).
-CONST_NUMBER_WORDS = {0: 'no', 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
-                      6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten'}
-
 # The object line's wording:
 #   True  — the model's full detailed description, cleaned into the panel's voice
 #           ('A silver key on a green surface with a keyring attached to it.').
@@ -134,21 +129,6 @@ CONST_LABEL_MAX_WORDS = 4
 CONST_BACKGROUND_FALLBACK = 'The background is a plain surface.'
 
 
-def Count_Word(n: int) -> str:
-    """
-    Description:
-        The whole number n as a word for n in 0..10, otherwise as digits.
-
-    Args:
-        (1) n [int]: The count to spell.
-
-    Returns:
-        (1) parameter [string]: The count as a word ('no', 'one', ...) or digits.
-    """
-
-    return CONST_NUMBER_WORDS.get(n, str(n))
-
-
 def Zone(bbox: tp.Tuple[int, int, int, int], size: tp.Tuple[int, int]) -> str:
     """
     Description:
@@ -157,7 +137,7 @@ def Zone(bbox: tp.Tuple[int, int, int, int], size: tp.Tuple[int, int]) -> str:
         Note:
             Currently unused: object lines were changed to say what a part is, not
             where it is (the number on the coloured box carries position). Kept for
-            the day a position phrase is wanted back — re-add it in Describe_Object.
+            the day a position phrase is wanted back — re-add it in Object_Description.
 
     Args:
         (1) bbox [Vector<int> 1x4]: The box as (x, y, w, h) in frame pixels.
@@ -266,26 +246,7 @@ def Background_Sentence(caption: str, *,
     return sentence, []
 
 
-def Describe_Object(det: Detection_Str, size: tp.Tuple[int, int]) -> str:
-    """
-    Description:
-        One line for one detection — what the object is, not where it is (the operator
-        reads the number off the coloured box, so a location in words earns nothing).
-        Delegates to Object_Description. (`size` is unused now that the zone is gone;
-        kept so the call site is unchanged.)
-
-    Args:
-        (1) det [Detection_Str(object)]: The detection to describe.
-        (2) size [Vector<int> 1x2]: The frame size as (width, height).
-
-    Returns:
-        (1) parameter [string]: The object's line of text.
-    """
-
-    return Object_Description(det)
-
-
-def Scene_Note(objects: tp.List[Detection_Str], size: tp.Tuple[int, int], caption: str = '') -> str:
+def Scene_Note(objects: tp.List[Detection_Str], caption: str = '') -> str:
     """
     Description:
         The closing note. It carries the empty-scene explanation and its next
@@ -293,8 +254,7 @@ def Scene_Note(objects: tp.List[Detection_Str], size: tp.Tuple[int, int], captio
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects.
-        (2) size [Vector<int> 1x2]: The frame size as (width, height).
-        (3) caption [string]: An optional leading explanation (e.g. the empty-scene text).
+        (2) caption [string]: An optional leading explanation (e.g. the empty-scene text).
 
     Returns:
         (1) parameter [string]: The note, or an empty string.
@@ -548,8 +508,7 @@ def Yolo_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int]) -> tp.
     return lines
 
 
-def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
-            caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str]:
+def Compose(objects: tp.List[Detection_Str], caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str]:
     """
     Description:
         Write the line for every object (into det.Sentence) and return the objects
@@ -563,8 +522,7 @@ def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
-        (2) size [Vector<int> 1x2]: The frame size as (width, height).
-        (3) caption [string]: An optional leading explanation for the note.
+        (2) caption [string]: An optional leading explanation for the note.
 
     Returns:
         (1) parameter [Tuple]: (objects, note).
@@ -572,4 +530,4 @@ def Compose(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
 
     for det in objects:
         det.Sentence = Object_Description(det)
-    return objects, Scene_Note(objects, size, caption)
+    return objects, Scene_Note(objects, caption)

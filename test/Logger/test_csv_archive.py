@@ -39,7 +39,7 @@ Description:
     mean something different. Such a file is never appended to: it is renamed aside, byte-for-byte
     unchanged, as '<name>_until_<date>.csv', and the canonical name starts afresh. Tested end to
     end through the logger: the archive is identical to the old file, the new file carries only
-    current-format rows, a current-format file is simply appended to (with either delimiter), an
+    current-format rows, a current-format file is simply appended to, an
     earlier archive of the same day is never overwritten, and the '.txt' says what happened.
 """
 
@@ -89,11 +89,11 @@ def _Write_Old_File(path: str, columns: tp.List[str] = CONST_OLD_COLUMNS) -> byt
     return data
 
 
-def _Run(tmp_path: tp.Any, start: datetime, delimiter: str = ',', session: bool = True) -> Session_Logger_Cls:
+def _Run(tmp_path: tp.Any, start: datetime, session: bool = True) -> Session_Logger_Cls:
     """One run of 90 s, connected for the middle 60 s, closed (so its row is appended)."""
     clock = Clock_Cls(start)
     logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
-                                install_handlers=False, csv_delimiter=delimiter)
+                                install_handlers=False)
     if session:
         clock.now = start + timedelta(seconds=15)
         logger.Log_Camera_Connected()
@@ -104,10 +104,10 @@ def _Run(tmp_path: tp.Any, start: datetime, delimiter: str = ',', session: bool 
     return logger
 
 
-def _Rows(path: str, delimiter: str = ',') -> tp.List[tp.List[str]]:
+def _Rows(path: str) -> tp.List[tp.List[str]]:
     """Every row of a CSV (header first), the byte-order mark stripped."""
     with open(path, 'r', newline='', encoding='utf-8-sig') as handle:
-        return list(csv.reader(handle, delimiter=delimiter))
+        return list(csv.reader(handle))
 
 
 @pytest.mark.parametrize('columns', [CONST_OLD_COLUMNS, CONST_OLD_COLUMNS[:14]],
@@ -135,17 +135,16 @@ def test_an_older_format_file_is_archived_unchanged_and_a_new_one_started(tmp_pa
     assert '%d columns' % len(columns) in text
 
 
-@pytest.mark.parametrize('delimiter', [',', ';'])
-def test_a_current_format_file_is_appended_to_not_archived(tmp_path, delimiter) -> None:
+def test_a_current_format_file_is_appended_to_not_archived(tmp_path) -> None:
     """
     Description:
-        Two runs append two rows to one file under one header, with either delimiter; nothing is
-        archived and the '.txt' says nothing about the CSV's format.
+        Two runs append two rows to one file under one header; nothing is archived and the '.txt'
+        says nothing about the CSV's format.
     """
 
-    first = _Run(tmp_path, datetime(2026, 9, 23, 9, 0, 0), delimiter)
-    second = _Run(tmp_path, datetime(2026, 9, 23, 10, 0, 0), delimiter)
-    rows = _Rows(str(tmp_path / 'log_unconfigured.csv'), delimiter)
+    first = _Run(tmp_path, datetime(2026, 9, 23, 9, 0, 0))
+    second = _Run(tmp_path, datetime(2026, 9, 23, 10, 0, 0))
+    rows = _Rows(str(tmp_path / 'log_unconfigured.csv'))
     assert rows[0] == CONST_CSV_COLUMNS and len(rows) == 3
     assert not any('_until_' in name for name in os.listdir(tmp_path))
     for logger in (first, second):

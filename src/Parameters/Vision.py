@@ -151,10 +151,6 @@ class Detection_Str(object):
     # array, and two detections are equal on their described fields, not on pixels.
     #   Unit [Matrix<bool> HxW]
     Mask: tp.Optional[tp.Any] = field(default=None, repr=False, compare=False)
-    # The fraction of this object's mask that overlaps the stage-1 change mask
-    # (0..1) — the gate that separates a real object from the static scene.
-    #   Unit [float]
-    Change_Coverage: float = 0.0
     # The segmenter's own confidence for this mask, or None. Kept DISTINCT from
     # Confidence on purpose: Confidence drives the operator 'Low confidence' verdict
     # and is reserved for a detection/classification score, which the segmenter does

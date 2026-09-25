@@ -134,11 +134,9 @@ class Calibration_View_Str:
     #   Unit [float] (px) / [bool]
     Rms_Px: tp.Optional[float] = None
     Outlier: bool = False
-    # The board's tilt from facing the camera (angle between its normal and the optical axis)
-    # and the direction it tilts in (the normal's azimuth in the image plane).
+    # The board's tilt from facing the camera (angle between its normal and the optical axis).
     #   Unit [float] (degrees)
     Tilt_Deg: tp.Optional[float] = None
-    Tilt_Azimuth_Deg: tp.Optional[float] = None
     # This flat view's own mm/px (x, y) from its undistorted corners; None for a tilted view.
     #   Unit [Vector<float> 1x2] (mm/px)
     Factor: tp.Optional[tp.Tuple[float, float]] = None
@@ -162,9 +160,8 @@ class Calibration_Report_Str:
     K: np.ndarray = field(default_factory=lambda: np.zeros((3, 3), dtype=np.float64), repr=False)
     Coefficients: tp.Dict[str, float] = field(default_factory=dict)
     Rms_Px: float = 0.0
-    # The camera matrix of the application's own undistortion (getOptimalNewCameraMatrix) — the
-    # pixel space measurement happens in — and its focal lengths relative to K's (x, y).
-    New_K: np.ndarray = field(default_factory=lambda: np.zeros((3, 3), dtype=np.float64), repr=False)
+    # The focal lengths of the application's own undistortion (getOptimalNewCameraMatrix) — the
+    # pixel space measurement happens in — relative to K's (x, y).
     Undistortion_Rescale: tp.Tuple[float, float] = (1.0, 1.0)
     # The principal point's offset from the image centre (dx, dy) in px, its distance in px, and
     # the offset as a fraction of the frame (dx / width, dy / height).

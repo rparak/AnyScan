@@ -382,7 +382,6 @@ class History_View_Cls(QWidget):
         self.__cards = []
         self.__selected_id = None
         self.__detail_cap = None
-        self.__detail_pixmaps = {}
         self.__info_open = False
         self.__info_anim = None
 
@@ -944,7 +943,6 @@ class History_View_Cls(QWidget):
         """
 
         self.__detail_cap = cap
-        self.__detail_pixmaps = {}
         self.__selected_id = cap.Set_Id if cap is not None else None
         self.__image_a.Set_Highlight(None)
         self.__object_list.Set_Selected(None)
@@ -1073,7 +1071,8 @@ class History_View_Cls(QWidget):
     def __Pixmap(self, path: tp.Optional[str]) -> tp.Optional[QPixmap]:
         """
         Description:
-            Load and cache a set image by path, or None when the path is absent/unreadable.
+            Load a set image by path (each selection reads the files afresh, so an evicted or
+            rewritten set is never shown from memory), or None when the path is absent/unreadable.
 
         Args:
             (1) path [string or None]: The image path.
@@ -1084,10 +1083,8 @@ class History_View_Cls(QWidget):
 
         if not path:
             return None
-        if path not in self.__detail_pixmaps:
-            pixmap = QPixmap(path)
-            self.__detail_pixmaps[path] = pixmap if not pixmap.isNull() else None
-        return self.__detail_pixmaps[path]
+        pixmap = QPixmap(path)
+        return pixmap if not pixmap.isNull() else None
 
     def __Timestamp_Text(self, cap: tp.Any) -> str:
         """
