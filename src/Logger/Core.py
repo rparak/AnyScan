@@ -61,12 +61,14 @@ CONST_LEVELS = (CONST_LEVEL_INFO, CONST_LEVEL_WARNING, CONST_LEVEL_ERROR)
 # message column starts at the same offset on every line.
 #   Unit [int]
 CONST_LEVEL_WIDTH = 7
-# The timestamp formats. The date and the per-line time are configurable; the
-# filename time keeps hours and minutes only.
+# The timestamp formats. The date and the per-line time are configurable. The filename
+# time carries seconds: one run, one file. At minute resolution a relaunch within the same
+# minute (the Configuration dialog asks for a relaunch) reopened the previous run's file with
+# 'w' and wiped it, and both CSV rows then named the one surviving file.
 #   Unit [string]
 CONST_DATE_FORMAT = '%Y-%m-%d'
 CONST_TIME_FORMAT = '%H:%M:%S'
-CONST_FILENAME_TIME_FORMAT = '%H-%M'
+CONST_FILENAME_TIME_FORMAT = '%H-%M-%S'
 # The timestamp formats used inside the run-summary CSV. These are fixed by the
 # CSV column contract and are deliberately independent of the per-line formats
 # above, so the injected line formats never change the CSV layout.
@@ -287,7 +289,7 @@ class Summary_Str:
         seconds) so the CSV renderer, not the computation, owns the formatting.
     """
 
-    # The filename of the matching '.txt' log (e.g. 'log_2026-09-12_12-16.txt').
+    # The filename of the matching '.txt' log (e.g. 'log_2026-09-12_12-16-04.txt').
     #   Unit [string]
     Log_File: str = ''
     # The application start and stop times.
@@ -438,11 +440,11 @@ class Session_Logger_Cls(object):
         # failing sink can never stop a line reaching the file.
         self.__line_sink = None
 
-        # Open the file for this run. The directory is created if it does not exist.
+        # Create the file for this run — never reopen an existing one. The directory is created if
+        # it does not exist.
         self.__log_dir = os.path.abspath(log_dir) if log_dir is not None else CONST_DEFAULT_LOG_DIR
         os.makedirs(self.__log_dir, exist_ok=True)
-        self.__path = os.path.join(self.__log_dir, self.__Build_Filename(self.__start_time))
-        self.__file = open(self.__path, 'w', encoding='utf-8')
+        self.__path, self.__file = self.__Create_Log_File(self.__Build_Filename(self.__start_time))
 
         # The run-summary CSV, named after the loaded configuration (Csv_Filename_For_Config);
         # an explicit csv_filename overrides it, an absolute one is honoured as-is, otherwise it
@@ -513,8 +515,8 @@ class Session_Logger_Cls(object):
     def __Build_Filename(self, start_time: datetime) -> str:
         """
         Description:
-            Build the per-run filename 'log_[date]_[hour-minutes].txt' from the start
-            time (e.g. 'log_2026-09-12_14-37.txt').
+            Build the per-run filename 'log_[date]_[hour-minutes-seconds].txt' from the
+            start time (e.g. 'log_2026-09-12_14-37-02.txt').
 
         Args:
             (1) start_time [datetime(object)]: The application start time.
@@ -525,6 +527,32 @@ class Session_Logger_Cls(object):
 
         return (f'log_{start_time.strftime(self.__date_format)}'
                 f'_{start_time.strftime(CONST_FILENAME_TIME_FORMAT)}.txt')
+
+    def __Create_Log_File(self, filename: str) -> tp.Tuple[str, tp.TextIO]:
+        """
+        Description:
+            Create this run's '.txt' log in the log directory without ever reopening an existing
+            one. The file is opened with 'x', which fails if it exists; the name then takes '_2',
+            '_3', ... (the CSV archive's convention), so two runs started within the same second —
+            a double-clicked launcher — still get one file each, and neither wipes the other.
+
+        Args:
+            (1) filename [string]: The preferred filename (Build_Filename).
+
+        Returns:
+            (1) parameter [string]: The path of the file created.
+            (2) parameter [file(object)]: Its handle, open for writing.
+        """
+
+        stem, extension = os.path.splitext(filename)
+        number = 1
+        while True:
+            name = filename if number == 1 else '%s_%d%s' % (stem, number, extension)
+            path = os.path.join(self.__log_dir, name)
+            try:
+                return path, open(path, 'x', encoding='utf-8')
+            except FileExistsError:
+                number += 1
 
     # ---------------------------------------------------------------------- writes
 

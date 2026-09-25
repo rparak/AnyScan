@@ -195,13 +195,68 @@ def test_format_hms() -> None:
 def test_filename_from_start_timestamp(tmp_path: tp.Any) -> None:
     """
     Description:
-        The '.txt' filename is 'log_[date]_[hour-minutes].txt', taken from the start time.
+        The '.txt' filename is 'log_[date]_[hour-minutes-seconds].txt', taken from the start time.
     """
 
     clock = Clock_Cls(_T('14:37:02'))
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
-    assert os.path.basename(Session_Logger.Path) == 'log_2026-09-12_14-37.txt'
+    assert os.path.basename(Session_Logger.Path) == 'log_2026-09-12_14-37-02.txt'
     Session_Logger.Close()
+
+
+def test_a_relaunch_within_the_same_minute_keeps_both_runs(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        One run, one file. Two runs started in the same minute (a relaunch after choosing a
+        configuration) get two '.txt' logs: the first run's lines survive the second run, and the
+        two CSV rows name two different files — each the file holding that run's lines.
+    """
+
+    runs = []
+    for start, line in (('10:00:05', 'First run.'), ('10:00:40', 'Second run.')):
+        clock = Clock_Cls(_T(start))
+        Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
+                                            install_handlers=False)
+        Session_Logger.Log_Info(line)
+        Session_Logger.Close()
+        runs.append((Session_Logger.Path, line))
+
+    (first_path, first_line), (second_path, second_line) = runs
+    assert first_path != second_path
+    for path, line in runs:
+        with open(path, 'r', encoding='utf-8') as f:
+            text = f.read()
+        assert line in text
+        assert (second_line if line == first_line else first_line) not in text
+    rows = _Read_Rows(Session_Logger.Csv_Path)
+    assert [row['log_file'] for row in rows] == [os.path.basename(first_path), os.path.basename(second_path)]
+
+
+def test_runs_started_within_the_same_second_never_share_a_file(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Even at the same second (a double-clicked launcher) a run never reopens another run's
+        '.txt': the second and third take '_2' and '_3', every run's lines stay in its own file,
+        and each CSV row names the file that holds its run.
+    """
+
+    runs = []
+    for line in ('First run.', 'Second run.', 'Third run.'):
+        Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=Clock_Cls(_T('10:00:05')),
+                                            install_handlers=False)
+        Session_Logger.Log_Info(line)
+        Session_Logger.Close()
+        runs.append((Session_Logger.Path, line))
+
+    assert [os.path.basename(path) for path, _ in runs] == ['log_2026-09-12_10-00-05.txt',
+                                                            'log_2026-09-12_10-00-05_2.txt',
+                                                            'log_2026-09-12_10-00-05_3.txt']
+    for path, line in runs:
+        with open(path, 'r', encoding='utf-8') as f:
+            text = f.read()
+        assert [other for _, other in runs if other in text] == [line]
+    rows = _Read_Rows(Session_Logger.Csv_Path)
+    assert [row['log_file'] for row in rows] == [os.path.basename(path) for path, _ in runs]
 
 
 def test_csv_filename_follows_the_hardware_of_the_loaded_configuration(tmp_path: tp.Any) -> None:
@@ -423,7 +478,7 @@ def test_columns_present_in_declared_order_and_format(tmp_path: tp.Any) -> None:
         assert reader.fieldnames == CONST_CSV_COLUMNS
         row = next(reader)
 
-    assert re.fullmatch(r'log_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.txt', row['log_file'])
+    assert re.fullmatch(r'log_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.txt', row['log_file'])
     assert re.fullmatch(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', row['application_start'])
     assert re.fullmatch(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', row['application_stop'])
     for key in ('cycle_time', 'total_session_time', 'idle_time'):
@@ -441,7 +496,7 @@ def test_reference_run_row_values(tmp_path: tp.Any) -> None:
     clock.now = stop_time; Session_Logger.Close()
 
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
-    assert row == {'log_file': 'log_2026-09-12_14-37.txt',
+    assert row == {'log_file': 'log_2026-09-12_14-37-02.txt',
                    'application_start': '2026-09-12 14:37:02',
                    'application_stop': '2026-09-12 16:12:44',
                    'cycle_time': '01:35:42', 'total_session_time': '01:23:04',
