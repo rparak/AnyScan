@@ -23,7 +23,6 @@
 
 # System (Default)
 import os
-import warnings
 # Typing (Support for type hints)
 import typing as tp
 # Pytest (Testing framework) [pip3 install pytest]
@@ -47,8 +46,9 @@ Description:
     compose the report, exercising the modules together across their seams. The
     default test is hermetic (a File_Camera_Cls source and a fake backend, no camera
     and no weights). A second test runs the same flow through the real FastSAM (on the
-    CPU) and Gemma whenever the weights exist, and warns loudly (never fails) when they do
-    not, so the real path is covered by default without breaking a fresh clone.
+    CPU) and Gemma whenever the weights exist. When they do not, it skips — visibly, naming
+    the missing paths — so a fresh clone is not broken; under --runslow, which asks for the
+    real path, missing weights fail instead, so that request can never come back green.
 """
 
 # Two rectangles drawn onto the reference to synthesize a frame with real objects.
@@ -97,20 +97,28 @@ def test_pipeline_camera_to_reporting(reference_background_path, fake_backend) -
     assert not camera.Connected
 
 
-def _Warn_Weights_Absent(request) -> None:
+def _Require_Weights(request, paths: tp.List[str]) -> None:
     """
     Description:
-        Emit an impossible-to-miss warning that the real vision path was not verified
-        because the model weights are absent — a loud banner written straight to the
-        terminal (uncaptured) plus a pytest warning, not a quiet skip line.
+        Stop the test unless every model path exists. The default run skips (a fresh clone
+        has no weights), with an impossible-to-miss banner written straight to the terminal
+        naming each missing path; under --runslow the test fails instead, because a run that
+        asked for the real vision path must not pass without it.
 
     Args:
-        (1) request [pytest.FixtureRequest(object)]: The request, for the terminal reporter.
+        (1) request [pytest.FixtureRequest(object)]: The request, for the options and the
+                                                     terminal reporter.
+        (2) paths [Vector<string>]: The weight paths the test needs (a directory or a file).
     """
 
-    message = ('MODEL WEIGHTS ABSENT: the real FastSAM + Gemma vision path was NOT '
-               'verified. Download them (see README > Setup), then re-run `pytest` to cover Analyze().')
-    warnings.warn(UserWarning(message))
+    missing = [path for path in paths if not os.path.exists(path)]
+    if not missing:
+        return
+
+    message = ('MODEL WEIGHTS ABSENT: the real FastSAM + Gemma vision path was NOT verified. Missing: '
+               + ', '.join(missing) + '. Download them (see README > Setup), then re-run `pytest`.')
+    if request.config.getoption('--runslow'):
+        pytest.fail(message, pytrace=False)
     reporter = request.config.pluginmanager.getplugin('terminalreporter')
     if reporter is not None:
         reporter.write_line('')
@@ -118,6 +126,7 @@ def _Warn_Weights_Absent(request) -> None:
                            red=True, bold=True)
         reporter.write_line('  ' + message, yellow=True)
         reporter.write_sep('!', red=True, bold=True)
+    pytest.skip(message)
 
 
 def test_pipeline_real_describer_smoke(request, reference_background, make_synthetic_frame,
@@ -128,9 +137,8 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
         segmentation -> fusion -> description -> compose — through the real
         pipeline on a synthetic two-rectangle frame. FastSAM is forced onto the CPU so it
         is portable; Gemma runs on MLX's Metal GPU, the only place it is verified. It runs in the
-        DEFAULT suite whenever the FastSAM and Gemma weights exist; when
-        either is absent it warns loudly and passes, so a fresh clone is never broken
-        before the weights are downloaded.
+        DEFAULT suite whenever the FastSAM and Gemma weights exist; when either is absent
+        it skips loudly (fails under --runslow) — never a pass without the real path.
 
         Structural assertions only — object count and box bounds come from the
         deterministic scene, every described object has a non-empty sentence, and the Task
@@ -138,10 +146,7 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
     """
 
     config = _Configuration()
-    if not (os.path.isdir(config.Description.Model_Path)
-            and os.path.isfile(config.Segmentation.Model_Path)):
-        _Warn_Weights_Absent(request)
-        return
+    _Require_Weights(request, [config.Segmentation.Model_Path, config.Description.Model_Path])
 
     # OpenCV library for computer vision tasks [pip3 install opencv-python]
     import cv2

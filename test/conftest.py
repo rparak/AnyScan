@@ -231,9 +231,9 @@ def models_untouched() -> tp.Iterator[None]:
         The suite must leave models/ exactly as it found it: the weights are git-ignored, so git cannot
         restore them. The inventory is taken before the first test and compared after the last; any
         file removed, added or resized fails the run, naming each one — so a change is attributed to
-        this run the moment it happens, not discovered later. (On 2026-09-24 models/ was emptied during
-        a working session, most likely by manual tidying rather than by code; this fixture settles,
-        for every run, whether the suite did it. See docs/design-decisions.md.)
+        this run the moment it happens, not discovered later. (models/ was emptied by hand on 2026-09-24
+        and again on 2026-09-25 — manual both times, not code; this fixture is what showed, run by run,
+        that the suite had not done it. See docs/design-decisions.md.)
     """
 
     before = _Models_Inventory()
