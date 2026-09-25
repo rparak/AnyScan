@@ -402,6 +402,29 @@ def Object_Confidence(det: Detection_Str) -> str:
     return 'Confidence %d%%' % int(round(100.0 * det.Segmenter_Score))
 
 
+def Frame_Confidence(objects: tp.List[Detection_Str]) -> tp.Tuple[tp.Optional[int], int]:
+    """
+    Description:
+        The frame's mean confidence and how many objects it is over: the mean of the SCORED
+        objects' own scores as a whole percentage, and their count. Objects the background cue
+        alone found carry no score and are not counted as 0% — a frame with none scored has no
+        mean (None), not a zero. One computation for the panel table, the capture record and the
+        finished-analysis log line, so the three can never disagree.
+
+    Args:
+        (1) objects [Vector<Detection_Str(object)>]: The frame's located objects.
+
+    Returns:
+        (1) parameter [int or None]: The mean percentage, or None when no object is scored.
+        (2) parameter [int]: The number of scored objects.
+    """
+
+    scores = [det.Segmenter_Score for det in objects if det.Segmenter_Score is not None]
+    if not scores:
+        return None, 0
+    return int(round(100.0 * sum(scores) / len(scores))), len(scores)
+
+
 def Object_Size(det: Detection_Str) -> str:
     """
     Description:

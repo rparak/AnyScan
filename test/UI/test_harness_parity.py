@@ -62,11 +62,14 @@ from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 """
 Description:
     The validation harness must render exactly what the application renders: analyze.py is the
-    validator of the logic the app uses, so a harness drawing in a different mode (it drew verdict
-    colours on a detect-only run) would be that guarantee quietly breaking. These tests hold the
-    harness's render path against the mask the WINDOW actually writes, for both flag values; that
-    the harness reads the flag through the app's own configuration layer; and that the renderers
-    cannot be called without stating the mode.
+    validator of the logic the app uses. Both now render through ONE function,
+    Vision.Utilities.Annotate.Render_Views, so the renderers cannot drift apart; what can still go
+    wrong is what once did — a path passing the wrong mode (the harness drew verdict colours on a
+    detect-only run) — or a path drawing around the shared function. So these tests hold: that
+    neither path draws except through Render_Views; that the mask the WINDOW writes to disk is the
+    shared render for its configuration's flag, and so is the mask the HARNESS writes, run end to
+    end from a configuration file, for both flag values; that the harness reads its configuration
+    through the app's own layer; and that no renderer can be called without stating the mode.
 """
 # The window's configuration: the shipped one, loaded through the configuration layer, without a
 # scale (nothing measured) — what these tests built the window with before configurations existed.
@@ -132,26 +135,110 @@ def _Ui_Written_Mask(reference_background_path: str, log_dir: str,
     return cv2.imread(written[0])
 
 
+def _Harness_Written_Mask(monkeypatch, tmp_path, reference_background_path: str,
+                          classification_enabled: bool) -> np.ndarray:
+    """
+    The label mask the HARNESS writes for one frame, run end to end through analyze.main() from a
+    configuration file whose classification flag is set — with a stand-in pipeline, so no model
+    runs — cropped of its provenance footer (BGR, as rendered).
+    """
+
+    import yaml
+    hardware = CONST_CONFIGURATION.Hardware
+    with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as handle:
+        data = yaml.safe_load(handle)
+    data['General']['Classification']['Enabled'] = classification_enabled
+    config_dir = tmp_path / 'Configuration'
+    config_dir.mkdir()
+    config_path = config_dir / os.path.basename(CONST_DEFAULT_CONFIG_FILE)
+    config_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
+    calibration = Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware)
+    with open(calibration, 'r', encoding='utf-8') as handle:
+        (config_dir / os.path.basename(calibration)).write_text(handle.read(), encoding='utf-8')
+    frames = tmp_path / 'frames'
+    frames.mkdir()
+    scene = cv2.imread(reference_background_path)
+    cv2.imwrite(str(frames / 'Image_001.png'), scene)
+
+    class _Stand_In_Pipeline_Cls(object):
+        """The pipeline, stood in: it returns the one known object and runs no model."""
+
+        def __init__(self, Configuration_Str) -> None:
+            pass
+
+        def Analyze(self, image):
+            return Analysis_Str(Objects=_Objects(image.shape), Latency_Ms=1, Verdict='1 found',
+                                Verdict_Level='ok', Task='caption', Background='A surface.')
+
+    monkeypatch.setattr(analyze, 'Vision_Pipeline_Cls', _Stand_In_Pipeline_Cls)
+    out = tmp_path / 'out'
+    monkeypatch.setattr('sys.argv', ['analyze.py', '--config', str(config_path), '--input-dir', str(frames),
+                                     '--output-dir', str(out)])
+    assert analyze.main() == 0
+    written = cv2.imread(str(out / 'Image_001_mask.png'))
+    return written[:scene.shape[0]]                              # the footer band is below the frame
+
+
 @pytest.mark.parametrize('classification_enabled', [False, True])
-def test_harness_mask_fill_matches_the_window_for_the_same_flag(qt_app, reference_background_path,
-                                                                tmp_path, classification_enabled) -> None:
+def test_the_window_writes_the_shared_render_for_its_flag(qt_app, reference_background_path, tmp_path,
+                                                          classification_enabled) -> None:
     """
     Description:
-        For the same flag value, the harness's render path fills the object with the SAME colour
-        as the mask the window writes — the neutral tint when classification is off, the OK tint
-        when it is on — and the two whole masks are identical, not merely similar.
+        The mask the window writes to its capture set is exactly Render_Views' mask for the
+        configuration's flag — the neutral tint when classification is off, the OK tint when on:
+        the window passes its configuration's mode, and the writer stores the render unchanged.
     """
 
     ui_mask = _Ui_Written_Mask(reference_background_path, str(tmp_path), classification_enabled)
     scene = cv2.imread(reference_background_path)
-    _annotated, harness_mask = analyze.Render_Views(scene, _Objects(scene.shape),
-                                                    classification_enabled)
+    _annotated, shared = Annotate.Render_Views(scene, _Objects(scene.shape), cv2, np,
+                                               verdict_colored=classification_enabled)
+
+    expected = Verdict_Color('OK')[2] if classification_enabled else Detection_Color()[2]
+    row, col = CONST_SAMPLE
+    assert tuple(int(c) for c in ui_mask[row, col]) == Hex_To_Bgr(expected)
+    assert np.array_equal(ui_mask, shared)
+
+
+@pytest.mark.parametrize('classification_enabled', [False, True])
+def test_the_harness_writes_the_shared_render_for_the_configurations_flag(monkeypatch, tmp_path,
+                                                                           reference_background_path,
+                                                                           classification_enabled) -> None:
+    """
+    Description:
+        Run end to end from a configuration file, the harness writes exactly Render_Views' mask for
+        that configuration's flag — the mode the harness once got wrong (verdict colours on a
+        detect-only run) is read from the configuration, not chosen by the harness.
+    """
+
+    harness_mask = _Harness_Written_Mask(monkeypatch, tmp_path, reference_background_path, classification_enabled)
+    scene = cv2.imread(reference_background_path)
+    _annotated, shared = Annotate.Render_Views(scene, _Objects(scene.shape), cv2, np,
+                                               verdict_colored=classification_enabled)
 
     expected = Verdict_Color('OK')[2] if classification_enabled else Detection_Color()[2]
     row, col = CONST_SAMPLE
     assert tuple(int(c) for c in harness_mask[row, col]) == Hex_To_Bgr(expected)
-    assert tuple(int(c) for c in ui_mask[row, col]) == Hex_To_Bgr(expected)
-    assert np.array_equal(harness_mask, ui_mask)
+    assert np.array_equal(harness_mask, shared)
+
+
+def test_the_window_and_the_harness_draw_only_through_render_views() -> None:
+    """
+    Description:
+        Parity holds by construction only while both paths render through the one shared function:
+        neither the window nor the harness calls Draw_Annotated or Draw_Label_Mask itself, and each
+        calls Render_Views.
+    """
+
+    import ast
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    for relative in (os.path.join('src', 'UI', 'Core.py'), os.path.join('Example', 'Vision', 'analyze.py')):
+        with open(os.path.join(root, relative), 'r', encoding='utf-8') as handle:
+            tree = ast.parse(handle.read())
+        called = {node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, 'attr', '')
+                  for node in ast.walk(tree) if isinstance(node, ast.Call)}
+        assert not called & {'Draw_Annotated', 'Draw_Label_Mask'}, '%s draws around Render_Views' % relative
+        assert 'Render_Views' in called, '%s does not render through Render_Views' % relative
 
 
 def test_harness_loads_its_configuration_through_the_application_config_layer() -> None:
@@ -175,6 +262,10 @@ def test_renderers_cannot_be_called_without_stating_the_mode() -> None:
     """
 
     scene = np.zeros((40, 60, 3), np.uint8)
+    with pytest.raises(TypeError):
+        Annotate.Render_Views(scene, [], cv2, np)
+    with pytest.raises(TypeError):
+        Annotate.Render_Views(scene, [], cv2, np, False)
     with pytest.raises(TypeError):
         Annotate.Draw_Annotated(scene, [], cv2, np)
     with pytest.raises(TypeError):

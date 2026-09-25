@@ -52,6 +52,45 @@ Description:
 """
 
 
+def Meta_Row(parent_layout: QVBoxLayout, key: str, *, compact: bool, mono: bool = False,
+             first: bool = False) -> QLabel:
+    """
+    Description:
+        One key/value record row under a hairline divider — the Live reading card's meta rows and,
+        compact, the History record (which carries several). The value starts as the no-value dash;
+        the caller keeps the returned label and updates it.
+
+    Args:
+        (1) parent_layout [QVBoxLayout(object)]: The layout to add the row to.
+        (2) key [string]: The row label.
+        (3) compact [bool]: REQUIRED, keyword-only: the tighter History rhythm (less padding, a
+            size smaller, a regular-weight value) instead of the Live card's.
+        (4) mono [bool]: Render the value monospace.
+        (5) first [bool]: Omit the top divider on the first row.
+
+    Returns:
+        (1) parameter [QLabel(object)]: The value label to update later.
+    """
+
+    pad, size = (6, 9.5) if compact else (9, 10)
+    row = QWidget()
+    if not first:
+        row.setStyleSheet('border-top: 1px solid %s;' % Style.CONST_LINE)
+    line = QHBoxLayout(row)
+    line.setContentsMargins(2, pad, 2, pad)
+    label = QLabel(key)
+    label.setFont(Font(size))
+    label.setStyleSheet('color: %s; border: none;' % Style.CONST_INK_SOFT)
+    line.addWidget(label)
+    line.addStretch(1)
+    value = QLabel(Style.CONST_NO_VALUE)
+    value.setFont(Font(9 if mono else size, QFont.Normal if compact else QFont.Medium, mono=mono))
+    value.setStyleSheet('color: %s; border: none;' % Style.CONST_INK)
+    line.addWidget(value)
+    parent_layout.addWidget(row)
+    return value
+
+
 class Card_Cls(QFrame):
     """
     Description:

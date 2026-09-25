@@ -986,7 +986,7 @@ Ensure_Gemma() {
     #   then verify them again. Reports the elapsed time, since hashing 5.1 GB takes a while.
 
     local directory name size kind hash status
-    local failing='' failing_bytes=0 start total_start
+    local failing='' failing_bytes=0 start total_start quiet
     local -a failing_files
     Selected_Model
     directory="${CONST_ROOT}/${MODEL_REL}"
@@ -1020,13 +1020,12 @@ Ensure_Gemma() {
     Ensure_Free_Space "${directory}" "${failing_bytes}"
     start="${SECONDS}"
     status=0
-    if [ -t 1 ]; then
-        "${CONST_VENV_DIR}/bin/hf" download "${MODEL_REPO}" "${failing_files[@]}" \
-            --revision "${MODEL_REVISION}" --local-dir "${directory}" --force-download >/dev/null || status=$?
-    else
-        HF_HUB_DISABLE_PROGRESS_BARS=1 "${CONST_VENV_DIR}/bin/hf" download "${MODEL_REPO}" "${failing_files[@]}" \
-            --revision "${MODEL_REVISION}" --local-dir "${directory}" --force-download >/dev/null || status=$?
-    fi
+    # hf's progress bars only on a terminal; in a log they are noise. An unquoted, possibly empty
+    # word rather than an array: bash 3.2 (macOS) under nounset rejects an empty array expansion.
+    quiet='HF_HUB_DISABLE_PROGRESS_BARS=1'
+    [ -t 1 ] && quiet=''
+    env ${quiet} "${CONST_VENV_DIR}/bin/hf" download "${MODEL_REPO}" "${failing_files[@]}" \
+        --revision "${MODEL_REVISION}" --local-dir "${directory}" --force-download >/dev/null || status=$?
     if [ "${status}" -ne 0 ]; then
         Die "Downloading Gemma from ${MODEL_REPO} failed (hf's message is above)." \
             'Check the network connection and re-run ./install.sh; files already verified are kept.'

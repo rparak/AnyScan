@@ -44,7 +44,7 @@ from UI.Utilities.Style import (Font, Load_Svg, Load_Logo, Rgb_To_Qimage, Bgr_To
 #   ../UI/Widgets
 from UI.Widgets import (Card_Cls, Card_Head_Cls, Icon_Cls, Viewport_Cls, Tool_Button_Cls,
                         View_Toggle_Cls, Segmented_Control_Cls, Object_List_Cls,
-                        Status_Strip_Cls, Funding_Row_Cls)
+                        Status_Strip_Cls, Funding_Row_Cls, Meta_Row)
 #   ../UI/Views/History
 from UI.Views.History import History_View_Cls
 from UI.Views.Trends import Trends_View_Cls
@@ -60,9 +60,9 @@ from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
 #   ../Vision/Core
 from Vision.Core import Vision_Pipeline_Cls
 #   ../Vision/Utilities/Annotate
-from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask, Seg_Lines
+from Vision.Utilities.Annotate import Render_Views, Seg_Lines
 #   ../Reporting/Core
-from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines
+from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines, Frame_Confidence
 #   ../Reporting/Trends
 from Reporting.Trends import Trends_Accumulator_Cls
 #   ../Parameters/Vision
@@ -441,12 +441,26 @@ class AnyScan_Window_Cls(QMainWindow):
         pill = QLabel(('●  ' if dot else '') + text)
         pill.setFont(Font(9, QFont.DemiBold))
         pill.setFixedHeight(31)
-        pill.setStyleSheet(
-            'border: 1px solid %s; background: %s; color: %s;'
-            'border-radius: 15px; padding: 0 12px;'
-            % (Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK_MUTE)
-        )
+        pill.setStyleSheet(self.__Pill_Style(Style.CONST_CARD_BORDER, Style.CONST_INK_MUTE))
         return pill
+
+    @staticmethod
+    def __Pill_Style(border: str, ink: str) -> str:
+        """
+        Description:
+            A header pill's stylesheet: the card fill, the given border and text colour, the pill
+            radius and padding — one definition for the pill's idle and live states.
+
+        Args:
+            (1) border [string]: The border colour token.
+            (2) ink [string]: The text colour token.
+
+        Returns:
+            (1) parameter [string]: The Qt stylesheet.
+        """
+
+        return ('border: 1px solid %s; background: %s; color: %s; border-radius: 15px; padding: 0 12px;'
+                % (border, Style.CONST_CARD, ink))
 
     def __Build_Camera_Card(self) -> Card_Cls:
         """
@@ -546,16 +560,7 @@ class AnyScan_Window_Cls(QMainWindow):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setMinimumHeight(320)
-        scroll.setStyleSheet("""
-            QScrollArea { border: 1px solid %s; border-radius: 10px;
-                          background: %s; }
-            QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
-            QScrollBar::handle:vertical { background: %s; border-radius: 4px;
-                                          min-height: 30px; }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: transparent; }
-        """ % (Style.CONST_LINE, Style.CONST_CARD, Style.CONST_SCROLLBAR_HANDLE))
+        scroll.setStyleSheet(Style.Scroll_Style(framed=True))
         card.box.addWidget(scroll, 1)
 
         meta = QVBoxLayout()
@@ -565,44 +570,11 @@ class AnyScan_Window_Cls(QMainWindow):
         # so the labels carry no scope qualifier. 'Inference time' is this analysis's
         # latency and 'Confidence (mean)' the mean across this frame's objects, distinct
         # from the session median/mean in the status strip below.
-        self.__meta_task = self.__Meta_Row(meta, 'Task', first=True)
-        self.__meta_latency = self.__Meta_Row(meta, 'Inference time', mono=True)
-        self.__meta_confidence = self.__Meta_Row(meta, 'Confidence (mean)', mono=True)
+        self.__meta_task = Meta_Row(meta, 'Task', compact=False, first=True)
+        self.__meta_latency = Meta_Row(meta, 'Inference time', compact=False, mono=True)
+        self.__meta_confidence = Meta_Row(meta, 'Confidence (mean)', compact=False, mono=True)
         card.box.addLayout(meta)
         return card
-
-    def __Meta_Row(self, parent_layout: QVBoxLayout, key: str, mono: bool = False,
-                   first: bool = False) -> QLabel:
-        """
-        Description:
-            One key/value meta row for the reading card.
-
-        Args:
-            (1) parent_layout [QVBoxLayout(object)]: The layout to add the row to.
-            (2) key [string]: The row label.
-            (3) mono [bool]: Render the value monospace.
-            (4) first [bool]: Omit the top divider on the first row.
-
-        Returns:
-            (1) parameter [QLabel(object)]: The value label to update later.
-        """
-
-        row = QWidget()
-        if not first:
-            row.setStyleSheet('border-top: 1px solid %s;' % Style.CONST_LINE)
-        line = QHBoxLayout(row)
-        line.setContentsMargins(2, 9, 2, 9)
-        label = QLabel(key)
-        label.setFont(Font(10))
-        label.setStyleSheet('color: %s; border: none;' % Style.CONST_INK_SOFT)
-        line.addWidget(label)
-        line.addStretch(1)
-        value = QLabel(Style.CONST_NO_VALUE)
-        value.setFont(Font(9 if mono else 10, QFont.Medium, mono=mono))
-        value.setStyleSheet('color: %s; border: none;' % Style.CONST_INK)
-        line.addWidget(value)
-        parent_layout.addWidget(row)
-        return value
 
     def __Connect_Signals(self) -> None:
         """
@@ -708,16 +680,10 @@ class AnyScan_Window_Cls(QMainWindow):
 
         if connected:
             self.__pill_camera.setText('●  Camera live')
-            self.__pill_camera.setStyleSheet(
-                'border: 1px solid %s; background: %s; color: %s;'
-                'border-radius: 15px; padding: 0 12px;'
-                % (Style.CONST_OK_BORDER, Style.CONST_CARD, Style.CONST_OK))
+            self.__pill_camera.setStyleSheet(self.__Pill_Style(Style.CONST_OK_BORDER, Style.CONST_OK))
         else:
             self.__pill_camera.setText('●  Camera offline')
-            self.__pill_camera.setStyleSheet(
-                'border: 1px solid %s; background: %s; color: %s;'
-                'border-radius: 15px; padding: 0 12px;'
-                % (Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK_MUTE))
+            self.__pill_camera.setStyleSheet(self.__Pill_Style(Style.CONST_CARD_BORDER, Style.CONST_INK_MUTE))
         self.__Sync_Prompts()
 
     def __Sync_Model_State(self) -> None:
@@ -1004,10 +970,8 @@ class AnyScan_Window_Cls(QMainWindow):
         # Render the two views once, in BGR, then share them: the viewport shows them and
         # the capture writer writes them, so the on-screen and on-disk images are identical.
         frame_bgr = cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR)
-        annotated_bgr = Draw_Annotated(frame_bgr, result.Objects, cv2, np,
-                                       verdict_colored=self.__classification_enabled)
-        mask_bgr = Draw_Label_Mask(result.Objects, frame_bgr.shape, cv2, np,
-                                   verdict_colored=self.__classification_enabled)
+        annotated_bgr, mask_bgr = Render_Views(frame_bgr, result.Objects, cv2, np,
+                                               verdict_colored=self.__classification_enabled)
         self.__Show_Analysis(result, annotated_bgr, mask_bgr)
 
         set_id = self.__current_set_id
@@ -1033,10 +997,9 @@ class AnyScan_Window_Cls(QMainWindow):
                 else:
                     self.__logger.Log_Info(message)
             # The finished-analysis summary: object count, mean confidence and coverage.
-            scores = [d.Segmenter_Score for d in result.Objects if d.Segmenter_Score is not None]
-            mean = int(round(100.0 * sum(scores) / len(scores))) if scores else None
+            mean, scored = Frame_Confidence(result.Objects)
             self.__logger.Log_Analysis_Finished(self.__session_analyses, result.Latency_Ms,
-                                                len(result.Objects), len(scores), mean, set_id)
+                                                len(result.Objects), scored, mean, set_id)
             self.__Write_Capture(set_id, result, frame_bgr, annotated_bgr, mask_bgr)
         self.__Sync_Controls()
 
@@ -1070,8 +1033,7 @@ class AnyScan_Window_Cls(QMainWindow):
         size = (width, height)
         yolo = Yolo_Lines(result.Objects, size)
         seg = Seg_Lines(result.Objects, size, cv2, np)
-        scores = [d.Segmenter_Score for d in result.Objects if d.Segmenter_Score is not None]
-        frame_mean = int(round(100.0 * sum(scores) / len(scores))) if scores else None
+        frame_mean, _scored = Frame_Confidence(result.Objects)
         timestamp = datetime.now().isoformat(timespec='seconds')
         metadata = Build_Set_Metadata(self.__session_id, set_id, timestamp, result.Objects,
                                       size, result.Task, result.Latency_Ms, frame_mean,
@@ -1396,14 +1358,13 @@ class AnyScan_Window_Cls(QMainWindow):
             (1) parameter [string]: The frame confidence ('N%', 'N% over K of M' or '—').
         """
 
-        scores = [det.Segmenter_Score for det in objects if det.Segmenter_Score is not None]
-        if not scores:
+        mean, scored = Frame_Confidence(objects)
+        if mean is None:
             return Style.CONST_NO_VALUE
-        mean = int(round(100.0 * sum(scores) / len(scores)))
         # The number carries its severity colour and weight (rich text); the coverage stays plain.
         number = Style.Confidence_Number_Html('%d%%' % mean, mean, self.__config.Confidence)
-        if len(scores) < len(objects):
-            return '%s over %d of %d' % (number, len(scores), len(objects))
+        if scored < len(objects):
+            return '%s over %d of %d' % (number, scored, len(objects))
         return number
 
     def __On_View_Toggle(self, view: str) -> None:
@@ -1531,9 +1492,7 @@ class AnyScan_Window_Cls(QMainWindow):
             (1) parameter [Configuration_Dialog_Cls(object)]: The wired dialog (not yet shown).
         """
 
-        log_cb = ((lambda level, message: (self.__logger.Log_Warning if level == 'WARNING' else
-                                           self.__logger.Log_Info)(message))
-                  if self.__logger is not None else None)
+        log_cb = self.__Log_Event if self.__logger is not None else None
         dialog = Configuration_Dialog_Cls(self.__vision, self.__config, self, log_cb=log_cb)
         dialog.Load_Started.connect(lambda: self.__On_Configuration_Loading(True))
         dialog.Configuration_Loaded.connect(self.__On_Configuration_Loaded)
@@ -1616,9 +1575,9 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__logger.Log_Info(Config_Loaded_Log_Line(Configuration_Str))
             self.__logger.Log_Info(Config_Sources_Log_Line(Configuration_Str))
             level, line = Scale_Log_Line(Configuration_Str.Name, Configuration_Str.Scale)
-            (self.__logger.Log_Warning if level == 'WARNING' else self.__logger.Log_Info)(line)
+            self.__Log_Event(level, line)
             for level, note in Configuration_Str.Notes:
-                (self.__logger.Log_Warning if level == 'WARNING' else self.__logger.Log_Info)(note)
+                self.__Log_Event(level, note)
         self.__Sync_Controls()
 
     def __On_Configuration_Refused(self, message: str) -> None:

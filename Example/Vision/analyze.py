@@ -54,7 +54,7 @@ from Vision.Utilities.Discovery import Discover_Scenes
 #   ../Vision/Utilities/Provenance
 import Vision.Utilities.Provenance as Provenance
 #   ../Vision/Utilities/Annotate
-from Vision.Utilities.Annotate import Draw_Annotated, Draw_Label_Mask
+from Vision.Utilities.Annotate import Render_Views
 #   ../Reporting/Core
 from Reporting.Core import Screen_Understanding, Object_Size
 #   ../Parameters/Vision
@@ -277,30 +277,6 @@ def _Configure(args: argparse.Namespace, Configuration_Str: Configuration_Str) -
                                Segmentation=dataclasses.replace(Configuration_Str.Segmentation, **overrides))
 
 
-def Render_Views(scene_bgr: tp.Any, objects: tp.List[tp.Any],
-                 classification_enabled: bool) -> tp.Tuple[tp.Any, tp.Any]:
-    """
-    Description:
-        The harness's two views — the annotated frame and the label mask — rendered through the
-        application's own renderers with the configuration's classification flag, exactly as the
-        window renders them. This is the one place the harness draws, so a test can hold it
-        against the UI path: the harness validates the logic the app uses, and a harness that
-        rendered in a different mode would be that guarantee quietly breaking.
-
-    Args:
-        (1) scene_bgr [Matrix<uint8> HxWx3]: The scene (BGR).
-        (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
-        (3) classification_enabled [bool]: General.Classification.Enabled from the config.
-
-    Returns:
-        (1) parameter [Tuple<Matrix<uint8> HxWx3> 1x2]: The (annotated, mask) images (BGR).
-    """
-
-    annotated = Draw_Annotated(scene_bgr, objects, cv2, np, verdict_colored=classification_enabled)
-    mask = Draw_Label_Mask(objects, scene_bgr.shape, cv2, np, verdict_colored=classification_enabled)
-    return annotated, mask
-
-
 def _Analyze_Frame(backend: Vision_Pipeline_Cls, scene_path: str, output_dir: str,
                    write_descriptions: bool, write_montage: bool,
                    run_stamp: str, reference_hash: str,
@@ -349,7 +325,7 @@ def _Analyze_Frame(backend: Vision_Pipeline_Cls, scene_path: str, output_dir: st
         return None
 
     stamp = _Stamp_Line(stem, scene_path, run_stamp, reference_hash, Vision_Core.CONST_DESCRIBER)
-    annotated, mask = Render_Views(scene_bgr, result.Objects, classification_enabled)
+    annotated, mask = Render_Views(scene_bgr, result.Objects, cv2, np, verdict_colored=classification_enabled)
     cv2.imwrite(os.path.join(output_dir, '%s_annotated.png' % stem), _Stamp_Image(annotated, stamp))
     cv2.imwrite(os.path.join(output_dir, '%s_mask.png' % stem), _Stamp_Image(mask, stamp))
     if write_descriptions:

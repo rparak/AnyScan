@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QFrame, QPushButton, QVBoxLayout, 
 import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline
 #   ../UI/Widgets
-from UI.Widgets import Card_Cls, Card_Head_Cls, Segmented_Control_Cls, Object_List_Cls
+from UI.Widgets import Card_Cls, Card_Head_Cls, Segmented_Control_Cls, Object_List_Cls, Meta_Row
 # Custom Lib.: AnyScan — the Qt-free capture-set reader (the view never re-reads or parses)
 #   ../UI/Capture
 from UI.Capture import Discover_Capture_Sets, CONST_CAPTURE_RETENTION_SETS
@@ -430,7 +430,7 @@ class History_View_Cls(QWidget):
         self.__list_scroll.setWidget(self.__list_body)
         self.__list_scroll.setWidgetResizable(True)
         self.__list_scroll.setFrameShape(QFrame.NoFrame)
-        self.__list_scroll.setStyleSheet(self.__Scroll_Style())
+        self.__list_scroll.setStyleSheet(Style.Scroll_Style(framed=False))
         self.__list_scroll.verticalScrollBar().valueChanged.connect(lambda _v: self.__Load_Visible())
         card.box.addWidget(self.__list_scroll, 1)
         return card
@@ -500,12 +500,12 @@ class History_View_Cls(QWidget):
         meta = QVBoxLayout()
         meta.setContentsMargins(0, 8, 0, 0)
         meta.setSpacing(0)
-        self.__meta_session = self.__Meta_Row(meta, 'Connection', mono=True, first=True)
-        self.__meta_objects = self.__Meta_Row(meta, 'Objects')
-        self.__meta_task = self.__Meta_Row(meta, 'Task')
-        self.__meta_configuration = self.__Meta_Row(meta, 'Configuration')
-        self.__meta_latency = self.__Meta_Row(meta, 'Inference time', mono=True)
-        self.__meta_confidence = self.__Meta_Row(meta, 'Confidence (mean)', mono=True)
+        self.__meta_session = Meta_Row(meta, 'Connection', compact=True, mono=True, first=True)
+        self.__meta_objects = Meta_Row(meta, 'Objects', compact=True)
+        self.__meta_task = Meta_Row(meta, 'Task', compact=True)
+        self.__meta_configuration = Meta_Row(meta, 'Configuration', compact=True)
+        self.__meta_latency = Meta_Row(meta, 'Inference time', compact=True, mono=True)
+        self.__meta_confidence = Meta_Row(meta, 'Confidence (mean)', compact=True, mono=True)
         card.box.addLayout(meta)
         return card
 
@@ -616,65 +616,13 @@ class History_View_Cls(QWidget):
         scroll.setWidget(body)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setStyleSheet(self.__Scroll_Style())
+        scroll.setStyleSheet(Style.Scroll_Style(framed=False))
         column.addWidget(scroll, 1)
 
         clip_row.addWidget(inner)
         self.__info_panel = clip
         self.__info_panel.hide()
         return clip
-
-    def __Meta_Row(self, parent_layout: QVBoxLayout, key: str, mono: bool = False,
-                   first: bool = False) -> QLabel:
-        """
-        Description:
-            One key/value record row, compact (History carries several).
-
-        Args:
-            (1) parent_layout [QVBoxLayout(object)]: The layout to add the row to.
-            (2) key [string]: The row label.
-            (3) mono [bool]: Render the value monospace.
-            (4) first [bool]: Omit the top divider on the first row.
-
-        Returns:
-            (1) parameter [QLabel(object)]: The value label to update later.
-        """
-
-        row = QWidget()
-        if not first:
-            row.setStyleSheet('border-top: 1px solid %s;' % Style.CONST_LINE)
-        line = QHBoxLayout(row)
-        line.setContentsMargins(2, 6, 2, 6)
-        label = QLabel(key)
-        label.setFont(Font(9.5))
-        label.setStyleSheet('color: %s; border: none;' % Style.CONST_INK_SOFT)
-        line.addWidget(label)
-        line.addStretch(1)
-        value = QLabel(Style.CONST_NO_VALUE)
-        value.setFont(Font(9 if mono else 9.5, mono=mono))
-        value.setStyleSheet('color: %s; border: none;' % Style.CONST_INK)
-        line.addWidget(value)
-        parent_layout.addWidget(row)
-        return value
-
-    def __Scroll_Style(self) -> str:
-        """
-        Description:
-            The console's scroll-area stylesheet, shared so History matches Live.
-
-        Returns:
-            (1) parameter [string]: The Qt stylesheet.
-        """
-
-        return ("""
-            QScrollArea { border: none; background: transparent; }
-            QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
-            QScrollBar::handle:vertical { background: %s; border-radius: 4px;
-                                          min-height: 30px; }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: transparent; }
-        """ % Style.CONST_SCROLLBAR_HANDLE)
 
     # -------------------------------------------------------------------- public API
 

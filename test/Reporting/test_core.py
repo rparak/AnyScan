@@ -341,3 +341,19 @@ def test_background_sentence_validation() -> None:
     kept, records = Reporting.Background_Sentence('', Description_Parameters_Str=Description_Parameters_Str())
     assert kept == Reporting.CONST_BACKGROUND_FALLBACK
     assert records and records[0][0] == 'warning'
+
+
+def test_the_frame_confidence_is_the_mean_of_the_scored_objects_only() -> None:
+    """
+    Description:
+        The frame's confidence is the mean of the scored objects' own scores, rounded to a whole
+        percent, over how many were scored: an unscored object (found by the background cue alone)
+        is left out, not counted as 0%, and a frame with none scored has no mean at all.
+    """
+
+    def _Scored(score):
+        return Detection_Str(Label='p', Bbox=(0, 0, 4, 4), Segmenter_Score=score)
+
+    assert Reporting.Frame_Confidence([_Scored(0.91), _Scored(0.844), _Scored(None)]) == (88, 2)
+    assert Reporting.Frame_Confidence([_Scored(None), _Scored(None)]) == (None, 0)
+    assert Reporting.Frame_Confidence([]) == (None, 0)

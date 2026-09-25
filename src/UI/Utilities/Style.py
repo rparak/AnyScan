@@ -223,6 +223,32 @@ def Confidence_Number_Html(number: str, percent: tp.Optional[float],
         Log_Level_Color(level), CONST_LEVEL_CSS_WEIGHTS[level], number)
 
 
+def Scroll_Style(framed: bool) -> str:
+    """
+    Description:
+        The console's one scroll-area stylesheet: a slim, trackless vertical bar with a rounded
+        handle. A framed area (the Live object list, the Log) sits in a hairline-bordered card
+        panel; an unframed one (the History list) is transparent inside its card.
+
+    Args:
+        (1) framed [bool]: Draw the area's own hairline border and card background.
+
+    Returns:
+        (1) parameter [string]: The Qt stylesheet.
+    """
+
+    area = ('QScrollArea { border: 1px solid %s; border-radius: 10px; background: %s; }'
+            % (CONST_LINE, CONST_CARD) if framed else 'QScrollArea { border: none; background: transparent; }')
+    return area + """
+            QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
+            QScrollBar::handle:vertical { background: %s; border-radius: 4px;
+                                          min-height: 30px; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: transparent; }
+        """ % CONST_SCROLLBAR_HANDLE
+
+
 def Load_Fonts() -> None:
     """
     Description:

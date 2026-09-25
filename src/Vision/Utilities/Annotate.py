@@ -369,6 +369,33 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
     return mask_image
 
 
+def Render_Views(scene_bgr: tp.Any, objects: tp.List[Detection_Str], cv2: tp.Any, np: tp.Any, *,
+                 verdict_colored: bool) -> tp.Tuple[tp.Any, tp.Any]:
+    """
+    Description:
+        The two views of an analysis — the annotated frame and the label mask — rendered in one
+        mode. The application window and the validation harness both render through this one
+        function, so what the harness validates is by construction what the application shows and
+        stores; only the mode (the configuration's classification flag) is theirs to pass.
+
+    Args:
+        (1) scene_bgr [Matrix<uint8> HxWx3]: The frame (BGR).
+        (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
+        (3) cv2 [module]: The OpenCV module, injected by the caller.
+        (4) np [module]: The NumPy module, injected by the caller.
+        (5) verdict_colored [bool]: REQUIRED, keyword-only: General.Classification.Enabled of the
+            configuration in force — verdict colours when True, the neutral detection colour when
+            False. No default, so a caller that never read the configuration fails at the call.
+
+    Returns:
+        (1) parameter [Tuple<Matrix<uint8> HxWx3> 1x2]: The (annotated, mask) images (BGR).
+    """
+
+    annotated = Draw_Annotated(scene_bgr, objects, cv2, np, verdict_colored=verdict_colored)
+    mask = Draw_Label_Mask(objects, scene_bgr.shape, cv2, np, verdict_colored=verdict_colored)
+    return annotated, mask
+
+
 def __Object_Polygon(det: Detection_Str, cv2: tp.Any, np: tp.Any) -> tp.List[tp.Tuple[int, int]]:
     """
     Description:
