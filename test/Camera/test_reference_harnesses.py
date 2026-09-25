@@ -286,3 +286,23 @@ def test_calibrate_refuses_images_without_the_board_height_and_says_what_it_is(t
     assert refused.value.code == 2
     assert '--board-height-mm' in message and 'reference plane' in message
     assert 'each changes the result' not in message
+
+
+@pytest.mark.parametrize('script', ['calibrate', 'scan', 'make_reference'])
+def test_each_camera_script_imports_from_any_working_directory(tmp_path, script) -> None:
+    """
+    Description:
+        The camera scripts find src/ from their own location, so the README's
+        'python Example/Camera/calibrate.py ...' from the repository root works as well as running
+        them from Example/Camera/. Each is loaded, in a fresh interpreter whose working directory is
+        unrelated (tmp_path), up to but not into main().
+    """
+
+    import subprocess
+    import sys
+    path = os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', script + '.py')
+    loader = ('import importlib.util; spec = importlib.util.spec_from_file_location("s", %r); '
+              'spec.loader.exec_module(importlib.util.module_from_spec(spec))' % path)
+    result = subprocess.run([sys.executable, '-c', loader], cwd=str(tmp_path), capture_output=True, text=True,
+                            timeout=120)
+    assert result.returncode == 0, result.stderr[-2000:]

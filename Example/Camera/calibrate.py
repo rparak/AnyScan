@@ -23,11 +23,13 @@
 
 # System (Default)
 import sys
-#   Add access if it is not in the system path.
-if '../../' + 'src' not in sys.path:
-    sys.path.append('../../' + 'src')
 # OS (Operating system interfaces)
 import os
+# Resolve src/ from this file's own location (Example/Camera -> ../../src), so the script runs the
+# same whether launched from Example/Camera/ or the repository root.
+_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'src'))
+if _SRC not in sys.path:
+    sys.path.append(_SRC)
 # Argparse (Command-line parsing)
 import argparse
 # Typing (Support for type hints)
