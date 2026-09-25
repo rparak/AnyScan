@@ -27,7 +27,7 @@ import os
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, pyqtSignal
-from PyQt5.QtGui import (QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap,
+from PyQt5.QtGui import (QColor, QFont, QFontMetrics, QImage, QPainter, QPainterPath, QPen, QPixmap,
                          QPaintEvent)
 from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup,
                              QVBoxLayout, QHBoxLayout, QSizePolicy, QApplication)
@@ -1071,6 +1071,19 @@ class Stat_Cell_Cls(QWidget):
 
         return self.__value.text()
 
+    def Reserve_Width(self, texts: tp.Sequence[str]) -> None:
+        """
+        Description:
+            Hold the value at the width of the widest text it can show (with its status dot), so
+            a state change never resizes the cell and shifts the columns beside it.
+
+        Args:
+            (1) texts [Vector<string>]: Every value the cell can show.
+        """
+
+        metrics = QFontMetrics(self.__value.font())
+        self.__value.setMinimumWidth(max(metrics.horizontalAdvance('●  ' + text) for text in texts) + 2)
+
     def Set_Value(self, text: str, color: tp.Optional[str] = None,
                   dot_color: tp.Optional[str] = None, weight: tp.Optional[int] = None) -> None:
         """
@@ -1122,7 +1135,7 @@ class Status_Strip_Cls(Card_Cls):
 
         self.camera = Stat_Cell_Cls('Camera', 'Disconnected')
         self.resolution = Stat_Cell_Cls('Resolution', Style.CONST_NO_VALUE, mono=True)
-        self.system = Stat_Cell_Cls('System', 'Ready')
+        self.system = Stat_Cell_Cls('System', Style.CONST_NO_VALUE)
         self.updated = Stat_Cell_Cls('Last update', Style.CONST_NO_VALUE, mono=True)
         self.images = Stat_Cell_Cls('Images analysed', '0', big=True)
         self.objects = Stat_Cell_Cls('Objects detected', '0', big=True)
@@ -1137,7 +1150,9 @@ class Status_Strip_Cls(Card_Cls):
 
         self.box.addLayout(row)
         self.camera.Set_Value('Disconnected', Style.CONST_INK_MUTE, Style.CONST_INK_MUTE)
-        self.system.Set_Value('Ready', Style.CONST_OK, Style.CONST_OK)
+        # The window sets the System cell from its real state as soon as it is built (never a
+        # standing 'Ready'); until then it shows no value.
+        self.system.Set_Value(Style.CONST_NO_VALUE, Style.CONST_INK_MUTE, Style.CONST_INK_MUTE)
 
 
 class Funding_Row_Cls(Card_Cls):

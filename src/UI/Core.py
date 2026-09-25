@@ -125,6 +125,11 @@ class AnyScan_Window_Cls(QMainWindow):
                            ('log', 'Log'))
     # The switch keys mapped to their stack index.
     CONST_VIEW_INDEX = {'live': 0, 'trends': 1, 'history': 2, 'log': 3}
+    # What the status strip's Camera and System cells can say — the texts they show, and the widths
+    # the cells reserve so that a change of state never shifts the columns ('99' stands for any count).
+    CONST_CAMERA_STATES = ('Connecting…', 'Connected', 'Disconnected')
+    CONST_SYSTEM_STATES = ('Analysis failed', 'Error logged', '99 errors logged', 'Models not loaded',
+                           'Camera disconnected', 'Ready')
 
     CONST_READING_HAS_FRAME = ('Frame captured. Press Analyze to read the scene. The result '
                                'appears here as plain English text.')
@@ -203,6 +208,11 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__camera_error_id = None
         self.__scan_error_id = None
         self.__analysis_error_id = None
+        # What the status strip's System cell reports beyond the camera and the models: how many
+        # errors the window has logged since the last CLEAR, and whether the latest analysis failed
+        # (reset by the next successful one, and by CLEAR).
+        self.__errors_since_clear = 0
+        self.__analysis_failed = False
 
         self.__frame = None
         self.__frame_distorted = None
@@ -233,9 +243,11 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__thread = None
         self.__worker = None
         self.__worker_running = False
-        # Camera-connect worker plumbing; None when idle.
+        # Camera-connect worker plumbing; None when idle. Whether a CONNECT is under way (the
+        # status strip's Camera cell reads 'Connecting…' until it ends).
         self.__conn_thread = None
         self.__conn_worker = None
+        self.__connecting = False
         # Whether the Configuration dialog is loading a configuration (the header shows it).
         self.__configuration_loading = False
         # Widgets, populated by __Build_Ui.
@@ -326,6 +338,8 @@ class AnyScan_Window_Cls(QMainWindow):
         grid.setRowStretch(0, 1)       # spare height goes to the central view
 
         self.__status = Status_Strip_Cls()
+        self.__status.camera.Reserve_Width(self.CONST_CAMERA_STATES)
+        self.__status.system.Reserve_Width(self.CONST_SYSTEM_STATES)
         grid.addWidget(self.__status, 1, 0)
         grid.addWidget(Funding_Row_Cls(), 2, 0)
 
@@ -685,6 +699,77 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__pill_camera.setText('●  Camera offline')
             self.__pill_camera.setStyleSheet(self.__Pill_Style(Style.CONST_CARD_BORDER, Style.CONST_INK_MUTE))
         self.__Sync_Prompts()
+        self.__Sync_Camera_Status()
+        self.__Sync_System_Status()
+
+    def __Sync_Camera_Status(self) -> None:
+        """
+        Description:
+            The status strip's Camera cell, from the camera's state now — not from the last button
+            pressed: 'Connecting…' while a CONNECT is under way, then Connected or Disconnected as
+            the camera actually is, so a connection lost mid-session reads Disconnected here as it
+            does in the header pill. Without a connection the Resolution cell shows no value too,
+            however the connection ended (DISCONNECT or a lost link): a size left standing would
+            read as 'still connected at this resolution'.
+        """
+
+        if self.__connecting:
+            text, color = self.CONST_CAMERA_STATES[0], Style.CONST_WARN
+        elif self.__camera.Connected:
+            text, color = self.CONST_CAMERA_STATES[1], Style.CONST_OK
+        else:
+            text, color = self.CONST_CAMERA_STATES[2], Style.CONST_INK_MUTE
+            self.__status.resolution.Set_Value(Style.CONST_NO_VALUE)
+        self.__status.camera.Set_Value(text, color, color)
+
+    def __Sync_System_Status(self) -> None:
+        """
+        Description:
+            The status strip's System cell: the one state an operator most needs, never green
+            because the application merely started. In order: the latest analysis failed; errors
+            were logged since the last CLEAR; no configuration's models are loaded; the camera is
+            not connected; otherwise Ready. CLEAR resets the first two, a successful analysis the
+            first.
+        """
+
+        errors = self.__errors_since_clear
+        if self.__analysis_failed:
+            text, color = 'Analysis failed', Style.CONST_LOG_ERROR
+        elif errors:
+            text, color = ('%d errors logged' % errors if errors > 1 else 'Error logged'), Style.CONST_LOG_ERROR
+        elif not self.__vision.Models_Loaded:
+            text, color = 'Models not loaded', Style.CONST_WARN
+        elif not self.__camera.Connected:
+            text, color = 'Camera disconnected', Style.CONST_INK_MUTE
+        else:
+            text, color = 'Ready', Style.CONST_OK
+        self.__status.system.Set_Value(text, color, color)
+
+    def __Log_Error(self, message: str) -> int:
+        """
+        Description:
+            Log an ERROR through the session logger (the caller has checked there is one) and count
+            it for the System cell.
+
+        Args:
+            (1) message [string]: The error sentence.
+
+        Returns:
+            (1) parameter [int]: The logger's error id (for a later Log_Error_Resolved).
+        """
+
+        error_id = self.__logger.Log_Error(message)
+        self.__Count_Logged_Error()
+        return error_id
+
+    def __Count_Logged_Error(self) -> None:
+        """
+        Description:
+            One more error logged since the last CLEAR; the System cell says so at once.
+        """
+
+        self.__errors_since_clear += 1
+        self.__Sync_System_Status()
 
     def __Sync_Model_State(self) -> None:
         """
@@ -749,8 +834,8 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__logger.Log_Camera_Connection_Attempt()
 
         self.__worker_running = True
+        self.__connecting = True
         self.__showing_error = False
-        self.__status.camera.Set_Value('Connecting…', Style.CONST_WARN, Style.CONST_WARN)
         self.__viewport.Start_Busy('Connecting to camera…')
         self.__Sync_Controls()
 
@@ -779,13 +864,13 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__worker_running = False
         self.__conn_thread = None
         self.__conn_worker = None
+        self.__connecting = False
         self.__viewport.Stop_Busy()
         # A new camera session: the per-session analysis index (capture-set <n>) restarts. The run
         # has now connected, so its configuration is fixed until the application restarts.
         self.__session_analyses = 0
         self.__has_connected = True
         w, h = self.__camera.Resolution
-        self.__status.camera.Set_Value('Connected', Style.CONST_OK, Style.CONST_OK)
         self.__status.resolution.Set_Value('%d × %d' % (w, h))
         if self.__logger is not None:
             # A successful connection resolves a pending connect error, then opens a session.
@@ -814,10 +899,10 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__worker_running = False
         self.__conn_thread = None
         self.__conn_worker = None
+        self.__connecting = False
         self.__viewport.Stop_Busy()
-        self.__status.camera.Set_Value('Disconnected', Style.CONST_INK_MUTE, Style.CONST_INK_MUTE)
         if self.__logger is not None:
-            self.__camera_error_id = self.__logger.Log_Error(message)
+            self.__camera_error_id = self.__Log_Error(message)
         self.__Fail(message)
         self.__Sync_Controls()
 
@@ -833,8 +918,6 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__frame_undistortion = None
         self.__viewport.Clear()
         self.__frame_badge.setText('No frame')
-        self.__status.camera.Set_Value('Disconnected', Style.CONST_INK_MUTE, Style.CONST_INK_MUTE)
-        self.__status.resolution.Set_Value(Style.CONST_NO_VALUE)
         if self.__logger is not None:
             self.__logger.Log_Camera_Disconnected()
         self.__Sync_Controls()
@@ -862,8 +945,9 @@ class AnyScan_Window_Cls(QMainWindow):
                 # can resolve).
                 if not self.__camera.Connected:
                     self.__logger.Log_Camera_Connection_Lost(str(exc))
+                    self.__Count_Logged_Error()
                 else:
-                    self.__scan_error_id = self.__logger.Log_Error(str(exc))
+                    self.__scan_error_id = self.__Log_Error(str(exc))
             self.__Fail(str(exc))
         else:
             self.__viewport.Show_Frame(Rgb_To_Qimage(self.__frame))
@@ -975,6 +1059,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__Show_Analysis(result, annotated_bgr, mask_bgr)
 
         set_id = self.__current_set_id
+        self.__analysis_failed = False
         if self.__logger is not None:
             # A successful analysis resolves a pending analysis error, then reports each
             # located object and the finished-analysis summary (inference time and the mean
@@ -1051,7 +1136,7 @@ class AnyScan_Window_Cls(QMainWindow):
                 understanding, yolo, seg, metadata, stamp, cv2, np,
                 distorted_bgr=self.__Distorted_Bgr(cv2), undistortion=self.__frame_undistortion)
         except Exception as exc:                          # noqa: BLE001
-            self.__logger.Log_Error('failed to write capture set %s: %s' % (set_id, exc))
+            self.__Log_Error('failed to write capture set %s: %s' % (set_id, exc))
             return
         self.__Log_Capture_Side_Effects(created)
         self.__logger.Log_Info('Capture set %s written.' % set_id)
@@ -1158,7 +1243,7 @@ class AnyScan_Window_Cls(QMainWindow):
         if self.__logger is None:
             return
         if level == 'ERROR':
-            self.__logger.Log_Error(message)
+            self.__Log_Error(message)
         elif level == 'WARNING':
             self.__logger.Log_Warning(message)
         else:
@@ -1183,12 +1268,14 @@ class AnyScan_Window_Cls(QMainWindow):
             # that caused the failure is in the capture directory under that id, and this
             # is the case where the link matters most.
             suffix = ' (set=%s)' % set_id if set_id else ''
-            self.__analysis_error_id = self.__logger.Log_Error(message + suffix)
+            self.__analysis_error_id = self.__Log_Error(message + suffix)
             # A failed analysis renders no annotated image or mask (rendering is on the
             # success path), but the raw frame exists — write a PARTIAL set (raw + a note)
             # so the crash leaves evidence rather than nothing.
             self.__Write_Partial_Capture(set_id, message)
+        self.__analysis_failed = True
         self.__Fail(message)
+        self.__Sync_System_Status()
 
     def __Write_Partial_Capture(self, set_id: str, message: str) -> None:
         """
@@ -1214,7 +1301,7 @@ class AnyScan_Window_Cls(QMainWindow):
                 self.__session_id, set_id, frame_bgr, note, stamp, cv2, np,
                 distorted_bgr=self.__Distorted_Bgr(cv2), undistortion=self.__frame_undistortion)
         except Exception as exc:                          # noqa: BLE001
-            self.__logger.Log_Error('failed to write partial capture set %s: %s' % (set_id, exc))
+            self.__Log_Error('failed to write partial capture set %s: %s' % (set_id, exc))
             return
         self.__Log_Capture_Side_Effects(created)
         self.__logger.Log_Warning('Wrote a partial capture set %s for the failed analysis. It '
@@ -1429,6 +1516,8 @@ class AnyScan_Window_Cls(QMainWindow):
 
         if self.__logger is not None:
             self.__logger.Log_Cleared()
+        self.__errors_since_clear = 0
+        self.__analysis_failed = False
         self.__frame = None
         self.__frame_distorted = None
         self.__frame_undistortion = None
@@ -1603,7 +1692,7 @@ class AnyScan_Window_Cls(QMainWindow):
 
         self.__configuration_loading = False
         if self.__logger is not None:
-            self.__logger.Log_Error('Configuration was not loaded. %s' % message)
+            self.__Log_Error('Configuration was not loaded. %s' % message)
         self.__Sync_Controls()
 
     # << QT OVERRIDE >> #
