@@ -101,7 +101,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 841.8898 595.2756] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 9 0 R >>
 endobj
 9 0 obj
-<< /Length 3812 >>
+<< /Length 3833 >>
 stream
 0 g
 BT /F2 14.0 Tf 1 0 0 1 56.6929 532.9134 Tm (Checkerboard calibration target - 11 x 8 squares, 12 mm) Tj ET
@@ -125,7 +125,7 @@ BT /F1 8.5 Tf 1 0 0 1 56.6929 263.6220 Tm (Glue the whole sheet down without bub
 BT /F1 8.5 Tf 1 0 0 1 56.6929 251.4331 Tm (about one square of white on every side. Do not trim it, write on it or tape over it.) Tj ET
 BT /F2 10.0 Tf 1 0 0 1 56.6929 229.3228 Tm (4. Calibrate) Tj ET
 BT /F1 8.5 Tf 1 0 0 1 56.6929 213.7323 Tm (Capture at least 40 views, flat \(f\) and tilted \(t\); docs/capture-checklist.md, item 1, says how many of each and why 40:) Tj ET
-BT /F1 8.5 Tf 1 0 0 1 56.6929 198.1417 Tm (    python Example/Camera/calibrate.py --capture) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 198.1417 Tm (    python Example/Camera/calibrate.py --capture --board-squares 11x8) Tj ET
 BT /F1 8.5 Tf 1 0 0 1 56.6929 182.5512 Tm (Solve:) Tj ET
 BT /F1 8.5 Tf 1 0 0 1 56.6929 166.9606 Tm (    python Example/Camera/calibrate.py --images <DIR> --board-squares 11x8 --square-mm <CALIPERED mm> --board-height-mm <PLATE + PAPER mm>) Tj ET
 BT /F1 8.5 Tf 1 0 0 1 56.6929 151.3701 Tm (<CALIPERED mm> is the square size from step 2 - never the nominal 12 mm printed here. <PLATE + PAPER mm> is the board) Tj ET
@@ -150,5 +150,5 @@ xref
 trailer
 << /Size 10 /Root 1 0 R /Info 5 0 R >>
 startxref
-8117
+8138
 %%EOF

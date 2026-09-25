@@ -84,7 +84,7 @@ def test_detector_finds_the_visible_part_of_an_overhanging_board(origin, visible
     """
 
     frame = _Board_Frame(*origin)
-    detection = Detect_Board(frame)
+    detection = Detect_Board(frame, CONST_SQUARES)
     assert detection.Found, detection.Reason
     assert sorted(detection.Grid) == sorted(visible)
     grid = detection.Corners.reshape(detection.Grid[1], detection.Grid[0], 2)
@@ -101,9 +101,38 @@ def test_detector_reports_why_when_there_is_no_board() -> None:
         A frame with no board is not an exception: the detection says not found and why.
     """
 
-    detection = Detect_Board(np.full((600, 800, 3), 128, np.uint8))
+    detection = Detect_Board(np.full((600, 800, 3), 128, np.uint8), CONST_SQUARES)
     assert not detection.Found and 'no chessboard' in detection.Reason
     assert detection.Corners.shape == (0, 2)
+
+
+def test_detector_reads_a_board_turned_on_its_side_whole() -> None:
+    """
+    Description:
+        The board's whole grid is asked for in the orientation --board-squares gives (columns x
+        rows), and a board lying turned 90 deg in the frame is still read whole, not as a fragment,
+        with its corners row-major over the grid reported (every adjacent spacing one square).
+    """
+
+    frame = cv2.rotate(_Board_Frame(412, 112), cv2.ROTATE_90_CLOCKWISE)
+    detection = Detect_Board(frame, CONST_SQUARES)
+    assert detection.Found, detection.Reason
+    assert sorted(detection.Grid) == [7, 10] and detection.Corners.shape == (70, 2)
+    grid = detection.Corners.reshape(detection.Grid[1], detection.Grid[0], 2)
+    for axis in (0, 1):
+        assert np.abs(np.linalg.norm(np.diff(grid, axis=axis), axis=2) - CONST_SQUARE_PX).max() < 0.1
+
+
+def test_detector_refuses_a_grid_larger_than_the_board() -> None:
+    """
+    Description:
+        Told the board is smaller than the one in view, the detector refuses the larger grid it
+        finds, naming both: object points for the wrong board would solve a wrong lens model.
+    """
+
+    detection = Detect_Board(_Board_Frame(412, 112), (8, 6))
+    assert not detection.Found
+    assert 'larger than the board' in detection.Reason and '7 x 5' in detection.Reason
 
 
 def test_capture_numbers_run_across_kinds_and_never_overwrite(tmp_path) -> None:
@@ -163,7 +192,7 @@ def test_capture_harness_keeps_every_frame_and_marks_them_distorted(tmp_path, mo
     keys = iter(['f', 'x', 't', 'q'])
     monkeypatch.setattr(calibrate, 'Basler_Cls', _Camera_Cls)
     monkeypatch.setattr('builtins.input', lambda prompt='': next(keys))
-    assert calibrate.Capture_Main(str(tmp_path), CONST_DEFAULT_CONFIG_FILE) == 0
+    assert calibrate.Capture_Main(str(tmp_path), CONST_DEFAULT_CONFIG_FILE, CONST_SQUARES) == 0
 
     assert sorted(os.listdir(tmp_path)) == ['capture.json', 'flat_001.png', 'view_002.png']
     manifest = json.loads((tmp_path / 'capture.json').read_text())
@@ -175,12 +204,16 @@ def test_capture_harness_keeps_every_frame_and_marks_them_distorted(tmp_path, mo
     assert (view['kind'], view['board_found']) == ('view', False) and view['reason']
     # The window the camera read back is recorded, so the solve can record it in the calibration.
     assert manifest['window'] == {'resolution': [1920, 1200], 'offset': [8, 8]}
+    # The board is recorded, and a set taken with one board is not extended with another.
+    assert manifest['board_squares'] == list(CONST_SQUARES)
+    keys = iter(['q'])
+    assert calibrate.Capture_Main(str(tmp_path), CONST_DEFAULT_CONFIG_FILE, (9, 7)) == 1
 
     # A set captured at another window is not extended: its frames would be solved together.
     manifest['window'] = {'resolution': [1936, 1216], 'offset': [0, 0]}
     (tmp_path / 'capture.json').write_text(json.dumps(manifest))
     keys = iter(['q'])
-    assert calibrate.Capture_Main(str(tmp_path), CONST_DEFAULT_CONFIG_FILE) == 1
+    assert calibrate.Capture_Main(str(tmp_path), CONST_DEFAULT_CONFIG_FILE, CONST_SQUARES) == 1
 
 
 # The rendering camera for the solve tests: a 960 x 600 frame, a principal point off the centre,
@@ -317,7 +350,7 @@ def test_factor_from_undistorted_corners_is_right_where_raw_corners_are_not(rend
     truth = _True_Factor()
     for measured, true in zip(solved.Factor, truth):
         assert abs(measured / true - 1.0) < 0.001
-    detection = Detect_Board(_Flats(render)[0][1])
+    detection = Detect_Board(_Flats(render)[0][1], CONST_SQUARES)
     grid = detection.Corners.reshape(detection.Grid[1], detection.Grid[0], 2)
     spacing = np.concatenate([np.linalg.norm(np.diff(grid, axis=a), axis=2).ravel() for a in (0, 1)])
     raw = CONST_RENDER_SQUARE / spacing.mean()
@@ -427,6 +460,24 @@ def test_images_harness_writes_a_new_calibration_and_says_adoption_is_separate(t
     assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False, mode) == 1
     assert '[ERROR]' in capsys.readouterr().out
     assert len([n for n in os.listdir(tmp_path) if '_calib-' in n]) == 1
+
+
+def test_a_set_captured_with_another_board_is_not_solved(tmp_path, capsys) -> None:
+    """
+    Description:
+        capture.json records the board a set was taken with; solving it as another board is refused
+        before anything is detected or written, naming both boards.
+    """
+
+    spec = importlib.util.spec_from_file_location(
+        'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
+    calibrate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(calibrate)
+    (tmp_path / 'capture.json').write_text(json.dumps({'board_squares': [9, 7], 'frames': []}))
+    assert calibrate.Images_Main(str(tmp_path), CONST_SQUARES, 12.0, 0.0, False, CONST_DEFAULT_CONFIG_FILE) == 1
+    output = capsys.readouterr().out
+    assert '9 x 7 board' in output and '11 x 8' in output and 'nothing was solved' in output
+    assert sorted(os.listdir(tmp_path)) == ['capture.json']
 
 
 def test_a_first_calibration_is_written_straight_into_force(tmp_path, render, capsys) -> None:

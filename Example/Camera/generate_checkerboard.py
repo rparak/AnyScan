@@ -297,7 +297,7 @@ def Instructions_Page() -> str:
         ('4. Calibrate', [
             'Capture at least 40 views, flat (f) and tilted (t); docs/capture-checklist.md, item 1, says how many of '
             'each and why 40:',
-            '    python Example/Camera/calibrate.py --capture',
+            '    python Example/Camera/calibrate.py --capture --board-squares %dx%d' % CONST_BOARD_SQUARES,
             'Solve:',
             '    ' + Command_Line(),
             '<CALIPERED mm> is the square size from step 2 - never the nominal %.0f mm printed here. <PLATE + PAPER '

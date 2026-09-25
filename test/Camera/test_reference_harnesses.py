@@ -288,6 +288,24 @@ def test_calibrate_refuses_images_without_the_board_height_and_says_what_it_is(t
     assert 'each changes the result' not in message
 
 
+def test_calibrate_refuses_capture_without_the_board_and_says_why(tmp_path, monkeypatch, capsys) -> None:
+    """
+    Description:
+        --capture requires --board-squares: each frame is checked for the whole board, as the solve
+        will read it, and the set records the board. The refusal comes before any camera is opened.
+    """
+
+    calibrate = _Load_Script('calibrate')
+    monkeypatch.setattr(calibrate, 'Basler_Cls', None)
+    monkeypatch.setattr('sys.argv', ['calibrate.py', '--capture', str(tmp_path)])
+    with pytest.raises(SystemExit) as refused:
+        calibrate.main()
+    message = ' '.join(capsys.readouterr().err.split())
+    assert refused.value.code == 2
+    assert '--capture requires --board-squares' in message and 'whole board' in message
+    assert os.listdir(tmp_path) == []
+
+
 @pytest.mark.parametrize('script', ['calibrate', 'scan', 'make_reference', 'generate_checkerboard'])
 def test_each_camera_script_imports_from_any_working_directory(tmp_path, script) -> None:
     """

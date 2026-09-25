@@ -1613,10 +1613,10 @@ and the calibration set is 40+ views, not a larger board.
   than the field never is.
 - Views buy what the board cannot: 11 × 8 spreads 0.057 / 0.103 % at 24 views, 0.039 / 0.065 % at 40,
   0.028 / 0.056 % at 60 — under the 0.1 % limit from 40.
-- Even 11 × 8 is not always read whole: over a sweep of rendered views tilted 0–45°, 83 of 100 whole
-  and every flat view whole; the rest are partial grids, which the calibration accepts as fewer
-  corners. Passing the board's full inner grid (10 × 7) read all 100 whole. `Detect_Board` does not do
-  that today because `calibrate.py --capture` is not told the board.
+- Even 11 × 8 was not always read whole while the detector grew from its minimum grid: over a sweep
+  of rendered views tilted 0–45°, 86 of 100 whole, the rest partial grids of ~30 corners instead of 70.
+  *Corrected 2026-09-25: this said 83; that count came from an earlier version of the test's camera
+  view.* The detector is now told the board (next entry) and reads all 100 whole.
 - The page carries a scale ruler on **each** axis, 10 squares long, and says not to use a board where
   either is not 120.0 mm. Printers can scale the feed and head directions differently, and the solver
   takes the x and y factors from one `--square-mm`, so a one-axis error would go into one factor
@@ -1629,8 +1629,40 @@ and the calibration set is 40+ views, not a larger board.
 **Revisit if** a board larger than the field is wanted: that means ChArUco (`cv2.aruco.CharucoDetector`,
 in the installed OpenCV), whose marker IDs make a partial, overhanging view detect completely —
 replacing the detection in `Calibration.Core` and its tests, and checked on rendered views of the
-printed board before anyone prints it. Or if `Detect_Board` is given the board's size: the whole-grid
-rate then changes, and `CONST_MIN_WHOLE_FRACTION` in the test with it.
+printed board before anyone prints it.
 Tests `test/Camera/test_generate_checkerboard.py` (the page rendered and read by `Detect_Board` across
 a tilt sweep; nothing in the quiet zone; both rulers exactly ten squares; the calipered placeholder;
 the committed PDF reproduced), `test/Camera/test_reference_harnesses.py::test_each_camera_script_imports_from_any_working_directory`.
+
+
+## The calibration detector is told the board and asks for all of it first
+
+`Calibration.Core.Detect_Board(image, board_squares)` asks `findChessboardCornersSBWithMeta` for the
+board's whole inner grid first and only then for `CONST_CALIB_MIN_GRID` (4 × 3) with `CALIB_CB_LARGER`,
+the fallback for a board overhanging the frame; a grid larger than the board is refused inside it.
+`calibrate.py --capture` requires `--board-squares` (each frame is checked as the solve will read
+it, whole or partial, and says which), records it in `capture.json` as `board_squares`, refuses to
+extend a set taken with another board, and `--images` refuses to solve a set as a board other than
+the one it records.
+
+**Why.** Growing from the minimum grid is not reliable, and every partial view costs the solve
+corners. On 100 rendered camera views of the printed 11 × 8 board (tilted 0–45°, 10 noise seeds) the
+minimum grid read 86 whole and the rest as partial grids down to 3 × 5 — ~30 corners where the board
+has 70. Asking for the whole grid read all 100 whole, and all 100 of the same views turned 90°, in the
+same time (~240 ms a view). Accuracy is unchanged: mean corner error against ground truth 0.032 px
+with the whole grid, 0.033 px with the minimum grid (40 rendered views through the test suite's lens,
+tilted up to 40°). A board turned on its side needs no second pattern: the detector finds the
+whole grid in either orientation and reports it in the board's own (columns × rows).
+The board became a required argument, not an optional one: a detection without it is exactly the
+unreliable path, and every caller knows the board — `--images` always did, `--capture` now does.
+
+**Revisit if** the calibration moves to a board the detector cannot find whole in one call (a board
+larger than the field — ChArUco, previous entry), or if a set's frames regularly report "part of the
+board": the fallback is then carrying the solve, and the views should be retaken.
+Tests `test/Camera/test_generate_checkerboard.py::test_the_calibration_detector_reads_the_printed_board_whole`
+(every view of a 30-view tilt sweep read whole; red with the minimum grid alone),
+`test/Calibration/test_core.py::test_detector_reads_a_board_turned_on_its_side_whole`,
+`::test_detector_refuses_a_grid_larger_than_the_board`, `::test_detector_finds_the_visible_part_of_an_overhanging_board`
+(the fallback), `::test_capture_harness_keeps_every_frame_and_marks_them_distorted`,
+`::test_a_set_captured_with_another_board_is_not_solved`,
+`test/Camera/test_reference_harnesses.py::test_calibrate_refuses_capture_without_the_board_and_says_why`.

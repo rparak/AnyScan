@@ -66,7 +66,7 @@ CONST_OUTPUT_TEMPLATE = 'Calibration_{hardware}_calib-{stamp}.yaml'
 CONST_CAPTURE_ROOT = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'Calibration')
 
 
-def Capture_Main(directory: str, config_path: str) -> int:
+def Capture_Main(directory: str, config_path: str, board_squares: tp.Tuple[int, int]) -> int:
     """
     Description:
         Capture calibration frames interactively into a directory, one per key press, until 'q'.
@@ -88,6 +88,8 @@ def Capture_Main(directory: str, config_path: str) -> int:
     Args:
         (1) directory [string]: The directory the frames are written to (created if missing).
         (2) config_path [string]: The configuration whose camera settings the capture uses.
+        (3) board_squares [Vector<int> 1x2]: The board's squares (columns, rows): each frame is
+                                             checked for it, as the solve will read it.
 
     Returns:
         (1) parameter [int]: The process exit code.
@@ -106,6 +108,12 @@ def Capture_Main(directory: str, config_path: str) -> int:
               % ((directory,) + tuple(recorded['resolution']) + tuple(recorded['offset'])
                  + tuple(configured['resolution']) + tuple(configured['offset'])))
         return 1
+    # One set, one board: the solve reads every frame as the board it is given.
+    recorded_board = Calibration.Core.Captured_Board(directory)
+    if recorded_board is not None and recorded_board != tuple(board_squares):
+        print('[ERROR] %s was captured with a %d x %d board, not %d x %d. Capture into a new directory.'
+              % ((directory,) + recorded_board + tuple(board_squares)))
+        return 1
     Basler_Cam_Id_1 = Basler_Cls(config=Basler_Cfg_Str.Custom_Cfg, resolution=Basler_Cfg_Str.Resolution,
                                  offset=Basler_Cfg_Str.Offset)
     applied = Basler_Cam_Id_1.Applied_Settings
@@ -121,6 +129,8 @@ def Capture_Main(directory: str, config_path: str) -> int:
               # The sensor window the frames were captured at, as the camera read it back. The
               # solve records it in the calibration: K and the factor are in this window's pixels.
               'window': {'resolution': list(applied['resolution']), 'offset': list(applied['offset'])},
+              # The board's squares (columns, rows): the solve refuses to read this set as another board.
+              'board_squares': list(board_squares),
               'kinds': {Calibration.Core.CONST_CALIB_FLAT_PREFIX: 'board flat on the table: lens '
                         'model and mm/px factor', Calibration.Core.CONST_CALIB_VIEW_PREFIX: 'board '
                         'tilted or raised: lens model only'},
@@ -142,14 +152,17 @@ def Capture_Main(directory: str, config_path: str) -> int:
         image = Process_Image_Cls.Apply(image_raw)
         name = Calibration.Core.Next_Capture_Name(directory, flat=(key == 'f'))
         cv2.imwrite(os.path.join(directory, name), image)
-        detection = Calibration.Core.Detect_Board(image)
+        detection = Calibration.Core.Detect_Board(image, board_squares)
         Calibration.Core.Record_Capture(directory, header, {
             'file': name, 'kind': 'flat' if key == 'f' else 'view',
             'time': datetime.now().isoformat(timespec='milliseconds'),
             'board_found': detection.Found, 'grid': list(detection.Grid),
             'corners': int(detection.Corners.shape[0]), 'reason': detection.Reason})
-        if detection.Found:
-            print('[INFO] %s: board found, %d x %d inner corners visible.'
+        if detection.Found and sorted(detection.Grid) == sorted((board_squares[0] - 1, board_squares[1] - 1)):
+            print('[INFO] %s: the whole board found, %d x %d inner corners.'
+                  % (name, detection.Grid[0], detection.Grid[1]))
+        elif detection.Found:
+            print('[INFO] %s: part of the board found, %d x %d inner corners visible (usable, fewer corners).'
                   % (name, detection.Grid[0], detection.Grid[1]))
         else:
             print('[WARNING] %s: kept, but %s. Consider another pose.' % (name, detection.Reason))
@@ -199,6 +212,11 @@ def Images_Main(directory: str, board_squares: tp.Tuple[int, int], square_mm: fl
         (1) parameter [int]: The process exit code (1 when nothing trustworthy could be solved).
     """
 
+    recorded_board = Calibration.Core.Captured_Board(directory)
+    if recorded_board is not None and recorded_board != tuple(board_squares):
+        print('[ERROR] %s was captured with a %d x %d board (capture.json), but --board-squares is %d x %d; '
+              'nothing was solved.' % ((directory,) + recorded_board + tuple(board_squares)))
+        return 1
     try:
         report = Calibration.Core.Calibrate(Calibration.Core.Load_Views(directory), square_mm,
                                             board_height_mm, board_squares)
@@ -266,7 +284,8 @@ def main():
         several chessboard views solved together. Two modes:
 
             --capture [DIR] capture distorted frames interactively ('f' flat, 't' tilted) into DIR,
-                            or into a new Data/Images/Calibration/<timestamp>/ when DIR is omitted
+                            or into a new Data/Images/Calibration/<timestamp>/ when DIR is omitted;
+                            --board-squares says which board each frame is checked for
             --images DIR    solve from every image in DIR and write a NEW calibration file
                             (or overwrite the hardware's calibration in force with
                             --write-calibration)
@@ -283,7 +302,7 @@ def main():
                            'Data/Images/Calibration/<timestamp>/)')
     mode.add_argument('--images', metavar='DIR', help='calibrate from every image in DIR')
     parser.add_argument('--board-squares', type=Parse_Board, metavar='CxR',
-                        help='the board\'s squares, columns x rows, e.g. 11x8 (--images)')
+                        help='the board\'s squares, columns x rows, e.g. 11x8 (--capture and --images)')
     parser.add_argument('--square-mm', type=float, metavar='MM',
                         help='the CALIPERED square size in mm (--images)')
     parser.add_argument('--board-height-mm', type=float, metavar='MM',
@@ -301,8 +320,11 @@ def main():
         parser.error('--write-config was renamed --write-calibration: the calibration now lives in its '
                      'own file (Calibration_<Hardware>.yaml), and that is all this harness writes.')
     if args.capture is not None:
+        if args.board_squares is None:
+            parser.error('--capture requires --board-squares (each frame is checked for the whole board, '
+                         'as the solve will read it, and the set records which board it was taken with)')
         directory = args.capture or os.path.join(CONST_CAPTURE_ROOT, datetime.now().strftime('%Y%m%d-%H%M%S'))
-        return Capture_Main(directory, args.config)
+        return Capture_Main(directory, args.config, args.board_squares)
     missing = [flag for flag, value in (('--board-squares', args.board_squares),
                                         ('--square-mm', args.square_mm),
                                         ('--board-height-mm', args.board_height_mm)) if value is None]

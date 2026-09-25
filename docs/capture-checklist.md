@@ -61,18 +61,20 @@ either is not, do not use the board; fix the printer scaling and reprint.
 
 ```bash
 cd Example/Camera
-python calibrate.py --capture
+python calibrate.py --capture --board-squares 11x8
 ```
 
 It captures into a new `Data/Images/Calibration/<timestamp>/` (git-ignored; pass a directory to
 choose another). At each prompt, press `f` for a board **flat** on the table or `t` for a board
 **tilted**. Every frame is kept, and the directory's `capture.json` records that the frames are
-distorted and the sensor window they were taken at.
+distorted, the sensor window they were taken at, and the board. Each frame says whether *the whole
+board* was found or only *part of the board*; a partial view is usable but carries fewer corners, so
+retake it unless the board overhangs the frame on purpose.
 
 | Kind | How many | Conditions |
 |---|---|---|
-| flat (`f`) | at least 10 | centre and each corner region; the flat views produce the factor and its map over the frame (3 × 3 regions) |
-| tilted (`t`) | at least 30 | tilts of 20–45° **in several directions**; at least 3 must be ≥ 10° or the harness warns |
+| flat (`f`) | at least 12 | centre and each corner region. Only the flat views feed the mm/px factor and its 3 × 3 map (tilted corner spacing does not describe the table plane), so the factor's spread rests on these alone: 12 is the floor for the one number every measurement depends on |
+| tilted (`t`) | at least 28 | tilts of 20–45° **in several directions**; at least 3 must be ≥ 10° or the harness warns. They feed the lens model only; the principal point plateaus from 3 tilted views, so 28 is far past that — they are here for the total |
 | total | 40+ | not excessive: the factor's spread from corner noise alone, median / 90th percentile, is 0.057 / **0.103 %** at 24 views, over the 0.1 % uniformity threshold in one set of ten, and 0.039 / 0.065 % at 40 |
 
 **Record alongside:**

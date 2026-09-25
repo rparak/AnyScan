@@ -49,7 +49,8 @@ Description:
     scale, and read with the calibration's real detector, Calibration.Core.Detect_Board. That check
     found that a 20 x 13 board is read as fragments (the detector's CALIB_CB_LARGER growth stops at
     ~15 columns and at the frame's edge), which a synthetic study assuming every corner is detected
-    missed. A change to the board, its square size or its quiet zone shows up here as a detection
+    missed, and that even the 11 x 8 board was read whole in only 86 of 100 tilted views until the
+    detector was told the board. A change to the board, its square size or its quiet zone shows up here as a detection
     failure, not as a bad calibration weeks later.
 """
 # The project root, the generator, and the committed PDF it must reproduce.
@@ -64,9 +65,6 @@ CONST_WINDOW = (1920, 1200)
 # PDF points per millimetre.
 #   Unit [float]
 CONST_PT_PER_MM = 72.0 / 25.4
-# The fraction of the tilt sweep's views the detector must read whole (measured: 24 of 30).
-#   Unit [float]
-CONST_MIN_WHOLE_FRACTION = 0.7
 
 
 def _Load_Generator() -> tp.Any:
@@ -178,28 +176,25 @@ def test_the_calibration_detector_reads_the_printed_board_whole(tmp_path) -> Non
     """
     Description:
         Page 1, rendered at the camera's scale and seen at tilts of 0-45 deg (three noise seeds each),
-        is read by Calibration.Core.Detect_Board: every flat view (0 and 5 deg) as the board's complete
-        inner-corner grid, and at least CONST_MIN_WHOLE_FRACTION of all views. A tilted view is
-        sometimes read as a smaller partial grid — the detector's growth from its minimum grid is not
-        reliable (83 of 100 whole at 10 seeds; passing the full board size instead reads 100 of 100) —
-        which the calibration accepts as fewer corners. A 20 x 13 board falls far below the floor. (The
-        draft's thin grey outline in the quiet zone did not change the detection here; the quiet-zone
-        test guards it, on OpenCV's stated requirement rather than a measured failure.)
+        is read by Calibration.Core.Detect_Board as the board's complete inner-corner grid in EVERY
+        view: each of the 40+ calibration views contributes all 70 corners. Before the detector was
+        told the board it grew from its minimum grid and read 86 of 100 such views whole, the rest as
+        partial grids of ~30 corners. A 20 x 13 board fails this too. (The draft's thin grey outline
+        in the quiet zone did not change the detection here; the quiet-zone test guards it, on
+        OpenCV's stated requirement rather than a measured failure.)
     """
 
     generator = _Load_Generator()
     _, pdf = _Generate(str(tmp_path))
     page = _Render(_Page_Streams(pdf)[0], generator.CONST_PAGE_MM, CONST_PX_PER_MM)
     columns, rows = generator.CONST_BOARD_SQUARES
-    board = sorted((columns - 1, rows - 1))
-    whole = {}
+    partial = []
     for tilt_deg in range(0, 50, 5):
         for seed in range(3):
-            detection = Detect_Board(_Camera_View(page, float(tilt_deg), seed=100 + seed))
-            assert detection.Found, 'tilt %d, seed %d: %s' % (tilt_deg, seed, detection.Reason)
-            whole[(tilt_deg, seed)] = sorted(detection.Grid) == board
-    assert all(whole[(tilt_deg, seed)] for tilt_deg in (0, 5) for seed in range(3)), whole
-    assert sum(whole.values()) >= CONST_MIN_WHOLE_FRACTION * len(whole), whole
+            detection = Detect_Board(_Camera_View(page, float(tilt_deg), seed=100 + seed), (columns, rows))
+            if not (detection.Found and sorted(detection.Grid) == sorted((columns - 1, rows - 1))):
+                partial.append((tilt_deg, seed, detection.Grid, detection.Reason))
+    assert not partial, partial
 
 
 def test_nothing_is_drawn_inside_the_quiet_zone(tmp_path) -> None:
