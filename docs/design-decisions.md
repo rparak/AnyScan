@@ -1357,3 +1357,46 @@ the guard would fail it otherwise).
 Tests `test/Install/test_install.py::test_the_sandboxed_script_resolves_its_root_to_the_sandbox`; the
 `models_untouched` fixture in `test/conftest.py` runs with every session.
 
+
+## The architecture diagram is generated from the theme, carries the real logo, and is linked from the README
+
+`images/anyscan-architecture.svg` went 111 commits without an update, because nothing linked to
+it. It still showed the old "AnyScan-VLM" wordmark, the stages as a chain, a mask-filter stage
+that no longer exists, and the Summary field retired in the very commit that added it. The new
+diagram draws only what the code does: the two cues side by side into the fusion, what each
+stage hands on (the cue attribution, the Enhanced_Crop, the background sentence), where each
+configuration section enters, the shared formatter and renderer, and the import layers with the
+Qt-free boundary. It now sits at the top of the README, where a stale diagram gets noticed.
+
+- **It is generated, not drawn: regenerating is the way to change it.**
+  `Example/UI/architecture_diagram.py` writes it. The colours come from `Parameters/Theme.py`, and
+  the type scale and font fallbacks from `UI/Utilities/Style.py`, whose font candidates became
+  constants for this. The generator is what ties the figure to the palette. A hand-edited SVG
+  would drift the moment the theme moved, the same failure as the hand-copied ink value and the
+  duplicated hardware id. **A hand edit fails the suite:**
+  `test_the_diagram_is_the_generators_output` compares the committed file with the generator's
+  output, and `--check` reports the same. As a second line of defence,
+  `test_the_diagram_draws_only_theme_tokens` fails on any colour that is not a token.
+- **The layout is checked against fallback font metrics, not Inter.** The README shows the SVG
+  through `<img>`, which cannot load web fonts, so most readers see Helvetica/Arial and Courier.
+  The spacing was set and reviewed with those faces, at README width (830 px) on light and dark
+  backgrounds. Do not tighten it on a machine that has Inter or JetBrains Mono installed: it
+  would fit there and overflow for everyone else. The logo's tagline overflows its box in the
+  fallback mono face, so the diagram lets it (`overflow: visible` on the logo slot) rather than
+  changing the logo.
+- **The logo is copied inline, not referenced.** An SVG loaded through `<img>` never fetches
+  another file, so a referenced logo would draw nothing. There are now three copies: `images/`,
+  `App/assets/` (the topbar) and the one the generator inlines. A test holds all three equal.
+  Edit `images/anyscan-logo.svg`, copy it to `App/assets/`, then regenerate.
+- **The logo's palette predates the theme and is deliberately not reconciled with it.** Slate
+  `#0F172A` and magenta `#D6006E` are not `CONST_INK` or `CONST_BRAND`. The topbar already shows
+  the logo this way beside the indigo UI, and the diagram mirrors that on an opaque `CONST_BG`
+  card, which reads like a screenshot on a light or a dark README. Do not "fix" the logo to the
+  tokens: it is the brand lockup, not a UI surface.
+
+**Revisit if** the logo is redesigned (update `images/anyscan-logo.svg`, copy it, regenerate), or
+if the code changes what the diagram shows. The generator holds the colours; the content is
+still written by hand in the generator, and the README link is what keeps it in view.
+Tests `test/UI/test_brand_figures.py` (`test_the_three_logo_copies_are_identical`,
+`test_the_diagram_is_the_generators_output`, `test_the_diagram_draws_only_theme_tokens`,
+`test_the_readme_shows_the_diagram`).

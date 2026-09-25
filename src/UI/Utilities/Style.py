@@ -87,6 +87,13 @@ CONST_TAGLINE = 'The camera sees, the model describes.'
 FONT_UI = 'Inter'       # resolved in Load_Fonts
 FONT_MONO = 'Consolas'  # resolved in Load_Fonts
 
+# The faces Load_Fonts tries, in order: the design's face first, then the nearest system ones.
+# Also the font stacks of the architecture diagram (Example/UI/architecture_diagram.py), so the
+# figure falls back the way the application does.
+#   Unit [Tuple<string>]
+CONST_FONT_UI_CANDIDATES = ('Inter', 'Segoe UI Variable Display', 'Segoe UI', 'Helvetica Neue', 'Arial')
+CONST_FONT_MONO_CANDIDATES = ('JetBrains Mono', 'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', 'Courier New')
+
 # The console's modular type scale (point sizes), smallest to largest. Every type token below
 # names a STEP in this scale rather than a literal, so a size change is 'move to the next step',
 # a real and uniform operation, and never a fresh number at the call site.
@@ -234,13 +241,11 @@ def Load_Fonts() -> None:
                 QFontDatabase.addApplicationFont(os.path.join(font_dir, name))
 
     families = set(QFontDatabase().families())
-    for candidate in ('Inter', 'Segoe UI Variable Display', 'Segoe UI',
-                      'Helvetica Neue', 'Arial'):
+    for candidate in CONST_FONT_UI_CANDIDATES:
         if candidate in families:
             FONT_UI = candidate
             break
-    for candidate in ('JetBrains Mono', 'Cascadia Mono', 'Consolas',
-                      'DejaVu Sans Mono', 'Courier New'):
+    for candidate in CONST_FONT_MONO_CANDIDATES:
         if candidate in families:
             FONT_MONO = candidate
             break

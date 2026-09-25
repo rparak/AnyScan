@@ -5,6 +5,13 @@
 One script, `run.py`, reproducing the approved AnyScan design as a desktop
 application. Built at JIC within the EDIH-DIGIMAT project.
 
+![AnyScan architecture: the configuration file, the pipeline (background subtraction and FastSAM fused, then crop enhancement, Gemma 4, the composer and the measurement), the shared outputs, and the import layers](images/anyscan-architecture.svg)
+
+The diagram shows how a frame becomes a reading. Two independent cues are fused, so an object
+is kept if **either** one finds it. It also shows where each configuration section enters, and
+which layer may import which. [Detection logic](#detection-logic) walks through the same stages
+in text.
+
 ## Setup
 
 **Platform: macOS on Apple silicon** is the supported, measured platform; Linux is a
@@ -344,7 +351,7 @@ App/
     icon.png                  fallback window icon
     fonts/                    optional: drop Inter.ttf and JetBrainsMono.ttf here
 src/                      Qt-free domain modules + the UI (see "Source layout")
-Example/                  runnable scripts (scan, calibrate, make_reference, analyze)
+Example/                  runnable scripts (scan, calibrate, make_reference, analyze, architecture_diagram)
 Data/Images/Test/         the seven frames analyze.py runs on, and the tests' pinned set — committed
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored

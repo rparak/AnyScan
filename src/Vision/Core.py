@@ -227,8 +227,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                    |  pixels, applied to the whole        the fallback reads
                    |  crop) feeds the describer;          mask + bbox directly)
                    v
-              Compose -> summary + per-object sentences + verdict
+              Compose -> per-object sentences + note + verdict  (Reporting.Compose)
                    |
+                   v
+              measurement ........................ Measure.Measure_Objects
+                   |  each mask through the configured scale (none without one)
                    v
               Analysis_Str
 
@@ -252,8 +255,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                   two describers are never held at once (~9.4 GB each would not fit a 17 GB
                   machine). The cost: when the replacement fails, the previous configuration's
                   model must be loaded again.
-              (4) It emits no confidence scores. Confidence stays None — the
-                  verdict handles unscored detections. Never invent a number.
+              (4) The only score is FastSAM's, carried per object as Segmenter_Score;
+                  an object the background cue alone found has None there, and
+                  Detection_Str.Confidence stays None for every object. Never invent a
+                  number for an unscored object.
               (5) Boxes are in full-frame pixels whichever detector is used; the
                   per-crop pass only describes. Objects are never reordered after
                   Compose.
