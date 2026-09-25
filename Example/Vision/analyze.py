@@ -24,6 +24,9 @@
 # System (Default)
 import sys
 import os
+import re
+import glob
+import hashlib
 import argparse
 # Provenance stamping: a content fingerprint of each source file and a run timestamp,
 # so an artefact left over from an earlier or failed run is identifiable on sight.
@@ -43,16 +46,12 @@ import cv2
 import numpy as np
 # Typing (Support for type hints)
 import typing as tp
-# Custom Lib.: AnyScan vision — the pipeline, its errors, and data-file discovery
+# Custom Lib.: AnyScan vision — the pipeline and its errors
 #   ../Vision/Core
 import Vision.Core as Vision_Core
 from Vision.Core import Vision_Pipeline_Cls, Vision_Error_Cls
 #   ../Vision/Segmenter
 from Vision.Segmenter import Segmenter_Error_Cls
-#   ../Vision/Utilities/Discovery
-from Vision.Utilities.Discovery import Discover_Scenes
-#   ../Vision/Utilities/Provenance
-import Vision.Utilities.Provenance as Provenance
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Render_Views
 #   ../Reporting/Core
@@ -97,24 +96,66 @@ CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Results')
 #   Unit [int]
 CONST_MONTAGE_CELL = 260
 
-# The provenance stamp constants live in the shared Vision.Utilities.Provenance module,
-# re-exported here so this harness's own names keep working. EVERY artefact carries the
-# run timestamp and the source frame's content fingerprint on a footer band, so a file
-# left over from an earlier or failed run is identifiable by looking at it, instead of
-# masquerading as current output — the failure mode that let a stale montage and .txt,
-# written before the reference went missing, pass review as if they were fresh.
+# The scene-frame glob. Image_<n>.png (any number of digits) are the scene captures, so Image_010
+# and beyond are found rather than silently skipped. The empty-surface reference is excluded:
+# the digit class requires a digit straight after 'Image_', which 'Image_Background_*' never has.
+#   Unit [string]
+CONST_SCENE_GLOB = 'Image_[0-9]*.png'
+
+# EVERY artefact carries the run timestamp and the source frame's content fingerprint on a footer
+# band, so a file left over from an earlier or failed run is identifiable by looking at it instead
+# of masquerading as current output — the failure mode that let a stale montage and .txt, written
+# before the reference went missing, pass review as if they were fresh. The band's height (px) and
+# text scale, and the number of leading hex digits of a file's MD5 digest taken as its fingerprint.
 #   Unit [int]
-CONST_STAMP_BAND_H = Provenance.CONST_STAMP_BAND_H
+CONST_STAMP_BAND_H = 26
+#   Unit [float]
+CONST_STAMP_FONT_SCALE = 0.5
 #   Unit [int]
-CONST_FINGERPRINT_LEN = Provenance.CONST_FINGERPRINT_LEN
+CONST_FINGERPRINT_LEN = 10
+
+
+def _Natural_Key(path: str) -> tp.Tuple[tp.Any, ...]:
+    """
+    Description:
+        Sort key that orders 'Image_2.png' before 'Image_10.png': each run of digits in the
+        basename compares as an integer, the rest as lower-cased text.
+
+    Args:
+        (1) path [string]: The file path to derive the key from.
+
+    Returns:
+        (1) parameter [Tuple]: A tuple of (int | str) segments for use as a sort key.
+    """
+
+    return tuple(int(chunk) if chunk.isdigit() else chunk.lower()
+                 for chunk in re.split(r'(\d+)', os.path.basename(path)))
+
+
+def Discover_Scenes(data_dir: str) -> tp.List[str]:
+    """
+    Description:
+        The scene frames in a directory, naturally sorted (Image_2 before Image_10): a glob of
+        CONST_SCENE_GLOB, never a hard-coded range, so a gap in the numbering is tolerated and the
+        empty-surface reference is not among them. The reference itself is never discovered: it is
+        the configuration's Segmentation.Background.Reference.
+
+    Args:
+        (1) data_dir [string]: The directory to search for scene frames.
+
+    Returns:
+        (1) parameter [Vector<string>]: The scene-frame paths, naturally sorted.
+    """
+
+    return sorted(glob.glob(os.path.join(data_dir, CONST_SCENE_GLOB)), key=_Natural_Key)
 
 
 def _Fingerprint(path: str) -> str:
     """
     Description:
-        The short content fingerprint of a file — delegated to the shared
-        Provenance.Fingerprint, so the harness and the capture writer fingerprint the
-        same way.
+        The short content fingerprint of a file: the first CONST_FINGERPRINT_LEN hex digits of its
+        MD5 digest. Two runs over the same bytes fingerprint the same, so an artefact whose
+        fingerprint no longer matches its source is stale on sight. Provenance, not security.
 
     Args:
         (1) path [string]: The file to fingerprint.
@@ -123,7 +164,8 @@ def _Fingerprint(path: str) -> str:
         (1) parameter [string]: The short hex fingerprint.
     """
 
-    return Provenance.Fingerprint(path)
+    with open(path, 'rb') as handle:
+        return hashlib.md5(handle.read()).hexdigest()[:CONST_FINGERPRINT_LEN]
 
 
 def _Stamp_Line(stem: str, scene_path: str, run_stamp: str, reference_hash: str,
@@ -154,8 +196,8 @@ def _Stamp_Line(stem: str, scene_path: str, run_stamp: str, reference_hash: str,
 def _Stamp_Image(image: tp.Any, text: str) -> tp.Any:
     """
     Description:
-        Return the image with the provenance stamp on a slim footer band below it —
-        delegated to the shared Provenance.Stamp_Image so every writer stamps alike.
+        Return the image with the provenance stamp on a slim footer band appended BELOW it — never
+        drawn over the content, so it labels the artefact without occluding anything under review.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The artefact image (BGR).
@@ -165,7 +207,10 @@ def _Stamp_Image(image: tp.Any, text: str) -> tp.Any:
         (1) parameter [Matrix<uint8> (H+band)xWx3]: The stamped image.
     """
 
-    return Provenance.Stamp_Image(image, text, cv2, np)
+    band = np.full((CONST_STAMP_BAND_H, image.shape[1], 3), 24, np.uint8)
+    cv2.putText(band, text, (8, CONST_STAMP_BAND_H - 9), cv2.FONT_HERSHEY_SIMPLEX,
+                CONST_STAMP_FONT_SCALE, (210, 210, 210), 1, cv2.LINE_AA)
+    return np.vstack([image, band])
 
 
 def _Write_Descriptions(path: str, result: Analysis_Str, stamp: str) -> None:

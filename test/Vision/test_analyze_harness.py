@@ -95,6 +95,35 @@ def test_stamp_image_appends_a_visible_footer_band() -> None:
     assert band.std() > 0                                  # the stamp text marks the band
 
 
+def test_scene_discovery_orders_naturally_and_tolerates_a_gap(tmp_path) -> None:
+    """
+    Description:
+        The scene glob finds the Image_<n> frames in natural order, tolerates a missing Image_001,
+        and excludes the empty-surface reference and any stray file — the glob-not-a-range
+        contract. Image_010 is included and sorts after Image_008 (natural, not lexicographic),
+        the guard against silently skipping a two-digit frame. The files are empty stand-ins:
+        only their paths are resolved.
+    """
+
+    for name in ('Image_002.png', 'Image_010.png', 'Image_008.png', 'Image_003.png',
+                 'Image_Background_001.png', 'notes.txt'):
+        (tmp_path / name).write_bytes(b'')
+
+    scenes = [os.path.basename(path) for path in analyze.Discover_Scenes(str(tmp_path))]
+
+    assert scenes == ['Image_002.png', 'Image_003.png', 'Image_008.png', 'Image_010.png']
+
+
+def test_scene_discovery_of_an_empty_directory_is_empty(tmp_path) -> None:
+    """
+    Description:
+        A directory with no scene frames yields an empty list rather than raising — main() decides
+        that "no scenes" is an error, and says so.
+    """
+
+    assert analyze.Discover_Scenes(str(tmp_path)) == []
+
+
 def test_descriptions_file_opens_with_the_provenance_stamp(tmp_path) -> None:
     """
     Description:
