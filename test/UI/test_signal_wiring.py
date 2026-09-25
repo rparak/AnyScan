@@ -530,10 +530,6 @@ def test_clicking_a_history_filter_segment_narrows_the_cards(qt_app, tmp_path) -
     view.close()
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='KNOWN BUG: after a rebuild, History.__Load_Visible runs from a zero-delay '
-                                        'timer before the cards are laid out, so every card sits at (0, 0), counts '
-                                        'as visible and loads — lazy loading never happens. Strict: this turns red '
-                                        'the moment the bug is fixed, so the marker is removed with the fix.')
 def test_scrolling_the_history_list_loads_the_thumbnails_that_come_into_view(qt_app, tmp_path) -> None:
     """
     Description:

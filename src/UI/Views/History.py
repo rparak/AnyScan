@@ -24,10 +24,10 @@
 # System (Default)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import Qt, QRect, QRectF, QPoint, QTimer, QPropertyAnimation, QEasingCurve, pyqtSignal
+from PyQt5.QtCore import Qt, QEvent, QRect, QRectF, QPoint, QTimer, QPropertyAnimation, QEasingCurve, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
 from PyQt5.QtWidgets import (QWidget, QLabel, QFrame, QPushButton, QVBoxLayout, QHBoxLayout,
-                             QGridLayout, QScrollArea, QSizePolicy)
+                             QGridLayout, QScrollArea, QSizePolicy, QApplication)
 # Custom Lib.: AnyScan UI — design tokens, style helpers and shared widgets
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
@@ -911,8 +911,16 @@ class History_View_Cls(QWidget):
         Description:
             Load the thumbnails of the cards currently in the viewport, once each — lazy loading
             as the operator scrolls.
+
+            Note:
+                The pending layout requests are applied first. Right after a rebuild (and on the
+                first show) the new cards have not been laid out yet: every one still sits at
+                (0, 0), so every one would count as visible and the whole grid would load. The
+                zero-delay timer that calls this after a rebuild fires before Qt gets to those
+                requests, so waiting for it is not enough.
         """
 
+        QApplication.sendPostedEvents(None, QEvent.LayoutRequest)
         viewport = self.__list_scroll.viewport()
         view_rect = viewport.rect()
         for card in self.__cards:
