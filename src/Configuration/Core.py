@@ -97,8 +97,17 @@ CONST_MODE_SEPARATOR = '_Mode_'
 CONST_CALIBRATION_TEMPLATE = 'Calibration_{hardware}.yaml'
 # The acquisition settings the Basler camera cannot start without; each is REQUIRED in
 # Camera.Custom_Cfg so a file missing one fails at load and not deep inside the Basler SDK.
+# They are the ONLY keys it reads (Basler_Cls.__Configure), so Custom_Cfg is a schema like every
+# other block: each value is typed, and any other key is reported as unrecognised — a 'Gamma:'
+# line would otherwise do nothing and say nothing.
 #   Unit [Tuple<string>]
 CONST_REQUIRED_CUSTOM_CFG_KEYS = ('Exposure_Time', 'Gain', 'Balance_Ratios', 'Pixel_Format')
+# The kind (see __Check) of each Custom_Cfg setting; Balance_Ratios is a mapping of the channels
+# below, each a ratio above 0. The channel names go to the camera's BalanceRatioSelector as they
+# are, so they are exactly these.
+#   Unit [Dict<string, string>] / [Tuple<string>]
+CONST_CUSTOM_CFG_KINDS = {'Exposure_Time': 'positive', 'Gain': 'nonnegative', 'Pixel_Format': 'text'}
+CONST_BALANCE_CHANNELS = ('Red', 'Green', 'Blue')
 # The distortion coefficients a calibration must hold, in OpenCV's order.
 #   Unit [Tuple<string>]
 CONST_COEFFICIENT_KEYS = ('k1', 'k2', 'p1', 'p2', 'k3')
@@ -192,7 +201,7 @@ def __Check(kind: str, value: tp.Any) -> tp.Tuple[bool, tp.Any, str]:
 
     Args:
         (1) kind [string]: The kind: 'bool', 'text', 'path', 'percent', 'unit', 'fraction', 'margin',
-                           'grey', 'count', 'size', 'kernel', 'nonnegative' or 'device'.
+                           'grey', 'count', 'size', 'kernel', 'nonnegative', 'positive' or 'device'.
         (2) value [Any]: The value read from the file.
 
     Returns:
@@ -221,6 +230,8 @@ def __Check(kind: str, value: tp.Any) -> tp.Tuple[bool, tp.Any, str]:
         'kernel':      (is_integer and value >= 0, value, 'a whole number of at least 0'),
         'nonnegative': (finite and value >= 0.0, float(value) if finite else value,
                         'a number of at least 0'),
+        'positive':    (finite and value > 0.0, float(value) if finite else value,
+                        'a number above 0'),
         'device':      (isinstance(value, str) and (value in CONST_DEVICES or value.startswith('cuda:')),
                         value, 'one of %s (or cuda:N)' % ', '.join(CONST_DEVICES)),
     }
@@ -273,10 +284,6 @@ CONST_FIELDS = (
     (('Camera', 'Lighting'), ('Camera', 'Lighting'), 'text', False),
     (('Evaluation', 'Frames'), ('Evaluation', 'Frames'), 'path', False),
 )
-# The keys a mode file may hold beyond CONST_FIELDS and CONST_WINDOW_FIELDS: free-form blocks
-# whose content is not checked key by key (the vendor acquisition settings).
-#   Unit [Tuple<Tuple<string>>]
-CONST_FREE_BLOCKS = (('Camera', 'Custom_Cfg'),)
 
 
 def __Lookup(data: tp.Any, path: tp.Tuple[str, ...]) -> tp.Tuple[bool, tp.Any]:
@@ -315,8 +322,9 @@ def __Unknown_Keys(data: tp.Dict[str, tp.Any]) -> tp.List[str]:
     known = {('Hardware',)}
     for path, _attribute, _kind, _required in CONST_FIELDS:
         known.update(path[:i] for i in range(1, len(path) + 1))
-    for path in CONST_FREE_BLOCKS:
-        known.update(path[:i] for i in range(1, len(path) + 1))
+    custom = ('Camera', 'Custom_Cfg')
+    known.update({custom[:1], custom} | {custom + (key,) for key in CONST_REQUIRED_CUSTOM_CFG_KEYS}
+                 | {custom + ('Balance_Ratios', channel) for channel in CONST_BALANCE_CHANNELS})
     for path, _minimum in CONST_WINDOW_FIELDS:
         known.update(path[:i] for i in range(1, len(path) + 1))
         known.update({path + ('x',), path + ('y',)})
@@ -325,14 +333,14 @@ def __Unknown_Keys(data: tp.Dict[str, tp.Any]) -> tp.List[str]:
     def _Walk(node: tp.Any, prefix: tp.Tuple[str, ...]) -> None:
         """
         Description:
-            Record the unknown keys under one node, not descending into free-form blocks.
+            Record the unknown keys under one node.
 
         Args:
             (1) node [Any]: The node.
             (2) prefix [Tuple<string>]: Its key path.
         """
 
-        if not isinstance(node, dict) or prefix in CONST_FREE_BLOCKS:
+        if not isinstance(node, dict):
             return
         for key, child in node.items():
             path = prefix + (str(key),)
@@ -806,7 +814,32 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     missing = [key for key in CONST_REQUIRED_CUSTOM_CFG_KEYS if key not in custom]
     if missing and custom:
         problems.append('Camera.Custom_Cfg is missing the required %s' % ', '.join(missing))
-    Configuration_Str_i.Camera.Custom_Cfg = dict(custom)
+    settings = {}
+    for key in (key for key in CONST_REQUIRED_CUSTOM_CFG_KEYS if key in custom):
+        dotted = 'Camera.Custom_Cfg.%s' % key
+        if key != 'Balance_Ratios':
+            valid, value, expected = __Check(CONST_CUSTOM_CFG_KINDS[key], custom[key])
+            if valid:
+                settings[key] = value
+            else:
+                problems.append('%s must be %s (found %r)' % (dotted, expected, custom[key]))
+            continue
+        ratios = custom[key]
+        if not isinstance(ratios, dict):
+            problems.append('%s must be a mapping of %s to numbers above 0 (found %r)'
+                            % (dotted, ', '.join(CONST_BALANCE_CHANNELS), ratios))
+            continue
+        absent = [channel for channel in CONST_BALANCE_CHANNELS if channel not in ratios]
+        if absent:
+            problems.append('%s is missing the required %s' % (dotted, ', '.join(absent)))
+        settings[key] = {}
+        for channel in (channel for channel in CONST_BALANCE_CHANNELS if channel in ratios):
+            valid, value, expected = __Check('positive', ratios[channel])
+            if valid:
+                settings[key][channel] = value
+            else:
+                problems.append('%s.%s must be %s (found %r)' % (dotted, channel, expected, ratios[channel]))
+    Configuration_Str_i.Camera.Custom_Cfg = settings
     window = {}
     for path, minimum in CONST_WINDOW_FIELDS:
         window[path[-1]] = __Read_Window(__Lookup(data, path)[1], '.'.join(path), minimum, problems)

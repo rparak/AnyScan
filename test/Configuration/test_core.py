@@ -541,14 +541,72 @@ def test_a_calibration_solved_at_another_window_fails_the_load(tmp_path: tp.Any)
 def test_a_misspelt_window_key_is_a_warning(tmp_path: tp.Any) -> None:
     """
     Description:
-        Resolution and Offset are read key by key now, so a stray key inside them is reported like
-        any other unrecognised key rather than ignored inside a free-form block.
+        Resolution and Offset are read key by key, so a stray key inside them is reported like any
+        other unrecognised key rather than ignored.
     """
 
     mode, calibration = _Shipped()
     mode['Camera']['Resolution']['z'] = 3
     config = Load_Configuration(_Write(tmp_path, mode, calibration))
     assert any('Camera.Resolution.z' in message for level, message in config.Notes if level == 'WARNING')
+
+
+@pytest.mark.parametrize('path', [('Camera', 'Custom_Cfg', 'Gamma'),
+                                  ('Camera', 'Custom_Cfg', 'Balance_Ratios', 'Purple')],
+                         ids=lambda path: '.'.join(path))
+def test_an_acquisition_setting_the_camera_does_not_read_is_a_warning(tmp_path: tp.Any,
+                                                                      path: tp.Tuple[str, ...]) -> None:
+    """
+    Description:
+        Custom_Cfg is a schema like every other block: the camera reads four settings and three
+        white-balance channels, so any other key — a 'Gamma:' line, a 'Purple' channel — is
+        reported as unrecognised instead of being loaded and silently doing nothing.
+    """
+
+    mode, calibration = _Shipped()
+    _Set(mode, path, 1.0)
+    config = Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert any('.'.join(path) in message for level, message in config.Notes if level == 'WARNING')
+    assert path[-1] not in config.Camera.Custom_Cfg and path[-1] not in config.Camera.Custom_Cfg['Balance_Ratios']
+
+
+@pytest.mark.parametrize('path, value, expected', [
+    (('Camera', 'Custom_Cfg', 'Gain'), '10', 'a number of at least 0'),
+    (('Camera', 'Custom_Cfg', 'Gain'), -1, 'a number of at least 0'),
+    (('Camera', 'Custom_Cfg', 'Exposure_Time'), 0, 'a number above 0'),
+    (('Camera', 'Custom_Cfg', 'Exposure_Time'), True, 'a number above 0'),
+    (('Camera', 'Custom_Cfg', 'Pixel_Format'), '  ', 'non-empty text'),
+    (('Camera', 'Custom_Cfg', 'Balance_Ratios'), 'warm', 'a mapping of Red, Green, Blue'),
+    (('Camera', 'Custom_Cfg', 'Balance_Ratios', 'Red'), 0, 'a number above 0'),
+], ids=lambda item: '.'.join(item) if isinstance(item, tuple) else repr(item))
+def test_an_acquisition_setting_of_the_wrong_type_fails_the_load_naming_it(tmp_path: tp.Any, path: tp.Tuple[str, ...],
+                                                                           value: tp.Any, expected: str) -> None:
+    """
+    Description:
+        Each acquisition setting is typed, so a value the camera SDK would choke on — a quoted
+        gain, a zero exposure, a missing pixel format, a white balance that is not three positive
+        ratios — fails at load with the field and what it must be, not deep inside pylon.
+    """
+
+    mode, calibration = _Shipped()
+    _Set(mode, path, value)
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert '.'.join(path) in str(error.value) and expected in str(error.value)
+
+
+def test_a_white_balance_without_every_channel_fails_the_load_naming_it(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The camera sets each of Red, Green and Blue; a white balance missing one fails at load,
+        naming the channel.
+    """
+
+    mode, calibration = _Shipped()
+    _Delete(mode, ('Camera', 'Custom_Cfg', 'Balance_Ratios', 'Blue'))
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert 'Camera.Custom_Cfg.Balance_Ratios is missing the required Blue' in str(error.value)
 
 
 def test_the_calibration_writer_refuses_to_delete_content_it_does_not_own(tmp_path: tp.Any) -> None:
