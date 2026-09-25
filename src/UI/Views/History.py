@@ -40,6 +40,8 @@ from UI.Capture import Discover_Capture_Sets, CONST_CAPTURE_RETENTION_SETS
 # Custom Lib.: AnyScan domain — the detection structure, the shared formatter, the palette
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Confidence_Thresholds_Str
+#   ../Parameters/General — the one default for the classification flag
+from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header
 #   ../Parameters/Theme
@@ -361,7 +363,7 @@ class History_View_Cls(QWidget):
     """
 
     def __init__(self, captures_root: tp.Optional[str] = None, run_id: str = '',
-                 classification_enabled: bool = False,
+                 classification_enabled: bool = CONST_CLASSIFICATION_ENABLED_DEFAULT,
                  parent: tp.Optional[QWidget] = None, *,
                  Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
         super().__init__(parent)

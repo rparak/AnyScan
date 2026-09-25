@@ -40,6 +40,8 @@ from Reporting.Trends import Nice_Ticks, Value_To_Pixel, Nearest_Index, Thin_Lab
 from Parameters.Theme import Verdict_Color, Detection_Color
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str
+#   ../Parameters/General — the one default for the classification flag
+from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
 
 """
 Description:
@@ -674,7 +676,7 @@ class Trends_View_Cls(QWidget):
                 keyword-only: where the confidence chart's reference lines are drawn.
     """
 
-    def __init__(self, classification_enabled: bool = False,
+    def __init__(self, classification_enabled: bool = CONST_CLASSIFICATION_ENABLED_DEFAULT,
                  parent: tp.Optional[QWidget] = None, *,
                  Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
         super().__init__(parent)
