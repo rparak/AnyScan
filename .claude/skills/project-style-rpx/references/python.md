@@ -158,6 +158,12 @@ Comments are block comments above the code, saying *why*; multi-step bodies numb
   same byte length, restored within the same second, leaves a `.pyc` that still looks current
   (it is keyed on the source's size and whole-second mtime), so later runs execute the mutant — the
   symptom is a test failing for a reason no longer in the source. Clearing `__pycache__` fixes it.
+- **A script test runs the script the way a person does.** Tests that load an `Example/` script
+  inside pytest inherit `test/conftest.py`'s import setup (src/, App/ already on the path), so
+  they exercise it under conditions no user has: the camera scripts' working-directory-relative
+  `'../../src'` failed for anyone following the README from the repository root, and every such
+  test stayed green. Load or run it in a fresh interpreter (`subprocess`, `sys.executable`) from an
+  unrelated working directory — `test/Camera/test_reference_harnesses.py` has the pattern.
 - **A static-analysis hit is a candidate, not a finding.** vulture, pyflakes and coverage say where
   to look; the check is finding the reader. For UI code the reader is often a paint path or a
   rich-text render that a grep does not obviously connect: vulture called the status cell's
