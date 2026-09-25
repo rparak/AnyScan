@@ -287,7 +287,9 @@ def main():
     parser.add_argument('--square-mm', type=float, metavar='MM',
                         help='the CALIPERED square size in mm (--images)')
     parser.add_argument('--board-height-mm', type=float, metavar='MM',
-                        help='the flat boards\' surface height above the table in mm (--images)')
+                        help='the flat boards\' surface height above the table in mm (--images); written into '
+                             'the calibration as Board_Height_Mm, the reference plane its mm/px factor is '
+                             'measured on. Recorded, not applied: it does not change the solve')
     parser.add_argument('--config', default=CONST_DEFAULT_CONFIG_FILE,
                         help='a configuration on the hardware being calibrated (default: %(default)s)')
     parser.add_argument('--write-calibration', action='store_true',
@@ -305,7 +307,9 @@ def main():
                                         ('--square-mm', args.square_mm),
                                         ('--board-height-mm', args.board_height_mm)) if value is None]
     if missing:
-        parser.error('--images requires %s (no defaults: each changes the result)' % ', '.join(missing))
+        parser.error('--images requires %s (no defaults: the board and its square size decide the result, and the '
+                     'board height is written into the calibration as the reference plane the mm/px factor is '
+                     'measured on, so a calibration never lacks one)' % ', '.join(missing))
     return Images_Main(args.images, args.board_squares, args.square_mm, args.board_height_mm,
                        args.write_calibration, args.config)
 

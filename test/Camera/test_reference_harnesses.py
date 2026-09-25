@@ -267,3 +267,22 @@ def test_scan_captures_through_the_application_camera_path(tmp_path, monkeypatch
     saved = cv2.imread(str(saved_path))
     assert np.array_equal(saved[..., ::-1], frame)
     assert seen == {'window': ((1920, 1200), (8, 8)), 'connected': True, 'disconnected': True}
+
+
+def test_calibrate_refuses_images_without_the_board_height_and_says_what_it_is(tmp_path, monkeypatch, capsys) -> None:
+    """
+    Description:
+        --images requires --board-height-mm. The refusal names the flag and says what the value is
+        for — written into the calibration as the reference plane of its mm/px factor — and does not
+        claim it changes the result: it is recorded, never applied to the solve.
+    """
+
+    calibrate = _Load_Script('calibrate')
+    monkeypatch.setattr('sys.argv', ['calibrate.py', '--images', str(tmp_path), '--board-squares', '11x8',
+                                     '--square-mm', '20'])
+    with pytest.raises(SystemExit) as refused:
+        calibrate.main()
+    message = ' '.join(capsys.readouterr().err.split())
+    assert refused.value.code == 2
+    assert '--board-height-mm' in message and 'reference plane' in message
+    assert 'each changes the result' not in message
