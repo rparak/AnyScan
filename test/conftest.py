@@ -232,7 +232,8 @@ def models_untouched() -> tp.Iterator[None]:
         restore them. The inventory is taken before the first test and compared after the last; any
         file removed, added or resized fails the run, naming each one — so a change is attributed to
         this run the moment it happens, not discovered later. (On 2026-09-24 models/ was emptied during
-        a working session and the cause was never found; see docs/design-decisions.md.)
+        a working session, most likely by manual tidying rather than by code; this fixture settles,
+        for every run, whether the suite did it. See docs/design-decisions.md.)
     """
 
     before = _Models_Inventory()

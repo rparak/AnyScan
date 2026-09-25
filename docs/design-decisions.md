@@ -1312,8 +1312,10 @@ Tests `test/UI/test_history.py::test_info_panel_type_hierarchy_heading_is_larges
 ## models/ is out of reach of the installer tests, and the suite fails if it changes
 
 On 2026-09-24 the repository's `models/` was emptied during a working session: the Gemma weights
-(5.1 GB) and FastSAM, both git-ignored and so beyond git's reach. **The cause is unexplained.** What was
-ruled out: `git worktree remove --force` does not follow a symlinked `models/` (two reproductions, and a
+(5.1 GB) and FastSAM, both git-ignored and so beyond git's reach. **The cause is most likely manual:**
+the user was tidying by hand in Finder during the FastSAM rename, moving things while the FastSAM
+directory was in flux, and cannot rule out having caught `logger/` and the contents of `models/`. The
+pattern fits a manual action better than any code path. No code path was found. What was ruled out: `git worktree remove --force` does not follow a symlinked `models/` (two reproductions, and a
 faithful re-run of the exact worktree-and-pytest loop against a dummy `models/`, which came through
 intact); nothing in the suite, the harnesses or the installer deletes a directory; the installer's only
 destructive operations are `rm -f` of its own temporary and `.part` files, replacing the FastSAM file,
@@ -1326,15 +1328,18 @@ around 15:40, missing by the next check) — and it was never linked into any wo
 share: untracked content inside the repository was removed (all of `logger/`, everything in `models/`
 but the tracked `.gitkeep`), while the untracked `.venv/` and `.pytest_cache/` were untouched. No code in
 the repository deletes log files or the `logger/` directory (capture retention evicts only sets beyond
-50). The logs are not recoverable.
+50). That whole untracked directories went, while the tool-managed `.venv/` and `.pytest_cache/`
+stayed, is the pattern that fits the manual tidying above. The logs are not recoverable.
 
 **What the investigation did find** is one real exposure, now closed: the installer tests sourced the
 real `install.sh`, so `CONST_ROOT` pointed at the real repository until each test overrode it. Every
 test did — but by convention only, and a test that forgot would have run the installer's writes
-against the real `models/`. That mechanism could have destroyed the weights; the cause stays
-unexplained, but this mechanism is removed by construction rather than by discipline.
+against the real `models/`. That mechanism could have destroyed the weights. It is not the likely
+cause, but it is removed by construction rather than by discipline.
 
-Two measures make `models/` structurally out of reach, instead of a note asking to be careful:
+Two measures, which stand whatever the cause was, make `models/` structurally out of reach of the
+suite, instead of a note asking to be careful. Neither can stop a manual deletion; the second
+answers, on the run itself, whether the suite made one:
 
 - **The installer tests source a copy of `install.sh` inside their sandbox.** `CONST_ROOT` is resolved
   from the script's own location, so the copy's root *is* the sandbox from its first line. Before, the
