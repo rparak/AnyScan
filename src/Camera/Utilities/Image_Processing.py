@@ -114,7 +114,7 @@ class Process_Image_Cls:
     def __Color_Style(self, image: np.ndarray, alpha: float = 0.95, beta: int = 5) -> np.ndarray:
         """
         Description:
-            Adjusts brightness and contrast, with optional warm filter effect.
+            Adjusts brightness and contrast (g = alpha * f + beta, saturated to uint8).
 
         Args:
             (1) image [np.ndarray]: Input image.
@@ -125,8 +125,7 @@ class Process_Image_Cls:
             (1) parameter [np.ndarray]: Color-adjusted image.
         """
 
-        adjusted_img = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
-        return np.clip(adjusted_img * np.array([[[1.0, 1.0, 1.0]]]), 0, 255).astype(np.uint8)
+        return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
 
     def __Blur(self, image: np.ndarray, kernel_size: tp.Tuple[int, int] = (5, 5), sigma: float = 1.0) -> np.ndarray:
         """
@@ -157,6 +156,5 @@ class Process_Image_Cls:
             (1) parameter [np.ndarray]: Processed image.
         """
 
-        image_tmp = image.copy()
-        blurred_img = self.__Blur(image_tmp, kernel_size=(3, 3), sigma=0.5)
+        blurred_img = self.__Blur(image, kernel_size=(3, 3), sigma=0.5)
         return self.__Color_Style(blurred_img, alpha=0.95, beta=1)

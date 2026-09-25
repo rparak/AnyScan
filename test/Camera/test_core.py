@@ -261,3 +261,32 @@ def test_a_calibrated_camera_still_undistorts_and_records_how() -> None:
     assert not np.array_equal(rgb[..., ::-1], frame)                   # the lens model was applied
     assert np.array_equal(cam.Last_Distorted_Frame[..., ::-1], frame)
     assert cam.Last_Undistortion['coefficients']['k1'] == -0.3
+
+
+def test_the_cached_undistortion_is_byte_identical_to_cv2_undistort(reference_background) -> None:
+    """
+    Description:
+        The undistortion builds its maps once per frame size and remaps each frame; the result is
+        byte-identical to cv2.undistort with the shipped calibration, on a committed real frame, on
+        the first grab and on the cached second one. (Float maps would differ by up to 2 grey
+        levels; the fixed-point maps cv2.undistort itself uses do not.)
+    """
+
+    import cv2
+    import numpy as np
+    from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
+    calibration = Load_Configuration(CONST_DEFAULT_CONFIG_FILE).Camera.Calibration
+    cam = Basler_Camera_Cls()
+    for name, value in (('__cam', _Fake_Device_Cls(reference_background)), ('__processor', _Identity_Processor_Cls()),
+                        ('__calib', calibration), ('__cv2', cv2), ('__np', np)):
+        setattr(cam, '_Basler_Camera_Cls' + name, value)
+    h, w = reference_background.shape[:2]
+    coefficients = np.array(list(calibration.Coefficients.values()), dtype=np.float64)
+    new_K, _ = cv2.getOptimalNewCameraMatrix(calibration.K, coefficients, (w, h),
+                                             Camera_Core.CONST_BASLER_UNDISTORT_ALPHA, (w, h))
+    expected = cv2.cvtColor(cv2.undistort(reference_background, calibration.K, coefficients, None, new_K),
+                            cv2.COLOR_BGR2RGB)
+
+    assert np.array_equal(cam._Grab(), expected)
+    assert np.array_equal(cam._Grab(), expected)                        # from the cached maps
+    assert cam.Last_Undistortion['new_camera_matrix'] == [[float(v) for v in row] for row in new_K]
