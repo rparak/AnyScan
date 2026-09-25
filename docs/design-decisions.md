@@ -109,7 +109,7 @@ Commit `62c5097`; tests `test/Vision/test_describe_fallback.py::test_weak_metall
 
 The `Confidence (mean)` status field only has a score for objects FastSAM found; a
 background-cue-only object carries none, so the field shows the mean over exactly the
-scored objects **with its coverage** (`87% (5/9)`) and `—` when none are scored, rather
+scored objects **with its coverage** (`87% over 5 of 9`) and `—` when none are scored, rather
 than averaging over a partial set. It is tempting to force every object through FastSAM so
 the metric is complete, but the fusion exists precisely because neither cue is sufficient:
 forcing them through means lowering thresholds until FastSAM sees them (which admits false
@@ -129,6 +129,14 @@ entirely and FastSAM carried them — while the `cue = background` objects (four
 had no FastSAM mask at all and were carried only by background subtraction. Dropping either
 cue loses real objects. **Revisit only** if a single cue is shown to cover every object
 across a representative set of frames, which today's evidence contradicts.
+
+*Re-measured 2026-09-25:* only one direction still shows on the repository frames. With the
+current pipeline `Image_001`'s nine objects are 4 `both` + 5 `fastsam`: FastSAM still carries
+objects the background cue misses, but no object is background-only, on `Image_001` or on the
+other six frames (one `both` object each). The "four of nine" above is that run's figure, not
+today's. This does not meet the revisit clause: seven frames, six with one object, are not a
+representative set, and the tests hold the background-only path. The entry stands. The
+background-only direction now rests on the original run, not on a frame in the repository.
 Commit `fe4f10c`; tests `test/Vision/Utilities/test_fusion.py::test_object_seen_only_by_fastsam_survives`, `::test_object_seen_only_by_background_survives`.
 
 ## The annotated view is the exported render, not live Qt painting

@@ -156,13 +156,19 @@ describer would then contain a strip of table.
 The status strip's `Confidence (run mean)` averages `Detection_Str.Segmenter_Score`,
 which only the FastSAM cue supplies. An object found by background subtraction
 alone (`Cue == 'background'`) carries `Segmenter_Score is None` and no confidence
-of its own — on `Image_001` that was four of nine objects. The run mean is therefore
-over **exactly** the scored objects, never averaging over the partial set silently, and
-reads `—` when no object has a score; the frame's own confidence shows the coverage
-(`87% (5/9)`).
+of its own. The run mean is therefore over **exactly** the scored objects, never
+averaging over the partial set silently, and reads `—` when no object has a score; the
+frame's own confidence shows the coverage (e.g. `87% over 5 of 9`).
+
+The limitation stands; its example is stale. When it was written, four of `Image_001`'s
+nine objects were background-only. Re-measured 2026-09-25 with the current pipeline, no
+object in the seven repository frames is: `Image_001` is 4 `both` + 5 `fastsam`, and the
+other six frames' single objects are `both`. So the repository frames score fully (run
+mean 93–95%) and do not exercise this path; a rig frame with a part FastSAM misses would.
 
 - **Why not route every object through FastSAM:** the fusion exists because neither
-  cue is sufficient, and a single run proves it in both directions — objects the
+  cue is sufficient, and a single run proved it in both directions (the run this entry
+  was written from; see design-decisions, *The fusion needs both cues*) — objects the
   background cue missed were carried by FastSAM (`cov=0.00`), and the `Cue ==
   'background'` objects had no FastSAM mask at all. Forcing them through means
   either lowering thresholds until FastSAM sees them (which admits false
