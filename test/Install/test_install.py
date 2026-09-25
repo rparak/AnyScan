@@ -66,13 +66,16 @@ Description:
         against the real Hub. The stale-status bug these tests caught in that loop is the kind
         only a fresh machine would otherwise have shown.
     Stubs only - UNVERIFIED in the sense of README > Platform:
-      - every Linux branch (CUDA 12, CUDA 13, CPU, failing / missing / old nvidia-smi,
-        low compute capability, old glibc, musl, aarch64), macOS on Intel, macOS < 14, and
-        Rosetta. The stubs reproduce the command outputs as documented (nvidia-smi's CSV
-        query and banner, sysctl, getconf); no Linux machine has run this script, and the
+      - every Linux branch (CUDA 12, CUDA 13, the refusal and the --cpu opt-in, failing /
+        missing / old nvidia-smi, low compute capability, GPU 0's memory against the 11 GB
+        and (--model 12b) 15 GB floors, a busy card, old glibc, musl, aarch64), macOS on
+        Intel, macOS < 14, and Rosetta. The stubs reproduce the command outputs as documented
+        (nvidia-smi's CSV queries and banner, sysctl, getconf); no Linux machine has run this
+        script, and the
         pip resolves on the Linux paths (the PyTorch cu126/cu130/cpu indexes, the mlx
         extras) have not been performed. The Gemma download (hf) is stubbed everywhere:
-        its skip path ran for real, its fetch path did not.
+        its skip path ran for real (for E4B and, on 2026-09-25, the 12B manifest against the
+        12B downloaded by hand), its fetch path did not.
 """
 # The repository root and the script under test.
 #   Unit [string]
@@ -93,6 +96,7 @@ CONST_LOG_LINE = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[(INFO   |WA
 CONST_NVIDIA_SMI_TEMPLATE = '''case "$*" in
     *name,driver_version*) printf '%s\\n' {rows} ;;
     *compute_cap*) echo "{cap}" ;;
+    *memory.total*) echo "{total}, {used}" ;;
     "") echo "| NVIDIA-SMI {driver}      Driver Version: {driver}      CUDA Version: {cuda}     |" ;;
 esac'''
 
@@ -298,7 +302,8 @@ def _Stub_Linux(sandbox: Sandbox_Cls, machine: str = 'x86_64', glibc: tp.Optiona
                             else 'echo "getconf: Unrecognized variable" >&2; exit 1')
 
 
-def _Stub_Nvidia(sandbox: Sandbox_Cls, driver: str, cap: str = '8.6', cuda: str = '12.6', gpus: int = 1) -> None:
+def _Stub_Nvidia(sandbox: Sandbox_Cls, driver: str, cap: str = '8.6', cuda: str = '12.6', gpus: int = 1,
+                 total: str = '24576', used: str = '300', name: str = 'NVIDIA GeForce RTX 3090') -> None:
     """
     Description:
         Stub a working nvidia-smi.
@@ -309,10 +314,14 @@ def _Stub_Nvidia(sandbox: Sandbox_Cls, driver: str, cap: str = '8.6', cuda: str 
         (3) cap [string]: The compute capability.
         (4) cuda [string]: The CUDA version the banner reports.
         (5) gpus [int]: How many GPUs the query lists.
+        (6) total [string]: GPU 0's memory.total in MiB, as nvidia-smi prints it with nounits.
+        (7) used [string]: GPU 0's memory.used in MiB.
+        (8) name [string]: The card's name.
     """
 
-    rows = ' '.join([f'"NVIDIA GeForce RTX 3090, {driver}"'] * gpus)
-    sandbox.Stub('nvidia-smi', CONST_NVIDIA_SMI_TEMPLATE.format(rows=rows, cap=cap, driver=driver, cuda=cuda))
+    rows = ' '.join([f'"{name}, {driver}"'] * gpus)
+    sandbox.Stub('nvidia-smi', CONST_NVIDIA_SMI_TEMPLATE.format(rows=rows, cap=cap, driver=driver, cuda=cuda,
+                                                                total=total, used=used))
 
 
 # ---- version comparison -----------------------------------------------------
@@ -474,55 +483,135 @@ def test_linux_multiple_gpus_reports_the_count(sandbox):
     assert any('with 2 GPUs; MLX uses the first' in m for m in _Levels(process, 'INFO'))
 
 
-def test_linux_without_nvidia_smi_uses_cpu_with_warning(sandbox):
-    _Stub_Linux(sandbox)
-    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
-
-    assert process.returncode == 0
-    assert _Results(process) == {'MLX_BACKEND': 'cpu', 'TORCH_INDEX': 'cpu'}
-    warning = _Levels(process, 'WARNING')[0]
-    assert warning.startswith('No NVIDIA driver found (nvidia-smi is not installed); installing the CPU builds')
-    assert 'slow' in warning
+def _No_Driver(sandbox: Sandbox_Cls) -> None:
+    """
+    Description:
+        No nvidia-smi at all (the hermetic PATH has none).
+    """
 
 
-def test_linux_library_installed_but_no_working_gpu_uses_cpu(sandbox):
-    # The case the driver check exists for: nvidia-smi is present but cannot reach a driver.
-    _Stub_Linux(sandbox)
+def _Driver_Unreachable(sandbox: Sandbox_Cls) -> None:
+    """
+    Description:
+        The case the driver check exists for: nvidia-smi is present but cannot reach a driver.
+    """
+
     sandbox.Stub('nvidia-smi', 'echo "NVIDIA-SMI has failed because it couldn\'t communicate with the NVIDIA driver. '
                                'Make sure that the latest NVIDIA driver is installed and running."; exit 9')
-    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
+
+
+def _No_Devices(sandbox: Sandbox_Cls) -> None:
+    """
+    Description:
+        nvidia-smi runs but lists no GPU.
+    """
+
+    sandbox.Stub('nvidia-smi', 'echo "No devices were found"; exit 0')
+
+
+# Every way a Linux machine can lack a usable GPU, with the reason the installer must name.
+#   Unit [Vector<Tuple>]
+CONST_NO_USABLE_GPU = [
+    (_No_Driver, 'No NVIDIA driver found (nvidia-smi is not installed)'),
+    (_Driver_Unreachable, "nvidia-smi is installed but failed (NVIDIA-SMI has failed because it couldn't communicate"),
+    (_No_Devices, 'nvidia-smi reported no GPU (No devices were found)'),
+    (lambda sandbox: _Stub_Nvidia(sandbox, '535.183.01', cuda='12.2'), 'older than 550.54.14'),
+    (lambda sandbox: _Stub_Nvidia(sandbox, '560.35.03', cap='7.0'), 'compute capability 7.0'),
+    (lambda sandbox: _Stub_Nvidia(sandbox, '560.35.03', total='8188', name='NVIDIA GeForce RTX 4060'),
+     'NVIDIA GeForce RTX 4060 has 8.0 GB of memory'),
+    (lambda sandbox: _Stub_Nvidia(sandbox, '560.35.03', total='[N/A]'), "did not report NVIDIA GeForce RTX 3090's memory")]
+
+
+@pytest.mark.parametrize('setup, reason', CONST_NO_USABLE_GPU)
+def test_linux_without_a_usable_gpu_stops_naming_the_reason_and_the_cpu_flag(sandbox, setup, reason):
+    """
+    Description:
+        No silent CPU fallback: an install that succeeds and then runs unusably slowly is worse
+        than a refusal that says why and how to opt in.
+    """
+
+    _Stub_Linux(sandbox)
+    setup(sandbox)
+    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND')
+
+    assert process.returncode == 1
+    assert 'RESULT' not in process.stdout
+    errors = _Levels(process, 'ERROR')
+    assert reason in errors[0]
+    assert 'at least 11 GB of memory' in errors[0]
+    assert any('re-run with --cpu' in m for m in errors)
+
+
+@pytest.mark.parametrize('setup, reason', CONST_NO_USABLE_GPU)
+def test_linux_cpu_flag_takes_the_cpu_path_with_the_reason(sandbox, setup, reason):
+    _Stub_Linux(sandbox)
+    setup(sandbox)
+    process = sandbox.Run('CPU_OPT_IN=1; Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
 
     assert process.returncode == 0
     assert _Results(process) == {'MLX_BACKEND': 'cpu', 'TORCH_INDEX': 'cpu'}
-    assert "nvidia-smi is installed but failed (NVIDIA-SMI has failed because it couldn't communicate" \
-        in _Levels(process, 'WARNING')[0]
+    warning = _Levels(process, 'WARNING')[-1]
+    assert reason in warning and 'as --cpu asks' in warning and 'slow' in warning
 
 
-def test_linux_nvidia_smi_listing_no_gpu_uses_cpu(sandbox):
+def test_linux_small_card_refusal_names_card_memory_and_minimum(sandbox):
     _Stub_Linux(sandbox)
-    sandbox.Stub('nvidia-smi', 'echo "No devices were found"; exit 0')
+    _Stub_Nvidia(sandbox, '560.35.03', total='8188', name='NVIDIA GeForce RTX 4060')
+    process = sandbox.Run('Detect_Platform')
+
+    error = _Levels(process, 'ERROR')[0]
+    assert 'NVIDIA GeForce RTX 4060 has 8.0 GB of memory' in error
+    assert '11264 MiB (11 GB) is the minimum' in error
+
+
+@pytest.mark.parametrize('total, name', [('12282', 'NVIDIA GeForce RTX 4070'), ('16303', 'NVIDIA GeForce RTX 5070 Ti'),
+                                         ('11264', 'NVIDIA GeForce RTX 2080 Ti')])
+def test_linux_card_with_enough_memory_takes_the_gpu_path(sandbox, total, name):
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, '580.65.06', cuda='13.0', total=total, cap='7.5', name=name)
+    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND GPU_MEMORY_MIB')
+
+    assert process.returncode == 0
+    assert _Results(process) == {'MLX_BACKEND': 'cuda13', 'GPU_MEMORY_MIB': total}
+    assert any(m.startswith(f'{name} has ') and f'({total} MiB)' in m for m in _Levels(process, 'INFO'))
+    assert not _Levels(process, 'WARNING')
+
+
+def test_linux_12b_on_a_12_gb_card_stops_and_points_at_the_default(sandbox):
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, '580.65.06', total='12282', name='NVIDIA GeForce RTX 4070')
+    process = sandbox.Run('MODEL_CHOICE=12b; Detect_Platform')
+
+    assert process.returncode == 1
+    errors = _Levels(process, 'ERROR')
+    assert 'Gemma 4 12B (--model 12b)' in errors[0] and '15360 MiB (15 GB) or more' in errors[0]
+    assert any('Re-run without --model 12b' in m for m in errors)
+
+
+def test_linux_12b_on_a_16_gb_card_takes_the_gpu_path(sandbox):
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, '580.65.06', total='16303', name='NVIDIA GeForce RTX 5070 Ti')
+    process = sandbox.Run('MODEL_CHOICE=12b; Detect_Platform; Show MLX_BACKEND')
+
+    assert _Results(process)['MLX_BACKEND'] == 'cuda13'
+
+
+def test_linux_busy_card_warns_with_the_memory_in_use(sandbox):
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, '560.35.03', total='16303', used='3100')
     process = sandbox.Run('Detect_Platform; Show MLX_BACKEND')
 
-    assert _Results(process)['MLX_BACKEND'] == 'cpu'
-    assert 'nvidia-smi reported no GPU (No devices were found)' in _Levels(process, 'WARNING')[0]
+    assert _Results(process)['MLX_BACKEND'] == 'cuda12'
+    assert 'already has 3.0 GB in use' in _Levels(process, 'WARNING')[0]
 
 
-def test_linux_driver_too_old_for_mlx_cuda_uses_cpu(sandbox):
+def test_linux_cpu_flag_with_a_usable_gpu_installs_the_gpu_builds(sandbox):
     _Stub_Linux(sandbox)
-    _Stub_Nvidia(sandbox, '535.183.01', cuda='12.2')
-    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND TORCH_INDEX')
+    _Stub_Nvidia(sandbox, '560.35.03')
+    process = sandbox.Run('CPU_OPT_IN=1; Detect_Platform; Show MLX_BACKEND')
 
-    assert _Results(process) == {'MLX_BACKEND': 'cpu', 'TORCH_INDEX': 'cpu'}
-    assert 'older than 550.54.14' in _Levels(process, 'WARNING')[0]
-
-
-def test_linux_gpu_below_compute_capability_uses_cpu(sandbox):
-    _Stub_Linux(sandbox)
-    _Stub_Nvidia(sandbox, '560.35.03', cap='7.0')
-    process = sandbox.Run('Detect_Platform; Show MLX_BACKEND')
-
-    assert _Results(process)['MLX_BACKEND'] == 'cpu'
-    assert 'compute capability 7.0' in _Levels(process, 'WARNING')[0]
+    assert _Results(process)['MLX_BACKEND'] == 'cuda12'
+    assert any(m.startswith('--cpu was given but has no effect here') for m in _Levels(process, 'WARNING'))
 
 
 def test_linux_aarch64_stops_naming_pyqt5_and_what_would_be_needed(sandbox):
@@ -796,6 +885,91 @@ def test_gemma_download_that_does_not_verify_fails(sandbox):
     assert 'After downloading, Gemma file' in _Levels(process, 'ERROR')[0]
 
 
+@pytest.mark.parametrize('arguments, model, cpu', [('', 'e4b', '0'), ('--model 12b', '12b', '0'),
+                                                   ('--model=12b --cpu', '12b', '1'), ('--cpu --model e4b', 'e4b', '1')])
+def test_arguments_set_the_model_and_the_cpu_opt_in(sandbox, arguments, model, cpu):
+    process = sandbox.Run(f'Parse_Arguments {arguments}; Show MODEL_CHOICE CPU_OPT_IN')
+
+    assert _Results(process) == {'MODEL_CHOICE': model, 'CPU_OPT_IN': cpu}
+
+
+@pytest.mark.parametrize('arguments', ['--model 27b', '--model'])
+def test_a_bad_model_argument_stops(sandbox, arguments):
+    process = sandbox.Run(f'Parse_Arguments {arguments}')
+
+    assert process.returncode == 1
+    assert '--model' in _Levels(process, 'ERROR')[0]
+
+
+def test_the_12b_plan_states_the_provenance_gap_and_the_measured_regression(sandbox):
+    """
+    Description:
+        Someone passing --model 12b sees what they are choosing at that point, not only in the README.
+    """
+
+    process = sandbox.Run('MODEL_CHOICE=12b; PYTHON_VERSION=3.10.14; MLX_BACKEND=metal; Report_Plan')
+
+    infos, warnings = _Levels(process, 'INFO'), _Levels(process, 'WARNING')
+    assert any('Gemma 4 12B, mlx-community/gemma-4-12B-it-4bit@73bcf09 -> models/gemma-4-12B-it-4bit (6.8 GB)' in m
+               for m in infos)
+    assert any('names no base model, revision or licence' in m and 'plausible, not proven' in m for m in warnings)
+    assert any('5.46 s per object against 2.20 s' in m and 'plastic parts' in m for m in warnings)
+
+
+def test_the_default_plan_names_e4b_and_prints_no_notice(sandbox):
+    process = sandbox.Run('PYTHON_VERSION=3.10.14; MLX_BACKEND=metal; Report_Plan')
+
+    assert any('Gemma 4 E4B, mlx-community/gemma-4-e4b-it-4bit@475b908 -> models/gemma-4-e4b-it-4bit (5.2 GB)' in m
+               for m in _Levels(process, 'INFO'))
+    assert not _Levels(process, 'WARNING')
+
+
+def test_12b_downloads_into_its_own_directory_from_its_own_repository(sandbox):
+    record = _Stub_Hf(sandbox)
+    snippet = _Gemma_Snippet(sandbox).replace('CONST_GEMMA_FILES=', 'CONST_GEMMA12_FILES=')
+    process = sandbox.Run(snippet + 'MODEL_CHOICE=12b; Ensure_Gemma')
+
+    assert process.returncode == 0
+    call = open(record).read().split()
+    assert 'mlx-community/gemma-4-12B-it-4bit' in call and '73bcf09092aa277861d5a191b989b666f7f32e8f' in call
+    for name, content in CONST_GEMMA_FIXTURE.items():
+        assert open(os.path.join(sandbox.Root, 'models', 'gemma-4-12B-it-4bit', name), 'rb').read() == content
+    assert not os.path.exists(os.path.join(sandbox.Root, 'models', 'gemma-4-e4b-it-4bit'))
+    # The notice is repeated right before the download, not only in the plan minutes earlier.
+    lines = _Log_Lines(process)
+    notice = [i for i, line in enumerate(lines) if 'names no base model, revision or licence' in line]
+    download = [i for i, line in enumerate(lines) if 'Downloading 3 Gemma 4 12B file(s)' in line]
+    assert notice and download and notice[0] < download[0]
+    assert any('plastic parts' in line for line in lines[notice[0]:download[0]])
+
+
+def test_the_12b_notice_is_not_repeated_when_nothing_is_downloaded(sandbox):
+    for name, content in CONST_GEMMA_FIXTURE.items():
+        _Write(os.path.join(sandbox.Root, 'models', 'gemma-4-12B-it-4bit', name), content)
+    _Stub_Hf(sandbox)
+    snippet = _Gemma_Snippet(sandbox).replace('CONST_GEMMA_FILES=', 'CONST_GEMMA12_FILES=')
+    process = sandbox.Run(snippet + 'MODEL_CHOICE=12b; Ensure_Gemma')
+
+    assert not _Levels(process, 'WARNING')
+
+
+def test_cpu_with_a_usable_gpu_is_reported_again_at_the_end(sandbox):
+    """
+    Description:
+        --cpu passed on purpose (testing, a driver workaround) that did not take effect is said at
+        detection and again as the last warning, so it cannot pass unnoticed in a long run.
+    """
+
+    _Stub_Linux(sandbox)
+    _Stub_Nvidia(sandbox, '580.65.06', cuda='13.0')
+    process = sandbox.Run('CPU_OPT_IN=1; Detect_Platform; Report_Unused_Cpu_Flag')
+
+    assert _Levels(process, 'WARNING')[0].startswith('--cpu was given but has no effect here')
+    assert _Levels(process, 'WARNING')[-1:] == ['--cpu had no effect: the cuda13 GPU builds were installed.']
+    quiet = sandbox.Run('CPU_OPT_IN=1; PLATFORM_OS=linux; MLX_BACKEND=cpu; Report_Unused_Cpu_Flag')
+    assert not _Levels(quiet, 'WARNING')
+
+
 # ---- configurations ---------------------------------------------------------
 
 @pytest.mark.parametrize('gemma, expected_level', [('models/gemma-4-e4b-it-4bit', 'INFO'),
@@ -815,6 +989,30 @@ def test_configuration_pointing_elsewhere_names_the_field(sandbox, gemma, expect
         assert "Description.Model is 'models/gemma-4-e4b-it-8bit'" in line
         assert 'Change Description.Model to models/gemma-4-e4b-it-4bit' in line
     assert any('Segmentation.Model points at the installed model' in m for m in _Levels(process, 'INFO'))
+
+
+def test_after_12b_a_configuration_still_on_e4b_is_told_which_field_to_set(sandbox):
+    """
+    Description:
+        --model 12b never edits a configuration: one still naming E4B (on disk) keeps loading, and
+        the installer names the field and the value that would use the 12B.
+    """
+
+    pytest.importorskip('yaml')
+    os.makedirs(os.path.join(sandbox.Root, 'models', 'gemma-4-e4b-it-4bit'))
+    config = os.path.join(sandbox.Root, 'Configuration', 'Config_Test.yaml')
+    _Write(config, b'Segmentation:\n  Model: models/FastSAM/FastSAM-x.pt\nDescription:\n  Model: models/gemma-4-e4b-it-4bit\n')
+    before = open(config, 'rb').read()
+    os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
+    os.symlink(sys.executable, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))
+    process = sandbox.Run(f'CONST_ROOT="{sandbox.Root}"; CONST_VENV_DIR="{sandbox.Root}/venv"; MODEL_CHOICE=12b; '
+                          'Check_Configurations')
+
+    line = [m for m in _Levels(process, 'WARNING') if 'Description.Model' in m][0]
+    assert "is 'models/gemma-4-e4b-it-4bit', not the model this run installed" in line
+    assert 'set Description.Model to models/gemma-4-12B-it-4bit in Configuration/Config_Test.yaml' in line
+    assert 'does not edit configurations' in line
+    assert open(config, 'rb').read() == before
 
 
 # ---- the whole detection path -----------------------------------------------

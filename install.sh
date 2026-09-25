@@ -35,6 +35,13 @@
 #   Usage:
 #       ./install.sh                 Install (or confirm) everything.
 #       ./install.sh --detect-only   Report the Python, platform and plan; change nothing.
+#       ./install.sh --model 12b     Install Gemma 4 12B instead of E4B (the default). Measured
+#                                    on Apple silicon and found not better: slower, and it reads
+#                                    plastic parts as metal. The installer prints the details
+#                                    and names the configuration field to set.
+#       ./install.sh --cpu           Linux only: install the CPU builds when no usable NVIDIA GPU
+#                                    is found, instead of stopping. Unmeasured, expected to be
+#                                    far slower.
 #       PYTHON=python3.11 ./install.sh
 #                                    Create .venv from that interpreter instead of the
 #                                    first suitable one found on PATH.
@@ -76,6 +83,18 @@ CONST_GLIBC_MIN='2.35'
 CONST_MLX_CUDA12_MIN_DRIVER='550.54.14'
 CONST_MLX_CUDA13_MIN_DRIVER='580'
 CONST_MLX_CUDA_MIN_COMPUTE_CAP='7.5'
+# The VRAM GPU 0 must have, read from nvidia-smi (MiB). The describer's model and FastSAM share
+# the card. E4B was measured at 5.9 GB while generating on Apple silicon; with FastSAM, both CUDA
+# contexts and the allocators' caches, the whole application is estimated at ~8.5 GB, so 11 GiB is
+# the floor (12 GB cards report ~12,280 MiB). The 12B is estimated at ~10.5 GB (6.77 GB of
+# weights), so it needs a 16 GB card (reported as ~16,300 MiB). Estimates, not measurements:
+# nothing has run on Linux.
+#   Unit [MiB]
+CONST_MIN_VRAM_MIB='11264'
+CONST_MIN_VRAM_12B_MIB='15360'
+# Memory already in use on GPU 0 (a display, another process) above which the plan warns.
+#   Unit [MiB]
+CONST_BUSY_VRAM_MIB='1536'
 # The PyTorch wheel index. A CUDA build cannot be selected by an environment marker, so the
 # script passes the index for the detected backend (cu126, cu130 or cpu) when it installs
 # torch and torchvision - together, so torchvision is built for the same CUDA as torch.
@@ -114,6 +133,27 @@ model.safetensors.index.json 240961 blob c03ce5f7086b735345038501f731634de064493
 processor_config.json 1316 blob a086fb7e04b477c291a120b0a004abb78b11c6d2
 tokenizer.json 32169626 sha256 cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f
 tokenizer_config.json 2740 blob cf6235aee46a24bf71f251c0a4e7a0379948f7d2'
+# Gemma 4 12B, 4-bit MLX (--model 12b): same format as E4B, but a weaker link. E4B's card names
+# its source (google/gemma-4-E4B-it at revision fee6332); this card names no base model, revision
+# or licence; its tokenizer.json is byte-identical to
+# google/gemma-4-12B-it's and its text config matches, which is plausible, not proven. Measured
+# against E4B on the seven frames (docs/design-decisions.md): 5.46 s per object against 2.20 s,
+# and three of Image_001's four plastic parts read as metal.
+#   Unit [string]
+CONST_GEMMA12_REPO='mlx-community/gemma-4-12B-it-4bit'
+CONST_GEMMA12_REVISION='73bcf09092aa277861d5a191b989b666f7f32e8f'
+CONST_GEMMA12_REL='models/gemma-4-12B-it-4bit'
+CONST_GEMMA12_FILES='.gitattributes 1570 blob 52373fe24473b1aa44333d318f578ae6bf04b49b
+README.md 84 blob e9f0bd22279d20ec23084290be3276d85f3c255f
+chat_template.jinja 17466 blob e61bbfe9a31db79ea1e4e557b046f895ad7899d0
+config.json 5415 blob d70dc3961e79b7bc4f4aef8eb875d67ebd144527
+generation_config.json 260 blob d09dccf1b9aee197ef72a6e88a1ceff74b842ff3
+model-00001-of-00002.safetensors 5351756584 sha256 0d58feed0c98a69c07317b4481aeae5ab2785f12a496ea96ab24c4842808de78
+model-00002-of-00002.safetensors 1389282927 sha256 5b00a1bcb596ce6e827b4cdea6ecf2a0f35bb01306eb87c1ea4b3bcde36c7755
+model.safetensors.index.json 135329 blob c50946ccb1c9cbd9c5410164b0e8b7251062ac78
+processor_config.json 868 blob 62a14d5cc4040dc144f6454faa603fc45036a1e0
+tokenizer.json 32169626 sha256 cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f
+tokenizer_config.json 2719 blob 5c5c5b11eeb9f94ce14c6a7b058745662ae9f68a'
 # Files at least this large get a "hashing, this takes a while" line and their own elapsed
 # time, so a pause on the 5.1 GB file is not mistaken for a hang.
 #   Unit [int]
@@ -131,6 +171,11 @@ CONST_LEVEL_WIDTH='7'
 #     TORCH_INDEX       '' (PyPI default, macOS) | cu126 | cu130 | cpu
 #     BASE_PYTHON       the interpreter .venv is (or was) created from
 #     PYTHON_VERSION    its version, e.g. 3.10.10
+#     MODEL_CHOICE      e4b (default) | 12b, from --model
+#     CPU_OPT_IN        1 when --cpu was given
+#     GPU_MEMORY_MIB    GPU 0's total memory, when an NVIDIA GPU was found
+#     MODEL_*           the chosen model's name, repository, revision, directory and manifest
+#                       (Selected_Model)
 PLATFORM_OS=''
 PLATFORM_SUMMARY=''
 MLX_BACKEND=''
@@ -138,6 +183,14 @@ TORCH_INDEX=''
 BASE_PYTHON=''
 PYTHON_VERSION=''
 DETECT_ONLY='0'
+MODEL_CHOICE='e4b'
+CPU_OPT_IN='0'
+GPU_MEMORY_MIB=''
+MODEL_NAME=''
+MODEL_REPO=''
+MODEL_REVISION=''
+MODEL_REL=''
+MODEL_FILES=''
 
 # ---- output ----------------------------------------------------------------
 
@@ -454,6 +507,9 @@ Detect_Macos() {
         Die 'Detected macOS on an Intel processor, which is unsupported: the describer runs on MLX, and MLX needs Apple silicon.' \
             'Run AnyScan on an Apple-silicon Mac (M1 or newer) or on Linux; see README > Platform.'
     fi
+    if [ "${CPU_OPT_IN}" = '1' ]; then
+        Log WARNING '--cpu applies to Linux only; ignored on macOS, where the describer runs on the Apple GPU.'
+    fi
     chip="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || true)"
     version="$(sw_vers -productVersion 2>/dev/null || true)"
     Log INFO "Detected macOS ${version:-(unknown version)} on Apple silicon (${chip:-unknown chip})."
@@ -500,41 +556,72 @@ Detect_Linux() {
 
 Select_Cpu_Backend() {
     # Description:
-    #   The Linux fallback: CPU builds of both MLX and PyTorch, with the warning that the
-    #   describer will be slow.
+    #   The Linux CPU path, taken only with --cpu: CPU builds of both MLX and PyTorch, with the
+    #   warning that the describer will be slow.
     #
     # Args:
     #   (1) reason [string]: Why the GPU path was not taken, for the warning.
 
     MLX_BACKEND='cpu'
     TORCH_INDEX='cpu'
-    Log WARNING "$1; installing the CPU builds of MLX and PyTorch. Inference will be slow: the describer takes 2.22 s per object on the Apple GPU, and on a CPU it is unmeasured and expected to be far slower."
+    Log WARNING "$1; installing the CPU builds of MLX and PyTorch, as --cpu asks. Inference will be slow: the describer takes 2.22 s per object on the Apple GPU, and on a CPU it is unmeasured and expected to be far slower."
+}
+
+No_Usable_Gpu() {
+    # Description:
+    #   No NVIDIA GPU the application can use. Without --cpu, stop and say why: a silent CPU
+    #   install succeeds and then leaves the operator with inference too slow to use, not
+    #   knowing why. With --cpu, take the CPU path.
+    #
+    # Args:
+    #   (1) reason [string]: What was found.
+
+    if [ "${CPU_OPT_IN}" = '1' ]; then
+        Select_Cpu_Backend "$1"
+        return 0
+    fi
+    Die "$1. AnyScan on Linux needs an NVIDIA GPU with at least $(( CONST_MIN_VRAM_MIB / 1024 )) GB of memory (compute capability ${CONST_MLX_CUDA_MIN_COMPUTE_CAP} or newer, driver ${CONST_MLX_CUDA12_MIN_DRIVER} or newer)." \
+        'To install the CPU builds anyway, re-run with --cpu: the describer is unmeasured on a CPU and expected to be far slower.'
+}
+
+Mib_To_Gb() {
+    # Description:
+    #   A MiB count as GB with one decimal, for messages (16303 -> 15.9).
+    #
+    # Args:
+    #   (1) mib [int]: The count.
+    #
+    # Returns:
+    #   (1) parameter [string]: The value, on stdout.
+
+    awk -v m="$1" 'BEGIN { printf "%.1f", m / 1024 }'
 }
 
 Detect_Nvidia() {
     # Description:
-    #   Decide the GPU path from a working driver, not from a device file: nvidia-smi must
-    #   exist, run, and report a driver version. A machine with the library installed but no
-    #   usable GPU lands on the CPU path here instead of failing later at import.
+    #   Decide the GPU path from a working driver and the card itself, not from a device file:
+    #   nvidia-smi must exist, run, and report a driver, a compute capability and the memory of
+    #   GPU 0 - the device MLX and PyTorch use. Anything short of a usable card stops (or, with
+    #   --cpu, takes the CPU path), naming what was found.
     #     driver >= 580                       -> mlx[cuda13] + torch cu130
     #     550.54.14 <= driver < 580           -> mlx[cuda12] + torch cu126
+    #     GPU 0 below CONST_MIN_VRAM_MIB (or below CONST_MIN_VRAM_12B_MIB with --model 12b),
     #     older driver, compute cap. < 7.5,
-    #     or nvidia-smi missing / failing     -> mlx[cpu]    + torch cpu
+    #     or nvidia-smi missing / failing     -> stop; with --cpu, mlx[cpu] + torch cpu
 
-    local query first name driver count cuda cap reason
+    local query first name driver count cuda cap memory total used required
     if ! command -v nvidia-smi >/dev/null 2>&1; then
-        Select_Cpu_Backend 'No NVIDIA driver found (nvidia-smi is not installed)'
+        No_Usable_Gpu 'No NVIDIA driver found (nvidia-smi is not installed)'
         return 0
     fi
     if ! query="$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>&1)"; then
-        reason="$(printf '%s\n' "${query}" | head -n 1)"
-        Select_Cpu_Backend "nvidia-smi is installed but failed (${reason:-no output}), so no GPU is usable"
+        No_Usable_Gpu "nvidia-smi is installed but failed ($(printf '%s\n' "${query}" | head -n 1)), so no GPU is usable"
         return 0
     fi
     first="$(printf '%s\n' "${query}" | head -n 1)"
     case "${first}" in
         *,*) ;;
-        *) Select_Cpu_Backend "nvidia-smi reported no GPU (${first:-empty output})"
+        *) No_Usable_Gpu "nvidia-smi reported no GPU (${first:-empty output})"
            return 0 ;;
     esac
     name="${first%,*}"
@@ -547,18 +634,40 @@ Detect_Nvidia() {
         Log INFO "Detected NVIDIA driver ${driver} (CUDA ${cuda:-version not reported}) on ${name}."
     fi
     if ! Version_Ge "${driver}" "${CONST_MLX_CUDA12_MIN_DRIVER}"; then
-        Select_Cpu_Backend "NVIDIA driver ${driver} is older than ${CONST_MLX_CUDA12_MIN_DRIVER}, the minimum for MLX's CUDA backend (updating the driver enables the GPU path)"
+        No_Usable_Gpu "NVIDIA driver ${driver} is older than ${CONST_MLX_CUDA12_MIN_DRIVER}, the minimum for MLX's CUDA backend (updating the driver enables the GPU path)"
         return 0
     fi
     cap="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n 1 | tr -d ' ' || true)"
     case "${cap}" in
         [0-9]*.[0-9]*) ;;
-        *) Select_Cpu_Backend "nvidia-smi did not report the GPU's compute capability (${cap:-no output})"
+        *) No_Usable_Gpu "nvidia-smi did not report the GPU's compute capability (${cap:-no output})"
            return 0 ;;
     esac
     if ! Version_Ge "${cap}" "${CONST_MLX_CUDA_MIN_COMPUTE_CAP}"; then
-        Select_Cpu_Backend "${name} has compute capability ${cap}; MLX's CUDA backend needs ${CONST_MLX_CUDA_MIN_COMPUTE_CAP} or newer (Turing and later)"
+        No_Usable_Gpu "${name} has compute capability ${cap}; MLX's CUDA backend needs ${CONST_MLX_CUDA_MIN_COMPUTE_CAP} or newer (Turing and later)"
         return 0
+    fi
+    # The card's memory: what decides whether the model fits, which the driver version cannot say.
+    memory="$(nvidia-smi --query-gpu=memory.total,memory.used --format=csv,noheader,nounits 2>/dev/null | head -n 1 | tr -d ' ' || true)"
+    total="${memory%%,*}"
+    used="${memory##*,}"
+    case "${total}:${used}" in
+        [0-9]*:[0-9]*) ;;
+        *) No_Usable_Gpu "nvidia-smi did not report ${name}'s memory (${memory:-no output})"
+           return 0 ;;
+    esac
+    GPU_MEMORY_MIB="${total}"
+    Log INFO "${name} has $(Mib_To_Gb "${total}") GB of memory (${total} MiB), $(Mib_To_Gb "${used}") GB of it in use now; compute capability ${cap}."
+    if [ "${total}" -lt "${CONST_MIN_VRAM_MIB}" ]; then
+        No_Usable_Gpu "${name} has $(Mib_To_Gb "${total}") GB of memory; the describer (Gemma 4 E4B) and FastSAM together are estimated at ~8.5 GB, so ${CONST_MIN_VRAM_MIB} MiB ($(( CONST_MIN_VRAM_MIB / 1024 )) GB) is the minimum"
+        return 0
+    fi
+    if [ "${MODEL_CHOICE}" = '12b' ] && [ "${total}" -lt "${CONST_MIN_VRAM_12B_MIB}" ]; then
+        Die "${name} has $(Mib_To_Gb "${total}") GB of memory; Gemma 4 12B (--model 12b) is estimated at ~10.5 GB with FastSAM, so it needs ${CONST_MIN_VRAM_12B_MIB} MiB ($(( CONST_MIN_VRAM_12B_MIB / 1024 )) GB) or more." \
+            'Re-run without --model 12b to install Gemma 4 E4B, the default, which fits this card.'
+    fi
+    if [ "${used}" -gt "${CONST_BUSY_VRAM_MIB}" ]; then
+        Log WARNING "${name} already has $(Mib_To_Gb "${used}") GB in use (a display or another process); the application's estimated peak comes on top of that, so free what you can before running it."
     fi
     if Version_Ge "${driver}" "${CONST_MLX_CUDA13_MIN_DRIVER}"; then
         MLX_BACKEND='cuda13'
@@ -568,6 +677,9 @@ Detect_Nvidia() {
         MLX_BACKEND='cuda12'
         TORCH_INDEX='cu126'
         Log INFO "Selected MLX with the CUDA 12 backend (mlx[cuda12]) and the PyTorch cu126 build: driver ${driver} is below ${CONST_MLX_CUDA13_MIN_DRIVER} (needed for CUDA 13), compute capability ${cap}."
+    fi
+    if [ "${CPU_OPT_IN}" = '1' ]; then
+        Log WARNING '--cpu was given but has no effect here: a usable GPU was found, so the GPU builds are installed. --cpu only allows the CPU path when no usable GPU is found.'
     fi
 }
 
@@ -586,6 +698,50 @@ Check_Python_Architecture() {
     fi
 }
 
+Selected_Model() {
+    # Description:
+    #   The describer model --model chose: sets MODEL_NAME, MODEL_REPO, MODEL_REVISION,
+    #   MODEL_REL and MODEL_FILES from the constants. Read at the point of use, so a test can
+    #   override a constant first.
+
+    if [ "${MODEL_CHOICE}" = '12b' ]; then
+        MODEL_NAME='Gemma 4 12B'
+        MODEL_REPO="${CONST_GEMMA12_REPO}"
+        MODEL_REVISION="${CONST_GEMMA12_REVISION}"
+        MODEL_REL="${CONST_GEMMA12_REL}"
+        MODEL_FILES="${CONST_GEMMA12_FILES}"
+    else
+        MODEL_NAME='Gemma 4 E4B'
+        MODEL_REPO="${CONST_GEMMA_REPO}"
+        MODEL_REVISION="${CONST_GEMMA_REVISION}"
+        MODEL_REL="${CONST_GEMMA_REL}"
+        MODEL_FILES="${CONST_GEMMA_FILES}"
+    fi
+}
+
+Manifest_Bytes() {
+    # Description:
+    #   The total size of a manifest's files.
+    #
+    # Args:
+    #   (1) manifest [string]: 'name size kind hash' lines.
+    #
+    # Returns:
+    #   (1) parameter [int]: The byte count, on stdout.
+
+    printf '%s\n' "$1" | awk 'NF == 4 { total += $2 } END { printf "%d", total }'
+}
+
+Report_Model_Notice() {
+    # Description:
+    #   --model 12b: say what the flag chooses, at the point it is chosen, not only in the
+    #   README - the provenance gap and the measured comparison with E4B.
+
+    [ "${MODEL_CHOICE}" = '12b' ] || return 0
+    Log WARNING "--model 12b installs ${CONST_GEMMA12_REPO}. Its provenance is weaker than E4B's: the model card names no base model, revision or licence. Its tokenizer is byte-identical to google/gemma-4-12B-it's and its configuration matches, which is plausible, not proven. E4B's card names its source, google/gemma-4-E4B-it at revision fee6332."
+    Log WARNING 'Measured against E4B on the seven test frames (Apple silicon, the same prompts): 5.46 s per object against 2.20 s (2.5x), 10.45 GB peak against 9.35 GB. It named the rust on Image_002 and one hex nut E4B misses, but read three of the four plastic parts in Image_001 as metal, the property the prompts were tuned for. The prompts were written for E4B (docs/design-decisions.md).'
+}
+
 Report_Plan() {
     # Description:
     #   Say what is about to be installed and downloaded, before any of it happens.
@@ -601,7 +757,9 @@ Report_Plan() {
         torch_line='torch + torchvision from PyPI'
     fi
     Log INFO "Plan: virtual environment .venv (Python ${PYTHON_VERSION}); ${mlx_line}; ${torch_line}; the rest of requirements.txt."
-    Log INFO "Plan: FastSAM-x -> ${CONST_FASTSAM_REL} ($(Format_Size "${CONST_FASTSAM_SIZE}")); ${CONST_GEMMA_REPO}@${CONST_GEMMA_REVISION:0:7} -> ${CONST_GEMMA_REL} (5.2 GB). Each is skipped if already present and verified."
+    Selected_Model
+    Log INFO "Plan: FastSAM-x -> ${CONST_FASTSAM_REL} ($(Format_Size "${CONST_FASTSAM_SIZE}")); ${MODEL_NAME}, ${MODEL_REPO}@${MODEL_REVISION:0:7} -> ${MODEL_REL} ($(Format_Size "$(Manifest_Bytes "${MODEL_FILES}")")). Each is skipped if already present and verified."
+    Report_Model_Notice
 }
 
 # ---- 3: virtual environment ------------------------------------------------
@@ -828,10 +986,12 @@ Ensure_Gemma() {
     #   CLI (--force-download, so a corrupt local file is not kept by hf's own cache check),
     #   then verify them again. Reports the elapsed time, since hashing 5.1 GB takes a while.
 
-    local directory="${CONST_ROOT}/${CONST_GEMMA_REL}" name size kind hash status
+    local directory name size kind hash status
     local failing='' failing_bytes=0 start total_start
     local -a failing_files
-    Log INFO "Checking Gemma at ${CONST_GEMMA_REL} against ${CONST_GEMMA_REPO}@${CONST_GEMMA_REVISION:0:7} ($(printf '%s\n' "${CONST_GEMMA_FILES}" | grep -c .) files)."
+    Selected_Model
+    directory="${CONST_ROOT}/${MODEL_REL}"
+    Log INFO "Checking ${MODEL_NAME} at ${MODEL_REL} against ${MODEL_REPO}@${MODEL_REVISION:0:7} ($(printf '%s\n' "${MODEL_FILES}" | grep -c .) files)."
     total_start="${SECONDS}"
     while read -r name size kind hash; do
         [ -n "${name}" ] || continue
@@ -844,14 +1004,17 @@ Ensure_Gemma() {
             failing="${failing} ${name}"
             failing_bytes=$(( failing_bytes + size ))
         fi
-    done <<< "${CONST_GEMMA_FILES}"
+    done <<< "${MODEL_FILES}"
     if [ -z "${failing}" ]; then
-        Log INFO "Gemma is already present and every file matches the published hashes (checked in $(( SECONDS - total_start )) s); not downloading."
+        Log INFO "${MODEL_NAME} is already present and every file matches the published hashes (checked in $(( SECONDS - total_start )) s); not downloading."
         return 0
     fi
 
     read -r -a failing_files <<< "${failing}"
-    Log INFO "Downloading ${#failing_files[@]} Gemma file(s) ($(Format_Size "${failing_bytes}")):${failing}."
+    # The --model 12b notice again, immediately before the download: in the plan it scrolls away
+    # behind minutes of dependency installs, and this is the point of no return for 6.8 GB.
+    Report_Model_Notice
+    Log INFO "Downloading ${#failing_files[@]} ${MODEL_NAME} file(s) ($(Format_Size "${failing_bytes}")):${failing}."
     [ -x "${CONST_VENV_DIR}/bin/hf" ] || \
         Die 'The Hugging Face CLI (hf) is missing from .venv; it comes from huggingface_hub in requirements.txt.' 'Re-run ./install.sh so the requirements install completes.'
     mkdir -p "${directory}"
@@ -859,14 +1022,14 @@ Ensure_Gemma() {
     start="${SECONDS}"
     status=0
     if [ -t 1 ]; then
-        "${CONST_VENV_DIR}/bin/hf" download "${CONST_GEMMA_REPO}" "${failing_files[@]}" \
-            --revision "${CONST_GEMMA_REVISION}" --local-dir "${directory}" --force-download >/dev/null || status=$?
+        "${CONST_VENV_DIR}/bin/hf" download "${MODEL_REPO}" "${failing_files[@]}" \
+            --revision "${MODEL_REVISION}" --local-dir "${directory}" --force-download >/dev/null || status=$?
     else
-        HF_HUB_DISABLE_PROGRESS_BARS=1 "${CONST_VENV_DIR}/bin/hf" download "${CONST_GEMMA_REPO}" "${failing_files[@]}" \
-            --revision "${CONST_GEMMA_REVISION}" --local-dir "${directory}" --force-download >/dev/null || status=$?
+        HF_HUB_DISABLE_PROGRESS_BARS=1 "${CONST_VENV_DIR}/bin/hf" download "${MODEL_REPO}" "${failing_files[@]}" \
+            --revision "${MODEL_REVISION}" --local-dir "${directory}" --force-download >/dev/null || status=$?
     fi
     if [ "${status}" -ne 0 ]; then
-        Die "Downloading Gemma from ${CONST_GEMMA_REPO} failed (hf's message is above)." \
+        Die "Downloading Gemma from ${MODEL_REPO} failed (hf's message is above)." \
             'Check the network connection and re-run ./install.sh; files already verified are kept.'
     fi
     Log INFO "Downloaded in $(( SECONDS - start )) s; verifying."
@@ -876,10 +1039,10 @@ Ensure_Gemma() {
         Verify_File "${directory}/${name}" "${size}" "${kind}" "${hash}" || status=$?
         if [ "${status}" -ne 0 ]; then
             Die "After downloading, Gemma file ${name} is $(Describe_Verify_Status "${status}")." \
-                "Re-run ./install.sh. If it fails again, the revision no longer serves the published file: compare ${CONST_GEMMA_REPO}@${CONST_GEMMA_REVISION} with CONST_GEMMA_FILES in install.sh."
+                "Re-run ./install.sh. If it fails again, the revision no longer serves the published file: compare ${MODEL_REPO}@${MODEL_REVISION} with MODEL_FILES in install.sh."
         fi
-    done <<< "${CONST_GEMMA_FILES}"
-    Log INFO "Gemma downloaded and every file verified ($(( SECONDS - total_start )) s in total)."
+    done <<< "${MODEL_FILES}"
+    Log INFO "${MODEL_NAME} downloaded and every file verified ($(( SECONDS - total_start )) s in total)."
 }
 
 # ---- 6: configurations -----------------------------------------------------
@@ -892,7 +1055,8 @@ Check_Configurations() {
     #   every platform, so a mismatch means an edited configuration, not a platform difference.
 
     local file field value verdict expected report
-    report="$("${CONST_VENV_DIR}/bin/python" - "${CONST_ROOT}" "${CONST_FASTSAM_REL}" "${CONST_GEMMA_REL}" 2>&1 <<'PY'
+    Selected_Model
+    report="$("${CONST_VENV_DIR}/bin/python" - "${CONST_ROOT}" "${CONST_FASTSAM_REL}" "${MODEL_REL}" 2>&1 <<'PY'
 import glob, os, sys
 import yaml
 root, fastsam, gemma = sys.argv[1:4]
@@ -903,7 +1067,8 @@ for path in sorted(glob.glob(os.path.join(root, 'Configuration', 'Config_*.yaml'
         value = (data.get(section) or {}).get('Model')
         resolved = value if value is None or os.path.isabs(str(value)) else os.path.join(root, str(value))
         same = value is not None and os.path.realpath(resolved) == os.path.realpath(os.path.join(root, expected))
-        print('\t'.join([os.path.basename(path), section + '.Model', str(value), 'ok' if same else 'differs']))
+        verdict = 'ok' if same else ('elsewhere' if value is not None and os.path.exists(resolved) else 'missing')
+        print('\t'.join([os.path.basename(path), section + '.Model', str(value), verdict]))
 PY
 )" || Die 'Reading the configurations in Configuration/ failed:' "$(printf '%s\n' "${report}" | tail -n 1)" \
           'Fix the YAML file it names (the application would fail to load it too), then re-run ./install.sh.'
@@ -918,9 +1083,16 @@ PY
         else
             case "${field}" in
                 Segmentation.Model) expected="${CONST_FASTSAM_REL}" ;;
-                *)                  expected="${CONST_GEMMA_REL}" ;;
+                *)                  expected="${MODEL_REL}" ;;
             esac
-            Log WARNING "Configuration ${file}: ${field} is '${value}', but this installer put that model at ${expected}. Change ${field} to ${expected}, or the application will fail when it loads the model."
+            if [ "${verdict}" = 'elsewhere' ]; then
+                # Another model that is on disk (e.g. E4B while --model 12b installed the 12B): the
+                # configuration still loads, just not the model this run installed. The installer never
+                # edits a configuration; it names the field.
+                Log WARNING "Configuration ${file}: ${field} is '${value}', not the model this run installed. To use ${MODEL_NAME}, set ${field} to ${expected} in Configuration/${file} (the installer does not edit configurations)."
+            else
+                Log WARNING "Configuration ${file}: ${field} is '${value}', but this installer put that model at ${expected}. Change ${field} to ${expected}, or the application will fail when it loads the model."
+            fi
         fi
     done <<< "${report}"
 }
@@ -937,6 +1109,19 @@ Parse_Arguments() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --detect-only) DETECT_ONLY='1' ;;
+            --cpu) CPU_OPT_IN='1' ;;
+            --model|--model=*)
+                if [ "$1" = '--model' ]; then
+                    [ "$#" -ge 2 ] || Die '--model needs a value: e4b or 12b.' 'Run ./install.sh --help for the options.'
+                    MODEL_CHOICE="$2"
+                    shift
+                else
+                    MODEL_CHOICE="${1#--model=}"
+                fi
+                case "${MODEL_CHOICE}" in
+                    e4b|12b) ;;
+                    *) Die "Unknown model '${MODEL_CHOICE}' for --model; the choices are e4b (the default) and 12b." 'Run ./install.sh --help for the options.' ;;
+                esac ;;
             -h|--help)
                 awk 'NR > 24 && /^#/ { sub(/^# ?/, ""); print; next } NR > 24 { exit }' "${BASH_SOURCE[0]}"
                 exit 0 ;;
@@ -944,6 +1129,18 @@ Parse_Arguments() {
         esac
         shift
     done
+}
+
+Report_Unused_Cpu_Flag() {
+    # Description:
+    #   The last word on a --cpu that did not take effect (a usable GPU was found): someone who
+    #   passed it on purpose - testing, or working around a driver problem - must not leave the
+    #   install believing the CPU builds are in place. Said at detection too; repeated at the end
+    #   because a long run scrolls that away.
+
+    if [ "${CPU_OPT_IN}" = '1' ] && [ "${PLATFORM_OS}" = 'linux' ] && [ "${MLX_BACKEND}" != 'cpu' ]; then
+        Log WARNING "--cpu had no effect: the ${MLX_BACKEND} GPU builds were installed."
+    fi
 }
 
 Main() {
@@ -978,6 +1175,7 @@ Main() {
     Check_Configurations
 
     Log INFO "Setup complete in $(( SECONDS - start )) s: ${PLATFORM_SUMMARY}."
+    Report_Unused_Cpu_Flag
     if [ "${PLATFORM_OS}" = 'linux' ]; then
         Log INFO 'Linux is installable but unmeasured: speed, memory and word-for-word output have not been verified there (README > Platform).'
     fi

@@ -28,7 +28,7 @@ Every line in the application's log format (`src/Logger/Core.py`), through one `
 
 ```
 2026-09-24 13:05:07 [INFO   ] Detected macOS 26.6.2 on Apple silicon (Apple M2 Pro).
-2026-09-24 13:05:09 [WARNING] No NVIDIA driver found (nvidia-smi is not installed); installing ...
+2026-09-25 08:25:14 [WARNING] NVIDIA GeForce RTX 5070 Ti already has 3.0 GB in use (a display or ...
 ```
 
 The level is padded to `CONST_LEVEL_WIDTH` (7, the logger's own constant) and chosen by the call

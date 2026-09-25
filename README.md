@@ -17,12 +17,19 @@ in text.
 **Platform: macOS on Apple silicon** is the supported, measured platform; Linux is a
 target, not yet measured (see [Platform](#platform)). The installer does
 the whole setup below — the virtual environment, the dependencies matched to the hardware
-(Metal on Apple silicon; CUDA 12, CUDA 13 or CPU on Linux, chosen from the NVIDIA driver), and
-both models, each verified by checksum and skipped when already present. It is safe to re-run:
+(Metal on Apple silicon; on Linux, MLX's CUDA 12 or CUDA 13 backend chosen from the NVIDIA
+driver, on a card whose memory it reads), and both models, each verified by checksum and
+skipped when already present. It is safe to re-run:
 
 ```bash
 ./install.sh                 # or ./install.sh --detect-only to see what it would do
 ```
+
+On Linux it stops, naming the card and its memory, when GPU 0 has less than 11 GB or there
+is no usable NVIDIA GPU; `--cpu` installs the CPU builds instead (unmeasured, expected to be
+far slower). `--model 12b` installs Gemma 4 12B in place of E4B. It prints what that choice
+means and the configuration field to set; it never edits a configuration. See
+[Platform](#platform) for the model matrix.
 
 **Two installer paths have never run for real, and a fresh install is their first test.**
 The installer has been run only on an Apple-silicon Mac that already had both models. There,
@@ -415,8 +422,16 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
 | Platform | Status | What is known |
 |---|---|---|
 | **macOS, Apple silicon** | **Supported, measured** | MLX on the Apple GPU (Metal). 2.22 s per object (warm), 9.41 GB peak for the whole application, and output identical word for word across runs, processes and memory pressure. |
-| **Linux** | **Supported target, unmeasured** | MLX runs there on a different backend (CUDA or CPU), and nothing has been run on it. Speed, memory and whether the text comes out identical are all unknown. |
+| **Linux** | **Supported target, never run** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer reads GPU 0's memory and refuses below it; `--cpu` opts into the CPU backend). **Nothing has run on Linux:** not the application, not the installer, not either model. Speed, memory and whether the text comes out identical are all unknown; the ~8.5 GB (E4B) and ~10.5 GB (12B) GPU figures are estimates. The prompts were tuned for E4B on MLX; a different model reads them differently (measured for the 12B, below). |
 | **Windows** | **Not a target, untested** | Nothing known prevents it — `mlx` publishes Windows wheels — but it is not supported and has never been tried. |
+
+**The describer models.** Both are 4-bit MLX conversions, so the same describer loads either
+on every backend. Only the configuration's `Description.Model` chooses between them.
+
+| Model | Repository @ revision | Download | Provenance | Status |
+|---|---|---|---|---|
+| **Gemma 4 E4B** (default) | `mlx-community/gemma-4-e4b-it-4bit` @ `475b908` | 5.2 GB | **Named:** its card gives its source, `google/gemma-4-E4B-it` at revision `fee6332`, where the licence was checked | The measured describer: 2.20 s per object, 9.35 GB pipeline peak on Apple silicon. The prompts were tuned on it. Installed on every platform unless `--model 12b`. |
+| Gemma 4 12B (`--model 12b`) | `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09` | 6.8 GB | **Weaker, plausible not proven:** the card names no base model, revision or licence. Its `tokenizer.json` is byte-identical to `google/gemma-4-12B-it`'s and its text configuration matches field for field. | Measured on Apple silicon against E4B: 5.46 s per object (2.5×), 10.45 GB peak. It names rust and one hex nut E4B misses, but reads three of `Image_001`'s four plastic parts as metal. **Not recommended.** On Linux it needs a card with at least 15 GB. |
 
 - **Determinism does not travel.** Greedy decoding (`temperature=0`) makes the *sampler*
   deterministic, but a different backend can still produce different text through
@@ -430,14 +445,18 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
   `linux-cpu.txt` (far slower) — installed together with `requirements.txt`, which holds the
   version pin. PyTorch's CUDA build cannot be chosen by a requirements marker, so it comes
   from the matching PyTorch index (`cu126`, `cu130` or `cpu`). `./install.sh` makes both
-  choices from the NVIDIA driver it finds. This makes Linux *possible*, not *verified*: no
+  choices from the NVIDIA driver it finds, after checking GPU 0's memory (11 GB minimum; 15 GB
+  for `--model 12b`), and it warns when the card already has more than 1.5 GB in use. With
+  no usable GPU it stops, naming the reason, unless `--cpu` is given. This makes Linux
+  *possible*, not *verified*: no
   Linux machine has run it yet, and that includes the installer. Its Linux branches — driver
   detection, the choice of backend and PyTorch build, and the installs themselves — are
   tested with stubbed commands only, so a working `install.sh` on macOS is no evidence
   that Linux was tested. The first Linux install is the first real run of those branches;
   please report the installer's output either way. Without MLX the describer stops with a message saying so.
-- **Making Linux measured** means running the seven `Data/Images/Test` frames there and
-  recording what was recorded for Apple silicon: time per object, peak memory, and
+- **Making Linux measured** means running the seven `Data/Images/Test` frames there, with E4B so
+  that the backend is the only thing that differs from the Mac, and recording what was recorded
+  for Apple silicon: time per object, peak memory, and
   word-for-word stability — then re-verifying every exact-text pin.
 - **Packaging:** the PyInstaller recipe this section used to give was for Windows and no
   longer applies. No packaging recipe has been verified on any platform; run from source

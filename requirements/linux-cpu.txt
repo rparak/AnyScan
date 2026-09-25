@@ -1,4 +1,5 @@
 # The MLX compute backend for Linux, cpu: no usable NVIDIA GPU; PyTorch from the cpu index. Slow.
-# Selected by install.sh; install together with requirements.txt, which pins the version:
+# Selected by install.sh only when asked (./install.sh --cpu); without the flag it stops instead.
+# Install together with requirements.txt, which pins the version:
 #     pip install -r requirements.txt -r requirements/linux-cpu.txt
 mlx[cpu] ; sys_platform == "linux"

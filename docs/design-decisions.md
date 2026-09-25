@@ -1470,3 +1470,52 @@ only as `./install.sh --model 12b`, which prints the provenance gap and these re
 flag is given.
 **Revisit if** a 12B-specific prompt fixes the plastics without losing the rust and the clean
 plate. Then it is an argument for the 12B on macOS too, at 2.5× the time per object.
+
+## Linux: MLX's CUDA backend, E4B on every card with ≥ 11 GB, refusal instead of a silent CPU fallback
+
+A request to move Linux to PyTorch with a separate 12B build was checked against the repository
+first. Linux already runs on **MLX's CUDA backend** (see *Platform: three states*), and the 12B
+exists as a 4-bit MLX conversion the pinned `mlx-vlm` loads. So both platforms share one
+describer and one weight format, and nothing new is written.
+
+The PyTorch alternative would have needed:
+- a second describer behind `Describe(crop, purpose)`;
+- a way for the configuration to select it;
+- and, for the best 16 GB fit, a 23.9 GB download (`google/gemma-4-12B-it-qat-q4_0-unquantized`,
+  quantised to NF4 at load).
+
+Google's own 4-bit `…-qat-w4a16-ct` looks smaller, but its safetensors header shows a 6.13 GB
+4-bit decoder plus bf16 token embeddings and a *separate* bf16 `lm_head`, 2 GB each: 10.26 GB of
+weights, built for vLLM. A file-size estimate would have missed that.
+
+- **E4B on every Linux card, the 12B only on request.** The first Linux run should change one
+  variable, Metal to CUDA, with the model measured on the Mac. The 12B would add a second
+  variable, with a known regression (*Gemma 4 12B was measured against E4B*).
+- **The card is read, not just the driver.** `nvidia-smi --query-gpu=memory.total,memory.used`
+  on GPU 0, the device MLX and PyTorch use:
+  - **the minimum is 11 GiB** (11,264 MiB): E4B plus FastSAM is estimated at ~8.5 GB, and 12 GB
+    cards report ~12,280 MiB;
+  - **`--model 12b` needs 15 GiB**: it is estimated at ~10.5 GB (6.77 GB of weights, ~0.25 GB of
+    KV cache at the ≤ 280 image tokens every crop is resized to, plus the generation working
+    set, two CUDA contexts and FastSAM), and 16 GB cards report ~16,300 MiB;
+  - **a card already using more than 1.5 GB** (a display, another process) gets a warning.
+
+  These are estimates: nothing has run on Linux.
+- **No silent CPU fallback.** A machine without a usable NVIDIA GPU (no driver, a failing
+  `nvidia-smi`, an old driver, compute capability below 7.5, too little memory) now stops. The
+  message names the reason and the 11 GB minimum, and suggests `--cpu`. A silent fallback
+  installs successfully and then leaves the operator with inference too slow to use, not knowing
+  why. `--cpu` takes the CPU path with that warning; with a usable GPU it is not needed, and the
+  GPU builds are installed.
+- **The installer never edits a configuration.** After `--model 12b` a configuration still naming
+  E4B keeps loading. The installer names the file, the field (`Description.Model`) and the value
+  that would use the 12B.
+- **Both manifests are pinned and verified.** Each file's published size and hash (LFS SHA-256,
+  or git blob SHA-1) at the pinned revision. The 12B manifest was checked against the 12B
+  downloaded for the measurement.
+
+**Revisit when** a Linux machine runs it: replace the estimates with measured peaks, re-derive
+the thresholds from them, and re-verify every exact-text pin on the CUDA backend.
+Tests `test/Install/test_install.py` (the refusal and `--cpu` for every no-GPU case, the memory
+floors, the busy-card warning, `--model` parsing, the 12B notice, its download directory, and the
+configuration message).
