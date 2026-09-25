@@ -29,7 +29,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QTextDocument
 from PyQt5.QtWidgets import QApplication, QLabel
 # Custom Lib.: AnyScan UI — the window; domain — the camera, the result, the formatter
 #   ../UI/Core
@@ -103,13 +103,23 @@ def _Label_Line_Widgets(block):
     return name, confidence, description
 
 
+def _Shown(label: QLabel) -> str:
+    """The text a label SHOWS: a rich-text label is rendered through Qt's HTML rules first (which
+    collapse a plain leading space), so the comparison is with the screen, not the source string."""
+    if label.textFormat() != Qt.RichText:
+        return label.text()
+    document = QTextDocument()
+    document.setHtml(label.text())
+    return document.toPlainText().replace('\xa0', ' ')
+
+
 def _Line_Texts(window) -> list:
-    """The (name, confidence, description) text triple of each object block, in order."""
+    """The (name, confidence, description) text triple each object block shows, in order."""
     layout = _Private(window, '__object_list').box
     triples = []
     for i in range(layout.count()):
         name, confidence, description = _Label_Line_Widgets(layout.itemAt(i).widget())
-        triples.append((name.text(), confidence.text(), description.text()))
+        triples.append((_Shown(name), _Shown(confidence), _Shown(description)))
     return triples
 
 

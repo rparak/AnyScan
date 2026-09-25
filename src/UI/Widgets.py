@@ -974,7 +974,9 @@ class Object_List_Cls(QWidget):
             number = '%d%%' % int(round(100.0 * det.Segmenter_Score))
             suffix = suffix.replace(number, Style.Confidence_Number_Html(number, int(number[:-1]),
                                                                             self.__thresholds))
-        confidence = QLabel(CONST_LABEL_SEPARATOR + suffix)
+        # Rich text collapses the separator's leading space (HTML whitespace rules), which ran the
+        # name and the '·' together; non-breaking spaces keep the file's spelling on screen.
+        confidence = QLabel(CONST_LABEL_SEPARATOR.replace(' ', '&nbsp;') + suffix)
         confidence.setTextFormat(Qt.RichText)
         # Smaller than the name and a lighter weight — secondary metadata, not a continuation
         # of the heading.
