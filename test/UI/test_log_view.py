@@ -114,8 +114,31 @@ def test_renders_the_four_fields_in_columns(qt_app) -> None:
     assert CONST_LOG_INFO in lvl0.styleSheet() and CONST_LOG_INFO in msg0.styleSheet()
     assert CONST_LOG_ERROR in lvl1.styleSheet() and CONST_LOG_ERROR in msg1.styleSheet()
 
-    # Fixed, equal column widths -> the message starts at a consistent x.
-    assert ts0.width() == ts1.width() and lvl0.width() == lvl1.width()
+
+
+def test_fixed_columns_start_every_message_at_the_same_x(qt_app) -> None:
+    """
+    Description:
+        The timestamp and level columns are fixed-width, so on the laid-out view every message
+        starts at the same x — whatever the level's length (INFO, WARNING, ERROR) and whether the
+        timestamp carries a date. Measured on the shown view: an unshown label keeps a default
+        width, which would make any width comparison pass.
+    """
+
+    view = Log_View_Cls()
+    view.resize(900, 300)
+    view.show()
+    view.Append_Line(_Line('08:00:01', CONST_LEVEL_INFO, 'Application started.'))
+    view.Append_Line(_Line('08:00:02', CONST_LEVEL_WARNING, 'Careful.'))
+    view.Append_Line(_Line('08:00:03', CONST_LEVEL_ERROR, 'Backend timed out.'))
+    view.Append_Record(Log_Line_Str(Date='', Time='08:00:04', Level=CONST_LEVEL_INFO, Message='No date.',
+                                    Parsed=True))
+    for _ in range(4):
+        qt_app.processEvents()
+
+    starts = {message.mapTo(view, message.rect().topLeft()).x() for _ts, _lvl, message in _Row_Labels(view)}
+    assert len(starts) == 1, starts
+    view.close()
 
 
 def test_append_record_renders_fields_without_parsing(qt_app) -> None:

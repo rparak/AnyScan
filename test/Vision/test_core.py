@@ -91,17 +91,16 @@ def test_module_is_qt_free() -> None:
 
 
 @pytest.mark.slow
-def test_analyze_end_to_end(reference_background, make_synthetic_frame) -> None:
+def test_analyze_end_to_end(require_weights, reference_background, make_synthetic_frame) -> None:
     """
     Description:
         The full pipeline on a synthetic frame (the reference with two rectangles
         drawn on it): Analyze takes an RGB array and returns a populated
-        Analysis_Str. Needs the default describer's weights; skipped otherwise.
+        Analysis_Str. Needs both models' weights (require_weights).
     """
 
-    model_dir = Load_Configuration(CONST_DEFAULT_CONFIG_FILE).Description.Model_Path
-    if not os.path.isdir(model_dir):
-        pytest.skip(f'model weights not present at {model_dir}')
+    config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
+    require_weights([config.Segmentation.Model_Path, config.Description.Model_Path])
 
     import cv2
 
@@ -149,6 +148,10 @@ class _Fake_Segmenter_Cls(object):
             self.events.append(('release segmenter', self.params.Model_Path))
         self.model = None
 
+    def Segment(self, image, stage_cb=None):
+        # No FastSAM masks: the objects come from the background cue alone.
+        return [], []
+
 
 class _Fake_Describer_Cls(object):
     """A stand-in Gemma: records Load / Release, fails to load when its weights path says so."""
@@ -181,6 +184,9 @@ class _Fake_Describer_Cls(object):
         if self.model is not None:
             self.events.append(('release describer', self.params.Model_Path))
         self.model = None
+
+    def Describe(self, image, purpose) -> str:
+        return 'A machined part on a plain surface.'
 
 
 from Vision.Segmenter import Segmenter_Error_Cls as Vision_Segmenter_Error      # noqa: E402
@@ -228,13 +234,49 @@ def test_configure_keeps_a_model_whose_identity_is_unchanged(fake_models) -> Non
         no reload, no ~9 s — and the new parameters are in force.
     """
 
+    import dataclasses
     events, config, _Variant = fake_models
     vision = Vision_Pipeline_Cls(Configuration_Str=config)
     vision.Load_Models()
+    segmenter = getattr(vision, '_Vision_Pipeline_Cls__segmenter')
+    describer = getattr(vision, '_Vision_Pipeline_Cls__describer')
     events.clear()
-    vision.Configure(_Variant('Config_x_Mode_B.yaml', Prompt_Object='Name the part.'))
-    assert events == []
+    variant = _Variant('Config_x_Mode_B.yaml', Prompt_Object='Name the part.')
+    variant = dataclasses.replace(variant, Segmentation=dataclasses.replace(variant.Segmentation, Confidence=0.25))
+    vision.Configure(variant)
+
+    assert events == []                                              # nothing released, nothing loaded
     assert vision.Models_Loaded
+    # The same two models are in use, and each now runs with the new configuration's parameters.
+    assert getattr(vision, '_Vision_Pipeline_Cls__segmenter') is segmenter
+    assert getattr(vision, '_Vision_Pipeline_Cls__describer') is describer
+    assert segmenter.params.Confidence == 0.25
+    assert describer.params.Prompt_Object == 'Name the part.'
+
+
+@pytest.mark.parametrize('describer', ['gemma', 'fallback'])
+def test_the_task_a_reading_carries(fake_models, monkeypatch, reference_background, make_synthetic_frame,
+                                    describer) -> None:
+    """
+    Description:
+        The Task row and each capture set's 'task' record what produced the reading, through a real
+        Analyze (stand-in models, the real stages around them): a model reading carries the
+        configuration's Identity.Task ('part inspection' as shipped), the model-free fallback its
+        own label.
+    """
+
+    import cv2
+    import dataclasses
+    _events, config, _Variant = fake_models
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', describer)
+    frame = cv2.cvtColor(make_synthetic_frame(reference_background, [(300, 300, 560, 560)]), cv2.COLOR_BGR2RGB)
+
+    result = Vision_Pipeline_Cls(Configuration_Str=dataclasses.replace(config, Scale=None)).Analyze(frame)
+
+    assert len(result.Objects) == 1
+    expected = {'gemma': 'part inspection', 'fallback': Vision_Core.CONST_FALLBACK_TASK_LABEL}[describer]
+    assert config.Identity.Task == 'part inspection'
+    assert result.Task == expected
 
 
 def test_configure_releases_a_changed_model_before_loading_its_replacement(fake_models) -> None:

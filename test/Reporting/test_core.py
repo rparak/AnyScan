@@ -251,9 +251,15 @@ def test_screen_understanding_is_built_from_the_shared_pieces() -> None:
     bg = 'The background is a plain green table.'
     objects = [_Line('A washer.'), _Line('A bolt.')]
 
+    # The exact text, not a re-assembly of the same helpers: a drift in any shared piece shows here.
     assert Reporting.Screen_Understanding(objects, bg) == (
-        Reporting.Screen_Header(objects, bg) + '\n\n'
-        + '\n'.join(Reporting.Object_Line(i, det) for i, det in enumerate(objects)))
+        'The background is a plain green table. There are 2 objects on it, described below.\n'
+        '\n'
+        'Object 1 · Confidence — - A washer.\n'
+        'Object 2 · Confidence — - A bolt.')
+    # And it IS the shared pieces: the header, a blank line, one Object_Line per object.
+    assert Reporting.Screen_Understanding(objects, bg).split('\n') == (
+        [Reporting.Screen_Header(objects, bg), ''] + [Reporting.Object_Line(i, det) for i, det in enumerate(objects)])
     # The zero case is the header alone (no lines), and it names no object count as '0'.
     assert Reporting.Screen_Understanding([], bg) == Reporting.Screen_Header([], bg)
     assert Reporting.Object_Line(0, _Line('A washer.')) == 'Object 1 · Confidence — - A washer.'

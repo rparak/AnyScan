@@ -226,16 +226,14 @@ def test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour() -> 
     assert tuple(int(c) for c in annotated[185, 285]) == (70, 150, 70)
 
 
-def test_module_is_qt_free() -> None:
+def test_module_is_qt_free(top_level_imports) -> None:
     """
     Description:
         The renderer imports no Qt and no OpenCV/NumPy of its own — cv2/np are
         injected, so it renders in the Qt-free vision layer.
     """
 
-    source = open(Annotate.__file__).read()
-    assert 'PyQt' not in source
-    assert 'import cv2' not in source and 'import numpy' not in source
+    assert not top_level_imports(Annotate.__file__) & {'PyQt5', 'cv2', 'numpy'}
 
 
 def __Coords(line: str) -> tp.List[float]:

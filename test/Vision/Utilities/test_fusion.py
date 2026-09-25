@@ -69,16 +69,34 @@ def __Block(h: int, w: int, top: int, left: int, size: int = 60) -> np.ndarray:
     return mask
 
 
-def test_union_rejects_full_frame_border_mask() -> None:
+def test_union_rejects_a_large_mask_touching_the_configured_number_of_borders() -> None:
     """
     Description:
-        A mask covering the whole frame (the table itself, touching every border) is
-        excluded from the union.
+        The border rule on its own: a mask over Background_Area_Fraction of the frame (0.6 — under
+        the Hard_Background_Fraction cap, so the cap cannot be what rejects it) that touches
+        Background_Borders (3) of the four borders is the table, and is excluded from the union.
     """
 
-    full = np.ones((CONST_H, CONST_W), dtype=bool)
-    union = Fusion.Foreground_Union([full], CONST_H, CONST_W, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
+    band = np.zeros((CONST_H, CONST_W), dtype=bool)
+    band[:int(0.6 * CONST_H), :] = True                   # top, left and right borders
+    assert CONST_PARAMETERS.Background_Area_Fraction < 0.6 < CONST_PARAMETERS.Hard_Background_Fraction
+    assert CONST_PARAMETERS.Background_Borders == 3
+    union = Fusion.Foreground_Union([band], CONST_H, CONST_W, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
     assert int(np.count_nonzero(union)) == 0
+
+
+def test_union_keeps_a_large_mask_touching_fewer_borders() -> None:
+    """
+    Description:
+        The same area touching only two borders (a block in the corner) is below Background_Borders,
+        so the border rule does not apply and the mask is kept — a large part in a corner is a part.
+    """
+
+    corner = np.zeros((CONST_H, CONST_W), dtype=bool)
+    side = int((0.6 * CONST_H * CONST_W) ** 0.5)
+    corner[:side, :side] = True                           # top and left borders only
+    union = Fusion.Foreground_Union([corner], CONST_H, CONST_W, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
+    assert int(np.count_nonzero(union)) == int(np.count_nonzero(corner))
 
 
 def test_union_keeps_large_non_border_mask() -> None:

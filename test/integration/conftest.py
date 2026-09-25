@@ -21,96 +21,103 @@
 # File Name: ../test/integration/conftest.py
 ## =========================================================================== ##
 
+# Dataclasses (the shipped configuration, unscaled)
+import dataclasses
 # Typing (Support for type hints)
 import typing as tp
+# OpenCV library for computer vision tasks [pip3 install opencv-python]
+import cv2
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
-# Custom Lib.: AnyScan domain — the vision interface, the composer, the structures
+# Custom Lib.: AnyScan domain — the real vision pipeline and the configuration layer
 #   ../Vision/Core
-from Vision.Core import Vision_Backend_Cls
-#   ../Reporting/Core
-from Reporting.Core import Compose, Verdict
-#   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Analysis_Str
+import Vision.Core as Vision_Core
+from Vision.Core import Vision_Pipeline_Cls
+#   ../Configuration/Core
+from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
-    Shared fixtures for the pipeline integration tests. The path and image fixtures
-    come from the top-level test/conftest.py; this adds the hermetic fake vision
-    backend used to exercise the camera -> vision -> reporting seams without the
-    model weights.
+    Shared fixtures for the pipeline integration tests. The path and image fixtures come from
+    the top-level test/conftest.py; this adds the REAL pipeline run without weights — the
+    model-free describer, and a FastSAM stand-in that finds nothing, so the objects come from the
+    real background cue and every other stage (fusion, crops, description, composition,
+    measurement) is the application's own — and a synthetic frame on disk for a file camera.
 """
+# Two rectangles drawn onto the reference: a synthetic frame with two real objects.
+#   Unit [Vector<Tuple<int> 1x4>]
+CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 
 
-class Fake_Vision_Cls(Vision_Backend_Cls):
-    """
-    Description:
-        A hermetic stand-in for the model that implements the Vision_Backend_Cls
-        interface. It returns a fixed set of detections and composes them through
-        the REAL Reporting, so a test exercises the camera -> vision contract and
-        the vision -> reporting seam without loading any weights.
+class _No_Masks_Segmenter_Cls(object):
+    """A FastSAM stand-in that loads nothing and returns no masks: stage 2 contributes no cue."""
 
-    Initialization of the Class:
-        Args:
-            None.
+    def __init__(self, Segmentation_Parameters_Str: tp.Any) -> None:
+        self.params = Segmentation_Parameters_Str
 
-        Example:
-            Initialization:
-                # Initialization of the class.
-                Cls = Fake_Vision_Cls()
+    @property
+    def Loaded(self) -> bool:
+        return True
 
-            Features:
-                # Functions of the class.
-                Cls.Analyze(image_rgb)
-    """
+    @property
+    def Model_Key(self) -> tp.Tuple[str, str]:
+        return (self.params.Model_Path, self.params.Device)
 
-    Name = 'Fake-Vision'
+    def Set_Parameters(self, Segmentation_Parameters_Str: tp.Any) -> None:
+        self.params = Segmentation_Parameters_Str
 
-    def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
-                stage_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
-        """
-        Description:
-            Accept the camera's RGB ndarray directly (the contract), attach fixed
-            detections, and compose the reading through Reporting.
+    def Load(self, stage_cb: tp.Optional[tp.Callable] = None) -> None:
+        pass
 
-        Args:
-            (1) image [Matrix<uint8> HxWx3]: The captured frame (RGB ndarray).
-            (2) progress_cb [function]: Optional (done, total) hook.
-            (3) stage_cb [function]: Optional (text) hook.
+    def Release(self) -> None:
+        pass
 
-        Returns:
-            (1) parameter [Analysis_Str(object)]: The composed reading.
-        """
-
-        # The camera -> vision contract: a contiguous RGB ndarray arrives directly,
-        # no QImage in sight.
-        assert hasattr(image, 'shape') and image.ndim == 3 and image.shape[2] == 3
-        size = (image.shape[1], image.shape[0])
-
-        if stage_cb:
-            stage_cb('Analysing…')
-        objects = [
-            Detection_Str(Label='hex bolt', Bbox=(10, 20, 60, 60),
-                          Detail='the object is a hex bolt with a threaded shaft'),
-            Detection_Str(Label='washer', Bbox=(200, 120, 50, 50),
-                          Detail='A metal washer.', Confidence=0.2),
-        ]
-        objects, note = Compose(objects, size)
-        badge, level = Verdict(objects)
-        if progress_cb:
-            progress_cb(len(objects), len(objects))
-        return Analysis_Str(Objects=objects, Note=note,
-                            Verdict=badge, Verdict_Level=level, Task='fake')
+    def Segment(self, image: tp.Any, stage_cb: tp.Optional[tp.Callable] = None) -> tp.Tuple[list, list]:
+        return [], []
 
 
 @pytest.fixture
-def fake_backend() -> Fake_Vision_Cls:
+def model_free_backend(monkeypatch: pytest.MonkeyPatch) -> Vision_Pipeline_Cls:
     """
     Description:
-        A ready fake vision backend for the wiring tests.
+        The real Vision_Pipeline_Cls on the shipped configuration (unscaled), with no weights: the
+        model-free describer and a FastSAM stand-in that returns no masks.
 
     Returns:
-        (1) parameter [Fake_Vision_Cls(object)]: The fake backend.
+        (1) parameter [Vision_Pipeline_Cls(object)]: The pipeline.
     """
 
-    return Fake_Vision_Cls()
+    monkeypatch.setattr(Vision_Core, 'Fast_Sam_Cls', _No_Masks_Segmenter_Cls)
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
+    config = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
+    return Vision_Pipeline_Cls(Configuration_Str=config)
+
+
+@pytest.fixture
+def synthetic_rects() -> tp.List[tp.Tuple[int, int, int, int]]:
+    """
+    Description:
+        The two rectangles drawn on the synthetic frame, as (x1, y1, x2, y2), left to right.
+
+    Returns:
+        (1) parameter [Vector<Tuple<int> 1x4>]: The rectangles.
+    """
+
+    return list(CONST_RECTS)
+
+
+@pytest.fixture
+def synthetic_frame_path(tmp_path: tp.Any, reference_background: tp.Any,
+                         make_synthetic_frame: tp.Callable) -> str:
+    """
+    Description:
+        The reference with the two CONST_RECTS drawn on it, written as a PNG a File_Camera_Cls can
+        capture.
+
+    Returns:
+        (1) parameter [string]: The frame's path.
+    """
+
+    path = str(tmp_path / 'synthetic_frame.png')
+    cv2.imwrite(path, make_synthetic_frame(reference_background, CONST_RECTS))
+    return path

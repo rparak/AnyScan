@@ -247,6 +247,7 @@ def test_reference_background_file_exists(reference_background_path: str) -> Non
         The committed reference background is present at the path the configuration names.
     """
 
+    assert Load_Configuration(CONST_DEFAULT_CONFIG_FILE).Segmentation.Background_Reference == reference_background_path
     assert os.path.isfile(reference_background_path)
 
 

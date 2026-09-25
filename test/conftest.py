@@ -204,6 +204,66 @@ def make_synthetic_frame() -> tp.Callable[[np.ndarray, tp.List[tp.Tuple[int, int
     return _Build
 
 
+@pytest.fixture
+def top_level_imports() -> tp.Callable[[str], tp.Set[str]]:
+    """
+    Description:
+        The top-level packages a source file imports, from its parsed syntax tree — every
+        'import x.y' and 'from x.y import z', at any depth (inside functions too). A text search
+        for 'import cv2' misses 'from cv2 import imread'; this cannot.
+
+    Returns:
+        (1) parameter [function]: (path) -> the set of top-level package names.
+    """
+
+    import ast
+
+    def _Imports(path: str) -> tp.Set[str]:
+        with open(path, 'r', encoding='utf-8') as handle:
+            tree = ast.parse(handle.read(), filename=path)
+        names = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names.update(alias.name.split('.')[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+                names.add(node.module.split('.')[0])
+        return names
+
+    return _Imports
+
+
+@pytest.fixture
+def require_weights(request: pytest.FixtureRequest) -> tp.Callable[[tp.List[str]], None]:
+    """
+    Description:
+        The one rule for a test that needs model weights: it runs when they exist. When any is
+        missing, the default run SKIPS — a fresh clone has no weights — with an impossible-to-miss
+        banner naming each missing path; under --runslow, which asks for the real models, it FAILS,
+        so a run that asked for them can never pass without them. Never a silent return.
+
+    Returns:
+        (1) parameter [function]: (paths) -> None; each path is a weights directory or file.
+    """
+
+    def _Require(paths: tp.List[str]) -> None:
+        missing = [path for path in paths if not os.path.exists(path)]
+        if not missing:
+            return
+        message = ('MODEL WEIGHTS ABSENT: the real vision path was NOT verified. Missing: '
+                   + ', '.join(missing) + '. Download them (see README > Setup), then re-run `pytest`.')
+        if request.config.getoption('--runslow'):
+            pytest.fail(message, pytrace=False)
+        reporter = request.config.pluginmanager.getplugin('terminalreporter')
+        if reporter is not None:
+            reporter.write_line('')
+            reporter.write_sep('!', 'REAL VISION PATH NOT VERIFIED - model weights absent', red=True, bold=True)
+            reporter.write_line('  ' + message, yellow=True)
+            reporter.write_sep('!', red=True, bold=True)
+        pytest.skip(message)
+
+    return _Require
+
+
 def _Models_Inventory() -> tp.Dict[str, int]:
     """
     Description:

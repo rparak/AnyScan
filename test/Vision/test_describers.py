@@ -150,20 +150,6 @@ def test_gemma_fails_loudly_without_mlx_or_weights(fake_mlx, monkeypatch, tmp_pa
         Gemma_Describer_Cls(fake_mlx.params).Load()
 
 
-def test_the_task_a_reading_carries() -> None:
-    """
-    Description:
-        The Task row and each capture set's 'task' record what produced the reading: a model
-        reading carries the configuration's Identity.Task ('part inspection' as shipped), the
-        model-free fallback its own label. (Older sets written by Florence-2 keep their
-        'detailed caption'.)
-    """
-
-    assert CONST_CONFIGURATION.Identity.Task == 'part inspection'
-    assert not hasattr(Gemma_Describer_Cls, 'Task_Label')
-    assert Vision_Core.CONST_FALLBACK_TASK_LABEL == 'model-free description'
-
-
 def test_an_unknown_describer_fails_before_any_work(monkeypatch) -> None:
     """
     Description:

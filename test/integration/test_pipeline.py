@@ -66,71 +66,37 @@ def _Configuration(scaled: bool = False) -> tp.Any:
     config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
     return config if scaled else dataclasses.replace(config, Scale=None)
 
-def test_pipeline_camera_to_reporting(reference_background_path, fake_backend) -> None:
+def test_pipeline_camera_to_reporting(synthetic_frame_path, model_free_backend) -> None:
     """
     Description:
-        The full wiring with the hermetic fake backend: File_Camera_Cls captures an
-        RGB frame, the backend accepts it directly, and the reading is composed
-        through the real Reporting. Asserts the seams — the composed sentences (the
-        fake's raw detail is tidied by Reporting) and the verdict from
-        the low-confidence object.
+        The full wiring through the REAL pipeline, without weights (model_free_backend):
+        File_Camera_Cls captures an RGB frame with two objects on it, Analyze takes it directly,
+        and the reading is composed through the real Reporting. Asserts the seams — two objects
+        located, each with a composed sentence; the background line; the shared Screen_Header
+        stating the count that the object list holds; the model-free task.
     """
 
-    camera = File_Camera_Cls(reference_background_path)
+    camera = File_Camera_Cls(synthetic_frame_path)
     camera.Connect()
     frame = camera.Capture()
 
-    result = fake_backend.Analyze(frame)
+    result = model_free_backend.Analyze(frame)
 
     assert isinstance(result, Analysis_Str)
     assert len(result.Objects) == 2
-    # Reporting composed each sentence: the model's own words, tidied into the panel's
-    # capitalisation and stop — nothing peeled, stripped or substituted.
-    assert result.Objects[0].Sentence == 'The object is a hex bolt with a threaded shaft.'
-    assert all(o.Sentence for o in result.Objects)
+    # Reporting composed each sentence: capitalised, one closing stop.
+    for obj in result.Objects:
+        assert obj.Sentence and obj.Sentence[0].isupper() and obj.Sentence.endswith('.')
+    assert result.Background
     # The shared Screen_Header states the count, agreeing with the object list.
     assert 'There are 2 objects on it, described below.' in Screen_Header(result.Objects, result.Background)
-    # The 0.2-confidence object drives the verdict.
-    assert (result.Verdict, result.Verdict_Level) == ('Low confidence', 'warn')
+    assert result.Task == Vision_Core.CONST_FALLBACK_TASK_LABEL
 
     camera.Disconnect()
     assert not camera.Connected
 
 
-def _Require_Weights(request, paths: tp.List[str]) -> None:
-    """
-    Description:
-        Stop the test unless every model path exists. The default run skips (a fresh clone
-        has no weights), with an impossible-to-miss banner written straight to the terminal
-        naming each missing path; under --runslow the test fails instead, because a run that
-        asked for the real vision path must not pass without it.
-
-    Args:
-        (1) request [pytest.FixtureRequest(object)]: The request, for the options and the
-                                                     terminal reporter.
-        (2) paths [Vector<string>]: The weight paths the test needs (a directory or a file).
-    """
-
-    missing = [path for path in paths if not os.path.exists(path)]
-    if not missing:
-        return
-
-    message = ('MODEL WEIGHTS ABSENT: the real FastSAM + Gemma vision path was NOT verified. Missing: '
-               + ', '.join(missing) + '. Download them (see README > Setup), then re-run `pytest`.')
-    if request.config.getoption('--runslow'):
-        pytest.fail(message, pytrace=False)
-    reporter = request.config.pluginmanager.getplugin('terminalreporter')
-    if reporter is not None:
-        reporter.write_line('')
-        reporter.write_sep('!', 'REAL VISION PATH NOT VERIFIED - model weights absent',
-                           red=True, bold=True)
-        reporter.write_line('  ' + message, yellow=True)
-        reporter.write_sep('!', red=True, bold=True)
-    pytest.skip(message)
-
-
-def test_pipeline_real_describer_smoke(request, reference_background, make_synthetic_frame,
-                                       monkeypatch) -> None:
+def test_pipeline_real_describer_smoke(require_weights, reference_background, make_synthetic_frame) -> None:
     """
     Description:
         The real four-stage vision path — background subtraction -> FastSAM
@@ -146,7 +112,7 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
     """
 
     config = _Configuration()
-    _Require_Weights(request, [config.Segmentation.Model_Path, config.Description.Model_Path])
+    require_weights([config.Segmentation.Model_Path, config.Description.Model_Path])
 
     # OpenCV library for computer vision tasks [pip3 install opencv-python]
     import cv2
@@ -171,7 +137,7 @@ def test_pipeline_real_describer_smoke(request, reference_background, make_synth
 
 
 @pytest.mark.slow
-def test_shadow_rejected_on_real_capture(request, monkeypatch, reference_background_path) -> None:
+def test_shadow_rejected_on_real_capture(require_weights, monkeypatch) -> None:
     """
     Description:
         The real cast-shadow frame (Image_004): one two-hole plate with a soft shadow
@@ -183,14 +149,13 @@ def test_shadow_rejected_on_real_capture(request, monkeypatch, reference_backgro
 
         This is the real-capture counterpart to the KNOWN_ISSUES shadow entry: it
         passes because the over-segmentation defect is fixed on real frames. Slow
-        because it runs FastSAM; skips when the weights or the frame are absent.
+        because it runs FastSAM; missing weights fail it (it only runs under --runslow, which
+        asks for them), a missing frame skips it.
     """
 
     config = _Configuration()
-    if not os.path.isfile(config.Segmentation.Model_Path):
-        _Warn_Weights_Absent(request)
-        return
-    frame_path = os.path.join(os.path.dirname(reference_background_path), 'Image_004.png')
+    require_weights([config.Segmentation.Model_Path])
+    frame_path = os.path.join(config.Evaluation.Frames, 'Image_004.png')
     if not os.path.isfile(frame_path):
         pytest.skip('Image_004.png not present at %s' % frame_path)
 
@@ -261,8 +226,7 @@ def test_synthetic_harsh_shadow_not_absorbed_xfail(monkeypatch) -> None:
 
 
 @pytest.mark.slow
-def test_symmetric_parts_measure_as_diameters_on_real_captures(request, monkeypatch,
-                                                                reference_background_path) -> None:
+def test_symmetric_parts_measure_as_diameters_on_real_captures(require_weights, monkeypatch) -> None:
     """
     Description:
         The symmetric decision on real captures, through the application's own pipeline and the
@@ -272,17 +236,16 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(request, monkeypa
         Of the symmetric four, the two hex nuts (7, 8) report across flats and the two washers
         (1, 3) a round diameter.
         The square plate in Image_006 is NOT reported as a diameter (it is un-elongated, but its
-        extent marks it square). Slow because it runs FastSAM; skips when the weights are absent.
+        extent marks it square). Slow because it runs FastSAM; missing weights fail it (it only
+        runs under --runslow, which asks for them).
     """
 
     config = _Configuration(scaled=True)
-    if not os.path.isfile(config.Segmentation.Model_Path):
-        _Warn_Weights_Absent(request)
-        return
+    require_weights([config.Segmentation.Model_Path])
     import cv2
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # masks only, no VLM
     backend = Vision_Pipeline_Cls(Configuration_Str=config)
-    folder = os.path.dirname(reference_background_path)
+    folder = config.Evaluation.Frames
 
     def _Analyze(name):
         frame = cv2.imread(os.path.join(folder, name))

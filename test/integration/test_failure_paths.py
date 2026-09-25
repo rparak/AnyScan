@@ -21,8 +21,6 @@
 # File Name: ../test/integration/test_failure_paths.py
 ## =========================================================================== ##
 
-# System (Default)
-import os
 # Dataclasses (a configuration copy pointed at a missing model)
 import dataclasses
 # Typing (Support for type hints)
@@ -41,10 +39,11 @@ from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
-    The failure paths users actually hit. Both run the real Vision_Pipeline_Cls
-    path (loading the runtime), so both are slow. Each asserts the failure surfaces
-    as a Vision_Error_Cls with an actionable message, rather than crashing with a
-    raw traceback the panel could not print.
+    The failure paths users actually hit, through the real Vision_Pipeline_Cls. The missing
+    model directory loads the runtime, so it is slow; the frame-size guard runs before any
+    model, so it runs in the default suite. Each asserts the failure surfaces as a
+    Vision_Error_Cls with an actionable message, rather than crashing with a raw traceback
+    the panel could not print.
 """
 
 
@@ -73,23 +72,21 @@ def test_missing_model_directory_surfaces_cleanly(reference_background) -> None:
         Vision_Pipeline_Cls(Configuration_Str=config).Analyze(image_rgb)
 
 
-@pytest.mark.slow
-def test_frame_size_mismatch_surfaces_cleanly(reference_background) -> None:
+def test_frame_size_mismatch_surfaces_cleanly(reference_background, monkeypatch) -> None:
     """
     Description:
         A frame whose resolution does not match the reference background raises
-        Vision_Error_Cls (the size guard in the background subtraction), not a raw
-        NumPy broadcast error. Needs the weights, because the size check runs after
-        the model has loaded; skipped otherwise.
+        Vision_Error_Cls with the sentence naming both sizes (the size guard before the
+        background subtraction), not a raw NumPy broadcast error. The guard runs before any
+        model, so this needs no weights: the model-free describer is selected, and nothing
+        segments.
     """
 
-    config = _Configuration()
-    if not os.path.isdir(config.Description.Model_Path):
-        pytest.skip(f'model weights not present at {config.Description.Model_Path}')
-
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
     # A frame deliberately a different size from the reference background.
     h, w, _ = reference_background.shape
     wrong_size = np.zeros((h // 2, w // 2, 3), dtype=np.uint8)
 
-    with pytest.raises(Vision_Error_Cls):
-        Vision_Pipeline_Cls(Configuration_Str=config).Analyze(wrong_size)
+    with pytest.raises(Vision_Error_Cls, match='The background reference is %d×%d but the frame is %d×%d'
+                                               % (w, h, w // 2, h // 2)):
+        Vision_Pipeline_Cls(Configuration_Str=_Configuration()).Analyze(wrong_size)

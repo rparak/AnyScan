@@ -120,13 +120,11 @@ def test_diff_floor_rejects_a_faint_change() -> None:
     assert int(np.count_nonzero(strong_mask)) > 2000    # kept
 
 
-def test_module_is_qt_free() -> None:
+def test_module_is_qt_free(top_level_imports) -> None:
     """
     Description:
         Segmentation imports no Qt and no heavy runtime — cv2/np are injected. The
         module must import with only stdlib present.
     """
 
-    source = open(Segmentation.__file__).read()
-    assert 'import PyQt' not in source and 'from PyQt' not in source
-    assert 'import cv2' not in source and 'import numpy' not in source
+    assert not top_level_imports(Segmentation.__file__) & {'PyQt5', 'cv2', 'numpy'}

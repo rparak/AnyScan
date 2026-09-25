@@ -36,15 +36,14 @@ Description:
 """
 
 
-def test_module_is_qt_free() -> None:
+def test_module_is_qt_free(top_level_imports) -> None:
     """
     Description:
         Theme imports no Qt and no OpenCV — it is pure values, so the Qt-free vision
         layer can read the same palette the UI does.
     """
 
-    source = open(Theme.__file__).read()
-    assert 'PyQt' not in source and 'import cv2' not in source
+    assert not top_level_imports(Theme.__file__) & {'PyQt5', 'cv2'}
 
 
 def test_verdict_colour_comes_from_the_one_constant() -> None:

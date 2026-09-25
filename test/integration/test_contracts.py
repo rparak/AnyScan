@@ -67,20 +67,26 @@ def test_capture_returns_rgb_ndarray(reference_background_path, reference_shape)
     assert frame.flags['C_CONTIGUOUS']
 
 
-def test_analyze_accepts_capture_output_directly(reference_background_path, fake_backend) -> None:
+def test_analyze_accepts_capture_output_directly(synthetic_frame_path, synthetic_rects, model_free_backend) -> None:
     """
     Description:
-        The camera -> vision contract: the array Capture() returns is fed straight
-        into Analyze(), with no QImage and no conversion in between.
+        The camera -> vision contract: the array Capture() returns is fed straight into the REAL
+        pipeline's Analyze(), with no QImage and no conversion in between, and the two objects on
+        the frame come back where they are.
     """
 
-    camera = File_Camera_Cls(reference_background_path)
+    camera = File_Camera_Cls(synthetic_frame_path)
     camera.Connect()
     frame = camera.Capture()
 
     # No conversion between the two calls.
-    result = fake_backend.Analyze(frame)
-    assert result.Objects
+    result = model_free_backend.Analyze(frame)
+    camera.Disconnect()
+
+    assert len(result.Objects) == len(synthetic_rects)
+    for det, (x1, y1, x2, y2) in zip(result.Objects, synthetic_rects):
+        x, y, w, h = det.Bbox
+        assert abs(x - x1) <= 8 and abs(y - y1) <= 8 and abs(x + w - x2) <= 8 and abs(y + h - y2) <= 8
 
 
 def test_domain_modules_import_without_pyqt(project_root) -> None:

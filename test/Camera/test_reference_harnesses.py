@@ -229,7 +229,14 @@ def test_scan_captures_through_the_application_camera_path(tmp_path, monkeypatch
         Scan_*.png in its output directory, never into the pinned test set.
     """
 
+    import Camera.Core
     scan = _Load_Script('scan')
+    # The claim itself: the name scan.py captures through IS the application's camera class — checked
+    # before it is replaced below by a stand-in for the hardware.
+    assert scan.Basler_Camera_Cls is Camera.Core.Basler_Camera_Cls
+    # And its default output is Data/Results, never the pinned test frames.
+    assert os.path.abspath(scan.CONST_OUTPUT_DIR) != os.path.abspath(Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
+                                                                     .Evaluation.Frames)
     frame = np.zeros((40, 64, 3), np.uint8)
     frame[..., 0] = 200                                                   # red in RGB
     seen = {}

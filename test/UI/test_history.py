@@ -30,11 +30,13 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import cv2
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
+# Typing (Support for type hints)
+import typing as tp
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtGui import QKeyEvent
+from PyQt5.QtGui import QColor, QKeyEvent, QTextDocument
 from PyQt5.QtWidgets import QApplication, QLabel
 # Custom Lib.: AnyScan UI — the History view; the writer/metadata; the detection structure
 #   ../UI/Views/History
@@ -75,12 +77,14 @@ def _Objects():
                           Sentence='A hex nut.', Verdict='OK', Cue='both')]
 
 
-def _Write_Full(writer, session_id, set_id, classification=False, run_id='', task='caption'):
-    """Write a full (successful) set through the real writer, recording the flags, run id and task."""
+def _Write_Full(writer, session_id, set_id, classification=False, run_id='', task='caption', verdicts=('OK', 'OK')):
+    """Write a full (successful) set through the real writer, recording the flags, run id, task and verdicts."""
     raw = np.full((40, 60, 3), 30, np.uint8)
     annotated = np.full((40, 60, 3), 60, np.uint8)
     mask = np.zeros((40, 60, 3), np.uint8)
     objects = _Objects()
+    for det, verdict in zip(objects, verdicts):
+        det.Verdict = verdict
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
                                   task, 1180, 91, '', classification, run_id, scale=None,
                                   configuration='Config_Test_Mode_A.yaml',
@@ -88,6 +92,30 @@ def _Write_Full(writer, session_id, set_id, classification=False, run_id='', tas
                                   window=None)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                  ['0 0.4 0.4 0.6 0.6'], metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
+
+
+def _Outline_Rgb(view) -> tp.Tuple[int, int, int]:
+    """The colour the selected card's outline is PAINTED in: the middle of its left border, rendered."""
+    view.resize(1400, 780)
+    view.show()
+    QApplication.instance().processEvents()
+    card = next(card for card in _Private(view, '__cards') if card.Cap().Set_Id == _Private(view, '__selected_id'))
+    image = card.grab().toImage()
+    ratio = image.devicePixelRatio()
+    return QColor(image.pixel(int(1 * ratio), int(card.height() / 2 * ratio))).getRgb()[:3]
+
+
+def _Pixels(widget) -> np.ndarray:
+    """What the widget paints now, as an array (the pixels, not its state)."""
+    image = widget.grab().toImage().convertToFormat(4)          # QImage.Format_RGB32
+    pointer = image.constBits()
+    pointer.setsize(image.byteCount())
+    return np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4).copy()
+
+
+def _Rgb(hex_colour: str) -> tp.Tuple[int, int, int]:
+    """A theme colour as an (r, g, b) tuple."""
+    return QColor(hex_colour).getRgb()[:3]
 
 
 def _Set_Filter(view, key: str) -> None:
@@ -195,9 +223,10 @@ def test_detect_only_sets_have_no_filter_and_a_neutral_outline(qt_app, tmp_path)
     view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     assert not _Private(view, '__filter').isVisibleTo(view)   # the filter is removed
-    cap = _Private(view, '__detail_cap')
-    assert _Private(view, '__Set_Color')(cap) == Detection_Color()[0]
-    assert _Private(view, '__Set_Color')(cap) != Verdict_Color('OK')[0]
+    outline = _Outline_Rgb(view)
+    assert outline == _Rgb(Detection_Color()[0])
+    assert outline != _Rgb(Verdict_Color('OK')[0])
+    view.close()
 
 
 def test_classified_sets_get_the_filter_and_a_verdict_outline(qt_app, tmp_path) -> None:
@@ -215,8 +244,35 @@ def test_classified_sets_get_the_filter_and_a_verdict_outline(qt_app, tmp_path) 
     view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     assert _Private(view, '__filter').isVisibleTo(view)
-    cap = _Private(view, '__detail_cap')
-    assert _Private(view, '__Set_Color')(cap) == Verdict_Color('OK')[0]
+    assert _Outline_Rgb(view) == _Rgb(Verdict_Color('OK')[0])
+    view.close()
+
+
+def test_a_nok_set_is_what_the_filters_split_and_is_outlined_nok(qt_app, tmp_path) -> None:
+    """
+    Description:
+        Nothing assigns NOK today, so the other filter tests cannot tell 'OK' from no filter at all.
+        With a set written the way a classifier will write one — an object judged NOK — 'OK' and
+        'NOK' each show exactly their own set, and the NOK set is outlined in the NOK colour.
+    """
+
+    from Parameters.Theme import Verdict_Color
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'set_ok', classification=True)
+    _Write_Full(writer, 'sessionA', 'set_nok', classification=True, verdicts=('OK', 'NOK'))
+
+    view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
+    view.Refresh()
+    shown = lambda: sorted(card.Cap().Set_Id for card in _Private(view, '__cards'))
+    assert shown() == ['set_nok', 'set_ok']
+
+    _Set_Filter(view, 'ok')
+    assert shown() == ['set_ok']
+    _Set_Filter(view, 'nok')
+    assert shown() == ['set_nok']
+    assert _Outline_Rgb(view) == _Rgb(Verdict_Color('NOK')[0])
+    view.close()
 
 
 def test_history_lists_only_the_current_run(qt_app, tmp_path) -> None:
@@ -333,15 +389,24 @@ def test_clicking_an_object_highlights_the_annotated_pane_with_info_open(qt_app,
     _Write_Full(writer, 'sessionA', 'set1')
 
     view = History_View_Cls(str(tmp_path), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
+    view.resize(1400, 780)
+    view.show()
     view.Refresh()
     _Private(view, '__Open_Info')()
-    cap = _Private(view, '__detail_cap')
+    _Settle(qt_app)
+    pane_a, pane_b = _Private(view, '__image_a'), _Private(view, '__image_b')
+    before_a, before_b = _Pixels(pane_a), _Pixels(pane_b)
+
     _Private(view, '__On_Object_Selected')(1)
+    qt_app.processEvents()
 
     assert view.Is_Info_Open()
-    assert getattr(_Private(view, '__image_a'), '_History_Image_Cls__highlight') == \
-        tuple(cap.Objects[1].Bbox)
-    assert getattr(_Private(view, '__image_b'), '_History_Image_Cls__highlight') is None
+    # Both panes and the Info panel are on screen together: the panel narrows, never covers.
+    assert pane_a.isVisible() and pane_b.isVisible() and _Private(view, '__info_panel').isVisible()
+    # The highlight is PAINTED on the annotated pane only; the mask pane is untouched.
+    assert not np.array_equal(_Pixels(pane_a), before_a)
+    assert np.array_equal(_Pixels(pane_b), before_b)
+    view.close()
 
 
 def test_missing_score_note_explains_unscored_objects(qt_app, tmp_path) -> None:
@@ -581,9 +646,14 @@ def test_info_text_matches_the_shared_formatter(qt_app, tmp_path) -> None:
     # The rows are the shared labels (name + confidence), in order.
     layout = _Private(view, '__object_list').box
     for i, det in enumerate(objects):
-        block = layout.itemAt(i).widget()
-        name = block.layout().itemAt(0).widget().layout().itemAt(0).widget()
+        line = layout.itemAt(i).widget().layout().itemAt(0).widget().layout()
+        name, confidence = line.itemAt(0).widget(), line.itemAt(1).widget()
         assert name.text() == Object_Label(i)
+        # The number is severity-coloured HTML; what is RENDERED must keep the separator's spaces
+        # (rich text collapses a plain leading space, which ran the name and the '·' together).
+        document = QTextDocument()
+        document.setHtml(confidence.text())
+        assert document.toPlainText().replace('\xa0', ' ') == CONST_LABEL_SEPARATOR + Object_Confidence(det)
 
 
 def test_malformed_metadata_does_not_crash_the_view(qt_app, tmp_path) -> None:

@@ -25,6 +25,8 @@
 import os
 # Qt must render headless; set the platform before any QApplication is constructed.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+# Numpy (Array computing) [pip3 install numpy]
+import numpy as np
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
@@ -98,6 +100,15 @@ def _Scanned_Window(reference_background_path):
     return window
 
 
+def _Grab(widget) -> np.ndarray:
+    """What the widget paints now, as an HxWx4 array (the pixels, not its state)."""
+    QApplication.instance().processEvents()
+    image = widget.grab().toImage().convertToFormat(4)          # QImage.Format_RGB32
+    pointer = image.constBits()
+    pointer.setsize(image.byteCount())
+    return np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4).copy()
+
+
 def _Result() -> Analysis_Str:
     """An empty finished reading (both renders are valid for zero objects)."""
     return Analysis_Str(Objects=[], Verdict='Empty',
@@ -137,12 +148,12 @@ def test_switching_view_does_not_invoke_the_pipeline(qt_app, reference_backgroun
     _Private(window, '__On_Analysis_Finished')(_Result())
 
     assert vision.calls == 0                       # the completion slot was called directly
-    assert viewport.Current_View() == 'annotated'
+    annotated = _Grab(viewport)
 
     _Private(window, '__On_View_Toggle')('mask')
-    assert viewport.Current_View() == 'mask'
+    assert not np.array_equal(_Grab(viewport), annotated)       # the mask render is what is painted
     _Private(window, '__On_View_Toggle')('annotated')
-    assert viewport.Current_View() == 'annotated'
+    assert np.array_equal(_Grab(viewport), annotated)           # and the annotated one again, exactly
 
     assert vision.calls == 0                       # no switch touched the pipeline
 
@@ -157,11 +168,14 @@ def test_selected_view_persists_across_a_second_analysis(qt_app, reference_backg
     window = _Scanned_Window(reference_background_path)
     viewport = _Private(window, '__viewport')
     _Private(window, '__On_Analysis_Finished')(_Result())
+    annotated = _Grab(viewport)
     _Private(window, '__On_View_Toggle')('mask')
+    mask = _Grab(viewport)
+    assert not np.array_equal(mask, annotated)
 
-    # A second analysis of the same session.
+    # A second analysis of the same session: the mask is still what is painted.
     _Private(window, '__On_Analysis_Finished')(_Result())
-    assert viewport.Current_View() == 'mask'
+    assert np.array_equal(_Grab(viewport), mask)
 
 
 def test_a_new_scan_makes_the_result_stale_and_hides_the_toggle(qt_app, reference_background_path) -> None:
