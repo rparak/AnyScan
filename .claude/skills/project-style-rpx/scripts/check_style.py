@@ -2,7 +2,9 @@
 """Check Python files against the project style (project-style-rpx). Stdlib only.
 
 Usage: python check_style.py <file_or_dir> [...]
-Exit code 0 if clean, 1 if any violation was found.
+Exit code 0 if clean, 1 if any violation was found, 2 if a path could not be checked (it does
+not exist, is not a .py file, or cannot be read) -- never "clean" for something not checked.
+A directory is walked for *.py files, skipping hidden directories (.venv, .git, ...).
 
 Paths listed in check_style.json (beside this script) are excluded, each with the reason
 recorded there; the summary line names every exclusion, so nothing is silently out of scope.
@@ -90,16 +92,26 @@ def check_header(source: str, path: Path, report: Report) -> None:
 
 
 def _is_pytest_module(path: Path) -> bool:
-    """A file that lives under a `test/` (or `tests/`) directory is a pytest module.
+    """A file pytest collects is a pytest module: `test_*.py` or `conftest.py` anywhere, or any
+    file under a top-level `test/` (or `tests/`) directory of this repository.
 
     pytest's own calling convention -- test functions named `test_*`, fixtures
     injected as unannotated parameters -- collides with the RP function rules, so
     the naming/docstring-Args/parameter-typing checks are relaxed for the pytest
     functions in these files only (see SKILL.md: tests follow the pytest
     convention). Helper functions in the same file are still checked in full.
+
+    The directory test is taken on the path RELATIVE to the repository: a directory named
+    `test` above the repository (or anywhere a file is checked from) must not relax the rules
+    for every file beneath it.
     """
-    parts = {part.lower() for part in path.parts}
-    return "test" in parts or "tests" in parts
+    if path.name == "conftest.py" or (path.name.startswith("test_") and path.suffix == ".py"):
+        return True
+    try:
+        relative = path.resolve().relative_to(REPO_ROOT)
+    except ValueError:
+        return False
+    return bool(relative.parts) and relative.parts[0].lower() in ("test", "tests")
 
 
 def _decorator_name(decorator) -> str:
@@ -317,7 +329,8 @@ def check_mangled_overrides(tree: ast.Module, path: Path, report: Report) -> Non
 def check_file(path: Path, report: Report) -> None:
     try:
         source = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+    except (OSError, UnicodeDecodeError) as error:
+        report.add(path, 0, "unreadable", f"the file could not be read as UTF-8 text ({error.__class__.__name__})")
         return
 
     pytest_module = _is_pytest_module(path)
@@ -363,8 +376,6 @@ def check_file(path: Path, report: Report) -> None:
             if not is_dataclass and not node.name.endswith(("_Cls", "_Str")):
                 report.add(path, node.lineno, "naming",
                            f"class '{node.name}' must end with '_Cls'")
-            if not PASCAL_SNAKE.match(node.name.rsplit("_", 1)[0] + "_X"):
-                pass
             doc = ast.get_docstring(node)
             if not doc:
                 report.add(path, node.lineno, "docstring",
@@ -456,14 +467,31 @@ def load_exclusions(config_path: Path = CONFIG_PATH) -> list[tuple[Path, str]]:
     return exclusions
 
 
+def _python_files(directory: Path) -> list[Path]:
+    """Every *.py file under a directory, skipping hidden directories below it (.venv, .git,
+    .pytest_cache): a walk of the repository must not descend into an installed environment."""
+    return sorted(f for f in directory.rglob("*.py")
+                  if not any(part.startswith(".") for part in f.relative_to(directory).parts[:-1]))
+
+
 def main() -> int:
-    paths = [Path(a) for a in sys.argv[1:]]
-    if not paths:
+    arguments = sys.argv[1:]
+    if not arguments or any(a in ("-h", "--help") for a in arguments):
         print(__doc__)
-        return 1
+        return 0 if arguments else 1
     files: list[Path] = []
-    for p in paths:
-        files.extend(sorted(p.rglob("*.py")) if p.is_dir() else [p])
+    refused: list[str] = []
+    for p in (Path(a) for a in arguments):
+        if p.is_dir():
+            files.extend(_python_files(p))
+        elif not p.exists():
+            refused.append(f"{p}: no such file or directory -- nothing was checked for it")
+        elif p.suffix != ".py":
+            refused.append(f"{p}: not a .py file -- this checker reads Python only")
+        else:
+            files.append(p)
+    for message in refused:
+        print(message)
 
     exclusions = load_exclusions()
     excluded: dict[Path, int] = {}
@@ -481,10 +509,13 @@ def main() -> int:
 
     for item in report.items:
         print(item)
-    print(f"\n{len(checked)} file(s) checked, {len(report.items)} issue(s) found.")
+    refusals = f", {len(refused)} path(s) refused" if refused else ""
+    print(f"\n{len(checked)} file(s) checked, {len(report.items)} issue(s) found{refusals}.")
     for root, reason in exclusions:
         if root in excluded:
             print(f"Excluded {excluded[root]} file(s) in {root.relative_to(REPO_ROOT)} (check_style.json): {reason}")
+    if refused:
+        return 2
     return 1 if report.items else 0
 
 

@@ -22,7 +22,10 @@ docstring-form header) this project does not follow it.
 ```
 
 It must report 0 issues for the files you changed. `src/Transformation/` is excluded in
-`scripts/check_style.json`, with its reason, and the summary line names the exclusion.
+`scripts/check_style.json`, with its reason, and the summary line names the exclusion. It reads
+Python only: a path that does not exist, a non-`.py` file or an unreadable file is refused (exit
+2, named in the output), never counted as clean; a directory walk skips hidden directories, so
+`check_style.py .` does not descend into `.venv`.
 Its own tests: `.venv/bin/python -m pytest .claude/skills/project-style-rpx/scripts/test_check_style.py`
 (not part of the app's `test/` suite).
 

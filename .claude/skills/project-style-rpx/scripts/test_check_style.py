@@ -375,3 +375,51 @@ def test_the_summary_names_every_exclusion(capsys, monkeypatch):
     assert check_style.main() == 0
     out = capsys.readouterr().out
     assert "0 file(s) checked" in out and "Excluded" in out and "src/Transformation (check_style.json)" in out
+
+
+def test_a_missing_path_is_refused_not_reported_clean(capsys, monkeypatch, tmp_path):
+    missing = tmp_path / "no_such_module.py"
+    monkeypatch.setattr("sys.argv", ["check_style.py", str(missing)])
+    assert check_style.main() == 2
+    out = capsys.readouterr().out
+    assert "no such file or directory" in out and "1 path(s) refused" in out
+
+
+def test_a_non_python_file_is_refused_not_parsed(capsys, monkeypatch, tmp_path):
+    notes = tmp_path / "notes.md"
+    notes.write_text("# Notes \u2014 not Python\n", encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["check_style.py", str(notes)])
+    assert check_style.main() == 2
+    out = capsys.readouterr().out
+    assert "not a .py file" in out and "[syntax]" not in out
+
+
+def test_help_prints_the_usage_and_checks_nothing(capsys, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["check_style.py", "--help"])
+    assert check_style.main() == 0
+    out = capsys.readouterr().out
+    assert out.lstrip().startswith("Check Python files") and "file(s) checked" not in out
+
+
+def test_an_unreadable_file_is_reported_not_skipped(tmp_path):
+    target = tmp_path / "src" / "broken.py"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"\xff\xfe not utf-8")
+    report = check_style.Report()
+    check_style.check_file(target, report)
+    assert [item for item in report.items if "[unreadable]" in item]
+
+
+def test_a_directory_walk_skips_hidden_directories(tmp_path):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "mod.py").write_text("", encoding="utf-8")
+    (tmp_path / "pkg" / ".venv" / "lib").mkdir(parents=True)
+    (tmp_path / "pkg" / ".venv" / "lib" / "site.py").write_text("", encoding="utf-8")
+    assert check_style._python_files(tmp_path) == [tmp_path / "pkg" / "mod.py"]
+
+
+def test_a_test_directory_above_the_file_does_not_relax_the_rules(tmp_path):
+    # A directory named 'test' ABOVE the checked file (here, outside the repository) must not make
+    # it a pytest module: only pytest's own file names, or the repository's top-level test/, do.
+    flags = _file_flags(_PYTEST_TEST, "test/checkout/src/Vision/mod.py", tmp_path)
+    assert [f for f in flags if "[naming]" in f] != []
