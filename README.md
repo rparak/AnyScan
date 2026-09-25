@@ -1,4 +1,4 @@
-# AnyScan — PyQt5 console
+# AnyScan
 
 *The camera sees, the model describes.*
 
