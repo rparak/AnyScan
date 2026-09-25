@@ -1,0 +1,19 @@
+Session logs and per-analysis captures — contents not tracked in git (see .gitignore)
+=====================================================================================
+
+This file only keeps the directory in a fresh clone; everything else here is a per-run
+artifact written by the application, never committed. The application also creates the
+directory itself if it is missing (src/Logger/Core.py).
+
+What lands here
+---------------
+    logger/log_<date>_<HH-MM>.txt    one session log per application start (Logger/Core.py)
+    logger/log_<Hardware>.csv        the run summary, one row per analysis, named after the
+                                     loaded configuration's hardware id (log_unconfigured.csv
+                                     before one is loaded); an older column set is archived
+                                     beside it rather than overwritten
+    logger/captures/                 each analysis's capture set — the frames, annotated
+                                     image, label mask, _objects.json and _understanding.txt,
+                                     bounded to the newest 50 sets (UI/Capture.py)
+
+All of it can be deleted between sessions; nothing the application needs to start is kept here.

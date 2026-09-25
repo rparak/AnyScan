@@ -13,7 +13,10 @@ env/
 # Model weights — the app loads Gemma 4 from models/gemma-4-e4b-it-4bit/ (~4.8 GB, Apache
 # 2.0, not MIT) and FastSAM from models/FastSAM/. Fetched separately, never committed. Anchored to the
 # repo root so it cannot also swallow a nested directory that happens to be named 'models'.
-/models/
+# Its CONTENTS are ignored, not the directory: '/models/' would ignore models/.gitkeep too, which
+# then stayed tracked only because it was committed before the rule. The .gitkeep says what to fetch.
+/models/*
+!/models/.gitkeep
 
 # Tool output — Example/Vision/analyze.py writes each frame's annotated image, label mask
 # and descriptions here, and Example/Camera/scan.py its captured frames; regenerated on
@@ -29,5 +32,7 @@ env/
 # under the repo-root logger/ directory. A per-run artifact, never committed. Anchored to
 # the ROOT with a leading slash: an unanchored 'logger/' matches a directory of that name
 # ANYWHERE, so on a case-insensitive filesystem it also ignored the tracked source in
-# src/Logger/ and test/Logger/ — 'git add .' skipped them silently.
-/logger/
+# src/Logger/ and test/Logger/ — 'git add .' skipped them silently. Its contents are ignored,
+# not the directory, so logger/.gitkeep is tracked and a fresh clone has the directory.
+/logger/*
+!/logger/.gitkeep
