@@ -1166,8 +1166,9 @@ class AnyScan_Window_Cls(QMainWindow):
         Description:
             Keep History current with the rolling window after a capture write: if the set the
             operator is viewing in History was just evicted, log that at INFO (so the reason is
-            findable), then rebuild the grid — which makes a newly written set appear while the
-            operator sits in History, and clears the detail with a note if the viewed set is gone.
+            findable), then — only if History is on screen — rebuild the grid, which makes a newly
+            written set appear while the operator sits in History and clears the detail with a note
+            if the viewed set is gone. A hidden History is rebuilt when it is next shown.
 
         Args:
             (1) evicted [Vector<string>]: The set ids evicted by this write.
@@ -1179,7 +1180,11 @@ class AnyScan_Window_Cls(QMainWindow):
         if selected is not None and selected in evicted and self.__logger is not None:
             self.__logger.Log_Info('The capture set shown in History (%s) was evicted to stay '
                                    'within the retention limit; History cleared it.' % selected)
-        self.__history_view.Refresh()
+        # Rediscovering and rebuilding the grid costs a disk scan, thumbnail decodes and two
+        # full-resolution images, so it is done only while History is on screen: showing History
+        # refreshes it anyway (__On_View_Selected), so a hidden view is never shown stale.
+        if self.__stack.currentIndex() == self.CONST_VIEW_INDEX['history']:
+            self.__history_view.Refresh()
 
     def __Log_Seg_Points(self, seg_lines: tp.List[str]) -> None:
         """

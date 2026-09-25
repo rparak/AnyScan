@@ -38,6 +38,13 @@ from UI.Widgets import Card_Cls, Card_Head_Cls, Segmented_Control_Cls
 #   ../Logger/Core
 from Logger.Core import Parse_Line, CONST_LEVEL_INFO, CONST_LEVEL_WARNING, CONST_LEVEL_ERROR
 
+# The most lines the view holds; past it the oldest go (the file keeps every line). Each row is a
+# widget with three labels, and a new row costs more the more rows the layout holds — measured
+# offscreen: ~1 ms a line and +46 MB at 1,000 rows, ~13 ms a line and +455 MB at 10,000, ~39 ms
+# and +909 MB at 20,000. A long shift writes well past 10,000 lines, so the view is capped.
+#   Unit [int]
+CONST_MAX_ROWS = 1000
+
 """
 Description:
     The Log view — the session log shown live in the central area. Its source of truth is the
@@ -109,8 +116,10 @@ class Log_View_Cls(Card_Cls):
         super().__init__(parent=parent)
 
         # << PRIVATE >> #
-        # One (level, row_widget) per rendered line, in order, for filtering.
+        # One (level, row_widget) per rendered line, in order, for filtering — the newest
+        # CONST_MAX_ROWS; whether older lines have been dropped (the count then says so).
         self.__rows = []
+        self.__trimmed = False
         # The count of lines currently shown under the active filter.
         self.__shown = 0
         # Tail-follow state: True while the view sticks to the bottom; the count of lines that
@@ -232,12 +241,16 @@ class Log_View_Cls(Card_Cls):
 
         try:
             with open(path, 'r', encoding='utf-8') as handle:
-                lines = handle.read().splitlines()
+                lines = [line for line in handle.read().splitlines() if line]
         except OSError:
             return
+        # Only the lines the view would keep are rendered: a long file is not built up row by row
+        # only to be trimmed again.
+        if len(lines) > CONST_MAX_ROWS:
+            self.__trimmed = True
+            lines = lines[-CONST_MAX_ROWS:]
         for line in lines:
-            if line:
-                self.Append_Line(line)
+            self.Append_Line(line)
 
     def Append_Line(self, line: str) -> None:
         """
@@ -271,10 +284,31 @@ class Log_View_Cls(Card_Cls):
         row.setVisible(visible)
         if visible:
             self.__shown += 1
-            self.__Set_Count(self.__shown)
             if not self.__follow:
                 self.__new_count += 1
                 self.__Show_New_Indicator()
+        while len(self.__rows) > CONST_MAX_ROWS:
+            self.__Drop_Oldest_Row()
+        self.__Set_Count(self.__shown)
+
+    def __Drop_Oldest_Row(self) -> None:
+        """
+        Description:
+            Remove the oldest row (the file keeps the line). If the operator is scrolled up, the
+            scroll position moves up by the row's height, so the lines they are reading stay put.
+        """
+
+        level, row = self.__rows.pop(0)
+        self.__trimmed = True
+        height = row.height() if not row.isHidden() else 0
+        if self.__Filter_Matches(level, self.__filter.Selection() or 'all'):
+            self.__shown -= 1
+        self.__rows_box.removeWidget(row)
+        row.setParent(None)
+        row.deleteLater()
+        if not self.__follow and height:
+            bar = self.__scroll.verticalScrollBar()
+            bar.setValue(max(0, bar.value() - height))
 
     def Is_Following(self) -> bool:
         """
@@ -398,7 +432,9 @@ class Log_View_Cls(Card_Cls):
             (1) count [int]: The number of shown lines.
         """
 
-        self.__count.setText('%d %s' % (count, 'line' if count == 1 else 'lines'))
+        text = '%d %s' % (count, 'line' if count == 1 else 'lines')
+        self.__count.setText(text + (' · the last %d kept here, all in the log file' % CONST_MAX_ROWS
+                                     if self.__trimmed else ''))
 
     # --------------------------------------------------------------------- filtering
 

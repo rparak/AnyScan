@@ -28,7 +28,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QLabel
 # Custom Lib.: AnyScan UI — the log view; the palette; the logger's level constants
 #   ../UI/Views/Log
 from UI.Views.Log import Log_View_Cls
@@ -347,3 +347,86 @@ def test_tail_following_suspended_on_manual_scroll(qt_app) -> None:
         qt_app.processEvents()
     assert view.Is_Following()
     assert view.New_Line_Count() == 0
+
+
+def test_the_view_keeps_the_newest_lines_and_says_the_rest_are_in_the_file(qt_app, monkeypatch) -> None:
+    """
+    Description:
+        The view holds at most CONST_MAX_ROWS lines (a row costs more the more rows it holds): past
+        it the oldest go, the newest stay in order, the count covers what is shown, and it says the
+        full log is in the file.
+    """
+
+    import UI.Views.Log as Log_Module
+    monkeypatch.setattr(Log_Module, 'CONST_MAX_ROWS', 30)
+    view = Log_View_Cls()
+    for i in range(45):
+        view.Append_Line(_Line('08:00:%02d' % i, CONST_LEVEL_INFO, 'Line %d.' % i))
+
+    texts = [message for _stamp, _level, message in _Row_Text(view)]
+    assert texts == ['Line %d.' % i for i in range(15, 45)]
+    assert view.Shown_Count() == 30
+    count = [label.text() for label in view.findChildren(QLabel) if label.text().startswith('30 lines')]
+    assert count and 'the last 30 kept here, all in the log file' in count[0]
+
+
+def test_seeding_from_a_long_file_renders_only_its_last_lines(qt_app, tmp_path, monkeypatch) -> None:
+    """
+    Description:
+        Seeding reads the file and renders only the lines the view keeps — the tail — rather than
+        building every row of a long shift only to drop it again.
+    """
+
+    import UI.Views.Log as Log_Module
+    monkeypatch.setattr(Log_Module, 'CONST_MAX_ROWS', 30)
+    path = tmp_path / 'log.txt'
+    path.write_text('\n'.join(_Line('08:%02d:00' % (i // 60), CONST_LEVEL_INFO, 'Line %d.' % i)
+                              for i in range(100)) + '\n', encoding='utf-8')
+    built = []
+    real_build = Log_View_Cls._Log_View_Cls__Build_Row
+    monkeypatch.setattr(Log_View_Cls, '_Log_View_Cls__Build_Row', lambda self, record: built.append(1) or
+                        real_build(self, record))
+    view = Log_View_Cls()
+    view.Seed_From_File(str(path))
+
+    assert len(built) == 30                                   # the dropped lines were never built
+    assert [message for _stamp, _level, message in _Row_Text(view)][0] == 'Line 70.'
+
+
+def test_dropping_old_lines_does_not_move_what_a_scrolled_up_reader_sees(qt_app, monkeypatch) -> None:
+    """
+    Description:
+        Scrolled up, the operator is reading older lines; new lines that push the oldest out must
+        not shift the view: the line at the top of the viewport stays the same one.
+    """
+
+    import UI.Views.Log as Log_Module
+    monkeypatch.setattr(Log_Module, 'CONST_MAX_ROWS', 40)
+    view = Log_View_Cls()
+    view.resize(700, 220)
+    view.show()
+    for i in range(40):
+        view.Append_Line(_Line('08:00:%02d' % i, CONST_LEVEL_INFO, 'Line %d.' % i))
+    for _ in range(4):
+        qt_app.processEvents()
+    scroll = _Private(view, '__scroll')
+    bar = scroll.verticalScrollBar()
+    bar.setValue(bar.maximum() // 2)
+    for _ in range(2):
+        qt_app.processEvents()
+
+    def _Top_Line() -> str:
+        viewport = scroll.viewport()
+        for _level, row in _Private(view, '__rows'):
+            if row.mapTo(viewport, row.rect().bottomLeft()).y() > 0:
+                return row.layout().itemAt(2).widget().text()
+        return ''
+
+    before = _Top_Line()
+    for i in range(40, 45):
+        view.Append_Line(_Line('08:00:%02d' % i, CONST_LEVEL_WARNING, 'Line %d.' % i))
+    for _ in range(4):
+        qt_app.processEvents()
+    assert not view.Is_Following()
+    assert _Top_Line() == before
+    view.close()

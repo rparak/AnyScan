@@ -1514,3 +1514,44 @@ the thresholds from them, and re-verify every exact-text pin on the CUDA backend
 Tests `test/Install/test_install.py` (the refusal and `--cpu` for every no-GPU case, the memory
 floors, the busy-card warning, `--model` parsing, the 12B notice, its download directory, and the
 configuration message).
+
+
+## The Log view holds the newest 1,000 lines, because each row made every later one slower
+
+The Log view rendered every line of the session as its own row (a widget, a layout and three
+labels) and never dropped one. A new row costs more the more rows the layout already holds, so the
+view did not just grow — it slowed the application down as the shift went on. Measured offscreen
+on the development Mac, appending a realistic object line 1,000 at a time:
+
+| Rows in the view | Time for the next 1,000 lines | Per line | Memory added |
+|---|---|---|---|
+| 1,000 | 1.1 s | ~1 ms | +46 MB |
+| 5,000 | 5.3 s | ~5 ms | +229 MB |
+| 10,000 | 13.4 s | ~13 ms | +455 MB |
+| 20,000 | 39.1 s | ~39 ms | +909 MB |
+
+All of that runs on the GUI thread. At 12–15 lines per analysis, a 1,000-analysis shift reaches
+~15,000 rows: about 0.7 GB and ~27 ms of work for every new log line — the application getting
+sluggish in the afternoon with nothing to connect it to the log.
+
+- **The view keeps the newest `CONST_MAX_ROWS` = 1,000 lines** (`UI/Views/Log.py`); past it the
+  oldest row is dropped as each new one arrives. With the cap the cost stays flat: ~1.5 ms a line
+  and ~115 MB (peak RSS) whether the shift has written 2,000 lines or 20,000.
+- **The file keeps every line.** The count says so once lines have been dropped ("the last 1000
+  kept here, all in the log file"), so a short view never reads as a short log.
+- **Seeding from the file renders only its last 1,000 lines**, instead of building every row of a
+  long file only to drop it again.
+- **A scrolled-up reader is not moved.** When a row above the viewport is dropped, the scroll
+  position moves up by its height, so the line at the top of the viewport stays the same.
+- **1,000 is the knee, not a limit of the design.** It keeps a new line near 1 ms and the view
+  near 50 MB of rows. A first measurement showed memory still climbing after the fix; that was the
+  measurement, not a leak — dropped rows are freed by `deleteLater`, which only runs when the event
+  loop does, and the script never started one. Processing the deferred deletes (as the application's
+  own loop does) the memory levels off.
+
+**Revisit if** someone wants more lines on screen: re-run the measurement above first and raise
+the cap only as far as the per-line time stays acceptable — or render the log with a model/view
+(`QListView` over the records) instead of one widget per line, which would remove the curve.
+Tests `test/UI/test_log_view.py::test_the_view_keeps_the_newest_lines_and_says_the_rest_are_in_the_file`,
+`::test_seeding_from_a_long_file_renders_only_its_last_lines`,
+`::test_dropping_old_lines_does_not_move_what_a_scrolled_up_reader_sees`.

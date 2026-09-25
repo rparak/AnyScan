@@ -203,9 +203,9 @@ def test_evicting_the_displayed_history_set_is_logged(qt_app, reference_backgrou
     """
     Description:
         When retention evicts the set currently shown in History, the reason is findable: the
-        window logs the eviction of the displayed set at INFO (and refreshes History, which
-        clears it). Here the History selection is set and __Refresh_History is told that set was
-        evicted; the log must record it by id.
+        window logs the eviction of the displayed set at INFO (History clears it when it is next
+        rebuilt — at once if on screen, else when shown). Here the History selection is set and
+        __Refresh_History is told that set was evicted; the log must record it by id.
     """
 
     logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), install_handlers=False)
@@ -218,6 +218,60 @@ def test_evicting_the_displayed_history_set_is_logged(qt_app, reference_backgrou
 
     content = open(logger.Path, 'r', encoding='utf-8').read()
     assert 'shown in History (setX) was evicted' in content
+
+
+def _Writing_Window(reference_background_path, tmp_path, monkeypatch):
+    """A window that writes capture sets (a real logger), and a record of every disk rescan History makes."""
+    import UI.Views.History as History_Module
+    rescans = []
+    discover = History_Module.Discover_Capture_Sets
+    monkeypatch.setattr(History_Module, 'Discover_Capture_Sets', lambda root: rescans.append(root) or discover(root))
+    logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), install_handlers=False)
+    window = _Framed_Window(reference_background_path, logger=logger)
+    setattr(window, CONST_MANGLE + '__session_id', 'sess1')
+    return window, logger, rescans
+
+
+def _Listed(window) -> list:
+    """The set ids History lists now."""
+    return sorted(cap.Set_Id for cap in getattr(_Private(window, '__history_view'), '_History_View_Cls__sets'))
+
+
+def test_a_set_written_while_history_is_hidden_costs_no_rescan_and_is_listed_when_shown(
+        qt_app, reference_background_path, tmp_path, monkeypatch) -> None:
+    """
+    Description:
+        A capture written while another view is on screen does not rescan the disk or rebuild the
+        History grid (a scan, thumbnails and two full-resolution decodes, for a view nobody is
+        looking at); showing History rebuilds it, and the new set is there.
+    """
+
+    window, logger, rescans = _Writing_Window(reference_background_path, tmp_path, monkeypatch)
+    rescans.clear()
+    setattr(window, CONST_MANGLE + '__current_set_id', 'set1')
+    _Private(window, '__On_Analysis_Finished')(_Result(objects=1))
+    assert rescans == []                                           # Live is on screen: no rebuild
+
+    _Private(window, '__On_View_Selected')('history')
+    assert len(rescans) == 1 and _Listed(window) == ['set1']
+    logger.Close()
+
+
+def test_a_set_written_while_history_is_shown_is_listed_at_once(qt_app, reference_background_path, tmp_path,
+                                                                monkeypatch) -> None:
+    """
+    Description:
+        With History on screen, a capture written by the next analysis appears in its list at once,
+        without switching away and back.
+    """
+
+    window, logger, rescans = _Writing_Window(reference_background_path, tmp_path, monkeypatch)
+    _Private(window, '__On_View_Selected')('history')
+    assert _Listed(window) == []
+    setattr(window, CONST_MANGLE + '__current_set_id', 'set1')
+    _Private(window, '__On_Analysis_Finished')(_Result(objects=1))
+    assert _Listed(window) == ['set1']
+    logger.Close()
 
 
 def test_classification_flag_flows_to_the_written_set(qt_app, reference_background_path, tmp_path) -> None:
