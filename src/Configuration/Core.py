@@ -750,115 +750,24 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     if data is None:
         raise Configuration_Error_Cls("Configuration '%s' cannot be used: %s." % (name, '; '.join(problems)))
 
-    # 1\ The file name and the Hardware field must agree: the hardware keys the calibration and
-    #    the run-summary CSV, so a renamed copy that still names another camera is refused.
-    hardware, mode = Hardware_And_Mode(config_path)
-    if not (os.path.basename(config_path).startswith(CONST_CONFIG_PREFIX) and hardware and mode):
-        problems.append('the file name must be Config_<Hardware>_Mode_<Mode>.yaml')
-    present, declared = __Lookup(data, ('Hardware',))
-    if not present:
-        problems.append('Hardware is required but missing')
-    elif declared != hardware:
-        problems.append('Hardware is %r but the file name says %r' % (declared, hardware))
+    # 1\ The file name and the Hardware field must agree.
+    hardware, mode = __Read_Hardware(data, config_path, problems)
     Configuration_Str_i.Hardware, Configuration_Str_i.Mode = hardware, mode
 
-    # 2\ Every setting: required ones must be present, optional ones default (and say so), and a
-    #    present value must be valid either way.
-    for path, attribute, kind, required in CONST_FIELDS:
-        dotted = '.'.join(path)
-        target = Configuration_Str_i
-        for part in attribute[:-1]:
-            target = getattr(target, part)
-        present, value = __Lookup(data, path)
-        if not present or value is None:
-            if required:
-                problems.append('%s is required but missing' % dotted)
-            else:
-                notes.append(('INFO', '%s not set; using the default %r.'
-                                      % (dotted, getattr(target, attribute[-1]))))
-            continue
-        valid, value, expected = __Check(kind, value)
-        if not valid:
-            problems.append('%s must be %s (found %r)' % (dotted, expected, value))
-            continue
-        setattr(target, attribute[-1], value)
+    # 2\ Every setting in the field table.
+    __Read_Fields(data, Configuration_Str_i, problems, notes)
 
-    # 3\ The cross-field rules.
-    if Configuration_Str_i.Confidence.Error_Below >= Configuration_Str_i.Confidence.Warn_Below:
-        problems.append('Confidence.Error_Below (%d) must be below Confidence.Warn_Below (%d)'
-                        % (Configuration_Str_i.Confidence.Error_Below,
-                           Configuration_Str_i.Confidence.Warn_Below))
-    for Parameters_Str in (Configuration_Str_i.Segmentation, Configuration_Str_i.Description):
-        if Parameters_Str.Model_Path:
-            Parameters_Str.Model_Path = __Resolve_Model_Path(Parameters_Str.Model_Path)
-    # The harness-only test frames: resolved, never checked here — the application does not read
-    # them, so their absence must not stop it loading (analyze.py checks them).
-    if Configuration_Str_i.Evaluation.Frames:
-        Configuration_Str_i.Evaluation.Frames = __Resolve_Model_Path(Configuration_Str_i.Evaluation.Frames)
-    # The background reference is data the repository tracks, so — unlike a model, checked when it
-    # loads — its absence fails the load: without it the pipeline loses a fusion cue entirely.
-    reference = Configuration_Str_i.Segmentation.Background_Reference
-    if reference:
-        reference = Configuration_Str_i.Segmentation.Background_Reference = __Resolve_Model_Path(reference)
-        if not os.path.isfile(reference):
-            problems.append('Segmentation.Background.Reference: the file "%s" does not exist' % reference)
-            reference = ''
+    # 3\ The cross-field rules, and the paths resolved against the repository.
+    reference = __Resolve_And_Cross_Check(Configuration_Str_i, problems)
 
     # 4\ The camera: the acquisition settings Basler_Cls cannot start without, and the sensor window
-    #    it is set to on connect.
-    custom = __Lookup(data, ('Camera', 'Custom_Cfg'))[1]
-    if not isinstance(custom, dict):
-        problems.append('Camera.Custom_Cfg is required but missing')
-        custom = {}
-    missing = [key for key in CONST_REQUIRED_CUSTOM_CFG_KEYS if key not in custom]
-    if missing and custom:
-        problems.append('Camera.Custom_Cfg is missing the required %s' % ', '.join(missing))
-    settings = {}
-    for key in (key for key in CONST_REQUIRED_CUSTOM_CFG_KEYS if key in custom):
-        dotted = 'Camera.Custom_Cfg.%s' % key
-        if key != 'Balance_Ratios':
-            valid, value, expected = __Check(CONST_CUSTOM_CFG_KINDS[key], custom[key])
-            if valid:
-                settings[key] = value
-            else:
-                problems.append('%s must be %s (found %r)' % (dotted, expected, custom[key]))
-            continue
-        ratios = custom[key]
-        if not isinstance(ratios, dict):
-            problems.append('%s must be a mapping of %s to numbers above 0 (found %r)'
-                            % (dotted, ', '.join(CONST_BALANCE_CHANNELS), ratios))
-            continue
-        absent = [channel for channel in CONST_BALANCE_CHANNELS if channel not in ratios]
-        if absent:
-            problems.append('%s is missing the required %s' % (dotted, ', '.join(absent)))
-        settings[key] = {}
-        for channel in (channel for channel in CONST_BALANCE_CHANNELS if channel in ratios):
-            valid, value, expected = __Check('positive', ratios[channel])
-            if valid:
-                settings[key][channel] = value
-            else:
-                problems.append('%s.%s must be %s (found %r)' % (dotted, channel, expected, ratios[channel]))
-    Configuration_Str_i.Camera.Custom_Cfg = settings
-    window = {}
-    for path, minimum in CONST_WINDOW_FIELDS:
-        window[path[-1]] = __Read_Window(__Lookup(data, path)[1], '.'.join(path), minimum, problems)
-    resolution, offset = window['Resolution'], window['Offset']
+    #    it is set to on connect — against which the reference is checked.
+    Configuration_Str_i.Camera.Custom_Cfg = __Read_Custom_Cfg(data, problems)
+    resolution, offset = __Read_Camera_Window(data, problems)
     Configuration_Str_i.Camera.Resolution = resolution or (0, 0)
     Configuration_Str_i.Camera.Offset = offset or (0, 0)
-    # The reference is validated against the camera's resolution — never the other way round: the
-    # camera does not read its size from a picture on disk, so swapping the reference cannot
-    # silently reconfigure the sensor. A mismatch fails here, at load, naming both sizes, instead of
-    # surfacing at the first ANALYZE.
     if reference and resolution:
-        size = __Image_Size(reference)
-        if size is None:
-            problems.append('Segmentation.Background.Reference: the file "%s" could not be read as an image'
-                            % reference)
-        elif size != resolution:
-            problems.append("Segmentation.Background.Reference is %d × %d but Camera.Resolution is %d × %d: this "
-                            "configuration's reference does not match its camera resolution. Re-shoot the "
-                            'empty-surface reference at %d × %d, or correct Camera.Resolution'
-                            % (size + resolution + resolution))
+        __Check_Reference_Size(reference, resolution, problems)
 
     # 5\ The hardware's calibration, shared by every mode on it, checked against the sensor window.
     if hardware:
@@ -881,6 +790,223 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     Configuration_Str_i.Notes = [(level, "Configuration '%s': %s" % (name, message))
                                  for level, message in notes]
     return Configuration_Str_i
+
+
+def __Read_Hardware(data: tp.Dict[str, tp.Any], config_path: str,
+                    problems: tp.List[str]) -> tp.Tuple[str, str]:
+    """
+    Description:
+        The hardware and mode from the file name, which must agree with the Hardware field: the
+        hardware keys the calibration and the run-summary CSV, so a renamed copy that still names
+        another camera is refused.
+
+    Args:
+        (1) data [Dict]: The parsed mode file.
+        (2) config_path [string]: The mode file's absolute path.
+        (3) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [string]: The hardware from the file name ('' when it has none).
+        (2) parameter [string]: The mode from the file name ('' when it has none).
+    """
+
+    hardware, mode = Hardware_And_Mode(config_path)
+    if not (os.path.basename(config_path).startswith(CONST_CONFIG_PREFIX) and hardware and mode):
+        problems.append('the file name must be Config_<Hardware>_Mode_<Mode>.yaml')
+    present, declared = __Lookup(data, ('Hardware',))
+    if not present:
+        problems.append('Hardware is required but missing')
+    elif declared != hardware:
+        problems.append('Hardware is %r but the file name says %r' % (declared, hardware))
+    return hardware, mode
+
+
+def __Read_Fields(data: tp.Dict[str, tp.Any], Configuration_Str: Configuration_Str,
+                  problems: tp.List[str], notes: tp.List[tp.Tuple[str, str]]) -> None:
+    """
+    Description:
+        Every setting in CONST_FIELDS into the configuration: a required one must be present, an
+        optional one falls back to its default and says so, and a present value must be valid
+        either way.
+
+    Args:
+        (1) data [Dict]: The parsed mode file.
+        (2) Configuration_Str [Configuration_Str(object)]: The configuration being filled.
+        (3) problems [Vector<string>]: Collects what is wrong.
+        (4) notes [Vector<Tuple<string> 1x2>]: Collects the (level, message) notes to log.
+    """
+
+    for path, attribute, kind, required in CONST_FIELDS:
+        dotted = '.'.join(path)
+        target = Configuration_Str
+        for part in attribute[:-1]:
+            target = getattr(target, part)
+        present, value = __Lookup(data, path)
+        if not present or value is None:
+            if required:
+                problems.append('%s is required but missing' % dotted)
+            else:
+                notes.append(('INFO', '%s not set; using the default %r.'
+                                      % (dotted, getattr(target, attribute[-1]))))
+            continue
+        valid, value, expected = __Check(kind, value)
+        if not valid:
+            problems.append('%s must be %s (found %r)' % (dotted, expected, value))
+            continue
+        setattr(target, attribute[-1], value)
+
+
+def __Resolve_And_Cross_Check(Configuration_Str: Configuration_Str, problems: tp.List[str]) -> str:
+    """
+    Description:
+        The rules between fields, and the paths resolved against the repository: the error band
+        below the warning band; the model paths and the harness's test frames resolved (a model is
+        checked when it loads; the frames are the harness's to check, so their absence must not
+        stop the application loading); the background reference resolved and required to exist —
+        it is data the repository tracks, and without it the pipeline loses a fusion cue.
+
+    Args:
+        (1) Configuration_Str [Configuration_Str(object)]: The configuration being filled.
+        (2) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [string]: The resolved reference path, or '' when it is unset or missing.
+    """
+
+    if Configuration_Str.Confidence.Error_Below >= Configuration_Str.Confidence.Warn_Below:
+        problems.append('Confidence.Error_Below (%d) must be below Confidence.Warn_Below (%d)'
+                        % (Configuration_Str.Confidence.Error_Below,
+                           Configuration_Str.Confidence.Warn_Below))
+    for Parameters_Str in (Configuration_Str.Segmentation, Configuration_Str.Description):
+        if Parameters_Str.Model_Path:
+            Parameters_Str.Model_Path = __Resolve_Model_Path(Parameters_Str.Model_Path)
+    if Configuration_Str.Evaluation.Frames:
+        Configuration_Str.Evaluation.Frames = __Resolve_Model_Path(Configuration_Str.Evaluation.Frames)
+    reference = Configuration_Str.Segmentation.Background_Reference
+    if reference:
+        reference = Configuration_Str.Segmentation.Background_Reference = __Resolve_Model_Path(reference)
+        if not os.path.isfile(reference):
+            problems.append('Segmentation.Background.Reference: the file "%s" does not exist' % reference)
+            reference = ''
+    return reference
+
+
+def __Read_Custom_Cfg(data: tp.Dict[str, tp.Any], problems: tp.List[str]) -> tp.Dict[str, tp.Any]:
+    """
+    Description:
+        Camera.Custom_Cfg, the acquisition settings Basler_Cls cannot start without: each of the
+        four is required and typed (CONST_CUSTOM_CFG_KINDS), and Balance_Ratios is exactly the
+        CONST_BALANCE_CHANNELS, each above 0. Only valid values are kept, so nothing the camera does
+        not read is handed to it.
+
+    Args:
+        (1) data [Dict]: The parsed mode file.
+        (2) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Dict]: The validated settings.
+    """
+
+    custom = __Lookup(data, ('Camera', 'Custom_Cfg'))[1]
+    if not isinstance(custom, dict):
+        problems.append('Camera.Custom_Cfg is required but missing')
+        custom = {}
+    missing = [key for key in CONST_REQUIRED_CUSTOM_CFG_KEYS if key not in custom]
+    if missing and custom:
+        problems.append('Camera.Custom_Cfg is missing the required %s' % ', '.join(missing))
+    settings = {}
+    for key in (key for key in CONST_REQUIRED_CUSTOM_CFG_KEYS if key in custom):
+        dotted = 'Camera.Custom_Cfg.%s' % key
+        if key == 'Balance_Ratios':
+            ratios = __Read_Balance_Ratios(custom[key], dotted, problems)
+            if ratios is not None:
+                settings[key] = ratios
+            continue
+        valid, value, expected = __Check(CONST_CUSTOM_CFG_KINDS[key], custom[key])
+        if valid:
+            settings[key] = value
+        else:
+            problems.append('%s must be %s (found %r)' % (dotted, expected, custom[key]))
+    return settings
+
+
+def __Read_Balance_Ratios(ratios: tp.Any, dotted: str, problems: tp.List[str]) -> tp.Optional[tp.Dict[str, float]]:
+    """
+    Description:
+        The white-balance ratios: exactly the CONST_BALANCE_CHANNELS, each a number above 0.
+
+    Args:
+        (1) ratios [Any]: The value read from the file.
+        (2) dotted [string]: Its key path, for the messages.
+        (3) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Dict<string, float> or None]: The valid channels, or None when the value is
+                                                     not a mapping at all.
+    """
+
+    if not isinstance(ratios, dict):
+        problems.append('%s must be a mapping of %s to numbers above 0 (found %r)'
+                        % (dotted, ', '.join(CONST_BALANCE_CHANNELS), ratios))
+        return None
+    absent = [channel for channel in CONST_BALANCE_CHANNELS if channel not in ratios]
+    if absent:
+        problems.append('%s is missing the required %s' % (dotted, ', '.join(absent)))
+    checked = {}
+    for channel in (channel for channel in CONST_BALANCE_CHANNELS if channel in ratios):
+        valid, value, expected = __Check('positive', ratios[channel])
+        if valid:
+            checked[channel] = value
+        else:
+            problems.append('%s.%s must be %s (found %r)' % (dotted, channel, expected, ratios[channel]))
+    return checked
+
+
+def __Read_Camera_Window(data: tp.Dict[str, tp.Any],
+                         problems: tp.List[str]) -> tp.Tuple[tp.Optional[tp.Tuple[int, int]],
+                                                            tp.Optional[tp.Tuple[int, int]]]:
+    """
+    Description:
+        The sensor window the camera is set to on connect: Camera.Resolution and Camera.Offset.
+
+    Args:
+        (1) data [Dict]: The parsed mode file.
+        (2) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Vector<int> 1x2 or None]: The resolution, or None when invalid.
+        (2) parameter [Vector<int> 1x2 or None]: The offset, or None when invalid.
+    """
+
+    window = {}
+    for path, minimum in CONST_WINDOW_FIELDS:
+        window[path[-1]] = __Read_Window(__Lookup(data, path)[1], '.'.join(path), minimum, problems)
+    return window['Resolution'], window['Offset']
+
+
+def __Check_Reference_Size(reference: str, resolution: tp.Tuple[int, int], problems: tp.List[str]) -> None:
+    """
+    Description:
+        The reference must be the camera's window size. It is validated against the camera's
+        resolution — never the other way round: the camera does not read its size from a picture on
+        disk, so swapping the reference cannot silently reconfigure the sensor. A mismatch fails
+        here, at load, naming both sizes, instead of surfacing at the first ANALYZE.
+
+    Args:
+        (1) reference [string]: The resolved reference path (it exists).
+        (2) resolution [Vector<int> 1x2]: The camera's window size.
+        (3) problems [Vector<string>]: Collects what is wrong.
+    """
+
+    size = __Image_Size(reference)
+    if size is None:
+        problems.append('Segmentation.Background.Reference: the file "%s" could not be read as an image'
+                        % reference)
+    elif size != resolution:
+        problems.append("Segmentation.Background.Reference is %d × %d but Camera.Resolution is %d × %d: this "
+                        "configuration's reference does not match its camera resolution. Re-shoot the "
+                        'empty-surface reference at %d × %d, or correct Camera.Resolution'
+                        % (size + resolution + resolution))
 
 
 def Discover_Configurations(directory: str) -> tp.List[tp.Tuple[str, tp.Optional[Configuration_Str], str]]:

@@ -382,18 +382,13 @@ def _Analyze_Frame(backend: Vision_Pipeline_Cls, scene_path: str, output_dir: st
     return result
 
 
-def main() -> int:
+def _Parse_Arguments() -> argparse.Namespace:
     """
     Description:
-        Discover every scene in the input directory (the reference is the configuration's
-        Segmentation.Background.Reference, never discovered), run each scene through the
-        application pipeline, write its three artefacts, and report the
-        per-frame object count, raw FastSAM mask count and per-cue attribution plus the
-        total. The exit code is non-zero when the inputs cannot be resolved or the
-        weights/runtime are missing, so the script gates a CI check.
+        The harness's command line.
 
     Returns:
-        (1) parameter [int]: The process exit code (0 on success).
+        (1) parameter [argparse.Namespace(object)]: The parsed arguments.
     """
 
     parser = argparse.ArgumentParser(description='Run the AnyScan vision pipeline over every test frame.')
@@ -408,47 +403,45 @@ def main() -> int:
     parser.add_argument('--montage', action='store_true', help='also write the enhanced-crop debug montage (off by default)')
     parser.add_argument('--config', default=CONST_DEFAULT_CONFIG_FILE,
                         help='the configuration to run (default: the one the application loads)')
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # The configuration, loaded ONCE through the application's configuration layer and validated
-    # as a whole, so the harness runs the same stages, mode and scale the application runs.
-    try:
-        configuration = _Configure(args, Load_Configuration(args.config))
-    except Configuration_Error_Cls as error:
-        _Banner('CONFIGURATION REFUSED', [str(error)])
-        return 1
 
-    # The scenes by the documented discovery rule, from --input-dir or the configuration's
-    # Evaluation.Frames; the reference is the configuration's own (Segmentation.Background.Reference)
-    # — the one the application subtracts against.
-    reference_path = configuration.Segmentation.Background_Reference
+def _Resolve_Inputs(args: argparse.Namespace, configuration: Configuration_Str) -> tp.Optional[tp.List[str]]:
+    """
+    Description:
+        The scenes to run, checked before a single artefact is written: found by the documented
+        discovery rule in --input-dir or the configuration's Evaluation.Frames; the configuration's
+        reference readable (every frame is differenced against it, so without it no caption is
+        real — and a failed run must never leave output that looks finished); every frame the
+        camera's window size, as the reference is. Each refusal is a banner naming what to fix.
+
+    Args:
+        (1) args [argparse.Namespace(object)]: The parsed arguments (input_dir is filled in).
+        (2) configuration [Configuration_Str(object)]: The loaded configuration.
+
+    Returns:
+        (1) parameter [Vector<string> or None]: The scene paths, or None when the run is refused.
+    """
+
     if args.input_dir is None:
         args.input_dir = configuration.Evaluation.Frames
     if not args.input_dir:
         _Banner('NO TEST FRAMES CONFIGURED',
                 ["The configuration '%s' does not set Evaluation.Frames, and no --input-dir was given."
                  % configuration.Name, 'Set Evaluation.Frames (e.g. Data/Images/Test) or pass --input-dir.'])
-        return 1
+        return None
     scenes = Discover_Scenes(args.input_dir)
     if not scenes:
         _Banner('NO SCENE FRAMES FOUND',
                 ['No Image_[0-9]*.png scene frames were found in: %s' % os.path.abspath(args.input_dir)])
-        return 1
-
-    # Fail loudly and EARLY: every frame is differenced against the reference, so a
-    # missing or unreadable reference means no caption is real. Verify it is readable
-    # before a single artefact is written, so a failed run never leaves output that
-    # looks finished (the reference had been cleaned out from under an earlier run).
+        return None
+    reference_path = configuration.Segmentation.Background_Reference
     if cv2.imread(reference_path) is None:
         _Banner('BACKGROUND REFERENCE UNREADABLE',
                 ['The empty-surface reference could not be read: %s' % reference_path,
                  'Every frame is differenced against it, so without it no caption is real.',
                  'Refusing to write artefacts that would look finished. Restore the reference.'])
-        return 1
-    reference_hash = _Fingerprint(reference_path)
-
-    # Every frame must be the camera's window size, as the reference is: a frame of another size
-    # cannot be differenced against it. Checked before a single artefact is written.
+        return None
     wrong = []
     for scene in scenes:
         frame = cv2.imread(scene, cv2.IMREAD_UNCHANGED)
@@ -459,62 +452,115 @@ def main() -> int:
         _Banner('TEST FRAMES OF THE WRONG SIZE',
                 ['Camera.Resolution is %d × %d; these frames are not:' % tuple(configuration.Camera.Resolution)]
                 + wrong + ['Refusing to write artefacts. Use frames captured at this window.'])
-        return 1
+        return None
+    return scenes
 
-    # Describe once through the application backend. One timestamp stamps every artefact of
-    # this run.
-    run_stamp = datetime.datetime.now().isoformat(timespec='seconds')
-    os.makedirs(args.output_dir, exist_ok=True)
-    print('[INFO] Reference: %s (%s)' % (reference_path, reference_hash))
-    print('[INFO] Scenes   : %d frame(s) in %s' % (len(scenes), os.path.abspath(args.input_dir)))
+
+def _Print_Run_Header(configuration: Configuration_Str, scenes: tp.List[str], input_dir: str,
+                      reference_hash: str, run_stamp: str) -> None:
+    """
+    Description:
+        What this run is: the reference and its fingerprint, the scenes, the describer, the
+        configuration and its classification mode, the run stamp, and the measurement scale — or a
+        warning that nothing will be measured, never a size from a default.
+
+    Args:
+        (1) configuration [Configuration_Str(object)]: The loaded configuration.
+        (2) scenes [Vector<string>]: The scene paths.
+        (3) input_dir [string]: Where they were found.
+        (4) reference_hash [string]: The reference's fingerprint.
+        (5) run_stamp [string]: The run timestamp.
+    """
+
+    print('[INFO] Reference: %s (%s)' % (configuration.Segmentation.Background_Reference, reference_hash))
+    print('[INFO] Scenes   : %d frame(s) in %s' % (len(scenes), os.path.abspath(input_dir)))
     print('[INFO] Describer: %s' % Vision_Core.CONST_DESCRIBER)
-    # The classification flag, from the one configuration, so the harness renders the same mode
-    # (verdict colours vs the neutral detection colour) as the app.
-    classification_enabled = configuration.Classification_Enabled
     print('[INFO] Config   : %s' % configuration.Name)
-    print('[INFO] Classify : %s' % ('enabled' if classification_enabled else 'disabled'))
+    print('[INFO] Classify : %s' % ('enabled' if configuration.Classification_Enabled else 'disabled'))
     print('[INFO] Run stamp: %s\n' % run_stamp)
-
-    # The measurement scale, from the configuration's calibration; without a factor nothing is
-    # measured (and the harness says so), never a size from a default.
     scale = configuration.Scale
     if scale is None:
         print('[WARNING] %s has no calibration Conversion_Factor; objects will not be measured.'
               % configuration.Name)
     else:
         print('[INFO] Scale    : %.5f x %.5f mm/px' % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y))
+
+
+def _Report_Frame(stem: str, result: Analysis_Str) -> tp.Tuple[str, int, int, tp.Dict[str, int], int]:
+    """
+    Description:
+        Print one frame's result — the object count, the raw FastSAM mask count, the per-cue
+        attribution, the background, each object with its cue and size, and the post-processing
+        audit (so over-stripping surfaces instead of passing silently) — and return its summary row.
+
+    Args:
+        (1) stem [string]: The frame's stem (e.g. 'Image_001').
+        (2) result [Analysis_Str(object)]: The frame's reading.
+
+    Returns:
+        (1) parameter [Tuple]: (stem, objects, raw FastSAM masks, cues, latency in ms).
+    """
+
+    cues = {}
+    for det in result.Objects:
+        cues[det.Cue] = cues.get(det.Cue, 0) + 1
+    print('[INFO] %s: %d object(s)  raw FastSAM=%d  cues=%s  (%d ms)'
+          % (stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms))
+    if result.Background:
+        print('[INFO]     background = %s' % result.Background)
+    for i, det in enumerate(result.Objects, 1):
+        size = Object_Size(det)
+        print('[INFO]     Obj. %d [%s]%s - %s' % (i, det.Cue, ' (%s)' % size if size else '', det.Sentence))
+    for level, message in result.Audit:
+        print('[%s]     %s' % (level.upper(), message))
+    return stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms
+
+
+def main() -> int:
+    """
+    Description:
+        Discover every scene in the input directory (the reference is the configuration's
+        Segmentation.Background.Reference, never discovered), run each scene through the
+        application pipeline, write its three artefacts, and report the per-frame object count,
+        raw FastSAM mask count and per-cue attribution plus the total. The exit code is non-zero
+        when the inputs cannot be resolved or the weights/runtime are missing, so the script gates
+        a CI check.
+
+    Returns:
+        (1) parameter [int]: The process exit code (0 on success).
+    """
+
+    args = _Parse_Arguments()
+    # The configuration, loaded ONCE through the application's configuration layer and validated
+    # as a whole, so the harness runs the same stages, mode and scale the application runs.
+    try:
+        configuration = _Configure(args, Load_Configuration(args.config))
+    except Configuration_Error_Cls as error:
+        _Banner('CONFIGURATION REFUSED', [str(error)])
+        return 1
+    scenes = _Resolve_Inputs(args, configuration)
+    if scenes is None:
+        return 1
+
+    # One timestamp stamps every artefact of this run; the reference's fingerprint is on each.
+    reference_hash = _Fingerprint(configuration.Segmentation.Background_Reference)
+    run_stamp = datetime.datetime.now().isoformat(timespec='seconds')
+    os.makedirs(args.output_dir, exist_ok=True)
+    _Print_Run_Header(configuration, scenes, args.input_dir, reference_hash, run_stamp)
+
     backend = Vision_Pipeline_Cls(Configuration_Str=configuration)
-    total_objects = 0
     rows = []
     for scene_path in scenes:
-        stem = os.path.splitext(os.path.basename(scene_path))[0]
-        result = _Analyze_Frame(backend, scene_path, args.output_dir,
-                                not args.no_describe, args.montage, run_stamp, reference_hash,
-                                classification_enabled)
+        result = _Analyze_Frame(backend, scene_path, args.output_dir, not args.no_describe, args.montage,
+                                run_stamp, reference_hash, configuration.Classification_Enabled)
         if result is None:
             return 1
-        cues = {}
-        for det in result.Objects:
-            cues[det.Cue] = cues.get(det.Cue, 0) + 1
-        total_objects += len(result.Objects)
-        rows.append((stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms))
-        print('[INFO] %s: %d object(s)  raw FastSAM=%d  cues=%s  (%d ms)'
-              % (stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms))
-        if result.Background:
-            print('[INFO]     background = %s' % result.Background)
-        for i, det in enumerate(result.Objects, 1):
-            size = Object_Size(det)
-            print('[INFO]     Obj. %d [%s]%s - %s' % (i, det.Cue, ' (%s)' % size if size else '',
-                                                    det.Sentence))
-        # The post-processing audit: every background strip and substance substitution,
-        # so over-stripping surfaces here instead of passing silently.
-        for level, message in result.Audit:
-            print('[%s]     %s' % (level.upper(), message))
+        rows.append(_Report_Frame(os.path.splitext(os.path.basename(scene_path))[0], result))
 
     print('\n[INFO] %-14s %8s %12s   %s' % ('frame', 'objects', 'raw FastSAM', 'cues'))
-    for stem, count, raw, cues, _ in rows:
+    for stem, count, raw, cues, _latency in rows:
         print('[INFO] %-14s %8d %12d   %s' % (stem, count, raw, cues))
-    print('[INFO] %-14s %8d' % ('TOTAL', total_objects))
+    print('[INFO] %-14s %8d' % ('TOTAL', sum(count for _stem, count, _raw, _cues, _latency in rows)))
     print('[INFO] Artefacts written to: %s' % os.path.abspath(args.output_dir))
     return 0
 

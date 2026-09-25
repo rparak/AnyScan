@@ -1555,3 +1555,38 @@ the cap only as far as the per-line time stays acceptable — or render the log 
 Tests `test/UI/test_log_view.py::test_the_view_keeps_the_newest_lines_and_says_the_rest_are_in_the_file`,
 `::test_seeding_from_a_long_file_renders_only_its_last_lines`,
 `::test_dropping_old_lines_does_not_move_what_a_scrolled_up_reader_sees`.
+
+
+## Two calibrations of the same images agree only to the last digits — read a small difference as noise
+
+`cv2.calibrateCamera` runs on OpenCV's thread pool (12 threads on the development Mac by default),
+and the order in which the threads' partial sums combine changes from run to run. The same images,
+solved twice by the same code, give reports that differ in the last digits. This was found while
+checking that the `Calibrate` split changed nothing: the unchanged code first disagreed with itself.
+With `cv2.setNumThreads(1)` repeated runs are identical to the last bit, which is how old and new
+code were compared.
+
+How large the difference is depends on how well the image set pins the solve down. On the test
+suite's synthetic boards:
+
+| Image set | Distortion coefficients | mm/px factor | RMS |
+|---|---|---|---|
+| Realistic: 3 flat boards + 8 tilted 15–25° (plus an unreadable file and a board-less frame) | ≤ 2e-9 | ~1e-11 | ~2e-15 px |
+| All frontal: the 3 flat boards only | k3 −1.750 vs −1.758 | ~2e-8 | ~7e-11 px |
+
+- **Comparing an old calibration with a new one:** a difference at the level of the first row is
+  the solver, not the lens, the board or the rig. Only differences far above it mean anything.
+- **A visible run-to-run difference is a second sign of an ill-conditioned set.** The all-frontal
+  set, where k3 moves in its third significant digit, is exactly the set `Calibrate` already warns
+  about ("near-frontal views cannot separate the principal point from the board's position"). If
+  re-running the same images moves a coefficient visibly, the images do not determine it; add
+  tilted views rather than trusting either value.
+- **Nothing pins the thread count in the application or the harness.** Reproducibility to the last
+  bit is not needed there, and forcing one thread would slow every solve for no benefit. Pin it
+  (`cv2.setNumThreads(1)`) only when comparing two runs of the same code, as the equivalence check
+  did.
+
+**Revisit if** a calibration comparison is ever automated (a regression check on the rig's
+calibration, say): it must compare with a tolerance at the scale above, or pin the thread count on
+both sides.
+Tests `test/Calibration/test_core.py` (the synthetic solves the table was measured on).
