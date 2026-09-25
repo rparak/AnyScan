@@ -309,7 +309,7 @@ missing classifier, not the config.
 
 **Revisit when** a classifier lands: it sets `Detection_Str.Verdict`, the empty-NOK message stops
 being the normal state, and the switch starts gating a feature that actually runs.
-Commit `c34983e`; tests `test/Camera/test_configuration.py`, `test/UI/test_history.py::test_the_two_empty_nok_states_are_distinguishable`, `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`.
+Commit `c34983e`; tests `test/Configuration/test_core.py`, `test/UI/test_history.py::test_the_two_empty_nok_states_are_distinguishable`, `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`.
 
 ## History shows only the current run, identified by a run id
 

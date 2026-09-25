@@ -871,8 +871,6 @@ class History_View_Cls(QWidget):
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(8)
         for position, cap in enumerate(caps):
-            # Mark detect-only cards only when the list also holds classified sets — a mixed list,
-            # where a neutral card must be told apart from a classified-OK one by more than colour.
             card = Thumb_Card_Cls(cap)
             card.Clicked.connect(self.__Select)
             grid.addWidget(card, position // CONST_THUMB_COLUMNS,

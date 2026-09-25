@@ -304,9 +304,10 @@ def test_seg_keeps_only_the_outer_contour_for_a_holed_object() -> None:
 def test_seg_falls_back_to_the_bbox_for_a_maskless_object() -> None:
     """
     Description:
-        An object found by the background cue alone (no mask) still gets a polygon — its
-        bounding box as a four-point rectangle — so the seg file has one line per object, in the
-        same order as the box file.
+        An object without a mask still gets a polygon — its bounding box as a four-point
+        rectangle — so the seg file has one line per object, in the same order as the box file.
+        (Fusion gives every object a mask, one found by the background cue alone included; this
+        pins the guard for any other producer of a Detection_Str.)
     """
 
     det = Detection_Str(Label='bg', Bbox=(30, 40, 120, 60))   # no Mask

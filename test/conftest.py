@@ -89,20 +89,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 # << PYTEST HOOK >> #
-def pytest_configure(config: pytest.Config) -> None:
-    """
-    Description:
-        Register the `slow` marker so it does not raise under strict markers.
-
-    Args:
-        (1) config [pytest.Config(object)]: The active pytest configuration.
-    """
-
-    config.addinivalue_line('markers', 'slow: needs the model weights (FastSAM, Gemma) or other heavy runtime; '
-                            'skipped unless --runslow.')
-
-
-# << PYTEST HOOK >> #
 def pytest_collection_modifyitems(config: pytest.Config, items: tp.List[pytest.Item]) -> None:
     """
     Description:

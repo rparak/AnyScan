@@ -30,9 +30,11 @@ Description:
 
     A model-free describer: it reads an object's geometry and dominant colour off
     the mask and crop and writes a plain label and sentence, with no VLM. It is a
-    real, config-selectable backend (CONST_DESCRIBER == 'fallback'), not a test
-    stub — it lets stages 1-3 run and be judged end to end without loading
-    a model, and it stands in when the weights are absent.
+    real backend, selected by setting the code constant Vision.Core.CONST_DESCRIBER to
+    'fallback' (the harness and the weight-free tests do; it is not configuration, and the
+    application always runs Gemma), not a test stub — it lets stages 1-3 run and be judged
+    end to end without loading a model. It does NOT stand in when the weights are absent:
+    then the Gemma load fails with a Vision_Error_Cls naming the missing weights.
 
     Colour is a per-pixel MAJORITY VOTE over the masked pixels, classified in HSV.
     The vote is deliberate, not an average: OpenCV hue wraps at 0/180, and red sits at

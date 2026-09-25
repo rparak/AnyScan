@@ -136,7 +136,7 @@ def main() -> int:
 
     # Load the startup configuration through the one configuration layer, validated as a whole.
     # The application is usable at once (History, Log, Trends); its models are NOT loaded here —
-    # that waits for the dialog's Load or the first CONNECT, so a launch to browse History costs
+    # that waits for the Configuration dialog's Load (CONNECT requires it), so a launch to browse History costs
     # no ~9 s and no ~9.4 GB. A startup configuration that is invalid stops the launch with every
     # problem named: there is no previous configuration to fall back to, and a partly valid one is
     # never used.

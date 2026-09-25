@@ -100,7 +100,8 @@ CONST_FALLBACK_TASK_LABEL = 'model-free description'
 # Who writes each object's description (Vision.Describers.CONST_DESCRIBERS): 'gemma' is the
 # Gemma 4 vision-language model, prompted; 'fallback' is the model-free describer (size /
 # position / aspect / solidity / HSV colour), which lets stages 1-3 run and be judged without
-# loading a model (the weight-free tests use it).
+# loading a model. A code constant, deliberately not configuration: one describer ships. The
+# harness (analyze.py --no-describe) and the weight-free tests set it; the application never does.
 CONST_DESCRIBER = 'gemma'
 
 # What the models are presented as to the operator is configuration (Identity.Model_Set). The describer's
@@ -218,14 +219,14 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                    |  An object survives on EITHER cue; each records
                    |  the cue(s) that found it
                    v
-              objects: component mask + tight bbox (+ cue, coverage, score)
+              objects: component mask + tight bbox (+ cue, score)
                    |
                    v
           (4) description .................... Describers.<describer>.Describe
                    |  the alpha/beta-enhanced padded      OR Describe_Fallback
-                   |  crop (estimated from object         (per CONST_DESCRIBER;
-                   |  pixels, applied to the whole        the fallback reads
-                   |  crop) feeds the describer;          mask + bbox directly)
+                   |  crop (estimated from and given to   (per CONST_DESCRIBER;
+                   |  the object's pixels, the surround   the fallback reads
+                   |  left natural) feeds the describer;  mask + bbox directly)
                    v
               Compose -> per-object sentences + note + verdict  (Reporting.Compose)
                    |
@@ -632,8 +633,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             Stage 4: fill each object's Label and Detail from its crop. The padded crop
             has every OTHER object's pixels replaced by the empty-surface reference, so
             it holds one object plus the table and no neighbours, then it is contrast/
-            brightness-stretched (the gain/bias estimated from the object's own pixels,
-            the surround blended most of the way back to natural) and fed to the
+            brightness-stretched (the gain/bias estimated from and given to the object's
+            own pixels; the surround left as the natural table) and fed to the
             describer — Gemma or the model-free fallback (CONST_DESCRIBER). The
             enhanced crop is retained on the object (Enhanced_Crop) so the debug montage
             shows exactly what the model received, without re-enhancing it.

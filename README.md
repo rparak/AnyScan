@@ -355,7 +355,6 @@ App/
     funder-eu-white.png       Funded by the European Union
     anyscan-mark.png          the mark shown in the empty viewport
     anyscan-mark-white.ico    the window / taskbar icon (multi-size, rounded)
-    icon.png                  fallback window icon
     fonts/                    optional: drop Inter.ttf and JetBrainsMono.ttf here
 src/                      Qt-free domain modules + the UI (see "Source layout")
 Example/                  runnable scripts (scan, calibrate, make_reference, analyze, architecture_diagram)

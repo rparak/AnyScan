@@ -271,7 +271,7 @@ def App_Icon() -> QIcon:
     # Fallback: rasterize the nearest available mark into explicit sizes, so a
     # 256px render is never squeezed straight into a 16px title-bar slot.
     icon = QIcon()
-    for name in ('icon.png', 'anyscan-mark.png'):
+    for name in ('anyscan-mark.png',):
         source = QPixmap(os.path.join(CONST_ASSETS, name))
         if not source.isNull():
             break

@@ -287,8 +287,8 @@ Version_Ge() {
 
 Hash_Sha256() {
     # Description:
-    #   The SHA-256 of a file, with whichever tool the platform has (sha256sum on Linux,
-    #   shasum on macOS).
+    #   The SHA-256 of a file, with whichever tool the platform has: sha256sum when present
+    #   (Linux, and macOS 26 ships /sbin/sha256sum), shasum -a 256 otherwise (older macOS).
     #
     # Args:
     #   (1) path [string]: The file.

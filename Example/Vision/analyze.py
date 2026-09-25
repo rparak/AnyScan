@@ -84,10 +84,9 @@ Description:
     per-cue attribution, so the detection can be judged against the known inventory.
 
     Note:
-        The drawing here is deliberately throwaway (a fixed BGR palette, Hershey text)
-        — the themed, resolution-scaled renderer that makes the annotated image look
-        like the PyQt application is a later step. The single job of this phase is to
-        make the DETECTION visible so it can be checked before any UI is built on it.
+        The annotated image and the mask are drawn by the application's own renderers
+        (Vision.Utilities.Annotate, through Render_Views), so what the harness writes is what the
+        application shows and stores; test/UI/test_harness_parity.py holds the two together.
 """
 # Where the three per-frame artefacts are written (git-ignored). The input frames are not a
 # default here: they come from the configuration's Evaluation.Frames, or --input-dir.
@@ -365,8 +364,9 @@ def _Analyze_Frame(backend: Vision_Pipeline_Cls, scene_path: str, output_dir: st
 def main() -> int:
     """
     Description:
-        Discover every scene and the reference in the input directory, run each scene
-        through the application pipeline, write its three artefacts, and report the
+        Discover every scene in the input directory (the reference is the configuration's
+        Segmentation.Background.Reference, never discovered), run each scene through the
+        application pipeline, write its three artefacts, and report the
         per-frame object count, raw FastSAM mask count and per-cue attribution plus the
         total. The exit code is non-zero when the inputs cannot be resolved or the
         weights/runtime are missing, so the script gates a CI check.

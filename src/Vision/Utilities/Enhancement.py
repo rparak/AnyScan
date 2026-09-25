@@ -32,10 +32,10 @@ Description:
     contrast/brightness before the describer sees it, so a washed-out part on the
     green surface exposes its surface detail, edges and true colour to the describer.
 
-    The stretch is deliberately asymmetric: the gain/bias (alpha/beta) are estimated
-    from the OBJECT's own pixels only (a masked sample), so the uniform surround does
-    not bias the histogram, but the stretch is applied to the WHOLE padded crop, so
-    the object keeps its natural surroundings for the model. Preserve that asymmetry.
+    The gain/bias (alpha/beta) are estimated from the OBJECT's own pixels only (a masked
+    sample), so the uniform surround does not bias the histogram, and the stretch is given to
+    the object: the surround keeps CONST_ENHANCE_SURROUND_BLEND of it — 0 as shipped, so the
+    object sits on its natural table for the model, not on a stretched, garish one.
 
     Note:
         OpenCV (cv2) and NumPy (np) are injected by the caller, the Qt-free contract
@@ -149,10 +149,10 @@ def Enhance_Crop(crop_bgr: tp.List[tp.List[int]], sample_mask: tp.Optional[tp.Li
         every channel as g = alpha * f + beta.
 
         When sample_mask is given and non-empty, ONLY the object pixels feed the
-        histogram, so the uniform green surround does not bias the stretch — but the
-        stretch is still applied to the WHOLE crop, so the object keeps its natural
-        surroundings for the describer. A flat histogram returns (1.0, 0.0), i.e. the
-        crop unchanged.
+        histogram, so the uniform green surround does not bias the stretch, and the
+        surround keeps CONST_ENHANCE_SURROUND_BLEND of the stretch (0 as shipped: the
+        table is left as it was). Without a mask the whole crop is stretched. A flat
+        histogram returns (1.0, 0.0), i.e. the crop unchanged.
 
     Args:
         (1) crop_bgr [Matrix<uint8> hxwx3]: The padded object crop (BGR).
@@ -185,8 +185,8 @@ def Enhance_Crop(crop_bgr: tp.List[tp.List[int]], sample_mask: tp.Optional[tp.Li
     stretched = cv2.convertScaleAbs(crop_bgr, alpha=alpha, beta=beta)
 
     # The stretch is tuned to the OBJECT; applied at full strength to the surround it
-    # can push the table to a garish colour. Give the object the full stretch and blend
-    # the surround most of the way back to the original, so it stays a natural table.
+    # can push the table to a garish colour. Give the object the full stretch and the
+    # surround CONST_ENHANCE_SURROUND_BLEND of it, so it stays a natural table.
     if sample_mask is None or int(np.count_nonzero(sample_mask)) == 0:
         return stretched
     weight = np.where(sample_mask > 0, 1.0, CONST_ENHANCE_SURROUND_BLEND)[..., None]

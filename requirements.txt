@@ -3,7 +3,7 @@
 # ./install.sh does all of this, choosing the hardware-specific parts. By hand:
 #
 #     python -m venv .venv
-#     source .venv/bin/activate      # macOS on Apple silicon only (the MLX describer)
+#     source .venv/bin/activate
 #     pip install -r requirements.txt
 #
 # Python 3.10-3.12; developed and characterized on 3.10 (macOS on Apple silicon,
@@ -11,8 +11,10 @@
 # src/ and Example/ — loosen only if a wheel is unavailable for your platform.
 
 # ---- UI --------------------------------------------------------------------
-# The console UI needs nothing but Qt; the window opens with only this present
-# and reports a usable sentence if a heavier dependency below is missing.
+# The window. At start App/run.py also imports OpenCV, NumPy, Pillow and PyYAML (the
+# configuration layer and the UI's image conversion), so the application does not open
+# without them; pypylon is imported only when the camera connects, and torch, ultralytics
+# and mlx only when a configuration's models load.
 PyQt5>=5.15
 
 # ---- capture + segmentation (BaslerCamera and the vision pipeline) ---------
@@ -23,8 +25,8 @@ opencv-python>=4.10
 # ultralytics WITH this pin held — `pip install -r requirements.txt` does that.
 numpy>=2.2
 Pillow>=10.0
-# The camera configuration (with calibration) is read from and written back to
-# Configuration/*.yaml by Camera.Utilities.Configuration.
+# The configuration and calibration are read from (and the calibration written back to)
+# Configuration/*.yaml by Configuration.Core.
 PyYAML>=6.0
 pypylon>=3.0          # only needed for the live camera; --frame runs without it
 

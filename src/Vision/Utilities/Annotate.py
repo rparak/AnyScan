@@ -379,8 +379,9 @@ def __Object_Polygon(det: Detection_Str, cv2: tp.Any, np: tp.Any) -> tp.List[tp.
         single ring per instance, so the holes are dropped (documented in design-decisions).
         The contour is simplified with approxPolyDP at an epsilon proportional to its own
         perimeter, so a raw thousands-of-point contour becomes a few dozen. An object with no
-        mask (found by the background cue alone) falls back to its bounding box as a rectangle,
-        so every object still has a polygon in the same order as the boxes.
+        mask falls back to its bounding box as a rectangle, so every object still has a polygon
+        in the same order as the boxes. The fusion stage gives every object its component mask —
+        one found by the background cue alone included — so this guards other producers.
 
     Args:
         (1) det [Detection_Str(object)]: The object.

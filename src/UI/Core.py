@@ -170,8 +170,8 @@ class AnyScan_Window_Cls(QMainWindow):
         # calibration has no Conversion_Factor — measures nothing (logged as a warning).
         self.__scale = Configuration_Str.Scale
         # The vision backend. Its models are NOT loaded here — opening the app to browse History
-        # must not cost ~9 s and ~9.4 GB — but on the dialog's Load or at the first CONNECT, so an
-        # analysis never pays for them.
+        # must not cost ~9 s and ~9.4 GB — but by the Configuration dialog's Load, which CONNECT
+        # requires, so an analysis never pays for them.
         self.__vision = Vision_Pipeline_Cls(Configuration_Str=Configuration_Str)
         # The session logger is injected by the launcher; None disables logging so the
         # window still builds under test and in the screenshot harness.
