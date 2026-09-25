@@ -24,7 +24,6 @@
 # System (Default)
 import os
 import time
-import hashlib
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures, composer, and vision utilities
@@ -297,12 +296,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         self.__describer_name = None
         self.__cv2 = None
         self.__np = None
-        # Cached BGR reference array, and the one global background sentence derived
-        # from it — cached against the reference image's content hash AND the describer, so a
-        # new reference (or another model) re-describes but the same one never re-runs.
+        # Cached BGR reference array, and the one global background sentence derived from it.
+        # Both are cleared by Configure and the sentence by a change of describer, so a new
+        # reference (or another model) re-describes but the same one never re-runs.
         self.__background = None
         self.__background_sentence = None
-        self.__background_key = None
         # The stage-2 segmenter. Constructing it is cheap — ultralytics loads lazily
         # (Load_Models or the first Segment), so this keeps the window and the tests light.
         self.__segmenter = Fast_Sam_Cls(Configuration_Str.Segmentation)
@@ -443,7 +441,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         # 3\ Committed: the reference may differ, and the background sentence depends on it, the
         #    prompt, the crop margin and the limits — both are read again under the new configuration.
         self.__background = None
-        self.__background_key = self.__background_sentence = None
+        self.__background_sentence = None
 
     def __Ensure_Loaded(self, stage_cb: tp.Optional[tp.Callable]) -> None:
         """
@@ -476,7 +474,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             self.__describer = (None if CONST_DESCRIBER == 'fallback'
                                 else CONST_DESCRIBERS[CONST_DESCRIBER](self.__config.Description))
             self.__describer_name = CONST_DESCRIBER
-            self.__background_key = self.__background_sentence = None
+            self.__background_sentence = None
         if self.__describer is None or self.__describer.Loaded:
             return
         if stage_cb:
@@ -531,8 +529,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             cleans it and falls back to a neutral string (recording a warning) when it is
             empty, multi-sentence or too long.
 
-            The result is cached against the reference image's content hash: the same
-            reference never re-runs the model, and a changed reference re-describes.
+            The sentence is computed once and kept: the reference is loaded once per
+            configuration, and Configure (or a change of describer) clears the sentence with it,
+            so a changed reference, prompt, margin or limit is described afresh. No per-frame
+            check is needed — hashing the 6.9 MB reference each frame could never see a change
+            the pipeline did not already make.
             When no scene model is loaded (the fallback describer) it returns the
             neutral CONST_BACKGROUND_FALLBACK with a warning, never an empty sentence,
             so the reading always has a background line before the count.
@@ -552,8 +553,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             # first. Use the neutral fallback and record why.
             return CONST_BACKGROUND_FALLBACK, [('warning',
                     'no scene model (fallback describer); used the neutral background sentence')]
-        key = hashlib.md5(bg_bgr.tobytes()).hexdigest()
-        if key == self.__background_key:
+        if self.__background_sentence is not None:
             return self.__background_sentence, []
 
         h, w = bg_bgr.shape[:2]
@@ -561,7 +561,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         crop = bg_bgr[int(h * margin):int(h * (1 - margin)), int(w * margin):int(w * (1 - margin))]
         caption = self.__describer.Describe(crop, CONST_PURPOSE_BACKGROUND)
         sentence, records = Background_Sentence(caption, Description_Parameters_Str=self.__config.Description)
-        self.__background_key, self.__background_sentence = key, sentence
+        self.__background_sentence = sentence
         return sentence, records
 
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,

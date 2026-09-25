@@ -180,7 +180,7 @@ def Fuse_Objects(masks: tp.List, scores: tp.List[tp.Optional[float]],
         sam_overlap = float(np.count_nonzero(comp_mask & sam_bool)) / area
         objects.append(Detection_Str(
             Label='object', Bbox=(x, y, bw, bh), Confidence=None, Mask=comp_mask,
-            Segmenter_Score=__Component_Score(comp_mask, masks, scores, np),
+            Segmenter_Score=__Component_Score(comp_mask, (x, y, bw, bh), masks, scores, np),
             Cue=__Cue(sam_overlap, bg_overlap)))
     return objects
 
@@ -212,7 +212,7 @@ def __Cue(sam_overlap: float, bg_overlap: float) -> str:
     return 'fastsam' if sam_overlap >= bg_overlap else 'background'
 
 
-def __Component_Score(comp_mask: tp.List[tp.List[int]], masks: tp.List,
+def __Component_Score(comp_mask: tp.List[tp.List[int]], bbox: tp.Tuple[int, int, int, int], masks: tp.List,
                       scores: tp.List[tp.Optional[float]], np: tp.Any) -> tp.Optional[float]:
     """
     Description:
@@ -221,20 +221,27 @@ def __Component_Score(comp_mask: tp.List[tp.List[int]], masks: tp.List,
         alone found). A component is a fused blob, not a FastSAM instance, so it has
         no score of its own; this reports the strongest segmenter evidence for it.
 
+        The overlap is tested inside the component's bounding box only: the component's mask
+        is empty outside it, so the answer is the same and every mask is compared on a small
+        window instead of the whole frame.
+
     Args:
         (1) comp_mask [Matrix<bool> HxW]: The component's mask.
-        (2) masks [Vector<Matrix<bool> HxW>]: The FastSAM instance masks.
-        (3) scores [Vector<float or None>]: Per-mask FastSAM confidence, aligned.
-        (4) np [module]: The NumPy module, injected by the caller.
+        (2) bbox [Vector<int> 1x4]: The component's bounding box as (x, y, w, h).
+        (3) masks [Vector<Matrix<bool> HxW>]: The FastSAM instance masks.
+        (4) scores [Vector<float or None>]: Per-mask FastSAM confidence, aligned.
+        (5) np [module]: The NumPy module, injected by the caller.
 
     Returns:
         (1) parameter [float]: The best overlapping score, or None.
     """
 
+    x, y, w, h = bbox
+    window = comp_mask[y:y + h, x:x + w]
     best = None
     for mask, score in zip(masks, scores):
         if score is None:
             continue
-        if np.any(comp_mask & mask):
+        if np.any(window & mask[y:y + h, x:x + w]):
             best = score if best is None else max(best, score)
     return best

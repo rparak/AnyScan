@@ -158,6 +158,7 @@ class _Fake_Describer_Cls(object):
         self.model = None
 
     def Describe(self, image, purpose) -> str:
+        self.purposes = getattr(self, 'purposes', []) + [purpose]
         return 'A machined part on a plain surface.'
 
 
@@ -224,6 +225,33 @@ def test_configure_keeps_a_model_whose_identity_is_unchanged(fake_models) -> Non
     assert getattr(vision, '_Vision_Pipeline_Cls__describer') is describer
     assert segmenter.params.Confidence == 0.25
     assert describer.params.Prompt_Object == 'Name the part.'
+
+
+def test_the_background_is_described_once_per_configuration(fake_models, reference_background,
+                                                            make_synthetic_frame) -> None:
+    """
+    Description:
+        The one background sentence comes from the reference, which does not change between frames:
+        two analyses ask the describer for it once. A new configuration can change the reference,
+        the prompt, the crop margin or the limits, so after Configure it is asked again.
+    """
+
+    import cv2
+    import dataclasses
+    _events, config, _Variant = fake_models
+    frame = cv2.cvtColor(make_synthetic_frame(reference_background, [(300, 300, 560, 560)]), cv2.COLOR_BGR2RGB)
+    vision = Vision_Pipeline_Cls(Configuration_Str=dataclasses.replace(config, Scale=None))
+    background = Vision_Core.CONST_PURPOSE_BACKGROUND
+
+    vision.Analyze(frame)
+    vision.Analyze(frame)
+    describer = getattr(vision, '_Vision_Pipeline_Cls__describer')
+    assert describer.purposes.count(background) == 1
+
+    vision.Configure(dataclasses.replace(_Variant('Config_x_Mode_B.yaml', Background_Crop_Margin=0.2), Scale=None))
+    vision.Analyze(frame)
+    assert getattr(vision, '_Vision_Pipeline_Cls__describer') is describer       # same model, kept
+    assert describer.purposes.count(background) == 2
 
 
 @pytest.mark.parametrize('describer', ['gemma', 'fallback'])

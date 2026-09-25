@@ -191,3 +191,29 @@ def test_component_order_is_row_banded_left_to_right() -> None:
     # top_left (~40) before top_right (~300), both before the lower-band block.
     assert lefts[0] < lefts[1]
     assert objects[2].Bbox[1] > objects[0].Bbox[1]   # third object is in the lower band
+
+
+def test_each_object_carries_the_best_overlapping_fastsam_score() -> None:
+    """
+    Description:
+        An object's Segmenter_Score is the best score among the FastSAM masks that overlap it: an
+        object made of two masks (0.6 and 0.9) and an unscored one carries 0.9, not the 0.99 of a
+        mask elsewhere in the frame; a lone mask carries its own 0.99; an object the background cue
+        alone found carries no score.
+    """
+
+    first = __Block(CONST_H, CONST_W, 100, 40)
+    second = __Block(CONST_H, CONST_W, 130, 70)                  # overlaps first: one object
+    unscored = __Block(CONST_H, CONST_W, 110, 50, size=20)       # inside it, no score
+    far = __Block(CONST_H, CONST_W, 60, 300)                     # its own object
+    background = np.zeros((CONST_H, CONST_W), np.uint8)
+    background[300:360, 200:260] = 1                             # found by the background cue alone
+
+    objects = Fusion.Fuse_Objects([first, second, unscored, far], [0.6, 0.9, None, 0.99], background, cv2, np,
+                                  Segmentation_Parameters_Str=CONST_PARAMETERS)
+
+    by_left = {obj.Bbox[0]: obj for obj in objects}
+    assert len(objects) == 3
+    assert by_left[40].Segmenter_Score == 0.9
+    assert by_left[300].Segmenter_Score == 0.99
+    assert by_left[200].Segmenter_Score is None
