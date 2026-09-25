@@ -396,8 +396,8 @@ class Chart_Base_Cls(QWidget):
     def mouseMoveEvent(self, event: tp.Any) -> None:
         """
         Description:
-            Track the cursor: pick the nearest image column and repaint the read-out. Off to the
-            side of every column the read-out clears rather than snapping to the end.
+            Track the cursor: pick the nearest image column and repaint the read-out. Anywhere on
+            the chart it snaps to the nearest column; leaving the chart clears it (leaveEvent).
 
         Args:
             (1) event [QMouseEvent(object)]: The move event.
@@ -405,7 +405,7 @@ class Chart_Base_Cls(QWidget):
 
         rect = self._Plot_Rect()
         xs = [self._Px_X(value, rect) for value in self._columns]
-        index = Nearest_Index(float(event.x()), xs, max_distance=max(20.0, rect.width()))
+        index = Nearest_Index(float(event.x()), xs)
         if index != self._hover:
             self._hover = index
             self.update()

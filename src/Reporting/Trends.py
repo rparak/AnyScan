@@ -309,19 +309,17 @@ def Value_To_Pixel(value: float, v_low: float, v_high: float,
     return px_low + fraction * (px_high - px_low)
 
 
-def Nearest_Index(query_px: float, xs_px: tp.List[float],
-                  max_distance: tp.Optional[float] = None) -> tp.Optional[int]:
+def Nearest_Index(query_px: float, xs_px: tp.List[float]) -> tp.Optional[int]:
     """
     Description:
         The index of the point whose x pixel is nearest `query_px`, for the hover read-out — the
-        columns are evenly spaced, so nearest-by-x picks the image the cursor is over. Returns None
-        for an empty list, or when the nearest point is farther than max_distance (so hovering off
-        to the side reads nothing rather than snapping to the end).
+        columns are evenly spaced, so nearest-by-x picks the image the cursor is over, and anywhere
+        on the chart the read-out snaps to the nearest column (by design: there is no distance past
+        which it reads nothing). Returns None only for an empty list.
 
     Args:
         (1) query_px [float]: The cursor x, in pixels.
         (2) xs_px [Vector<float>]: The points' x pixels, in order.
-        (3) max_distance [float]: The maximum accepted distance, or None for no limit.
 
     Returns:
         (1) parameter [int]: The nearest index, or None.
@@ -334,8 +332,6 @@ def Nearest_Index(query_px: float, xs_px: tp.List[float],
         distance = abs(xs_px[index] - query_px)
         if distance < best_distance:
             best_index, best_distance = index, distance
-    if max_distance is not None and best_distance > max_distance:
-        return None
     return best_index
 
 

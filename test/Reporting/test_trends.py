@@ -196,8 +196,9 @@ def test_value_to_pixel_maps_linearly_and_inverts_for_y() -> None:
 def test_hover_hit_test_picks_the_nearest_column() -> None:
     """
     Description:
-        The hover picks the column nearest the cursor, ties resolve to the first, and a cursor
-        farther than the limit from every column reads nothing instead of snapping to the end.
+        The hover picks the column nearest the cursor, ties resolve to the first, and a cursor off
+        to either side snaps to the end column (by design: the read-out always shows the nearest
+        image); only an empty chart reads nothing.
     """
 
     xs = [10.0, 30.0, 50.0, 70.0]
@@ -205,8 +206,7 @@ def test_hover_hit_test_picks_the_nearest_column() -> None:
     assert Nearest_Index(41, xs) == 2
     assert Nearest_Index(40, xs) == 1                        # tie -> the first
     assert Nearest_Index(-100, xs) == 0
-    assert Nearest_Index(200, xs, max_distance=20) is None
-    assert Nearest_Index(75, xs, max_distance=20) == 3
+    assert Nearest_Index(200, xs) == 3
     assert Nearest_Index(5, []) is None
 
 
