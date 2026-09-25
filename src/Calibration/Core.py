@@ -104,8 +104,9 @@ CONST_CALIB_FACTOR_MAP_CELLS = (3, 3)
 # The per-axis spread of the factor across the frame (max - min, % of the factor) above which it
 # is reported as position-dependent rather than averaged away: one pixel in a thousand — a 100 mm
 # part is ~1000 px at ~0.1 mm/px, so a larger variation changes its size at the display
-# resolution. (The synthetic study puts pure corner noise at 0.085 % for 12 views and 0.057 % for
-# 24, so a set of 20+ views stays under it unless the variation is real.)
+# resolution. (The synthetic study puts pure corner noise, median / 90th percentile, at
+# 0.057 / 0.103 % for 24 views and 0.039 / 0.065 % for 40, so a set of 40+ views stays under it
+# unless the variation is real; at 24 one set in ten crosses it on noise alone.)
 #   Unit [float] (%)
 CONST_CALIB_FACTOR_UNIFORM_PCT = 0.1
 # The points the distortion's reach is reported at: the frame's corners and edge midpoints, as

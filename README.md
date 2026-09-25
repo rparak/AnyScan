@@ -371,7 +371,7 @@ models/                   model weights — you supply these, NOT committed
 ```
 
 `Data/` is input and output and `images/` is documentation — kept apart on purpose. The test
-frames and the reference are tracked; the calibration captures (about 4 MB a frame, 20+ a set) and
+frames and the reference are tracked; the calibration captures (about 4 MB a frame, 40+ a set) and
 the analysis output are not — a calibration records the directory it was solved from. Adding a
 frame to `Data/Images/Test/` changes what "the seven frames" means for every pinned expectation, so
 it is a deliberate move, never a side effect of a tool. Only `models/` is user-supplied.

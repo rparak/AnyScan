@@ -288,7 +288,7 @@ def test_calibrate_refuses_images_without_the_board_height_and_says_what_it_is(t
     assert 'each changes the result' not in message
 
 
-@pytest.mark.parametrize('script', ['calibrate', 'scan', 'make_reference'])
+@pytest.mark.parametrize('script', ['calibrate', 'scan', 'make_reference', 'generate_checkerboard'])
 def test_each_camera_script_imports_from_any_working_directory(tmp_path, script) -> None:
     """
     Description:

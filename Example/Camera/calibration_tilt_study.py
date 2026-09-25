@@ -46,6 +46,15 @@ Description:
     point's error (median and 90th percentile over seeds), the focal length's error, and the
     per-axis spread of the undistorted table-plane scale across the frame — the quantity
     measurement depends on.
+
+    The board is the printed one (docs/Checkerboard_11x8_12mm_A4.pdf, from generate_checkerboard.py),
+    and the study assumes every visible corner is detected. For this board that is nearly true:
+    Calibration.Core.Detect_Board reads it whole in most views (test/Camera/test_generate_checkerboard.py)
+    and a partial grid only means fewer corners. It is NOT true for a board larger than the field,
+    which the detector reads as fragments, so this study cannot be used to size a larger board
+    (docs/design-decisions.md, the ChArUco entry). Swapping in a 20 x 13 board here lowers every
+    error and keeps the curve's shape (collapse at one tilted view, plateau from 8-10 deg), so the
+    thresholds do not depend on the board.
 """
 CONST_SIZE = (1920, 1200)
 CONST_K = np.array([[3500.0, 0.0, 975.0], [0.0, 3500.0, 590.0], [0.0, 0.0, 1.0]])

@@ -61,7 +61,7 @@ Description:
 CONST_OUTPUT_TEMPLATE = 'Calibration_{hardware}_calib-{stamp}.yaml'
 # Where --capture without a DIR writes: a NEW timestamped directory each run (one calibration set,
 # one window, one directory — a set is never extended across runs by accident). Git-ignored: a set
-# is 20+ frames of ~4 MB, and the calibration records the directory it was solved from.
+# is 40+ frames of ~4 MB, and the calibration records the directory it was solved from.
 #   Unit [string]
 CONST_CAPTURE_ROOT = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'Calibration')
 

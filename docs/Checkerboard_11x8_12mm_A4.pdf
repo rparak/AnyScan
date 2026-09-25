@@ -1,0 +1,154 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R 8 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Title (Checkerboard 11 x 8 squares, 12 mm - camera calibration target) /Creator (Example/Camera/generate_checkerboard.py) >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 841.8898 595.2756] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 3447 >>
+stream
+0 g
+233.8583 428.0315 34.0157 34.0157 re f
+301.8898 428.0315 34.0157 34.0157 re f
+369.9213 428.0315 34.0157 34.0157 re f
+437.9528 428.0315 34.0157 34.0157 re f
+505.9843 428.0315 34.0157 34.0157 re f
+574.0157 428.0315 34.0157 34.0157 re f
+267.8740 394.0157 34.0157 34.0157 re f
+335.9055 394.0157 34.0157 34.0157 re f
+403.9370 394.0157 34.0157 34.0157 re f
+471.9685 394.0157 34.0157 34.0157 re f
+540.0000 394.0157 34.0157 34.0157 re f
+233.8583 360.0000 34.0157 34.0157 re f
+301.8898 360.0000 34.0157 34.0157 re f
+369.9213 360.0000 34.0157 34.0157 re f
+437.9528 360.0000 34.0157 34.0157 re f
+505.9843 360.0000 34.0157 34.0157 re f
+574.0157 360.0000 34.0157 34.0157 re f
+267.8740 325.9843 34.0157 34.0157 re f
+335.9055 325.9843 34.0157 34.0157 re f
+403.9370 325.9843 34.0157 34.0157 re f
+471.9685 325.9843 34.0157 34.0157 re f
+540.0000 325.9843 34.0157 34.0157 re f
+233.8583 291.9685 34.0157 34.0157 re f
+301.8898 291.9685 34.0157 34.0157 re f
+369.9213 291.9685 34.0157 34.0157 re f
+437.9528 291.9685 34.0157 34.0157 re f
+505.9843 291.9685 34.0157 34.0157 re f
+574.0157 291.9685 34.0157 34.0157 re f
+267.8740 257.9528 34.0157 34.0157 re f
+335.9055 257.9528 34.0157 34.0157 re f
+403.9370 257.9528 34.0157 34.0157 re f
+471.9685 257.9528 34.0157 34.0157 re f
+540.0000 257.9528 34.0157 34.0157 re f
+233.8583 223.9370 34.0157 34.0157 re f
+301.8898 223.9370 34.0157 34.0157 re f
+369.9213 223.9370 34.0157 34.0157 re f
+437.9528 223.9370 34.0157 34.0157 re f
+505.9843 223.9370 34.0157 34.0157 re f
+574.0157 223.9370 34.0157 34.0157 re f
+267.8740 189.9213 34.0157 34.0157 re f
+335.9055 189.9213 34.0157 34.0157 re f
+403.9370 189.9213 34.0157 34.0157 re f
+471.9685 189.9213 34.0157 34.0157 re f
+540.0000 189.9213 34.0157 34.0157 re f
+0 G 0.5 w
+659.0551 496.0630 m 659.0551 155.9055 l S
+654.8031 496.0630 m 663.3071 496.0630 l S
+654.8031 462.0472 m 663.3071 462.0472 l S
+654.8031 428.0315 m 663.3071 428.0315 l S
+654.8031 394.0157 m 663.3071 394.0157 l S
+654.8031 360.0000 m 663.3071 360.0000 l S
+654.8031 325.9843 m 663.3071 325.9843 l S
+654.8031 291.9685 m 663.3071 291.9685 l S
+654.8031 257.9528 m 663.3071 257.9528 l S
+654.8031 223.9370 m 663.3071 223.9370 l S
+654.8031 189.9213 m 663.3071 189.9213 l S
+654.8031 155.9055 m 663.3071 155.9055 l S
+250.8661 59.5276 m 591.0236 59.5276 l S
+250.8661 63.7795 m 250.8661 55.2756 l S
+284.8819 63.7795 m 284.8819 55.2756 l S
+318.8976 63.7795 m 318.8976 55.2756 l S
+352.9134 63.7795 m 352.9134 55.2756 l S
+386.9291 63.7795 m 386.9291 55.2756 l S
+420.9449 63.7795 m 420.9449 55.2756 l S
+454.9606 63.7795 m 454.9606 55.2756 l S
+488.9764 63.7795 m 488.9764 55.2756 l S
+522.9921 63.7795 m 522.9921 55.2756 l S
+557.0079 63.7795 m 557.0079 55.2756 l S
+591.0236 63.7795 m 591.0236 55.2756 l S
+BT /F2 7.0 Tf 0 1 -1 0 650.5512 155.9055 Tm (V: must be 120.0 mm) Tj ET
+BT /F2 7.0 Tf 1 0 0 1 165.8268 56.6929 Tm (H: must be 120.0 mm) Tj ET
+BT /F2 8.0 Tf 1 0 0 1 28.3465 41.1024 Tm (SCALE CHECK - measure BOTH rulers before use: H \(horizontal\) AND V \(vertical\) must EACH measure 120.0 mm \(10 squares\).) Tj ET
+BT /F1 8.0 Tf 1 0 0 1 28.3465 29.7638 Tm (If either does not, do NOT use this board: fix the printer scaling \(100 %, no fit-to-page\) and reprint. Why both: page 2.) Tj ET
+BT /F1 6.0 Tf 1 0 0 1 28.3465 18.9921 Tm (11 x 8 squares, 12 mm nominal, 10 x 7 inner corners. Solve: python Example/Camera/calibrate.py --images <DIR> --board-squares 11x8 --square-mm <CALIPERED mm> --board-height-mm <PLATE + PAPER mm>) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 841.8898 595.2756] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 3812 >>
+stream
+0 g
+BT /F2 14.0 Tf 1 0 0 1 56.6929 532.9134 Tm (Checkerboard calibration target - 11 x 8 squares, 12 mm) Tj ET
+BT /F2 10.0 Tf 1 0 0 1 56.6929 498.8976 Tm (1. Print) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 483.3071 Tm (Print page 1 at 100 % \(actual size\): no "fit to page", no "shrink to printable area", landscape, on matte paper. Glossy paper) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 471.1181 Tm (glares under the flat light and hides corners.) Tj ET
+BT /F2 10.0 Tf 1 0 0 1 56.6929 449.0079 Tm (2. Check the scale - both axes, before anything else) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 433.4173 Tm (With a steel rule, measure the H and V rulers on page 1. EACH must be 120.0 mm \(10 squares\). If either is not, do NOT use the) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 421.2283 Tm (board: fix the printer scaling and reprint.) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 405.6378 Tm (Both, not one: a printer can scale the paper-feed direction differently from the head direction, and calibrate.py solves the) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 393.4488 Tm (x and y mm/px factors separately from ONE square size. An error in one direction goes straight into that axis's factor, and) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 381.2598 Tm (nothing in the calibration report will show it.) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 365.6693 Tm (Then caliper the board across 10 squares horizontally AND vertically; --square-mm is that length / 10. If the two directions) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 353.4803 Tm (differ by more than 0.1 mm \(0.083 %, under the calibration's 0.1 % uniformity limit\), reprint: one --square-mm cannot carry) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 341.2913 Tm (two scales.) Tj ET
+BT /F2 10.0 Tf 1 0 0 1 56.6929 319.1811 Tm (3. Mount - the flatness requirement grows with the board) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 303.5906 Tm (Mount the 132 x 96 mm board on a rigid plate: glass, or aluminium at least 3 mm thick. Card and foam board bow, and a larger) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 291.4016 Tm (print needs a stiffer plate still. A warped board produces a calibration that looks fine and is WRONG: the solver assumes a) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 279.2126 Tm (plane, the bow can be absorbed into the lens model at a small reprojection error, and every measurement inherits it.) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 263.6220 Tm (Glue the whole sheet down without bubbles. Keep the white border around the board intact and unmarked: the detector needs) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 251.4331 Tm (about one square of white on every side. Do not trim it, write on it or tape over it.) Tj ET
+BT /F2 10.0 Tf 1 0 0 1 56.6929 229.3228 Tm (4. Calibrate) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 213.7323 Tm (Capture at least 40 views, flat \(f\) and tilted \(t\); docs/capture-checklist.md, item 1, says how many of each and why 40:) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 198.1417 Tm (    python Example/Camera/calibrate.py --capture) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 182.5512 Tm (Solve:) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 166.9606 Tm (    python Example/Camera/calibrate.py --images <DIR> --board-squares 11x8 --square-mm <CALIPERED mm> --board-height-mm <PLATE + PAPER mm>) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 151.3701 Tm (<CALIPERED mm> is the square size from step 2 - never the nominal 12 mm printed here. <PLATE + PAPER mm> is the board) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 139.1811 Tm (surface's height above the table: the plate and paper thickness, measured.) Tj ET
+BT /F2 10.0 Tf 1 0 0 1 56.6929 117.0709 Tm (The board) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 101.4803 Tm (11 x 8 squares \(--board-squares 11x8\), 10 x 7 inner corners, 12 mm nominal squares, pattern 132 x 96 mm. Generated by) Tj ET
+BT /F1 8.5 Tf 1 0 0 1 56.6929 89.2913 Tm (Example/Camera/generate_checkerboard.py.) Tj ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000218 00000 n 
+0000000320 00000 n 
+0000000464 00000 n 
+0000000610 00000 n 
+0000004108 00000 n 
+0000004254 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R /Info 5 0 R >>
+startxref
+8117
+%%EOF
