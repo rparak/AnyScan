@@ -25,22 +25,19 @@
 import os
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
-# Custom Lib.: AnyScan domain — vision backend and result structure
+# Custom Lib.: AnyScan domain — the vision backend
 #   ../Vision/Core
 import Vision.Core as Vision_Core
 from Vision.Core import Vision_Backend_Cls, Vision_Pipeline_Cls, Vision_Error_Cls
-#   ../Parameters/Vision
-from Parameters.Vision import Analysis_Str
 # Custom Lib.: AnyScan — the configuration layer
 #   ../Configuration/Core
 from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
-    Tests for the vision backend. The interface, the constants and the Qt-freeness
-    are checked without the model. The full Analyze path needs the FastSAM and Gemma
-    weights, so it is marked `slow` and skipped by default (and skips anyway when
-    the weights are not present).
+    Tests for the vision backend. The interface, the constants and the Qt-freeness are checked
+    without the model, and Analyze and Configure run with stand-in models. The full path on the
+    real FastSAM and Gemma is test/integration/test_pipeline.py's smoke test.
 """
 
 
@@ -88,31 +85,6 @@ def test_module_is_qt_free() -> None:
     # the UI boundary; what matters is that nothing imports or constructs it).
     assert 'import PyQt' not in source and 'from PyQt' not in source
     assert 'QImage(' not in source
-
-
-@pytest.mark.slow
-def test_analyze_end_to_end(require_weights, reference_background, make_synthetic_frame) -> None:
-    """
-    Description:
-        The full pipeline on a synthetic frame (the reference with two rectangles
-        drawn on it): Analyze takes an RGB array and returns a populated
-        Analysis_Str. Needs both models' weights (require_weights).
-    """
-
-    config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
-    require_weights([config.Segmentation.Model_Path, config.Description.Model_Path])
-
-    import cv2
-
-    rects = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
-    frame_bgr = make_synthetic_frame(reference_background, rects)
-    image_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-
-    result = Vision_Pipeline_Cls(Configuration_Str=Load_Configuration(CONST_DEFAULT_CONFIG_FILE)).Analyze(image_rgb)
-
-    assert isinstance(result, Analysis_Str)
-    assert len(result.Objects) == 2
-    assert result.Latency_Ms >= 0
 
 
 class _Fake_Segmenter_Cls(object):

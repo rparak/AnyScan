@@ -211,6 +211,118 @@ def test_a_missing_optional_field_takes_its_documented_default_and_says_so(tmp_p
     assert notes and 'default' in notes[0] and repr(getattr(default, attribute[-1])) in notes[0]
 
 
+def _Field_Comments(path: str) -> tp.Dict[tp.Tuple[str, ...], tp.Tuple[str, int]]:
+    """
+    Description:
+        The comment that documents each field of a mode file, as {YAML key path: (comment text,
+        position in its group)}. A field's own comment documents it; a field with none takes the
+        comment of the group it follows (a comment may cover consecutive fields: 'Defaults: 0.4
+        and 0.9'), or of its parent block when the block's comment is the one above it. A block's
+        own comment is recorded under the block's path ('REQUIRED, both.' above Prompts).
+
+    Args:
+        (1) path [string]: The mode file.
+
+    Returns:
+        (1) parameter [Dict]: The documenting comment and group position per key path.
+    """
+
+    comments, stack, block_comment, group = {}, [], [], None
+    with open(path, 'r', encoding='utf-8') as handle:
+        lines = handle.read().splitlines()
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            block_comment, group = [], None
+            continue
+        if stripped.startswith('#'):
+            block_comment.append(stripped[1:].strip())
+            continue
+        match = re.match(r'^( *)([A-Za-z_]+):(.*)$', line)
+        if match is None:
+            continue
+        indent, key, value = len(match.group(1)), match.group(2), match.group(3).strip()
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        key_path = tuple(name for _, name in stack) + (key,)
+        if block_comment:
+            group = [' '.join(block_comment), key_path[:-1] if value else key_path, 0]
+        block_comment = []
+        if not value:                                         # a block: its children follow
+            if group is not None and group[1] == key_path:
+                comments[key_path] = (group[0], 0)
+            stack.append((indent, key))
+            continue
+        if group is not None and group[1] == key_path[:len(group[1])]:
+            comments[key_path] = (group[0], group[2])
+            group[2] += 1
+    return comments
+
+
+def _Documented_Default(text: str, position: int) -> tp.Any:
+    """
+    Description:
+        The default a field comment states ('Default: 0.20', 'Defaults: 0.4 and 0.9', 'Defaults:
+        empty.', 'Default: not set (...)'), parsed to the value the code would hold, or None when
+        the comment states none.
+
+    Args:
+        (1) text [string]: The comment.
+        (2) position [int]: The field's position in the comment's group.
+
+    Returns:
+        (1) parameter [object or None]: The documented default.
+    """
+
+    match = re.search(r'\bDefaults?: (.*?)(?:\.(?:\s|$)|$)', text)
+    if match is None:
+        return None
+    values = [value.strip() for value in match.group(1).split(' and ')]
+    word = values[0] if values == ['empty'] else (values[position] if position < len(values) else None)
+    if word is None:
+        return None
+    if word == 'empty' or word.startswith('not set'):
+        return ''
+    if word in ('true', 'false'):
+        return word == 'true'
+    for number in (int, float):
+        try:
+            return number(word)
+        except ValueError:
+            pass
+    return word
+
+
+def test_every_documented_default_in_the_shipped_mode_file_is_the_code_default() -> None:
+    """
+    Description:
+        The half of the configuration rule the loader cannot see: the shipped mode file documents
+        each optional field's default in its comment, and that documented default must be the
+        value the code applies when the field is left out (its Parameters/Configuration default).
+        A comment that says 'Default: 80' while the code falls back to 70 is a setting that looks
+        authoritative and is not. Every optional field documents one; every required field's
+        comment says REQUIRED.
+    """
+
+    comments = _Field_Comments(CONST_DEFAULT_CONFIG_FILE)
+    code_defaults = Configuration_Str()
+    for path, attribute, _kind, required in CONST_FIELDS:
+        dotted = '.'.join(path)
+        assert path in comments, '%s has no comment in the shipped mode file' % dotted
+        text, position = comments[path]
+        if required:
+            said = [comments.get(path[:i], ('', 0))[0] for i in range(1, len(path))] + [text]
+            assert any('REQUIRED' in comment for comment in said), \
+                '%s is required but neither its comment nor its block\'s says REQUIRED' % dotted
+            continue
+        documented = _Documented_Default(text, position)
+        assert documented is not None, '%s is optional but its comment states no default' % dotted
+        code = code_defaults
+        for part in attribute:
+            code = getattr(code, part)
+        assert documented == code, '%s: the comment says %r, the code defaults to %r' % (dotted, documented, code)
+
+
 @pytest.mark.parametrize('path, value', [
     (('General', 'Classification', 'Enabled'), 'yes'),
     (('Segmentation', 'Confidence'), 1.5),

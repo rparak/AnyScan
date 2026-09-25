@@ -23,7 +23,8 @@ overwrite a file holding any key it does not own, so content someone added is ne
   what it is. A comment may cover a group of consecutive fields.
 - A required field says `REQUIRED.` (a group: `REQUIRED, both.`); an optional field states its
   default — `Default: 0.20`, or for a group `Defaults: 0.4 and 0.9`. Every field in the shipped mode
-  file does one or the other (checked 2026-09-24).
+  file does one or the other, and a documented default must equal the code's — both enforced by
+  `test/Configuration/test_core.py::test_every_documented_default_in_the_shipped_mode_file_is_the_code_default`.
 - Units in brackets in the comment: `[px]`, `[us]`, `[%]`.
 - Text the model receives (the prompts) lives here as data, with the reasoning behind the wording in
   the comment above it — iterated here, never in code.

@@ -47,6 +47,10 @@ Its own tests: `.venv/bin/python -m pytest .claude/skills/project-style-rpx/scri
 | `# << PRIVATE >> #` marker, private state as `self.__name` | 📄 |
 | `*_Error_Cls` messages are full operator sentences | 📄 |
 | A configuration field is read by something that can change behaviour | 📄 — the loader cannot see it (see references/structure.md) |
+| Every optional field in the shipped mode file documents its default, and that default is the code's; every required field says `REQUIRED` | ✅ `test/Configuration/test_core.py::test_every_documented_default_in_the_shipped_mode_file_is_the_code_default` |
+| A test calls the code it names, never a copy of that code's logic | 📄 — shown per test by breaking the target once (references/python.md > Tests) |
+| A UI test asserts what is rendered — grabbed pixels, rendered text — not the value handed to the widget | 📄 (references/python.md > Tests) |
+| A test that needs model weights goes through `require_weights`: loud skip by default, failure under `--runslow`, never an early `return` | 📄 — the fixture is in `test/conftest.py`; nothing forces its use |
 | No parameter with a single legal value | 📄 |
 | One reader per file format | 📄 |
 | `Parameters` imports only `Parameters` | 📄 (true today; no test) |

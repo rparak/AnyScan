@@ -140,6 +140,31 @@ Comments are block comments above the code, saying *why*; multi-step bodies numb
 - `@pytest.mark.slow` for a test that needs the model weights; skipped unless `--runslow`.
 - A test states a behaviour in its name and docstring; a stand-in for hardware or a model is a
   small `_Cls` in the test file, never a mocking framework.
+- **A test calls the code it names, never a copy of its logic.** A test that re-derives the answer
+  the way the code does passes whatever the code does. Instances: the installer check re-implemented
+  in Python instead of sourcing `install.sh`; `Screen_Understanding` compared against the same
+  helpers re-assembled (it now pins the exact text); the reading's Task "tested" by comparing
+  constants to literals, never running the code that chooses it.
+- **A UI test asserts what is rendered, not the value handed to the widget.** Grab the widget
+  (`widget.grab()`) and compare pixels, or render a rich-text label through `QTextDocument`, and
+  measure on a SHOWN, laid-out widget. Instances: the hover state that never rendered; the log
+  columns compared on unshown labels (all 640 px wide by default); the object label compared as
+  its source string while the screen showed `Object 1· Confidence 91%` (rich text drops a leading
+  space). `test/UI/test_paint_smoke.py` and `test/UI/test_signal_wiring.py` show the pattern.
+- **A fixed test is proven, not asserted.** Break the thing it names once — delete the line,
+  disconnect the signal, swap the branch — and watch it fail; a test that stays green was not
+  testing it. Do it in a subprocess on a byte-exact copy, restore the file in `finally`, and check
+  `git status` afterwards. Run the subprocess with `PYTHONDONTWRITEBYTECODE=1`: a mutation of the
+  same byte length, restored within the same second, leaves a `.pyc` that still looks current
+  (it is keyed on the source's size and whole-second mtime), so later runs execute the mutant — the
+  symptom is a test failing for a reason no longer in the source. Clearing `__pycache__` fixes it.
+- **A static-analysis hit is a candidate, not a finding.** vulture, pyflakes and coverage say where
+  to look; the check is finding the reader. For UI code the reader is often a paint path or a
+  rich-text render that a grep does not obviously connect: vulture called the status cell's
+  `dot_color` dead, and `Set_Value` draws the ● with it. Only what survives that check is removed.
+- A test that needs the weights asks `require_weights` (`test/conftest.py`): it runs when they are
+  there, skips loudly naming the missing path when they are not, and fails under `--runslow`. An
+  early `return` reads as a pass.
 - The checker relaxes naming, docstring completeness and typing for pytest-dispatched names
   (`test_*`, `pytest_*`, fixtures); helpers in a test file are checked in full.
 
