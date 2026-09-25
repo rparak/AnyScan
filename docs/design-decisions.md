@@ -1407,3 +1407,66 @@ still written by hand in the generator, and the README link is what keeps it in 
 Tests `test/UI/test_brand_figures.py` (`test_the_three_logo_copies_are_identical`,
 `test_the_diagram_is_the_generators_output`, `test_the_diagram_draws_only_theme_tokens`,
 `test_the_readme_shows_the_diagram`).
+
+## Gemma 4 12B was measured against E4B and is not better; E4B stays the describer
+
+The obvious intuition is that a bigger model describes better. It was measured on 2026-09-25,
+and it does not hold here. `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09` (6.77 GB, the same
+4-bit MLX format; the pinned `mlx-vlm` 0.7.2 loads its `gemma4_unified` architecture) ran the
+seven frames on the M2 Pro. It had the same pipeline, the same crops and the same prompts as
+E4B; only `Description.Model` differed. E4B was re-run in the same session and reproduced its
+recorded baseline (2.20 s per object against 2.22; `Image_001` 20.7 s against 20.6), so the
+comparison is like for like.
+
+| | E4B | 12B |
+|---|---|---|
+| Warm time per object | 2.20 s | **5.46 s** (2.5×) |
+| `Image_001` (9 objects) | 20.7 s | 50.4 s |
+| Pipeline peak footprint | 9.35 GB | 10.45 GB |
+| Load | 7.2 s | 7.5 s |
+| Word-for-word identical, within and across processes | yes | yes |
+
+- **What the 12B fixed:**
+  - It names the rust on `Image_002` as rust ("brown and orange discoloration, appearing as rust
+    or tarnish"); E4B said "brown, earthy-toned stains or deposits".
+  - No invented "particulate matter" on the dark plates `Image_003` / `Image_005`, E4B's likely
+    glint artefacts.
+  - It calls `Image_001` object 7 a hexagonal nut, one of the two hex nuts E4B misses (object 8
+    is still a "ring").
+  - It reports a small real mark on `Image_006`'s corner, checked on the frame.
+- **What it broke:**
+  - **Three of `Image_001`'s four plastic parts read as metal.** Object 5, the white plastic
+    part, becomes "a small, rectangular metallic component with a silver-colored finish";
+    object 9 has "a blueish-green metallic appearance"; object 4 "a metallic, slightly textured
+    surface"; object 2 gets no material at all. That is the property the prompts were measured
+    against, and E4B reads those parts as plastic.
+  - It calls the square `Image_006` (47.8 × 47.0 mm) "rectangular"; E4B said square.
+  - It misses the concentric machining marks that dominate `Image_004`.
+  - It repeats the prompt's condition checklist back in about ten of fifteen lines ("free of
+    any visible rust, stains, or significant scratches").
+- **The cost:** 2.5× the time per object, and +1.1 GB.
+
+**Model or wording?**
+- **The checklist echo is the wording.** The 12B follows "look carefully for discolouration,
+  stains, rust, tarnish …" more literally than E4B does.
+- **The plastics failure is, in our judgement, mostly the model.** Both models received the same
+  crops and the same prompt, which asks for "apparent material" without suggesting one, and E4B
+  reads those parts correctly from it.
+- **The wording may still contribute.** The prompt's condition list is metal vocabulary (rust,
+  tarnish), and it was tuned on E4B, so it may prime a model that follows lists more literally.
+  **Only a prompt experiment separates the two:** a 12B-specific wording, measured on the same
+  four plastic parts and the Image_002 / Image_007 plates. The 12B weights stay in
+  `models/gemma-4-12B-it-4bit/` for that.
+
+**Its provenance is a weaker link, not an equivalent choice.**
+- E4B's card names its source, `google/gemma-4-E4B-it` at revision `fee6332`, where the licence
+  was checked.
+- The 12B's card names no base model, revision or licence. Its `tokenizer.json` is byte-identical
+  to `google/gemma-4-12B-it`'s and its text configuration matches field for field (its chat
+  template and processor configuration differ). That is plausible, not proven.
+
+**Decision:** E4B stays the describer on macOS and is the default on Linux. The 12B is available
+only as `./install.sh --model 12b`, which prints the provenance gap and these results when the
+flag is given.
+**Revisit if** a 12B-specific prompt fixes the plastics without losing the rust and the clean
+plate. Then it is an argument for the 12B on macOS too, at 2.5× the time per object.
