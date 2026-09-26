@@ -440,9 +440,9 @@ class Configuration_Dialog_Cls(QDialog):
         self.__worker = Model_Load_Worker_Cls(self.__vision, candidate)
         self.__worker.moveToThread(self.__thread)
         self.__thread.started.connect(self.__worker.Run)
-        # The loader's own phases ('Loading segmenter…', 'Loading model…', and on a failed load
-        # 'Reloading the previous configuration…') replace the opening line as they happen, so a
-        # nine-second load visibly moves instead of looking hung.
+        # The loader's own phases ('Loading segmenter…', 'Loading model…', 'Warming up…', and on a
+        # failed load 'Reloading the previous configuration…') replace the opening line as they
+        # happen, so a nine-second load visibly moves instead of looking hung.
         self.__worker.Stage_Changed.connect(self.__label_stage.setText)
         self.__worker.Load_Finished.connect(self.__On_Load_Finished)
         self.__worker.Load_Failed.connect(self.__On_Load_Failed)

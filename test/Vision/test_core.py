@@ -120,6 +120,7 @@ class _Fake_Segmenter_Cls(object):
 
     def Segment(self, image, stage_cb=None):
         # No FastSAM masks: the objects come from the background cue alone.
+        self.segmented = getattr(self, 'segmented', []) + [image.shape]
         return [], []
 
 
@@ -155,9 +156,13 @@ class _Fake_Describer_Cls(object):
             self.events.append(('release describer', self.params.Model_Path))
         self.model = None
 
+    # What Describe answers; a test sets it to exercise the background sentence's fallback.
+    caption = 'A machined part on a plain surface.'
+
     def Describe(self, image, purpose) -> str:
         self.purposes = getattr(self, 'purposes', []) + [purpose]
-        return 'A machined part on a plain surface.'
+        self.shapes = getattr(self, 'shapes', []) + [image.shape]
+        return self.caption
 
 
 from Vision.Segmenter import Segmenter_Error_Cls as Vision_Segmenter_Error      # noqa: E402
@@ -226,12 +231,13 @@ def test_configure_keeps_a_model_whose_identity_is_unchanged(fake_models) -> Non
 
 
 def test_the_background_is_described_once_per_configuration(fake_models, reference_background,
-                                                            make_synthetic_frame) -> None:
+                                                            make_synthetic_frame, tmp_path) -> None:
     """
     Description:
         The one background sentence comes from the reference, which does not change between frames:
         two analyses ask the describer for it once. A new configuration can change the reference,
-        the prompt, the crop margin or the limits, so after Configure it is asked again.
+        the prompt, the crop margin or the limits, so Configure describes it again — at the load,
+        from the NEW configuration's reference, and no analysis after it asks again.
     """
 
     import cv2
@@ -246,10 +252,95 @@ def test_the_background_is_described_once_per_configuration(fake_models, referen
     describer = getattr(vision, '_Vision_Pipeline_Cls__describer')
     assert describer.purposes.count(background) == 1
 
-    vision.Configure(dataclasses.replace(_Variant('Config_x_Mode_B.yaml', Background_Crop_Margin=0.2), Scale=None))
-    vision.Analyze(frame)
+    # Another reference, told apart by its size: a half-size copy of the committed one.
+    other = str(tmp_path / 'other_reference.png')
+    h, w = reference_background.shape[:2]
+    cv2.imwrite(other, cv2.resize(reference_background, (w // 2, h // 2)))
+    variant = _Variant('Config_x_Mode_B.yaml', Background_Crop_Margin=0.2)
+    variant = dataclasses.replace(variant, Scale=None, Segmentation=dataclasses.replace(
+        variant.Segmentation, Background_Reference=other))
+    vision.Configure(variant)
     assert getattr(vision, '_Vision_Pipeline_Cls__describer') is describer       # same model, kept
-    assert describer.purposes.count(background) == 2
+    assert describer.purposes.count(background) == 2                            # at the load
+    # The new reference, cropped by the new margin — not the one cached before Configure.
+    assert describer.shapes[-1][:2] == (int(h // 2 * 0.8) - int(h // 2 * 0.2),
+                                        int(w // 2 * 0.8) - int(w // 2 * 0.2))
+
+    vision.Configure(dataclasses.replace(_Variant('Config_x_Mode_C.yaml', Background_Crop_Margin=0.2), Scale=None))
+    vision.Analyze(frame)
+    vision.Analyze(frame)
+    assert describer.purposes.count(background) == 3                            # none by an analysis
+
+
+def test_a_configuration_load_warms_up_what_the_first_analysis_would_pay(fake_models) -> None:
+    """
+    Description:
+        Configure, after loading, pays the first analysis's one-time costs under its own stage
+        label: FastSAM's first pass (on the reference, the frame's size) and the background
+        sentence (Gemma's first generation) — measured at +0.64 s and +1.08 s plus ~1 s of Gemma
+        warm-up on the first analysis after a load.
+    """
+
+    import cv2
+    _events, config, _Variant = fake_models
+    vision = Vision_Pipeline_Cls(Configuration_Str=config)
+    stages = []
+    vision.Configure(config, stages.append)
+
+    assert stages == ['Loading model…', 'Warming up…']         # the stand-in segmenter reports none
+    reference_shape = cv2.imread(config.Segmentation.Background_Reference).shape
+    assert getattr(vision, '_Vision_Pipeline_Cls__segmenter').segmented == [reference_shape]
+    assert getattr(vision, '_Vision_Pipeline_Cls__describer').purposes == [Vision_Core.CONST_PURPOSE_BACKGROUND]
+
+
+def test_the_background_audit_reaches_the_first_analysis_after_a_load(fake_models, reference_background,
+                                                                     make_synthetic_frame) -> None:
+    """
+    Description:
+        The background sentence is described at the load, but its audit (a warning when the
+        caption was unusable and the neutral sentence stood in) is logged with an analysis — so it
+        is held and carried by the first analysis after the load, once.
+    """
+
+    import cv2
+    import dataclasses
+    _events, config, _Variant = fake_models
+    config = dataclasses.replace(config, Scale=None)
+    frame = cv2.cvtColor(make_synthetic_frame(reference_background, [(300, 300, 560, 560)]), cv2.COLOR_BGR2RGB)
+    vision = Vision_Pipeline_Cls(Configuration_Str=config)
+    vision.Load_Models()
+    getattr(vision, '_Vision_Pipeline_Cls__describer').caption = ''             # unusable
+
+    vision.Configure(config)
+    first, second = vision.Analyze(frame), vision.Analyze(frame)
+
+    assert first.Background == second.Background == Vision_Core.CONST_BACKGROUND_FALLBACK
+    assert [level for level, _message in first.Audit] == ['warning']
+    assert second.Audit == []
+
+
+def test_a_failed_warm_up_is_not_a_failed_load(fake_models, reference_background, make_synthetic_frame,
+                                              tmp_path) -> None:
+    """
+    Description:
+        The warm-up runs once the configuration is in force, so its failure (here: an unreadable
+        reference) does not fail the load; the first analysis meets the same failure and reports
+        it in its own words.
+    """
+
+    import cv2
+    import dataclasses
+    _events, config, _Variant = fake_models
+    missing = str(tmp_path / 'missing.png')
+    broken = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation,
+                                                                          Background_Reference=missing))
+    vision = Vision_Pipeline_Cls(Configuration_Str=config)
+    vision.Configure(broken)
+    assert vision.Models_Loaded
+
+    frame = cv2.cvtColor(make_synthetic_frame(reference_background, [(300, 300, 560, 560)]), cv2.COLOR_BGR2RGB)
+    with pytest.raises(Vision_Error_Cls, match='could not be read'):
+        vision.Analyze(frame)
 
 
 @pytest.mark.parametrize('describer', ['gemma', 'fallback'])
@@ -312,6 +403,28 @@ def test_a_failed_load_leaves_the_previous_configuration_in_force_and_reloads_it
     assert events == [('release describer', config.Description.Model_Path),
                       ('load describer', config.Description.Model_Path)]
     assert vision.Models_Loaded and vision.Model_Names[1] == 'gemma-4-e4b-it-4bit'
+
+
+def test_the_reload_after_a_failed_load_is_warmed_up_like_a_load(fake_models) -> None:
+    """
+    Description:
+        When a failed load reloads the previous configuration, that reload is warmed up too — FastSAM
+        runs on the reference and the reloaded, cold Gemma describes the background again — so the
+        first analysis after a failed load is not slow on top of the failure.
+    """
+
+    _events, config, _Variant = fake_models
+    vision = Vision_Pipeline_Cls(Configuration_Str=config)
+    vision.Configure(config)
+    segmenter = getattr(vision, '_Vision_Pipeline_Cls__segmenter')
+    describer = getattr(vision, '_Vision_Pipeline_Cls__describer')
+    stages = []
+    with pytest.raises(Vision_Error_Cls, match='was loaded again'):
+        vision.Configure(_Variant('Config_x_Mode_Broken.yaml', Model_Path='/models/broken'), stages.append)
+
+    assert stages[-3:] == ['Reloading the previous configuration…', 'Loading model…', 'Warming up…']
+    assert len(segmenter.segmented) == 2                                          # the load, the reload
+    assert describer.purposes == [Vision_Core.CONST_PURPOSE_BACKGROUND] * 2
 
 
 def test_a_failed_load_before_any_model_was_loaded_leaves_nothing_to_reload(fake_models) -> None:

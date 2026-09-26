@@ -194,7 +194,7 @@ class Model_Load_Worker_Cls(QObject):
     """
 
     # << SIGNALS >> #
-    Stage_Changed = pyqtSignal(str)          # phase text: 'Loading segmenter…', 'Loading model…'
+    Stage_Changed = pyqtSignal(str)          # phase text: 'Loading segmenter…', 'Loading model…', 'Warming up…'
     Load_Finished = pyqtSignal(float)        # the load time in seconds
     Load_Failed = pyqtSignal(str)            # a sentence naming what failed and what is in force
 

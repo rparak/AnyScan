@@ -1669,3 +1669,56 @@ Tests `test/Camera/test_generate_checkerboard.py::test_the_calibration_detector_
 (the fallback), `::test_capture_harness_keeps_every_frame_and_marks_them_distorted`,
 `::test_a_set_captured_with_another_board_is_not_solved`,
 `test/Camera/test_reference_harnesses.py::test_calibrate_refuses_capture_without_the_board_and_says_why`.
+
+## The first analysis's one-time costs are paid at configuration load ("Warming up…")
+
+**What was measured (2026-09-26).** `Image_001` (9 objects), the shipped configuration, real
+weights; the load on one thread and each ANALYZE on its own, as the application runs them. The
+first analysis after a load took **2.6–2.9 s** longer than the second on the same frame, all of it
+in three places:
+
+| Stage | First analysis | Second | Extra |
+|---|---|---|---|
+| Background sentence (one Gemma call on the reference) | 1.08 s | 0 (kept) | +1.08 s |
+| Gemma per-object — the first call only (3.10 s against ~2.2 s) | 21.0 s | 20.2 s | +0.84–1.14 s |
+| FastSAM (predictor set-up and first device pass) | 1.02–1.06 s | 0.39–0.41 s | +0.64 s |
+| Reading the reference | 0.03 s | 0 | +0.03 s |
+| Background subtraction, fusion, crop enhancement, compose, measure | — | — | ≤ 0.02 s each |
+
+`mlx_vlm` and `ultralytics` were already imported by the load. On the UI side the annotation render
+(+0.02 s) and the undistortion maps (~0.01 s, built on the first SCAN capture) are too small to move.
+
+**The change.** `Vision_Pipeline_Cls.Configure`, once the configuration is in force, reads the
+reference, runs FastSAM on it (it has the frame's size) and describes the background sentence — which
+is also Gemma's first generation — under the dialog's stage label **Warming up…**. Configure clears
+the previous reference and sentence first, so a reconfiguration describes its own reference. The
+sentence's audit record is held and carried by the first analysis, as before. The warm-up is best
+effort: a failure there is not a failed load; the first analysis meets it and reports it. When a
+failed load reloads the previous configuration, the reload is warmed up the same way (a reloaded
+Gemma describes the sentence again as its first generation; a Gemma that was kept is still warm and
+keeps its sentence), so a slow first analysis does not read as a second fault after the failure.
+
+| | Before | After |
+|---|---|---|
+| Configuration load | 6.9–7.6 s | 9.4–10.0 s |
+| First analysis (`Image_001`) | 23.4–23.7 s | 20.9–21.7 s |
+| Second analysis | 20.7–20.8 s | 20.8–21.1 s |
+
+The load is ~2.5 s slower, and the first analysis now takes as long as any other. The readings are
+identical word for word before and after (`Image_002`, the background sentence and every object).
+
+**The harness is not warmed up, on purpose.** `Example/Vision/analyze.py` never calls Configure —
+its first Analyze loads the models — so its first frame still pays these ~2.6 s. A slow first frame
+is invisible in a command-line run. **Measure the fix through Configure** (the dialog, or a script
+that calls it), not with the harness: timing the harness's first frame shows the old cost and says
+nothing about this change.
+
+**Revisit if** the load time starts to matter more than the first analysis (a load on every
+startup, or a configuration switched often), or if a model change moves its one-time cost somewhere
+the warm-up does not reach — a crop size or input shape Gemma or FastSAM compile separately, which
+would show again as a slow first analysis in the table above.
+Tests `test/Vision/test_core.py::test_a_configuration_load_warms_up_what_the_first_analysis_would_pay`,
+`::test_the_background_is_described_once_per_configuration` (at the load, from the new reference),
+`::test_the_background_audit_reaches_the_first_analysis_after_a_load`,
+`::test_a_failed_warm_up_is_not_a_failed_load`,
+`::test_the_reload_after_a_failed_load_is_warmed_up_like_a_load`.

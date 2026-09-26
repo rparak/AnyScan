@@ -298,9 +298,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         self.__np = None
         # Cached BGR reference array, and the one global background sentence derived from it.
         # Both are cleared by Configure and the sentence by a change of describer, so a new
-        # reference (or another model) re-describes but the same one never re-runs.
+        # reference (or another model) re-describes but the same one never re-runs. The sentence's
+        # audit records wait here until the first analysis that carries the sentence.
         self.__background = None
         self.__background_sentence = None
+        self.__background_audit = []
         # The stage-2 segmenter. Constructing it is cheap — ultralytics loads lazily
         # (Load_Models or the first Segment), so this keeps the window and the tests light.
         self.__segmenter = Fast_Sam_Cls(Configuration_Str.Segmentation)
@@ -374,6 +376,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             kept and only its per-call parameters change — no reload. A model that changes is
             RELEASED FIRST and its replacement loaded after, so two are never held at once.
 
+            Once the models are in force it warms them up (Warming up…): see __Warm_Up.
+
             When the new models cannot be loaded, the previous configuration is put back in
             force. Its models are reloaded if they were loaded before (they were released to
             make room, so this costs the load time again), and the error says whether it is loaded.
@@ -434,6 +438,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             except Vision_Error_Cls as again:
                 raise Vision_Error_Cls('%s %s is still in force but could not be loaded again (%s).'
                                        % (reason, previous, str(again).rstrip('.'))) from exc
+            # The reload is a load: warm it up like one, so a slow first analysis does not read as a
+            # second fault. A released and reloaded Gemma has no kept sentence (__Ensure_Loaded cleared
+            # it with the failed describer), so describing it again is the cold Gemma's first generation.
+            self.__Warm_Up(stage_cb)
             # Its models were released to make room for the new ones, so they were loaded again —
             # that reload is the extra wait the operator saw.
             raise Vision_Error_Cls('%s %s is still in force and was loaded again.' % (reason, previous)) from exc
@@ -442,6 +450,47 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         #    prompt, the crop margin and the limits — both are read again under the new configuration.
         self.__background = None
         self.__background_sentence = None
+        self.__background_audit = []
+
+        # 4\ Then pay here, under the load's progress, what the first analysis would otherwise pay.
+        self.__Warm_Up(stage_cb)
+
+    def __Warm_Up(self, stage_cb: tp.Optional[tp.Callable]) -> None:
+        """
+        Description:
+            Do the once-per-configuration work the first analysis would otherwise pay for, while
+            the operator is already waiting on the load. Measured on Image_001 (9 objects), the
+            first analysis after a load took 2.6-2.9 s longer than the next one on the same frame:
+
+                the background sentence (one Gemma call on the reference)   +1.08 s
+                Gemma's first generation (kernels built on the first pass)  +0.84-1.14 s
+                FastSAM's first pass (predictor set-up, first device pass)  +0.64 s
+                reading the reference                                        +0.03 s
+
+            So the reference is read and cached, FastSAM segments it (the result is discarded; it
+            has the frame's size, which Analyze enforces), and the background sentence is described
+            from it — which is also Gemma's first generation. The new reference is read after
+            Configure has cleared the old one, so a reconfiguration describes its own reference.
+
+            Best effort: a failure here is not a failed load — the configuration is already in
+            force — so nothing half-done is kept and the first analysis meets the same failure and
+            reports it in its own words.
+
+        Args:
+            (1) stage_cb [function]: Optional (text) phase hook.
+        """
+
+        if stage_cb:
+            stage_cb('Warming up…')
+        try:
+            bg_bgr = self.__Read_Reference(self.__cv2)
+            self.__segmenter.Segment(bg_bgr)
+            if self.__describer is not None:
+                self.__Compute_Background_Sentence(bg_bgr)
+        except Exception:                                 # noqa: BLE001
+            self.__background = None
+            self.__background_sentence = None
+            self.__background_audit = []
 
     def __Ensure_Loaded(self, stage_cb: tp.Optional[tp.Callable]) -> None:
         """
@@ -474,6 +523,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                 else Gemma_Describer_Cls(self.__config.Description))
             self.__describer_name = CONST_DESCRIBER
             self.__background_sentence = None
+            self.__background_audit = []
         if self.__describer is None or self.__describer.Loaded:
             return
         if stage_cb:
@@ -497,6 +547,29 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             (1) parameter [Matrix<uint8> HxWx3]: The reference (BGR).
         """
 
+        self.__Read_Reference(cv2)
+        if self.__background.shape != frame_shape:
+            bh, bw = self.__background.shape[:2]
+            fh, fw = frame_shape[:2]
+            raise Vision_Error_Cls(
+                'The background reference is %d×%d but the frame is %d×%d. '
+                'Re-shoot the empty-surface reference from this camera so the two '
+                'match.' % (bw, bh, fw, fh)
+            )
+        return self.__background
+
+    def __Read_Reference(self, cv2: tp.Any) -> tp.List[tp.List[int]]:
+        """
+        Description:
+            Read and cache the configuration's empty-surface reference, once.
+
+        Args:
+            (1) cv2 [module]: The OpenCV module.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3]: The reference (BGR).
+        """
+
         if self.__background is None:
             reference = self.__config.Segmentation.Background_Reference
             bg = cv2.imread(reference)
@@ -507,14 +580,6 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                     'one from this camera and set Segmentation.Background.Reference to it.' % reference
                 )
             self.__background = bg
-        if self.__background.shape != frame_shape:
-            bh, bw = self.__background.shape[:2]
-            fh, fw = frame_shape[:2]
-            raise Vision_Error_Cls(
-                'The background reference is %d×%d but the frame is %d×%d. '
-                'Re-shoot the empty-surface reference from this camera so the two '
-                'match.' % (bw, bh, fw, fh)
-            )
         return self.__background
 
     def __Describe_Background(self, bg_bgr: tp.List[tp.List[int]]) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
@@ -530,7 +595,9 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
             The sentence is computed once and kept: the reference is loaded once per
             configuration, and Configure (or a change of describer) clears the sentence with it,
-            so a changed reference, prompt, margin or limit is described afresh. No per-frame
+            so a changed reference, prompt, margin or limit is described afresh. Configure then
+            computes it straight away (__Warm_Up); its audit records are held and returned once,
+            with the first analysis that carries the sentence. No per-frame
             check is needed — hashing the 6.9 MB reference each frame could never see a change
             the pipeline did not already make.
             When no scene model is loaded (the fallback describer) it returns the
@@ -552,16 +619,29 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             # first. Use the neutral fallback and record why.
             return CONST_BACKGROUND_FALLBACK, [('warning',
                     'no scene model (fallback describer); used the neutral background sentence')]
-        if self.__background_sentence is not None:
-            return self.__background_sentence, []
+        self.__Compute_Background_Sentence(bg_bgr)
+        records, self.__background_audit = self.__background_audit, []
+        return self.__background_sentence, records
 
+    def __Compute_Background_Sentence(self, bg_bgr: tp.List[tp.List[int]]) -> None:
+        """
+        Description:
+            Describe the centre-cropped reference and keep the cleaned sentence and its audit
+            records, unless a sentence is already kept. The records wait for __Describe_Background
+            to hand them to an analysis.
+
+        Args:
+            (1) bg_bgr [Matrix<uint8> HxWx3]: The empty-surface reference (BGR).
+        """
+
+        if self.__background_sentence is not None:
+            return
         h, w = bg_bgr.shape[:2]
         margin = self.__config.Description.Background_Crop_Margin
         crop = bg_bgr[int(h * margin):int(h * (1 - margin)), int(w * margin):int(w * (1 - margin))]
         caption = self.__describer.Describe(crop, CONST_PURPOSE_BACKGROUND)
-        sentence, records = Background_Sentence(caption, Description_Parameters_Str=self.__config.Description)
-        self.__background_sentence = sentence
-        return sentence, records
+        self.__background_sentence, self.__background_audit = Background_Sentence(
+            caption, Description_Parameters_Str=self.__config.Description)
 
     def Analyze(self, image: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable] = None,
                 stage_cb: tp.Optional[tp.Callable] = None) -> Analysis_Str:
