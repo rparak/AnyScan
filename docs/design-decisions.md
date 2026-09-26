@@ -747,6 +747,9 @@ Every file header now reads `Copyright (c) <year> JIC Smart Factory` (each file 
 from them are ours. Every `File Name:` line already matched its file's path. There is no root
 `LICENSE`, and the style checker's header rule checks only for the MIT block and the `File Name:`
 basename, so no author string is encoded anywhere that would fail.
+*Corrected 2026-09-26:* there is a root `LICENSE` now — the one the GitHub repository was created
+with, carried over when the two histories were joined — and it reads `Copyright (c) 2026 JIC Smart
+Factory` like the headers; as created it named Roman Parak, which the sweep above never saw.
 
 **Deliberately unchanged:** the skill's `SKILL.md` and `README.md` lines saying the style is derived
 from `rparak/RoLE`, "MIT License, © 2023 Roman Parak". They credit where the style came from, in
