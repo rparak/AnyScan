@@ -125,7 +125,7 @@ Comments are block comments above the code, saying *why*; multi-step bodies numb
   raising (`Write_Calibration`): `except AssertionError as error: print(f'[ERROR] …')`.
 - Never a bare `except:`. `except Exception` only at a boundary — re-raising as an operator
   sentence, or deliberately swallowing where the caller must not fail (a log sink, a close on
-  DISCONNECT) with a comment saying so — and always marked `# noqa: BLE001` (all 15 in `src/`
+  DISCONNECT) with a comment saying so — and always marked `# noqa: BLE001` (all 16 in `src/`
   outside the inherited `Basler.py` are).
 - The application logs through the session logger (`src/Logger/Core.py`); the Qt-free layers
   emit through injected callbacks (`Set_Log_Callback`, `stage_cb`, `progress_cb`) and never hold
