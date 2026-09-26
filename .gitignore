@@ -36,3 +36,9 @@ env/
 # not the directory, so logger/.gitkeep is tracked and a fresh clone has the directory.
 /logger/*
 !/logger/.gitkeep
+
+# Claude Code: its local state (locks, worktrees, checkpoints, ...) stays out; the project's
+# skills are tracked. Anchored to the repo root like /models/* and /logger/* above. It is here,
+# not in .git/info/exclude, so it travels with a copy of the repository.
+/.claude/*
+!/.claude/skills/
