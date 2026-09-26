@@ -1162,7 +1162,7 @@ loaded. Measured on the real weights:
 
 | Measurement | Result |
 |---|---|
-| Load on a worker thread | 6.8 s |
+| Load on a worker thread | 6.8 s (*Corrected 2026-09-26:* 9.4–10.0 s since the load also warms up the models — see *The first analysis's one-time costs are paid at configuration load*; 6.8 s was the load without it) |
 | Analyse on another thread | 5.8 s, with no load stage |
 | GPU memory after a failed swap and reload | back at 5.15 GB |
 
@@ -1672,10 +1672,19 @@ Tests `test/Camera/test_generate_checkerboard.py::test_the_calibration_detector_
 
 ## The first analysis's one-time costs are paid at configuration load ("Warming up…")
 
-**What was measured (2026-09-26).** `Image_001` (9 objects), the shipped configuration, real
-weights; the load on one thread and each ANALYZE on its own, as the application runs them. The
-first analysis after a load took **2.6–2.9 s** longer than the second on the same frame, all of it
-in three places:
+`Vision_Pipeline_Cls.Configure`, once the configuration is in force, reads the reference, runs
+FastSAM on it (it has the frame's size) and describes the background sentence — which is also
+Gemma's first generation — under the dialog's stage label **Warming up…**. Configure clears the
+previous reference and sentence first, so a reconfiguration describes its own reference. The
+sentence's audit record is held and carried by the first analysis, as before. The warm-up is best
+effort: a failure there is not a failed load; the first analysis meets it and reports it. When a
+failed load reloads the previous configuration, the reload is warmed up the same way (a reloaded
+Gemma describes the sentence again as its first generation; a Gemma that was kept is still warm and
+keeps its sentence), so a slow first analysis does not read as a second fault after the failure.
+
+**Why.** The first ANALYZE after a load took **2.6–2.9 s** longer than the second on the same frame
+(2026-09-26: `Image_001`, 9 objects, the shipped configuration, real weights; the load on one thread
+and each ANALYZE on its own, as the application runs them), all of it in three places:
 
 | Stage | First analysis | Second | Extra |
 |---|---|---|---|
@@ -1687,16 +1696,7 @@ in three places:
 
 `mlx_vlm` and `ultralytics` were already imported by the load. On the UI side the annotation render
 (+0.02 s) and the undistortion maps (~0.01 s, built on the first SCAN capture) are too small to move.
-
-**The change.** `Vision_Pipeline_Cls.Configure`, once the configuration is in force, reads the
-reference, runs FastSAM on it (it has the frame's size) and describes the background sentence — which
-is also Gemma's first generation — under the dialog's stage label **Warming up…**. Configure clears
-the previous reference and sentence first, so a reconfiguration describes its own reference. The
-sentence's audit record is held and carried by the first analysis, as before. The warm-up is best
-effort: a failure there is not a failed load; the first analysis meets it and reports it. When a
-failed load reloads the previous configuration, the reload is warmed up the same way (a reloaded
-Gemma describes the sentence again as its first generation; a Gemma that was kept is still warm and
-keeps its sentence), so a slow first analysis does not read as a second fault after the failure.
+The load is where the operator already waits, watching a stage label; the first scan of a run is not.
 
 | | Before | After |
 |---|---|---|
@@ -1706,6 +1706,13 @@ keeps its sentence), so a slow first analysis does not read as a second fault af
 
 The load is ~2.5 s slower, and the first analysis now takes as long as any other. The readings are
 identical word for word before and after (`Image_002`, the background sentence and every object).
+
+Rejected (reasoned, not measured): **warming up on a blank image** — it costs the same time, and the
+reference is the one image that is certainly the frame's size and whose description the first
+analysis needs anyway; **naming the cost on the analysis's busy line instead** — it would explain
+the wait, not move it out of the scan; **warming up after the dialog reports the load done** — an
+ANALYZE could then start while the warm-up still holds the models, which would need a lock between
+the two for a saving of seconds.
 
 **The harness is not warmed up, on purpose.** `Example/Vision/analyze.py` never calls Configure —
 its first Analyze loads the models — so its first frame still pays these ~2.6 s. A slow first frame
@@ -1721,4 +1728,6 @@ Tests `test/Vision/test_core.py::test_a_configuration_load_warms_up_what_the_fir
 `::test_the_background_is_described_once_per_configuration` (at the load, from the new reference),
 `::test_the_background_audit_reaches_the_first_analysis_after_a_load`,
 `::test_a_failed_warm_up_is_not_a_failed_load`,
-`::test_the_reload_after_a_failed_load_is_warmed_up_like_a_load`.
+`::test_the_reload_after_a_failed_load_is_warmed_up_like_a_load`,
+`test/UI/test_configuration_dialog.py::test_the_loading_line_follows_the_loaders_phases` ("Warming up…"
+as painted); commit `fd369e4`.

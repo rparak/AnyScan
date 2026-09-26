@@ -85,8 +85,8 @@ Description:
     Note:
         This module is Qt-free. Analyze accepts an RGB image as a NumPy array; the
         UI owns the QImage <-> array conversion. The describer's runtime (MLX) and
-        OpenCV are imported lazily on the first Analyze, so importing this module (as App/run.py does at load time) pulls no
-        heavy runtime.
+        OpenCV are imported when the models load (Load_Models / Configure), so importing
+        this module (as App/run.py does at load time) pulls no heavy runtime.
 """
 # The empty-surface reference is configuration (Segmentation.Background.Reference): it must come
 # from the SAME fixed camera and match the frame's pixel dimensions exactly.
@@ -472,9 +472,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             from it — which is also Gemma's first generation. The new reference is read after
             Configure has cleared the old one, so a reconfiguration describes its own reference.
 
-            Best effort: a failure here is not a failed load — the configuration is already in
-            force — so nothing half-done is kept and the first analysis meets the same failure and
-            reports it in its own words.
+            Best effort: a failure here does not fail the load (see the except below).
 
         Args:
             (1) stage_cb [function]: Optional (text) phase hook.
@@ -488,6 +486,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             if self.__describer is not None:
                 self.__Compute_Background_Sentence(bg_bgr)
         except Exception:                                 # noqa: BLE001
+            # Swallowed on purpose: the configuration is already in force, so this is not a failed
+            # load. Nothing half-done is kept; the first analysis meets the failure and reports it.
             self.__background = None
             self.__background_sentence = None
             self.__background_audit = []

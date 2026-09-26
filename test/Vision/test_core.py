@@ -161,7 +161,7 @@ class _Fake_Describer_Cls(object):
 
     def Describe(self, image, purpose) -> str:
         self.purposes = getattr(self, 'purposes', []) + [purpose]
-        self.shapes = getattr(self, 'shapes', []) + [image.shape]
+        self.images = getattr(self, 'images', []) + [image]
         return self.caption
 
 
@@ -252,19 +252,20 @@ def test_the_background_is_described_once_per_configuration(fake_models, referen
     describer = getattr(vision, '_Vision_Pipeline_Cls__describer')
     assert describer.purposes.count(background) == 1
 
-    # Another reference, told apart by its size: a half-size copy of the committed one.
+    # Another reference, told apart by its colour: solid red, which no part of the committed (teal)
+    # one is — so any crop of it, whatever the margin, is red, and any crop of the old one is not.
     other = str(tmp_path / 'other_reference.png')
-    h, w = reference_background.shape[:2]
-    cv2.imwrite(other, cv2.resize(reference_background, (w // 2, h // 2)))
+    red = reference_background.copy()
+    red[:] = (0, 0, 255)
+    cv2.imwrite(other, red)
     variant = _Variant('Config_x_Mode_B.yaml', Background_Crop_Margin=0.2)
     variant = dataclasses.replace(variant, Scale=None, Segmentation=dataclasses.replace(
         variant.Segmentation, Background_Reference=other))
     vision.Configure(variant)
     assert getattr(vision, '_Vision_Pipeline_Cls__describer') is describer       # same model, kept
     assert describer.purposes.count(background) == 2                            # at the load
-    # The new reference, cropped by the new margin — not the one cached before Configure.
-    assert describer.shapes[-1][:2] == (int(h // 2 * 0.8) - int(h // 2 * 0.2),
-                                        int(w // 2 * 0.8) - int(w // 2 * 0.2))
+    # The new reference — not the one cached before Configure.
+    assert describer.images[-1].size and (describer.images[-1] == (0, 0, 255)).all()
 
     vision.Configure(dataclasses.replace(_Variant('Config_x_Mode_C.yaml', Background_Crop_Margin=0.2), Scale=None))
     vision.Analyze(frame)

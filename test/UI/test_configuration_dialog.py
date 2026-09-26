@@ -46,11 +46,14 @@ from UI.Core import AnyScan_Window_Cls
 #   ../UI/Configuration_Dialog
 import UI.Configuration_Dialog as Dialog
 from UI.Configuration_Dialog import Configuration_Dialog_Cls
+#   ../UI/Utilities/Style
+import UI.Utilities.Style as Style
 # Custom Lib.: AnyScan domain — the camera, the vision interface, the logger, the capture reader
 #   ../Camera/Core
 from Camera.Core import Camera_Backend_Cls
 #   ../Vision/Core
-from Vision.Core import Vision_Backend_Cls, Vision_Error_Cls
+import Vision.Core as Vision_Core
+from Vision.Core import Vision_Backend_Cls, Vision_Error_Cls, Vision_Pipeline_Cls
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
 #   ../UI/Capture
@@ -76,6 +79,13 @@ Description:
 #   Unit [string]
 CONST_MANGLE = '_AnyScan_Window_Cls'
 CONST_HARDWARE = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
+# The dialog's name-mangling prefix.
+#   Unit [string]
+CONST_DIALOG_MANGLE = '_Configuration_Dialog_Cls'
+# How long each stand-in model step (a load, a segmentation, a description) takes, so every phase of
+# a load stays on screen long enough to be seen.
+#   Unit [float] (s)
+CONST_MODEL_STEP = 0.25
 # The confirmation for the shipped configuration's camera, lens and lighting.
 #   Unit [string]
 CONST_SENTENCE = ('Configuration loaded. Model set JIC_AnyScan_All_v1 on a Basler a2A1920-51gcPRO with a '
@@ -485,33 +495,104 @@ def test_each_capture_set_records_its_configuration_reference_and_hardware(qt_ap
     assert cap.Hardware['lighting'] == 'Effilux EFFI-FD-200-200-000'
 
 
-class _Staged_Vision_Cls(_Fake_Vision_Cls):
-    """A vision backend whose Configure reports the loader's real phases, a moment apart."""
+class _Slow_Segmenter_Cls(object):
+    """A stand-in FastSAM that takes a moment to load and to segment, and reports its load as FastSAM does."""
 
-    def Configure(self, Configuration_Str, stage_cb=None) -> None:
-        for stage in ('Loading segmenter…', 'Loading model…'):
+    def __init__(self, Segmentation_Parameters_Str) -> None:
+        self.params, self.Loaded = Segmentation_Parameters_Str, False
+
+    @property
+    def Model_Key(self):
+        return (self.params.Model_Path, self.params.Device)
+
+    def Set_Parameters(self, Segmentation_Parameters_Str) -> None:
+        self.params = Segmentation_Parameters_Str
+
+    def Load(self, stage_cb=None) -> None:
+        if not self.Loaded:
             if stage_cb:
-                stage_cb(stage)
-            time.sleep(0.25)
-        self.Models_Loaded, self.Name = True, Configuration_Str.Identity.Model_Set
+                stage_cb('Loading segmenter…')
+            time.sleep(CONST_MODEL_STEP)
+            self.Loaded = True
+
+    def Release(self) -> None:
+        self.Loaded = False
+
+    def Segment(self, image, stage_cb=None):
+        time.sleep(CONST_MODEL_STEP)
+        return [], []
 
 
-def test_the_loading_line_follows_the_loaders_phases(qt_app, configurations) -> None:
+class _Slow_Describer_Cls(object):
+    """A stand-in Gemma that takes a moment to load and to describe."""
+
+    def __init__(self, Description_Parameters_Str) -> None:
+        self.params, self.Loaded = Description_Parameters_Str, False
+
+    @property
+    def Model_Key(self):
+        return self.params.Model_Path
+
+    def Set_Parameters(self, Description_Parameters_Str) -> None:
+        self.params = Description_Parameters_Str
+
+    def Load(self) -> None:
+        time.sleep(CONST_MODEL_STEP)
+        self.Loaded = True
+
+    def Release(self) -> None:
+        self.Loaded = False
+
+    def Describe(self, image, purpose) -> str:
+        time.sleep(CONST_MODEL_STEP)
+        return 'A plain surface.'
+
+
+def _Grab(widget: tp.Any) -> np.ndarray:
+    """What the widget paints now, as an HxWx4 BGRA array (the pixels, not its state)."""
+    image = widget.grab().toImage().convertToFormat(4)          # QImage.Format_RGB32
+    pointer = image.constBits()
+    pointer.setsize(image.byteCount())
+    return np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4).copy()
+
+
+def test_the_loading_line_follows_the_loaders_phases(qt_app, configurations, monkeypatch) -> None:
     """
     Description:
-        While the models load, the line under the list follows the loader's own phases — it opens
-        on 'Loading configuration…' and then reads 'Loading segmenter…' and 'Loading model…' as they
-        happen — so a nine-second load visibly moves instead of looking hung.
+        While a configuration loads, the line under the list follows the loader's own phases as they
+        happen — 'Loading configuration…', 'Loading segmenter…', 'Loading model…', 'Warming up…' — so
+        a ten-second load visibly moves instead of looking hung, and the warm-up the first analysis
+        used to pay is named on screen. The phases come from the real Vision_Pipeline_Cls.Configure
+        (stand-in models that take a moment per step; only 'Loading segmenter…' is the FastSAM
+        stand-in's own). 'Warming up…' is checked as painted: the shown label's pixels carry text in
+        the stage colour, and the text fits the label unclipped.
     """
 
-    dialog = Configuration_Dialog_Cls(_Staged_Vision_Cls(), Load_Configuration(configurations['seg']))
+    monkeypatch.setattr(Vision_Core, 'Fast_Sam_Cls', _Slow_Segmenter_Cls)
+    monkeypatch.setattr(Vision_Core, 'Gemma_Describer_Cls', _Slow_Describer_Cls)
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'gemma')
+    config = Load_Configuration(configurations['seg'])
+    dialog = Configuration_Dialog_Cls(Vision_Pipeline_Cls(Configuration_Str=config), config)
     dialog.show()
     dialog.Select(configurations['second'])
+    stage = getattr(dialog, CONST_DIALOG_MANGLE + '__label_stage')
+    seen, painted = [], {}
+
+    def _Sample() -> bool:
+        if stage.isVisible():
+            if not seen or seen[-1] != stage.text():
+                seen.append(stage.text())
+            if stage.text() == 'Warming up…' and 'Warming up…' not in painted:
+                painted['Warming up…'] = _Grab(stage)
+        return not dialog.Loading
+
     dialog.Load()
-    shown = []
-    _Pump_Until(lambda: shown.append(next((t for t in _Texts(dialog) if t.startswith('Loading')), None)) or
-                not dialog.Loading)
-    seen = [text for i, text in enumerate(shown) if text and (i == 0 or text != shown[i - 1])]
-    assert 'Loading segmenter…' in seen and 'Loading model…' in seen
-    assert seen.index('Loading segmenter…') < seen.index('Loading model…')
+    _Pump_Until(_Sample)
+
+    assert seen == ['Loading configuration…', 'Loading segmenter…', 'Loading model…', 'Warming up…']
+    ink = Style.CONST_INK_SOFT.lstrip('#')
+    bgr = np.array([int(ink[4:6], 16), int(ink[2:4], 16), int(ink[0:2], 16)])
+    pixels = painted['Warming up…'][:, :, :3].astype(int)
+    assert (np.abs(pixels - bgr).max(axis=2) <= 24).sum() >= 20                  # glyphs, in the stage ink
+    assert stage.fontMetrics().horizontalAdvance('Warming up…') <= stage.contentsRect().width()
     dialog.reject()
