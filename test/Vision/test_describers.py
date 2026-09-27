@@ -58,7 +58,7 @@ class _Mlx_Vlm_Cls(object):
     bound to the module under mlx_vlm's own names (load, generate, apply_chat_template)."""
 
     def __init__(self) -> None:
-        self.loaded, self.templates, self.generated = [], [], []
+        self.loaded, self.templates, self.generated, self.synchronized = [], [], [], 0
 
     def Load(self, path):
         self.loaded.append(path)
@@ -70,13 +70,22 @@ class _Mlx_Vlm_Cls(object):
 
     def Generate(self, model, processor, formatted, **kwargs):
         self.generated.append((formatted, kwargs))
-        return types.SimpleNamespace(text='  A plate.  \n')
+        return types.SimpleNamespace(text='  A plate.  \n', prompt_tokens=280, generation_tokens=4)
+
+    def Synchronize(self) -> None:
+        self.synchronized += 1
 
 
 @pytest.fixture
 def fake_mlx(monkeypatch, tmp_path):
-    """Install the stand-in mlx_vlm and point the describer at an (empty) weights directory."""
+    """Install the stand-in mlx_vlm (and mlx.core) and point the describer at an (empty) weights directory."""
     fake = _Mlx_Vlm_Cls()
+    core = types.ModuleType('mlx.core')
+    core.synchronize = fake.Synchronize
+    mlx = types.ModuleType('mlx')
+    mlx.core = core
+    monkeypatch.setitem(sys.modules, 'mlx', mlx)
+    monkeypatch.setitem(sys.modules, 'mlx.core', core)
     package = types.ModuleType('mlx_vlm')
     package.load, package.generate = fake.Load, fake.Generate
     utils = types.ModuleType('mlx_vlm.prompt_utils')

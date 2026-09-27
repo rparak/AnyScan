@@ -90,6 +90,7 @@ class _Fake_Segmenter_Cls(object):
     Name = 'FastSAM-x'
     # The load / release events of both stand-in models, in the order they happened.
     events = []
+    Last_Inference_S = 0.0
 
     def __init__(self, Segmentation_Parameters_Str) -> None:
         self.params, self.model = Segmentation_Parameters_Str, None
@@ -128,6 +129,7 @@ class _Fake_Describer_Cls(object):
     """A stand-in Gemma: records Load / Release, fails to load when its weights path says so."""
     Name = 'gemma'
     events = _Fake_Segmenter_Cls.events
+    Last_Tokens = None
 
     def __init__(self, Description_Parameters_Str) -> None:
         self.params, self.model = Description_Parameters_Str, None

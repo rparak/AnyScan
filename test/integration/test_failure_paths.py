@@ -39,9 +39,11 @@ from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
-    The failure paths users actually hit, through the real Vision_Pipeline_Cls. The missing
-    model directory loads the runtime, so it is slow; the frame-size guard runs before any
-    model, so it runs in the default suite. Each asserts the failure surfaces as a
+    The failure paths users actually hit, through the real Vision_Pipeline_Cls. Neither needs
+    a model or its runtime, so both run in the default suite on every platform: the missing
+    model directory is refused by the describer's own directory check, which it reaches on the
+    stand-in runtimes (test/conftest.py fake_runtimes); the frame-size guard runs before any
+    model. Each asserts the failure surfaces as a
     Vision_Error_Cls with an actionable message, rather than crashing with a raw traceback
     the panel could not print.
 """
@@ -52,13 +54,15 @@ def _Configuration() -> tp.Any:
     """The shipped configuration, unscaled — the pipeline runs with the application's parameters."""
     return dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
-@pytest.mark.slow
-def test_missing_model_directory_surfaces_cleanly(reference_background) -> None:
+def test_missing_model_directory_surfaces_cleanly(reference_background, fake_runtimes) -> None:
     """
     Description:
         A missing/unreadable model directory raises Vision_Error_Cls, not a raw
         library exception. (Point the model dir at a path that does not exist; the
-        runtime imports fine but the weights cannot be loaded.)
+        runtime imports fine but the weights cannot be loaded.) The runtime is the
+        stand-in: the refusal is the describer's own directory check, made after the
+        imports and before any library call, so the real MLX would add nothing but an
+        import — and on a machine without MLX the test would meet 'needs MLX' instead.
     """
 
     import cv2

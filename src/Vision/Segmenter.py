@@ -24,6 +24,7 @@
 # System (Default)
 import os
 import gc
+import time
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan — the configured stage parameters
@@ -104,6 +105,20 @@ class Segmenter_Backend_Cls(object):
 
         raise NotImplementedError
 
+    @property
+    def Last_Inference_S(self) -> float:
+        """
+        Description:
+            How long the last Segment spent in the model itself, its device work complete — the
+            rest of that call (moving the masks off the device, resizing, ranking) is its
+            post-processing, which the caller times as the remainder.
+
+        Returns:
+            (1) parameter [float]: Seconds; 0.0 before the first Segment.
+        """
+
+        raise NotImplementedError
+
 
 class Fast_Sam_Cls(Segmenter_Backend_Cls):
     """
@@ -123,6 +138,13 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
               (3) retina_masks=True returns full-resolution masks; each mask is still
                   resized to the exact frame size before it is returned, so stage 3
                   can score it against the change mask pixel for pixel.
+              (4) The model call is followed by a sync of the device the weights are ON (read
+                  from the model after the call: FastSAM loads its weights on the CPU and moves
+                  them on its first pass, so the configured 'auto' says nothing). MPS and CUDA
+                  are synchronised, a CPU model is not — so a machine without MPS or CUDA never
+                  calls their sync. Measured on MPS the work is already complete when the call
+                  returns, so the sync costs nothing today; it keeps Last_Inference_S honest if a
+                  later ultralytics returns before the device has finished.
 
     Initialization of the Class:
         Args:
@@ -136,7 +158,7 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
 
             Features:
                 # Properties of the class.
-                Cls.Loaded; Cls.Model_Key
+                Cls.Loaded; Cls.Model_Key; Cls.Last_Inference_S
 
                 # Functions of the class.
                 Cls.Load(stage_cb); Cls.Segment(image_bgr); Cls.Release()
@@ -154,6 +176,8 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
         self.__device = None
         self.__np = None
         self.__cv2 = None
+        self.__torch = None
+        self.__last_inference_s = 0.0
 
     @property
     def Loaded(self) -> bool:
@@ -179,6 +203,18 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
         """
 
         return (self.__weights_path, self.__device_setting)
+
+    @property
+    def Last_Inference_S(self) -> float:
+        """
+        Description:
+            How long the last Segment spent in the model call and its device sync.
+
+        Returns:
+            (1) parameter [float]: Seconds; 0.0 before the first Segment.
+        """
+
+        return self.__last_inference_s
 
     def Set_Parameters(self, Segmentation_Parameters_Str: Segmentation_Parameters_Str) -> None:
         """
@@ -294,7 +330,7 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
                 'is a complete FastSAM-x checkpoint.' % self.__weights_path
             ) from exc
 
-        self.__cv2, self.__np = cv2, np
+        self.__cv2, self.__np, self.__torch = cv2, np, torch
         self.__model = model
         self.__device = device
 
@@ -320,15 +356,19 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
             stage_cb('Segmenting…')
 
         h, w = image.shape[:2]
+        started = time.perf_counter()
         try:
             params = self.__params
             results = self.__model(image, device=self.__device, retina_masks=CONST_SEGMENTER_RETINA_MASKS,
                                    imgsz=params.Image_Size, conf=params.Confidence, iou=params.IoU, verbose=False)
+            self.__Synchronize()
         except Exception as exc:                          # noqa: BLE001
             raise Segmenter_Error_Cls(
                 'The segmenter failed to process the frame. Check the device setting '
                 'and the scene, then scan again.'
             ) from exc
+
+        self.__last_inference_s = time.perf_counter() - started
 
         result = results[0] if results else None
         if result is None or result.masks is None:
@@ -357,6 +397,36 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
             masks_out.append(mask.astype(bool))
             confs_out.append(confidences[i])
         return masks_out, confs_out
+
+    def __Synchronize(self) -> None:
+        """
+        Description:
+            Wait for the device the model's weights are on to finish its queued work: MPS and CUDA
+            are synchronised, anything else (the CPU) needs no wait. The device is read from the
+            model's weights, never from the configured setting.
+        """
+
+        device = self.__Model_Device_Type()
+        if device == 'mps':
+            self.__torch.mps.synchronize()
+        elif device == 'cuda':
+            self.__torch.cuda.synchronize()
+
+    def __Model_Device_Type(self) -> str:
+        """
+        Description:
+            The device type the model's weights are on ('cpu', 'mps', 'cuda'), read from its first
+            parameter. A model that exposes no parameters is treated as on the CPU: no sync, so a
+            missed wait can only mistime a stage, never fail the analysis.
+
+        Returns:
+            (1) parameter [string]: The device type.
+        """
+
+        try:
+            return next(iter(self.__model.model.parameters())).device.type
+        except (AttributeError, StopIteration, TypeError):
+            return 'cpu'
 
     def __Confidences(self, result: tp.Any, count: int) -> tp.List[tp.Optional[float]]:
         """

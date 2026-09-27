@@ -497,6 +497,7 @@ def test_each_capture_set_records_its_configuration_reference_and_hardware(qt_ap
 
 class _Slow_Segmenter_Cls(object):
     """A stand-in FastSAM that takes a moment to load and to segment, and reports its load as FastSAM does."""
+    Last_Inference_S = 0.0
 
     def __init__(self, Segmentation_Parameters_Str) -> None:
         self.params, self.Loaded = Segmentation_Parameters_Str, False
@@ -525,6 +526,7 @@ class _Slow_Segmenter_Cls(object):
 
 class _Slow_Describer_Cls(object):
     """A stand-in Gemma that takes a moment to load and to describe."""
+    Last_Tokens = None
 
     def __init__(self, Description_Parameters_Str) -> None:
         self.params, self.Loaded = Description_Parameters_Str, False

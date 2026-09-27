@@ -881,20 +881,59 @@ class Session_Logger_Cls(object):
                 line += ' Capture set %s.' % set_id
             self.__Write_Line(line, self.__clock())
 
+    def Log_Analysis_Timing(self, index: int, total_ms: int, stages: tp.List[tp.Tuple[str, int]],
+                            other_ms: int, measurement_ms: int, first_after_load: bool) -> None:
+        """
+        Description:
+            Log where a finished analysis's time went, as one sentence after its 'finished in' line:
+            the total (that line's number), each stage, and 'other' — the numbers as given, so they
+            add up to the total exactly when the caller derived 'other' from them. The measurement
+            runs after the total stops and is named as outside it. The first analysis after a load
+            says so, so a slow first analysis is visible, not averaged away.
+
+            A negative 'other' means the stages overlap (one was counted twice): the line keeps the
+            number and a WARNING line follows, so the fault is reported, never clamped.
+
+        Args:
+            (1) index [int]: The 1-based analysis index within the session.
+            (2) total_ms [int]: The analysis's inference time (the 'finished in' number).
+            (3) stages [Vector<Tuple<string, int>>]: Each stage's name and milliseconds, in order.
+            (4) other_ms [int]: The total minus the stages.
+            (5) measurement_ms [int]: The measurement's milliseconds (outside the total).
+            (6) first_after_load [bool]: Whether this is the first analysis after a load.
+        """
+
+        with self.__lock:
+            terms = ' + '.join('%s %d' % (name, ms) for name, ms in stages)
+            line = ('Analysis %d timing%s: %d ms = %s + other %d. Measurement %d ms (not in the inference time).'
+                    % (index, ' (first after load)' if first_after_load else '', total_ms, terms,
+                       other_ms, measurement_ms))
+            self.__Write_Line(line, self.__clock())
+            if other_ms < 0:
+                self.__Write_Line('Analysis %d timing does not add up: its stages sum to %d ms, %d ms more than '
+                                  'the total, so a stage was counted twice.'
+                                  % (index, total_ms - other_ms, -other_ms), self.__clock(), CONST_LEVEL_WARNING)
+
     def Log_Object_Detected(self, label: str, confidence: tp.Optional[int] = None,
-                            bbox: tp.Optional[tp.Tuple[int, int, int, int]] = None) -> None:
+                            bbox: tp.Optional[tp.Tuple[int, int, int, int]] = None,
+                            crop_ms: tp.Optional[int] = None, describe_ms: tp.Optional[int] = None,
+                            tokens: tp.Optional[tp.Tuple[int, int]] = None) -> None:
         """
         Description:
             Log one detected object: its type, its confidence as a percentage (omitted for
-            a background-cue object with no score), and its bounding box. The generated
-            description is NOT logged here — it lives in the '_understanding.txt' of the
-            same capture set, and repeating it makes the log unreadable at nine objects a
-            frame.
+            a background-cue object with no score), its bounding box, and, when the analysis was
+            timed, how long its crop and its description took and the describer's input and output
+            token counts. The generated description is NOT logged here — it lives in the
+            '_understanding.txt' of the same capture set, and repeating it makes the log unreadable
+            at nine objects a frame; the timing rides on this line for the same reason.
 
         Args:
             (1) label [string]: The object's noun-phrase label.
             (2) confidence [int]: The confidence percentage, or None when unscored.
             (3) bbox [Vector<int> 1x4]: The bounding box (x, y, w, h).
+            (4) crop_ms [int]: The crop's milliseconds, or None when not timed.
+            (5) describe_ms [int]: The description's milliseconds, or None when not timed.
+            (6) tokens [Tuple<int> 1x2]: (input, output) token counts, or None when not reported.
         """
 
         with self.__lock:
@@ -903,6 +942,12 @@ class Session_Logger_Cls(object):
                 parts.append('confidence=%d%%' % confidence)
             if bbox is not None:
                 parts.append('bbox=(' + ','.join(str(int(v)) for v in bbox) + ')')
+            if crop_ms is not None:
+                parts.append('crop=%d ms' % crop_ms)
+            if describe_ms is not None:
+                parts.append('describe=%d ms' % describe_ms)
+            if tokens is not None:
+                parts.append('input tokens=%d, output tokens=%d' % tokens)
             self.__Write_Line('Object detected: ' + ', '.join(parts) + '.', self.__clock())
 
     # -------------------------------------------------------------------- shutdown

@@ -1714,6 +1714,15 @@ the wait, not move it out of the scan; **warming up after the dialog reports the
 ANALYZE could then start while the warm-up still holds the models, which would need a lock between
 the two for a saving of seconds.
 
+*Updated 2026-09-27:* the load now logs where its time went, after the unchanged `Models loaded … (x s)`
+line: one line per model (`Model FastSAM-x.pt loaded in 1.11 s.`, or `… kept, not reloaded.` for a model
+the configuration shares with the previous one) and one for the warm-up's parts (`Warm-up took 3.24 s:
+reference 0.04 s, first FastSAM pass 1.17 s, background sentence 2.03 s.`). A warm-up that stops early is
+no longer silent at the load: that line becomes a WARNING naming the reason and saying the first analysis
+pays the rest. Each analysis's timing line marks the first one after a load (`(first after load)`), so
+whether the warm-up worked can be read from the log. In 12 processes on 2026-09-27 (`Image_001`, window
+path) the first analysis was not slower than the second: the difference ranged from −711 to +127 ms.
+
 **The harness is not warmed up, on purpose.** `Example/Vision/analyze.py` never calls Configure —
 its first Analyze loads the models — so its first frame still pays these ~2.6 s. A slow first frame
 is invisible in a command-line run. **Measure the fix through Configure** (the dialog, or a script
@@ -1730,4 +1739,6 @@ Tests `test/Vision/test_core.py::test_a_configuration_load_warms_up_what_the_fir
 `::test_a_failed_warm_up_is_not_a_failed_load`,
 `::test_the_reload_after_a_failed_load_is_warmed_up_like_a_load`,
 `test/UI/test_configuration_dialog.py::test_the_loading_line_follows_the_loaders_phases` ("Warming up…"
-as painted); commit `fd369e4`.
+as painted); commit `fd369e4`. The load and warm-up log lines:
+`test/UI/test_timing_log.py::test_a_configuration_load_logs_each_model_and_the_warm_up`,
+`::test_a_warm_up_that_stops_early_is_a_warning`, `::test_the_first_analysis_after_each_load_is_marked`.

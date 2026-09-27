@@ -28,7 +28,10 @@ import time
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures, composer, and vision utilities
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Analysis_Str
+from Parameters.Vision import (Detection_Str, Analysis_Str, Load_Timing_Str, Model_Load_Str,
+                               CONST_STAGE_BACKGROUND, CONST_STAGE_SEGMENTATION, CONST_STAGE_SEGMENTATION_POST,
+                               CONST_STAGE_FUSION, CONST_STAGE_CROPS, CONST_STAGE_DESCRIPTIONS,
+                               CONST_STAGE_BACKGROUND_SENTENCE, CONST_STAGE_COMPOSE)
 #   ../Parameters/Configuration
 from Parameters.Configuration import Configuration_Str
 #   ../Reporting/Core
@@ -52,6 +55,8 @@ from Vision.Describers import (Gemma_Describer_Cls, CONST_PURPOSE_OBJECT, CONST_
                                Describer_Error_Cls)
 #   ../Vision/Utilities/Measure
 from Vision.Utilities.Measure import Measure_Objects
+#   ../Vision/Utilities/Timing
+from Vision.Utilities.Timing import Build_Timing
 
 """
 Description:
@@ -140,11 +145,13 @@ class Vision_Backend_Cls(object):
                 Cls.Analyze(image_rgb)
     """
 
-    # What the window reads from any backend: the presented name, the two model names, and whether
-    # the models are loaded. A backend with nothing to load (a test stand-in) is always loaded.
+    # What the window reads from any backend: the presented name, the two model names, whether
+    # the models are loaded, and where the last load's time went (None: not timed). A backend with
+    # nothing to load (a test stand-in) is always loaded.
     Name = ''
     Model_Names = ('', '')
     Models_Loaded = True
+    Load_Timing = None
 
     def Load_Models(self, stage_cb: tp.Optional[tp.Callable] = None) -> None:
         """
@@ -277,7 +284,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
             Features:
                 # Properties of the class.
-                Cls.Name; Cls.Model_Names; Cls.Models_Loaded
+                Cls.Name; Cls.Model_Names; Cls.Models_Loaded; Cls.Load_Timing
 
                 # Functions of the class.
                 Cls.Load_Models(stage_cb); Cls.Configure(Configuration_Str, stage_cb)
@@ -306,6 +313,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         # The stage-2 segmenter. Constructing it is cheap — ultralytics loads lazily
         # (Load_Models or the first Segment), so this keeps the window and the tests light.
         self.__segmenter = Fast_Sam_Cls(Configuration_Str.Segmentation)
+        # Where the last Load_Models (and the warm-up after it) spent its time, and whether the next
+        # analysis is the first since the models were put in force (see Analyze).
+        self.__load_timing = None
+        self.__first_after_load = True
 
     @property
     def Name(self) -> str:
@@ -348,11 +359,27 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                and self.__describer is not None and self.__describer.Loaded))
         return self.__segmenter.Loaded and describer_ready
 
+    @property
+    def Load_Timing(self) -> tp.Optional[Load_Timing_Str]:
+        """
+        Description:
+            Where the last successful Load_Models spent its time — each model's load, or that it was
+            kept — and, after a Configure, the warm-up's parts. The window logs it when a
+            configuration has loaded.
+
+        Returns:
+            (1) parameter [Load_Timing_Str(object) or None]: The timing, or None before any load.
+        """
+
+        return self.__load_timing
+
     def Load_Models(self, stage_cb: tp.Optional[tp.Callable] = None) -> None:
         """
         Description:
             Load the configuration's models now — the segmenter, then the describer — so no
-            analysis pays for them. A model already loaded is kept.
+            analysis pays for them. A model already loaded is kept, and recorded as kept (no time),
+            never as a load. A successful call starts a fresh Load_Timing and marks the next
+            analysis as the first after a load.
 
         Args:
             (1) stage_cb [function]: Optional (text) phase hook ('Loading segmenter…', …).
@@ -361,11 +388,20 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             Vision_Error_Cls: A model could not be loaded; the message says which and why.
         """
 
+        segmenter_name, describer_name = self.Model_Names
+        segmenter_kept = self.__segmenter.Loaded
+        started = time.perf_counter()
         try:
             self.__segmenter.Load(stage_cb)
         except Segmenter_Error_Cls as exc:
             raise Vision_Error_Cls(str(exc)) from exc
-        self.__Ensure_Loaded(stage_cb)
+        timing = Load_Timing_Str(Models=[Model_Load_Str(
+            Name=segmenter_name, Seconds=None if segmenter_kept else time.perf_counter() - started)])
+        describer_s = self.__Ensure_Loaded(stage_cb)
+        if self.__describer is not None:
+            timing.Models.append(Model_Load_Str(Name=describer_name, Seconds=describer_s))
+        self.__load_timing = timing
+        self.__first_after_load = True
 
     def Configure(self, Configuration_Str: Configuration_Str,
                   stage_cb: tp.Optional[tp.Callable] = None) -> None:
@@ -474,25 +510,37 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
             Best effort: a failure here does not fail the load (see the except below).
 
+            Each part's time is recorded in Load_Timing (reference, first FastSAM pass, background
+            sentence); a part that did not run stays None, and a failure is recorded as its reason.
+
         Args:
             (1) stage_cb [function]: Optional (text) phase hook.
         """
 
         if stage_cb:
             stage_cb('Warming up…')
+        timing = self.__load_timing
         try:
+            started = time.perf_counter()
             bg_bgr = self.__Read_Reference(self.__cv2)
+            timing.Reference_S = time.perf_counter() - started
+            started = time.perf_counter()
             self.__segmenter.Segment(bg_bgr)
+            timing.First_Segmentation_S = time.perf_counter() - started
             if self.__describer is not None:
+                started = time.perf_counter()
                 self.__Compute_Background_Sentence(bg_bgr)
-        except Exception:                                 # noqa: BLE001
+                timing.Background_Sentence_S = time.perf_counter() - started
+        except Exception as exc:                          # noqa: BLE001
             # Swallowed on purpose: the configuration is already in force, so this is not a failed
             # load. Nothing half-done is kept; the first analysis meets the failure and reports it.
+            # The reason is kept in Load_Timing, which the window logs as a warning at the load.
             self.__background = None
             self.__background_sentence = None
             self.__background_audit = []
+            timing.Warm_Up_Error = str(exc)
 
-    def __Ensure_Loaded(self, stage_cb: tp.Optional[tp.Callable]) -> None:
+    def __Ensure_Loaded(self, stage_cb: tp.Optional[tp.Callable]) -> tp.Optional[float]:
         """
         Description:
             Ensure the runtime the selected pipeline needs is imported and cached. cv2/numpy
@@ -503,6 +551,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
         Args:
             (1) stage_cb [function]: Optional (text) phase hook.
+
+        Returns:
+            (1) parameter [float or None]: How long the describer took to load, or None when it was
+                                           already loaded (kept) or there is none (the fallback).
         """
 
         if self.__cv2 is None:
@@ -525,13 +577,15 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             self.__background_sentence = None
             self.__background_audit = []
         if self.__describer is None or self.__describer.Loaded:
-            return
+            return None
         if stage_cb:
             stage_cb('Loading model…')
+        started = time.perf_counter()
         try:
             self.__describer.Load()
         except Describer_Error_Cls as exc:
             raise Vision_Error_Cls(str(exc)) from exc
+        return time.perf_counter() - started
 
     def __Load_Background(self, cv2: tp.Any, frame_shape: tp.Tuple[int, int, int]) -> tp.List[tp.List[int]]:
         """
@@ -652,6 +706,41 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             its own module (see the class docstring's pipeline overview). The frame is
             a contiguous RGB array (the UI converts the QImage), so this never touches Qt.
 
+            Latency_Ms runs from the start of this call (before the models are checked, so a
+            pipeline that was never preloaded pays its load inside it) to the end of Compose and
+            Verdict; the measurement runs after it stops. Timing breaks that same interval into
+            its stages (Parameters.Vision.CONST_TIMING_STAGES), each timed around completed work:
+            the segmenter and the describer sync their devices before they return.
+
+            What is NOT a stage lands in 'other' or in the stage that contains it:
+              other:              the model check (__Ensure_Loaded and segmenter.Load); RGB->BGR;
+                                  reading and size-checking the reference (cached after the first
+                                  read); the describe setup (the union of the object masks and the
+                                  dilate kernel) and the 'Describing…' hook; each object's progress
+                                  hook and Condense_Label (the Gemma path's label).
+              segmentation post:  Segment's own loaded check and its 'Segmenting…' hook, with the
+                                  masks' read-back, resize and ranking.
+              crops:              each object's neighbour mask (the dilate of the other objects).
+              descriptions:       the fallback describer's label, which it writes with the detail.
+            So in a pipeline that was never preloaded (the harness, a test) 'other' absorbs the cold
+            load — about 6 s for Gemma and 1 s for FastSAM on the development machine — and the
+            first analysis also pays in its own stages what the warm-up would have paid: FastSAM's
+            first pass in 'segmentation', the background sentence's first generation in
+            'background sentence'. First_After_Load marks that analysis.
+
+            The per-object times are each truncated to a whole millisecond, the crops and
+            descriptions stages once over the unrounded sum, so the per-object values can add up
+            to up to one millisecond per object less than their stage (Parameters.Vision
+            Object_Timing_Str).
+
+            First_After_Load is True for the first analysis to FINISH after the models were put in
+            force by Load_Models — which every Configure goes through, whether it loaded a model or
+            kept it (a reload of a configuration with the same models still counts: it warms up
+            again, and the flag shows whether that left the next analysis as fast as the one after),
+            and which the restore after a failed Configure goes through too. A pipeline that was
+            never preloaded starts with it set: its first analysis pays the load. An analysis that
+            fails leaves it set, so the next one to finish carries it.
+
         Args:
             (1) image [Matrix<uint8> HxWx3]: The frame as a contiguous RGB array.
             (2) progress_cb [function]: Optional (done, total) progress hook.
@@ -662,10 +751,14 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         """
 
         t0 = time.perf_counter()
+        # The models are checked (loaded, when nothing preloaded them) inside the latency and
+        # outside every stage, so a cold load lands in the timing's remainder, not in a stage.
         # The describer's model is loaded only when one writes the descriptions; the
         # model-free fallback describer needs none.
         self.__Ensure_Loaded(stage_cb)
+        self.__segmenter.Load(stage_cb)
         cv2, np = self.__cv2, self.__np
+        stage_s = {}
 
         # RGB -> BGR: the pipeline works in BGR, the exchange format is RGB.
         frame_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -674,39 +767,58 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         # The background-subtracted foreground mask: one of the two cues fused in
         # stage 3. Pure cv2/np differencing, so it lives in Segmentation, not here.
         bg_bgr = self.__Load_Background(cv2, frame_bgr.shape)
+        started = time.perf_counter()
         background_fg = Background_Foreground(bg_bgr, frame_bgr, cv2, np,
                                               Segmentation_Parameters_Str=self.__config.Segmentation)
+        stage_s[CONST_STAGE_BACKGROUND] = time.perf_counter() - started
 
         # ---- Stage 2 - instance segmentation (Vision.Segmenter) ----
         # FastSAM on the whole frame, behind the Segmenter_Backend_Cls seam: the other fused cue.
         # In its own module so the lazy ultralytics import keeps a bare Core import Qt-free and
         # cheap. Segmenting the whole frame is what separates touching parts.
+        # The model call (with its device sync) is the segmentation; the rest of Segment is its
+        # post-processing.
+        started = time.perf_counter()
         masks, scores = self.__segmenter.Segment(frame_bgr, stage_cb)
+        segment_s = time.perf_counter() - started
+        stage_s[CONST_STAGE_SEGMENTATION] = self.__segmenter.Last_Inference_S
+        stage_s[CONST_STAGE_SEGMENTATION_POST] = segment_s - self.__segmenter.Last_Inference_S
 
         # ---- Stage 3 - fusion (Vision.Utilities.Fusion) ----
         # The objects: the FastSAM union OR the background mask, closed, split into
         # connected components, area-filtered and ordered left to right. An object
         # survives on EITHER cue; each records the cue(s) that located it.
+        started = time.perf_counter()
         objects = Fuse_Objects(masks, scores, background_fg, cv2, np,
                                Segmentation_Parameters_Str=self.__config.Segmentation)
+        stage_s[CONST_STAGE_FUSION] = time.perf_counter() - started
 
         # ---- Stage 4 - description (Vision.Describers / Vision.Describe_Fallback) ----
         # One caption per object, from the alpha/beta-enhanced padded crop: neighbours
         # are masked out (filled from the reference) so the crop holds one object plus
         # table, and the stretch is estimated from the object's own pixels.
-        self.__Describe_Objects(objects, frame_bgr, bg_bgr, progress_cb, stage_cb)
+        object_times = self.__Describe_Objects(objects, frame_bgr, bg_bgr, progress_cb, stage_cb)
+        stage_s[CONST_STAGE_CROPS] = sum(crop_s for crop_s, _describe_s, _tokens in object_times)
+        stage_s[CONST_STAGE_DESCRIPTIONS] = sum(describe_s for _crop_s, describe_s, _tokens in object_times)
 
         # The one global background sentence, from the reference (cached across frames).
+        started = time.perf_counter()
         background_sentence, background_audit = self.__Describe_Background(bg_bgr)
-        result = self.__Compose_Result(objects, t0, len(masks),
-                                       background_sentence, background_audit)
-        # Measure every masked object through the configured scale (none without one).
+        stage_s[CONST_STAGE_BACKGROUND_SENTENCE] = time.perf_counter() - started
+        result = self.__Compose_Result(objects, t0, len(masks), background_sentence, background_audit,
+                                       stage_s, object_times)
+        # Measure every masked object through the configured scale (none without one). It runs
+        # after Latency_Ms has stopped, so its time is carried beside the total, not in it.
+        started = time.perf_counter()
         Measure_Objects(result.Objects, self.__config.Scale, cv2, np)
+        result.Timing.Measurement_Ms = int((time.perf_counter() - started) * 1000)
+        self.__first_after_load = False
         return result
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            bg_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],
-                           stage_cb: tp.Optional[tp.Callable]) -> None:
+                           stage_cb: tp.Optional[tp.Callable]) -> tp.List[tp.Tuple[float, float,
+                                                                                  tp.Optional[tp.Tuple[int, int]]]]:
         """
         Description:
             Stage 4: fill each object's Label and Detail from its crop. The padded crop
@@ -718,12 +830,19 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             enhanced crop is retained on the object (Enhanced_Crop) so the debug montage
             shows exactly what the model received, without re-enhancing it.
 
+            The objects are described one after another on this thread (no batching), so their
+            times add up to the crops and descriptions stages.
+
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The stage-3 objects (mutated).
             (2) frame_bgr [Matrix<uint8> HxWx3]: The frame (BGR).
             (3) bg_bgr [Matrix<uint8> HxWx3]: The empty-surface reference (BGR).
             (4) progress_cb [function]: Optional (done, total) progress hook.
             (5) stage_cb [function]: Optional (text) phase hook.
+
+        Returns:
+            (1) parameter [Vector<Tuple>]: Per object, in order: (crop seconds, description seconds,
+                                           (input tokens, output tokens) or None).
         """
 
         cv2, np = self.__cv2, self.__np
@@ -738,9 +857,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             cv2.MORPH_ELLIPSE, (CONST_ENHANCE_NEIGHBOUR_DILATE, CONST_ENHANCE_NEIGHBOUR_DILATE))
 
         total = len(objects)
+        times = []
         for i, det in enumerate(objects):
             if progress_cb:
                 progress_cb(i, total)
+            started = time.perf_counter()
             # The padded crop with neighbours removed (filled from the reference), and
             # the object's mask within it, so the stretch is estimated from object
             # pixels and the surround is a clean table, not another part. Each other
@@ -754,24 +875,33 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                     mask_crop, others_crop, np)
             enhanced = Enhance_Crop(isolated, mask_crop, CONST_ENHANCE_CLIP_LIMIT, cv2, np)
             det.Enhanced_Crop = enhanced
+            crop_s = time.perf_counter() - started
+            started = time.perf_counter()
             if self.__describer is None:
                 det.Label, det.Detail = Describe_Fallback(
                     frame_bgr, det.Mask, det.Bbox, frame_bgr.shape, cv2, np)
+                describe_s, tokens = time.perf_counter() - started, None
             else:
                 det.Detail = self.__describer.Describe(enhanced, CONST_PURPOSE_OBJECT)
+                describe_s, tokens = time.perf_counter() - started, self.__describer.Last_Tokens
                 det.Label = Condense_Label(det.Detail)
+            times.append((crop_s, describe_s, tokens))
         if progress_cb:
             progress_cb(total, total)
+        return times
 
     def __Compose_Result(self, objects: tp.List[Detection_Str],
                          t0: float, raw_mask_count: int, background_sentence: str,
-                         background_audit: tp.List[tp.Tuple[str, str]]) -> Analysis_Str:
+                         background_audit: tp.List[tp.Tuple[str, str]], stage_s: tp.Dict[str, float],
+                         object_times: tp.List[tp.Tuple[float, float, tp.Optional[tp.Tuple[int, int]]]]
+                         ) -> Analysis_Str:
         """
         Description:
             Compose the panel's reading from the described objects: the per-object
             sentences, the summary, the note, the verdict badge, the latency, the global
-            background sentence and its audit. The objects are never
-            reordered here — their order is the index contract.
+            background sentence and its audit, and the timing of the stages. The objects are
+            never reordered here — their order is the index contract, and the per-object timing
+            follows it.
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The described objects, in order.
@@ -779,18 +909,24 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             (3) raw_mask_count [int]: The raw segmenter mask count (a diagnostic).
             (4) background_sentence [string]: The one global background description.
             (5) background_audit [Vector<Tuple<string> 1x2>]: The background-caption audit.
+            (6) stage_s [Dict<string, float>]: The seconds of the stages timed so far (mutated:
+                                               the compose stage is added).
+            (7) object_times [Vector<Tuple>]: Per object: (crop s, description s, tokens or None).
 
         Returns:
             (1) parameter [Analysis_Str(object)]: The finished scene reading.
         """
 
         caption = '' if objects else CONST_EMPTY_SCENE_EXPLANATION
+        started = time.perf_counter()
         objects, note = Compose(objects, caption=caption)
         badge, level = Verdict(objects)
+        stage_s[CONST_STAGE_COMPOSE] = time.perf_counter() - started
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return Analysis_Str(Objects=objects, Note=note,
                             Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
                             Task=(self.__config.Identity.Task if self.__describer is not None
                                   else CONST_FALLBACK_TASK_LABEL),
                             Raw_Mask_Count=raw_mask_count,
-                            Background=background_sentence, Audit=background_audit)
+                            Background=background_sentence, Audit=background_audit,
+                            Timing=Build_Timing(latency_ms, stage_s, object_times, self.__first_after_load))

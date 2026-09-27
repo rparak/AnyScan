@@ -24,6 +24,8 @@
 # System (Default)
 import os
 import sys
+import time
+import types
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
@@ -50,6 +52,12 @@ CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.absp
 CONST_REFERENCE_BACKGROUND = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Images', 'Background', 'Image_Background_001.png')
 #   Unit [Tuple<int> 1x3]
 CONST_REFERENCE_SHAPE = (1200, 1920, 3)
+
+# The model runtimes a weights test must meet as the installed packages, never as fake_runtimes'
+# stand-ins (which have no file). 'mlx' itself is a namespace package with no file, so mlx.core
+# stands for it.
+#   Unit [Vector<string>]
+CONST_RUNTIME_MODULES = ('torch', 'ultralytics', 'mlx.core', 'mlx_vlm', 'mlx_vlm.prompt_utils')
 
 # Directories the domain code and the harness live in, added to the import path
 # so tests can import the extracted src/ modules, the application entry (run) and
@@ -227,11 +235,20 @@ def require_weights(request: pytest.FixtureRequest) -> tp.Callable[[tp.List[str]
         banner naming each missing path; under --runslow, which asks for the real models, it FAILS,
         so a run that asked for them can never pass without them. Never a silent return.
 
+        It also FAILS when a model runtime in sys.modules is a stand-in (fake_runtimes left behind by
+        an earlier test): the test would then run the stand-ins with real weights on disk, and its
+        structural assertions can pass on them.
+
     Returns:
         (1) parameter [function]: (paths) -> None; each path is a weights directory or file.
     """
 
     def _Require(paths: tp.List[str]) -> None:
+        stand_ins = [name for name in CONST_RUNTIME_MODULES
+                     if name in sys.modules and not getattr(sys.modules[name], '__file__', None)]
+        if stand_ins:
+            pytest.fail('STAND-IN RUNTIME LEFT IN sys.modules: %s — an earlier test did not restore the real '
+                        'packages, so this test would not run the real models.' % ', '.join(stand_ins), pytrace=False)
         missing = [path for path in paths if not os.path.exists(path)]
         if not missing:
             return
@@ -289,3 +306,174 @@ def models_untouched() -> tp.Iterator[None]:
                + ['added: %s' % name for name in sorted(set(after) - set(before))]
                + ['resized: %s' % name for name in sorted(set(before) & set(after)) if before[name] != after[name]])
     assert not changes, 'The test run changed models/:\n  ' + '\n  '.join(changes)
+
+
+class _Fake_Device_Cls(object):
+    """
+    Description:
+        A stand-in accelerator queue (MPS, CUDA, Metal): work queued on it returns at once and
+        completes only when something waits for it — a sync, or the next call that touches the
+        device — as real GPU work does. Wait counts every wait, so a test can see a sync happened.
+    """
+
+    def __init__(self) -> None:
+        self.waits = 0
+        self.__done_at = 0.0
+
+    def Queue(self, seconds: float) -> None:
+        """
+        Description:
+            Queue work that completes `seconds` from now.
+
+        Args:
+            (1) seconds [float]: How long the queued work takes.
+        """
+
+        self.__done_at = time.perf_counter() + seconds
+
+    def Wait(self) -> None:
+        """
+        Description:
+            Block until the queued work has completed.
+        """
+
+        self.waits += 1
+        remaining = self.__done_at - time.perf_counter()
+        if remaining > 0:
+            time.sleep(remaining)
+
+
+class _Fake_Runtimes_Cls(object):
+    """
+    Description:
+        Stand-ins for the model runtimes — torch and ultralytics (FastSAM), mlx and mlx_vlm (Gemma) —
+        so the REAL Fast_Sam_Cls and Gemma_Describer_Cls run with no weights. Every delay is a knob
+        (seconds): the synchronous part of a call sleeps, the device part is queued on a
+        _Fake_Device_Cls and completes only when waited for.
+    """
+
+    def __init__(self, directory: str) -> None:
+        # The delays. inference_s / generate_s: the synchronous part of a FastSAM / Gemma call;
+        # segment_device_s / describe_device_s: the part queued on the device; post_s: extra time
+        # moving FastSAM's masks off the device; *_load_s: loading each model.
+        #   Unit [float] (s)
+        self.inference_s = self.segment_device_s = self.post_s = 0.0
+        self.generate_s = self.describe_device_s = 0.0
+        self.segmenter_load_s = self.describer_load_s = 0.0
+        # The device FastSAM's weights report being on ('cpu', 'mps', 'cuda'); each torch sync call
+        # by device; and whether a torch sync raises (as it does on a machine without that device).
+        #   Unit [string], [Vector<string>], [bool]
+        self.model_device = 'mps'
+        self.torch_syncs = []
+        self.sync_raises = False
+        # Whether a FastSAM call fails (as a lost device would).
+        #   Unit [bool]
+        self.segment_raises = False
+        # The accelerator queues: torch's (MPS/CUDA) and MLX's (Metal).
+        #   Unit [_Fake_Device_Cls(object)]
+        self.gpu, self.metal = _Fake_Device_Cls(), _Fake_Device_Cls()
+        # The weights the configuration must name: a FastSAM file and a Gemma directory.
+        #   Unit [string]
+        os.makedirs(directory, exist_ok=True)
+        self.segmenter_path = os.path.join(directory, 'FastSAM-x.pt')
+        self.describer_path = os.path.join(directory, 'gemma-4-e4b-it-4bit')
+        with open(self.segmenter_path, 'wb') as handle:
+            handle.write(b'stand-in weights')
+        os.makedirs(self.describer_path, exist_ok=True)
+
+    def Modules(self) -> tp.Dict[str, types.ModuleType]:
+        """
+        Description:
+            The stand-in modules, by the names the code imports.
+
+        Returns:
+            (1) parameter [Dict<string, module>]: {'torch': …, 'ultralytics': …, 'mlx': …, 'mlx.core': …,
+                                                   'mlx_vlm': …, 'mlx_vlm.prompt_utils': …}.
+        """
+
+        runtime = self
+
+        def _Sync(device: str) -> tp.Callable[[], None]:
+            def _Synchronize() -> None:
+                runtime.torch_syncs.append(device)
+                if runtime.sync_raises:
+                    raise RuntimeError('%s is not available on this machine' % device)
+                runtime.gpu.Wait()
+            return _Synchronize
+
+        torch = types.ModuleType('torch')
+        torch.mps = types.SimpleNamespace(synchronize=_Sync('mps'))
+        torch.cuda = types.SimpleNamespace(synchronize=_Sync('cuda'), is_available=lambda: False)
+        torch.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+
+        def _Tensor(array: np.ndarray, delay: float) -> types.SimpleNamespace:
+            """A device tensor under torch's names: .cpu() waits for the device, then takes `delay` more."""
+            tensor = types.SimpleNamespace(numpy=lambda: array)
+
+            def _Cpu() -> types.SimpleNamespace:
+                runtime.gpu.Wait()
+                time.sleep(delay)
+                return tensor
+
+            tensor.cpu = _Cpu
+            return tensor
+
+        class _Fast_Sam_Model_Cls(object):
+            """FastSAM: one empty mask per frame; the device part of the call is queued, not waited for."""
+
+            def __init__(self, path: str) -> None:
+                time.sleep(runtime.segmenter_load_s)
+                parameter = types.SimpleNamespace(device=types.SimpleNamespace(type=runtime.model_device))
+                self.model = types.SimpleNamespace(parameters=lambda: iter([parameter]))
+
+            def __call__(self, image: np.ndarray, **kwargs: tp.Any) -> tp.List[tp.Any]:
+                if runtime.segment_raises:
+                    raise RuntimeError('MPS device lost')
+                runtime.gpu.Wait()
+                time.sleep(runtime.inference_s)
+                runtime.gpu.Queue(runtime.segment_device_s)
+                mask = np.zeros((1,) + image.shape[:2], np.uint8)
+                return [types.SimpleNamespace(masks=types.SimpleNamespace(data=_Tensor(mask, runtime.post_s)),
+                                              boxes=types.SimpleNamespace(conf=_Tensor(np.array([0.9]), 0.0)))]
+
+        ultralytics = types.ModuleType('ultralytics')
+        ultralytics.FastSAM = _Fast_Sam_Model_Cls
+
+        def _Load(path: str) -> tp.Tuple[tp.Any, str]:
+            time.sleep(runtime.describer_load_s)
+            return types.SimpleNamespace(config='model-config'), 'processor'
+
+        def _Generate(model: tp.Any, processor: tp.Any, formatted: str, **kwargs: tp.Any) -> tp.Any:
+            runtime.metal.Wait()
+            time.sleep(runtime.generate_s)
+            runtime.metal.Queue(runtime.describe_device_s)
+            return types.SimpleNamespace(text='A steel plate.', prompt_tokens=408, generation_tokens=65)
+
+        mlx_vlm = types.ModuleType('mlx_vlm')
+        mlx_vlm.load, mlx_vlm.generate = _Load, _Generate
+        prompt_utils = types.ModuleType('mlx_vlm.prompt_utils')
+        prompt_utils.apply_chat_template = lambda processor, config, prompt, **kwargs: 'formatted:' + prompt
+        core = types.ModuleType('mlx.core')
+        core.synchronize = self.metal.Wait
+        mlx = types.ModuleType('mlx')
+        mlx.core = core
+        return {'torch': torch, 'ultralytics': ultralytics, 'mlx': mlx, 'mlx.core': core,
+                'mlx_vlm': mlx_vlm, 'mlx_vlm.prompt_utils': prompt_utils}
+
+
+@pytest.fixture
+def fake_runtimes(monkeypatch: pytest.MonkeyPatch, tmp_path: tp.Any) -> _Fake_Runtimes_Cls:
+    """
+    Description:
+        Install stand-in torch / ultralytics / mlx / mlx_vlm for this test, so the real FastSAM and
+        Gemma classes load and run with no weights and controllable delays (_Fake_Runtimes_Cls). The
+        real modules are put back afterwards.
+
+    Returns:
+        (1) parameter [_Fake_Runtimes_Cls(object)]: The runtimes and their delay knobs.
+    """
+
+    runtime = _Fake_Runtimes_Cls(str(tmp_path / 'weights'))
+    for name, module in runtime.Modules().items():
+        monkeypatch.setitem(sys.modules, name, module)
+    return runtime

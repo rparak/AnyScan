@@ -66,7 +66,7 @@ from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines, Fram
 #   ../Reporting/Trends
 from Reporting.Trends import Trends_Accumulator_Cls
 #   ../Parameters/Vision
-from Parameters.Vision import (Analysis_Str, Detection_Str, Confidence_Severity,
+from Parameters.Vision import (Analysis_Str, Detection_Str, Confidence_Severity, Load_Timing_Str,
                                CONST_CONFIDENCE_LOG_HYSTERESIS)
 #   ../Parameters/Configuration
 from Parameters.Configuration import Configuration_Str
@@ -1062,16 +1062,27 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__analysis_failed = False
         if self.__logger is not None:
             # A successful analysis resolves a pending analysis error, then reports each
-            # located object and the finished-analysis summary (inference time and the mean
-            # confidence with its coverage). The started and finished lines carry the set
-            # id, so the object lines between them need not repeat it.
+            # located object (with its crop and description time when the analysis was timed),
+            # the finished-analysis summary (inference time and the mean confidence with its
+            # coverage) and where that inference time went (the timing line). The started and
+            # finished lines carry the set id, so the object lines between them need not repeat it.
             if self.__analysis_error_id is not None:
                 self.__logger.Log_Error_Resolved(self.__analysis_error_id)
                 self.__analysis_error_id = None
-            for det in result.Objects:
+            # Each object line carries its crop and description time when the analysis was timed
+            # (the per-object timing is aligned with the objects).
+            timing = result.Timing
+            for index, det in enumerate(result.Objects):
                 confidence = (int(round(100.0 * det.Segmenter_Score))
                               if det.Segmenter_Score is not None else None)
-                self.__logger.Log_Object_Detected(det.Label, confidence, det.Bbox)
+                if timing is not None:
+                    times = timing.Objects[index]
+                    tokens = ((times.Input_Tokens, times.Output_Tokens)
+                              if times.Input_Tokens is not None else None)
+                    self.__logger.Log_Object_Detected(det.Label, confidence, det.Bbox, crop_ms=times.Crop_Ms,
+                                                      describe_ms=times.Describe_Ms, tokens=tokens)
+                else:
+                    self.__logger.Log_Object_Detected(det.Label, confidence, det.Bbox)
             # The post-processing audit: every background sentence the composer stripped
             # and every substance substitution it made, each tagged with the object index.
             # Rewriting what the model said is a domain assumption, so it is recorded — a
@@ -1085,6 +1096,11 @@ class AnyScan_Window_Cls(QMainWindow):
             mean, scored = Frame_Confidence(result.Objects)
             self.__logger.Log_Analysis_Finished(self.__session_analyses, result.Latency_Ms,
                                                 len(result.Objects), scored, mean, set_id)
+            # Where that time went: the stages, adding up to the 'finished in' number.
+            if timing is not None:
+                self.__logger.Log_Analysis_Timing(self.__session_analyses, timing.Total_Ms, timing.Stages,
+                                                  timing.Other_Ms, timing.Measurement_Ms,
+                                                  timing.First_After_Load)
             self.__Write_Capture(set_id, result, frame_bgr, annotated_bgr, mask_bgr)
         self.__Sync_Controls()
 
@@ -1630,7 +1646,8 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             A new configuration is in force with its models loaded (the pipeline has it already):
-            apply it everywhere and log it. Nothing needs resetting: a configuration can only change
+            apply it everywhere and log it — the configuration, its models and their total load time,
+            then each model's own load time and the warm-up's parts. Nothing needs resetting: a configuration can only change
             before the run's first CONNECT, so nothing has accumulated under the previous one.
 
         Args:
@@ -1645,6 +1662,38 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__logger.Log_Info("Models loaded for '%s' (%s, task '%s'): %s and %s (%.1f s)."
                                    % (Configuration_Str.Name, Configuration_Str.Identity.Model_Set,
                                       Configuration_Str.Identity.Task, segmenter, describer, seconds))
+            self.__Log_Load_Timing(self.__vision.Load_Timing)
+
+    def __Log_Load_Timing(self, Load_Timing_Str: tp.Optional[Load_Timing_Str]) -> None:
+        """
+        Description:
+            Log where a configuration load's time went, right after its 'Models loaded' line: one
+            line per model — its load time, or that it was kept, not reloaded (a kept model took no
+            load, and 0 s would read as one) — then the warm-up and its parts. A backend that does
+            not time its load (None) logs nothing more.
+
+        Args:
+            (1) Load_Timing_Str [Load_Timing_Str(object) or None]: The backend's load timing.
+        """
+
+        if Load_Timing_Str is None:
+            return
+        for model in Load_Timing_Str.Models:
+            if model.Seconds is None:
+                self.__logger.Log_Info('Model %s kept, not reloaded.' % model.Name)
+            else:
+                self.__logger.Log_Info('Model %s loaded in %.2f s.' % (model.Name, model.Seconds))
+        parts = [(label, value) for label, value in (('reference', Load_Timing_Str.Reference_S),
+                                                     ('first FastSAM pass', Load_Timing_Str.First_Segmentation_S),
+                                                     ('background sentence', Load_Timing_Str.Background_Sentence_S))
+                 if value is not None]
+        line = 'Warm-up took %.2f s: %s.' % (sum(value for _label, value in parts),
+                                           ', '.join('%s %.2f s' % part for part in parts) or 'nothing ran')
+        if Load_Timing_Str.Warm_Up_Error is not None:
+            self.__logger.Log_Warning(line[:-1] + '; it stopped early (%s), so the first analysis pays the rest.'
+                                      % Load_Timing_Str.Warm_Up_Error.rstrip('.'))
+        else:
+            self.__logger.Log_Info(line)
 
     def __Apply_Configuration(self, Configuration_Str: Configuration_Str) -> None:
         """

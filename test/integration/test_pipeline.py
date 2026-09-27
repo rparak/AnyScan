@@ -174,9 +174,10 @@ def test_shadow_rejected_on_real_capture(require_weights, monkeypatch) -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(strict=True, reason='a shadow far darker/larger than any real capture is still '
-                                       'absorbed into the component; see KNOWN_ISSUES.md')
-def test_synthetic_harsh_shadow_not_absorbed_xfail(monkeypatch) -> None:
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason='a shadow far darker/larger than any real capture is still '
+                          'absorbed into the component; see KNOWN_ISSUES.md')
+def test_synthetic_harsh_shadow_not_absorbed_xfail(require_weights, monkeypatch) -> None:
     """
     Description:
         The open residual, pinned as a STRICT xfail. On a synthetic scene with a
@@ -188,13 +189,20 @@ def test_synthetic_harsh_shadow_not_absorbed_xfail(monkeypatch) -> None:
         band); it currently fails, which is why this is xfail. strict=True means the
         day the pipeline stops absorbing the shadow, this test XPASSes and the suite
         fails — the signal to promote it to a plain pass and close the KNOWN_ISSUES
-        entry. Uses pytest.skip (not an early return) when weights are absent, so a
-        skip is never mistaken for an unexpected pass.
+        entry. The weights go through require_weights (a loud skip, a failure under
+        --runslow — never an early return), so a skip is never mistaken for an
+        unexpected pass.
+
+        Only the documented failure is expected: raises=AssertionError (measured: the
+        real run fails 'assert 641 <= 545'). Anything else — require_weights refusing a
+        stand-in runtime (pytest's Failed), a crash — reports as a FAILURE, not as the
+        known residual. That matters because on leaked stand-ins this test fails the
+        same assertion with the same number (the background cue alone absorbs the
+        shadow), so only the guard can tell the two apart.
     """
 
     params = _Configuration().Segmentation
-    if not os.path.isfile(params.Model_Path):
-        pytest.skip('FastSAM weights absent')
+    require_weights([params.Model_Path])
 
     import cv2
     import numpy as np

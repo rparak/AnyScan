@@ -51,6 +51,8 @@ CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 
 class _No_Masks_Segmenter_Cls(object):
     """A FastSAM stand-in that loads nothing and returns no masks: stage 2 contributes no cue."""
+    # No model runs, so no inference time.
+    Last_Inference_S = 0.0
 
     def __init__(self, Segmentation_Parameters_Str: tp.Any) -> None:
         self.params = Segmentation_Parameters_Str

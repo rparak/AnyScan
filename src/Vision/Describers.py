@@ -137,6 +137,20 @@ class Describer_Backend_Cls(object):
 
         raise NotImplementedError
 
+    @property
+    def Last_Tokens(self) -> tp.Optional[tp.Tuple[int, int]]:
+        """
+        Description:
+            The token counts of the last Describe: the prompt's (image and text) and the generated
+            text's.
+
+        Returns:
+            (1) parameter [Tuple<int> 1x2 or None]: (input tokens, output tokens), or None before
+                                                   the first Describe.
+        """
+
+        raise NotImplementedError
+
 
 class Gemma_Describer_Cls(Describer_Backend_Cls):
     """
@@ -148,7 +162,10 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
 
         Note:
             mlx / mlx-vlm are imported inside Load, never at module level, so the window and
-            the tests import this module without them. A model loaded on one thread generates
+            the tests import this module without them. Each generation is followed by
+            mx.synchronize(), so Describe returns with its GPU work complete and the time it is
+            charged is its own (measured: generate already returns with nothing pending, so the
+            sync costs nothing today). A model loaded on one thread generates
             on another (measured: the app loads on the first analysis's worker thread and
             describes on later ones).
 
@@ -164,7 +181,7 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
 
             Features:
                 # Properties of the class.
-                Cls.Loaded; Cls.Model_Key
+                Cls.Loaded; Cls.Model_Key; Cls.Last_Tokens
 
                 # Functions of the class.
                 Cls.Load(); Cls.Describe(crop_bgr, CONST_PURPOSE_OBJECT); Cls.Release()
@@ -181,6 +198,8 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
         self.__template = None
         self.__pil = None
         self.__cv2 = None
+        self.__mx = None
+        self.__last_tokens = None
 
     @property
     def Loaded(self) -> bool:
@@ -206,6 +225,19 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
         """
 
         return self.__model_dir
+
+    @property
+    def Last_Tokens(self) -> tp.Optional[tp.Tuple[int, int]]:
+        """
+        Description:
+            The token counts mlx-vlm reported for the last Describe.
+
+        Returns:
+            (1) parameter [Tuple<int> 1x2 or None]: (prompt tokens, generated tokens), or None
+                                                   before the first Describe.
+        """
+
+        return self.__last_tokens
 
     def Set_Parameters(self, Description_Parameters_Str: Description_Parameters_Str) -> None:
         """
@@ -247,6 +279,7 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
         try:
             import cv2
             from PIL import Image as PILImage
+            import mlx.core as mx
             from mlx_vlm import load, generate
             from mlx_vlm.prompt_utils import apply_chat_template
         except ImportError as exc:
@@ -263,7 +296,7 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
             raise Describer_Error_Cls('The model weights at "%s" could not be loaded. Check that the '
                                       'directory is complete and readable.' % self.__model_dir) from exc
         self.__generate, self.__template = generate, apply_chat_template
-        self.__pil, self.__cv2 = PILImage, cv2
+        self.__pil, self.__cv2, self.__mx = PILImage, cv2, mx
         self.__model, self.__processor = model, processor
 
     def Describe(self, crop_bgr: tp.Any, purpose: str) -> str:
@@ -287,5 +320,7 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
         result = self.__generate(self.__model, self.__processor, formatted, image=[image],
                                  max_tokens=params.Max_Tokens,
                                  temperature=params.Temperature, verbose=False)
+        self.__mx.synchronize()
+        self.__last_tokens = (int(result.prompt_tokens), int(result.generation_tokens))
         return result.text.strip()
 

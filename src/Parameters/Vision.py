@@ -180,6 +180,117 @@ class Detection_Str(object):
     #   Unit [Measurement_Str(object)]
     Measurement: tp.Optional[Measurement_Str] = None
 
+# The timed stages of one analysis, in the order they run. Their names are what the timing log line
+# prints. Everything between the analysis's start and stop that is not one of them (the model check,
+# the RGB->BGR conversion, reading the cached reference, the union of the object masks, the labels)
+# is the timing's Other_Ms, never dropped.
+#   Unit [string]
+CONST_STAGE_BACKGROUND = 'background subtraction'
+CONST_STAGE_SEGMENTATION = 'segmentation'
+CONST_STAGE_SEGMENTATION_POST = 'segmentation post'
+CONST_STAGE_FUSION = 'fusion'
+CONST_STAGE_CROPS = 'crops'
+CONST_STAGE_DESCRIPTIONS = 'descriptions'
+CONST_STAGE_BACKGROUND_SENTENCE = 'background sentence'
+CONST_STAGE_COMPOSE = 'compose'
+#   Unit [Vector<string>]
+CONST_TIMING_STAGES = (CONST_STAGE_BACKGROUND, CONST_STAGE_SEGMENTATION, CONST_STAGE_SEGMENTATION_POST,
+                       CONST_STAGE_FUSION, CONST_STAGE_CROPS, CONST_STAGE_DESCRIPTIONS,
+                       CONST_STAGE_BACKGROUND_SENTENCE, CONST_STAGE_COMPOSE)
+
+
+@dataclass
+class Object_Timing_Str(object):
+    """
+    Description:
+        The time one object took in the description stage: its crop (pad, isolate, enhance) and its
+        description, and the describer's token counts when it reports them. Each value is truncated
+        to a whole millisecond on its own, so an object's values can sum a few milliseconds below
+        the stage totals, which are truncated once over the unrounded sum.
+    """
+
+    # The crop's and the description's time.
+    #   Unit [int] (ms)
+    Crop_Ms: int = 0
+    Describe_Ms: int = 0
+    # The describer's prompt (image + text) and generated token counts, or None when the describer
+    # reports none (the model-free fallback).
+    #   Unit [int]
+    Input_Tokens: tp.Optional[int] = None
+    Output_Tokens: tp.Optional[int] = None
+
+
+@dataclass
+class Timing_Str(object):
+    """
+    Description:
+        Where one analysis's time went. Total_Ms is the analysis's Latency_Ms — the same interval,
+        the same value — and the stages plus Other_Ms add up to it exactly: Other_Ms is Total_Ms
+        minus the logged stage values, never measured on its own. A negative Other_Ms means a stage
+        was counted twice; it is reported, never clamped (Vision.Utilities.Timing.Build_Timing).
+        The measurement runs after Latency_Ms stops, so it is carried beside the total, not in it.
+    """
+
+    # The analysis's Latency_Ms.
+    #   Unit [int] (ms)
+    Total_Ms: int = 0
+    # Each timed stage (CONST_TIMING_STAGES) and its truncated time, in the order they run.
+    #   Unit [Vector<Tuple<string, int>>] (ms)
+    Stages: tp.List[tp.Tuple[str, int]] = field(default_factory=list)
+    # Total_Ms minus the sum of Stages: the untimed work. Negative only when a stage was double-counted.
+    #   Unit [int] (ms)
+    Other_Ms: int = 0
+    # One entry per object, aligned with Analysis_Str.Objects.
+    #   Unit [Vector<Object_Timing_Str(object)>]
+    Objects: tp.List[Object_Timing_Str] = field(default_factory=list)
+    # The measurement's time, which is outside Total_Ms (it runs after the latency stops).
+    #   Unit [int] (ms)
+    Measurement_Ms: int = 0
+    # Whether this is the first analysis to finish after the models were put in force — see
+    # Vision_Pipeline_Cls.Analyze for the exact rule. The warm-up is meant to make it no slower
+    # than the next; the flag lets the log show whether it was.
+    #   Unit [bool]
+    First_After_Load: bool = False
+
+
+@dataclass
+class Model_Load_Str(object):
+    """
+    Description:
+        One model's part in a configuration load: its name and how long it took to load, or None
+        when the model was already loaded and kept (never 0, which would read as a load).
+    """
+
+    # The model's file or directory name.
+    #   Unit [string]
+    Name: str = ''
+    # The load time, or None when the model was kept, not reloaded.
+    #   Unit [float] (s)
+    Seconds: tp.Optional[float] = None
+
+
+@dataclass
+class Load_Timing_Str(object):
+    """
+    Description:
+        Where a configuration load's time went: each model's load (or that it was kept), and the
+        warm-up's three parts. A warm-up part is None when it did not run: the warm-up stopped at a
+        failure (Warm_Up_Error), or there is no describer to write the background sentence.
+    """
+
+    # The segmenter, then the describer (none for the model-free fallback).
+    #   Unit [Vector<Model_Load_Str(object)>]
+    Models: tp.List[Model_Load_Str] = field(default_factory=list)
+    # The warm-up: reading the reference, FastSAM's first pass on it, and the background sentence.
+    #   Unit [float] (s)
+    Reference_S: tp.Optional[float] = None
+    First_Segmentation_S: tp.Optional[float] = None
+    Background_Sentence_S: tp.Optional[float] = None
+    # Why the warm-up stopped, or None when it completed.
+    #   Unit [string]
+    Warm_Up_Error: tp.Optional[str] = None
+
+
 @dataclass
 class Analysis_Str(object):
     """
@@ -239,6 +350,9 @@ class Analysis_Str(object):
     # composer rewrote is silent. 'level' is 'info' or 'warning'.
     #   Unit [Vector<Tuple<string> 1x2>]
     Audit: tp.List[tp.Tuple[str, str]] = field(default_factory=list)
+    # Where the time went (Timing_Str), or None when the backend does not time its stages.
+    #   Unit [Timing_Str(object)]
+    Timing: tp.Optional[Timing_Str] = None
 
 
 # The hysteresis margin, in percent, for the status-bar session-mean LOG crossings only: after
