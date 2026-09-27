@@ -31,7 +31,6 @@ import numpy as np
 import pytest
 # Custom Lib.: AnyScan domain — the vision backend and its error type
 #   ../Vision/Core
-import Vision.Core as Vision_Core
 from Vision.Core import Vision_Pipeline_Cls, Vision_Error_Cls
 # Custom Lib.: AnyScan — the configuration layer
 #   ../Configuration/Core
@@ -40,11 +39,11 @@ from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 """
 Description:
     The failure paths users actually hit, through the real Vision_Pipeline_Cls. Neither needs
-    a model or its runtime, so both run in the default suite on every platform: the missing
-    model directory is refused by the describer's own directory check, which it reaches on the
-    stand-in runtimes (test/conftest.py fake_runtimes); the frame-size guard runs before any
-    model. Each asserts the failure surfaces as a
-    Vision_Error_Cls with an actionable message, rather than crashing with a raw traceback
+    a model or its runtime, so both run in the default suite on every platform, on the stand-in
+    runtimes (test/conftest.py fake_runtimes): the missing model directory is refused by the
+    describer's own directory check; the frame-size guard is reached after Analyze has checked
+    both models, which the stand-ins satisfy without weights. Each asserts the failure surfaces
+    as a Vision_Error_Cls with an actionable message, rather than crashing with a raw traceback
     the panel could not print.
 """
 
@@ -76,21 +75,26 @@ def test_missing_model_directory_surfaces_cleanly(reference_background, fake_run
         Vision_Pipeline_Cls(Configuration_Str=config).Analyze(image_rgb)
 
 
-def test_frame_size_mismatch_surfaces_cleanly(reference_background, monkeypatch) -> None:
+def test_frame_size_mismatch_surfaces_cleanly(reference_background, fake_runtimes) -> None:
     """
     Description:
         A frame whose resolution does not match the reference background raises
         Vision_Error_Cls with the sentence naming both sizes (the size guard before the
-        background subtraction), not a raw NumPy broadcast error. The guard runs before any
-        model, so this needs no weights: the model-free describer is selected, and nothing
-        segments.
+        background subtraction), not a raw NumPy broadcast error. The guard is not the first
+        step: Analyze checks both models before it, loading them when nothing preloaded them,
+        so a cold load is timed as 'other' rather than inside a stage. The models are therefore
+        the stand-ins, and the configuration names their weights, so this needs no real weights
+        and nothing segments: the guard refuses the frame first.
     """
 
-    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
     # A frame deliberately a different size from the reference background.
     h, w, _ = reference_background.shape
     wrong_size = np.zeros((h // 2, w // 2, 3), dtype=np.uint8)
 
+    config = _Configuration()
+    config = dataclasses.replace(
+        config, Segmentation=dataclasses.replace(config.Segmentation, Model_Path=fake_runtimes.segmenter_path),
+        Description=dataclasses.replace(config.Description, Model_Path=fake_runtimes.describer_path))
     with pytest.raises(Vision_Error_Cls, match='The background reference is %d×%d but the frame is %d×%d'
                                                % (w, h, w // 2, h // 2)):
-        Vision_Pipeline_Cls(Configuration_Str=_Configuration()).Analyze(wrong_size)
+        Vision_Pipeline_Cls(Configuration_Str=config).Analyze(wrong_size)
