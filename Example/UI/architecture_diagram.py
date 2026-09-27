@@ -25,6 +25,7 @@
 import sys
 import os
 import argparse
+import base64
 # Resolve the project folder from this file's own location (Example/UI -> ..), so the script
 # runs the same whether launched from Example/UI/ or the repo root.
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -42,17 +43,26 @@ import Parameters.Theme as Theme
 # Custom Lib.: AnyScan UI — the type scale and the font fallbacks the console uses
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
+# Custom Lib.: AnyScan UI — the console's funding band, whose logos and disclaimer the diagram repeats
+#   ../UI/Widgets
+from UI.Widgets import Funding_Row_Cls
 
 """
 Description:
     Initialization of constants.
 
-    The generator of images/anyscan-architecture.svg, the diagram the README opens with.
+    The generator of images/anyscan-architecture.svg, the diagram the README opens with: what
+    AnyScan is and how it works, at the top level only — the camera, finding the objects,
+    describing and measuring each one, the desktop application, and the configuration behind
+    them. No class names, no configuration fields; README > Detection logic has the detail.
+
     Regenerating is the way to change it; the SVG is never edited by hand. Every colour comes
     from a Parameters/Theme.py token and every size from the console's type scale, so the
-    figure moves with the theme instead of drifting from it. The logo is copied into the
-    diagram byte for byte from images/anyscan-logo.svg: the README shows the diagram through
-    <img>, and an SVG loaded that way never fetches another file.
+    figure moves with the theme instead of drifting from it. The SVG is self-contained, because
+    the README shows it through <img>, and an SVG loaded that way never fetches another file:
+    the AnyScan logo is copied in byte for byte from images/anyscan-logo.svg, and the JIC mark and
+    the funding band's logos are embedded from App/assets/ as base64 PNG data. The band is the
+    console's own (UI.Widgets.Funding_Row_Cls): the same logos, order and disclaimer.
 
     test/UI/test_brand_figures.py fails when the committed SVG is not this script's output, or
     draws a colour that is not a token.
@@ -60,103 +70,164 @@ Description:
         python Example/UI/architecture_diagram.py            # rewrite the SVG
         python Example/UI/architecture_diagram.py --check    # exit 1 if it is stale
 
-    The layout is checked against FALLBACK font metrics (Helvetica/Arial and Courier), which
-    is what most README readers get: an <img> SVG cannot load Inter or JetBrains Mono. A
-    layout that only fits with Inter installed will overflow for them.
+    The layout is checked against FALLBACK font metrics (Helvetica Neue / Arial), which is
+    what most README readers get: an <img> SVG cannot load Inter as a web font. A layout that
+    only fits with Inter installed will overflow for them.
 """
-# The source logo, and the diagram this script writes.
+# The source logo, the folder of the PNG marks, the JIC mark, and the diagram this script writes.
 #   Unit [string]
 CONST_LOGO_FILE = os.path.join(CONST_PROJECT_FOLDER, 'images', 'anyscan-logo.svg')
+CONST_ASSETS_FOLDER = os.path.join(CONST_PROJECT_FOLDER, 'App', 'assets')
+CONST_JIC_FILE = os.path.join(CONST_ASSETS_FOLDER, 'brand-jic-mute.png')
 CONST_DIAGRAM_FILE = os.path.join(CONST_PROJECT_FOLDER, 'images', 'anyscan-architecture.svg')
 # The marker comments around the inline logo; the test reads the copy between them.
 #   Unit [string]
 CONST_LOGO_BEGIN = '<!-- logo:begin -->'
 CONST_LOGO_END = '<!-- logo:end -->'
-# The drawing size in user units. README width (~830 px) renders it at ~0.94.
+# The drawing size in user units: wide, so it stays legible at README width (~900 px renders
+# it at 0.75).
 #   Unit [px]
-CONST_WIDTH = 880
-CONST_HEIGHT = 1950
-# The console's type scale (Style.CONST_TYPE_SCALE, in points) at 1.2x, so the smallest step
-# still renders above 10 px at README width.
+CONST_WIDTH = 1200
+CONST_HEIGHT = 790
+# The funding band: its top edge, the console's per-logo heights scaled by this factor (the
+# heights are tuned per logo there, so they are scaled, never replaced), and the gap between logos.
+#   Unit [px] / [-]
+CONST_BAND_TOP = 636
+CONST_BAND_SCALE = 1.35
+CONST_BAND_GAP = 36
+# What each band logo is, for screen readers.
+#   Unit [Dictionary<string, string>]
+CONST_BAND_LABELS = {'edih-digimat-white.png': 'EDIH-DIGIMAT',
+                     'partner-ministry-white.png': 'Ministry of Industry and Trade of the Czech Republic',
+                     'funder-eu-white.png': 'Funded by the European Union'}
+# The console's type scale (Style.CONST_TYPE_SCALE, in points) at 1.4x, so the smallest step
+# used still renders at about 12 px at README width.
 #   Unit [Vector<float>]
-CONST_SCALE = [round(size * 1.2, 1) for size in Style.CONST_TYPE_SCALE]
-# The font stacks: the console's own candidates in its order, then the generic family.
+CONST_SCALE = [round(size * 1.4, 1) for size in Style.CONST_TYPE_SCALE]
+# The font stack: the console's own candidates in its order, then the generic family.
 #   Unit [string]
 CONST_UI_FONT = ','.join(["'%s'" % name for name in Style.CONST_FONT_UI_CANDIDATES] + ['sans-serif'])
-CONST_MONO_FONT = ','.join(["'%s'" % name for name in Style.CONST_FONT_MONO_CANDIDATES] + ['monospace'])
+# The indentation of one nesting level in the written SVG.
+#   Unit [string]
+CONST_INDENT = '  '
 
 
-class Svg_Canvas_Cls(object):
+class Svg_Writer_Cls(object):
     """
     Description:
-        A list of SVG elements with the few drawing primitives the diagram is made of: text,
-        boxes, arrows and the labelled chips that say what moves between stages. Every colour
-        a caller passes is a Theme token.
+        An SVG document written line by line, indented by nesting, with the few primitives the
+        diagram is made of: text, cards, arrows and the partner marks. Every colour a caller
+        passes is a Theme token.
 
     Initialization of the Class:
         Example:
             Initialization:
                 # Initialization of the class.
-                Cls = Svg_Canvas_Cls()
+                Cls = Svg_Writer_Cls()
 
             Features:
                 # Functions of the class.
-                Cls.Add(element); Cls.Text(x, y, text, size, fill); Cls.Box(...)
+                Cls.Open('<g id="x">', 'a comment'); Cls.Text(...); Cls.Close('g')
                 Cls.Markup()
     """
 
     def __init__(self) -> None:
         # << PRIVATE >> #
-        self.__elements = []
+        self.__lines = []
+        self.__depth = 0
 
     def Add(self, element: str) -> None:
         """
         Description:
-            Append raw SVG markup.
+            Append one line of markup at the current depth.
 
         Args:
             (1) element [string]: The markup.
         """
 
-        self.__elements.append(element)
+        self.__lines.append(CONST_INDENT * self.__depth + element)
+
+    def Raw(self, markup: str) -> None:
+        """
+        Description:
+            Append markup exactly as given, unindented (the inline logo must stay byte for byte).
+
+        Args:
+            (1) markup [string]: The markup.
+        """
+
+        self.__lines.append(markup)
+
+    def Blank(self) -> None:
+        """
+        Description:
+            An empty line between blocks.
+        """
+
+        self.__lines.append('')
+
+    def Open(self, tag: str, comment: tp.Optional[str] = None) -> None:
+        """
+        Description:
+            Open an element that holds others, with an optional comment above it.
+
+        Args:
+            (1) tag [string]: The opening tag.
+            (2) comment [string]: The comment, or None.
+        """
+
+        if comment is not None:
+            self.Add('<!-- %s -->' % comment)
+        self.Add(tag)
+        self.__depth += 1
+
+    def Close(self, name: str) -> None:
+        """
+        Description:
+            Close the innermost open element.
+
+        Args:
+            (1) name [string]: The element's name.
+        """
+
+        self.__depth -= 1
+        self.Add('</%s>' % name)
 
     def Markup(self) -> str:
         """
         Description:
-            The document so far, one element per line.
+            The document so far.
 
         Returns:
             (1) parameter [string]: The SVG text, with a trailing newline.
         """
 
-        return '\n'.join(self.__elements) + '\n'
+        return '\n'.join(self.__lines) + '\n'
 
-    def Text(self, x: float, y: float, text: str, size: float, fill: str, mono: bool = False,
-             weight: tp.Optional[str] = None, anchor: tp.Optional[str] = None,
-             spacing: tp.Optional[str] = None) -> None:
+    def Text(self, x: float, y: float, text: str, size: float, fill: str, weight: tp.Optional[str] = None,
+             anchor: tp.Optional[str] = None, spacing: tp.Optional[str] = None) -> None:
         """
         Description:
-            One line of text in the UI or the mono face.
+            One line of text in the UI face.
 
         Args:
             (1 - 2) x, y [float]: The baseline position.
             (3) text [string]: The text (escaped here).
             (4) size [float]: The font size, a step of CONST_SCALE.
             (5) fill [string]: A Theme colour token.
-            (6) mono [bool]: The mono face (code names) instead of the UI face.
-            (7) weight [string]: The font weight, or None for regular.
-            (8) anchor [string]: 'middle' or 'end', or None for start.
-            (9) spacing [string]: The letter spacing, or None.
+            (6) weight [string]: The font weight, or None for regular.
+            (7) anchor [string]: 'middle' or 'end', or None for start.
+            (8) spacing [string]: The letter spacing, or None.
         """
 
         attributes = ''.join([' font-weight="%s"' % weight if weight else '',
                               ' text-anchor="%s"' % anchor if anchor else '',
                               ' letter-spacing="%s"' % spacing if spacing else ''])
-        self.Add('<text x="%s" y="%s" class="%s" font-size="%s" fill="%s"%s>%s</text>'
-                 % (x, y, 'm' if mono else 'u', size, fill, attributes, escape(text)))
+        self.Add('<text x="%g" y="%g" font-size="%g" fill="%s"%s>%s</text>'
+                 % (x, y, size, fill, attributes, escape(text)))
 
     def Rect(self, x: float, y: float, w: float, h: float, fill: str, stroke: tp.Optional[str] = None,
-             rx: float = 12, stroke_width: float = 1, dash: tp.Optional[str] = None) -> None:
+             rx: float = 14, dash: tp.Optional[str] = None) -> None:
         """
         Description:
             A rounded rectangle.
@@ -166,177 +237,127 @@ class Svg_Canvas_Cls(object):
             (5) fill [string]: A Theme colour token, or 'none'.
             (6) stroke [string]: A Theme colour token for the outline, or None for none.
             (7) rx [float]: The corner radius.
-            (8) stroke_width [float]: The outline width.
-            (9) dash [string]: The outline's dash pattern, or None for solid.
+            (8) dash [string]: The outline's dash pattern, or None for solid.
         """
 
-        attributes = ' stroke="%s" stroke-width="%s"' % (stroke, stroke_width) if stroke else ''
+        attributes = ' stroke="%s" stroke-width="1.5"' % stroke if stroke else ''
         attributes += ' stroke-dasharray="%s"' % dash if dash else ''
-        self.Add('<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="%s"%s/>'
+        self.Add('<rect x="%g" y="%g" width="%g" height="%g" rx="%g" fill="%s"%s/>'
                  % (x, y, w, h, rx, fill, attributes))
 
-    def Line(self, x1: float, y1: float, x2: float, y2: float, stroke: str, width: float = 1,
-             dash: tp.Optional[str] = None) -> None:
+    def Arrow(self, x1: float, y: float, x2: float) -> None:
         """
         Description:
-            A plain line: a divider or the Qt-free boundary.
+            A horizontal arrow, in the direction the frame flows.
 
         Args:
-            (1 - 4) x1, y1, x2, y2 [float]: The end points.
-            (5) stroke [string]: A Theme colour token.
-            (6) width [float]: The line width.
-            (7) dash [string]: The dash pattern, or None for solid.
+            (1) x1 [float]: The tail.
+            (2) y [float]: The height.
+            (3) x2 [float]: The head.
         """
 
-        attributes = ' stroke-dasharray="%s"' % dash if dash else ''
-        self.Add('<line x1="%s" y1="%s" x2="%s" y2="%s" stroke="%s" stroke-width="%s"%s/>'
-                 % (x1, y1, x2, y2, stroke, width, attributes))
+        self.Add('<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="2.5" stroke-linecap="round" '
+                 'marker-end="url(#arch-tip)"/>' % (x1, y, x2, y, Theme.CONST_INK_SOFT))
 
-    def Arrow(self, x1: float, y1: float, x2: float, y2: float) -> None:
+    def Connector(self, x: float, y1: float, y2: float) -> None:
         """
         Description:
-            A straight arrow: data or an import, in the direction it flows.
+            A dashed vertical line from the configuration up to what it sets.
 
         Args:
-            (1 - 4) x1, y1, x2, y2 [float]: The tail and the head.
+            (1) x [float]: The position.
+            (2 - 3) y1, y2 [float]: The ends.
         """
 
-        self.Add('<line x1="%s" y1="%s" x2="%s" y2="%s" stroke="%s" stroke-width="1.8" '
-                 'stroke-linecap="round" marker-end="url(#arch-tip)"/>' % (x1, y1, x2, y2, Theme.CONST_INK_SOFT))
+        self.Add('<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="1.5" stroke-dasharray="4 5"/>'
+                 % (x, y1, x, y2, Theme.CONST_INK_MUTE))
 
-    def Path(self, d: str, stroke: str = Theme.CONST_INK_SOFT, arrow: bool = True,
-             dash: tp.Optional[str] = None, width: float = 1.8) -> None:
+    def Image(self, x: float, y: float, h: float, path: str, label: str) -> None:
         """
         Description:
-            A routed path: a branching arrow, or a dashed configuration connector.
+            A PNG mark embedded as base64 data, drawn at a height with its own aspect ratio.
 
         Args:
-            (1) d [string]: The path data.
-            (2) stroke [string]: A Theme colour token.
-            (3) arrow [bool]: Whether the path ends in an arrowhead.
-            (4) dash [string]: The dash pattern, or None for solid.
-            (5) width [float]: The stroke width.
+            (1 - 2) x, y [float]: The top-left corner.
+            (3) h [float]: The drawn height.
+            (4) path [string]: The PNG file.
+            (5) label [string]: What the mark is, for screen readers.
         """
 
-        attributes = ' stroke-dasharray="%s"' % dash if dash else ''
-        attributes += ' marker-end="url(#arch-tip)"' if arrow else ''
-        self.Add('<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="round" '
-                 'stroke-linejoin="round"%s/>' % (d, stroke, width, attributes))
+        w, h_px = Png_Size(path)
+        with open(path, 'rb') as handle:
+            data = base64.b64encode(handle.read()).decode('ascii')
+        self.Add('<image x="%g" y="%g" width="%g" height="%g" aria-label="%s" href="data:image/png;base64,%s"/>'
+                 % (x, y, round(h * w / h_px, 1), h, escape(label), data))
 
-    def Badge(self, cx: float, cy: float, number: str, dark: bool = False) -> None:
-        """
-        Description:
-            A stage number in a disc, the numbering Vision/Core.py uses (stages 1-4).
-
-        Args:
-            (1 - 2) cx, cy [float]: The disc's centre.
-            (3) number [string]: The stage number.
-            (4) dark [bool]: Drawn on a dark (model) box.
-        """
-
-        self.Add('<circle cx="%s" cy="%s" r="12" fill="%s"/>'
-                 % (cx, cy, Theme.CONST_ON_INK if dark else Theme.CONST_INK))
-        self.Text(cx, cy + 5, number, CONST_SCALE[3], Theme.CONST_VIEWPORT if dark else Theme.CONST_ON_INK,
-                  weight='700', anchor='middle')
-
-    def Chip(self, cx: float, cy: float, lines: tp.List[str]) -> None:
+    def Card(self, x: float, y: float, w: float, h: float, title: str, lines: tp.List[str],
+             dark: bool = False) -> None:
         """
         Description:
-            What moves between two stages, as a label on the arrow joining them.
-
-        Args:
-            (1 - 2) cx, cy [float]: The chip's centre.
-            (3) lines [Vector<string>]: One or two lines of mono text.
-        """
-
-        w = max(len(line) for line in lines) * CONST_SCALE[1] * 0.62 + 24
-        h = 16 * len(lines) + 12
-        self.Rect(cx - w / 2, cy - h / 2, w, h, Theme.CONST_CARD, Theme.CONST_CONTROL_BORDER,
-                  rx=h / 2 if len(lines) == 1 else 10)
-        for i, line in enumerate(lines):
-            self.Text(cx, cy - h / 2 + 19 + 16 * i, line, CONST_SCALE[1], Theme.CONST_INK_SOFT,
-                      mono=True, anchor='middle')
-
-    def Box(self, x: float, y: float, w: float, h: float, title: str, module: str, lines: tp.List[str],
-            number: tp.Optional[str] = None, dark: bool = False, stroke: tp.Optional[str] = None,
-            stroke_width: float = 1, title_size: tp.Optional[float] = None) -> None:
-        """
-        Description:
-            A stage or an input: its title, the code that implements it, and what it does. A model
-            (FastSAM, Gemma) is drawn dark, on the console's one dark surface colour.
+            A block: a card with a bold title and up to three lines under it, centred vertically.
 
         Args:
             (1 - 4) x, y, w, h [float]: The position and size.
-            (5) title [string]: The title.
-            (6) module [string]: The module and names that implement it.
-            (7) lines [Vector<string>]: What it does, one entry per line.
-            (8) number [string]: The stage number, or None.
-            (9) dark [bool]: A model box.
-            (10) stroke [string]: An outline token other than the card border, or None.
-            (11) stroke_width [float]: The outline width.
-            (12) title_size [float]: The title size, or None for the default step.
+            (5) title [string]: The block's name.
+            (6) lines [List<string>]: What it does, one short line each.
+            (7) dark [bool]: The indigo viewport surface instead of a white card.
         """
 
-        self.Rect(x, y, w, h, Theme.CONST_VIEWPORT if dark else Theme.CONST_CARD,
-                  None if dark else (stroke or Theme.CONST_CARD_BORDER), stroke_width=stroke_width)
-        title_x = x + 16
-        if number:
-            self.Badge(x + 28, y + 26, number, dark)
-            title_x = x + 50
-        self.Text(title_x, y + 31, title, title_size or CONST_SCALE[4],
-                  Theme.CONST_ON_INK if dark else Theme.CONST_INK, weight='700')
-        self.Text(x + 16, y + 52, module, CONST_SCALE[1],
-                  Theme.CONST_VIEWPORT_TEXT if dark else Theme.CONST_INK_SOFT, mono=True)
+        S = CONST_SCALE
+        if dark:
+            self.Rect(x, y, w, h, Theme.CONST_VIEWPORT)
+        else:
+            self.Rect(x, y, w, h, Theme.CONST_CARD, Theme.CONST_CARD_BORDER)
+        # The text block runs from the title's cap height (~22 above its baseline) to the last
+        # line's descender (~6 below its baseline).
+        top = y + (h - (22 + 30 + 24 * (len(lines) - 1) + 6)) / 2 + 22
+        self.Text(x + 24, top, title, S[6], Theme.CONST_ON_INK if dark else Theme.CONST_INK, weight='700')
         for i, line in enumerate(lines):
-            self.Text(x + 16, y + 74 + 18 * i, line, CONST_SCALE[3],
-                      Theme.CONST_BAND_TEXT if dark else Theme.CONST_INK_SOFT)
+            self.Text(x + 24, top + 30 + 24 * i, line, S[3],
+                      Theme.CONST_VIEWPORT_TEXT if dark else Theme.CONST_INK_SOFT)
 
-    def Pill(self, y: float, h: float, lines: tp.List[str], to_y: tp.Optional[float] = None) -> None:
-        """
-        Description:
-            A configuration section in the left column, level with the stage it feeds, with a
-            dashed connector to that stage when there is one to point at.
 
-        Args:
-            (1) y [float]: The top.
-            (2) h [float]: The height.
-            (3) lines [Vector<string>]: The section (first, bold), then what it sets.
-            (4) to_y [float]: The connector's height, or None for no connector.
-        """
+def Png_Size(path: str) -> tp.Tuple[int, int]:
+    """
+    Description:
+        A PNG's pixel size, read from its IHDR chunk (no imaging library needed).
 
-        self.Rect(32, y, 176, h, Theme.CONST_CARD, Theme.CONST_CONTROL_BORDER, rx=10)
-        for i, line in enumerate(lines):
-            self.Text(42, y + 20 + 16 * i, line, CONST_SCALE[0] + 0.4,
-                      Theme.CONST_INK if i == 0 else Theme.CONST_INK_SOFT, mono=True,
-                      weight='700' if i == 0 else None)
-        if to_y is not None:
-            self.Path('M208 %s H222' % to_y, Theme.CONST_INK_MUTE, arrow=False, dash='3 3', width=1.4)
+    Args:
+        (1) path [string]: The PNG file.
 
-    def Section(self, y: float, label: str, sub: tp.Optional[str] = None, x: float = 32) -> None:
-        """
-        Description:
-            A section heading, with an optional mono qualifier after it.
+    Returns:
+        (1) parameter [Tuple<int> 1x2]: (width, height) in pixels.
+    """
 
-        Args:
-            (1) y [float]: The baseline.
-            (2) label [string]: The heading, in capitals.
-            (3) sub [string]: The qualifier, or None.
-            (4) x [float]: The start.
-        """
+    with open(path, 'rb') as handle:
+        head = handle.read(24)
+    return int.from_bytes(head[16:20], 'big'), int.from_bytes(head[20:24], 'big')
 
-        self.Text(x, y, label, CONST_SCALE[1], Theme.CONST_INK_SOFT, weight='700', spacing='1.4')
-        if sub:
-            self.Text(x + len(label) * CONST_SCALE[1] * 0.78 + 10, y, sub, CONST_SCALE[1],
-                      Theme.CONST_INK_SOFT, mono=True)
+
+def Split_In_Two(text: str) -> tp.List[str]:
+    """
+    Description:
+        A sentence broken into two lines at the space nearest its middle.
+
+    Args:
+        (1) text [string]: The text.
+
+    Returns:
+        (1) parameter [List<string>]: The two lines.
+    """
+
+    spaces = [i for i, character in enumerate(text) if character == ' ']
+    cut = min(spaces, key=lambda i: abs(i - len(text) / 2))
+    return [text[:cut], text[cut + 1:]]
 
 
 def Draw_Architecture(logo_svg: str) -> str:
     """
     Description:
-        The whole diagram, top to bottom: the header with the logo, the configuration column
-        beside the pipeline (the two cues side by side into the fusion, then description,
-        compose and measure, with what each stage hands on), the shared outputs, and the import
-        layers with the Qt-free boundary. Everything drawn is in the code; nothing is planned.
+        The whole diagram: the header (the AnyScan logo and the JIC mark) and the tagline; the
+        flow left to right — capture, find the objects, describe and measure each one, the
+        desktop application; the configuration under the stages it sets; and the console's
+        funding band (the EDIH-DIGIMAT, Ministry and EU logos and the EU disclaimer). Everything drawn is in the code; nothing is planned.
 
     Args:
         (1) logo_svg [string]: The content of images/anyscan-logo.svg, inlined unchanged.
@@ -346,197 +367,137 @@ def Draw_Architecture(logo_svg: str) -> str:
     """
 
     S = CONST_SCALE; T = Theme
-    c = Svg_Canvas_Cls()
-    c.Add('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" '
-          'aria-label="AnyScan architecture">' % (CONST_WIDTH, CONST_HEIGHT, CONST_WIDTH, CONST_HEIGHT))
+    c = Svg_Writer_Cls()
+    c.Open('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" '
+           'aria-label="AnyScan architecture">' % (CONST_WIDTH, CONST_HEIGHT, CONST_WIDTH, CONST_HEIGHT))
     c.Add('<!-- Generated by Example/UI/architecture_diagram.py; regenerate, do not edit by hand. -->')
     c.Add('<title>AnyScan architecture</title>')
-    c.Add('<desc>How AnyScan turns a camera frame into a reading. Background subtraction and FastSAM are two '
-          'independent cues fused so an object survives if either finds it; each object records its cue. Each '
-          'object is cropped, enhanced and described by Gemma 4; Reporting composes the reading and the objects '
-          'are measured through the calibration scale. One configuration file, read by Configuration.Core, sets '
-          'the camera, the models, the prompts, the fusion and the thresholds. One formatter renders both the '
-          'panel and the text file. The layers import downward only, with Parameters at the base; everything '
-          'below the UI is Qt-free.</desc>')
-    c.Add('<defs><style>.u{font-family:%s;} .m{font-family:%s;} .logo-slot svg{overflow:visible;}</style>'
-          '<marker id="arch-tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" '
-          'orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="%s" stroke-width="1.8" '
-          'stroke-linecap="round" stroke-linejoin="round"/></marker></defs>'
-          % (CONST_UI_FONT, CONST_MONO_FONT, T.CONST_INK_SOFT))
-    # The card: opaque, so the figure reads the same on a light or a dark README, like a screenshot.
-    c.Rect(0.5, 0.5, CONST_WIDTH - 1, CONST_HEIGHT - 1, T.CONST_BG, T.CONST_CARD_BORDER, rx=18)
+    c.Add('<desc>AnyScan finds the objects in a camera frame, describes each one in words, and measures it in '
+          'mm. A Basler camera captures a frame; FastSAM and background subtraction find the objects and are '
+          'fused, so an object is kept if either finds it; each object is described by a local '
+          'vision-language model and, when the camera is calibrated, measured in millimetres; the PyQt5 '
+          'desktop application shows the result in its Live, Trends, History and Log views. One YAML '
+          'configuration per camera and mode sets the stages up. Built at JIC within the EDIH-DIGIMAT '
+          'project, funded by the European Union.</desc>')
+    c.Blank()
+    c.Open('<defs>')
+    c.Open('<style>')
+    c.Add('text { font-family: %s; }' % CONST_UI_FONT)
+    c.Add('.logo-slot svg { overflow: visible; }')
+    c.Close('style')
+    c.Open('<marker id="arch-tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" '
+           'orient="auto">')
+    c.Add('<path d="M1 1 L9 5 L1 9" fill="none" stroke="%s" stroke-width="2" stroke-linecap="round" '
+          'stroke-linejoin="round"/>' % T.CONST_INK_SOFT)
+    c.Close('marker')
+    c.Close('defs')
+    c.Blank()
 
-    """
-    Description:
-        The header: the logo (its own palette, which predates the theme) and the title.
-    """
-    c.Add('<g class="logo-slot" transform="translate(32,30) scale(0.28)">')
-    c.Add(CONST_LOGO_BEGIN)
-    c.Add(logo_svg.strip())
-    c.Add(CONST_LOGO_END)
-    c.Add('</g>')
-    c.Text(848, 54, 'Architecture', S[7], T.CONST_INK, weight='700', anchor='end')
-    c.Text(848, 76, 'what the code does today, and what imports what', S[3], T.CONST_INK_SOFT, anchor='end')
-    c.Line(32, 102, 848, 102, T.CONST_CARD_BORDER)
-    c.Section(134, 'CONFIGURATION')
-    c.Section(134, 'PIPELINE', 'Vision_Pipeline_Cls.Analyze', x=224)
+    c.Add('<!-- The card: opaque, so the figure reads the same on a light or a dark README. -->')
+    c.Rect(0.75, 0.75, CONST_WIDTH - 1.5, CONST_HEIGHT - 1.5, T.CONST_BG, T.CONST_CARD_BORDER, rx=20)
+    c.Blank()
 
-    """
-    Description:
-        The configuration column's head, and the two inputs: the reference feeds stage 1, the
-        camera's frame feeds both cues.
-    """
-    c.Rect(32, 150, 176, 104, T.CONST_CARD, T.CONST_CONTROL_BORDER, rx=10)
-    c.Text(42, 172, 'One file, one reader', S[3], T.CONST_INK, weight='700')
-    for i, line in enumerate(['Config_*_Mode_*.yaml', '+ Calibration_*.yaml', 'Load_Configuration →']):
-        c.Text(42, 192 + 16 * i, line, S[0] + 0.4, T.CONST_INK_SOFT, mono=True)
-    c.Text(42, 244, 'Configuration_Str', S[1], T.CONST_INK, mono=True, weight='700')
-    c.Box(224, 150, 300, 104, 'Empty-surface reference', 'Segmentation.Background.Reference',
-          ['one shot from this camera; its sidecar', 'is checked against the sensor window'])
-    c.Box(548, 150, 300, 104, 'Camera', 'Camera.Basler_Camera_Cls',
-          ['sensor window pinned from Camera.*;', 'frame undistorted by the calibration'])
-    c.Arrow(374, 254, 374, 306)
-    c.Text(382, 284, 'reference', S[2], T.CONST_INK_SOFT, mono=True)
-    c.Arrow(698, 254, 698, 306)
-    c.Path('M698 272 H470 V306')
-    c.Text(706, 284, 'RGB frame', S[2], T.CONST_INK_SOFT, mono=True)
+    # The header, as the console's top bar: the lockup, a divider, the JIC mark.
+    c.Open('<g id="header">', 'Header: the AnyScan logo (its own palette, which predates the theme), '
+           'a divider and the JIC mark, as in the top bar')
+    c.Open('<g class="logo-slot" transform="translate(40,34) scale(0.4)">')
+    c.Raw(CONST_LOGO_BEGIN)
+    c.Raw(logo_svg.strip())
+    c.Raw(CONST_LOGO_END)
+    c.Close('g')
+    c.Add('<line x1="500" y1="44" x2="500" y2="96" stroke="%s" stroke-width="1.5"/>' % T.CONST_TOPBAR_DIVIDER)
+    c.Image(524, 53, 34, CONST_JIC_FILE, 'JIC')
+    c.Text(1160, 76, 'ARCHITECTURE', S[2], T.CONST_INK_MUTE, weight='700', anchor='end', spacing='2')
+    c.Close('g')
+    c.Blank()
 
-    """
-    Description:
-        Stages 1 and 2 side by side: independent cues, neither gating the other.
-    """
-    c.Pill(318, 82, ['Segmentation.*', 'Background.* → 1', 'Model · Confidence', 'IoU · Image_Size → 2'], 358)
-    c.Box(224, 308, 300, 100, 'Background subtraction', 'Segmentation.Background_Foreground',
-          ['frame vs reference: absdiff → blur', '→ floored Otsu → open → dilate'], number='1')
-    c.Box(548, 308, 300, 100, 'FastSAM', 'Segmenter.Fast_Sam_Cls',
-          ['everything-mode instance masks', 'on the whole frame'], number='2', dark=True)
-    c.Arrow(374, 408, 374, 472)
-    c.Arrow(698, 408, 698, 472)
-    c.Chip(374, 440, ['foreground mask'])
-    c.Chip(698, 440, ['masks + scores'])
-    c.Text(536, 436, 'two independent', S[1], T.CONST_INK, weight='700', anchor='middle')
-    c.Text(536, 452, 'cues', S[1], T.CONST_INK, weight='700', anchor='middle')
+    c.Open('<g id="tagline">', 'Tagline')
+    c.Add('<line x1="40" y1="126" x2="1160" y2="126" stroke="%s" stroke-width="1.5"/>' % T.CONST_CARD_BORDER)
+    c.Text(40, 168, 'AnyScan finds the objects in a camera frame, describes each one in words, and measures it in mm.',
+           S[5], T.CONST_INK, weight='500')
+    c.Close('g')
+    c.Blank()
 
-    """
-    Description:
-        Stage 3, the fusion, and the cue attribution it hands on.
-    """
-    c.Pill(486, 82, ['Segmentation', '.Fusion.*', 'Close_Kernel · area', 'background fractions'], 526)
-    c.Box(224, 474, 624, 120, 'Fusion — an object survives if either cue finds it',
-          'Vision.Utilities.Fusion.Fuse_Objects',
-          ['FastSAM union (background-like masks dropped) OR the foreground mask',
-           '→ close → connected components → area filter → left to right;',
-           'each object records the cue(s) that located it'], number='3', stroke=T.CONST_BRAND, stroke_width=2)
-    c.Arrow(536, 594, 536, 674)
-    c.Chip(536, 634, ['per object: Mask · Bbox · Cue = both | fastsam | background',
-                      'Segmenter_Score (a FastSAM cue only)'])
+    # The flow: four columns at one height; the arrows sit on the cards' middle line.
+    y, h = 232, 224
+    mid = y + h / 2
+    c.Open('<g id="capture">', '1. Capture: the camera takes the frame')
+    c.Card(40, y, 180, h, 'Capture', ['Basler camera', 'takes a frame'])
+    c.Close('g')
+    c.Arrow(226, mid, 258)
+    c.Blank()
 
-    """
-    Description:
-        Stage 4: crop enhancement, then Gemma.
-    """
-    c.Pill(708, 98, ['Description.*', 'Model · Prompts', 'Object_Crop_Padding', 'Background', '_Crop_Margin'], 758)
-    c.Rect(224, 676, 624, 306, 'none', T.CONST_CARD_BORDER, rx=14, dash='5 4')
-    c.Badge(252, 702, '4')
-    c.Text(274, 707, 'Description — each object, in order', S[4], T.CONST_INK, weight='700')
-    c.Box(240, 722, 592, 102, 'Crop enhancement', 'Vision.Utilities.Enhancement: Isolate_Crop · Enhance_Crop',
-          ['padded crop; every other object filled from the reference;',
-           'contrast-stretched from the object’s own pixels'], title_size=S[3] + 1.2)
-    c.Arrow(536, 824, 536, 870)
-    c.Chip(536, 847, ['Enhanced_Crop'])
-    c.Box(240, 872, 592, 102, 'Gemma 4 E4B', 'Vision.Describers.Gemma_Describer_Cls',
-          ['object prompt on each Enhanced_Crop → Detail → Condense_Label → Label',
-           'background prompt on the reference, once (cached) → background sentence'],
-          dark=True, title_size=S[3] + 1.2)
-    c.Add('<g transform="translate(0,16)">')
-    c.Arrow(536, 966, 536, 1022)
-    c.Chip(536, 994, ['Label · Detail per object + one background sentence'])
+    c.Open('<g id="find">', '2. Find the objects: two cues, fused')
+    c.Card(264, y, 250, h, 'Find objects', ['FastSAM + background', 'subtraction, fused:', 'kept if either finds it'])
+    c.Close('g')
+    c.Arrow(520, mid, 552)
+    c.Blank()
 
-    """
-    Description:
-        Compose, then the measurement, then the result to the UI.
-    """
-    c.Box(224, 1024, 624, 84, 'Compose', 'Reporting.Core: Compose · Verdict',
-          ['each object’s Sentence, the scene note and the verdict — objects are never reordered'])
-    c.Arrow(536, 1108, 536, 1142)
-    c.Pill(1144, 66, ['Scale', 'from the calibration', 'mm per px'], 1186)
-    c.Box(224, 1144, 624, 84, 'Measure', 'Vision.Utilities.Measure.Measure_Objects',
-          ['each mask through the scale: A × B, Ø, or A/F for hex parts; none without one'])
-    c.Arrow(536, 1228, 536, 1270)
-    c.Chip(536, 1249, ['Analysis_Str → the UI, via a worker off the GUI thread'])
+    c.Open('<g id="each-object">', '3. Each object: described and measured, marked like an object on the frame')
+    c.Rect(558, y - 20, 290, h + 40, 'none', T.CONST_SCROLLBAR_HANDLE, rx=18, dash='6 6')
+    c.Rect(578, y - 34, 124, 28, T.CONST_BRAND, rx=6)
+    c.Text(640, y - 14, 'each object', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
+    c.Card(574, y + 4, 258, 104, 'Describe', ['local vision-language', 'model (Gemma 4)'])
+    c.Card(574, y + h - 108, 258, 104, 'Measure', ['size in mm, when', 'the camera is calibrated'])
+    c.Close('g')
+    c.Arrow(854, mid, 886)
+    c.Blank()
 
-    """
-    Description:
-        The outputs: one formatter for the panel and the .txt, one renderer for the viewport
-        and the saved images.
-    """
-    c.Section(1300, 'OUTPUT', 'one source per rendering', x=224)
-    c.Pill(1316, 100, ['To the UI', 'Confidence.* bands', 'General', '.Classification', 'Identity.* pill'])
-    c.Box(224, 1316, 300, 100, 'One formatter', 'Reporting.Core',
-          ['Object_Label · Object_Confidence ·', 'Object_Size → Screen_Understanding'])
-    c.Box(548, 1316, 300, 100, 'One renderer', 'Vision.Utilities.Annotate',
-          ['Draw_Annotated · Draw_Label_Mask,', 'colours from Parameters.Theme'])
-    for cx in (374, 698):
-        c.Path('M%s 1416 V1432 H%s V1446' % (cx, cx - 75))
-        c.Path('M%s 1432 H%s V1446' % (cx, cx + 75))
-    for cx, name, where in ((299, 'Live panel', 'UI.Widgets'), (449, '.txt files', 'capture · analyze.py'),
-                            (623, 'Viewport', 'UI.Core'), (773, 'Images', 'capture · analyze.py')):
-        c.Rect(cx - 73, 1448, 146, 50, T.CONST_CARD, T.CONST_CONTROL_BORDER, rx=10)
-        c.Text(cx, 1469, name, S[3], T.CONST_INK, weight='700', anchor='middle')
-        c.Text(cx, 1488, where, S[0], T.CONST_INK_SOFT, mono=True, anchor='middle')
+    c.Open('<g id="application">', '4. The desktop application and its four views')
+    c.Rect(892, y, 268, h, T.CONST_VIEWPORT)
+    c.Text(916, y + 60, 'Desktop app', S[6], T.CONST_ON_INK, weight='700')
+    c.Text(916, y + 88, 'PyQt5', S[3], T.CONST_VIEWPORT_TEXT)
+    for i, view in enumerate(['Live', 'Trends', 'History', 'Log']):
+        x_view, y_view = 916 + 114 * (i % 2), y + 114 + 44 * (i // 2)
+        c.Rect(x_view, y_view, 106, 34, T.CONST_INK_HOVER, T.CONST_BAND_LINE, rx=8)
+        c.Text(x_view + 53, y_view + 23, view, S[2], T.CONST_ON_INK, weight='600', anchor='middle')
+    c.Close('g')
+    c.Blank()
 
-    """
-    Description:
-        The layers, as the imports between src/ packages are: every edge points down, and
-        nothing below the UI imports Qt.
-    """
-    c.Line(32, 1526, 848, 1526, T.CONST_CARD_BORDER)
-    c.Section(1556, 'LAYERS', 'every import points down')
-    c.Rect(32, 1572, 816, 66, T.CONST_CARD, T.CONST_CARD_BORDER)
-    c.Text(48, 1600, 'UI', S[4], T.CONST_INK, weight='700')
-    c.Text(76, 1600, 'PyQt5 — Live · Trends · History · Log, Configuration dialog, Workers', S[3], T.CONST_INK_SOFT)
-    c.Text(48, 1624, 'imports Vision · Logger · Camera · Configuration · Reporting · Parameters   '
-           '(App/run.py → UI + domain)', S[1] - 0.8, T.CONST_INK_SOFT, mono=True)
-    c.Line(32, 1658, 848, 1658, T.CONST_INK, width=1.5, dash='6 4')
-    c.Rect(31, 1647, 190, 22, T.CONST_BG, None, rx=0)
-    c.Text(42, 1663, 'Qt-free below this line', S[2] + 1.2, T.CONST_INK, weight='700')
-    c.Rect(482, 1647, 366, 22, T.CONST_BG, None, rx=0)
-    c.Text(848, 1663, 'tested: test_contracts.py, test_module_is_qt_free', S[1] - 0.8, T.CONST_INK_SOFT,
-           mono=True, anchor='end')
-    for x, y, w, name, what in ((32, 1682, 260, 'Vision', 'the pipeline above'),
-                                (322, 1682, 250, 'Calibration', 'used by calibrate.py only'),
-                                (602, 1682, 246, 'Logger', 'session log · run CSV'),
-                                (32, 1770, 210, 'Reporting', 'formatter · Trends'),
-                                (292, 1770, 250, 'Camera', 'Basler · file · undistort'),
-                                (602, 1770, 246, 'Configuration', 'the one YAML reader')):
-        c.Rect(x, y, w, 56, T.CONST_CARD, T.CONST_CARD_BORDER, rx=10)
-        c.Text(x + 14, y + 24, name, S[3] + 1.2, T.CONST_INK, weight='700')
-        c.Text(x + 14, y + 44, what, S[1] - 0.8, T.CONST_INK_SOFT, mono=True)
-    # Vision -> Reporting, Camera; Calibration -> Camera; Logger -> Configuration.
-    c.Arrow(137, 1738, 137, 1768)
-    c.Path('M280 1738 L312 1768')
-    c.Arrow(447, 1738, 447, 1768)
-    c.Arrow(725, 1738, 725, 1768)
-    # Vision and Calibration also import Parameters directly (through the gaps in the row).
-    c.Arrow(267, 1738, 267, 1846)
-    c.Arrow(560, 1738, 560, 1846)
-    for x in (137, 417, 725):
-        c.Arrow(x, 1826, x, 1846)
-    c.Rect(32, 1848, 816, 44, T.CONST_INK, None, rx=10)
-    c.Text(48, 1876, 'Parameters', S[3] + 1.2, T.CONST_ON_INK, weight='700')
-    c.Text(152, 1876, '*_Str dataclasses and Theme tokens — imports nothing of the project', S[1] - 0.8,
-           T.CONST_BAND_TEXT, mono=True)
-    c.Text(32, 1916, 'Not drawn: src/Transformation (inherited; the app never imports it) and the model-free '
-           'fallback describer (analyze.py --no-describe only).', S[0] - 0.4, T.CONST_INK_SOFT)
-    c.Add('</g>')
-    c.Add('</svg>')
+    c.Open('<g id="configuration">', 'The configuration, and the stages it sets up')
+    for x in (130, 389, 703):
+        c.Connector(x, 520, y + h + (20 if x == 703 else 0) + 4)
+    c.Rect(40, 520, 808, 84, T.CONST_CARD, T.CONST_CARD_BORDER)
+    c.Text(64, 554, 'Configuration', S[6], T.CONST_INK, weight='700')
+    c.Text(64, 582, 'one YAML file per camera and mode sets up every stage', S[3], T.CONST_INK_SOFT)
+    c.Close('g')
+    c.Blank()
+
+    c.Open('<g id="funding-band">', 'The funding band, as in the console: the logos in its order, a hairline, '
+           'the EU disclaimer')
+    c.Add('<path d="M0.75 %g H1199.25 V%g A20 20 0 0 1 1179.25 %g H20.75 A20 20 0 0 1 0.75 %g Z" fill="%s"/>'
+          % (CONST_BAND_TOP, CONST_HEIGHT - 20.75, CONST_HEIGHT - 0.75, CONST_HEIGHT - 20.75, T.CONST_BAND))
+    # The row is centred like the console's (stretch on both sides); None is its hairline divider.
+    row = []
+    for name, height in Funding_Row_Cls.LOGOS:
+        if name is None:
+            row.append((None, 0.0, 30 * CONST_BAND_SCALE))
+            continue
+        w, h_px = Png_Size(os.path.join(CONST_ASSETS_FOLDER, name))
+        row.append((name, height * CONST_BAND_SCALE * w / h_px, height * CONST_BAND_SCALE))
+    x = (CONST_WIDTH - sum(w for _, w, _ in row) - CONST_BAND_GAP * (len(row) - 1)) / 2
+    y_row = CONST_BAND_TOP + 44
+    for name, w, h in row:
+        if name is None:
+            c.Add('<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="1.5"/>'
+                  % (x, y_row - h / 2, x, y_row + h / 2, T.CONST_BAND_LINE))
+        else:
+            c.Image(round(x, 1), round(y_row - h / 2, 1), round(h, 1), os.path.join(CONST_ASSETS_FOLDER, name),
+                    CONST_BAND_LABELS[name])
+        x += w + CONST_BAND_GAP
+    c.Add('<line x1="40" y1="%g" x2="1160" y2="%g" stroke="%s" stroke-width="1"/>'
+          % (CONST_BAND_TOP + 92, CONST_BAND_TOP + 92, T.CONST_BAND_LINE))
+    for i, line in enumerate(Split_In_Two(Funding_Row_Cls.DISCLAIMER)):
+        c.Text(CONST_WIDTH / 2, CONST_BAND_TOP + 118 + 21 * i, line, S[1], T.CONST_BAND_TEXT, anchor='middle')
+    c.Close('g')
+    c.Close('svg')
     return c.Markup()
 
 
 def main():
     """
     Description:
-        Write images/anyscan-architecture.svg from the theme and the logo, or with --check report
+        Write images/anyscan-architecture.svg from the theme and the logos, or with --check report
         whether the committed file is stale.
 
             python Example/UI/architecture_diagram.py [--check]

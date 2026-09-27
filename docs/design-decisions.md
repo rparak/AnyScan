@@ -1368,6 +1368,16 @@ stage hands on (the cue attribution, the Enhanced_Crop, the background sentence)
 configuration section enters, the shared formatter and renderer, and the import layers with the
 Qt-free boundary. It now sits at the top of the README, where a stale diagram gets noticed.
 
+*Updated 2026-09-27: redesigned as a top-level overview.* The aim is that a reader sees in a
+few seconds what AnyScan is and how it works; the detailed version (class names, configuration
+sections, import layers) repeated what README > Detection logic and Source layout already say. It now shows six blocks only: capture, find objects
+(the two cues fused), describe and measure per object, the desktop app with its four views,
+and the configuration under the stages it sets. It carries the JIC mark (as in the top bar) and
+the EDIH-DIGIMAT mark on the funding band, both embedded from `App/assets/` as base64 PNG, so
+the SVG stays self-contained. The wording is held to the real limits: the describer describes
+objects (no defect or pass/fail claim), and the measurement is "in mm, when the camera is
+calibrated" with no accuracy adjective (README > Limitations).
+
 - **It is generated, not drawn: regenerating is the way to change it.**
   `Example/UI/architecture_diagram.py` writes it. The colours come from `Parameters/Theme.py`, and
   the type scale and font fallbacks from `UI/Utilities/Style.py`. The generator is what ties the
@@ -1386,13 +1396,15 @@ Qt-free boundary. It now sits at the top of the README, where a stale diagram ge
     value.
 - **The layout is checked against fallback font metrics, not Inter.** The README shows the SVG
   through `<img>`, which cannot load web fonts, so most readers see Helvetica/Arial and Courier.
-  The spacing was set and reviewed with those faces, at README width (830 px) on light and dark
-  backgrounds. Do not tighten it on a machine that has Inter or JetBrains Mono installed: it
+  The spacing was set and reviewed with those faces, at README width (900 px since the
+  2026-09-27 redesign, rendered with `rsvg-convert`) on white and on GitHub dark (`#0d1117`). Do not tighten it on a machine that has Inter or JetBrains Mono installed: it
   would fit there and overflow for everyone else. The logo's tagline overflows its box in the
   fallback mono face, so the diagram lets it (`overflow: visible` on the logo slot) rather than
   changing the logo.
 - **The logo is copied inline, not referenced.** An SVG loaded through `<img>` never fetches
-  another file, so a referenced logo would draw nothing. There are now three copies: `images/`,
+  another file, so a referenced logo would draw nothing. The JIC and EDIH-DIGIMAT marks are
+  embedded as base64 data for the same reason; the generator reads them from `App/assets/`, so
+  a changed mark makes the committed SVG stale and the whole-file test fails. There are now three copies: `images/`,
   `App/assets/` (the topbar) and the one the generator inlines. A test holds all three equal.
   Edit `images/anyscan-logo.svg`, copy it to `App/assets/`, then regenerate.
 - **The logo's palette predates the theme and is deliberately not reconciled with it.** Slate

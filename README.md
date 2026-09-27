@@ -5,12 +5,12 @@
 One script, `run.py`, reproducing the approved AnyScan design as a desktop
 application. Built at JIC within the EDIH-DIGIMAT project.
 
-![AnyScan architecture: the configuration file, the pipeline (background subtraction and FastSAM fused, then crop enhancement, Gemma 4, the composer and the measurement), the shared outputs, and the import layers](images/anyscan-architecture.svg)
+![AnyScan architecture: a Basler camera takes a frame; FastSAM and background subtraction find the objects, fused; each object is described by a local vision-language model and measured in mm when the camera is calibrated; the PyQt5 desktop app shows Live, Trends, History and Log; one YAML configuration per camera and mode sets up every stage](images/anyscan-architecture.svg)
 
-The diagram shows how a frame becomes a reading. Two independent cues are fused, so an object
-is kept if **either** one finds it. It also shows where each configuration section enters, and
-which layer may import which. [Detection logic](#detection-logic) walks through the same stages
-in text.
+The diagram shows how a frame becomes a reading, at the top level. Two independent cues are
+fused, so an object is kept if **either** one finds it. [Detection logic](#detection-logic)
+walks through the same stages in detail, and [Source layout](#source-layout--the-app-and-the-shared-library)
+says what each part of `src/` holds.
 
 ## Setup
 
