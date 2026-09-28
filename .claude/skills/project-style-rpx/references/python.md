@@ -158,6 +158,16 @@ Comments are block comments above the code, saying *why*; multi-step bodies numb
   same byte length, restored within the same second, leaves a `.pyc` that still looks current
   (it is keyed on the source's size and whole-second mtime), so later runs execute the mutant — the
   symptom is a test failing for a reason no longer in the source. Clearing `__pycache__` fixes it.
+- **An expected failure must not be satisfiable by a missing input.** A strict `xfail` with
+  `raises=AssertionError` accepts *any* `AssertionError`, including the one a missing-frame check
+  raises, so the test reads a real fault as confirmation that it is working. Instance: `2d163a6`
+  removed `All/Image_009`–`013`; the count test's `assert frame is not None` raised `AssertionError`,
+  and the three strict xfails on 009, 011 and 012 reported XFAIL, which is worse than a test that
+  cannot fail. So check an xfail's inputs with `pytest.fail` (or build them in memory, as
+  `test_synthetic_harsh_shadow_not_absorbed_xfail` does), and let only the documented assertion
+  raise what `raises=` names. A pinned data set also has a default-run guard that its inventory
+  names exactly its files (`test_the_inventory_names_every_frame_of_the_test_set`), so a moved
+  frame fails without the weights.
 - **A script test runs the script the way a person does.** Tests that load an `Example/` script
   inside pytest inherit `test/conftest.py`'s import setup (src/, App/ already on the path), so
   they exercise it under conditions no user has: the camera scripts' working-directory-relative
