@@ -74,26 +74,40 @@ is still a narrow base.
 ## Touching parts merge before the closing
 
 Of the five two-plate frames in the test set, three still come back as ONE object: `All/Image_009`,
-`011` and `012`. **FastSAM offers the right answer and the wrong one at once, and the union takes
-both:** each plate is its own mask, and FastSAM also returns a mask covering both plates — in 011 and
-012 it outscores a single plate (0.94 against 0.87 / 0.91 in 011, 0.94 against 0.82 / 0.94 in 012;
-0.81 against 0.97 / 0.97 in 009). The union keeps every mask, so the both-plates mask joins them before
-the closing runs. A second, small bridge in each frame means removing that mask alone separates none:
+`011` and `012`. Five routes to separating them have been measured, and all five fail. They fail for the
+same reason, and that reason is why this entry exists:
+
+**FastSAM's output contains the division, and nothing structural identifies which level holds it.**
+FastSAM returns a hierarchy. In 009, 011 and 012 it is three levels deep: a mask covering both plates,
+then each plate, then the hole rings. The division is at the middle level, and with the both-plates mask
+removed, FastSAM alone returns the two plates apart in 009 and 011. But for a single machined plate that
+same middle level is the plate's two halves, and the two cases measure the same: two touching plates in
+011 and one plate's halves in 010 both cover 0.99 of their parent, overlap 0.000 and lie 1.9 px apart.
+Any rule that reads the division off the masks' shape either fails to fire on the plates or splits
+single objects.
+
+**Two causes merge these frames, and they are independent.** One is FastSAM's (the both-plates mask and
+the level problem above). The other is a bridge that remains in each frame when the both-plates mask is
+gone. **In 009 and 011 that bridge is the background cue's; in 012 it is FastSAM's own.** So even a
+segmenter that got the level right would fix only 012. 009 and 011 would still merge until the
+background bridge is dealt with separately. A model swap alone does not close this entry.
 
 | Measured per row (2026-09-28) | 009 | 011 | 012 |
 |---|---|---|---|
 | Dark seam between the plates | 1 px, absent in 207 of 543 rows | 10 px, every row | 6 px, every row |
 | Seam brightness / plates' | 0.58 | 0.38 | 0.47 |
+| FastSAM's both-plates mask against each plate | 0.81 against 0.97 / 0.97 | 0.94 against 0.91 / 0.87 | 0.94 against 0.94 / 0.82 |
 | FastSAM's two plate masks | 23 px apart, never touching | 2 px apart, never touching | 4 px apart; touching in 35 of 361 rows (y 615–658) |
 | The background cue joins them | rows 621–867 | rows 316–320 only (the seam's top end, where it opens into a V) | nowhere |
+| Count with the both-plates mask removed: FastSAM alone / fused | 2 / **1** | 2 / **1** | 1 / 1 |
 
-- **The background cue holds 011 and 012 apart — it does not bridge them.** Counterintuitive, so
-  stated plainly: background subtraction asks whether a pixel differs from the *green table*, not from
-  the plate. A dark seam is far closer to the dark-green table than a bright plate is: its difference
-  from the table (~40–44) sits at those frames' Otsu threshold (42–43), and after the blur it falls
-  below — so the cue reads the seam as table in every row of 012 and all but five rows of 011. The
-  more visible the seam, the more the cue separates. 009 is the exception: dark plates and a faint
-  seam, the threshold drops to its floor (28), and plates and gap all clear it.
+- **The background cue joins 009 and 011 only at those rows; everywhere else it holds them apart.**
+  Counterintuitive, so stated plainly: background subtraction asks whether a pixel differs from the
+  *green table*, not from the plate. A dark seam is far closer to the dark-green table than a bright
+  plate is: its difference from the table (~40–44) sits at those frames' Otsu threshold (42–43), and
+  after the blur it falls below — so the cue reads the seam as table in every row of 012 and all but
+  five rows of 011. The more visible the seam, the more the cue separates. 009 is the exception: dark
+  plates and a faint seam, the threshold drops to its floor (28), and plates and gap all clear it.
 - **012's second bridge is FastSAM's own:** its plate edges each bleed ~3 px into a 6 px seam and meet
   mid-seam over 35 rows. At the 1024 px inference size the seam is ~3 px wide.
 
@@ -102,12 +116,32 @@ joins components that were separate before it, and they now count two (design-de
 never joins two components*).
 
 - **Impact:** two touching parts read as one object: the count is one low and the size is the pair's.
-- **No configuration reaches it:** the merge happens before the closing and the area filter. Lowering
-  FastSAM's NMS `IoU` could drop the both-plates mask in 009, but in 011 and 012 that mask outscores a
-  plate, so the plate would be suppressed instead — and the background bridge would remain.
-- **Tried and rejected — a larger FastSAM inference size (`Segmentation.Image_Size`).** At 1024 the
-  6–10 px seam is ~3 px wide, so running closer to the frame's 1920 px looked like a configuration fix.
-  Measured 2026-09-28 on all thirteen frames (1024 / 1280 / 1536 / 1920):
+- **Not fixed here:** left open deliberately. Two plates butted against each other is not a realistic
+  inspection case, and every route below either fails to fire on it or splits single objects.
+- **What would work** (well-defined, out of scope), in two parts, and both are needed for all three frames:
+  1. **Something that picks out the middle level.** Either a segmenter that returns flat instances
+     (one mask per part) instead of a hierarchy, or a cue this pipeline does not have (depth, a second
+     view). Alone, this fixes 012.
+  2. **A separate answer for the background bridge in 009 and 011**, which a new segmenter does not touch.
+
+### The five routes, measured 2026-09-28
+
+All five were measured on the thirteen frames of `All/` (FastSAM at 1024 px on the CPU). Routes 3–5
+were also measured on the seven old frames (`f5cd075^`, with the reference of that commit).
+
+- **1. Lowering FastSAM's NMS `IoU` (`Segmentation.IoU`, shipped 0.9).** Measured at 0.9 / 0.7 / 0.5 /
+  0.3: 009, 011 and 012 count one at every value, and the other ten frames stay on the inventory. The
+  both-plates mask overlaps each plate by about half, so only 0.3 removes anything, and then:
+  - **009 and 012:** the both-plates mask goes. 009 stays joined by the background bridge; 012 stays
+    joined by its touching plate masks.
+  - **011:** both plate masks go and the both-plates mask stays, because it outscores them. At 0.5 the
+    weaker plate (0.87) is already gone.
+
+  NMS can only choose between levels by score, and the score favours the wrong level as often as the
+  right one.
+- **2. A larger inference size (`Segmentation.Image_Size`).** At 1024 the 6–10 px seam is ~3 px wide,
+  so running closer to the frame's 1920 px looked like a configuration fix. Measured at 1024 / 1280 /
+  1536 / 1920:
   - **It fixes the cause and creates a worse one.** The both-plates mask weakens as the size grows —
     011 0.94 → 0.96 → 0.79 → **0.48**, 012 0.94 → 0.91 → 0.81 → **0.43** — but the plates' own masks
     grow into the seam (they take in the dark edge and the side wall, which is the seam) and touch: at
@@ -122,16 +156,73 @@ never joins two components*).
   - **Time is not the reason.** FastSAM per frame (median / max): 171 / 237 ms at 1024, 231 / 292 at
     1280, 299 / 398 at 1536, 435 / 495 at 1920 — at most a quarter of a second more, against Gemma's
     seconds per object. The counts are the reason: `Image_Size` stays 1024.
-- **Tried and rejected — splitting a merged component by its FastSAM masks with a seam test.** FastSAM
-  returns a hierarchy: both plates, each plate, each machined plate's two halves, the hole rings. "Both
-  plates = two plates" has the same shape in mask space as "one plate = two halves", so a split needs
-  evidence that a boundary is a physical gap. The darkness of the seam between two masks (its 10th
-  percentile over the parts' median) was measured on every candidate pair in all twenty frames:
-  touching plates 0.36–0.46, one plate's halves 0.73–0.88 — but **the robot's body against its arms,
-  legs and head 0.44–0.61**. The robot is separately printed pieces pinned together, so its joints are
-  real seams, and the darkest (0.44) is darker than the lightest plate seam (0.46). Any threshold that
-  splits the plates splits the robot. Do not retry this test without a new kind of evidence: at the
-  seam, two parts touching and one assembled part look the same.
+- **3. Splitting a merged component by its FastSAM masks with a seam test.** "Both plates = two
+  plates" has the same shape in mask space as "one plate = two halves", so this route looked for
+  evidence that a boundary is a physical gap. It measured the darkness of the seam between two masks
+  (its 10th percentile over the parts' median) on every candidate pair in all twenty frames:
+  - touching plates 0.36–0.46
+  - one plate's halves 0.73–0.88
+  - **the robot's body against its arms, legs and head 0.44–0.61**
+
+  The robot is separately printed pieces pinned together, so its joints are real seams, and the darkest
+  (0.44) is darker than the lightest plate seam (0.46). Any threshold that splits the plates splits the
+  robot. Do not retry this test without a new kind of evidence: at the seam, two parts touching and one
+  assembled part look the same.
+- **4. Dropping a parent mask that covers two non-overlapping children, before the union.** A census
+  of every parent–child pair in all twenty frames:
+  - **Containment is bimodal.** Of 397 pairs, 392 have the child ≥ 0.9 inside its parent and 5 have it
+    ≤ 0.85 (none between 0.2 and 0.8), so "contains" is ≥ 0.9 without a choice.
+  - **Stated as it is, the rule fires on 55 parents.** Among them: every plate (its two hole rings are
+    disjoint children), the whole robot, the terminal strip, the grey comb, the screw with its nut.
+  - **Adding coverage cuts it to 15.** Coverage is the fraction of the parent the two children cover
+    together; it has an empty gap from 0.60 to 0.96. The 15 parents above the gap look alike, and three
+    of them are the two-plate cases:
+
+  | Parent, by eye | Parent | Coverage | Child overlap | Gap between children | Parent score vs children |
+  |---|---|---|---|---|---|
+  | **Two touching plates** | 009 P6 | 0.991 | 0.000 | 6.7 px | 0.81 vs 0.97 / 0.97 |
+  | | 011 P5 | 0.989 | 0.000 | 1.9 px | 0.94 vs 0.91 / 0.87 |
+  | | 012 P5 | 0.992 | 0.000 | 1.0 px | 0.94 vs 0.94 / 0.82 |
+  | **One plate's machined halves** | 010 P2 | 0.993 | 0.000 | 1.9 px | 0.96 vs 0.69 / 0.61 |
+  | | 012 P12 | 0.990 | 0.006 | 0 | 0.82 vs 0.79 / 0.46 |
+  | | old 004 P0 | 0.989 | 0.008 | 0 | 0.98 vs 0.61 / 0.59 |
+  | **Blue double triangle (one part)** | 001 P1, old 001 P1 | 0.98–0.99 | ≤ 0.005 | 0 | 0.97–0.98 vs 0.59–0.83 |
+  | **Robot: arm + hand, leg + foot, head + handle** | 002 P8/P19/P24, 004 P15/P18, 005 P15, 003 P19 | 0.96–0.995 | ≤ 0.050 | 0 | 0.47–0.92 vs 0.50–0.94 |
+
+  - **Scores do not separate them either.** The plates' weaker child scores 0.82–0.97, the halves' and
+    the triangle's 0.46–0.74. But the robot's arm (002 P24) has children at 0.92 / 0.91 under a 0.47
+    parent, which is the plates' pattern.
+  - **Applied anyway, it splits a single plate:** 010 with FastSAM alone becomes three objects (the
+    plate's halves). The background cue hides that in the fused count.
+  - **It fixes 012 by accident:** it also drops 012's left plate mask as a "parent of two halves",
+    which removes FastSAM's plate-to-plate contact.
+  - **009 and 011 stay one object** because of the background bridge.
+- **5. Splitting a fused component along the FastSAM leaf masks inside it** (leaf: a mask that
+  contains no other mask). The leaf set is well-defined: it comes from the same bimodal containment.
+  But it is the wrong level. The leaves are hole rings, smudges, limbs and edges, not plates. Every fused
+  component in all twenty frames, by eye:
+
+  | Component, by eye | Leaves | Worst overlap between leaves | Share of component the leaves cover |
+  |---|---|---|---|
+  | **009, two plates** | 4 hole rings | 0.000 | **0.031** |
+  | **011, two plates** | 4 rings + 1 smudge | 0.000 | **0.080** |
+  | **012, two plates** | 4 rings + 1 smudge | 0.000 | **0.080** |
+  | Blue double triangle (001, old 001) | 2 | ≤ 0.005 | 0.98–0.99 |
+  | Grey comb (001, 008) | 4 bars | 0.000 | 0.83–0.84 |
+  | Robot (002–005) | 11–12 | 0.027–0.079 | 0.48–0.55 |
+  | Screw with nut (001, 008) | head, nut | 0.000 | 0.52–0.53 |
+  | Terminal strip (007, old 001) | 5–6 | ≤ 0.021 | 0.34–0.57 |
+  | Lattice bracket (007) | 11 windows | 0.000 | 0.40 |
+  | Red block (006, 007) | side face, holes | 0.000 | 0.25–0.29 |
+  | Single plates (003, 004, 010, 013, old 002–005) | 2–4 | 0.000 | 0.030–0.196 |
+  | Maze plate (008), old 006, old 007 | 4–6 | 0.000 | 0.009–0.019 |
+
+  - **The two-plate components are near the bottom.** Only single plates and the maze plate cover less.
+    A coverage cut low enough to include 009 fires on every multi-part object in the set. One high
+    enough to mean "most" fires only on single objects.
+  - **The leaf-overlap test does not protect the robot.** Leaves are the finest pieces, so they barely
+    overlap (≤ 0.079). It is the robot's larger masks that overlap.
+
 - **Pinned by:** `test/integration/test_pipeline.py::test_counts_match_the_inventory` — 009, 011 and 012
   are strict xfails, so the day one separates the suite fails and this entry is revisited.
 
