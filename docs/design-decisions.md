@@ -1493,6 +1493,26 @@ the SVG stays self-contained. The wording is held to the real limits: the descri
 objects (no defect or pass/fail claim), and the measurement is "in mm, when the camera is
 calibrated" with no accuracy adjective (README > Limitations).
 
+*Updated 2026-09-28: what sets the stages up, and what a run leaves behind.* The single
+"Configuration" block said one YAML file per camera and mode sets up every stage. That stopped
+being true when the calibration moved to its own file per camera, and it never showed the
+reference background, without which no analysis runs. The row under the flow is now a "set up
+by" group of three cards. Configuration. Calibration: optional, and it gives the undistortion
+and the mm/px. Reference: required. That split is the loader's. A missing calibration file is a
+warning (`__Read_Calibration`), and the frame is then not undistorted and nothing is measured. A
+missing reference fails the load. Capture says the frame is undistorted "when calibrated", in
+the passive: the software does it after the grab (`Basler_Camera_Cls._Grab`), not the camera. A
+Records card under the app shows the capture sets, the run CSV and the session log, because
+History and Log are views of those records. The flow itself is unchanged.
+
+"Optional" is the code's rule, not the rig's. The reference's sidecar records the calibration it
+was undistorted with, and the load refuses a mismatch. With the committed reference, removing
+the calibration therefore fails the load. The card states the general rule. This entry states
+the coupling.
+
+**Revisit if** the calibration becomes required (the card says "optional"), or if a stage, an
+input or a record is added or removed: the diagram draws each one.
+
 - **It is generated, not drawn: regenerating is the way to change it.**
   `Example/UI/architecture_diagram.py` writes it. The colours come from `Parameters/Theme.py`, and
   the type scale and font fallbacks from `UI/Utilities/Style.py`. The generator is what ties the
