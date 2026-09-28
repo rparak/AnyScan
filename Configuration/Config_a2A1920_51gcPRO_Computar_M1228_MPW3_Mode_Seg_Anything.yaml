@@ -97,7 +97,7 @@ Segmentation:
 # Stage 4: the Gemma describer.
 Description:
   # REQUIRED. The Gemma weights directory, relative to the repository root (or absolute).
-  Model: models/gemma-4-e4b-it-4bit
+  Model: models/gemma-4-12B-it-4bit
   # Generation. Temperature 0 is greedy decoding: the same crop gives the same text.
   # Defaults: 0.0 and 256
   Temperature: 0.0

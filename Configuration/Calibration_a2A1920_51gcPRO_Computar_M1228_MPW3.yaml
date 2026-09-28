@@ -17,22 +17,42 @@
 ## =========================================================================== ##
 
 # The hardware this calibration belongs to; must equal the hardware part of this file's name.
+
+# The hardware this calibration belongs to; must equal the hardware part of this file's name.
 Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
 
 Calibration:
+  # How this calibration was solved (Example/Camera/calibrate.py --images).
+  Solved:
+    Date: 2026-09-28T11:07:55
+    Images: "../Data/Images/Calibration/20260928-103531"
+    # Views used: flat boards (lens model + factor) and tilted ones (lens model).
+    Views: {Total: 63, Flat: 22, Tilted: 41}
+    Reprojection_RMS_Px: 0.45350088294065394
+    # The board's square size [mm], as calipered.
+    Square_Size_Mm: 12.0
+    # The reference plane: the flat boards' surface height above the table [mm].
+    # The factor is exact in this plane only.
+    Board_Height_Mm: 4.22
+  # The sensor window this calibration was solved at [px]: its size and its offset on the
+  # sensor. K and the conversion factor are in this window's pixels; a configuration that
+  # sets the camera to any other window fails to load with this calibration.
+  Resolution: {x: 1920, y: 1200}
+  Offset: {x: 8, y: 8}
   # Camera calibration (intrinsic) matrix K, 3 x 3, row-major.
   K:
-    - [3.88598795e+03, 0.00000000e+00, 1.60700960e+02]
-    - [0.00000000e+00, 3.89857482e+03, 3.55549173e+02]
-    - [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]
+    - [3540.980999325655, 0.0, 950.1686073619803]
+    - [0.0, 3541.0112378332233, 575.7672260180132]
+    - [0.0, 0.0, 1.0]
   # Distortion coefficients: [k1, k2, p1, p2, k3].
   Coefficients:
-    k1: -0.18579372777320677
-    k2: 0.5423357370141956
-    p1: 0.0033749787534304047
-    p2: 0.018164117051808436
-    k3: -0.8791801691519703
-  # Pixel-to-millimeter conversion factors for the x and y axes [mm/px].
+    k1: 0.03188782994407314
+    k2: -0.4334999331637589
+    p1: 0.0020608325085271014
+    p2: -0.00170328090543986
+    k3: 6.082337886750129
+  # Pixel-to-millimeter conversion factors for the x and y axes [mm/px], in the
+  # undistorted (alpha = 1) pixel space measurement happens in.
   Conversion_Factor:
-    x: 0.09797791724417174
-    y: 0.0979737427598743
+    x: 0.10189853878198323
+    y: 0.10207658577821295
