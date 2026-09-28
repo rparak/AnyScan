@@ -74,13 +74,28 @@ is still a narrow base.
 ## Touching parts merge before the closing
 
 Of the five two-plate frames in the test set, three still come back as ONE object: `All/Image_009`,
-`011` and `012`. FastSAM itself separates every pair — each plate is its own mask, mostly at
-0.96–0.98 — but the union of the cues joins them before the closing runs:
+`011` and `012`. **FastSAM offers the right answer and the wrong one at once, and the union takes
+both:** each plate is its own mask, and FastSAM also returns a mask covering both plates — in 011 and
+012 it outscores a single plate (0.94 against 0.87 / 0.91 in 011, 0.94 against 0.82 / 0.94 in 012;
+0.81 against 0.97 / 0.97 in 009). The union keeps every mask, so the both-plates mask joins them before
+the closing runs. A second, small bridge in each frame means removing that mask alone separates none:
 
-- **009 and 011:** FastSAM also returns a third mask covering both plates (0.81 and 0.94), which the
-  union includes; without it, the background cue still bridges the dark seam between them.
-- **012:** the two plates' own masks touch (0 px apart), so their union is one shape — and its
-  both-plates mask (0.94) outscores one of the plates (0.82).
+| Measured per row (2026-09-28) | 009 | 011 | 012 |
+|---|---|---|---|
+| Dark seam between the plates | 1 px, absent in 207 of 543 rows | 10 px, every row | 6 px, every row |
+| Seam brightness / plates' | 0.58 | 0.38 | 0.47 |
+| FastSAM's two plate masks | 23 px apart, never touching | 2 px apart, never touching | 4 px apart; touching in 35 of 361 rows (y 615–658) |
+| The background cue joins them | rows 621–867 | rows 316–320 only (the seam's top end, where it opens into a V) | nowhere |
+
+- **The background cue holds 011 and 012 apart — it does not bridge them.** Counterintuitive, so
+  stated plainly: background subtraction asks whether a pixel differs from the *green table*, not from
+  the plate. A dark seam is far closer to the dark-green table than a bright plate is: its difference
+  from the table (~40–44) sits at those frames' Otsu threshold (42–43), and after the blur it falls
+  below — so the cue reads the seam as table in every row of 012 and all but five rows of 011. The
+  more visible the seam, the more the cue separates. 009 is the exception: dark plates and a faint
+  seam, the threshold drops to its floor (28), and plates and gap all clear it.
+- **012's second bridge is FastSAM's own:** its plate edges each bleed ~3 px into a 6 px seam and meet
+  mid-seam over 35 rows. At the 1024 px inference size the seam is ~3 px wide.
 
 `010` and `013` (plates 10.8 and 9.8 px apart) used to merge in the closing; the closing no longer
 joins components that were separate before it, and they now count two (design-decisions, *The closing

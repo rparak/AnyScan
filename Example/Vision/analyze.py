@@ -72,12 +72,13 @@ Description:
     The validation harness for the ported vision pipeline. It runs EVERY Image_[0-9]*.png frame
     in the configuration's Evaluation.Frames directory (Data/Images/Test/All) through the
     application's own Vision.Core.Analyze (never a second copy of the pipeline) against the
-    configuration's empty-surface reference, and for each frame writes three artefacts to
+    configuration's empty-surface reference, and for each frame writes these artefacts to
     Data/Results/:
 
         <stem>_annotated.png     the frame with each object's fill, contour, box, index
         <stem>_mask.png          the label mask: black ground, each object its own colour
         <stem>_descriptions.txt  one line per object (the model's caption)
+        <stem>_objNN_crop.png    each object's enhanced crop: what the describer was given
 
     Then it reports the per-frame object count, the raw FastSAM mask count and the
     per-cue attribution, so the detection can be judged against the known inventory.
@@ -87,10 +88,16 @@ Description:
         (Vision.Utilities.Annotate, through Render_Views), so what the harness writes is what the
         application shows and stores; test/UI/test_harness_parity.py holds the two together.
 """
-# Where the three per-frame artefacts are written (git-ignored). The input frames are not a
+# Where the per-frame artefacts are written (git-ignored). The input frames are not a
 # default here: they come from the configuration's Evaluation.Frames, or --input-dir.
 #   Unit [string]
 CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Results')
+
+# Each object's enhanced crop — exactly the image the describer receives — is written as
+# <stem>_objNN_crop.png, NN its 1-based index in the object list (the number drawn on the annotated
+# image and the 'Object N' line), zero-padded so the files sort in object order.
+#   Unit [string]
+CONST_CROP_NAME = '%s_obj%02d_crop.png'
 
 # The montage cell size (px) for the optional enhanced-crop debug view.
 #   Unit [int]
@@ -198,19 +205,33 @@ def _Stamp_Image(image: tp.Any, text: str) -> tp.Any:
     Description:
         Return the image with the provenance stamp on a slim footer band appended BELOW it — never
         drawn over the content, so it labels the artefact without occluding anything under review.
+        On an image narrower than the line (an object crop) the stamp wraps at its ' | ' separators,
+        one band per line, so it is never clipped and the image is never widened.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The artefact image (BGR).
         (2) text [string]: The provenance line (see _Stamp_Line).
 
     Returns:
-        (1) parameter [Matrix<uint8> (H+band)xWx3]: The stamped image.
+        (1) parameter [Matrix<uint8> (H+bands)xWx3]: The stamped image.
     """
 
-    band = np.full((CONST_STAMP_BAND_H, image.shape[1], 3), 24, np.uint8)
-    cv2.putText(band, text, (8, CONST_STAMP_BAND_H - 9), cv2.FONT_HERSHEY_SIMPLEX,
-                CONST_STAMP_FONT_SCALE, (210, 210, 210), 1, cv2.LINE_AA)
-    return np.vstack([image, band])
+    width = image.shape[1]
+    lines = []
+    for part in text.split(' | '):
+        joined = part if not lines else lines[-1] + ' | ' + part
+        fits = cv2.getTextSize(joined, cv2.FONT_HERSHEY_SIMPLEX, CONST_STAMP_FONT_SCALE, 1)[0][0] <= width - 16
+        if lines and fits:
+            lines[-1] = joined
+        else:
+            lines.append(part)
+    bands = []
+    for line in lines:
+        band = np.full((CONST_STAMP_BAND_H, width, 3), 24, np.uint8)
+        cv2.putText(band, line, (8, CONST_STAMP_BAND_H - 9), cv2.FONT_HERSHEY_SIMPLEX,
+                    CONST_STAMP_FONT_SCALE, (210, 210, 210), 1, cv2.LINE_AA)
+        bands.append(band)
+    return np.vstack([image] + bands)
 
 
 def _Write_Descriptions(path: str, result: Analysis_Str, stamp: str) -> None:
@@ -233,14 +254,38 @@ def _Write_Descriptions(path: str, result: Analysis_Str, stamp: str) -> None:
         handle.write(Screen_Understanding(result.Objects, result.Background) + '\n')
 
 
+def _Write_Crops(output_dir: str, stem: str, result: Analysis_Str, stamp: str) -> None:
+    """
+    Description:
+        Write each object's enhanced crop — the padded, neighbour-isolated, stretched image the
+        describer actually received (Detection_Str.Enhanced_Crop), not a re-render — as
+        CONST_CROP_NAME, stamped like every artefact. This frame's crops from an earlier run are
+        removed first, so a frame that now has fewer objects cannot keep a stale obj07 that looks
+        current. A merged pair is one object, so it is one crop holding both parts.
+
+    Args:
+        (1) output_dir [string]: The directory the artefacts are written to.
+        (2) stem [string]: The frame stem (e.g. 'Image_012').
+        (3) result [Analysis_Str(object)]: The finished analysis.
+        (4) stamp [string]: The provenance line (see _Stamp_Line).
+    """
+
+    for old in glob.glob(os.path.join(output_dir, glob.escape(stem) + '_obj[0-9]*_crop.png')):
+        os.remove(old)
+    for index, det in enumerate(result.Objects, 1):
+        if det.Enhanced_Crop is not None:
+            cv2.imwrite(os.path.join(output_dir, CONST_CROP_NAME % (stem, index)),
+                        _Stamp_Image(det.Enhanced_Crop, stamp))
+
+
 def _Montage(enhanced_crops: tp.List[tp.Any], cols: int = 3) -> tp.Optional[tp.Any]:
     """
     Description:
         Tile the already-enhanced object crops into a single inspection image. This is
         PURE rendering: it tiles the crops the pipeline produced (Detection_Str.Enhanced_Crop)
         and does not re-enhance them, so the montage shows exactly what the describer
-        received. It is a debug view, off by default, and is not one of the three
-        standard per-frame artefacts.
+        received, side by side. It is a debug view, off by default; the same crops are always
+        written one per object (_Write_Crops), which is the view to inspect a single object in.
 
     Args:
         (1) enhanced_crops [Vector<Matrix<uint8> hxwx3>]: The enhanced crops, in order.
@@ -329,7 +374,8 @@ def _Analyze_Frame(backend: Vision_Pipeline_Cls, scene_path: str, output_dir: st
     """
     Description:
         Run one scene through the application pipeline and write its artefacts — the
-        annotated image and the label mask always; the descriptions file ONLY when the
+        annotated image, the label mask and each object's enhanced crop always; the
+        descriptions file ONLY when the
         real describer ran (write_descriptions); the enhanced-crop montage when
         requested — into the output directory. Every artefact carries the provenance
         stamp (run timestamp, frame fingerprint, reference fingerprint, describer), so
@@ -375,6 +421,7 @@ def _Analyze_Frame(backend: Vision_Pipeline_Cls, scene_path: str, output_dir: st
     cv2.imwrite(os.path.join(output_dir, '%s_mask.png' % stem), _Stamp_Image(mask, stamp))
     if write_descriptions:
         _Write_Descriptions(os.path.join(output_dir, '%s_descriptions.txt' % stem), result, stamp)
+    _Write_Crops(output_dir, stem, result, stamp)
     if write_montage:
         montage = _Montage([det.Enhanced_Crop for det in result.Objects])
         if montage is not None:
@@ -521,7 +568,7 @@ def main() -> int:
     Description:
         Discover every scene in the input directory (the reference is the configuration's
         Segmentation.Background.Reference, never discovered), run each scene through the
-        application pipeline, write its three artefacts, and report the per-frame object count,
+        application pipeline, write its artefacts, and report the per-frame object count,
         raw FastSAM mask count and per-cue attribution plus the total. The exit code is non-zero
         when the inputs cannot be resolved or the weights/runtime are missing, so the script gates
         a CI check.

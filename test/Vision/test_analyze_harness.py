@@ -86,10 +86,10 @@ def test_stamp_image_appends_a_visible_footer_band() -> None:
         the drawn text making the band non-uniform.
     """
 
-    image = np.full((40, 200, 3), 127, np.uint8)
+    image = np.full((40, 800, 3), 127, np.uint8)
     stamped = analyze._Stamp_Image(image, '2026-09-16T17:00:00 | frame Image_001 abcdef0123')
 
-    assert stamped.shape == (40 + analyze.CONST_STAMP_BAND_H, 200, 3)
+    assert stamped.shape == (40 + analyze.CONST_STAMP_BAND_H, 800, 3)
     assert np.array_equal(stamped[:40], image)            # content is preserved, not drawn over
     band = stamped[40:]
     assert band.std() > 0                                  # the stamp text marks the band
@@ -225,3 +225,48 @@ def test_a_frame_of_another_size_fails_before_writing_anything(tmp_path, monkeyp
     out = capsys.readouterr().out
     assert 'Image_002.png: 1936 × 1216' in out and 'Image_001.png' not in out.split('not:')[-1]
     assert not (tmp_path / 'out').exists()
+
+
+def test_stamp_wraps_at_its_separators_on_an_image_narrower_than_the_line() -> None:
+    """
+    Description:
+        An object crop can be narrower than the provenance line: the stamp then wraps at its ' | '
+        separators, one band per line, so no part of it is clipped — and the crop keeps its width
+        and its pixels.
+    """
+
+    crop = np.full((60, 150, 3), 90, np.uint8)
+    line = '2026-09-28T10:00:00 | frame Image_012 abcdef0123 | ref 0123456789 | describer gemma'
+    stamped = analyze._Stamp_Image(crop, line)
+
+    assert stamped.shape[1] == 150 and np.array_equal(stamped[:60], crop)
+    bands = (stamped.shape[0] - 60) // analyze.CONST_STAMP_BAND_H
+    assert bands == len(line.split(' | '))                 # each part on its own line at 150 px
+    for k in range(bands):
+        band = stamped[60 + k * analyze.CONST_STAMP_BAND_H:60 + (k + 1) * analyze.CONST_STAMP_BAND_H]
+        assert band.std() > 0                              # every line carries text
+
+
+def test_each_objects_crop_is_written_by_its_index_and_stale_crops_are_removed(tmp_path) -> None:
+    """
+    Description:
+        Each object's enhanced crop — the image the describer received — is written as
+        <frame>_objNN_crop.png, NN the object's 1-based index, its pixels exactly the crop's above the
+        stamp. This frame's crops from an earlier run (a stale obj07 when there are now two objects)
+        are removed; another frame's are left alone.
+    """
+
+    stale = tmp_path / 'Image_012_obj07_crop.png'
+    other = tmp_path / 'Image_001_obj01_crop.png'
+    stale.write_bytes(b'old'); other.write_bytes(b'other frame')
+    crops = [np.full((50, 70, 3), 40, np.uint8), np.full((30, 90, 3), 200, np.uint8)]
+    result = types.SimpleNamespace(Objects=[types.SimpleNamespace(Enhanced_Crop=crop) for crop in crops])
+
+    analyze._Write_Crops(str(tmp_path), 'Image_012', result, 'stamp | line')
+
+    import cv2
+    assert not stale.exists() and other.read_bytes() == b'other frame'
+    for index, crop in enumerate(crops, 1):
+        written = cv2.imread(str(tmp_path / ('Image_012_obj%02d_crop.png' % index)))
+        assert written is not None
+        assert np.array_equal(written[:crop.shape[0]], crop)
