@@ -37,9 +37,9 @@ Description:
     foreground the objects are split from is the union of the FastSAM part-masks
     (stage 2) and the background-subtracted mask (stage 1), so an object survives if
     EITHER cue sees it — a part FastSAM misses is kept by the difference, and a dark
-    part the difference barely sees is kept by FastSAM. The fused foreground is closed
-    to merge the parts of one object, split into connected components, filtered by
-    area and ordered left to right in row bands (the operator index contract). Each
+    part the difference barely sees is kept by FastSAM. The fused foreground is split
+    into connected components, each closed on its own (never bridged to a neighbour),
+    filtered by area and ordered left to right in row bands (the operator index contract). Each
     component becomes one Detection_Str carrying which cue(s) located it.
 
     Note:
@@ -125,8 +125,8 @@ def Fuse_Objects(masks: tp.List, scores: tp.List[tp.Optional[float]],
         Fuse the FastSAM masks and the background-subtracted mask into the objects.
         The FastSAM union (background-like masks removed) is OR-ed with the
         background foreground, so an object survives on either cue; the result is
-        closed to merge the parts of one object, split with connectedComponentsWithStats,
-        filtered by area and ordered left to right in row bands. Each surviving
+        split with connectedComponentsWithStats, each component closed on its own (the
+        closing fills its gaps but never joins it to a neighbour), filtered by area and ordered left to right in row bands. Each surviving
         component becomes a Detection_Str carrying its Mask, tight Bbox, the cue(s)
         that located it and the best overlapping FastSAM score. Label and Detail are
         left for stage 4.
@@ -151,30 +151,29 @@ def Fuse_Objects(masks: tp.List, scores: tp.List[tp.Optional[float]],
     if int(fused.max()) == 0:
         return []
 
-    closed = fused * 255
-    close_size = Segmentation_Parameters_Str.Close_Kernel
-    if close_size > 0:
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_size, close_size))
-        closed = cv2.morphologyEx(closed, cv2.MORPH_CLOSE, kernel)
-
-    n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(closed, connectivity=8)
+    n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(fused, connectivity=8)
+    labels = __Close_Within_Components(labels, n_labels, stats, Segmentation_Parameters_Str.Close_Kernel, cv2, np)
     min_area = Segmentation_Parameters_Str.Min_Area_Fraction * h * w
-    components = [i for i in range(1, n_labels)
-                 if stats[i, cv2.CC_STAT_AREA] >= min_area]
+    areas = np.bincount(labels.ravel(), minlength=n_labels)
+    components = [i for i in range(1, n_labels) if areas[i] >= min_area]
+
+    # Each component's tight box after its closing (the closing can grow it by up to the kernel).
+    boxes = {}
+    for i in components:
+        ys, xs = np.nonzero(labels == i)
+        boxes[i] = (int(xs.min()), int(ys.min()), int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1))
 
     # Order left to right within row bands (the operator index contract), applied
     # explicitly here and never inherited from the label numbering.
-    components.sort(key=lambda i: (stats[i, cv2.CC_STAT_TOP] // CONST_FUSE_ROW_BAND,
-                                   stats[i, cv2.CC_STAT_LEFT]))
+    components.sort(key=lambda i: (boxes[i][1] // CONST_FUSE_ROW_BAND, boxes[i][0]))
     components = components[:CONST_FUSE_MAX_OBJECTS]
 
     sam_bool = sam_fg > 0
     objects = []
     for i in components:
         comp_mask = labels == i
-        x = int(stats[i, cv2.CC_STAT_LEFT]); y = int(stats[i, cv2.CC_STAT_TOP])
-        bw = int(stats[i, cv2.CC_STAT_WIDTH]); bh = int(stats[i, cv2.CC_STAT_HEIGHT])
-        area = float(stats[i, cv2.CC_STAT_AREA])
+        x, y, bw, bh = boxes[i]
+        area = float(areas[i])
 
         bg_overlap = float(np.count_nonzero(comp_mask & bg_bool)) / area
         sam_overlap = float(np.count_nonzero(comp_mask & sam_bool)) / area
@@ -183,6 +182,53 @@ def Fuse_Objects(masks: tp.List, scores: tp.List[tp.Optional[float]],
             Segmenter_Score=__Component_Score(comp_mask, (x, y, bw, bh), masks, scores, np),
             Cue=__Cue(sam_overlap, bg_overlap)))
     return objects
+
+
+def __Close_Within_Components(labels: tp.List[tp.List[int]], n_labels: int, stats: tp.List[tp.List[int]],
+                              close_size: int, cv2: tp.Any, np: tp.Any) -> tp.List[tp.List[int]]:
+    """
+    Description:
+        Close each fused component ON ITS OWN, so the closing fills gaps and notches inside one
+        component and never joins two that were separate before it. A pixel a component already
+        owns stays its own; a pixel the closing adds is given to the one component that reaches it,
+        and to none when two do — the bridge between near neighbours is exactly what must not form.
+        Closing the fused mask as a whole joined any two parts less than the kernel apart (two
+        plates 9.8 and 10.8 px apart became one object), while on the 20 real test frames it healed
+        nothing: every count was the same with no closing at all.
+
+    Args:
+        (1) labels [Matrix<int32> HxW]: The fused mask's connected-component labels (0 = ground).
+        (2) n_labels [int]: The number of labels, ground included.
+        (3) stats [Matrix<int> Nx5]: connectedComponentsWithStats' per-label statistics.
+        (4) close_size [int]: The closing kernel [px]; 0 disables the closing.
+        (5) cv2 [module]: The OpenCV module, injected by the caller.
+        (6) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [Matrix<int32> HxW]: The labels with each component's closing added.
+    """
+
+    if close_size <= 0:
+        return labels
+    h, w = labels.shape[:2]
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_size, close_size))
+    closed = labels.copy()
+    contested = np.zeros((h, w), bool)
+    for i in range(1, n_labels):
+        # Only the component's box, padded by the kernel, can change.
+        x0 = max(0, int(stats[i, cv2.CC_STAT_LEFT]) - close_size)
+        y0 = max(0, int(stats[i, cv2.CC_STAT_TOP]) - close_size)
+        x1 = min(w, int(stats[i, cv2.CC_STAT_LEFT] + stats[i, cv2.CC_STAT_WIDTH]) + close_size)
+        y1 = min(h, int(stats[i, cv2.CC_STAT_TOP] + stats[i, cv2.CC_STAT_HEIGHT]) + close_size)
+        window = labels[y0:y1, x0:x1]
+        grown = cv2.morphologyEx((window == i).astype(np.uint8), cv2.MORPH_CLOSE, kernel).astype(bool)
+        added = grown & (window == 0)
+        target, lost = closed[y0:y1, x0:x1], contested[y0:y1, x0:x1]
+        clash = added & (target != 0) & (target != i)
+        lost |= clash
+        target[added & ~lost] = i
+        target[lost & (window == 0)] = 0
+    return closed
 
 
 def __Cue(sam_overlap: float, bg_overlap: float) -> str:

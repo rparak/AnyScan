@@ -86,30 +86,12 @@ CONST_MEASURE_HEX_HARMONIC = 0.0075
 CONST_MEASURE_WIDTH_SAMPLES = 360
 
 
-def Measure_Decimals(scale: Scale_Str) -> int:
-    """
-    Description:
-        The decimal places a size is meaningful to, from the scale: one pixel's size sets the
-        resolution, so 0.098 mm/px gives 1 decimal (0.1 mm), 0.5 mm/px gives 0 (whole mm), 0.01
-        mm/px gives 2. Printing more is false precision — and the mask edge is itself uncertain by
-        about a pixel, so this is already the most the measurement can claim.
-
-    Args:
-        (1) scale [Scale_Str(object)]: The image scale.
-
-    Returns:
-        (1) parameter [int]: The decimal places (>= 0).
-    """
-
-    coarsest = max(scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y)
-    return max(0, int(math.floor(-math.log10(coarsest))))
-
-
 def Scale_Log_Line(config_name: str, scale: tp.Optional[Scale_Str]) -> tp.Tuple[str, str]:
     """
     Description:
-        The configuration-loaded line for the measurement scale: at INFO, the scale in mm/px and
-        the precision sizes are shown to; at WARNING, when the configuration's calibration has no
+        The configuration-loaded line for the measurement scale: at INFO, the scale in mm/px — one
+        pixel's size, the finest step a mask edge can resolve; at WARNING, when the configuration's
+        calibration has no
         Conversion_Factor — objects are then not measured at all, and this line says why, instead
         of a size silently computed from a default.
 
@@ -124,10 +106,8 @@ def Scale_Log_Line(config_name: str, scale: tp.Optional[Scale_Str]) -> tp.Tuple[
     if scale is None:
         return ('WARNING', "Configuration '%s' has no calibration Conversion_Factor; objects "
                            "will not be measured." % config_name)
-    decimals = Measure_Decimals(scale)
-    return ('INFO', 'Measuring objects at %.5f x %.5f %s (sizes to %s mm).'
-            % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y, CONST_SCALE_UNITS,
-               '%.*f' % (decimals, 10.0 ** -decimals)))
+    return ('INFO', 'Measuring objects at %.5f x %.5f %s.'
+            % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y, CONST_SCALE_UNITS))
 
 
 def __Edge_Mm(vector: tp.Tuple[float, float], scale: Scale_Str) -> tp.Tuple[float, float]:
@@ -237,10 +217,10 @@ def Measure_Mask(mask: tp.Any, scale: Scale_Str, cv2: tp.Any, np: tp.Any) -> tp.
     rect_area = max(1e-9, w_px * h_px)
     extent = float(sum(cv2.contourArea(c) for c in contours)) / rect_area
 
-    decimals = Measure_Decimals(scale)
+    # The sizes keep their full precision here and wherever they are stored or compared: how many
+    # decimals a person reads is a display choice, made once in Reporting.Core.Object_Size.
     not_elongated = elongation < CONST_MEASURE_SYMMETRIC_ELONGATION
     measurement = Measurement_Str(Elongation=round(elongation, 3), Extent=round(extent, 3),
-                                  Decimals=decimals,
                                   Box_Points=[(float(x), float(y)) for x, y in corners])
     if not_elongated and extent < CONST_MEASURE_SQUARE_EXTENT:
         measurement.Symmetric = True
@@ -254,12 +234,12 @@ def Measure_Mask(mask: tp.Any, scale: Scale_Str, cv2: tp.Any, np: tp.Any) -> tp.
             mm_per_px = math.hypot(scale.Mm_Per_Px_X * math.cos(theta[i]),
                                    scale.Mm_Per_Px_Y * math.sin(theta[i]))
             measurement.Across_Flats = True
-            measurement.Diameter_Mm = round(float(widths[i]) * mm_per_px, decimals)
+            measurement.Diameter_Mm = float(widths[i]) * mm_per_px
         else:
-            measurement.Diameter_Mm = round((long_mm + short_mm) / 2.0, decimals)
+            measurement.Diameter_Mm = (long_mm + short_mm) / 2.0
         return measurement
-    measurement.Width_Mm = round(long_mm, decimals)
-    measurement.Height_Mm = round(short_mm, decimals)
+    measurement.Width_Mm = long_mm
+    measurement.Height_Mm = short_mm
     measurement.Angle_Deg = __Screen_Angle(long_side, 90.0 if not_elongated else 180.0)
     return measurement
 

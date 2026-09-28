@@ -29,7 +29,7 @@ sentence), and a bare `except Exception` can mask an unexpected error as a routi
   the remaining `except Exception` clauses in `__Connect`, `Capture`, `__Set_Optional` and
   `__Close` together with a real camera run.
 
-## The fusion's parameters are validated on seven real frames only
+## The fusion's parameters are validated on thirteen real frames only
 
 This entry used to describe a coverage gate and a mask dilation (`CONST_FILTER_CHANGE_COVERAGE`,
 `CONST_SEG_MASK_DILATE_KERNEL`) tuned on synthetic scenes. **Neither exists any more.** The gate
@@ -48,20 +48,60 @@ Two constants in `Vision/Utilities/Fusion.py` also remain: the 0.10 cue-attribut
 only labels which cue found an object, and the row band / object cap, which order and limit the
 objects.
 
-Unlike the old gate, these have run on real captures: the seven `Data/Images/Test` frames, with object
-counts pinned by tests (`Image_001` → nine objects, `Image_004` → one plate with its soft shadow
-rejected). But seven frames of one table, under one light, with mostly isolated parts, is a narrow
-base.
+Unlike the old gate, these have run on real captures: the thirteen frames of the pinned test set
+(`Evaluation.Frames`, `Data/Images/Test/All`), shot under the calibration and reference in force, with
+every frame's count pinned against a by-eye inventory
+(`test/integration/test_pipeline.py::test_counts_match_the_inventory`). Ten frames match; three do not —
+touching plates, in the entry below. The seven frames of the previous test set (removed in `f5cd075`,
+recoverable from `f5cd075^`, shot under the previous calibration) give the same counts as before the
+closing changed, object masks unchanged pixel for pixel. Thirteen frames of one table, under one light,
+is still a narrow base.
 
-- **Not yet seen on real data:** parts close to the table's colour or dark and featureless, parts
-  that touch, and any other lighting.
+- **Seen since:** parts that touch or nearly touch (`All/Image_009`–`013`), and a dark rusted plate the
+  background cue barely sees (2 % of it in `All/Image_013`), carried by FastSAM alone.
+- **Not yet seen on real data:** parts close to the table's colour, and any other lighting.
 - **The failure signatures to watch:**
   - a real part missing from the count (a cue failed and the other did not carry it)
-  - one part split into two components (the closing kernel too small for its gaps)
-  - two neighbours merged into one (the closing kernel too large, or they touch)
+  - one part split into two components — the closing fills gaps inside a component but no longer
+    joins two separate ones, so a part the cues see in two pieces stays two (not seen on any of the
+    twenty frames: every count there was the same with no closing at all)
+  - two neighbours merged into one (they touch; see *Touching parts merge before the closing*)
   - a part's outline running into its shadow (see the harsh-shadow entry below)
-- **Until more real frames are analysed,** the parameters are trusted on these seven frames only.
-  When a failure signature appears, change the parameter in the configuration, not in code.
+- **Until more real frames are analysed,** the parameters are trusted on these frames only.
+  When a failure signature appears, look at which stage causes it before changing a parameter: the
+  touching-plate merge looked like a closing-kernel problem and three of five were not.
+
+## Touching parts merge before the closing
+
+Of the five two-plate frames in the test set, three still come back as ONE object: `All/Image_009`,
+`011` and `012`. FastSAM itself separates every pair — each plate is its own mask, mostly at
+0.96–0.98 — but the union of the cues joins them before the closing runs:
+
+- **009 and 011:** FastSAM also returns a third mask covering both plates (0.81 and 0.94), which the
+  union includes; without it, the background cue still bridges the dark seam between them.
+- **012:** the two plates' own masks touch (0 px apart), so their union is one shape — and its
+  both-plates mask (0.94) outscores one of the plates (0.82).
+
+`010` and `013` (plates 10.8 and 9.8 px apart) used to merge in the closing; the closing no longer
+joins components that were separate before it, and they now count two (design-decisions, *The closing
+never joins two components*).
+
+- **Impact:** two touching parts read as one object: the count is one low and the size is the pair's.
+- **No configuration reaches it:** the merge happens before the closing and the area filter. Lowering
+  FastSAM's NMS `IoU` could drop the both-plates mask in 009, but in 011 and 012 that mask outscores a
+  plate, so the plate would be suppressed instead — and the background bridge would remain.
+- **Tried and rejected — splitting a merged component by its FastSAM masks with a seam test.** FastSAM
+  returns a hierarchy: both plates, each plate, each machined plate's two halves, the hole rings. "Both
+  plates = two plates" has the same shape in mask space as "one plate = two halves", so a split needs
+  evidence that a boundary is a physical gap. The darkness of the seam between two masks (its 10th
+  percentile over the parts' median) was measured on every candidate pair in all twenty frames:
+  touching plates 0.36–0.46, one plate's halves 0.73–0.88 — but **the robot's body against its arms,
+  legs and head 0.44–0.61**. The robot is separately printed pieces pinned together, so its joints are
+  real seams, and the darkest (0.44) is darker than the lightest plate seam (0.46). Any threshold that
+  splits the plates splits the robot. Do not retry this test without a new kind of evidence: at the
+  seam, two parts touching and one assembled part look the same.
+- **Pinned by:** `test/integration/test_pipeline.py::test_counts_match_the_inventory` — 009, 011 and 012
+  are strict xfails, so the day one separates the suite fails and this entry is revisited.
 
 ## The label mask reveals near-but-distinct objects, not merged touching ones
 
@@ -72,8 +112,8 @@ sit close together but do not touch are separate components, so they render as
 two tinted shapes with two outlines and black ground between them — the mask reads
 as two objects. Two parts that **touch**, however, are already a single component
 by the time they reach the renderer: `Vision.Utilities.Fusion.Fuse_Objects`
-closes and connected-components the fused cues *before* anything is drawn, so a
-merge collapses into one blob upstream. The mask draws one shape with one
+unions and connected-components the fused cues *before* anything is drawn, so a
+merge collapses into one blob upstream (see *Touching parts merge before the closing*). The mask draws one shape with one
 contour and cannot reveal that it was two parts — the merge is not a rendering
 question.
 
@@ -124,11 +164,13 @@ The over-segmentation this entry used to describe — a cast shadow's boundary
 surviving stage 3 as an extra sliver, so N parts reported as more than N — was a
 property of the old coverage-gate + mask-NMS filter. The fusion pipeline replaced
 that filter (see git history: the FastSAM-∪-background-subtraction port), and on
-**real captures the defect is gone**: `Image_004`'s soft cast shadow is stripped
-by the background-subtraction opening (`Segmentation.Background.Open_Kernel` in the configuration) and the
-plate comes back as a single, tight silhouette (rectangularity ~0.88, no shadow
-tail). Measured across all seven `Data/Images/Test` frames, the counts are exactly the
-inventory (15 objects, no over-count).
+**real captures the defect is gone**: the soft cast shadow of the previous test set's
+`Image_004` (a single two-hole plate; the set was removed in `f5cd075`, recoverable from
+`f5cd075^`) is stripped by the background-subtraction opening
+(`Segmentation.Background.Open_Kernel` in the configuration) and the plate comes back as a
+single, tight silhouette (rectangularity ~0.88, no shadow tail). No frame of the current set
+over-counts either: the three wrong counts are all merges (*Touching parts merge before the
+closing*).
 
 What remains is the **opposite, narrower** failure, and only off real data: when a
 shadow is far darker and larger than any real capture — a 40%-darkening ellipse too
@@ -138,8 +180,10 @@ mask extends past the part into the shadow band. This does not over-count (it st
 one object), but the silhouette is no longer tight, and the enhanced crop fed to the
 describer would then contain a strip of table.
 
-- **Fixed case, pinned by:** `test/integration/test_pipeline.py::test_shadow_rejected_on_real_capture`
-  (slow; `Image_004` → one object, rectangularity ≥ 0.80 — the real-capture case that now passes).
+- **Fixed case, pinned by:** `test/integration/test_pipeline.py::test_plates_come_back_as_compact_silhouettes_on_a_real_capture`
+  (slow; `All/Image_003` → three objects, each plate's rectangularity ≥ 0.80) and, for every frame's
+  count, `::test_counts_match_the_inventory`. The current set has no single shadowed plate like the
+  old `Image_004`, so that exact case is no longer pinned.
 - **Open case, pinned by:** `test/integration/test_pipeline.py::test_synthetic_harsh_shadow_not_absorbed_xfail`
   (slow; `xfail(strict=True)`. It asserts the desired behaviour — no object reaches into
   the shadow band — which currently fails. When the pipeline stops absorbing the harsh
@@ -160,11 +204,12 @@ of its own. The run mean is therefore over **exactly** the scored objects, never
 averaging over the partial set silently, and reads `—` when no object has a score; the
 frame's own confidence shows the coverage (e.g. `87% over 5 of 9`).
 
-The limitation stands; its example is stale. When it was written, four of `Image_001`'s
-nine objects were background-only. Re-measured 2026-09-25 with the current pipeline, no
-object in the seven repository frames is: `Image_001` is 4 `both` + 5 `fastsam`, and the
-other six frames' single objects are `both`. So the repository frames score fully (run
-mean 93–95%) and do not exercise this path; a rig frame with a part FastSAM misses would.
+The limitation stands; its example is stale. When it was written, four of the previous
+test set's `Image_001`'s nine objects were background-only; re-measured 2026-09-25, none of
+that set's objects were. On the current set (`All/`, 2026-09-28) none are either: 41 `both`
+and 3 `fastsam` (one each in `Image_001`, `Image_007` and `Image_013` — the dark plate the
+background cue sees 2 % of), every object scored 0.82–0.98. So the test frames score fully and
+do not exercise this path; a rig frame with a part FastSAM misses would.
 
 - **Why not route every object through FastSAM:** the fusion exists because neither
   cue is sufficient, and a single run proved it in both directions (the run this entry
@@ -186,7 +231,8 @@ mean 93–95%) and do not exercise this path; a rig frame with a part FastSAM mi
 
 ## Gemma reads some through-holes as "a central green element"
 
-On the `Image_002` plate, whose two through-holes have dark rims, Gemma describes "two circular
+Seen on the previous test set (removed in `f5cd075`, recoverable from `f5cd075^`; the describer
+has not been re-run on the current set). On its `Image_002` plate, whose two through-holes have dark rims, Gemma describes "two circular
 cutouts each containing a central green element" — the green is the table showing through the
 hole. The object prompt says "A hole may show the green surface through it; that green is not part
 of the part", which fixed the same misreading on `Image_001`'s red block ("a passage allowing a view
@@ -203,7 +249,9 @@ see inside a hole … is the surface below showing through it") made it worse �
 ## The description and the measurement can disagree in the same panel — and the numbers are right
 
 The describer guesses shape from the pixels of one small crop; the measurement computes it from the
-mask. Where they disagree, the measurement is right, and the panel shows both side by side:
+mask. Where they disagree, the measurement is right, and the panel shows both side by side (seen on
+the previous test set, `f5cd075^`; the describer has not been re-run on the current set, and the sizes
+below were shown to one decimal then):
 
 - **Hex nuts** (`Image_001` objects 7 and 8): Gemma calls them "a small, roughly octagonal metal
   washer or flange" and "a circular metal washer or ring" (Florence-2 called them rings too). The

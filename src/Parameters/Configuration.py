@@ -79,7 +79,8 @@ class Segmentation_Parameters_Str:
     #   Unit [int] (px, kernel size)
     Open_Kernel: int = 5
     Dilate: int = 3
-    # Stage 3 morphology: the closing that bridges gaps between the parts of one object.
+    # Stage 3 morphology: the closing that fills gaps and notches inside each fused component; it
+    # never joins two components that were separate before it (Fusion.__Close_Within_Components).
     #   Unit [int] (px, kernel size)
     Close_Kernel: int = 15
     # Stage 3 area filter: a component smaller than this fraction of the frame is a speck.

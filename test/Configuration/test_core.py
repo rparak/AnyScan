@@ -833,7 +833,7 @@ def test_the_test_frames_are_resolved_but_never_checked_at_load(tmp_path: tp.Any
 
     mode, calibration = _Shipped()
     assert Load_Configuration(CONST_DEFAULT_CONFIG_FILE).Evaluation.Frames == os.path.join(
-        CONST_PROJECT_ROOT, 'Data', 'Images', 'Test')
+        CONST_PROJECT_ROOT, 'Data', 'Images', 'Test', 'All')
     mode['Evaluation']['Frames'] = 'Data/Images/No_Such_Directory'
     config = Load_Configuration(_Write(tmp_path, mode, calibration))
     assert config.Evaluation.Frames == os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'No_Such_Directory')

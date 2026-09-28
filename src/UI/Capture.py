@@ -281,11 +281,13 @@ def Distorted_Frame_Record(set_id: str, undistortion: tp.Dict[str, tp.Any]) -> t
 def Measurement_Record(measurement: tp.Optional[Measurement_Str]) -> tp.Optional[tp.Dict[str, tp.Any]]:
     """
     Description:
-        One object's measurement as its '_objects.json' record: sizes in millimetres at the
-        scale's precision, the angle in degrees (screen counter-clockwise from +x; null when
-        symmetric), the symmetric flag and the two numbers it rests on, whether the diameter is
-        across flats and the hexagonality that decides it (null when not symmetric), and the
-        decimals. None when the object was not measured.
+        One object's measurement as its '_objects.json' record: sizes in millimetres as computed
+        (full precision — the displayed decimals are the UI's, Reporting.Core.Object_Size), the
+        angle in degrees (screen counter-clockwise from +x; null when symmetric), the symmetric
+        flag and the two numbers it rests on, and whether the diameter is across flats and the
+        hexagonality that decides it (null when not symmetric). None when the object was not
+        measured. (Records written before sizes kept full precision also carry a 'decimals' key
+        and sizes rounded to it; the reader ignores the key.)
 
     Args:
         (1) measurement [Measurement_Str(object) or None]: The measurement.
@@ -300,7 +302,7 @@ def Measurement_Record(measurement: tp.Optional[Measurement_Str]) -> tp.Optional
             'height_mm': measurement.Height_Mm, 'diameter_mm': measurement.Diameter_Mm,
             'across_flats': measurement.Across_Flats, 'hexagonality': measurement.Hexagonality,
             'angle_deg': measurement.Angle_Deg, 'elongation': measurement.Elongation,
-            'extent': measurement.Extent, 'decimals': measurement.Decimals}
+            'extent': measurement.Extent}
 
 
 def __Record_Number(record: tp.Dict[str, tp.Any], key: str) -> tp.Optional[float]:
@@ -344,8 +346,7 @@ def __Read_Measurement(record: tp.Any) -> tp.Optional[Measurement_Str]:
                                   Hexagonality=__Record_Number(record, 'hexagonality'),
                                   Angle_Deg=__Record_Number(record, 'angle_deg'),
                                   Elongation=__Record_Number(record, 'elongation') or 1.0,
-                                  Extent=__Record_Number(record, 'extent') or 1.0,
-                                  Decimals=int(record.get('decimals', 1)))
+                                  Extent=__Record_Number(record, 'extent') or 1.0)
     complete = (measurement.Diameter_Mm is not None if measurement.Symmetric
                 else measurement.Width_Mm is not None and measurement.Height_Mm is not None)
     return measurement if complete else None

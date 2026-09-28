@@ -64,7 +64,8 @@ class Measurement_Str(object):
     # Whether the object is rotationally symmetric (report a diameter, no angle).
     #   Unit [bool]
     Symmetric: bool = False
-    # Width (long side) and height (short side) in mm — None when symmetric.
+    # Width (long side) and height (short side) in mm, at full precision (never rounded here: the
+    # display rounds, Reporting.Core.Object_Size) — None when symmetric.
     #   Unit [float] (mm)
     Width_Mm: tp.Optional[float] = None
     Height_Mm: tp.Optional[float] = None
@@ -92,9 +93,6 @@ class Measurement_Str(object):
     #   Unit [float]
     Elongation: float = 1.0
     Extent: float = 1.0
-    # The decimal places the sizes are meaningful to, from the scale (one pixel's size).
-    #   Unit [int]
-    Decimals: int = 1
     # The rotated rectangle's four corners in pixels, for drawing (not stored in the capture set).
     #   Unit [Vector<Tuple<float> 1x2>]
     Box_Points: tp.List[tp.Tuple[float, float]] = field(default_factory=list, repr=False,

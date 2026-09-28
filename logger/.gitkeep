@@ -1,70 +1,19 @@
-Gemma 4 describer weights — not tracked in git (see .gitignore)
-=================================================================
+Session logs and per-analysis captures — contents not tracked in git (see .gitignore)
+=====================================================================================
 
-The vision pipeline's describer (stage 4) loads the local vision-language model from:
+This file only keeps the directory in a fresh clone; everything else here is a per-run
+artifact written by the application, never committed. The application also creates the
+directory itself if it is missing (src/Logger/Core.py).
 
-    models/gemma-4-e4b-it-4bit/
-
-Expected contents: an MLX model directory (config.json, generation_config.json,
-processor_config.json, chat_template.jinja, tokenizer.json, model.safetensors and
-model.safetensors.index.json), about 4.8 GB. It runs through MLX / mlx-vlm on Apple
-silicon (see requirements.txt).
-
-Upstream source
+What lands here
 ---------------
-Google Gemma 4 E4B, instruction-tuned (google/gemma-4-E4B-it), converted to 4-bit MLX
-by mlx-community:
+    logger/log_<date>_<HH-MM>.txt    one session log per application start (Logger/Core.py)
+    logger/log_<Hardware>.csv        the run summary, one row per analysis, named after the
+                                     loaded configuration's hardware id (log_unconfigured.csv
+                                     before one is loaded); an older column set is archived
+                                     beside it rather than overwritten
+    logger/captures/                 each analysis's capture set — the frames, annotated
+                                     image, label mask, _objects.json and _understanding.txt,
+                                     bounded to the newest 50 sets (UI/Capture.py)
 
-    https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit
-
-LICENCE: the weights are licensed under the Apache License 2.0
-(https://ai.google.dev/gemma/docs/gemma_4_license) — NOT the MIT licence of this
-repository's code, so the repository's licence does not cover them; anyone shipping them
-does so under Apache 2.0's conditions. The mlx-community card's `license: gemma` tag looks
-like converter boilerplate: upstream google/gemma-4-E4B-it is apache-2.0 (also at the
-converted revision fee6332), and the Gemma Terms of Use exclude Gemma 4 (README > Licence
-note). The app presents the model to the
-operator as "JIC-AnyScan-v1" (see src/Vision/Core.py, CONST_MODEL_NAME, and
-src/Vision/Describers.py, CONST_GEMMA_MODEL_DIR).
-
-How to fetch
-------------
-With the Hugging Face CLI, `hf` (from huggingface_hub, in requirements.txt; the older
-`huggingface-cli` no longer works). Public, no token needed. The revision is pinned to
-the one the application was measured with — verified file by file against these weights:
-
-    hf download mlx-community/gemma-4-e4b-it-4bit \
-        --revision 475b9088d29754a3379866cf5aeb6b41acd313c2 \
-        --local-dir models/gemma-4-e4b-it-4bit
-
-(models/florence2-large-ft/, the previous describer, is no longer used and can be
-deleted.)
-
-
-FastSAM instance-segmentation weights — not tracked in git
-==========================================================
-
-The vision pipeline's stage 2 loads FastSAM-x from:
-
-    models/FastSAM/FastSAM-x.pt
-
-Expected contents: the single ~140 MB FastSAM-x.pt checkpoint.
-
-Upstream source
----------------
-Ultralytics FastSAM (AGPL-3.0 for the code; the weights are the published
-FastSAM-x release):
-
-    https://docs.ultralytics.com/models/fast-sam/
-
-How to fetch
-------------
-Let ultralytics resolve and download the correct release, then move it into place
-(version-robust — no pinned URL to rot):
-
-    python -c "from ultralytics import FastSAM; FastSAM('FastSAM-x.pt')"
-    mkdir -p models/FastSAM && mv FastSAM-x.pt models/FastSAM/
-
-The pipeline resolves this path from Vision/Segmenter.py the same way the
-describer's path is resolved (CONST_SEGMENTER_WEIGHTS); override it per run with
-Example/Vision/analyze.py --weights.
+All of it can be deleted between sessions; nothing the application needs to start is kept here.

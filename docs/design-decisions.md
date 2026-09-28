@@ -139,6 +139,34 @@ representative set, and the tests hold the background-only path. The entry stand
 background-only direction now rests on the original run, not on a frame in the repository.
 Commit `fe4f10c`; tests `test/Vision/Utilities/test_fusion.py::test_object_seen_only_by_fastsam_survives`, `::test_object_seen_only_by_background_survives`.
 
+## The closing never joins two components
+
+Stage 3 splits the fused cues into connected components FIRST and closes each one on its own
+(`Vision.Utilities.Fusion.__Close_Within_Components`): the closing still fills gaps and notches inside
+a component, but a pixel it adds reaching two components goes to neither, and two components that
+were separate before the closing are never one object after it. `Segmentation.Fusion.Close_Kernel`
+stays 15.
+
+**Why.** Closing the fused mask as a whole joined any two parts less than the kernel apart: in the
+test set `All/Image_010` and `013`, two plates 10.8 and 9.8 px apart came back as one object. That was
+a bridge with no reason behind it, and a smaller kernel would only have moved the distance at which
+it happens. Across all twenty real frames (the current thirteen and the previous seven) the closing
+healed nothing — every count was the same with no closing at all — and with the new rule every other
+object's mask is identical pixel for pixel, the lattice bracket and the maze plate included. 010 and
+013 now count two. Cost: fusion ~25 ms slower per frame. The trade-off is stated: a part the cues see
+as two separate pieces now stays two objects (KNOWN_ISSUES, the fusion entry's failure signatures) —
+not seen on any frame.
+
+The other three touching pairs (009, 011, 012) merge before the closing and are not fixed by this;
+the seam-test split that was tried for them is recorded, with why it was rejected, in KNOWN_ISSUES
+(*Touching parts merge before the closing*).
+
+**Revisit if** a real part comes back as two objects because its cues see it in pieces — then the
+bridge it needs is evidence-specific (e.g. both pieces inside one FastSAM mask), not a kernel.
+Tests `test/Vision/Utilities/test_fusion.py::test_the_closing_never_joins_components_that_were_separate`,
+`::test_the_closing_still_fills_a_gap_inside_one_component`,
+`test/integration/test_pipeline.py::test_counts_match_the_inventory` (slow).
+
 ## The annotated view is the exported render, not live Qt painting
 
 The Camera View shows the same image the harness exports (`Draw_Annotated` /
@@ -559,8 +587,10 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   counter-clockwise *as seen on screen*, in [0°, 180°) — computed from the rectangle's corners, not
   from `minAreaRect`'s angle, whose convention changed between OpenCV versions. A test pins
   +30° → 30, −30° → 150, 181° → 1.
-- **Precision from the scale.** Sizes are shown to one pixel's size: `floor(−log10(mm/px))`
-  decimals — 0.098 mm/px → 0.1 mm. That is already the most the mask edge supports.
+- **Precision from the scale.** *Superseded 2026-09-28 (next entry):* sizes were rounded to one
+  pixel's size, `floor(−log10(mm/px))` decimals — 0.098 mm/px → 0.1 mm — when measured, so the stored
+  value was rounded too. The recalibration to 0.10208 mm/px tipped that to 0 decimals, and sizes were
+  stored and shown in whole millimetres with nothing to flag it.
 - **Rotationally symmetric parts report a diameter and no angle.** `minAreaRect` assigns a round
   part an orientation that changes on noise, so a drawn rectangle would appear to spin on a part
   that has not moved. The test is elongation — the square root of the mask's second-moment
@@ -582,6 +612,27 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
 **Revisit if** a part family needs orientation modulo 60° (hex). See README > Limitations: the
 sizes are repeatable, not absolute, and stand unverified against parts of known size.
 Tests `test/Vision/Utilities/test_measure.py`, `test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
+
+## Sizes keep full precision; only the display rounds, to a fixed two decimals
+
+`Vision.Utilities.Measure` stores `Width_Mm`, `Height_Mm` and `Diameter_Mm` as computed, and the
+`_objects.json` record carries them unrounded (no `decimals` key; an older record's key is ignored).
+One function rounds, for display only: `Reporting.Core.Object_Size`, to `CONST_SIZE_DECIMALS = 2`
+(`X.XX mm`, `Ø X.XX mm`, `A/F X.XX mm`) — the Live and History labels, the `.txt` lines and the
+harness all go through it. Nothing that computes, stores or compares a size sees the rounding.
+
+**Why.** The decimal count used to be derived from the scale, applied at measurement. The
+recalibration moved the factor from 0.098 to 0.10208 mm/px, `floor(−log10(…))` went from 1 to 0,
+and every size became whole millimetres — coarser at the moment the lens model got better, with no
+warning. A value whose meaning changes when the calibration moves is worse than a fixed constant.
+**Displayed precision is now finer than measured precision:** the second digit is below one pixel
+(0.10 mm) at the current factor, and a size already carries a position-dependent error of up to
+about 1.5 mm near the frame edge (README > Limitations). Two decimals are a formatting choice — not
+improved resolution, and not a reason to go back to a derived count.
+
+**Revisit if** a size is ever compared or tolerance-checked as text, or the display needs to state
+its own uncertainty (then show it, rather than trimming digits to imply it).
+Tests `test/Vision/Utilities/test_measure.py::test_stored_size_keeps_full_precision_while_the_displayed_text_is_rounded`.
 
 ## Symmetric parts: round ones report Ø, hexagonal ones report across flats (A/F)
 

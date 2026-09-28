@@ -217,3 +217,60 @@ def test_each_object_carries_the_best_overlapping_fastsam_score() -> None:
     assert by_left[40].Segmenter_Score == 0.9
     assert by_left[300].Segmenter_Score == 0.99
     assert by_left[200].Segmenter_Score is None
+
+
+def __Notched_Block(top: int, left: int, notch_from_right: bool) -> np.ndarray:
+    """
+    Description:
+        A 60 x 60 block with a 4 px wide, 30 px deep slot cut in from its left or right edge: a gap
+        inside one part, which the closing (15 px) must fill.
+
+    Args:
+        (1 - 2) top, left [int]: The block's top-left corner.
+        (3) notch_from_right [bool]: Cut the slot in from the right edge (else the left).
+
+    Returns:
+        (1) parameter [Matrix<bool> HxW]: The mask.
+    """
+
+    mask = __Block(CONST_H, CONST_W, top, left)
+    if notch_from_right:
+        mask[top + 28:top + 32, left + 30:left + 60] = False
+    else:
+        mask[top + 28:top + 32, left:left + 30] = False
+    return mask
+
+
+def test_the_closing_never_joins_components_that_were_separate() -> None:
+    """
+    Description:
+        Two parts 8 px apart — well inside the 15 px closing kernel, which used to bridge them into
+        one object (the two plates of All/Image_010 and Image_013, 10.8 and 9.8 px apart) — stay two
+        objects, and no pixel of the gap between them is given to either. Each part's own slot, which
+        faces the other part, is still filled: the closing works inside a component, never across two.
+    """
+
+    left_part = __Notched_Block(150, 100, notch_from_right=True)
+    right_part = __Notched_Block(150, 168, notch_from_right=False)          # 8 px gap: 160..167
+    assert CONST_PARAMETERS.Close_Kernel > 8
+    bg_fg = (left_part | right_part).astype(np.uint8)
+    objects = Fusion.Fuse_Objects([], [], bg_fg, cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
+
+    assert len(objects) == 2
+    assert [obj.Bbox for obj in objects] == [(100, 150, 60, 60), (168, 150, 60, 60)]
+    for obj in objects:
+        assert int(np.count_nonzero(obj.Mask)) == 60 * 60               # its slot filled
+        assert not obj.Mask[150:210, 160:168].any()                     # nothing of the gap
+
+
+def test_the_closing_still_fills_a_gap_inside_one_component() -> None:
+    """
+    Description:
+        A part with a narrow slot is one component; its closing fills the slot, so the object's mask
+        is the whole block — the closing is still applied, only never across components.
+    """
+
+    part = __Notched_Block(150, 150, notch_from_right=True)
+    objects = Fusion.Fuse_Objects([], [], part.astype(np.uint8), cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
+    assert len(objects) == 1
+    assert int(np.count_nonzero(objects[0].Mask)) == 60 * 60

@@ -219,8 +219,8 @@ a stated tolerance does not.
   point, (160.7, 355.5), sits about 800 px from the frame centre. The multi-view recalibration
   (checklist item 1) replaces the lens model, but nothing in this version checks the resulting scale
   against parts of known size.
-- Sizes are shown to 0.1 mm because that is one pixel at 0.098 mm/px, not because they are accurate
-  to 0.1 mm.
+- Sizes are shown to 0.01 mm as a formatting choice: one pixel is about 0.10 mm, and the error above
+  is up to about 1.5 mm, so the second decimal — and the first — says nothing about accuracy.
 
 ### The describer is not a defect detector
 

@@ -53,6 +53,29 @@ Description:
 
 # Two rectangles drawn onto the reference to synthesize a frame with real objects.
 CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
+# The pinned test set's inventory (Evaluation.Frames = Data/Images/Test/All): how many parts are on
+# each frame, counted by looking at the frame — NOT what the pipeline reports, so a wrong count fails.
+# Frames 009-013 are two plates each, touching or a few pixels apart.
+#   Unit [Dict<string, int>]
+CONST_INVENTORY = {
+    'Image_001.png': 5,     # screw with nut, large washer, grey comb, blue double triangle, white washer
+    'Image_002.png': 4,     # flanged bushing, large washer, white washer, robot lying down
+    'Image_003.png': 3,     # machined aluminium plate, robot standing, dark rusted plate
+    'Image_004.png': 3,     # the same three, moved
+    'Image_005.png': 5,     # small hex nut, cap screw, robot, large washer, hex nut
+    'Image_006.png': 5,     # small hex nut, cap screw, red block, large washer, hex nut
+    'Image_007.png': 7,     # rust-stained plate, washer, red block, terminal strip, hex nut, triangle, lattice bracket
+    'Image_008.png': 5,     # screw with nut, large washer, grey comb, maze plate, white washer
+    'Image_009.png': 2,     # two dark rusted plates, 6 px apart
+    'Image_010.png': 2,     # two aluminium plates, 10.8 px apart at one corner
+    'Image_011.png': 2,     # two aluminium plates along their long edge, 1 px apart
+    'Image_012.png': 2,     # two aluminium plates end to end, touching
+    'Image_013.png': 2,     # dark rusted plate at an aluminium plate's corner, 9.8 px apart
+}
+# The frames whose two plates still come back as one object: they are joined before the closing
+# (KNOWN_ISSUES.md, "Touching parts merge before the closing"). Strict xfail: fixing one fails the suite.
+#   Unit [Tuple<string>]
+CONST_KNOWN_MERGES = ('Image_009.png', 'Image_011.png', 'Image_012.png')
 
 
 
@@ -65,6 +88,19 @@ def _Configuration(scaled: bool = False) -> tp.Any:
     config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
     config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
     return config if scaled else dataclasses.replace(config, Scale=None)
+
+
+def _Analyze_Frame(config: tp.Any, name: str) -> tp.Any:
+    """
+    The objects the application's pipeline (fallback describer: masks only, no VLM) finds on one
+    frame of the pinned test set. A missing frame FAILS: these pins went dead once already by
+    skipping on a frame that no longer existed.
+    """
+    import cv2
+    path = os.path.join(config.Evaluation.Frames, name)
+    frame = cv2.imread(path)
+    assert frame is not None, '%s is missing from the pinned test set (%s)' % (name, config.Evaluation.Frames)
+    return Vision_Pipeline_Cls(Configuration_Str=config).Analyze(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).Objects
 
 def test_pipeline_camera_to_reporting(synthetic_frame_path, model_free_backend) -> None:
     """
@@ -137,40 +173,48 @@ def test_pipeline_real_describer_smoke(require_weights, reference_background, ma
 
 
 @pytest.mark.slow
-def test_shadow_rejected_on_real_capture(require_weights, monkeypatch) -> None:
+@pytest.mark.parametrize('name', [pytest.param(name, marks=pytest.mark.xfail(
+                             strict=True, raises=AssertionError,
+                             reason='the two plates are joined before the closing; see KNOWN_ISSUES.md'))
+                         if name in CONST_KNOWN_MERGES else name for name in sorted(CONST_INVENTORY)])
+def test_counts_match_the_inventory(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
-        The real cast-shadow frame (Image_004): one two-hole plate with a soft shadow
-        along its lower edge. The fusion pipeline must report exactly ONE object whose
-        silhouette is a compact plate — the shadow rejected by the opening, not
-        absorbed into the component. Silhouette tightness is checked by rectangularity
-        (mask area / bbox area): a clean rotated plate with two holes measures ~0.88;
-        a shadow tail would extend the box and drop it well below the 0.80 bound.
-
-        This is the real-capture counterpart to the KNOWN_ISSUES shadow entry: it
-        passes because the over-segmentation defect is fixed on real frames. Slow
-        because it runs FastSAM; missing weights fail it (it only runs under --runslow, which
-        asks for them), a missing frame skips it.
+        Every frame of the pinned test set comes back with the number of parts counted on it by eye
+        (CONST_INVENTORY) — a merge lowers the count, a split raises it. 009, 011 and 012 are strict
+        xfails: their touching plates are still one object, and the day one separates it XPASSes and
+        fails the suite. Slow because it runs FastSAM; missing weights fail it under --runslow.
     """
 
     config = _Configuration()
     require_weights([config.Segmentation.Model_Path])
-    frame_path = os.path.join(config.Evaluation.Frames, 'Image_004.png')
-    if not os.path.isfile(frame_path):
-        pytest.skip('Image_004.png not present at %s' % frame_path)
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
+    assert len(_Analyze_Frame(config, name)) == CONST_INVENTORY[name]
 
-    import cv2
+
+@pytest.mark.slow
+def test_plates_come_back_as_compact_silhouettes_on_a_real_capture(require_weights, monkeypatch) -> None:
+    """
+    Description:
+        On a real capture (All/Image_003: a machined plate, the robot, a dark rusted plate) the two
+        plates each come back as ONE compact silhouette — no shadow or neighbour absorbed into the
+        component. Tightness is rectangularity (mask area / bbox area): a clean near-axis-aligned
+        plate is well above 0.80; a shadow tail or a bridge to the robot would extend the box and
+        drop it below. The plates are the leftmost and rightmost objects, the robot between them.
+        (It replaces the soft-shadow check on the previous test set's single-plate Image_004.)
+    """
+
+    config = _Configuration()
+    require_weights([config.Segmentation.Model_Path])
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
     import numpy as np
-    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # count/mask only, no VLM
-
-    scene_bgr = cv2.imread(frame_path)
-    result = Vision_Pipeline_Cls(Configuration_Str=config).Analyze(cv2.cvtColor(scene_bgr, cv2.COLOR_BGR2RGB))
-
-    assert len(result.Objects) == 1
-    det = result.Objects[0]
-    x, y, w, h = det.Bbox
-    rectangularity = int(np.count_nonzero(det.Mask)) / float(w * h)
-    assert rectangularity >= 0.80, 'silhouette is not a compact plate (%.2f) — shadow absorbed?' % rectangularity
+    objects = _Analyze_Frame(config, 'Image_003.png')
+    assert len(objects) == CONST_INVENTORY['Image_003.png']
+    by_x = sorted(objects, key=lambda det: det.Bbox[0] + det.Bbox[2] / 2.0)
+    for plate in (by_x[0], by_x[-1]):
+        x, y, w, h = plate.Bbox
+        rectangularity = int(np.count_nonzero(plate.Mask)) / float(w * h)
+        assert rectangularity >= 0.80, 'plate silhouette is not compact (%.2f)' % rectangularity
 
 
 @pytest.mark.slow
@@ -210,7 +254,7 @@ def test_synthetic_harsh_shadow_not_absorbed_xfail(require_weights, monkeypatch)
     from Vision.Utilities.Fusion import Fuse_Objects
     from Vision.Segmenter import Fast_Sam_Cls
 
-    # Two objects 10 px apart (they merge after the closing), with a harsh cast
+    # Two objects 10 px apart (separate components; the closing no longer joins them), with a harsh cast
     # shadow abutting their lower edges — the parts end at y=520, the shadow reaches
     # to ~y=640.
     w, h = 1000, 800
@@ -238,35 +282,25 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(require_weights, 
     """
     Description:
         The symmetric decision on real captures, through the application's own pipeline and the
-        shipped scale: in Image_001 the round washers and nuts (objects 1, 3, 7, 8) are measured
-        as diameters with no angle, and the elongated parts — the blue shape, the red block, the
-        terminal strip, the screw and the lattice bracket (2, 4, 5, 6, 9) — as A x B with an angle.
-        Of the symmetric four, the two hex nuts (7, 8) report across flats and the two washers
-        (1, 3) a round diameter.
-        The square plate in Image_006 is NOT reported as a diameter (it is un-elongated, but its
-        extent marks it square). Slow because it runs FastSAM; missing weights fail it (it only
-        runs under --runslow, which asks for them).
+        shipped scale: in All/Image_005 (in index order: large washer, robot, small hex nut, cap
+        screw, hex nut) the washer and the two nuts (1, 3, 5) are measured as diameters with no
+        angle, the robot and the screw (2, 4) as A x B with an angle; the two nuts report across
+        flats, the washer a round diameter. The square maze plate in All/Image_008 (object 4:
+        washer, screw with nut, comb, maze plate, white washer) is NOT reported as a diameter (it
+        is un-elongated, but its extent marks it square). Slow because it runs FastSAM; missing
+        weights fail it (it only runs under --runslow, which asks for them).
     """
 
     config = _Configuration(scaled=True)
     require_weights([config.Segmentation.Model_Path])
-    import cv2
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # masks only, no VLM
-    backend = Vision_Pipeline_Cls(Configuration_Str=config)
-    folder = config.Evaluation.Frames
 
-    def _Analyze(name):
-        frame = cv2.imread(os.path.join(folder, name))
-        if frame is None:
-            pytest.skip('%s not present in %s' % (name, folder))
-        return backend.Analyze(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).Objects
-
-    objects = _Analyze('Image_001.png')
-    assert len(objects) == 9
+    objects = _Analyze_Frame(config, 'Image_005.png')
+    assert len(objects) == CONST_INVENTORY['Image_005.png']
     symmetric = [i + 1 for i, det in enumerate(objects) if det.Measurement.Symmetric]
-    assert symmetric == [1, 3, 7, 8]
+    assert symmetric == [1, 3, 5]
     across_flats = [i + 1 for i, det in enumerate(objects) if det.Measurement.Across_Flats]
-    assert across_flats == [7, 8]
+    assert across_flats == [3, 5]
     for det in objects:
         m = det.Measurement
         if m.Symmetric:
@@ -274,5 +308,7 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(require_weights, 
         else:
             assert m.Width_Mm >= m.Height_Mm and m.Angle_Deg is not None
 
-    square = _Analyze('Image_006.png')[0].Measurement
+    objects = _Analyze_Frame(config, 'Image_008.png')
+    assert len(objects) == CONST_INVENTORY['Image_008.png']
+    square = objects[3].Measurement                                    # the maze plate
     assert not square.Symmetric and square.Angle_Deg is not None and square.Angle_Deg < 90.0

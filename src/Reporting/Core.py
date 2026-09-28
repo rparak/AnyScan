@@ -123,6 +123,18 @@ CONST_LABEL_MAX_WORDS = 4
 # written into the file as a ramble.
 CONST_BACKGROUND_FALLBACK = 'The background is a plain surface.'
 
+# ---- Displayed size precision ---------------------------------------------------- #
+# The decimal places a size is SHOWN to ('24.31 × 18.70 mm') — a display choice, applied here and
+# only here (Object_Size); the measurement, the stored record and every comparison keep the full
+# float. It is fixed, not derived from the scale: the old derivation (one pixel's size,
+# floor(-log10(mm/px))) silently dropped from 0.1 mm to whole millimetres when the recalibration
+# moved the factor from 0.098 to 0.102 mm/px. The second digit is BELOW one pixel (~0.1 mm) at the
+# current factor, and a size already carries a position-dependent error of up to ~1.5 mm near the
+# frame edge (README > Limitations): two decimals are not improved resolution — do not read them as
+# such, and do not revert them to a scale-derived count (docs/design-decisions.md).
+#   Unit [int]
+CONST_SIZE_DECIMALS = 2
+
 
 def Zone(bbox: tp.Tuple[int, int, int, int], size: tp.Tuple[int, int]) -> str:
     """
@@ -426,33 +438,34 @@ def Object_Size(det: Detection_Str) -> str:
         The size suffix of an object's label, from its measurement: 'A × B mm' (long side
         first) for an elongated or square-like object, 'Ø D mm' for a round symmetric one and
         'A/F D mm' for a hexagonal one (across flats — the label names the convention, since the
-        two differ by up to 15 % on the same part), at the decimal places the scale supports (Measurement_Str.Decimals — one pixel's size, so
-        never false precision). An empty string when the object is not measured (no mask, or no
-        scale configured): the label then simply has no size, never a placeholder number.
+        two differ by up to 15 % on the same part), rounded to CONST_SIZE_DECIMALS — the one place
+        a size is rounded; the number itself is never changed. An empty string when the object is
+        not measured (no mask, or no scale configured): the label then simply has no size, never a
+        placeholder number.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
 
     Returns:
-        (1) parameter [string]: The size ('24.3 × 18.7 mm' / 'Ø 16.1 mm' / 'A/F 11.7 mm'), or
+        (1) parameter [string]: The size ('24.31 × 18.70 mm' / 'Ø 16.08 mm' / 'A/F 11.72 mm'), or
                                 ''.
     """
 
     measurement = det.Measurement
     if measurement is None:
         return ''
-    decimals = measurement.Decimals
     if measurement.Symmetric:
-        return '%s %.*f mm' % ('A/F' if measurement.Across_Flats else 'Ø', decimals,
+        return '%s %.*f mm' % ('A/F' if measurement.Across_Flats else 'Ø', CONST_SIZE_DECIMALS,
                                measurement.Diameter_Mm)
-    return '%.*f × %.*f mm' % (decimals, measurement.Width_Mm, decimals, measurement.Height_Mm)
+    return '%.*f × %.*f mm' % (CONST_SIZE_DECIMALS, measurement.Width_Mm, CONST_SIZE_DECIMALS,
+                               measurement.Height_Mm)
 
 
 def Object_Label_Full(index: int, det: Detection_Str) -> str:
     """
     Description:
         The whole one-line label of an object — the name, its confidence and, when measured, its
-        size, joined by the one CONST_LABEL_SEPARATOR ('Object 1 · Confidence 91% · 24.3 × 18.7
+        size, joined by the one CONST_LABEL_SEPARATOR ('Object 1 · Confidence 91% · 24.31 × 18.70
         mm'). This is the SINGLE source of the label text for both the descriptions file (via
         Object_Line) and the panel, which renders the parts (Object_Label, Object_Confidence,
         Object_Size) in different weights so the name leads. Both renderings carry the same

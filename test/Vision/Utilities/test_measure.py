@@ -32,9 +32,9 @@ import pytest
 # Custom Lib.: AnyScan — measurement, the formatter, the config reader, the renderer, the writer
 #   ../Vision/Utilities/Measure
 import Vision.Utilities.Measure as Measure
-from Vision.Utilities.Measure import Measure_Mask, Measure_Objects, Measure_Decimals
+from Vision.Utilities.Measure import Measure_Mask, Measure_Objects
 #   ../Reporting/Core
-from Reporting.Core import Object_Size, Object_Label_Full
+from Reporting.Core import Object_Size, Object_Label_Full, CONST_SIZE_DECIMALS
 #   ../Vision/Utilities/Measure — the scale's configuration-loaded line
 from Vision.Utilities.Measure import Scale_Log_Line
 #   ../Vision/Utilities/Annotate
@@ -55,7 +55,7 @@ Description:
     when its centre lies inside the rectangle — so their true size and angle are exact.
 """
 
-# A round-number scale: 0.1 mm per pixel on both axes (so 200 px = 20.0 mm, 1 decimal).
+# A round-number scale: 0.1 mm per pixel on both axes (so 200 px = 20.0 mm).
 CONST_SCALE = Scale_Str(Mm_Per_Px_X=0.1, Mm_Per_Px_Y=0.1)
 # The frame the synthetic masks are drawn on (h, w).
 CONST_SHAPE = (700, 900)
@@ -106,7 +106,8 @@ def test_known_size_and_angle_through_a_known_factor() -> None:
     """
 
     straight = Measure_Mask(_Rectangle(200, 100, 0.0), CONST_SCALE, cv2, np)
-    assert (straight.Width_Mm, straight.Height_Mm, straight.Angle_Deg) == (20.0, 10.0, 0.0)
+    assert straight.Width_Mm == pytest.approx(20.0, abs=1e-9) and straight.Height_Mm == pytest.approx(10.0, abs=1e-9)
+    assert straight.Angle_Deg == 0.0
     assert not straight.Symmetric and straight.Diameter_Mm is None
 
     rotated = Measure_Mask(_Rectangle(200, 100, 30.0), CONST_SCALE, cv2, np)
@@ -165,7 +166,7 @@ def test_hexagonal_part_reports_across_flats(rotation: float) -> None:
     assert nut.Hexagonality >= Measure.CONST_MEASURE_HEX_HARMONIC
     assert nut.Diameter_Mm == pytest.approx(12.0, abs=0.15)
     assert Object_Size(Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Measurement=nut)) == \
-        'A/F %.1f mm' % nut.Diameter_Mm
+        'A/F %.2f mm' % nut.Diameter_Mm
 
 
 @pytest.mark.parametrize('radius', [12.0, 25.0, 60.0, 150.0])
@@ -209,21 +210,48 @@ def test_each_axis_uses_its_own_factor() -> None:
     mask = np.zeros(CONST_SHAPE, bool)
     mask[300:400, 350:550] = True
     measured = Measure_Mask(mask, Scale_Str(Mm_Per_Px_X=0.1, Mm_Per_Px_Y=0.12), cv2, np)
-    assert (measured.Width_Mm, measured.Height_Mm) == (20.0, 12.0)
+    assert measured.Width_Mm == pytest.approx(20.0, abs=1e-9) and measured.Height_Mm == pytest.approx(12.0, abs=1e-9)
 
 
-def test_decimals_follow_the_scale_resolution() -> None:
+def test_stored_size_keeps_full_precision_while_the_displayed_text_is_rounded(tmp_path) -> None:
     """
     Description:
-        Sizes are shown to the resolution one pixel supports — 0.098 mm/px to 0.1 mm, 0.5 mm/px to
-        whole millimetres, 0.01 mm/px to 0.01 mm — never three decimals on a coarse scale.
+        The distinction the display rounding rests on: the measurement and the '_objects.json'
+        record carry the size AS COMPUTED — 243 x 187 px at the shipped 0.10208 mm/px is
+        24.80544 x 19.08896 mm, not 24.81 or 25 — and only the displayed text is rounded, to the
+        fixed CONST_SIZE_DECIMALS whatever the scale: the old 0.098 mm/px factor, the current
+        0.10208 and a coarse 0.5 all show two decimals, so a recalibration cannot change them.
     """
 
-    assert Measure_Decimals(Scale_Str(0.098, 0.098)) == 1
-    assert Measure_Decimals(Scale_Str(0.5, 0.5)) == 0
-    assert Measure_Decimals(Scale_Str(0.01, 0.01)) == 2
-    coarse = Measure_Mask(_Rectangle(200, 100, 0.0), Scale_Str(0.5, 0.5), cv2, np)
-    assert Object_Size(Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Measurement=coarse)) == '100 × 50 mm'
+    import json, glob, os
+    scale = Scale_Str(Mm_Per_Px_X=0.10208, Mm_Per_Px_Y=0.10208)
+    part = Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Sentence='A part.', Segmenter_Score=0.9,
+                         Measurement=Measure_Mask(_Block(243, 187), scale, cv2, np))
+    # 1e-5: minAreaRect's corners are float32, so this is as computed; any rounding to hundredths
+    # would sit up to 0.005 away (24.81 is 0.0046 from 24.80544).
+    assert part.Measurement.Width_Mm == pytest.approx(243 * 0.10208, abs=1e-5)
+    assert part.Measurement.Height_Mm == pytest.approx(187 * 0.10208, abs=1e-5)
+
+    metadata = Build_Set_Metadata('s', 'set', '2026-09-28T10:00:00', [part], (60, 40), 't', 1, 90,
+                                  scale=scale, configuration='Config_Test_Mode_A.yaml',
+                                  background_reference='Data/Images/Background/Image_Background_001.png',
+                                  hardware={}, window=None)
+    raw = np.zeros((40, 60, 3), np.uint8)
+    Capture_Writer_Cls(str(tmp_path)).Write('s', 'set', raw, raw, raw, 'text', [], [], metadata, 'stamp', cv2, np,
+                                            distorted_bgr=None, undistortion=None)
+    record = json.load(open(glob.glob(os.path.join(str(tmp_path), 's', 'set_objects.json'))[0]))
+    stored = record['objects'][0]['measurement']
+    assert (stored['width_mm'], stored['height_mm']) == (part.Measurement.Width_Mm, part.Measurement.Height_Mm)
+    assert 'decimals' not in stored
+
+    read_back = Discover_Capture_Sets(str(tmp_path))[0].Objects[0]
+    assert read_back.Measurement.Width_Mm == part.Measurement.Width_Mm
+    assert Object_Size(read_back) == Object_Size(part) == '24.81 × 19.09 mm'
+
+    for mm_per_px in (0.098, 0.10208, 0.5):
+        coarse = Measure_Mask(_Block(200, 100), Scale_Str(mm_per_px, mm_per_px), cv2, np)
+        text = Object_Size(Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Measurement=coarse))
+        assert text == '%.2f × %.2f mm' % (200 * mm_per_px, 100 * mm_per_px) and CONST_SIZE_DECIMALS == 2
 
 
 def test_label_carries_the_size_after_the_confidence() -> None:
@@ -242,11 +270,11 @@ def test_label_carries_the_size_after_the_confidence() -> None:
                         Measurement=Measure_Mask(_Hexagon(120.0, 0.0), CONST_SCALE, cv2, np))
     plain = Detection_Str(Label='p', Bbox=(0, 0, 1, 1), Segmenter_Score=0.91)
 
-    assert Object_Label_Full(0, rectangle) == 'Object 1 · Confidence 91% · 24.3 × 18.7 mm'
+    assert Object_Label_Full(0, rectangle) == 'Object 1 · Confidence 91% · 24.30 × 18.70 mm'
     import re
-    assert re.fullmatch(r'Ø \d+\.\d mm', Object_Size(disc)), Object_Size(disc)   # one decimal
+    assert re.fullmatch(r'Ø \d+\.\d\d mm', Object_Size(disc)), Object_Size(disc)   # two decimals
     assert Object_Label_Full(0, disc) == 'Object 1 · Confidence 91% · ' + Object_Size(disc)
-    assert Object_Label_Full(0, nut) == 'Object 1 · Confidence 91% · A/F 12.0 mm'
+    assert Object_Label_Full(0, nut) == 'Object 1 · Confidence 91% · ' + 'A/F %.2f mm' % nut.Measurement.Diameter_Mm
     assert Object_Label_Full(0, plain) == 'Object 1 · Confidence 91%'
 
 
@@ -267,7 +295,7 @@ def test_missing_factor_degrades_to_no_measurement_with_a_warning(tmp_path) -> N
     level, line = Scale_Log_Line('no_factor.yaml', None)
     assert level == 'WARNING' and 'will not be measured' in line
     level, line = Scale_Log_Line('cfg.yaml', CONST_SCALE)
-    assert level == 'INFO' and 'mm/px' in line and '0.1 mm' in line
+    assert level == 'INFO' and '0.10000 x 0.10000 mm/px' in line
 
 
 def test_stored_set_records_the_measurements_and_the_scale_that_produced_them(tmp_path) -> None:
@@ -301,7 +329,7 @@ def test_stored_set_records_the_measurements_and_the_scale_that_produced_them(tm
     assert (read_back.Width_Mm, read_back.Height_Mm, read_back.Angle_Deg) == \
         (measured.Measurement.Width_Mm, measured.Measurement.Height_Mm, measured.Measurement.Angle_Deg)
     assert sets['without'].Scale is None and sets['without'].Objects[0].Measurement is None
-    assert Object_Size(stored.Objects[1]) == Object_Size(nut) == 'A/F %.1f mm' % nut.Measurement.Diameter_Mm
+    assert Object_Size(stored.Objects[1]) == Object_Size(nut) == 'A/F %.2f mm' % nut.Measurement.Diameter_Mm
     import json, glob, os
     path = glob.glob(os.path.join(str(tmp_path), 's', 'with_objects.json'))[0]
     record = json.load(open(path))
@@ -312,7 +340,7 @@ def test_stored_set_records_the_measurements_and_the_scale_that_produced_them(tm
     json.dump(record, open(path, 'w'))
     legacy = {cap.Set_Id: cap for cap in Discover_Capture_Sets(str(tmp_path))}['with'].Objects[1]
     assert not legacy.Measurement.Across_Flats and legacy.Measurement.Hexagonality is None
-    assert Object_Size(legacy) == 'Ø %.1f mm' % nut.Measurement.Diameter_Mm
+    assert Object_Size(legacy) == 'Ø %.2f mm' % nut.Measurement.Diameter_Mm
 
 
 def test_camera_view_draws_the_rotated_rectangle_solid_and_the_axis_box_dashed() -> None:

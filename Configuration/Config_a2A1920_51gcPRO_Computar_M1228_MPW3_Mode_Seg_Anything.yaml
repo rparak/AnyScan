@@ -83,7 +83,8 @@ Segmentation:
     Dilate: 3
   # Stage 3, the fusion of the FastSAM masks and the background difference.
   Fusion:
-    # Closing kernel [px] that bridges gaps between the parts of one object. Default: 15
+    # Closing kernel [px] that fills gaps and notches inside each fused component; it never joins
+    # two components that were separate before it. Default: 15
     Close_Kernel: 15
     # A component smaller than this fraction of the frame is a speck. Default: 0.0005
     Min_Area_Fraction: 0.0005
@@ -193,7 +194,9 @@ Camera:
 # only resolves them — a missing directory never stops the application from loading.
 Evaluation:
   # The test frames analyze.py runs on (Image_NNN.png): the pinned set the tests' expectations refer
-  # to. analyze.py checks the directory, and each frame's size against Camera.Resolution. Adding a
-  # frame here changes what "the seven frames" means — a deliberate move, never a tool's side effect.
+  # to (the thirteen frames' inventory, test/integration/test_pipeline.py CONST_INVENTORY). analyze.py
+  # checks the directory, and each frame's size against Camera.Resolution. Adding, moving or
+  # renumbering a frame here changes what the pins test — a deliberate move, updated with them, never
+  # a tool's side effect. Data/Images/Test/Mounting_Plate and Labyrinth are raw captures, not tested.
   # Default: not set (analyze.py then needs --input-dir).
-  Frames: Data/Images/Test
+  Frames: Data/Images/Test/All
