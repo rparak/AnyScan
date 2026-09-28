@@ -55,9 +55,10 @@ Description:
 
 # The elongation below which an object is not elongated: the square root of the ratio of its
 # mask's second-moment eigenvalues (the axis-length ratio of the equivalent ellipse, 1.0 for a
-# disc or a square). Measured on the thirteen Data/Images/Test/All frames (2026-09-28): round parts
+# disc or a square). Measured on the eight Data/Images/Test/All frames (2026-09-28): round parts
 # (washers, nuts, the bushing) 1.002-1.016; the least elongated non-square part 1.468 (the robot in
-# 005), the plates 1.49-1.60, the screws 3.76-4.05. 1.15 sits ten times the round parts' noise above
+# 005), the plates 1.49-1.54, the screws 3.76-4.05. (The thirteen-frame set of 2d163a6^ gave the same,
+# with plates up to 1.60.) 1.15 sits ten times the round parts' noise above
 # 1.0 and far below any elongated part. (The square maze plate, 1.013, is told apart by its extent.)
 #   Unit [float]
 CONST_MEASURE_SYMMETRIC_ELONGATION = 1.15

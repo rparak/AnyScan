@@ -23,6 +23,8 @@
 
 # System (Default)
 import os
+# Glob (Unix-style pathname pattern expansion)
+import glob
 # Typing (Support for type hints)
 import typing as tp
 # Pytest (Testing framework) [pip3 install pytest]
@@ -55,7 +57,8 @@ Description:
 CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 # The pinned test set's inventory (Evaluation.Frames = Data/Images/Test/All): how many parts are on
 # each frame, counted by looking at the frame — NOT what the pipeline reports, so a wrong count fails.
-# Frames 009-013 are two plates each, touching or a few pixels apart.
+# The five two-plate frames 009-013 were removed from the set in 2d163a6 (recoverable from 2d163a6^);
+# their evidence is in KNOWN_ISSUES.md, "Touching parts merge before the closing".
 #   Unit [Dict<string, int>]
 CONST_INVENTORY = {
     'Image_001.png': 5,     # screw with nut, large washer, grey comb, blue double triangle, white washer
@@ -66,16 +69,7 @@ CONST_INVENTORY = {
     'Image_006.png': 5,     # small hex nut, cap screw, red block, large washer, hex nut
     'Image_007.png': 7,     # rust-stained plate, washer, red block, terminal strip, hex nut, triangle, lattice bracket
     'Image_008.png': 5,     # screw with nut, large washer, grey comb, maze plate, white washer
-    'Image_009.png': 2,     # two dark rusted plates, 6 px apart
-    'Image_010.png': 2,     # two aluminium plates, 10.8 px apart at one corner
-    'Image_011.png': 2,     # two aluminium plates along their long edge, 1 px apart
-    'Image_012.png': 2,     # two aluminium plates end to end, touching
-    'Image_013.png': 2,     # dark rusted plate at an aluminium plate's corner, 9.8 px apart
 }
-# The frames whose two plates still come back as one object: they are joined before the closing
-# (KNOWN_ISSUES.md, "Touching parts merge before the closing"). Strict xfail: fixing one fails the suite.
-#   Unit [Tuple<string>]
-CONST_KNOWN_MERGES = ('Image_009.png', 'Image_011.png', 'Image_012.png')
 
 
 
@@ -99,7 +93,10 @@ def _Analyze_Frame(config: tp.Any, name: str) -> tp.Any:
     import cv2
     path = os.path.join(config.Evaluation.Frames, name)
     frame = cv2.imread(path)
-    assert frame is not None, '%s is missing from the pinned test set (%s)' % (name, config.Evaluation.Frames)
+    if frame is None:
+        # pytest.fail, not assert: an AssertionError here would satisfy an xfail(raises=AssertionError)
+        # around the caller, and a missing frame would read as the expected failure.
+        pytest.fail('%s is missing from the pinned test set (%s)' % (name, config.Evaluation.Frames))
     return Vision_Pipeline_Cls(Configuration_Str=config).Analyze(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).Objects
 
 def test_pipeline_camera_to_reporting(synthetic_frame_path, model_free_backend) -> None:
@@ -173,23 +170,34 @@ def test_pipeline_real_describer_smoke(require_weights, reference_background, ma
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize('name', [pytest.param(name, marks=pytest.mark.xfail(
-                             strict=True, raises=AssertionError,
-                             reason='the two plates are joined before the closing; see KNOWN_ISSUES.md'))
-                         if name in CONST_KNOWN_MERGES else name for name in sorted(CONST_INVENTORY)])
+@pytest.mark.parametrize('name', sorted(CONST_INVENTORY))
 def test_counts_match_the_inventory(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
         Every frame of the pinned test set comes back with the number of parts counted on it by eye
-        (CONST_INVENTORY) — a merge lowers the count, a split raises it. 009, 011 and 012 are strict
-        xfails: their touching plates are still one object, and the day one separates it XPASSes and
-        fails the suite. Slow because it runs FastSAM; missing weights fail it under --runslow.
+        (CONST_INVENTORY) — a merge lowers the count, a split raises it. A frame missing from the set
+        fails. Slow because it runs FastSAM; missing weights fail it under --runslow.
     """
 
     config = _Configuration()
     require_weights([config.Segmentation.Model_Path])
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
     assert len(_Analyze_Frame(config, name)) == CONST_INVENTORY[name]
+
+
+def test_the_inventory_names_every_frame_of_the_test_set() -> None:
+    """
+    Description:
+        CONST_INVENTORY names exactly the frames in the pinned test set (Evaluation.Frames): a frame
+        added without a count, or removed while its count stays, fails here in the default run,
+        without the weights. The count test above only notices under --runslow, and twice frames
+        moved without the inventory following.
+    """
+
+    config = _Configuration()
+    frames = sorted(os.path.basename(path) for path in glob.glob(os.path.join(config.Evaluation.Frames,
+                                                                             'Image_[0-9]*.png')))
+    assert frames == sorted(CONST_INVENTORY)
 
 
 @pytest.mark.slow

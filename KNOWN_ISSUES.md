@@ -29,7 +29,7 @@ sentence), and a bare `except Exception` can mask an unexpected error as a routi
   the remaining `except Exception` clauses in `__Connect`, `Capture`, `__Set_Optional` and
   `__Close` together with a real camera run.
 
-## The fusion's parameters are validated on thirteen real frames only
+## The fusion's parameters are validated on eight real frames only
 
 This entry used to describe a coverage gate and a mask dilation (`CONST_FILTER_CHANGE_COVERAGE`,
 `CONST_SEG_MASK_DILATE_KERNEL`) tuned on synthetic scenes. **Neither exists any more.** The gate
@@ -48,23 +48,26 @@ Two constants in `Vision/Utilities/Fusion.py` also remain: the 0.10 cue-attribut
 only labels which cue found an object, and the row band / object cap, which order and limit the
 objects.
 
-Unlike the old gate, these have run on real captures: the thirteen frames of the pinned test set
+Unlike the old gate, these have run on real captures: the eight frames of the pinned test set
 (`Evaluation.Frames`, `Data/Images/Test/All`), shot under the calibration and reference in force, with
 every frame's count pinned against a by-eye inventory
-(`test/integration/test_pipeline.py::test_counts_match_the_inventory`). Ten frames match; three do not —
-touching plates, in the entry below. The seven frames of the previous test set (removed in `f5cd075`,
-recoverable from `f5cd075^`, shot under the previous calibration) give the same counts as before the
-closing changed, object masks unchanged pixel for pixel. Thirteen frames of one table, under one light,
-is still a narrow base.
+(`test/integration/test_pipeline.py::test_counts_match_the_inventory`). All eight match. Five more
+frames, two plates each, were in the set until `2d163a6` removed them (recoverable from `2d163a6^`);
+three of those merged, in the entry below. The seven frames of the previous test set (removed in
+`f5cd075`, recoverable from `f5cd075^`, shot under the previous calibration) give the same counts as
+before the closing changed, object masks unchanged pixel for pixel. Eight frames of one table, under one
+light, is still a narrow base.
 
-- **Seen since:** parts that touch or nearly touch (`All/Image_009`–`013`), and a dark rusted plate the
-  background cue barely sees (2 % of it in `All/Image_013`), carried by FastSAM alone.
+- **Seen since:** parts that touch or nearly touch, and a dark rusted plate the background cue barely
+  sees (2 % of it), carried by FastSAM alone — both on frames no longer in the set (`All/Image_009`–`013`,
+  recoverable from `2d163a6^`).
 - **Not yet seen on real data:** parts close to the table's colour, and any other lighting.
 - **The failure signatures to watch:**
   - a real part missing from the count (a cue failed and the other did not carry it)
   - one part split into two components — the closing fills gaps inside a component but no longer
     joins two separate ones, so a part the cues see in two pieces stays two (not seen on any of the
-    twenty frames: every count there was the same with no closing at all)
+    twenty frames it was measured on — the thirteen of `2d163a6^` and the previous seven: every count
+    there was the same with no closing at all)
   - two neighbours merged into one (they touch; see *Touching parts merge before the closing*)
   - a part's outline running into its shadow (see the harsh-shadow entry below)
 - **Until more real frames are analysed,** the parameters are trusted on these frames only.
@@ -73,8 +76,13 @@ is still a narrow base.
 
 ## Touching parts merge before the closing
 
-Of the five two-plate frames in the test set, three still come back as ONE object: `All/Image_009`,
-`011` and `012`. Five routes to separating them have been measured, and all five fail. They fail for the
+*Evidence from frames no longer in the test set* — `All/Image_009`–`013`, the five two-plate frames,
+were removed in `2d163a6` and are recoverable from `2d163a6^`. Every number in this entry was measured
+on them (and, where stated, on the previous set's seven frames, `f5cd075^`). The eight frames now in
+`All/` hold no touching parts, so the entry cannot be re-measured on the current set; route 2 below is
+re-measured where the eight can answer it. The reasoning stands; the frames are gone.
+
+Of the five two-plate frames, three came back as ONE object: `All/Image_009`, `011` and `012`. Five routes to separating them have been measured, and all five fail. They fail for the
 same reason, and that reason is why this entry exists:
 
 **FastSAM's output contains the division, and nothing structural identifies which level holds it.**
@@ -111,8 +119,8 @@ background bridge is dealt with separately. A model swap alone does not close th
 - **012's second bridge is FastSAM's own:** its plate edges each bleed ~3 px into a 6 px seam and meet
   mid-seam over 35 rows. At the 1024 px inference size the seam is ~3 px wide.
 
-`010` and `013` (plates 10.8 and 9.8 px apart) used to merge in the closing; the closing no longer
-joins components that were separate before it, and they now count two (design-decisions, *The closing
+`010` and `013` (plates 10.8 and 9.8 px apart) used to merge in the closing; once the closing stopped
+joining components that were separate before it, they counted two (design-decisions, *The closing
 never joins two components*).
 
 - **Impact:** two touching parts read as one object: the count is one low and the size is the pair's.
@@ -126,8 +134,9 @@ never joins two components*).
 
 ### The five routes, measured 2026-09-28
 
-All five were measured on the thirteen frames of `All/` (FastSAM at 1024 px on the CPU). Routes 3–5
-were also measured on the seven old frames (`f5cd075^`, with the reference of that commit).
+All five were measured on the thirteen frames `All/` held at `2d163a6^` (FastSAM at 1024 px on the
+CPU). Routes 3–5 were also measured on the seven old frames (`f5cd075^`, with the reference of that
+commit).
 
 - **1. Lowering FastSAM's NMS `IoU` (`Segmentation.IoU`, shipped 0.9).** Measured at 0.9 / 0.7 / 0.5 /
   0.3: 009, 011 and 012 count one at every value, and the other ten frames stay on the inventory. The
@@ -141,21 +150,25 @@ were also measured on the seven old frames (`f5cd075^`, with the reference of th
   right one.
 - **2. A larger inference size (`Segmentation.Image_Size`).** At 1024 the 6–10 px seam is ~3 px wide,
   so running closer to the frame's 1920 px looked like a configuration fix. Measured at 1024 / 1280 /
-  1536 / 1920:
-  - **It fixes the cause and creates a worse one.** The both-plates mask weakens as the size grows —
-    011 0.94 → 0.96 → 0.79 → **0.48**, 012 0.94 → 0.91 → 0.81 → **0.43** — but the plates' own masks
-    grow into the seam (they take in the dark edge and the side wall, which is the seam) and touch: at
-    1920 in all five two-plate frames, 86–3,132 px of contact, 011 included (923 px), which does not touch
-    at 1024. 009, 011 and 012 stay merged at every size.
-  - **It costs frames that count correctly.** Off the inventory: 1024 — 009, 011, 012; 1280 and 1536 —
-    those plus 010, 013 (their plate masks now touch), 003, 004; 1920 — 009, 011, 012, 013, 003, 004,
-    005. At 1920 in `All/Image_003` one FastSAM mask covers **0.495** of the frame — the right half of the
-    table — just under the 0.50 `Background_Area_Fraction` that would reject it as the table plane, so it
-    stays in the union and joins the robot and the dark plate. That threshold sits at the edge of where it
-    matters; this is the number beside it.
-  - **Time is not the reason.** FastSAM per frame (median / max): 171 / 237 ms at 1024, 231 / 292 at
-    1280, 299 / 398 at 1536, 435 / 495 at 1920 — at most a quarter of a second more, against Gemma's
-    seconds per object. The counts are the reason: `Image_Size` stays 1024.
+  1536 / 1920, first on the thirteen frames (`2d163a6` recorded it as measured on all thirteen, in the
+  same commit that removed five of them), then again on the eight that remain:
+  - **It fixes the cause and creates a worse one** (the two-plate frames only, so not re-measurable). The
+    both-plates mask weakens as the size grows — 011 0.94 → 0.96 → 0.79 → **0.48**, 012 0.94 → 0.91 →
+    0.81 → **0.43** — but the plates' own masks grow into the seam (they take in the dark edge and the
+    side wall, which is the seam) and touch: at 1920 in all five two-plate frames, 86–3,132 px of contact,
+    011 included (923 px), which does not touch at 1024. 009, 011 and 012 stay merged at every size.
+  - **It costs frames that count correctly — re-measured on the eight, the same frames fail.** Off the
+    inventory on the eight: 1024 — none; 1280 and 1536 — 003, 004; 1920 — 003, 004, 005. (On the
+    thirteen the five two-plate frames were off as well: 009, 011, 012 at every size, 010 and 013 from
+    1280 as their plate masks began to touch, 010 recovering at 1920.) At 1920 in `All/Image_003` one
+    FastSAM mask covers **0.495** of the frame — the right half of the table — just under the 0.50
+    `Background_Area_Fraction` that would reject it as the table plane, so it stays in the union and joins
+    the robot and the dark plate; re-measured on the eight, the same 0.495. That threshold sits at the
+    edge of where it matters; this is the number beside it.
+  - **Time is not the reason.** FastSAM per frame on the eight (median / max, MPS): 167 / 206 ms at 1024,
+    237 / 299 at 1280, 310 / 343 at 1536, 443 / 483 at 1920 (the thirteen gave 171 / 237 to 435 / 495) —
+    at most a quarter of a second more, against Gemma's seconds per object. The counts are the reason:
+    `Image_Size` stays 1024.
 - **3. Splitting a merged component by its FastSAM masks with a seam test.** "Both plates = two
   plates" has the same shape in mask space as "one plate = two halves", so this route looked for
   evidence that a boundary is a physical gap. It measured the darkness of the seam between two masks
@@ -223,8 +236,9 @@ were also measured on the seven old frames (`f5cd075^`, with the reference of th
   - **The leaf-overlap test does not protect the robot.** Leaves are the finest pieces, so they barely
     overlap (≤ 0.079). It is the robot's larger masks that overlap.
 
-- **Pinned by:** `test/integration/test_pipeline.py::test_counts_match_the_inventory` — 009, 011 and 012
-  are strict xfails, so the day one separates the suite fails and this entry is revisited.
+- **Pinned by:** nothing any more. The strict xfails on 009, 011 and 012 went with the frames in
+  `2d163a6`; restoring the frames from `2d163a6^` together with their inventory entries brings the pin
+  back.
 
 ## The label mask reveals near-but-distinct objects, not merged touching ones
 
@@ -329,9 +343,11 @@ frame's own confidence shows the coverage (e.g. `87% over 5 of 9`).
 
 The limitation stands; its example is stale. When it was written, four of the previous
 test set's `Image_001`'s nine objects were background-only; re-measured 2026-09-25, none of
-that set's objects were. On the current set (`All/`, 2026-09-28) none are either: 41 `both`
-and 3 `fastsam` (one each in `Image_001`, `Image_007` and `Image_013` — the dark plate the
-background cue sees 2 % of), every object scored 0.82–0.98. So the test frames score fully and
+that set's objects were. On the current set (`All/`, the eight frames left after `2d163a6`,
+re-measured 2026-09-28) none are either: 37 objects, 35 `both` and 2 `fastsam` (the blue double
+triangle in `Image_001`, the lattice bracket in `Image_007`), every object scored 0.82–0.98. The
+thirteen-frame set had a third `fastsam` object, the dark plate the background cue sees 2 % of, in
+`Image_013` (`2d163a6^`). So the test frames score fully and
 do not exercise this path; a rig frame with a part FastSAM misses would.
 
 - **Why not route every object through FastSAM:** the fusion exists because neither

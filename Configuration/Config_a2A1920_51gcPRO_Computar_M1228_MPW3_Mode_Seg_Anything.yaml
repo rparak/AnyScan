@@ -195,7 +195,7 @@ Camera:
 # only resolves them — a missing directory never stops the application from loading.
 Evaluation:
   # The test frames analyze.py runs on (Image_NNN.png): the pinned set the tests' expectations refer
-  # to (the thirteen frames' inventory, test/integration/test_pipeline.py CONST_INVENTORY). analyze.py
+  # to (the eight frames' inventory, test/integration/test_pipeline.py CONST_INVENTORY). analyze.py
   # checks the directory, and each frame's size against Camera.Resolution. Adding, moving or
   # renumbering a frame here changes what the pins test — a deliberate move, updated with them, never
   # a tool's side effect. Data/Images/Test/Mounting_Plate and Labyrinth are raw captures, not tested.

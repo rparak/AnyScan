@@ -205,9 +205,9 @@ in another. Nothing in this version verifies the absolute scale either, so the o
 magnitude is unknown. Comparing like parts in like positions works; deciding whether a part is within
 a stated tolerance does not.
 
-- **Repeatable:** on the test set (`Data/Images/Test/All`, 2026-09-28), the rust-stained plate in
-  `Image_007`, `010` and `013`, placed differently, measures 60.92–61.10 × 39.98–40.55 mm, and the large
-  washer in six frames Ø 22.79–23.10 mm. Repeatability says nothing about correctness — a wrong scale is
+- **Repeatable:** on the test set (`Data/Images/Test/All`, 2026-09-28), the large washer in six frames
+  measures Ø 22.79–23.10 mm, and the rust-stained plate in three placements 60.92–61.10 × 39.98–40.55 mm
+  (`Image_007`, and `010` and `013`, which have since left the set — recoverable from `2d163a6^`). Repeatability says nothing about correctness — a wrong scale is
   the same in every frame.
 - **Position and thickness:** one camera with an ordinary lens, looking down, sees a thick part's
   outline partly above the plane it was calibrated in, and off the optical axis sees its side wall
@@ -362,7 +362,7 @@ App/
 src/                      Qt-free domain modules + the UI (see "Source layout")
 Example/                  runnable scripts (scan, calibrate, make_reference, analyze, architecture_diagram,
                           build_logo)
-Data/Images/Test/All/     the thirteen frames analyze.py runs on, and the tests' pinned set — committed
+Data/Images/Test/All/     the eight frames analyze.py runs on, and the tests' pinned set — committed
 Data/Images/Test/*/       other folders: raw captures (Mounting_Plate, Labyrinth), not tested — committed
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored

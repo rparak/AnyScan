@@ -245,7 +245,8 @@ def test_the_closing_never_joins_components_that_were_separate() -> None:
     """
     Description:
         Two parts 8 px apart — well inside the 15 px closing kernel, which used to bridge them into
-        one object (the two plates of All/Image_010 and Image_013, 10.8 and 9.8 px apart) — stay two
+        one object (the two plates of All/Image_010 and Image_013, 10.8 and 9.8 px apart; both frames
+        have left the set, recoverable from 2d163a6^, so this is the rule's only pin) — stay two
         objects, and no pixel of the gap between them is given to either. Each part's own slot, which
         faces the other part, is still filled: the closing works inside a component, never across two.
     """

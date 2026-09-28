@@ -147,6 +147,11 @@ objects, 41 `both` and 3 `fastsam` (one each in `All/Image_001`, `007` and `013`
 The FastSAM-only direction is sharper than before — the dark rusted plate in `All/Image_013` is 2 % seen
 by the background cue — and the background-only direction still rests on the original run. The entry
 stands.
+
+*Re-measured 2026-09-28 on the eight frames left after `2d163a6`* removed `All/Image_009`–`013`
+(recoverable from `2d163a6^`): 37 objects, 35 `both` and 2 `fastsam` (the blue double triangle in
+`All/Image_001`, the lattice bracket in `007`), none background-only. The 2 % plate was in `013` and is
+no longer in the set; the FastSAM-only direction rests on the triangle and the bracket. The entry stands.
 Commit `fe4f10c`; tests `test/Vision/Utilities/test_fusion.py::test_object_seen_only_by_fastsam_survives`, `::test_object_seen_only_by_background_survives`.
 
 ## The closing never joins two components
@@ -158,24 +163,27 @@ were separate before the closing are never one object after it. `Segmentation.Fu
 stays 15.
 
 **Why.** Closing the fused mask as a whole joined any two parts less than the kernel apart: in the
-test set `All/Image_010` and `013`, two plates 10.8 and 9.8 px apart came back as one object. That was
-a bridge with no reason behind it, and a smaller kernel would only have moved the distance at which
-it happens. Across all twenty real frames (the current thirteen and the previous seven) the closing
+test set as it then was, `All/Image_010` and `013` (removed in `2d163a6`, recoverable from `2d163a6^`),
+two plates 10.8 and 9.8 px apart came back as one object. That was a bridge with no reason behind it,
+and a smaller kernel would only have moved the distance at which it happens. Across all twenty real
+frames then available (the thirteen of `2d163a6^` and the previous seven) the closing
 healed nothing — every count was the same with no closing at all — and with the new rule every other
 object's mask is identical pixel for pixel, the lattice bracket and the maze plate included. 010 and
-013 now count two. Cost: fusion ~25 ms slower per frame. The trade-off is stated: a part the cues see
+013 then counted two. Cost: fusion ~25 ms slower per frame. The trade-off is stated: a part the cues see
 as two separate pieces now stays two objects (KNOWN_ISSUES, the fusion entry's failure signatures) —
 not seen on any frame.
 
 The other three touching pairs (009, 011, 012) merge before the closing and are not fixed by this;
-the seam-test split that was tried for them is recorded, with why it was rejected, in KNOWN_ISSUES
-(*Touching parts merge before the closing*).
+the five routes tried for them are recorded, with why they fail, in KNOWN_ISSUES (*Touching parts
+merge before the closing*). With 010 and 013 out of the set, no frame in `All/` exercises the rule: it
+is pinned by the synthetic test below alone.
 
 **Revisit if** a real part comes back as two objects because its cues see it in pieces — then the
 bridge it needs is evidence-specific (e.g. both pieces inside one FastSAM mask), not a kernel.
 Tests `test/Vision/Utilities/test_fusion.py::test_the_closing_never_joins_components_that_were_separate`,
 `::test_the_closing_still_fills_a_gap_inside_one_component`,
-`test/integration/test_pipeline.py::test_counts_match_the_inventory` (slow).
+`test/integration/test_pipeline.py::test_counts_match_the_inventory` (slow; the eight frames, none of
+them with near parts).
 
 ## The annotated view is the exported render, not live Qt painting
 
@@ -524,7 +532,7 @@ Tests `test/Configuration/test_core.py` (the sidecar checks), `test/Camera/test_
 
 ## A replaced image never keeps its name
 
-The failure mode, recorded because it has now happened three times: **when an image is replaced
+The failure mode, recorded because it has now happened four times: **when an image is replaced
 rather than added, everything keyed to its filename silently re-points at the new image.** A test, a
 note, a measured number or a capture record that names `Image_004.png` does not know the bytes
 changed; it goes on citing, asserting or loading whatever now carries the name.
@@ -541,6 +549,11 @@ changed; it goes on citing, asserting or loading whatever now carries the name.
    shot under the new calibration. Capture sets record the reference by path
    (`_objects.json` `background_reference`), so every set made before then names an image it was
    not differenced against.
+4. **`2d163a6` removed `All/Image_009`–`013` and left their pins in place:** the five inventory counts
+   and the strict xfails on 009, 011 and 012. The xfails expected an `AssertionError`, and a missing
+   frame raises one, so three of the five read as expected failures; only 010 and 013 failed, and only
+   under `--runslow` with the weights. Not a replacement, but the same failure: the name outlived the
+   frame, and the pins did not follow the set.
 
 **What held.** The reference's sidecar records the image's SHA-256 and the fingerprint of the lens
 model that undistorted it, and `Load_Configuration` checks both: a reference swapped under an old
@@ -551,12 +564,16 @@ identity, which is why (1) and (2) went unnoticed.
 **So:** a replacement image is added under a **new name** (`Image_Background_002`, the next frame
 number, a new folder) and the old one is removed only with everything that cites it updated in the
 same change. Where a name must identify content, record the content (a SHA, as the sidecar does), not
-only the path. A pinned frame that is missing fails its test; it never skips.
+only the path. A pinned frame that is missing fails its test; it never skips. **When a test set changes,
+its inventory and its pins are part of the same change** — the default run now fails when the inventory
+and the frames in `Evaluation.Frames` disagree, without the weights. An expected failure must not expect
+the error a missing frame raises.
 
 **Revisit if** frames or references get a content-addressed store or a manifest with hashes — then the
 name stops being the identity and this becomes a property of the store.
 Tests `test/Configuration/test_core.py::test_a_reference_replaced_under_its_sidecar_fails_the_load`,
-`test/integration/test_pipeline.py::test_counts_match_the_inventory` (slow; a missing frame fails).
+`test/integration/test_pipeline.py::test_counts_match_the_inventory` (slow; a missing frame fails),
+`::test_the_inventory_names_every_frame_of_the_test_set` (the inventory against the folder).
 
 ## The run-summary CSV is named after the loaded configuration
 
@@ -640,9 +657,10 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
 - **Rotationally symmetric parts report a diameter and no angle.** `minAreaRect` assigns a round
   part an orientation that changes on noise, so a drawn rectangle would appear to spin on a part
   that has not moved. The test is elongation — the square root of the mask's second-moment
-  eigenvalue ratio — below **1.15**: the thirteen `Data/Images/Test/All` frames (re-measured
-  2026-09-28) put round parts at 1.002–1.016 and the least elongated non-square part at 1.468 (the
-  robot in 005; the plates 1.49–1.60). **A square is the exception:** it is as un-elongated as a
+  eigenvalue ratio — below **1.15**: the thirteen frames `Data/Images/Test/All` held on 2026-09-28
+  (`2d163a6^`) put round parts at 1.002–1.016 and the least elongated non-square part at 1.468 (the
+  robot in 005; the plates 1.49–1.60). Re-measured on the eight left after `2d163a6`, every figure
+  holds except the plates, 1.49–1.54. **A square is the exception:** it is as un-elongated as a
   disc (1.013, the maze plate in `All/Image_008`) but its sides are real edges that `minAreaRect`
   finds reliably, so un-elongated parts are only called symmetric when also round — extent (contour
   area / rectangle area) below **0.92** (round parts 0.777–0.809, the square 0.983). The set has one
