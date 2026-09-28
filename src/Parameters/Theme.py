@@ -136,7 +136,7 @@ CONST_MASK_FILL_MIN_BOX_DELTA_E = 25.0
 # The fill/white floor exists for ONE failure: a mask fill that reads as white. That failure was
 # #F1F2F4, ΔE 4.7 from white — effectively white. 21 is a chosen margin above it, not a
 # measurement limit: at 21 a near-neutral fill can reach L* ~80 and still reads clearly as grey
-# (checked on Image_001), while L* 85 (ΔE ~16 from white) starts drifting back toward the white it
+# (checked by eye on the previous test set's Image_001, f5cd075^), while L* 85 (ΔE ~16 from white) starts drifting back toward the white it
 # replaced. It was 25 for one round; 25 capped the neutral fill at L* ~75, which read darker than
 # intended. Do not round it back up to 25 without re-checking the neutral mask: every point above
 # 21 costs neutral fill lightness (L* <= 100 - sqrt(floor² - C*²)).
@@ -161,7 +161,8 @@ CONST_MASK_FILL_WINDOW_MARGIN = 0.5
 #   precisely because it reads as a fail marker at a glance — do NOT swap it for a calmer
 #   red; its fail-lookalike quality is the whole reason it belongs here.
 #   The OK box '#6C63B5' is a deliberately LIGHTER tint than its ink twin '#4a4180':
-#   '#4a4180' alone is too dark to read against the dark plates in Image_003/005, so the
+#   '#4a4180' alone is too dark to read against the dark rusted plates (the previous test set's
+#   Image_003/005, f5cd075^; the same plates are in Data/Images/Test/All 003, 004, 009, 013), so the
 #   box carries the lighter value and the ink is reserved for text on the white card.
 #
 #   The THIRD entry is the label-mask FILL: a tint of the box that is visibly the box's own

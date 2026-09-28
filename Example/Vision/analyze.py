@@ -70,7 +70,7 @@ Description:
     Initialization of constants.
 
     The validation harness for the ported vision pipeline. It runs EVERY Image_[0-9]*.png frame
-    in the configuration's Evaluation.Frames directory (Data/Images/Test) through the
+    in the configuration's Evaluation.Frames directory (Data/Images/Test/All) through the
     application's own Vision.Core.Analyze (never a second copy of the pipeline) against the
     configuration's empty-surface reference, and for each frame writes three artefacts to
     Data/Results/:
@@ -428,7 +428,7 @@ def _Resolve_Inputs(args: argparse.Namespace, configuration: Configuration_Str) 
     if not args.input_dir:
         _Banner('NO TEST FRAMES CONFIGURED',
                 ["The configuration '%s' does not set Evaluation.Frames, and no --input-dir was given."
-                 % configuration.Name, 'Set Evaluation.Frames (e.g. Data/Images/Test) or pass --input-dir.'])
+                 % configuration.Name, 'Set Evaluation.Frames (e.g. Data/Images/Test/All) or pass --input-dir.'])
         return None
     scenes = Discover_Scenes(args.input_dir)
     if not scenes:

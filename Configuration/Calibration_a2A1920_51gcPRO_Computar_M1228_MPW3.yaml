@@ -17,8 +17,6 @@
 ## =========================================================================== ##
 
 # The hardware this calibration belongs to; must equal the hardware part of this file's name.
-
-# The hardware this calibration belongs to; must equal the hardware part of this file's name.
 Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
 
 Calibration:

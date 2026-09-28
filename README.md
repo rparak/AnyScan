@@ -133,7 +133,7 @@ holds:
   margin and the background-sentence limits.
 - **Confidence:** the 80% / 60% warning and error thresholds.
 - **Evaluation (harness-only):** `Evaluation.Frames`, the test frames `Example/Vision/analyze.py` runs
-  on (`Data/Images/Test`). The application never reads it, so the loader only resolves the path and a
+  on (`Data/Images/Test/All`). The application never reads it, so the loader only resolves the path and a
   missing directory never stops it loading; `analyze.py` checks the directory and each frame's size
   against `Camera.Resolution`.
 - **General.Classification.**
@@ -205,8 +205,10 @@ in another. Nothing in this version verifies the absolute scale either, so the o
 magnitude is unknown. Comparing like parts in like positions works; deciding whether a part is within
 a stated tolerance does not.
 
-- **Repeatable:** the same plate in `Image_002`–`005`, placed differently, measures 57.7–58.5 ×
-  37.9–39.1 mm. Repeatability says nothing about correctness — a wrong scale is the same in every frame.
+- **Repeatable:** on the test set (`Data/Images/Test/All`, 2026-09-28), the rust-stained plate in
+  `Image_007`, `010` and `013`, placed differently, measures 60.92–61.10 × 39.98–40.55 mm, and the large
+  washer in six frames Ø 22.79–23.10 mm. Repeatability says nothing about correctness — a wrong scale is
+  the same in every frame.
 - **Position and thickness:** one camera with an ordinary lens, looking down, sees a thick part's
   outline partly above the plane it was calibrated in, and off the optical axis sees its side wall
   too. Along the direction away from the axis a size reads **W + X · t / (Z − t)** — footprint width W,
@@ -229,7 +231,8 @@ corrosion is reported depends on how the part is framed, and nothing in the outp
 clean-sounding description of a stained part looks exactly like a correct description of a clean
 one. Treat surface condition in the text as a hint that may be absent, never as a finding.
 
-- **Evidence:** the rust on `Image_002`'s plate — the stain the object prompt was written to catch —
+- **Evidence** (the previous test set, `f5cd075^`; not re-run on `All/`): the rust on its `Image_002`
+  plate — the stain the object prompt was written to catch —
   is named at crop paddings 0.20 and 0.36 and missed at 0.00–0.12 and 0.28. The text is identical on
   every run at a given padding, so this is a step with the framing, not sampling noise. The shipped
   padding (0.20) happens to report it. It rests on one stain on one frame, which is a reason for more
@@ -359,7 +362,8 @@ App/
 src/                      Qt-free domain modules + the UI (see "Source layout")
 Example/                  runnable scripts (scan, calibrate, make_reference, analyze, architecture_diagram,
                           build_logo)
-Data/Images/Test/         the seven frames analyze.py runs on, and the tests' pinned set — committed
+Data/Images/Test/All/     the thirteen frames analyze.py runs on, and the tests' pinned set — committed
+Data/Images/Test/*/       other folders: raw captures (Mounting_Plate, Labyrinth), not tested — committed
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored
 Data/Results/             analyze.py and scan.py output — git-ignored
@@ -375,8 +379,10 @@ models/                   model weights — you supply these, NOT committed
 `Data/` is input and output and `images/` is documentation — kept apart on purpose. The test
 frames and the reference are tracked; the calibration captures (about 4 MB a frame, 40+ a set) and
 the analysis output are not — a calibration records the directory it was solved from. Adding a
-frame to `Data/Images/Test/` changes what "the seven frames" means for every pinned expectation, so
-it is a deliberate move, never a side effect of a tool. Only `models/` is user-supplied.
+frame to, or renumbering one in, `Data/Images/Test/All/` changes what every pinned expectation refers
+to, so it is a deliberate move made with the pins, never a side effect of a tool — and a frame is
+added under a new name, never written over an old one (docs/design-decisions.md, *A replaced image
+never keeps its name*). Only `models/` is user-supplied.
 
 If a logo file is missing the console prints its filename in that slot rather
 than silently leaving a gap, so a broken asset path is visible immediately.
@@ -432,7 +438,7 @@ on every backend. Only the configuration's `Description.Model` chooses between t
 | Model | Repository @ revision | Download | Provenance | Status |
 |---|---|---|---|---|
 | **Gemma 4 E4B** (default) | `mlx-community/gemma-4-e4b-it-4bit` @ `475b908` | 5.2 GB | **Named:** its card gives its source, `google/gemma-4-E4B-it` at revision `fee6332`, where the licence was checked | The measured describer: 2.20 s per object, 9.35 GB pipeline peak on Apple silicon. The prompts were tuned on it. Installed on every platform unless `--model 12b`. |
-| Gemma 4 12B (`--model 12b`) | `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09` | 6.8 GB | **Weaker, plausible not proven:** the card names no base model, revision or licence. Its `tokenizer.json` is byte-identical to `google/gemma-4-12B-it`'s and its text configuration matches field for field. | Measured on Apple silicon against E4B: 5.46 s per object (2.5×), 10.45 GB peak. It names rust and one hex nut E4B misses, but reads three of `Image_001`'s four plastic parts as metal. **Not recommended.** On Linux it needs a card with at least 15 GB. |
+| Gemma 4 12B (`--model 12b`) | `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09` | 6.8 GB | **Weaker, plausible not proven:** the card names no base model, revision or licence. Its `tokenizer.json` is byte-identical to `google/gemma-4-12B-it`'s and its text configuration matches field for field. | Measured on Apple silicon against E4B: 5.46 s per object (2.5×), 10.45 GB peak. It names rust and one hex nut E4B misses, but reads three of four plastic parts as metal (the previous test set, `f5cd075^`). **Not recommended.** On Linux it needs a card with at least 15 GB. |
 
 - **Determinism does not travel.** Greedy decoding (`temperature=0`) makes the *sampler*
   deterministic, but a different backend can still produce different text through
@@ -455,7 +461,7 @@ on every backend. Only the configuration's `Description.Model` chooses between t
   tested with stubbed commands only, so a working `install.sh` on macOS is no evidence
   that Linux was tested. The first Linux install is the first real run of those branches;
   please report the installer's output either way. Without MLX the describer stops with a message saying so.
-- **Making Linux measured** means running the seven `Data/Images/Test` frames there, with E4B so
+- **Making Linux measured** means running the `Data/Images/Test/All` frames there, with E4B so
   that the backend is the only thing that differs from the Mac, and recording what was recorded
   for Apple silicon: time per object, peak memory, and
   word-for-word stability — then re-verifying every exact-text pin.

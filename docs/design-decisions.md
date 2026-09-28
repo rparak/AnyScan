@@ -58,7 +58,8 @@ box's lightness:
 white — which `#F1F2F4` did at ΔE 4.7. It was set to 25 for one round, and 25 capped the neutral
 fill at L\* ~75 (the outline/fill floor was never the constraint: with the outline near L\* 50 it
 stays at 28–30). Previews at L\* 80 and 85 settled it: L\* 80 (ΔE ~21 from white) still reads
-clearly as grey, including at full size on `Image_001`; L\* 85 (ΔE ~16) starts drifting back toward
+clearly as grey, including at full size on the previous test set's `Image_001` (`f5cd075^`; a visual
+check, not re-done on `All/`); L\* 85 (ΔE ~16) starts drifting back toward
 the white that was removed. So 21 is a chosen margin with L\* 85 as the point where it starts to fail
 visually, not a measurement limit — `Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E` carries this note so it
 is not rounded back up. Every point above 21 costs neutral fill lightness. The pair re-derives from
@@ -91,16 +92,18 @@ the verdict scheme itself changes; do not repurpose the magenta as a decorative 
 colour or swap it for a calmer red, because its fail-lookalike quality is the point.
 Commit `3494ba3`; test `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`.
 
-## The colour-name saturation cutoff is 120, and was not tuned for object 4
+## The colour-name saturation cutoff is 120, and was not tuned for the red block
 
 The model-free describer calls a pixel "coloured" only above HSV saturation 120
 (`Describe_Fallback.CONST_COLOR_SAT_MIN`); below it the object reads as grey/metal. 120
-sits in a real gap measured across all seven frames: metal parts top out near S=98, truly
-saturated colours start near S=184, and the dark plates in `Image_003`/`005` sit at 35–40,
-far from the line. Object 4 (a pink block) lands at S=121, one point above — but the field
-is decided by a per-pixel majority vote, not the median, which is more robust than any
-median-based cutoff, and lowering the line to 110 to "protect" object 4 would only move
-the tightness toward the metals at 98 and close the gap. So it was left at 120. **Revisit
+sits in a real gap. It was set on the previous test set (`f5cd075^`: metal up to S=98,
+saturated colours from S=184, a pink-red block at S=121) and re-measured on
+`Data/Images/Test/All` (2026-09-28, median saturation per object): metal, plastic and white
+parts 2–78 (the dark plates 17–41), the blue parts 168–189, and the red block 124 and 143 —
+still the one tight case, now 4 points above the line in `All/Image_006`. The field is decided
+by a per-pixel majority vote, not the median, which is more robust than any median-based
+cutoff, and lowering the line to "protect" the red block would only move the tightness toward
+the metals. So it stays at 120. **Revisit
 if** new captures show real coloured parts clustering in the 98–184 band; the honest fix
 then is a better colour feature, not a nudged threshold.
 Commit `62c5097`; tests `test/Vision/test_describe_fallback.py::test_weak_metallic_cast_reads_grey_not_blue`, `::test_red_straddling_the_hue_wrap_votes_red_not_blue`.
@@ -120,7 +123,7 @@ sharpness) so every object scores from whichever cue found it; until then the co
 fraction is the honest disclosure.
 Commit `4407c87`; [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) "confidence status metric is partial"; tests `test/UI/test_status_metrics.py::test_confidence_denominator_is_the_scored_count_not_the_total`, `::test_confidence_is_no_value_when_no_object_has_a_score`.
 
-## The fusion needs both cues — `Image_001` proved it in both directions
+## The fusion needs both cues — the previous test set's `Image_001` proved it in both directions
 
 Detection fuses FastSAM instance masks with OpenCV background subtraction: an object
 survives on **either** cue. This is not redundancy. On `Image_001`, objects 2 and 9 came
@@ -137,6 +140,13 @@ other six frames (one `both` object each). The "four of nine" above is that run'
 today's. This does not meet the revisit clause: seven frames, six with one object, are not a
 representative set, and the tests hold the background-only path. The entry stands. The
 background-only direction now rests on the original run, not on a frame in the repository.
+
+*Re-measured 2026-09-28 on the current test set* (`Data/Images/Test/All`; the frames above are the
+previous set, removed in `f5cd075`, recoverable from `f5cd075^` — names there do not match `All/`): 44
+objects, 41 `both` and 3 `fastsam` (one each in `All/Image_001`, `007` and `013`), none background-only.
+The FastSAM-only direction is sharper than before — the dark rusted plate in `All/Image_013` is 2 % seen
+by the background cue — and the background-only direction still rests on the original run. The entry
+stands.
 Commit `fe4f10c`; tests `test/Vision/Utilities/test_fusion.py::test_object_seen_only_by_fastsam_survives`, `::test_object_seen_only_by_background_survives`.
 
 ## The closing never joins two components
@@ -512,6 +522,42 @@ something other than a capture set.
 Tests `test/Configuration/test_core.py` (the sidecar checks), `test/Camera/test_reference_harnesses.py`
 (the tool against sets built with the application's record builders; `scan.py` against a stand-in).
 
+## A replaced image never keeps its name
+
+The failure mode, recorded because it has now happened three times: **when an image is replaced
+rather than added, everything keyed to its filename silently re-points at the new image.** A test, a
+note, a measured number or a capture record that names `Image_004.png` does not know the bytes
+changed; it goes on citing, asserting or loading whatever now carries the name.
+
+1. **The first renumbering.** The frame committed as `Data/Image_006.png` became `Data/Camera/Image_001.png`
+   and later `Data/Images/Test/Image_001.png` (one blob, three names); notes written against the old
+   numbers pointed at different images. A clone at the old commit still has them under the old names.
+2. **`f5cd075` deleted the seven test frames and added thirteen others under the same names.**
+   `All/Image_001` is not the old `Image_001`. The tests' pins (`Image_001` → nine objects, `Image_004`
+   → one plate) looked for the old names in the old folder, found nothing and *skipped* — two tests
+   tested nothing from then on, and nothing said so. Measured evidence citing `Image_002–005` cited
+   frames that no longer existed.
+3. **`f5cd075` overwrote `Data/Images/Background/Image_Background_001.png`** with a new reference
+   shot under the new calibration. Capture sets record the reference by path
+   (`_objects.json` `background_reference`), so every set made before then names an image it was
+   not differenced against.
+
+**What held.** The reference's sidecar records the image's SHA-256 and the fingerprint of the lens
+model that undistorted it, and `Load_Configuration` checks both: a reference swapped under an old
+sidecar fails the load, and one shot under another lens model is refused. The overwrite in (3) came
+with a new sidecar, so it loaded — correctly — but no other image in the project carries its content
+identity, which is why (1) and (2) went unnoticed.
+
+**So:** a replacement image is added under a **new name** (`Image_Background_002`, the next frame
+number, a new folder) and the old one is removed only with everything that cites it updated in the
+same change. Where a name must identify content, record the content (a SHA, as the sidecar does), not
+only the path. A pinned frame that is missing fails its test; it never skips.
+
+**Revisit if** frames or references get a content-addressed store or a manifest with hashes — then the
+name stops being the identity and this becomes a property of the store.
+Tests `test/Configuration/test_core.py::test_a_reference_replaced_under_its_sidecar_fails_the_load`,
+`test/integration/test_pipeline.py::test_counts_match_the_inventory` (slow; a missing frame fails).
+
 ## The run-summary CSV is named after the loaded configuration
 
 `logger/log_<id>.csv` takes `<id>` from the configuration file the run loaded
@@ -594,11 +640,13 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
 - **Rotationally symmetric parts report a diameter and no angle.** `minAreaRect` assigns a round
   part an orientation that changes on noise, so a drawn rectangle would appear to spin on a part
   that has not moved. The test is elongation — the square root of the mask's second-moment
-  eigenvalue ratio — below **1.15**: the seven `Data/Images/Test` frames put round parts at 1.008–1.031
-  and the least elongated real part at 1.498 (the plates in 002–005). **A square is the exception:**
-  it is as un-elongated as a disc (1.02, the plate in 006/007) but its sides are real edges that
-  `minAreaRect` finds reliably, so un-elongated parts are only called symmetric when also round —
-  extent (contour area / rectangle area) below **0.92** (round parts 0.81–0.85, the square 0.98–0.99).
+  eigenvalue ratio — below **1.15**: the thirteen `Data/Images/Test/All` frames (re-measured
+  2026-09-28) put round parts at 1.002–1.016 and the least elongated non-square part at 1.468 (the
+  robot in 005; the plates 1.49–1.60). **A square is the exception:** it is as un-elongated as a
+  disc (1.013, the maze plate in `All/Image_008`) but its sides are real edges that `minAreaRect`
+  finds reliably, so un-elongated parts are only called symmetric when also round — extent (contour
+  area / rectangle area) below **0.92** (round parts 0.777–0.809, the square 0.983). The set has one
+  square part, in one frame.
   A square keeps A × B and an angle folded to [0°, 90°), since its sides are interchangeable. A
   round part's diameter is the mean of the rectangle's sides; a hexagonal one reports across flats
   (next entry).
@@ -645,20 +693,22 @@ number.
 
 - **What counts as hexagonal.** The part's caliper (Feret) width is sampled over 180° from its
   convex hull; a hexagon's repeats every 60°, so its third harmonic is strong. *Hexagonality* is
-  that harmonic's amplitude over the mean width, and **0.0075** is the threshold. Measured: the
-  two washers in `Image_001` 0.0016 and 0.0026, the two nuts 0.0204 and 0.0254 (lower than an
-  ideal hexagon's 0.038–0.057 because the masks round the corners), pixelated ideal discs ≤ 0.0021
-  down to 24 px across. 0.0075 sits near the geometric mean of the closest washer and nut, about
-  2.7× from each. The round parts are only in `Image_001`, so this rests on two parts of each
-  kind; the synthetic cases (discs and hexagons at several sizes and rotations) are the wider net.
+  that harmonic's amplitude over the mean width, and **0.0075** is the threshold. Measured on
+  `Data/Images/Test/All` (2026-09-28; 9 round and 6 hexagonal instances of 4 washer/bushing and 2
+  nut parts): round 0.0010–0.0028, nuts 0.0114–0.0290 (lower than an ideal hexagon's 0.038–0.057
+  because the masks round the corners), pixelated ideal discs ≤ 0.0021 down to 24 px across. 0.0075
+  sits between the closest washer (0.0028) and nut (0.0114) — 2.7× and 1.5× from each; the small nut
+  in `All/Image_005` is the tightest case. The synthetic cases (discs and hexagons at several sizes
+  and rotations) are the wider net.
 - **Only the 60° harmonic.** A general "polygonal" test (any harmonic 3–8) fails on this data:
-  washer 1's own mask is a slightly squared circle with a 4-fold component of 0.012 — stronger
-  than the threshold. Square parts never reach this branch anyway (their extent excludes them).
+  the washers' own masks are slightly squared circles, with 4-fold components up to 0.0121 (the
+  white washer in `All/Image_008`) — stronger than the threshold. Square parts never reach this branch anyway (their extent excludes them).
 - **Across flats is the smallest caliper width**, converted through the factor along its own
-  direction. It is also the robust choice here: the masks clip the nuts' corners (nut 7's widest
-  caliper width is 1.13 × its across flats, not 1.155), which pulls a mean or an across-corners
-  number but not the flats. On `Image_001` nut 7 moves from Ø 12.0 to A/F 11.7 mm and nut 8 from Ø 11.6 to
-  A/F 11.5 mm — much less than the theoretical 7.5 %, for exactly that reason.
+  direction. It is also the robust choice here: the masks clip the nuts' corners (their widest
+  caliper width is 1.055–1.121 × their across flats on `All/`, not 1.155), which pulls a mean or an
+  across-corners number but not the flats. When the convention was introduced (on the previous test
+  set, `f5cd075^`) the two nuts moved from Ø 12.0 to A/F 11.7 mm and from Ø 11.6 to A/F 11.5 mm — much
+  less than the theoretical 7.5 %, for exactly that reason.
 - **Stored.** `_objects.json` records `across_flats` and `hexagonality` (null when the part is not
   symmetric). A record written before this convention has no `across_flats` and reads back as a
   round Ø, which is what it was measured as.
@@ -808,6 +858,8 @@ another repository; rewriting them would misstate that origin.
 
 ## The describer is Gemma 4 E4B, prompted, behind a describer seam
 
+*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+
 Stage 4 (the per-object description and the one background sentence) moves from Florence-2 to
 **Gemma 4 E4B-it**, the local `models/gemma-4-e4b-it-4bit`. Segmentation stays on FastSAM.
 
@@ -871,6 +923,8 @@ weights exist).
 
 ## The background strip is removed, not retuned
 
+*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+
 `Reporting.Strip_Background` deleted any object sentence that was *about* the background and
 trimmed trailing phrases like "on a green surface". It existed because Florence-2 wrote table
 sentences into object captions. Gemma, told to "describe only the part, not the surface it lies
@@ -894,6 +948,8 @@ Tests `test/Reporting/test_core.py::test_a_sentence_naming_the_surface_is_kept_w
 
 ## The label distiller peels Gemma's opener — and the label is still weak
 
+*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+
 Gemma opens every description "The object is a …" (all 15 objects of the seven frames), which the
 Florence lead-ins do not cover; the distiller cut at " is " and every label — which feeds `type=`
 in the log — read `object`. `Reporting.CONST_LABEL_OPENERS` ("the object is", "the part is",
@@ -912,6 +968,8 @@ distilling it from the description.
 Test `test/Vision/Utilities/test_caption.py::test_condense_label_peels_gemmas_opener_but_the_line_keeps_it`.
 
 ## The label runs up to the head noun (supersedes the comma cut)
+
+*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 The first opener fix left 8 of 15 labels a single adjective, because the distiller cut at the
 first comma and Gemma lists adjectives with commas ("a rectangular, flat plate"). The problem was
@@ -945,6 +1003,8 @@ Test `test/Vision/Utilities/test_caption.py::test_condense_label_takes_the_phras
 
 ## The substance substitution is removed
 
+*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+
 `Reporting.Substitute_Substance` rewrote "wood", "paper" and "cardboard" to "metal" in object
 descriptions, because Florence-2 read the concentric machining marks as wood grain. Over the seven
 frames it fired once, on Florence ("artwork … a light wood grain pattern", `Image_002`), and never
@@ -960,6 +1020,8 @@ Test `test/Reporting/test_core.py::test_the_models_words_are_not_rewritten`.
 
 
 ## Florence-2 is removed; Gemma is the only describer
+
+*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 After the seven-frame comparison (both models on the same crops, the same pipeline, each in its own
 process) Gemma was kept: warm, after load, 2.22 s per object against Florence's 1.12 s — the
@@ -1042,8 +1104,8 @@ one unverified state; the platforms are now scoped separately:
   are unknown. On Linux `mlx` installs no compute backend by itself — the backend is an extra
   (`mlx[cuda12]`, `[cuda13]` or `[cpu]`) chosen for the machine — so `requirements.txt` keeps
   its macOS-only line, and the Linux line is added with the first measured Linux machine. The
-  README gives the install command meanwhile. Becoming *measured* means the same seven-frame
-  run: time per object, peak memory, word-for-word stability.
+  README gives the install command meanwhile. Becoming *measured* means the same run over the
+  `Data/Images/Test/All` frames: time per object, peak memory, word-for-word stability.
 - **Windows — not a target, untested.** Nothing known prevents it (`mlx` publishes Windows
   wheels), but it is not supported and has never been tried.
 
@@ -1227,6 +1289,8 @@ per-configuration run data). Revisit the hardware greying if the CSV path is eve
 shutdown rather than at startup.
 
 ## The object crop padding stays at 0.20 for Gemma
+
+*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 **What it is.** `Description.Object_Crop_Padding` pads each object's crop outward by a fraction of
 its longer side before the crop is enhanced and described. It was set to 0.20 for Florence-2, which
@@ -1529,6 +1593,8 @@ Tests `test/UI/test_brand_figures.py` (`test_the_logo_renders_the_same_in_any_de
 
 ## Gemma 4 12B was measured against E4B and is not better; E4B stays the describer
 
+*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+
 The obvious intuition is that a bigger model describes better. It was measured on 2026-09-25,
 and it does not hold here. `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09` (6.77 GB, the same
 4-bit MLX format; the pinned `mlx-vlm` 0.7.2 loads its `gemma4_unified` architecture) ran the
@@ -1790,6 +1856,8 @@ Tests `test/Camera/test_generate_checkerboard.py::test_the_calibration_detector_
 `test/Camera/test_reference_harnesses.py::test_calibrate_refuses_capture_without_the_board_and_says_why`.
 
 ## The first analysis's one-time costs are paid at configuration load ("Warming up…")
+
+*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the timing run again. The `Image_NNN` names below refer to that set.*
 
 `Vision_Pipeline_Cls.Configure`, once the configuration is in force, reads the reference, runs
 FastSAM on it (it has the frame's size) and describes the background sentence — which is also

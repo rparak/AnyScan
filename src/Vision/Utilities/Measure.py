@@ -55,14 +55,15 @@ Description:
 
 # The elongation below which an object is not elongated: the square root of the ratio of its
 # mask's second-moment eigenvalues (the axis-length ratio of the equivalent ellipse, 1.0 for a
-# disc or a square). Measured on the seven Data/Images/Test frames: round parts 1.008-1.031, the least
-# elongated real part 1.498 (the plates in 002-005), Image_001's elongated parts 1.755-4.35. 1.15
-# sits five times the round parts' noise above 1.0 and far below any elongated part.
+# disc or a square). Measured on the thirteen Data/Images/Test/All frames (2026-09-28): round parts
+# (washers, nuts, the bushing) 1.002-1.016; the least elongated non-square part 1.468 (the robot in
+# 005), the plates 1.49-1.60, the screws 3.76-4.05. 1.15 sits ten times the round parts' noise above
+# 1.0 and far below any elongated part. (The square maze plate, 1.013, is told apart by its extent.)
 #   Unit [float]
 CONST_MEASURE_SYMMETRIC_ELONGATION = 1.15
 # The extent (contour area / rotated-rectangle area) at or above which a non-elongated object is
-# square-like, not round: a disc is pi/4 = 0.785 in theory, measured 0.81-0.85 on the round parts;
-# the square plate in Image_006/007 measured 0.98-0.99.
+# square-like, not round: a disc is pi/4 = 0.785 in theory, measured 0.777-0.809 on the round parts
+# of Data/Images/Test/All; the square maze plate (All/Image_008) measured 0.983.
 #   Unit [float]
 CONST_MEASURE_SQUARE_EXTENT = 0.92
 # The smallest mask (pixels) that is measured at all; below it the rectangle is noise.
@@ -72,12 +73,13 @@ CONST_MEASURE_MIN_AREA_PX = 16
 # periodicity — as a fraction of the mean width) at or above which the part is hexagonal and its
 # size is reported across flats. A hexagon's across-corners width is 2/sqrt(3) = 1.155 x its
 # across-flats, so the mean diameter of a nut sits ~7.5 % from either standard number; a nut is
-# specified by its across-flats (the wrench size). Measured: the washers in Image_001 0.0016 and
-# 0.0026, the nuts 0.0204 and 0.0254 (their corners are rounded; an ideal hexagon is 0.038-0.057
-# down to 20 px across), pixelated ideal discs <= 0.0021 down to 20 px across. 0.0075 sits near the
-# geometric mean of the closest washer and nut, ~2.7x from each. Only the 60° harmonic is used:
-# a 4-fold one is not evidence of a polygon here — washer 1's own mask is a slightly squared circle
-# (4-fold 0.012) — and square parts are already told apart by their extent.
+# specified by its across-flats (the wrench size). Measured on Data/Images/Test/All: the washers and
+# the bushing 0.0010-0.0028, the nuts 0.0114-0.0290 (their corners are rounded; an ideal hexagon is
+# 0.038-0.057 down to 20 px across), pixelated ideal discs <= 0.0021 down to 20 px across. 0.0075
+# sits between the closest washer (0.0028) and nut (0.0114), ~2.7x and ~1.5x from each. Only the 60°
+# harmonic is used: a 4-fold one is not evidence of a polygon here — the washers' own masks are
+# slightly squared circles (4-fold up to 0.0121, All/Image_008) — and square parts are already told
+# apart by their extent.
 #   Unit [float]
 CONST_MEASURE_HEX_HARMONIC = 0.0075
 # Caliper directions sampled over 180° for the width profile (0.5° apart; the across-flats minimum

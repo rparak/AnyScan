@@ -118,6 +118,12 @@ CONST_DEVICES = ('auto', 'cpu', 'mps', 'cuda')
 # content someone adds to a calibration file is never silently deleted.
 #   Unit [Tuple<string>]
 CONST_CALIBRATION_FILE_KEYS = ('Hardware', 'Calibration')
+# The comment the calibration writer puts above 'Hardware:'. The header it copies from the file in
+# force stops before it — otherwise every write over an existing file added one more copy (the
+# calibration of f5cd075 carried two).
+#   Unit [string]
+CONST_CALIBRATION_HARDWARE_COMMENT = ("# The hardware this calibration belongs to; must equal the hardware part "
+                                      "of this file's name.")
 CONST_CALIBRATION_BLOCK_KEYS = ('Solved', 'Resolution', 'Offset', 'K', 'Coefficients', 'Conversion_Factor')
 # The background reference's sidecar: the same name with this suffix (Image_Background_002.json).
 #   Unit [string]
@@ -1240,6 +1246,10 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
                     if line.strip() and not line.lstrip().startswith('#'):
                         break
                     header.append(line)
+        # The file's own header ends where the writer's body begins: the body writes the hardware
+        # comment itself, so a copy of it (and the blank lines around it) is not header.
+        while header and header[-1].strip() in ('', CONST_CALIBRATION_HARDWARE_COMMENT):
+            header.pop()
         if not header:
             header = ['# The calibration of hardware %s.' % hardware,
                       '# Written by Example/Camera/calibrate.py via Configuration.Core.Write_Calibration.', '']
@@ -1252,8 +1262,7 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
         factors = '\n'.join(f'    {key}: {repr(float(value))}'
                             for key, value in Camera_Calibration_Parameters_Str.Conversion_Factor.items())
         views = record['views']
-        body = ('# The hardware this calibration belongs to; must equal the hardware part of this '
-                "file's name.\n"
+        body = (CONST_CALIBRATION_HARDWARE_COMMENT + '\n'
                 f'Hardware: {hardware}\n\n'
                 'Calibration:\n'
                 '  # How this calibration was solved (Example/Camera/calibrate.py --images).\n'

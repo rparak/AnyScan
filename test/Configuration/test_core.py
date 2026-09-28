@@ -103,6 +103,31 @@ def _Set(data: tp.Dict[str, tp.Any], path: tp.Tuple[str, ...], value: tp.Any) ->
     data[path[-1]] = value
 
 
+def _Reference_For(directory: tp.Any, mode: tp.Dict[str, tp.Any], K: tp.Optional[tp.Any],
+                   coefficients: tp.Optional[tp.Dict[str, float]]) -> None:
+    """
+    Point a mode file at a copy of the shipped reference image whose sidecar says it was undistorted
+    with the given lens model (or, with K None, not undistorted), written by the application's own
+    Build_Reference_Sidecar — the reference a configuration with that calibration can use.
+    """
+    reference = os.path.join(str(directory), 'Image_Background_Test.png')
+    shutil.copy(mode['Segmentation']['Background']['Reference']
+                if os.path.isabs(mode['Segmentation']['Background']['Reference'])
+                else os.path.join(CONST_PROJECT_ROOT, mode['Segmentation']['Background']['Reference']), reference)
+    undistortion = None if K is None else {'calibration': 'Calibration_%s.yaml' % CONST_HARDWARE,
+                                           'K': [[float(v) for v in row] for row in K],
+                                           'coefficients': dict(coefficients)}
+    camera = mode['Camera']
+    sidecar = Configuration.Build_Reference_Sidecar(
+        reference, source='test', shot='2026-09-28T10:00:00', configuration=CONST_COPY_NAME,
+        window={'resolution': [camera['Resolution']['x'], camera['Resolution']['y']],
+                'offset': [camera['Offset']['x'], camera['Offset']['y']]},
+        undistortion=undistortion, hardware={'lighting': camera['Lighting']})
+    with open(Configuration.Reference_Sidecar_Path(reference), 'w', encoding='utf-8') as handle:
+        json.dump(sidecar, handle)
+    mode['Segmentation']['Background']['Reference'] = reference
+
+
 def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran_with() -> None:
     """
     Description:
@@ -138,14 +163,14 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
     assert config.Camera.Custom_Cfg['Exposure_Time'] == 10000
     assert config.Camera.Calibration.K.shape == (3, 3)
     assert set(config.Camera.Calibration.Coefficients) == set(CONST_COEFFICIENT_KEYS)
-    assert config.Scale is not None and abs(config.Scale.Mm_Per_Px_X - 0.09797791724417174) < 1e-15
+    assert config.Scale is not None
+    assert (config.Scale.Mm_Per_Px_X, config.Scale.Mm_Per_Px_Y) == (0.10189853878198323, 0.10207658577821295)
     assert (config.Camera.Resolution, config.Camera.Offset) == ((1920, 1200), (8, 8))
-    # The two notes, both lenient paths with a known end: the calibration in force predates recorded
-    # windows, and the reference predates sidecars. They go when the recalibration and the reference
-    # made by make_reference.py are in force.
-    window_note, sidecar_note = config.Notes
-    assert window_note[0] == 'WARNING' and 'does not record the sensor window' in window_note[1]
-    assert sidecar_note[0] == 'WARNING' and 'no provenance sidecar' in sidecar_note[1]
+    assert (config.Camera.Calibration.Resolution, config.Camera.Calibration.Offset) == ((1920, 1200), (8, 8))
+    # No notes. The two lenient paths this used to expect (a calibration that does not record its window,
+    # a reference with no provenance sidecar) ended when the recalibration and the reference made by
+    # make_reference.py came into force: a note here now means one of them regressed.
+    assert config.Notes == []
 
 
 @pytest.mark.parametrize('path', [path for path, _a, _k, required in CONST_FIELDS if required]
@@ -447,10 +472,14 @@ def test_the_calibration_writer_output_loads_back(tmp_path: tp.Any) -> None:
     """
 
     mode, calibration = _Shipped()
+    # The reference must have been undistorted with the lens model written below, or the load is
+    # (rightly) refused: a new calibration needs a new reference.
+    solved = _Solved()
+    _Reference_For(tmp_path, mode, solved.K, solved.Coefficients)
     config_path = _Write(tmp_path, mode, calibration)
     in_force = Configuration.Calibration_Path_For(config_path, CONST_HARDWARE)
     shutil.copy(Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), in_force)
-    assert Write_Calibration(_Solved(), hardware=CONST_HARDWARE, header_source=in_force,
+    assert Write_Calibration(solved, hardware=CONST_HARDWARE, header_source=in_force,
                              output_path=in_force, record=CONST_RECORD)
     with open(in_force, 'r', encoding='utf-8') as f:
         assert f.read().startswith('## ====')                        # the header survived
@@ -638,6 +667,7 @@ def test_a_camera_without_a_calibration_file_loads_uncalibrated_with_a_warning(t
     """
 
     mode, _calibration = _Shipped()
+    _Reference_For(tmp_path, mode, None, None)          # shot uncalibrated, as a first camera's would be
     config = Load_Configuration(_Write(tmp_path, mode, None))
     assert config.Camera.Calibration is None and config.Scale is None
     (warning,) = [message for level, message in config.Notes if level == 'WARNING' and 'calibration file' in message]
@@ -839,3 +869,24 @@ def test_the_test_frames_are_resolved_but_never_checked_at_load(tmp_path: tp.Any
     assert config.Evaluation.Frames == os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'No_Such_Directory')
     del mode['Evaluation']
     assert Load_Configuration(_Write(tmp_path, mode, calibration)).Evaluation.Frames == ''
+
+
+def test_writing_a_calibration_twice_over_the_same_file_gives_the_same_file(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Write_Calibration copies the header comment of the file it writes over and regenerates the
+        rest — including the comment above 'Hardware:', which is therefore not header. Writing the
+        same result twice gives the same bytes, with that comment once: before this, every write over
+        an existing calibration added one more copy of it (the calibration of f5cd075 carried two).
+    """
+
+    target = tmp_path / ('Calibration_%s.yaml' % CONST_HARDWARE)
+    shutil.copy(Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), target)
+    written = []
+    for _ in range(2):
+        assert Write_Calibration(_Solved(), hardware=CONST_HARDWARE, header_source=str(target),
+                                 output_path=str(target), record=CONST_RECORD)
+        written.append(target.read_text(encoding='utf-8'))
+    assert written[0] == written[1]
+    assert written[1].count(Configuration.CONST_CALIBRATION_HARDWARE_COMMENT) == 1
+    assert written[1].startswith('## ====') and written[1].endswith('\n')

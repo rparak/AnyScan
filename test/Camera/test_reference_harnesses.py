@@ -114,7 +114,7 @@ def _Capture_Set(directory: tp.Any, window: tp.Optional[tp.Dict] = CONST_WINDOW,
 
 
 def _Configuration_For(directory: tp.Any, reference: str) -> str:
-    """The shipped mode file and calibration copied into a directory, set to CONST_WINDOW and the reference."""
+    """The shipped mode file and calibration copied into a directory, both set to CONST_WINDOW, and the reference."""
     with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as handle:
         mode = yaml.safe_load(handle)
     mode['Camera']['Resolution'] = dict(zip('xy', CONST_WINDOW['resolution']))
@@ -123,8 +123,14 @@ def _Configuration_For(directory: tp.Any, reference: str) -> str:
     path = os.path.join(str(directory), 'Config_%s_Mode_Test.yaml' % CONST_HARDWARE)
     with open(path, 'w', encoding='utf-8') as handle:
         yaml.safe_dump(mode, handle, sort_keys=False)
-    shutil.copyfile(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE),
-                    Calibration_Path_For(path, CONST_HARDWARE))
+    # The shipped lens model, recorded as solved at CONST_WINDOW: a calibration records its window,
+    # and a configuration setting the camera to another one is refused.
+    with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as handle:
+        calibration = yaml.safe_load(handle)
+    calibration['Calibration']['Resolution'] = dict(zip('xy', CONST_WINDOW['resolution']))
+    calibration['Calibration']['Offset'] = dict(zip('xy', CONST_WINDOW['offset']))
+    with open(Calibration_Path_For(path, CONST_HARDWARE), 'w', encoding='utf-8') as handle:
+        yaml.safe_dump(calibration, handle, sort_keys=False)
     return path
 
 

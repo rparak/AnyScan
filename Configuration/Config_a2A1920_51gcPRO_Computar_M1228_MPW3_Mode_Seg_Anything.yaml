@@ -98,7 +98,7 @@ Segmentation:
 # Stage 4: the Gemma describer.
 Description:
   # REQUIRED. The Gemma weights directory, relative to the repository root (or absolute).
-  Model: models/gemma-4-12B-it-4bit
+  Model: models/gemma-4-e4b-it-4bit
   # Generation. Temperature 0 is greedy decoding: the same crop gives the same text.
   # Defaults: 0.0 and 256
   Temperature: 0.0
@@ -121,7 +121,8 @@ Description:
   #
   # How the wording was chosen (Phase 0 of the describer swap, docs/design-decisions.md):
   #   measured on the Image_002 (rust-stained) and Image_007 (clean) plates and on four
-  #   plastic parts of Image_001, at temperature 0.
+  #   plastic parts of Image_001, at temperature 0 — frames of the previous test set (f5cd075^;
+  #   the names do not match Data/Images/Test/All), not re-run on the current one.
   #   - "look carefully for ... name any you find and where they are" is kept firm: a
   #     softer "if you can see ..." missed the rust on Image_002 entirely.
   #   - "if there are none, say that the surface looks clean" makes a clean answer

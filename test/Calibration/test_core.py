@@ -372,8 +372,8 @@ def test_no_flat_view_fails_loudly(render) -> None:
 def _Configuration_Copy(directory: tp.Any, window: tp.Optional[tp.Tuple[int, int]] = None) -> tp.Tuple[str, str]:
     """
     A copy of the shipped mode file and its hardware's calibration in a directory: (mode, calibration).
-    With a window (width, height), the copy sets the camera to it at offset (0, 0), with a grey
-    background reference of that size — the configuration the rendered 960 x 600 boards belong to.
+    With a window (width, height), the copy sets the camera — and the copied calibration's recorded
+    window — to it at offset (0, 0), with a grey background reference of that size — the configuration the rendered 960 x 600 boards belong to.
     """
     import yaml
     hardware = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
@@ -391,6 +391,15 @@ def _Configuration_Copy(directory: tp.Any, window: tp.Optional[tp.Tuple[int, int
             yaml.safe_dump(data, handle, sort_keys=False)
     calibration = Calibration_Path_For(mode, hardware)
     shutil.copy(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware), calibration)
+    if window is not None:
+        # The calibration records the window it was solved at; a configuration setting the camera to
+        # another is refused, so the copy is recorded at the same window.
+        with open(calibration, 'r', encoding='utf-8') as handle:
+            data = yaml.safe_load(handle)
+        data['Calibration']['Resolution'] = {'x': window[0], 'y': window[1]}
+        data['Calibration']['Offset'] = {'x': 0, 'y': 0}
+        with open(calibration, 'w', encoding='utf-8') as handle:
+            yaml.safe_dump(data, handle, sort_keys=False)
     return mode, calibration
 
 

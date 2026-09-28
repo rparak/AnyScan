@@ -495,7 +495,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         """
         Description:
             Do the once-per-configuration work the first analysis would otherwise pay for, while
-            the operator is already waiting on the load. Measured on Image_001 (9 objects), the
+            the operator is already waiting on the load. Measured on the previous test set's
+            Image_001 (9 objects; f5cd075^, not re-run on Data/Images/Test/All), the
             first analysis after a load took 2.6-2.9 s longer than the next one on the same frame:
 
                 the background sentence (one Gemma call on the reference)   +1.08 s
