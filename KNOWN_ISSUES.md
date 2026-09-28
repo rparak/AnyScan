@@ -105,6 +105,23 @@ never joins two components*).
 - **No configuration reaches it:** the merge happens before the closing and the area filter. Lowering
   FastSAM's NMS `IoU` could drop the both-plates mask in 009, but in 011 and 012 that mask outscores a
   plate, so the plate would be suppressed instead — and the background bridge would remain.
+- **Tried and rejected — a larger FastSAM inference size (`Segmentation.Image_Size`).** At 1024 the
+  6–10 px seam is ~3 px wide, so running closer to the frame's 1920 px looked like a configuration fix.
+  Measured 2026-09-28 on all thirteen frames (1024 / 1280 / 1536 / 1920):
+  - **It fixes the cause and creates a worse one.** The both-plates mask weakens as the size grows —
+    011 0.94 → 0.96 → 0.79 → **0.48**, 012 0.94 → 0.91 → 0.81 → **0.43** — but the plates' own masks
+    grow into the seam (they take in the dark edge and the side wall, which is the seam) and touch: at
+    1920 in all five two-plate frames, 86–3,132 px of contact, 011 included (923 px), which does not touch
+    at 1024. 009, 011 and 012 stay merged at every size.
+  - **It costs frames that count correctly.** Off the inventory: 1024 — 009, 011, 012; 1280 and 1536 —
+    those plus 010, 013 (their plate masks now touch), 003, 004; 1920 — 009, 011, 012, 013, 003, 004,
+    005. At 1920 in `All/Image_003` one FastSAM mask covers **0.495** of the frame — the right half of the
+    table — just under the 0.50 `Background_Area_Fraction` that would reject it as the table plane, so it
+    stays in the union and joins the robot and the dark plate. That threshold sits at the edge of where it
+    matters; this is the number beside it.
+  - **Time is not the reason.** FastSAM per frame (median / max): 171 / 237 ms at 1024, 231 / 292 at
+    1280, 299 / 398 at 1536, 435 / 495 at 1920 — at most a quarter of a second more, against Gemma's
+    seconds per object. The counts are the reason: `Image_Size` stays 1024.
 - **Tried and rejected — splitting a merged component by its FastSAM masks with a seam test.** FastSAM
   returns a hierarchy: both plates, each plate, each machined plate's two halves, the hole rings. "Both
   plates = two plates" has the same shape in mask space as "one plate = two halves", so a split needs
