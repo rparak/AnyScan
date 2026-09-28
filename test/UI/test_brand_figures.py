@@ -26,11 +26,25 @@ import base64
 import importlib.util
 import os
 import re
+# Qt must never open a window during tests: the offscreen platform renders without a display.
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Typing (Support for type hints)
 import typing as tp
+# Numpy (Array computing) [pip3 install numpy]
+import numpy as np
+# Pytest (Testing framework) [pip3 install pytest]
+import pytest
+# PyQt5 (Qt bindings) [pip3 install PyQt5]
+from PyQt5.QtCore import QByteArray, Qt
+from PyQt5.QtGui import QFont, QFontInfo, QImage, QPainter
+from PyQt5.QtSvg import QSvgRenderer
+from PyQt5.QtWidgets import QApplication
 # Custom Lib.: AnyScan domain — the Qt-free colour palette
 #   ../Parameters/Theme
 import Parameters.Theme as Theme
+# Custom Lib.: AnyScan UI — the logo loader the top bar uses
+#   ../UI/Utilities/Style
+import UI.Utilities.Style as Style
 # Custom Lib.: AnyScan UI — the console's funding band, whose logos the diagram must carry
 #   ../UI/Widgets
 from UI.Widgets import Funding_Row_Cls
@@ -71,6 +85,104 @@ CONST_HEX_COLOUR = re.compile(r'#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9A-Za-z_
 #   Unit [Pattern]
 CONST_HREF = re.compile(r'(?:xlink:)?href\s*=\s*["\']([^"\']*)["\']')
 CONST_URL = re.compile(r'url\(\s*["\']?([^"\')\s]*)')
+# The second application font the logo is rendered under, the first installed one that differs from
+# the platform default: DejaVu Sans is the common Linux face that clipped the old text tagline.
+#   Unit [Vector<string>]
+CONST_OTHER_FONTS = ('DejaVu Sans', 'DejaVu Sans Mono', 'Courier New', 'Liberation Mono', 'Noto Sans Mono')
+
+
+@pytest.fixture(scope='module')
+def qt_app() -> QApplication:
+    """A single offscreen QApplication for the module."""
+    return QApplication.instance() or QApplication([])
+
+
+def _Pixels(image: QImage) -> np.ndarray:
+    """
+    Description:
+        An image's pixels as an array.
+
+    Args:
+        (1) image [QImage(object)]: The image.
+
+    Returns:
+        (1) parameter [Matrix<uint8> HxWx4]: Its ARGB32 pixels.
+    """
+
+    image = image.convertToFormat(QImage.Format_ARGB32)
+    pointer = image.constBits()
+    pointer.setsize(image.byteCount())
+    return np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4).copy()
+
+
+def _With_Default_Font(app: QApplication, family: str, render: tp.Callable[[], QImage]) -> np.ndarray:
+    """
+    Description:
+        Render something with the application's default font set to a family, then restore the font.
+
+    Args:
+        (1) app [QApplication(object)]: The application.
+        (2) family [string]: The default font family to set.
+        (3) render [Callable]: Returns the rendered image.
+
+    Returns:
+        (1) parameter [Matrix<uint8> HxWx4]: The rendered pixels.
+    """
+
+    original = app.font()
+    font = QFont(original)
+    font.setFamily(family)
+    app.setFont(font)
+    try:
+        return _Pixels(render())
+    finally:
+        app.setFont(original)
+
+
+def _Svg_Text_Image() -> QImage:
+    """
+    Description:
+        A control: an SVG line of <text>, rendered the way Load_Svg renders the logo.
+
+    Returns:
+        (1) parameter [QImage(object)]: The render.
+    """
+
+    renderer = QSvgRenderer(QByteArray(b'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="60" '
+                                       b'viewBox="0 0 400 60"><text x="4" y="40" font-size="36">'
+                                       b'The camera sees</text></svg>'))
+    image = QImage(400, 60, QImage.Format_ARGB32_Premultiplied)
+    image.fill(Qt.transparent)
+    painter = QPainter(image)
+    renderer.render(painter)
+    painter.end()
+    return image
+
+
+def test_the_logo_renders_the_same_in_any_default_font(qt_app) -> None:
+    """
+    Description:
+        The logo carries no text, only outlines, so the top bar draws the same pixels whatever the
+        application's default font is. PyQt5's QtSvg ignores CSS font rules and set the old text logo in
+        the default font, which clipped its tagline on Linux. The control shows the font change does
+        reach text QtSvg draws, so an identical logo is not a font change that never happened.
+    """
+
+    default = QFontInfo(qt_app.font()).family()
+    others = [f for f in CONST_OTHER_FONTS if QFontInfo(QFont(f)).family() == f and f != default]
+    if not others:
+        pytest.skip('no installed font other than the default (%s) among %s' % (default, ', '.join(CONST_OTHER_FONTS)))
+    control_a = _With_Default_Font(qt_app, default, _Svg_Text_Image)
+    control_b = _With_Default_Font(qt_app, others[0], _Svg_Text_Image)
+    assert not np.array_equal(control_a, control_b), 'the default font did not reach QtSvg text; the test proves nothing'
+
+    def Render_Logo() -> QImage:
+        return Style.Load_Svg('anyscan-logo.svg', 54).toImage()
+
+    logo_a = _With_Default_Font(qt_app, default, Render_Logo)
+    logo_b = _With_Default_Font(qt_app, others[0], Render_Logo)
+    assert logo_a.shape == logo_b.shape and np.array_equal(logo_a, logo_b), \
+        'the logo renders differently under %s and %s: it still depends on a font' % (default, others[0])
 
 
 def _Read(path: str) -> str:
@@ -110,7 +222,8 @@ def test_the_three_logo_copies_are_identical() -> None:
     """
     Description:
         The topbar's asset is the source file byte for byte, and the diagram's inline copy is the
-        source's content unchanged. Edit images/anyscan-logo.svg, then copy it to the other two.
+        source's content unchanged. Rebuild with Example/UI/build_logo.py (it writes both files),
+        then regenerate the diagram.
     """
 
     source = _Read(CONST_LOGO)

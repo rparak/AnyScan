@@ -348,7 +348,7 @@ What is committed, and what you must supply:
 App/
   run.py                  the application (entry point)
   assets/                 UI images, committed
-    anyscan-logo.svg          the AnyScan brand lockup (topbar)
+    anyscan-logo.svg          the AnyScan brand lockup (topbar); built, see images/source/
     brand-jic-mute.png        the JIC mark beside the lockup
     edih-digimat-white.png    project wordmark, funding band
     partner-ministry-white.png  Ministry of Industry and Trade
@@ -357,7 +357,8 @@ App/
     anyscan-mark-white.ico    the window / taskbar icon (multi-size, rounded)
     fonts/                    optional: drop Inter.ttf and JetBrainsMono.ttf here
 src/                      Qt-free domain modules + the UI (see "Source layout")
-Example/                  runnable scripts (scan, calibrate, make_reference, analyze, architecture_diagram)
+Example/                  runnable scripts (scan, calibrate, make_reference, analyze, architecture_diagram,
+                          build_logo)
 Data/Images/Test/         the seven frames analyze.py runs on, and the tests' pinned set — committed
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored
@@ -365,6 +366,7 @@ Data/Results/             analyze.py and scan.py output — git-ignored
   Camera/                   the reference background and calibration-result images
     Image_Background_001.png  the empty-surface reference ANALYZE subtracts
 images/                   documentation illustrations for this README — committed
+  source/anyscan-logo-text.svg  the logo's text source; Example/UI/build_logo.py outlines it
 models/                   model weights — you supply these, NOT committed
   gemma-4-e4b-it-4bit/      Gemma 4 E4B (MLX), downloaded per Setup (git-ignored)
   FastSAM/FastSAM-x.pt      FastSAM, downloaded per Setup (git-ignored)

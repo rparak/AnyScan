@@ -1398,27 +1398,83 @@ calibrated" with no accuracy adjective (README > Limitations).
   through `<img>`, which cannot load web fonts, so most readers see Helvetica/Arial and Courier.
   The spacing was set and reviewed with those faces, at README width (900 px since the
   2026-09-27 redesign, rendered with `rsvg-convert`) on white and on GitHub dark (`#0d1117`). Do not tighten it on a machine that has Inter or JetBrains Mono installed: it
-  would fit there and overflow for everyone else. The logo's tagline overflows its box in the
-  fallback mono face, so the diagram lets it (`overflow: visible` on the logo slot) rather than
-  changing the logo.
+  would fit there and overflow for everyone else. The logo itself no longer depends on fonts: its
+  text is outlined (see *The logo's text is outlined*), so it has the same ink in every
+  renderer and the old `overflow: visible` on the logo slot is gone.
 - **The logo is copied inline, not referenced.** An SVG loaded through `<img>` never fetches
   another file, so a referenced logo would draw nothing. The JIC and EDIH-DIGIMAT marks are
   embedded as base64 data for the same reason; the generator reads them from `App/assets/`, so
   a changed mark makes the committed SVG stale and the whole-file test fails. There are now three copies: `images/`,
   `App/assets/` (the topbar) and the one the generator inlines. A test holds all three equal.
-  Edit `images/anyscan-logo.svg`, copy it to `App/assets/`, then regenerate.
+  Rebuild the logo with `Example/UI/build_logo.py` (it writes both files), then regenerate.
 - **The logo's palette predates the theme and is deliberately not reconciled with it.** Slate
   `#0F172A` and magenta `#D6006E` are not `CONST_INK` or `CONST_BRAND`. The topbar already shows
   the logo this way beside the indigo UI, and the diagram mirrors that on an opaque `CONST_BG`
   card, which reads like a screenshot on a light or a dark README. Do not "fix" the logo to the
   tokens: it is the brand lockup, not a UI surface.
 
-**Revisit if** the logo is redesigned (update `images/anyscan-logo.svg`, copy it, regenerate), or
+**Revisit if** the logo is redesigned (rebuild it with `Example/UI/build_logo.py`, regenerate), or
 if the code changes what the diagram shows. The generator holds the colours; the content is
 still written by hand in the generator, and the README link is what keeps it in view.
 Tests `test/UI/test_brand_figures.py` (`test_the_three_logo_copies_are_identical`,
 `test_the_diagram_is_the_generators_output`, `test_the_diagram_draws_only_theme_tokens`,
 `test_the_readme_shows_the_diagram`).
+
+## The logo's text is outlined, so the logo has the same width in every font setup
+
+`images/anyscan-logo.svg` (and its byte-identical copy `App/assets/anyscan-logo.svg`) carries no
+`<text>`: the wordmark, the tagline and the index "1" are paths, set in Inter 400. It has no
+`<style>`, no `marker` (the arrowhead is not drawn, as the app always showed it), and no C2PA
+metadata. The viewBox is the ink bounds plus 5 units on every side, which keeps the height at 174
+so the top bar's `Style.CONST_LOGO_HEIGHT` (54 px) lockup keeps its scale.
+
+It is built, never edited: `python Example/UI/build_logo.py` outlines the text source
+`images/source/anyscan-logo-text.svg` and writes both copies (`--output PATH` writes one file,
+`--font PATH` uses a local copy of the font). Then regenerate the diagram.
+- **Font:** Inter 4.001, SIL OFL 1.1 (outlined glyphs in a logo are artwork made with the font; the
+  OFL governs the font software, and Inter has no Reserved Font Name). It is not in the repository:
+  the script downloads `ofl/inter/Inter[opsz,wght].ttf` from google/fonts commit
+  `e1d6480102fed30739fead0faee463101f892c8f` and stops unless its SHA-256 is
+  `29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031`.
+- **Outliner:** Inkscape 1.2.2 (`--export-text-to-path --export-plain-svg`), shaping with
+  Pango/HarfBuzz (kerning included), through a private fontconfig file that shows it only that font.
+  Another Inkscape version builds with a WARNING; compare before committing.
+- **Optical size, pinned in the source:** Inter's `opsz` axis runs 14–32 and Pango picks it from the
+  size on its own (measured: 32 for the 87-unit wordmark). The source pins it on every `<text>` with
+  `font-variation-settings`: `'opsz' 32` for the wordmark (87) and the tagline (36), `'opsz' 14` for
+  the index (13), which is what a browser chooses at those sizes.
+- **Reproduced:** from a clean export of the committed tree into a temporary path, the script's
+  output is byte-identical to `App/assets/anyscan-logo.svg`.
+
+**Why.** PyQt5's QtSvg 5.15 ignores every CSS `font-*` property (measured 2026-09-28: a CSS `fill`
+changed 2,500 px, a CSS `font-family`, `font-weight` or `font-size` changed 0), so it drew the
+text in the application's default font at regular weight. On macOS that is the narrow system face,
+which fitted; on Linux it is usually DejaVu Sans or similar, which ran the tagline 116 units past
+the old 858-unit viewBox and clipped it in the header. Widening the viewBox instead (the 1060-unit
+version) fixed the clip but left up to 77 px of empty image between the tagline and the divider
+in the topbar, and the width still depended on the machine's font. Outlined, the logo renders
+identically under any application font (pixel-identical pixmaps under the macOS system font and
+DejaVu Sans) and matches rsvg-convert and WebKit to anti-aliasing (identical ink boxes, no pixel
+more than 128 levels apart). Look (b), the file's CSS intent (bold wordmark, JetBrains Mono
+tagline, arrowhead), was the alternative; (a) was chosen because it is what the app has shown.
+
+In the top bar the logo, the divider and the JIC mark are spaced `AnyScan_Window_Cls.CONST_BRAND_GAP`
+= `Style.CONST_MARK_GAP` (32 px, the funding band's own gap around its divider, now named and used
+by both) apart, measured from ink: `Style.Ink_Insets` takes each image's transparent margin off the
+spacing, so the logo's 5-unit margin (1.6 px at 54 px) does not widen the gap. A margin wider than
+the gap is not absorbed (the spacing never goes negative), so it shows and `test/UI/test_header.py`
+fails; a smaller one is absorbed by design (at 32 px, even 100 extra units, 31 px, is). Before this,
+77.5 of the 93.5 px between the tagline and the divider were empty image. 12 (the Live button bar)
+and 16 (`Style.CONST_GAP`) were rendered as the alternatives. The architecture diagram follows the
+same rule (`Header_Positions` in `Example/UI/architecture_diagram.py`): the gap scaled from the
+54 px lockup to the diagram's logo, 41.24 units, measured 41.0 in an rsvg render.
+
+**Revisit if** the logo is redesigned: change the text source (or replace it with an outlined
+export), rebuild with `Example/UI/build_logo.py`, then regenerate the diagram; or if google/fonts
+drops the pinned commit (pin another, update the SHA-256, and compare the rebuilt logo).
+Tests `test/UI/test_brand_figures.py` (`test_the_logo_renders_the_same_in_any_default_font`,
+`test_the_three_logo_copies_are_identical`, `test_the_diagram_is_the_generators_output`),
+`test/UI/test_header.py`.
 
 ## Gemma 4 12B was measured against E4B and is not better; E4B stays the describer
 

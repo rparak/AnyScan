@@ -26,6 +26,7 @@ import sys
 import os
 import argparse
 import base64
+import re
 # Resolve the project folder from this file's own location (Example/UI -> ..), so the script
 # runs the same whether launched from Example/UI/ or the repo root.
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -46,6 +47,11 @@ import UI.Utilities.Style as Style
 # Custom Lib.: AnyScan UI — the console's funding band, whose logos and disclaimer the diagram repeats
 #   ../UI/Widgets
 from UI.Widgets import Funding_Row_Cls
+# Custom Lib.: AnyScan — the logo build, whose margin around the ink the header subtracts
+#   ./build_logo
+if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from build_logo import CONST_MARGIN as CONST_LOGO_MARGIN
 
 """
 Description:
@@ -89,6 +95,16 @@ CONST_LOGO_END = '<!-- logo:end -->'
 #   Unit [px]
 CONST_WIDTH = 1200
 CONST_HEIGHT = 790
+# The header's logo: its top-left corner and its scale (logo units -> diagram units). The divider and
+# the JIC mark follow the top bar's rule (UI/Core.py): Style.CONST_MARK_GAP from ink to divider and
+# from divider to ink, scaled from the bar's Style.CONST_LOGO_HEIGHT px lockup to this logo's height.
+#   Unit [px] / [-]
+CONST_LOGO_X = 40
+CONST_LOGO_Y = 34
+CONST_LOGO_SCALE = 0.4
+# The header divider's stroke width.
+#   Unit [px]
+CONST_DIVIDER_WIDTH = 1.5
 # The funding band: its top edge, the console's per-logo heights scaled by this factor (the
 # heights are tuned per logo there, so they are scaled, never replaced), and the gap between logos.
 #   Unit [px] / [-]
@@ -351,6 +367,28 @@ def Split_In_Two(text: str) -> tp.List[str]:
     return [text[:cut], text[cut + 1:]]
 
 
+def Header_Positions(logo_svg: str) -> tp.Tuple[float, float]:
+    """
+    Description:
+        Where the header's divider and JIC mark go, by the top bar's rule: Style.CONST_MARK_GAP from
+        the logo's rightmost ink to the divider's edge, and from its other edge to the JIC mark (whose
+        PNG has no transparent margin), scaled from the bar's lockup height to this logo's. The ink
+        ends CONST_LOGO_MARGIN inside the logo's viewBox, which build_logo.py fits to the ink.
+
+    Args:
+        (1) logo_svg [string]: The content of images/anyscan-logo.svg.
+
+    Returns:
+        (1) parameter [Vector<float> 1x2]: The divider's x (its centre line) and the JIC mark's x.
+    """
+
+    _, _, view_w, view_h = (float(v) for v in re.search(r'viewBox="([^"]+)"', logo_svg).group(1).split())
+    ink_right = CONST_LOGO_X + CONST_LOGO_SCALE * (view_w - CONST_LOGO_MARGIN)
+    gap = Style.CONST_MARK_GAP * CONST_LOGO_SCALE * view_h / Style.CONST_LOGO_HEIGHT
+    divider = ink_right + gap + CONST_DIVIDER_WIDTH / 2
+    return round(divider, 2), round(divider + CONST_DIVIDER_WIDTH / 2 + gap, 2)
+
+
 def Draw_Architecture(logo_svg: str) -> str:
     """
     Description:
@@ -383,7 +421,6 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Open('<defs>')
     c.Open('<style>')
     c.Add('text { font-family: %s; }' % CONST_UI_FONT)
-    c.Add('.logo-slot svg { overflow: visible; }')
     c.Close('style')
     c.Open('<marker id="arch-tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" '
            'orient="auto">')
@@ -400,13 +437,15 @@ def Draw_Architecture(logo_svg: str) -> str:
     # The header, as the console's top bar: the lockup, a divider, the JIC mark.
     c.Open('<g id="header">', 'Header: the AnyScan logo (its own palette, which predates the theme), '
            'a divider and the JIC mark, as in the top bar')
-    c.Open('<g class="logo-slot" transform="translate(40,34) scale(0.4)">')
+    c.Open('<g class="logo-slot" transform="translate(%g,%g) scale(%g)">' % (CONST_LOGO_X, CONST_LOGO_Y, CONST_LOGO_SCALE))
     c.Raw(CONST_LOGO_BEGIN)
     c.Raw(logo_svg.strip())
     c.Raw(CONST_LOGO_END)
     c.Close('g')
-    c.Add('<line x1="500" y1="44" x2="500" y2="96" stroke="%s" stroke-width="1.5"/>' % T.CONST_TOPBAR_DIVIDER)
-    c.Image(524, 53, 34, CONST_JIC_FILE, 'JIC')
+    divider_x, jic_x = Header_Positions(logo_svg)
+    c.Add('<line x1="%g" y1="44" x2="%g" y2="96" stroke="%s" stroke-width="%g"/>'
+          % (divider_x, divider_x, T.CONST_TOPBAR_DIVIDER, CONST_DIVIDER_WIDTH))
+    c.Image(jic_x, 53, 34, CONST_JIC_FILE, 'JIC')
     c.Text(1160, 76, 'ARCHITECTURE', S[2], T.CONST_INK_MUTE, weight='700', anchor='end', spacing='2')
     c.Close('g')
     c.Blank()

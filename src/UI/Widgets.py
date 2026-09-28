@@ -1190,7 +1190,7 @@ class Funding_Row_Cls(Card_Cls):
             % (Style.CONST_BAND, Style.CONST_BAND, Style.CONST_RADIUS_CARD)
         )
         row = QHBoxLayout()
-        row.setSpacing(32)
+        row.setSpacing(Style.CONST_MARK_GAP)
         row.addStretch(1)
         for name, height in self.LOGOS:
             if name is None:

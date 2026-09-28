@@ -68,6 +68,8 @@ CONST_ASSETS = os.path.abspath(
 CONST_RADIUS_CARD   = 18
 CONST_RADIUS_BTN    = 11
 CONST_GAP           = 16          # gap between cards, everywhere
+CONST_MARK_GAP      = 32          # gap between brand marks and either side of the divider between them
+CONST_LOGO_HEIGHT   = 54          # the top bar's AnyScan lockup height
 
 # Busy-indicator animation, driven by a QTimer in the viewport while the worker
 # runs. Kept here so the whole console's tunable values live in one place.
@@ -372,6 +374,34 @@ def Load_Svg(name: str, height: int) -> QPixmap:
     pix = QPixmap.fromImage(image)
     pix.setDevicePixelRatio(dpr)
     return pix
+
+
+def Ink_Insets(pixmap: QPixmap) -> tp.Tuple[int, int]:
+    """
+    Description:
+        The fully transparent columns at a pixmap's left and right edges, in logical pixels. A
+        lockup's image keeps a margin around its artwork; subtracting it lets a layout space marks
+        from their ink, which is the gap the eye sees, instead of from their image boxes.
+
+    Args:
+        (1) pixmap [QPixmap(object)]: The mark, tagged with its devicePixelRatio.
+
+    Returns:
+        (1) parameter [Vector<int> 1x2]: (left, right) inset in logical pixels, rounded; (0, 0) for a
+                                         null or fully transparent pixmap.
+    """
+
+    if pixmap.isNull():
+        return 0, 0
+    image = pixmap.toImage().convertToFormat(QImage.Format_ARGB32)
+    pointer = image.constBits()
+    pointer.setsize(image.byteCount())
+    alpha = np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)[:, :image.width(), 3]
+    columns = np.flatnonzero(alpha.max(axis=0))
+    if columns.size == 0:
+        return 0, 0
+    dpr = pixmap.devicePixelRatio()
+    return (int(round(columns[0] / dpr)), int(round((image.width() - 1 - columns[-1]) / dpr)))
 
 
 def Font(size: float, weight: int = QFont.Normal, mono: bool = False,

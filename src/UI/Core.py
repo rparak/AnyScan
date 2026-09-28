@@ -125,6 +125,10 @@ class AnyScan_Window_Cls(QMainWindow):
                            ('log', 'Log'))
     # The switch keys mapped to their stack index.
     CONST_VIEW_INDEX = {'live': 0, 'trends': 1, 'history': 2, 'log': 3}
+    # The top bar's brand group — the AnyScan logo, a divider, the JIC mark — is spaced this far apart,
+    # measured from ink to divider and from divider to ink: the funding band's gap around its divider.
+    #   Unit [px]
+    CONST_BRAND_GAP = Style.CONST_MARK_GAP
     # What the status strip's Camera and System cells can say — the texts they show, and the widths
     # the cells reserve so that a change of state never shifts the columns ('99' stands for any count).
     CONST_CAMERA_STATES = ('Connecting…', 'Connected', 'Disconnected')
@@ -393,15 +397,25 @@ class AnyScan_Window_Cls(QMainWindow):
         row.setContentsMargins(4, 20, 4, 18)
         row.setSpacing(16)
 
+        # The brand group spaces its marks from their INK: each image's transparent margin is taken off
+        # the gap (Ink_Insets), so CONST_BRAND_GAP is what the eye sees. A margin wider than the gap is
+        # not absorbed (no negative spacing, which would lay the divider over the logo's box): it shows.
+        brand = QHBoxLayout()
+        brand.setSpacing(0)
+        logo_pixmap = Load_Svg('anyscan-logo.svg', Style.CONST_LOGO_HEIGHT)
         logo = QLabel()
-        logo.setPixmap(Load_Svg('anyscan-logo.svg', 54))
-        row.addWidget(logo)
+        logo.setPixmap(logo_pixmap)
+        brand.addWidget(logo)
+        brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(logo_pixmap)[1]))
 
-        row.addWidget(Hairline(vertical=True, length=34, color=Style.CONST_TOPBAR_DIVIDER))
+        brand.addWidget(Hairline(vertical=True, length=34, color=Style.CONST_TOPBAR_DIVIDER))
 
+        jic_pixmap = Load_Logo('brand-jic-mute.png', 26)
+        brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(jic_pixmap)[0]))
         jic = QLabel()
-        jic.setPixmap(Load_Logo('brand-jic-mute.png', 26))
-        row.addWidget(jic)
+        jic.setPixmap(jic_pixmap)
+        brand.addWidget(jic)
+        row.addLayout(brand)
 
         row.addStretch(1)
 
