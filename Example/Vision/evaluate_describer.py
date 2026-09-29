@@ -23,7 +23,6 @@
 
 # System (Default)
 import argparse
-import dataclasses
 import json
 import os
 import sys
@@ -61,7 +60,6 @@ Description:
     run repeatable on one machine: the same weights and prompts give the same totals.
 
         python Example/Vision/evaluate_describer.py
-        python Example/Vision/evaluate_describer.py --describer-model models/gemma-4-12B-it-4bit
         python Example/Vision/evaluate_describer.py --output /tmp/describer.json
 """
 # The width a description is cut to in the per-object table (the --output file keeps it whole).
@@ -169,17 +167,11 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description='Score the configured describer against the confirmed answer key.')
     parser.add_argument('--config', default=CONST_DEFAULT_CONFIG_FILE, help='the configuration (default: the shipped one)')
-    parser.add_argument('--describer-model', default=None,
-                        help='replace Description.Model for this run only (the configuration file is not changed)')
     parser.add_argument('--output', default=None, help='also write every description and score to this JSON file')
     args = parser.parse_args()
 
     try:
         configuration = Load_Configuration(args.config)
-        if args.describer_model:
-            model = os.path.abspath(os.path.join(CONST_PROJECT_FOLDER, args.describer_model))
-            configuration = dataclasses.replace(configuration, Description=dataclasses.replace(configuration.Description,
-                                                                                               Model_Path=model))
         if not configuration.Evaluation.Frames:
             raise Evaluation_Error_Cls('The configuration "%s" does not set Evaluation.Frames, where the frames and '
                                        'the answer key are.' % args.config)

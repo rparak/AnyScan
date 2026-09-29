@@ -27,9 +27,7 @@ skipped when already present. It is safe to re-run:
 
 On Linux it stops, naming the card and its memory, when GPU 0 has less than 11 GB or there
 is no usable NVIDIA GPU; `--cpu` installs the CPU builds instead (unmeasured, expected to be
-far slower). `--model 12b` installs Gemma 4 12B in place of E4B. It prints what that choice
-means and the configuration field to set; it never edits a configuration. See
-[Platform](#platform) for the model matrix.
+far slower). See [Describer model](#describer-model) for what the model needs.
 
 **Two installer paths have never run for real, and a fresh install is their first test.**
 The installer has been run only on an Apple-silicon Mac that already had both models. There,
@@ -53,11 +51,13 @@ pip install -r requirements.txt
 is only needed for the live camera; the tests and the `--frame` path run without
 it.
 
-The vision pipeline describes each object with a local **Gemma 4 E4B** model (4-bit MLX)
-from `models/gemma-4-e4b-it-4bit/`, which is **not** tracked in git. It runs through MLX on
-Apple silicon (macOS), which `requirements.txt` installs there. It is a required setup step:
-the weights (~4.8 GB) must be present at that path before `python App/run.py`, or ANALYZE
-fails with a message naming the missing directory. Download them with:
+The vision pipeline describes each object with a local **Gemma 4 E4B** model,
+`gemma-4-e4b-it-4bit` (4-bit MLX), from `models/gemma-4-e4b-it-4bit/`, which is **not** tracked
+in git. It runs through MLX: Metal on Apple silicon, which `requirements.txt` installs there, and
+CUDA on Linux, whose backend is a separate requirements file (see [Platform](#platform)). It is a
+required setup step: the weights (5.2 GB) must be present at that path before
+`python App/run.py`, or ANALYZE fails with a message naming the missing directory. Download them
+with:
 
 ```bash
 hf download mlx-community/gemma-4-e4b-it-4bit \
@@ -433,17 +433,9 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
 
 | Platform | Status | What is known |
 |---|---|---|
-| **macOS, Apple silicon** | **Supported, measured** | MLX on the Apple GPU (Metal). 2.22 s per object (warm), 9.41 GB peak for the whole application, and output identical word for word across runs, processes and memory pressure. |
+| **macOS, Apple silicon** | **Supported, measured** | MLX on the Apple GPU (Metal). 2.20 s per object (warm), 9.35 GB pipeline peak, and output identical word for word across runs, processes and memory pressure. |
 | **Linux** | **Supported, measured on one machine** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer reads GPU 0's memory and refuses below it; `--cpu` opts into the CPU backend). Measured 2026-09-29 on Ubuntu with an RTX 5070 Ti (16 GB, driver 595.91.07), MLX 0.32.2 with the CUDA 13 backend (`mlx[cuda13]`) and PyTorch 2.14.0+cu130 (FastSAM on CUDA): E4B describes in **0.65 s per object** (warm; 0.51–0.93 s over the 37 objects of `Data/Images/Test/All`), loads in 3.9 s, and the whole application peaks at 9.5 GB of GPU memory (MLX 6.99 GB) and 4.0 GB of RAM. Output identical word for word between two processes. Not compared with the Mac's text. |
 | **Windows** | **Not a target, untested** | Nothing known prevents it — `mlx` publishes Windows wheels — but it is not supported and has never been tried. |
-
-**The describer models.** Both are 4-bit MLX conversions, so the same describer loads either
-on every backend. Only the configuration's `Description.Model` chooses between them.
-
-| Model | Repository @ revision | Download | Provenance | Status |
-|---|---|---|---|---|
-| **Gemma 4 E4B** (default) | `mlx-community/gemma-4-e4b-it-4bit` @ `475b908` | 5.2 GB | **Named:** its card gives its source, `google/gemma-4-E4B-it` at revision `fee6332`, where the licence was checked | The measured describer: 2.20 s per object, 9.35 GB pipeline peak on Apple silicon. The prompts were tuned on it. Installed on every platform unless `--model 12b`. |
-| Gemma 4 12B (`--model 12b`) | `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09` | 6.8 GB | **Weaker, plausible not proven:** the card names no base model, revision or licence. Its `tokenizer.json` is byte-identical to `google/gemma-4-12B-it`'s and its text configuration matches field for field. | Measured on Apple silicon against E4B: 5.46 s per object (2.5×), 10.45 GB peak. It names rust and one hex nut E4B misses, but reads three of four plastic parts as metal (the previous test set, `f5cd075^`). **Not recommended.** On Linux it needs a card with at least 15 GB. |
 
 - **Determinism does not travel.** Greedy decoding (`temperature=0`) makes the *sampler*
   deterministic, but a different backend can still produce different text through
@@ -458,9 +450,9 @@ on every backend. Only the configuration's `Description.Model` chooses between t
   `linux-cpu.txt` (far slower) — installed together with `requirements.txt`, which holds the
   version pin. PyTorch's CUDA build cannot be chosen by a requirements marker, so it comes
   from the matching PyTorch index (`cu126`, `cu130` or `cpu`). `./install.sh` makes both
-  choices from the NVIDIA driver it finds, after checking GPU 0's memory (11 GB minimum; 15 GB
-  for `--model 12b`), and it warns when the card already has more than 1.5 GB in use. With
-  no usable GPU it stops, naming the reason, unless `--cpu` is given. On the measured Linux
+  choices from the NVIDIA driver it finds, after checking GPU 0's memory (11 GB minimum), and it
+  warns when the card already has more than 1.5 GB in use. With no usable GPU it stops, naming
+  the reason, unless `--cpu` is given. On the measured Linux
   machine (2026-09-29) its detection ran for real (`--detect-only`: driver 595.91.07, the CUDA 13
   backend and the `cu130` PyTorch build, 15.9 GB on GPU 0) and so did its Gemma step, which
   downloaded and verified E4B. The full install was not run there: that machine's environment
@@ -483,6 +475,28 @@ on every backend. Only the configuration's `Description.Model` chooses between t
 - **Packaging:** the PyInstaller recipe this section used to give was for Windows and no
   longer applies. No packaging recipe has been verified on any platform; run from source
   (`python App/run.py`).
+
+### Describer model
+
+AnyScan describes objects with one model: **Gemma 4 E4B**, instruction-tuned, as the 4-bit MLX
+conversion `mlx-community/gemma-4-e4b-it-4bit` at revision `475b908`. The prompts were tuned on
+it, and the configuration's `Description.Model` names its directory.
+
+| | Apple silicon (Metal) | Linux (CUDA) |
+|---|---|---|
+| Time per object (warm, mean) | 2.20 s | 0.65 s |
+| Peak memory | 9.35 GB, the pipeline | 9.5 GB of GPU memory, the whole application (MLX 6.99 GB) |
+| Memory it needs | Measured on a 16 GB M2 Pro; no minimum is set | 11 GB on GPU 0; the installer reads it and stops below |
+
+- **Download:** 5.2 GB, 10 files, into `models/gemma-4-e4b-it-4bit/`.
+- **Install:** `./install.sh` downloads it and checks every file against the published hashes;
+  by hand, use the `hf download` command in [Setup](#setup).
+- **Run:** `python App/run.py`, then load a configuration and ANALYZE. The shipped configuration
+  already names this model.
+- **Provenance:** its model card gives its source, `google/gemma-4-E4B-it` at revision `fee6332`,
+  where the licence was checked (Apache 2.0; see [Licence note](#licence-note)).
+- **Scoring it:** `python Example/Vision/evaluate_describer.py` runs it through the application's
+  path and scores its descriptions against `Data/Images/Test/All/answer_key.json`.
 
 ## Swapping a component
 
