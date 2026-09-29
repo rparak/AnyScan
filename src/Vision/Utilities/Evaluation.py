@@ -51,9 +51,6 @@ CONST_OUTCOMES = (CONST_CORRECT, CONST_WRONG, CONST_NOT_STATED, CONST_NOT_DECIDA
 # The fields every object in the key carries.
 #   Unit [Tuple<string>]
 CONST_OBJECT_FIELDS = ('frame', 'index', 'type', 'type_class', 'material', 'colour', 'colour_terms', 'source', 'status')
-# Where one sentence ends and the next begins: a full stop, question or exclamation mark, then space.
-#   Unit [string] (regular expression)
-CONST_SENTENCE_END = r'(?<=[.!?])\s+'
 
 
 class Evaluation_Error_Cls(RuntimeError):
@@ -86,7 +83,7 @@ def Load_Answer_Key(path: str) -> tp.Dict[str, tp.Any]:
     except (OSError, ValueError) as error:
         raise Evaluation_Error_Cls('The answer key "%s" could not be read (%s). Fix the file and run again.'
                                    % (path, error)) from error
-    for field in ('rules', 'materials', 'type_classes', 'objects'):
+    for field in ('rules', 'materials', 'type_classes', 'type_nouns', 'naming_cues', 'naming_ends', 'objects'):
         if field not in key:
             raise Evaluation_Error_Cls('The answer key "%s" has no "%s" block.' % (path, field))
     seen = set()
@@ -123,95 +120,95 @@ def _Matches(text: str, patterns: tp.List[str]) -> bool:
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
 
 
-def Naming_Sentence(text: str) -> str:
+def Naming_Claims(text: str, key: tp.Dict[str, tp.Any]) -> tp.List[str]:
     """
     Description:
-        The sentence in which a description names the part: its first ("The object is a ...", "This is
-        a ..."). The sentences after it describe features, surface and condition.
+        Every place a description says what the part is: the noun phrase after each naming cue ("is a",
+        "appears to be a", "possibly a", "suggesting it is a" ...; the key's "naming_cues"), in any
+        sentence, up to where the next clause starts (the key's "naming_ends": "with", "featuring",
+        ", appearing" ...). A feature named without a cue ("the outer white ring") is no claim.
 
     Args:
         (1) text [string]: The description.
+        (2) key [Dict<string, Any>]: The answer key (its "naming_cues" and "naming_ends").
 
     Returns:
-        (1) parameter [string]: The first sentence, or the whole text when it has only one.
+        (1) parameter [Vector<string>]: The claimed noun phrases, in order.
     """
 
-    return re.split(CONST_SENTENCE_END, text.strip(), maxsplit=1)[0]
+    cue = re.compile('|'.join('(?:%s)' % pattern for pattern in key['naming_cues']), re.IGNORECASE)
+    end = re.compile('|'.join('(?:%s)' % pattern for pattern in key['naming_ends']), re.IGNORECASE)
+    claims = []
+    for match in cue.finditer(text):
+        rest = text[match.end():]
+        stop = end.search(rest)
+        claims.append(rest[:stop.start()] if stop else rest)
+    return claims
 
 
-def _Alternatives(sentence: str) -> tp.List[tp.Tuple[str, str]]:
-    """
-    Description:
-        The word pairs a sentence offers as alternatives: "X or Y" (an article after "or" skipped).
-
-    Args:
-        (1) sentence [string]: The sentence.
-
-    Returns:
-        (1) parameter [Vector<Tuple<string> 1x2>]: The (X, Y) pairs, in order.
-    """
-
-    return re.findall(r'([\w-]+) or (?:an? |the )?([\w-]+)', sentence, re.IGNORECASE)
-
-
-def Score_Type(text: str, type_class: tp.Dict[str, tp.List[str]], type_nouns: tp.Sequence[str] = ()) -> str:
+def Score_Type(text: str, type_class: tp.Dict[str, tp.List[str]], key: tp.Dict[str, tp.Any]) -> str:
     """
     Description:
-        The part type's outcome. Correct when a "correct" pattern occurs anywhere in the text, unless the
-        names conflict: the naming sentence offers the right type and another part type (a type_nouns
-        word that is not a synonym) as alternatives, "washer or cap", or names a wrong type while the
-        right one appears only later. Conflicting names are a hedge, not stated, as "plastic or painted
-        metal" is for material. Without a correct name: wrong when a "wrong" pattern occurs in the
-        naming sentence, not decidable for an "undecidable" one there, otherwise not stated. A wrong or
-        undecidable term after the naming sentence names a feature ("the outer white ring"), not the
-        part. (Condense_Label's short label was tried as the naming and rejected: it drops names the
-        text gives, e.g. "This is a small robot figure" condenses to "this".)
+        The part type's outcome. A claim (Naming_Claims) names another type when it holds one of the
+        class's "wrong" patterns or a part type ("type_nouns") that is not a synonym of the right one.
+        A word the class calls undecidable (a plain "ring" for the bushing) is not another type.
+        Correct when the text names the right type (anywhere, plurals included) and no claim names
+        another; the names conflict when one does ("washer or cap", or a wrong name in a later sentence),
+        and conflicting names are a hedge, not stated, as "plastic or painted metal" is for material.
+        Without the right name: wrong when a claim names another type, not decidable when a claim holds
+        an "undecidable" pattern, otherwise not stated. (Condense_Label's short label was tried as the
+        naming and rejected: it drops names the text gives, e.g. "This is a small robot figure"
+        condensed to "this".)
 
     Args:
         (1) text [string]: The description.
         (2) type_class [Dict<string, Vector<string>>]: The class's "correct", "wrong" and optional
                                                         "undecidable" patterns.
-        (3) type_nouns [Vector<string>]: Patterns for every part type, to recognise an alternative that
-                                         names another type (the key's "type_nouns").
+        (3) key [Dict<string, Any>]: The answer key (its "type_nouns", "naming_cues", "naming_ends").
 
     Returns:
         (1) parameter [string]: One of CONST_OUTCOMES.
     """
 
-    naming = Naming_Sentence(text)
-    named_wrong = _Matches(naming, type_class.get('wrong', []))
+    claims = Naming_Claims(text, key)
+    other = [claim for claim in claims
+             if _Matches(claim, type_class.get('wrong', []))
+             or any(_Matches(word, key['type_nouns']) and not _Matches(word, type_class['correct'])
+                    and not _Matches(word, type_class.get('undecidable', []))
+                    for word in re.findall(r'[\w-]+', claim))]
     if _Matches(text, type_class['correct']):
-        offered = any(_Matches(one, type_class['correct']) and _Matches(other, list(type_nouns))
-                      and not _Matches(other, type_class['correct'])
-                      for pair in _Alternatives(naming) for one, other in (pair, pair[::-1]))
-        right_in_naming = _Matches(naming, type_class['correct'])
-        return CONST_NOT_STATED if offered or (named_wrong and not right_in_naming) else CONST_CORRECT
-    if named_wrong:
+        return CONST_NOT_STATED if other else CONST_CORRECT
+    if other:
         return CONST_WRONG
-    if _Matches(naming, type_class.get('undecidable', [])):
+    if any(_Matches(claim, type_class.get('undecidable', [])) for claim in claims):
         return CONST_NOT_DECIDABLE
     return CONST_NOT_STATED
 
 
-def Score_Material(text: str, material: str, materials: tp.Dict[str, tp.List[str]]) -> str:
+def Score_Material(text: str, material: str, key: tp.Dict[str, tp.Any]) -> str:
     """
     Description:
-        The material's outcome: the material classes the text names; one class, correct when it is
-        the key's material and wrong otherwise; both (a hedge) or none, not stated.
+        The material's outcome: the key's material classes the text names (metal, plastic). One of them
+        named: correct when it is the object's, wrong otherwise; both, a hedge, not stated. Another
+        material ("other_materials": felt, fabric, ceramic ...) beside one of them counts as that one
+        ("plastic or ceramic"); named alone it is wrong ("felt or fabric"), as every part in the key is
+        metal or plastic. Nothing named: not stated.
 
     Args:
         (1) text [string]: The description.
         (2) material [string]: The key's material class for the object.
-        (3) materials [Dict<string, Vector<string>>]: Each material class's patterns.
+        (3) key [Dict<string, Any>]: The answer key (its "materials" and "other_materials").
 
     Returns:
         (1) parameter [string]: One of CONST_OUTCOMES.
     """
 
-    named = [name for name, patterns in materials.items() if _Matches(text, patterns)]
-    if len(named) != 1:
-        return CONST_NOT_STATED
-    return CONST_CORRECT if named[0] == material else CONST_WRONG
+    named = [name for name, patterns in key['materials'].items() if _Matches(text, patterns)]
+    if len(named) == 1:
+        return CONST_CORRECT if named[0] == material else CONST_WRONG
+    if not named and _Matches(text, key.get('other_materials', [])):
+        return CONST_WRONG
+    return CONST_NOT_STATED
 
 
 def Score_Colour(text: str, colour_terms: tp.List[str]) -> str:
@@ -245,8 +242,8 @@ def Score_Object(text: str, entry: tp.Dict[str, tp.Any], key: tp.Dict[str, tp.An
         (1) parameter [Dict<string, string>]: Attribute -> outcome.
     """
 
-    return {'type': Score_Type(text, key['type_classes'][entry['type_class']], key.get('type_nouns', ())),
-            'material': Score_Material(text, entry['material'], key['materials']),
+    return {'type': Score_Type(text, key['type_classes'][entry['type_class']], key),
+            'material': Score_Material(text, entry['material'], key),
             'colour': Score_Colour(text, entry['colour_terms'])}
 
 

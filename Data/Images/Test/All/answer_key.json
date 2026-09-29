@@ -1,8 +1,8 @@
 {
   "description": "The answer key for describer quality on Data/Images/Test/All: every object the shipped pipeline finds, numbered in its order in the frame, with what it is. Read and scored by Vision/Utilities/Evaluation.py; run with Example/Vision/evaluate_describer.py. Confirmed by the owner, 2026-09-29.",
   "rules": {
-    "type": "Correct when the text names the part type or a synonym (the class's \"correct\" patterns), and nothing contradicts it. Wrong when its naming sentence, the first (\"The object is a ...\"), names another type instead (the \"wrong\" patterns); not decidable for the \"undecidable\" patterns there; otherwise not stated (a generic \"component\", \"object\" or \"part\"). Conflicting names are a hedge, not stated, as \"plastic or painted metal\" is for material: the naming sentence offers the right type and another part type as alternatives (\"washer or cap\", \"washer or ring\"; the part types are \"type_nouns\"), or it names a wrong type while the right one appears only later. Synonyms of the right type are no conflict (\"bolt or screw\"). Later sentences describe features (\"the outer white ring\", \"the metal ring\"), which are not a type claim; a ring that is a feature in the naming sentence (\"outer ring\", \"ring design\", \"ring surrounding ...\") is not one either.",
-    "material": "The text's materials, sorted into metal and plastic by the patterns below. One class named: correct if it is the key's, wrong otherwise. Both named (\"plastic or painted metal\"): a hedge, not stated. Neither: not stated. Another material hedged with one of them counts as that one (\"plastic or ceramic\" is plastic).",
+    "type": "Correct when the text names the part type or a synonym (the class's \"correct\" patterns, plurals included), and nothing contradicts it. A naming claim is the noun phrase after a naming cue (\"is a\", \"appears to be a\", \"possibly a\", \"suggesting it is a\", \"resembles a\" ...; \"naming_cues\"), up to the next clause (\"naming_ends\"), in any sentence. Wrong when a naming claim names a wrong type (the class's \"wrong\" patterns) or another part type (\"type_nouns\") and the text never names the right one; not decidable for an \"undecidable\" pattern in a claim; otherwise not stated (a generic \"component\", \"object\" or \"part\"). Conflicting names are a hedge, not stated, as \"plastic or painted metal\" is for material: the right type named and another part type claimed (\"washer or cap\", \"washer or ring\", or a wrong name in a later sentence). Synonyms are no conflict (\"bolt or screw\"). A feature is not a claim (\"the outer white ring\", \"the metal ring\": no naming cue); a ring that is a feature inside a claim (\"outer ring\", \"ring design\") is not one either.",
+    "material": "The text's materials, sorted into metal and plastic by \"materials\". One of the two named: correct if it is the key's, wrong otherwise. Both named (\"plastic or painted metal\"): a hedge, not stated. Another material (\"other_materials\": felt, fabric, ceramic, composite ...) hedged with one of them counts as that one (\"plastic or ceramic\" is plastic); named alone (\"felt or fabric\") it is wrong, as every part in the key is metal or plastic. None: not stated.",
     "colour": "Judged against the crop the describer receives, which is contrast-stretched: correct when the text names one of the object's colour terms, otherwise not stated. A wrong colour is not scored: the text also names the table's green seen through holes, which a word match cannot tell from the part's colour.",
     "totals": "Objects with \"exclude_from_totals\" are scored and listed, but left out of the totals, with the reason given.",
     "markings": "Markings and damage are recorded, not scored."
@@ -24,25 +24,43 @@
       "polymer"
     ]
   },
+  "other_materials": [
+    "\\bfelt\\b",
+    "\\bfabric",
+    "\\btextile",
+    "\\bcloth\\b",
+    "\\bwood",
+    "\\bglass\\b",
+    "\\bceramic",
+    "\\brubber",
+    "\\bpaper\\b",
+    "\\bcardboard",
+    "\\bleather",
+    "\\bstone\\b",
+    "\\bfoam\\b",
+    "\\bcomposite",
+    "\\bconcrete",
+    "\\bsilicone"
+  ],
   "type_classes": {
     "washer": {
       "correct": [
         "\\bwasher"
       ],
       "wrong": [
-        "ring-shaped|(?<!outer )(?<!inner )\\bring\\b(?!s|\\s+(?:design|pattern|of|surrounding|around))",
-        "\\bdisc\\b"
+        "ring-shaped|(?<!outer )(?<!inner )\\brings?\\b(?!\\s+(?:design|pattern|of|surrounding|around))",
+        "\\bdisc(?:e?s)?\\b"
       ]
     },
     "hex_nut": {
       "correct": [
-        "\\bnut\\b",
+        "\\bnut(?:e?s)?\\b",
         "hexagon"
       ],
       "wrong": [
         "\\bwasher",
-        "\\bcap\\b",
-        "ring-shaped|(?<!outer )(?<!inner )\\bring\\b(?!s|\\s+(?:design|pattern|of|surrounding|around))"
+        "\\bcap(?:e?s)?\\b",
+        "ring-shaped|(?<!outer )(?<!inner )\\brings?\\b(?!\\s+(?:design|pattern|of|surrounding|around))"
       ]
     },
     "screw": {
@@ -50,26 +68,26 @@
         "\\bscrew",
         "\\bbolt",
         "\\bfastener",
-        "\\bstud\\b"
+        "\\bstud(?:e?s)?\\b"
       ],
       "wrong": []
     },
     "plate": {
       "correct": [
-        "\\bplate\\b"
+        "\\bplate(?:e?s)?\\b"
       ],
       "wrong": []
     },
     "block": {
       "correct": [
-        "\\bblock\\b"
+        "\\bblock(?:e?s)?\\b"
       ],
       "wrong": []
     },
     "robot": {
       "correct": [
         "\\brobot",
-        "\\bfigure\\b"
+        "\\bfigure(?:e?s)?\\b"
       ],
       "wrong": []
     },
@@ -82,28 +100,28 @@
       ],
       "wrong": [],
       "undecidable": [
-        "ring-shaped|(?<!outer )(?<!inner )\\bring\\b(?!s|\\s+(?:design|pattern|of|surrounding|around))"
+        "ring-shaped|(?<!outer )(?<!inner )\\brings?\\b(?!\\s+(?:design|pattern|of|surrounding|around))"
       ]
     },
     "comb": {
       "correct": [
-        "\\bcomb\\b",
-        "\\bstrip\\b"
+        "\\bcomb(?:e?s)?\\b",
+        "\\bstrip(?:e?s)?\\b"
       ],
       "wrong": [
-        "\\bplate\\b"
+        "\\bplate(?:e?s)?\\b"
       ]
     },
     "terminal_strip": {
       "correct": [
         "\\bterminal",
-        "\\bstrip\\b",
+        "\\bstrip(?:e?s)?\\b",
         "\\bconnector"
       ],
       "wrong": [
-        "\\bdie\\b",
-        "\\bmou?ld\\b",
-        "\\bplate\\b"
+        "\\bdie(?:e?s)?\\b",
+        "\\bmou?ld(?:e?s)?\\b",
+        "\\bplate(?:e?s)?\\b"
       ]
     },
     "double_triangle": {
@@ -123,37 +141,72 @@
   },
   "type_nouns": [
     "\\bwasher",
-    "\\bnut\\b",
+    "\\bnut(?:e?s)?\\b",
     "\\bscrew",
     "\\bbolt",
-    "\\bstud\\b",
+    "\\bstud(?:e?s)?\\b",
     "\\bfastener",
-    "\\bplate\\b",
-    "\\bblock\\b",
+    "\\bplate(?:e?s)?\\b",
+    "\\bblock(?:e?s)?\\b",
     "\\brobot",
-    "\\bfigure\\b",
+    "\\bfigure(?:e?s)?\\b",
     "\\bbushing",
     "\\bsleeve",
     "\\bbearing",
-    "\\bcomb\\b",
-    "\\bstrip\\b",
+    "\\bcomb(?:e?s)?\\b",
+    "\\bstrip(?:e?s)?\\b",
     "\\bterminal",
     "\\bconnector",
     "\\barrow",
     "\\blattice",
     "\\bbracket",
-    "\\bcap\\b",
+    "\\bcap(?:e?s)?\\b",
     "\\bflange",
-    "\\bfitting",
-    "\\bring\\b",
-    "\\bdisc\\b",
-    "\\bdie\\b",
-    "\\bmou?ld\\b",
-    "\\binsert\\b",
+    "ring-shaped|(?<!outer )(?<!inner )\\brings?\\b(?!\\s+(?:design|pattern|of|surrounding|around))",
+    "\\bdisc(?:e?s)?\\b",
+    "\\bdie(?:e?s)?\\b",
+    "\\bmou?ld(?:e?s)?\\b",
+    "\\binsert(?:e?s)?\\b",
     "\\bspacer",
     "\\bgasket",
     "\\bhousing",
-    "\\bjig\\b"
+    "\\bjig(?:e?s)?\\b",
+    "\\btray(?:e?s)?\\b",
+    "\\bgrommet(?:e?s)?\\b",
+    "\\beyelet(?:e?s)?\\b",
+    "\\brace(?:e?s)?\\b",
+    "\\bpin(?:e?s)?\\b",
+    "\\brivet(?:e?s)?\\b",
+    "\\bclip(?:e?s)?\\b",
+    "\\bhinge(?:e?s)?\\b",
+    "\\bgear(?:e?s)?\\b",
+    "\\bspring(?:e?s)?\\b",
+    "\\bmagnet(?:e?s)?\\b",
+    "\\blid(?:e?s)?\\b",
+    "\\bknob(?:e?s)?\\b",
+    "\\bhandle(?:e?s)?\\b",
+    "\\bvalve(?:e?s)?\\b",
+    "\\bbutton(?:e?s)?\\b",
+    "\\bcoin(?:e?s)?\\b",
+    "\\btoken(?:e?s)?\\b",
+    "\\bbadge(?:e?s)?\\b",
+    "\\btile(?:e?s)?\\b",
+    "\\bsocket(?:e?s)?\\b"
+  ],
+  "naming_cues": [
+    "\\b(?:is|are)\\s+(?:an?|the)\\s",
+    "\\b(?:appears?|appearing|seems?|seeming)\\s+to\\s+be\\s+(?:an?|the)\\s",
+    "\\b(?:possibly|probably|likely|perhaps|presumably)\\s+(?:an?|the)\\s",
+    "\\bsuggesting\\s+(?:it\\s+is\\s+|that\\s+it\\s+is\\s+)?(?:an?|the)\\s",
+    "\\bresembl\\w*\\s+(?:an?|the)\\s",
+    "\\blooks?\\s+like\\s+(?:an?|the)\\s",
+    "\\b(?:such\\s+as|like)\\s+(?:an?|the)\\s",
+    "\\bthis\\s+is\\s+(?:an?|the)\\s"
+  ],
+  "naming_ends": [
+    "[.;:!?]",
+    ",\\s*(?:possibly|probably|likely|perhaps|and|which|with|while|whose|appearing|featuring|suggesting|arranged|rendered|exhibiting|showing|having|containing|measuring|viewed|placed|lying|sitting|made|indicating|giving|consisting|characterized|positioned|located|resembling)\\b",
+    "\\s(?:with|featuring|that|which|whose|where|appearing|rendered|suggesting|arranged|made|exhibiting|showing|having|containing|measuring|viewed|placed|lying|sitting|on|in|of|from|at|to|for)\\b"
   ],
   "objects": [
     {

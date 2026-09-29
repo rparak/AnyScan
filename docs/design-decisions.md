@@ -2190,101 +2190,95 @@ width included), `::test_the_tagline_is_crisp_on_a_low_density_display`,
 macOS-only `::test_the_logo_and_the_mark_rebuild_byte_identically_from_the_source` (needs Inkscape 1.2.2).
 `test/UI/test_text_contrast.py` measures the lockup's text too (magenta 4.65:1 on `CONST_BG`).
 
-## E4B stays the describer on Linux too: scored against a confirmed answer key, the 12B calls plastic metal
+## The Linux describer choice is open: on the confirmed key E4B and the 12B are one wrong statement apart
 
-On the Linux CUDA machine (README > Platform) the shipped configuration keeps Gemma 4 E4B. One
-configuration is shared by both machines, so History and Trends compare like with like. The decision
-rests on an answer key, `Data/Images/Test/All/answer_key.json`. It names, for each of the 37 objects the
-shipped pipeline finds in the eight frames (numbered in the pipeline's order), its part type, material
-and colour, each with its source (`CONST_INVENTORY`, judged from the crop, or the owner from the
-physical part). The owner confirmed every entry on 2026-09-29. The scoring rules and the synonym
-patterns are data in the key. `Vision.Utilities.Evaluation` is its only reader and scorer, and
-`Example/Vision/evaluate_describer.py` runs the configured describer through the application's path and
-scores it (`--describer-model` swaps the model in memory, not in the file).
+**Status: open, pending the owner's choice (2026-09-29).** The shipped configuration keeps Gemma 4 E4B until
+then; one configuration is shared by both machines, so History and Trends compare like with like.
 
-Both models ran the same crops (identical pixel for pixel) with the shipped prompts. Totals over 35
-objects: the two small hex nuts (5.3, 6.2) are scored but left out, by the key, because their crop
-hides their corners (the key's `exclude_from_totals` gives the reason: their own mask misses the dull corners).
+The comparison rests on an answer key, `Data/Images/Test/All/answer_key.json`. It names, for each of the 37
+objects the shipped pipeline finds in the eight frames (numbered in the pipeline's order), its part type,
+material and colour, each with its source (`CONST_INVENTORY`, judged from the crop, or the owner from the
+physical part). The owner confirmed every entry on 2026-09-29. The scoring rules, the synonym patterns, the
+naming cues and the other materials are data in the key. `Vision.Utilities.Evaluation` is its only reader
+and scorer, and `Example/Vision/evaluate_describer.py` runs the configured describer through the
+application's path and scores it (`--describer-model` swaps the model in memory, not in the file).
 
-| Attribute (correct / wrong / not stated) | E4B | 12B |
+Both models ran the same crops (identical pixel for pixel) with the shipped prompts. Totals over all 37
+objects, as the scorer gives them and as checked by hand (every "not stated" was read; the scorer now
+agrees with the hand check on every one). The key still marks the two small hex nuts (5.3, 6.2),
+whose crop hides their corners, as `exclude_from_totals`, and the script prints the totals both
+without and with them; the numbers here include them.
+
+| Attribute (correct / wrong / not stated) | E4B 4-bit | 12B |
 |---|---|---|
-| Part type | 15 / 3 / 17 | 25 / 2 / 8 |
-| Material | 26 / 1 / 8 | 26 / 6 / 3 |
-| Colour | 35 / 0 / 0 | 34 / 0 / 1 |
+| Part type | 15 / 6 / 16 | 25 / 2 / 10 |
+| Material | 28 / 1 / 8 | 28 / 6 / 3 |
+| Colour | 37 / 0 / 0 | 36 / 0 / 1 |
+| Wrong statements, type + material | **7** | **8** |
 | Per object (warm, mean) | 0.65 s | 1.10 s |
 | Peak GPU memory, whole application | 9.5 GB | 11.6 GB |
 
-- **The 12B errs where E4B hedges.** Of the ten confirmed plastic parts (the grey comb twice, the
-  3D-printed double triangle twice, the lattice bracket, four robots, the terminal strip's body) the 12B
-  calls six metal. E4B calls one metal (the terminal strip, "metal die or mold", which both get wrong);
-  where it is unsure it writes "plastic or painted metal", which scores as not stated.
-- **The 12B names part types more often:** the six large washers (E4B hedges, "washer or cap", "washer or
-  ring"), the two larger hex nuts ("hexagonal nut", where E4B writes "roughly octagonal metal washer" or
-  "fitting"), the red block twice, the lying robot. That is ten objects of 35, but E4B's are hedges and
-  unnamed parts, not errors: in wrong statements E4B has 3 types and 1 material, the 12B 2 and 6.
-- **Colour** is right for both on everything they name.
-- **Stable:** both models gave identical text in two separate processes. The 12B matched an earlier run
-  too. The Mac comparison (*Gemma 4 12B was measured against E4B and is not better*) found the same
-  pattern on the previous test set.
+- **What each gets wrong.** E4B's six wrong types: the two larger hex nuts as "octagonal metal washer (or
+  cap)" (5.5, 6.5), the small nut 5.3 as "a cap or fitting", the terminal strip as "metal die or mold"
+  (7.4), and the comb twice as a "mold insert" or a "jig or mold component" (1.3, 8.3); its one wrong
+  material is the terminal strip, "metal". The 12B's six wrong materials are all plastic parts called
+  metal: the comb twice (1.3, 8.3, once as "a rectangular metal plate", also its wrong type), the double
+  triangle twice (1.4, 7.6), the lattice bracket (7.7) and the terminal strip (7.4); its other wrong type is
+  the white washer as "ring-shaped object" (2.4).
+- **Where they differ in kind.** The 12B names ten more part types (the six large washers E4B hedges as
+  "washer or cap / flange / ring", the two larger hex nuts, the red block twice), ties on correct materials,
+  and misreads plastic as metal; E4B hedges more, misnames parts rather than materials, and is 1.7× faster
+  with 2.1 GB less GPU memory.
+- **Stable:** both gave identical text in two separate processes. The Mac comparison (*Gemma 4 12B was
+  measured against E4B and is not better*) found the same plastic-as-metal pattern on the previous test set.
 - **The prompts were tuned on E4B.** The object prompt's condition list is metal vocabulary (rust,
   tarnish), which may prime a model that follows lists literally. A 12B-specific prompt could narrow the
   material gap; that is untested.
+- **How the scorer got here (2026-09-29).** Three corrections, each changing only scores a hand check had
+  already found wrong: (1) feature words are no type claim ("the outer white ring", "a concentric ring
+  design"); (2) conflicting names are a hedge, not stated ("washer or cap": E4B's six large washers,
+  21 -> 15 correct); (3) a type counts as claimed wherever a naming cue introduces it ("suggesting it is a
+  component or mold insert", in a second sentence), a material outside metal and plastic named alone is
+  wrong ("felt or fabric"), and synonyms count in the plural ("strips"). Scoring on the app's short label
+  (`Condense_Label`) was tried and rejected: it dropped names the text gives.
 
-- **Scoring rule, corrected 2026-09-29:** a type counted as wrong when a wrong term appeared anywhere in the
-  text, so feature words scored as type claims ("a bright, outer white ring", "the metal ring", "a concentric
-  ring design"). Now a correct name counts anywhere, but a wrong or undecidable name counts only in the
-  naming sentence, the first (`Evaluation.Naming_Sentence`), and the key's ring pattern also skips "ring
-  design", "ring of" and "ring surrounding". Scoring type on the app's short label (`Condense_Label`) was
-  tried first and rejected: it drops names the text gives ("This is a small robot figure" condenses to
-  "this"; "The part consists of four ... strips" to "part consists"), 13 names lost across the 111 texts of
-  the three models. The correction changed five 8-bit type calls, all to not stated, and none of E4B 4-bit's
-  or the 12B's.
-- **Conflicting names are a hedge, corrected 2026-09-29:** a correct name used to win over an alternative in
-  the same naming sentence, so "washer or cap" scored as a washer. Now, as "plastic or painted metal" is for
-  material, the right type offered beside another part type ("washer or cap", "washer or ring"; the part
-  types are the key's `type_nouns`), or a wrong type named first with the right one only later, is not
-  stated. Synonyms are no conflict ("bolt or screw"). It changed E4B 4-bit's six large washers from correct
-  to not stated (type 21 / 3 / 11 -> 15 / 3 / 17, as in the tables) and no 8-bit or 12B score. The decision
-  holds on the ground it was made on, confident wrong statements (E4B 4, the 12B 8); the 12B's lead in named
-  types is now ten objects rather than four.
-
-**The 8-bit E4B is not better either: don't switch.** `mlx-community/gemma-4-e4b-it-8bit` at revision
+**The 8-bit E4B is not better: don't switch.** `mlx-community/gemma-4-e4b-it-8bit` at revision
 `4255b21bd9a9d3fc807ef7abd80373f5e3a52a73` (8.91 GB, every file checked against its published hash) ran
-through the same script, twice, with identical text. On the same 35 objects:
+through the same script, twice, with identical text. On the same 37 objects:
 
 | Attribute (correct / wrong / not stated) | E4B 4-bit | E4B 8-bit |
 |---|---|---|
-| Part type | 15 / 3 / 17 | 16 / 5 / 14 |
-| Material | 26 / 1 / 8 | 24 / 2 / 9 |
-| Colour | 35 / 0 / 0 | 35 / 0 / 0 |
+| Part type | 15 / 6 / 16 | 16 / 5 / 16 |
+| Material | 28 / 1 / 8 | 26 / 3 / 8 |
+| Colour | 37 / 0 / 0 | 37 / 0 / 0 |
+| Wrong statements, type + material | 7 | 8 |
 | Per object (warm, mean) | 0.647 s | 0.883 s (+36 %) |
 | Model load | 3.9-5.4 s | 4.4-4.9 s (warm-up sentence 12.8 s on the first load) |
 | MLX peak | 6.99 GB | 10.72 GB (+3.73 GB) |
 | Peak GPU memory, whole application | 9.5 GB | 13.1 GB |
 
-- It names one more part type than the 4-bit but makes two more wrong type calls: it calls five of the six
-  large washers "circular disc" (wrong; the 4-bit hedges, "washer or cap") and the sixth a "metal component"; it drops
-  "plate" on two plates, calls a 3D-printed robot "felt or fabric", and an aluminium washer "plastic or
-  composite". It names the red block, the comb and the lattice bracket, which the 4-bit does not.
-- On the three scored hex nuts it is slightly better (one "hexagonal metal fitting", no wrong type, against
-  the 4-bit's two "octagonal washer") and still never says "nut".
+- It calls five of the six large washers "circular disc" (wrong; the 4-bit hedges) and the sixth a "metal
+  component"; it drops "plate" on two plates; it calls a 3D-printed robot "felt or fabric" and an aluminium
+  washer "plastic or composite". It names the red block, the comb and the lattice bracket, which the 4-bit
+  does not, and one hex nut "hexagonal", but never says "nut".
 - **On the 16 GB Mac, an estimate, not a measurement:** the 4-bit application peaks at 9.41 GB there; adding
   the 3.73 GB the 8-bit needed on Linux gives about 13.1 GB, leaving roughly 3 GB for macOS, and the model's
   10.7 GB alone is about the share of a 16 GB machine's memory macOS normally lets the GPU use. Metal's
   figures can differ from CUDA's; it would have to be measured on the Mac before any switch, and it is not
   worth measuring while it scores worse here.
 
-**Why.** A confident wrong statement misleads an operator; a hedge does not. E4B makes four wrong statements
-on this set (3 types, 1 material), the 12B eight (2 and 6), and E4B is 1.7× faster. The 12B names ten more
-part types, so if naming the part matters more than never misnaming its material, reopen this.
-The key makes the comparison repeatable: the script reproduced these E4B totals exactly on a second run,
-and a changed key entry changed them.
+**Why open.** The first reading (E4B 4 wrong statements, the 12B 8) rested on 35 objects and a scorer that
+missed invented names; with all 37 and the hand-checked scorer they are 7 and 8. What is left to choose
+between is a kind of error, not a count: the 12B names parts better and misreads plastic as metal; E4B
+hedges and misnames parts. That is an operator's priority, the owner's to set.
 
-**Revisit if** the prompts are rewritten (re-run both models), a new describer is proposed (score it
-with the script against the same key), a new E4B quantization or conversion is published (score it the
-same way; the 8-bit is not worth measuring on the Mac unless it beats the 4-bit here), or the segmentation changes: the script stops when a frame's
-object count differs from the key's, because the numbering no longer applies, and the key must be
+**Revisit if** the owner chooses (then record the choice and its reason here), the prompts are rewritten
+(re-run both models), a new describer or E4B conversion is proposed (score it with the script against the
+same key; the 8-bit is not worth measuring on the Mac unless it beats the 4-bit here), or the segmentation
+changes: the script stops when a frame's object count differs from the key's, and the key must be
 re-confirmed.
 Tests `test/Vision/Utilities/test_evaluation.py` (the key covers `CONST_INVENTORY`, records the owner's
-answers, and each scoring rule, including `::test_a_feature_ring_is_no_type_claim_but_a_named_type_still_counts`);
-the run itself needs the weights and is the script, not a test.
+answers, and each scoring rule, including `::test_a_wrong_name_after_the_first_sentence_counts`,
+`::test_a_material_outside_metal_and_plastic_is_wrong_alone`, `::test_a_plural_synonym_counts`); the run
+itself needs the weights and is the script, not a test.
+
