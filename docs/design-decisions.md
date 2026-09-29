@@ -2229,14 +2229,51 @@ hides their corners (the key's `exclude_from_totals` gives the reason: their own
   tarnish), which may prime a model that follows lists literally. A 12B-specific prompt could narrow the
   material gap; that is untested.
 
+- **Scoring rule, corrected 2026-09-29:** a type counted as wrong when a wrong term appeared anywhere in the
+  text, so feature words scored as type claims ("a bright, outer white ring", "the metal ring", "a concentric
+  ring design"). Now a correct name counts anywhere, but a wrong or undecidable name counts only in the
+  naming sentence, the first (`Evaluation.Naming_Sentence`), and the key's ring pattern also skips "ring
+  design", "ring of" and "ring surrounding". Scoring type on the app's short label (`Condense_Label`) was
+  tried first and rejected: it drops names the text gives ("This is a small robot figure" condenses to
+  "this"; "The part consists of four ... strips" to "part consists"), 13 names lost across the 111 texts of
+  the three models. The correction changed five 8-bit type calls, all to not stated, and none of E4B 4-bit's
+  or the 12B's; the totals in the table above are unchanged.
+
+**The 8-bit E4B is not better either: don't switch.** `mlx-community/gemma-4-e4b-it-8bit` at revision
+`4255b21bd9a9d3fc807ef7abd80373f5e3a52a73` (8.91 GB, every file checked against its published hash) ran
+through the same script, twice, with identical text. On the same 35 objects:
+
+| Attribute (correct / wrong / not stated) | E4B 4-bit | E4B 8-bit |
+|---|---|---|
+| Part type | 21 / 3 / 11 | 16 / 5 / 14 |
+| Material | 26 / 1 / 8 | 24 / 2 / 9 |
+| Colour | 35 / 0 / 0 | 35 / 0 / 0 |
+| Per object (warm, mean) | 0.647 s | 0.883 s (+36 %) |
+| Model load | 3.9-5.4 s | 4.4-4.9 s (warm-up sentence 12.8 s on the first load) |
+| MLX peak | 6.99 GB | 10.72 GB (+3.73 GB) |
+| Peak GPU memory, whole application | 9.5 GB | 13.1 GB |
+
+- It calls five of the six large washers "circular disc" (wrong) and the sixth a "metal component"; it drops
+  "plate" on two plates, calls a 3D-printed robot "felt or fabric", and an aluminium washer "plastic or
+  composite". It names the red block, the comb and the lattice bracket, which the 4-bit does not.
+- On the three scored hex nuts it is slightly better (one "hexagonal metal fitting", no wrong type, against
+  the 4-bit's two "octagonal washer") and still never says "nut".
+- **On the 16 GB Mac, an estimate, not a measurement:** the 4-bit application peaks at 9.41 GB there; adding
+  the 3.73 GB the 8-bit needed on Linux gives about 13.1 GB, leaving roughly 3 GB for macOS, and the model's
+  10.7 GB alone is about the share of a 16 GB machine's memory macOS normally lets the GPU use. Metal's
+  figures can differ from CUDA's; it would have to be measured on the Mac before any switch, and it is not
+  worth measuring while it scores worse here.
+
 **Why.** A confident wrong material misleads an operator; a hedge does not. With part types four objects
 apart and material errors five apart, E4B is the better describer on this set, and it is 1.7× faster.
 The key makes the comparison repeatable: the script reproduced these E4B totals exactly on a second run,
 and a changed key entry changed them.
 
 **Revisit if** the prompts are rewritten (re-run both models), a new describer is proposed (score it
-with the script against the same key), or the segmentation changes: the script stops when a frame's
+with the script against the same key), a new E4B quantization or conversion is published (score it the
+same way; the 8-bit is not worth measuring on the Mac unless it beats the 4-bit here), or the segmentation changes: the script stops when a frame's
 object count differs from the key's, because the numbering no longer applies, and the key must be
 re-confirmed.
 Tests `test/Vision/Utilities/test_evaluation.py` (the key covers `CONST_INVENTORY`, records the owner's
-answers, and each scoring rule); the run itself needs the weights and is the script, not a test.
+answers, and each scoring rule, including `::test_a_feature_ring_is_no_type_claim_but_a_named_type_still_counts`);
+the run itself needs the weights and is the script, not a test.

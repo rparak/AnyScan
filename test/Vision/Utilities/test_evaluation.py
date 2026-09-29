@@ -30,7 +30,7 @@ import os
 import pytest
 # Custom Lib.: AnyScan vision — the answer key's reader and the scoring rules
 #   ../Vision/Utilities/Evaluation
-from Vision.Utilities.Evaluation import (Load_Answer_Key, Score_Type, Score_Material, Score_Colour, Score_Object, Tally,
+from Vision.Utilities.Evaluation import (Load_Answer_Key, Naming_Sentence, Score_Type, Score_Material, Score_Colour, Score_Object, Tally,
                                          Evaluation_Error_Cls, CONST_ANSWER_KEY_FILE)
 
 """
@@ -105,6 +105,27 @@ def test_a_named_type_wins_over_a_wrong_one_and_a_feature_is_not_a_type(key) -> 
     assert Score_Type('a ring-shaped object with a white outer surface', classes['washer']) == 'wrong'
     assert Score_Type('a metal ring with a central bore', classes['bushing']) == 'not decidable'
     assert Score_Type('a circular, metallic component', classes['hex_nut']) == 'not stated'
+
+
+def test_a_feature_ring_is_no_type_claim_but_a_named_type_still_counts(key) -> None:
+    """
+    Description:
+        A wrong type counts only where the text names the part, its first sentence: "the outer white
+        ring" or "the metal ring" later on names a feature, and "a concentric ring design" in the naming
+        sentence is a feature too, so neither is a type claim. A correct name still counts wherever it
+        stands, and a wrong naming in the first sentence stays wrong. (The 8-bit E4B texts that the
+        whole-text rule scored wrong, 2026-09-29.)
+    """
+
+    washer, nut = key['type_classes']['washer'], key['type_classes']['hex_nut']
+    later = ('The part is circular with a concentric, layered structure. It is enclosed by a bright, '
+             'outer white ring. The surface of the metal ring appears clean.')
+    assert Naming_Sentence(later) == 'The part is circular with a concentric, layered structure.'
+    assert Score_Type(later, washer) == 'not stated'
+    assert Score_Type('The part is circular with a distinct concentric ring design. It is white.', washer) == 'not stated'
+    assert Score_Type('The object is a circular, metallic washer or cap. The rim is dull.', washer) == 'correct'
+    assert Score_Type('The part is round and flat. It is a plain washer with a central hole.', washer) == 'correct'
+    assert Score_Type('The object is a small, roughly octagonal metal washer. The rim is dull.', nut) == 'wrong'
 
 
 def test_a_material_hedge_between_metal_and_plastic_is_not_stated(key) -> None:

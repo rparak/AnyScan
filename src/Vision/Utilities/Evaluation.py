@@ -51,6 +51,9 @@ CONST_OUTCOMES = (CONST_CORRECT, CONST_WRONG, CONST_NOT_STATED, CONST_NOT_DECIDA
 # The fields every object in the key carries.
 #   Unit [Tuple<string>]
 CONST_OBJECT_FIELDS = ('frame', 'index', 'type', 'type_class', 'material', 'colour', 'colour_terms', 'source', 'status')
+# Where one sentence ends and the next begins: a full stop, question or exclamation mark, then space.
+#   Unit [string] (regular expression)
+CONST_SENTENCE_END = r'(?<=[.!?])\s+'
 
 
 class Evaluation_Error_Cls(RuntimeError):
@@ -120,12 +123,31 @@ def _Matches(text: str, patterns: tp.List[str]) -> bool:
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
 
 
+def Naming_Sentence(text: str) -> str:
+    """
+    Description:
+        The sentence in which a description names the part: its first ("The object is a ...", "This is
+        a ..."). The sentences after it describe features, surface and condition.
+
+    Args:
+        (1) text [string]: The description.
+
+    Returns:
+        (1) parameter [string]: The first sentence, or the whole text when it has only one.
+    """
+
+    return re.split(CONST_SENTENCE_END, text.strip(), maxsplit=1)[0]
+
+
 def Score_Type(text: str, type_class: tp.Dict[str, tp.List[str]]) -> str:
     """
     Description:
-        The part type's outcome: correct when a "correct" pattern occurs (it wins over a wrong one in
-        the same text, "washer or cap"), wrong when a "wrong" pattern does, not decidable for an
-        "undecidable" one, otherwise not stated.
+        The part type's outcome: correct when a "correct" pattern occurs anywhere in the text (it wins
+        over a wrong one, "washer or cap"); otherwise wrong when a "wrong" pattern occurs in the naming
+        sentence, not decidable for an "undecidable" one there, and not stated. A wrong or undecidable
+        term later in the text names a feature ("the outer white ring", "the metal ring"), not the part,
+        so it is no type claim. (Condense_Label's short label was tried as the naming and rejected: it
+        drops names the text gives, e.g. "This is a small robot figure" condenses to "this".)
 
     Args:
         (1) text [string]: The description.
@@ -138,9 +160,10 @@ def Score_Type(text: str, type_class: tp.Dict[str, tp.List[str]]) -> str:
 
     if _Matches(text, type_class['correct']):
         return CONST_CORRECT
-    if _Matches(text, type_class.get('wrong', [])):
+    naming = Naming_Sentence(text)
+    if _Matches(naming, type_class.get('wrong', [])):
         return CONST_WRONG
-    if _Matches(text, type_class.get('undecidable', [])):
+    if _Matches(naming, type_class.get('undecidable', [])):
         return CONST_NOT_DECIDABLE
     return CONST_NOT_STATED
 
