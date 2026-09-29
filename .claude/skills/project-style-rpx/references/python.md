@@ -178,6 +178,10 @@ Comments are block comments above the code, saying *why*; multi-step bodies numb
   to look; the check is finding the reader. For UI code the reader is often a paint path or a
   rich-text render that a grep does not obviously connect: vulture called the status cell's
   `dot_color` dead, and `Set_Value` draws the ● with it. Only what survives that check is removed.
+- **An exception in a Qt callback fails the test that raised it.** `test/conftest.py` runs each test phase
+  with `sys.excepthook` replaced (PyQt5 calls the hook for an exception in a `paintEvent`, an event filter or
+  a slot; at Python's default it calls qFatal and the whole run aborts) and fails that phase with the
+  traceback. A test that asserts a paint path must still grab it: the guard sees only what raises.
 - A test that needs the weights asks `require_weights` (`test/conftest.py`): it runs when they are
   there, skips loudly naming the missing path when they are not, and fails under `--runslow`. An
   early `return` reads as a pass.

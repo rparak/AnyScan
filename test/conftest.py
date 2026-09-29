@@ -25,6 +25,7 @@
 import os
 import sys
 import time
+import traceback
 import types
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
@@ -115,6 +116,86 @@ def pytest_collection_modifyitems(config: pytest.Config, items: tp.List[pytest.I
     for item in items:
         if 'slow' in item.keywords:
             item.add_marker(skip_slow)
+
+
+
+def _Guard_Qt_Callbacks(phase: str) -> tp.Generator[None, tp.Any, tp.Any]:
+    """
+    Description:
+        Run one phase of a test (setup, call or teardown) with sys.excepthook replaced, and fail that
+        phase if an exception escaped a Qt callback during it. PyQt5 hands an exception raised in a
+        Python override of a Qt virtual (paintEvent, eventFilter, ...) or in a slot to sys.excepthook
+        when that hook has been replaced; left at Python's default it calls qFatal and the process
+        aborts, which takes every later test's result with it. A test that sets its own hook
+        (test_paint_smoke.py's paint_errors) handles its exceptions itself.
+
+    Args:
+        (1) phase [string]: The phase's name, for the failure message.
+
+    Returns:
+        (1) parameter [Generator]: The pluggy wrapper: yields once to run the phase.
+    """
+
+    errors = []
+    previous = sys.excepthook
+    sys.excepthook = lambda kind, value, trace: errors.append(''.join(traceback.format_exception(kind, value, trace)))
+    try:
+        result = yield
+    finally:
+        sys.excepthook = previous
+    if errors:
+        pytest.fail('%d unhandled exception(s) in a Qt callback during the test %s:\n\n%s'
+                    % (len(errors), phase, '\n'.join(errors)), pytrace=False)
+    return result
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_setup(item: pytest.Item) -> tp.Generator[None, tp.Any, tp.Any]:
+    """
+    Description:
+        The test's setup (its fixtures), guarded by _Guard_Qt_Callbacks.
+
+    Args:
+        (1) item [pytest.Item(object)]: The test.
+
+    Returns:
+        (1) parameter [Generator]: The pluggy wrapper.
+    """
+
+    return (yield from _Guard_Qt_Callbacks('setup'))
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item: pytest.Item) -> tp.Generator[None, tp.Any, tp.Any]:
+    """
+    Description:
+        The test itself, guarded by _Guard_Qt_Callbacks: an exception in a Qt callback fails the test.
+
+    Args:
+        (1) item [pytest.Item(object)]: The test.
+
+    Returns:
+        (1) parameter [Generator]: The pluggy wrapper.
+    """
+
+    return (yield from _Guard_Qt_Callbacks('call'))
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(item: pytest.Item, nextitem: tp.Optional[pytest.Item]) -> tp.Generator[None, tp.Any, tp.Any]:
+    """
+    Description:
+        The test's teardown, guarded by _Guard_Qt_Callbacks.
+
+    Args:
+        (1) item [pytest.Item(object)]: The test.
+        (2) nextitem [pytest.Item(object)]: The next test, or None.
+
+    Returns:
+        (1) parameter [Generator]: The pluggy wrapper.
+    """
+
+    return (yield from _Guard_Qt_Callbacks('teardown'))
 
 
 @pytest.fixture
