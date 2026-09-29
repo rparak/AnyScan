@@ -139,29 +139,54 @@ def Naming_Sentence(text: str) -> str:
     return re.split(CONST_SENTENCE_END, text.strip(), maxsplit=1)[0]
 
 
-def Score_Type(text: str, type_class: tp.Dict[str, tp.List[str]]) -> str:
+def _Alternatives(sentence: str) -> tp.List[tp.Tuple[str, str]]:
     """
     Description:
-        The part type's outcome: correct when a "correct" pattern occurs anywhere in the text (it wins
-        over a wrong one, "washer or cap"); otherwise wrong when a "wrong" pattern occurs in the naming
-        sentence, not decidable for an "undecidable" one there, and not stated. A wrong or undecidable
-        term later in the text names a feature ("the outer white ring", "the metal ring"), not the part,
-        so it is no type claim. (Condense_Label's short label was tried as the naming and rejected: it
-        drops names the text gives, e.g. "This is a small robot figure" condenses to "this".)
+        The word pairs a sentence offers as alternatives: "X or Y" (an article after "or" skipped).
+
+    Args:
+        (1) sentence [string]: The sentence.
+
+    Returns:
+        (1) parameter [Vector<Tuple<string> 1x2>]: The (X, Y) pairs, in order.
+    """
+
+    return re.findall(r'([\w-]+) or (?:an? |the )?([\w-]+)', sentence, re.IGNORECASE)
+
+
+def Score_Type(text: str, type_class: tp.Dict[str, tp.List[str]], type_nouns: tp.Sequence[str] = ()) -> str:
+    """
+    Description:
+        The part type's outcome. Correct when a "correct" pattern occurs anywhere in the text, unless the
+        names conflict: the naming sentence offers the right type and another part type (a type_nouns
+        word that is not a synonym) as alternatives, "washer or cap", or names a wrong type while the
+        right one appears only later. Conflicting names are a hedge, not stated, as "plastic or painted
+        metal" is for material. Without a correct name: wrong when a "wrong" pattern occurs in the
+        naming sentence, not decidable for an "undecidable" one there, otherwise not stated. A wrong or
+        undecidable term after the naming sentence names a feature ("the outer white ring"), not the
+        part. (Condense_Label's short label was tried as the naming and rejected: it drops names the
+        text gives, e.g. "This is a small robot figure" condenses to "this".)
 
     Args:
         (1) text [string]: The description.
         (2) type_class [Dict<string, Vector<string>>]: The class's "correct", "wrong" and optional
                                                         "undecidable" patterns.
+        (3) type_nouns [Vector<string>]: Patterns for every part type, to recognise an alternative that
+                                         names another type (the key's "type_nouns").
 
     Returns:
         (1) parameter [string]: One of CONST_OUTCOMES.
     """
 
-    if _Matches(text, type_class['correct']):
-        return CONST_CORRECT
     naming = Naming_Sentence(text)
-    if _Matches(naming, type_class.get('wrong', [])):
+    named_wrong = _Matches(naming, type_class.get('wrong', []))
+    if _Matches(text, type_class['correct']):
+        offered = any(_Matches(one, type_class['correct']) and _Matches(other, list(type_nouns))
+                      and not _Matches(other, type_class['correct'])
+                      for pair in _Alternatives(naming) for one, other in (pair, pair[::-1]))
+        right_in_naming = _Matches(naming, type_class['correct'])
+        return CONST_NOT_STATED if offered or (named_wrong and not right_in_naming) else CONST_CORRECT
+    if named_wrong:
         return CONST_WRONG
     if _Matches(naming, type_class.get('undecidable', [])):
         return CONST_NOT_DECIDABLE
@@ -220,7 +245,7 @@ def Score_Object(text: str, entry: tp.Dict[str, tp.Any], key: tp.Dict[str, tp.An
         (1) parameter [Dict<string, string>]: Attribute -> outcome.
     """
 
-    return {'type': Score_Type(text, key['type_classes'][entry['type_class']]),
+    return {'type': Score_Type(text, key['type_classes'][entry['type_class']], key.get('type_nouns', ())),
             'material': Score_Material(text, entry['material'], key['materials']),
             'colour': Score_Colour(text, entry['colour_terms'])}
 

@@ -1,7 +1,7 @@
 {
   "description": "The answer key for describer quality on Data/Images/Test/All: every object the shipped pipeline finds, numbered in its order in the frame, with what it is. Read and scored by Vision/Utilities/Evaluation.py; run with Example/Vision/evaluate_describer.py. Confirmed by the owner, 2026-09-29.",
   "rules": {
-    "type": "Correct when the text names the part type or a synonym anywhere (the class's \"correct\" patterns). Wrong when its naming sentence, the first sentence (\"The object is a ...\"), names another type instead (the \"wrong\" patterns); not decidable for the \"undecidable\" patterns there; otherwise not stated (a generic \"component\", \"object\" or \"part\"). Later sentences describe features (\"the outer white ring\", \"the metal ring\"), which are not a type claim, so a wrong or undecidable term counts only in the naming sentence; a ring that is a feature there (\"outer ring\", \"ring design\", \"ring surrounding ...\") is not one either. A correct term wins over a wrong one (\"washer or cap\").",
+    "type": "Correct when the text names the part type or a synonym (the class's \"correct\" patterns), and nothing contradicts it. Wrong when its naming sentence, the first (\"The object is a ...\"), names another type instead (the \"wrong\" patterns); not decidable for the \"undecidable\" patterns there; otherwise not stated (a generic \"component\", \"object\" or \"part\"). Conflicting names are a hedge, not stated, as \"plastic or painted metal\" is for material: the naming sentence offers the right type and another part type as alternatives (\"washer or cap\", \"washer or ring\"; the part types are \"type_nouns\"), or it names a wrong type while the right one appears only later. Synonyms of the right type are no conflict (\"bolt or screw\"). Later sentences describe features (\"the outer white ring\", \"the metal ring\"), which are not a type claim; a ring that is a feature in the naming sentence (\"outer ring\", \"ring design\", \"ring surrounding ...\") is not one either.",
     "material": "The text's materials, sorted into metal and plastic by the patterns below. One class named: correct if it is the key's, wrong otherwise. Both named (\"plastic or painted metal\"): a hedge, not stated. Neither: not stated. Another material hedged with one of them counts as that one (\"plastic or ceramic\" is plastic).",
     "colour": "Judged against the crop the describer receives, which is contrast-stretched: correct when the text names one of the object's colour terms, otherwise not stated. A wrong colour is not scored: the text also names the table's green seen through holes, which a word match cannot tell from the part's colour.",
     "totals": "Objects with \"exclude_from_totals\" are scored and listed, but left out of the totals, with the reason given.",
@@ -121,6 +121,40 @@
       "wrong": []
     }
   },
+  "type_nouns": [
+    "\\bwasher",
+    "\\bnut\\b",
+    "\\bscrew",
+    "\\bbolt",
+    "\\bstud\\b",
+    "\\bfastener",
+    "\\bplate\\b",
+    "\\bblock\\b",
+    "\\brobot",
+    "\\bfigure\\b",
+    "\\bbushing",
+    "\\bsleeve",
+    "\\bbearing",
+    "\\bcomb\\b",
+    "\\bstrip\\b",
+    "\\bterminal",
+    "\\bconnector",
+    "\\barrow",
+    "\\blattice",
+    "\\bbracket",
+    "\\bcap\\b",
+    "\\bflange",
+    "\\bfitting",
+    "\\bring\\b",
+    "\\bdisc\\b",
+    "\\bdie\\b",
+    "\\bmou?ld\\b",
+    "\\binsert\\b",
+    "\\bspacer",
+    "\\bgasket",
+    "\\bhousing",
+    "\\bjig\\b"
+  ],
   "objects": [
     {
       "frame": "Image_001",

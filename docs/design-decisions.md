@@ -2208,7 +2208,7 @@ hides their corners (the key's `exclude_from_totals` gives the reason: their own
 
 | Attribute (correct / wrong / not stated) | E4B | 12B |
 |---|---|---|
-| Part type | 21 / 3 / 11 | 25 / 2 / 8 |
+| Part type | 15 / 3 / 17 | 25 / 2 / 8 |
 | Material | 26 / 1 / 8 | 26 / 6 / 3 |
 | Colour | 35 / 0 / 0 | 34 / 0 / 1 |
 | Per object (warm, mean) | 0.65 s | 1.10 s |
@@ -2218,9 +2218,10 @@ hides their corners (the key's `exclude_from_totals` gives the reason: their own
   3D-printed double triangle twice, the lattice bracket, four robots, the terminal strip's body) the 12B
   calls six metal. E4B calls one metal (the terminal strip, "metal die or mold", which both get wrong);
   where it is unsure it writes "plastic or painted metal", which scores as not stated.
-- **The 12B names part types more often:** the two larger hex nuts ("hexagonal nut", where E4B writes
-  "roughly octagonal metal washer" or "fitting"), the red block twice, the lying robot. That is four
-  objects of 35, against five confident material errors more.
+- **The 12B names part types more often:** the six large washers (E4B hedges, "washer or cap", "washer or
+  ring"), the two larger hex nuts ("hexagonal nut", where E4B writes "roughly octagonal metal washer" or
+  "fitting"), the red block twice, the lying robot. That is ten objects of 35, but E4B's are hedges and
+  unnamed parts, not errors: in wrong statements E4B has 3 types and 1 material, the 12B 2 and 6.
 - **Colour** is right for both on everything they name.
 - **Stable:** both models gave identical text in two separate processes. The 12B matched an earlier run
   too. The Mac comparison (*Gemma 4 12B was measured against E4B and is not better*) found the same
@@ -2237,7 +2238,15 @@ hides their corners (the key's `exclude_from_totals` gives the reason: their own
   tried first and rejected: it drops names the text gives ("This is a small robot figure" condenses to
   "this"; "The part consists of four ... strips" to "part consists"), 13 names lost across the 111 texts of
   the three models. The correction changed five 8-bit type calls, all to not stated, and none of E4B 4-bit's
-  or the 12B's; the totals in the table above are unchanged.
+  or the 12B's.
+- **Conflicting names are a hedge, corrected 2026-09-29:** a correct name used to win over an alternative in
+  the same naming sentence, so "washer or cap" scored as a washer. Now, as "plastic or painted metal" is for
+  material, the right type offered beside another part type ("washer or cap", "washer or ring"; the part
+  types are the key's `type_nouns`), or a wrong type named first with the right one only later, is not
+  stated. Synonyms are no conflict ("bolt or screw"). It changed E4B 4-bit's six large washers from correct
+  to not stated (type 21 / 3 / 11 -> 15 / 3 / 17, as in the tables) and no 8-bit or 12B score. The decision
+  holds on the ground it was made on, confident wrong statements (E4B 4, the 12B 8); the 12B's lead in named
+  types is now ten objects rather than four.
 
 **The 8-bit E4B is not better either: don't switch.** `mlx-community/gemma-4-e4b-it-8bit` at revision
 `4255b21bd9a9d3fc807ef7abd80373f5e3a52a73` (8.91 GB, every file checked against its published hash) ran
@@ -2245,7 +2254,7 @@ through the same script, twice, with identical text. On the same 35 objects:
 
 | Attribute (correct / wrong / not stated) | E4B 4-bit | E4B 8-bit |
 |---|---|---|
-| Part type | 21 / 3 / 11 | 16 / 5 / 14 |
+| Part type | 15 / 3 / 17 | 16 / 5 / 14 |
 | Material | 26 / 1 / 8 | 24 / 2 / 9 |
 | Colour | 35 / 0 / 0 | 35 / 0 / 0 |
 | Per object (warm, mean) | 0.647 s | 0.883 s (+36 %) |
@@ -2253,7 +2262,8 @@ through the same script, twice, with identical text. On the same 35 objects:
 | MLX peak | 6.99 GB | 10.72 GB (+3.73 GB) |
 | Peak GPU memory, whole application | 9.5 GB | 13.1 GB |
 
-- It calls five of the six large washers "circular disc" (wrong) and the sixth a "metal component"; it drops
+- It names one more part type than the 4-bit but makes two more wrong type calls: it calls five of the six
+  large washers "circular disc" (wrong; the 4-bit hedges, "washer or cap") and the sixth a "metal component"; it drops
   "plate" on two plates, calls a 3D-printed robot "felt or fabric", and an aluminium washer "plastic or
   composite". It names the red block, the comb and the lattice bracket, which the 4-bit does not.
 - On the three scored hex nuts it is slightly better (one "hexagonal metal fitting", no wrong type, against
@@ -2264,8 +2274,9 @@ through the same script, twice, with identical text. On the same 35 objects:
   figures can differ from CUDA's; it would have to be measured on the Mac before any switch, and it is not
   worth measuring while it scores worse here.
 
-**Why.** A confident wrong material misleads an operator; a hedge does not. With part types four objects
-apart and material errors five apart, E4B is the better describer on this set, and it is 1.7× faster.
+**Why.** A confident wrong statement misleads an operator; a hedge does not. E4B makes four wrong statements
+on this set (3 types, 1 material), the 12B eight (2 and 6), and E4B is 1.7× faster. The 12B names ten more
+part types, so if naming the part matters more than never misnaming its material, reopen this.
 The key makes the comparison repeatable: the script reproduced these E4B totals exactly on a second run,
 and a changed key entry changed them.
 

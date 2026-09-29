@@ -92,13 +92,13 @@ def test_the_key_records_the_owners_answers(key) -> None:
 def test_a_named_type_wins_over_a_wrong_one_and_a_feature_is_not_a_type(key) -> None:
     """
     Description:
-        "washer or cap" names the washer, so it is correct; "octagonal metal washer" for a hex nut is
-        wrong; an "outer ring" is a feature, not the part called a ring; "ring-shaped" is; a plain
-        "ring" for the bushing is not decidable; "component" states no type.
+        A plain "washer" is correct; "octagonal metal washer" for a hex nut is wrong; an "outer ring" is
+        a feature, not the part called a ring; "ring-shaped" is; a plain "ring" for the bushing is not
+        decidable; "component" states no type.
     """
 
     classes = key['type_classes']
-    assert Score_Type('a circular, metallic washer or cap', classes['washer']) == 'correct'
+    assert Score_Type('a circular, metallic washer with a hole', classes['washer'], key['type_nouns']) == 'correct'
     assert Score_Type('a small, roughly octagonal metal washer', classes['hex_nut']) == 'wrong'
     assert Score_Type('a hexagonal nut made of a metallic material', classes['hex_nut']) == 'correct'
     assert Score_Type('a circular object with a brighter outer ring', classes['washer']) == 'not stated'
@@ -123,9 +123,27 @@ def test_a_feature_ring_is_no_type_claim_but_a_named_type_still_counts(key) -> N
     assert Naming_Sentence(later) == 'The part is circular with a concentric, layered structure.'
     assert Score_Type(later, washer) == 'not stated'
     assert Score_Type('The part is circular with a distinct concentric ring design. It is white.', washer) == 'not stated'
-    assert Score_Type('The object is a circular, metallic washer or cap. The rim is dull.', washer) == 'correct'
+    assert Score_Type('The object is a circular, metallic washer. The rim is dull.', washer, key['type_nouns']) == 'correct'
     assert Score_Type('The part is round and flat. It is a plain washer with a central hole.', washer) == 'correct'
     assert Score_Type('The object is a small, roughly octagonal metal washer. The rim is dull.', nut) == 'wrong'
+
+
+def test_conflicting_type_names_are_a_hedge(key) -> None:
+    """
+    Description:
+        When the naming sentence offers the right type and another part type as alternatives ("washer or
+        cap", "washer or ring": E4B 4-bit's six large washers, 2026-09-29), or names a wrong type while the
+        right one appears only later ("washer" first, "nut" later), the names conflict and the type is not
+        stated, as a material hedge is. Synonyms of the right type are no conflict ("bolt or screw").
+    """
+
+    nouns, classes = key['type_nouns'], key['type_classes']
+    assert Score_Type('The object is a circular, metallic washer or cap. It is grey.', classes['washer'], nouns) == 'not stated'
+    assert Score_Type('The object is a circular metal washer or ring, silver.', classes['washer'], nouns) == 'not stated'
+    assert Score_Type('The object is a metallic bolt or screw. It is threaded.', classes['screw'], nouns) == 'correct'
+    later = 'The object is a small, roughly octagonal metal washer. It could also be a hex nut.'
+    assert Score_Type(later, classes['hex_nut'], nouns) == 'not stated'
+    assert Score_Type('The object is a small metal washer or cap. It is dull.', classes['hex_nut'], nouns) == 'wrong'
 
 
 def test_a_material_hedge_between_metal_and_plastic_is_not_stated(key) -> None:
