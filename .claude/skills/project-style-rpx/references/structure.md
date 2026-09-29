@@ -40,6 +40,7 @@ goes through that module's reader. A second parser drifts from the writer silent
 | Capture set: `<set>_objects.json`, `<set>_distorted.json` | `UI.Capture` (`Build_Set_Metadata`, `Distorted_Frame_Record`, `Read_Capture_Set`) |
 | Calibration capture manifest (`capture.json`) | `Calibration.Core` (`Record_Capture`, `Captured_Window`) |
 | Session log lines and the run-summary CSV | `Logger.Core` (`Parse_Line` is the only log-line parser; the Log view uses it) |
+| Describer answer key (`Data/Images/Test/All/answer_key.json`) | `Vision.Utilities.Evaluation` (`Load_Answer_Key`; written by hand, confirmed by the owner) |
 
 No module parses YAML for itself; tools in `Example/` go through these readers too
 (`make_reference.py` → `Read_Capture_Set`; `calibrate.py` → `Calibration.Core.Captured_Window`).

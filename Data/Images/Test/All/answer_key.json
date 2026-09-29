@@ -1,0 +1,899 @@
+{
+  "description": "The answer key for describer quality on Data/Images/Test/All: every object the shipped pipeline finds, numbered in its order in the frame, with what it is. Read and scored by Vision/Utilities/Evaluation.py; run with Example/Vision/evaluate_describer.py. Confirmed by the owner, 2026-09-29.",
+  "rules": {
+    "type": "Correct when the text names the part type or a synonym (the class's \"correct\" patterns); wrong when it names another type instead (the \"wrong\" patterns); not decidable for the \"undecidable\" patterns; otherwise not stated (a generic \"component\", \"object\" or \"part\"). A correct term wins over a wrong one in the same text (\"washer or cap\").",
+    "material": "The text's materials, sorted into metal and plastic by the patterns below. One class named: correct if it is the key's, wrong otherwise. Both named (\"plastic or painted metal\"): a hedge, not stated. Neither: not stated. Another material hedged with one of them counts as that one (\"plastic or ceramic\" is plastic).",
+    "colour": "Judged against the crop the describer receives, which is contrast-stretched: correct when the text names one of the object's colour terms, otherwise not stated. A wrong colour is not scored: the text also names the table's green seen through holes, which a word match cannot tell from the part's colour.",
+    "totals": "Objects with \"exclude_from_totals\" are scored and listed, but left out of the totals, with the reason given.",
+    "markings": "Markings and damage are recorded, not scored."
+  },
+  "materials": {
+    "metal": [
+      "metal",
+      "steel",
+      "alumin",
+      "brass",
+      "alloy",
+      "anodi[sz]ed"
+    ],
+    "plastic": [
+      "plastic",
+      "nylon",
+      "resin",
+      "polypropylene",
+      "polymer"
+    ]
+  },
+  "type_classes": {
+    "washer": {
+      "correct": [
+        "\\bwasher"
+      ],
+      "wrong": [
+        "ring-shaped|(?<!outer )\\bring\\b(?!s)",
+        "\\bdisc\\b"
+      ]
+    },
+    "hex_nut": {
+      "correct": [
+        "\\bnut\\b",
+        "hexagon"
+      ],
+      "wrong": [
+        "\\bwasher",
+        "\\bcap\\b",
+        "ring-shaped|(?<!outer )\\bring\\b(?!s)"
+      ]
+    },
+    "screw": {
+      "correct": [
+        "\\bscrew",
+        "\\bbolt",
+        "\\bfastener",
+        "\\bstud\\b"
+      ],
+      "wrong": []
+    },
+    "plate": {
+      "correct": [
+        "\\bplate\\b"
+      ],
+      "wrong": []
+    },
+    "block": {
+      "correct": [
+        "\\bblock\\b"
+      ],
+      "wrong": []
+    },
+    "robot": {
+      "correct": [
+        "\\brobot",
+        "\\bfigure\\b"
+      ],
+      "wrong": []
+    },
+    "bushing": {
+      "correct": [
+        "\\bbushing",
+        "\\bsleeve",
+        "flanged ring",
+        "\\bbearing"
+      ],
+      "wrong": [],
+      "undecidable": [
+        "ring-shaped|(?<!outer )\\bring\\b(?!s)"
+      ]
+    },
+    "comb": {
+      "correct": [
+        "\\bcomb\\b",
+        "\\bstrip\\b"
+      ],
+      "wrong": [
+        "\\bplate\\b"
+      ]
+    },
+    "terminal_strip": {
+      "correct": [
+        "\\bterminal",
+        "\\bstrip\\b",
+        "\\bconnector"
+      ],
+      "wrong": [
+        "\\bdie\\b",
+        "\\bmou?ld\\b",
+        "\\bplate\\b"
+      ]
+    },
+    "double_triangle": {
+      "correct": [
+        "\\barrow",
+        "triang"
+      ],
+      "wrong": []
+    },
+    "lattice_bracket": {
+      "correct": [
+        "\\blattice",
+        "\\bbracket"
+      ],
+      "wrong": []
+    }
+  },
+  "objects": [
+    {
+      "frame": "Image_001",
+      "index": 1,
+      "type": "large flat washer",
+      "type_class": "washer",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver-grey",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_001",
+      "index": 2,
+      "type": "socket-head cap screw with a hex nut on it",
+      "type_class": "screw",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_001",
+      "index": 3,
+      "type": "grey comb: a four-cell moulded strip with three holes",
+      "type_class": "comb",
+      "material": "plastic",
+      "material_detail": "polypropylene (its text reads \"PP\")",
+      "colour": "light grey",
+      "colour_terms": [
+        "grey",
+        "gray",
+        "white",
+        "pale",
+        "light"
+      ],
+      "marking": "printed text on each cell (\"H-2.5mm PP\"), a CE mark",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_001",
+      "index": 4,
+      "type": "flat double-triangle (arrow) cut-out",
+      "type_class": "double_triangle",
+      "material": "plastic",
+      "material_detail": "3D-printed",
+      "colour": "dark blue",
+      "colour_terms": [
+        "blue",
+        "violet",
+        "purple"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_001",
+      "index": 5,
+      "type": "white washer",
+      "type_class": "washer",
+      "material": "metal",
+      "material_detail": "aluminium",
+      "colour": "white",
+      "colour_terms": [
+        "white"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_002",
+      "index": 1,
+      "type": "large flat washer",
+      "type_class": "washer",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver-grey",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_002",
+      "index": 2,
+      "type": "flanged bushing",
+      "type_class": "bushing",
+      "material": "metal",
+      "material_detail": "aluminium",
+      "colour": "silver outer ring, darker grooved bore",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_002",
+      "index": 3,
+      "type": "robot figure, lying down",
+      "type_class": "robot",
+      "material": "plastic",
+      "material_detail": "3D-printed",
+      "colour": "white with dark blue feet, face and chest logo",
+      "colour_terms": [
+        "white"
+      ],
+      "marking": "blue power-symbol logo on the chest",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_002",
+      "index": 4,
+      "type": "white washer",
+      "type_class": "washer",
+      "material": "metal",
+      "material_detail": "aluminium",
+      "colour": "white",
+      "colour_terms": [
+        "white"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_003",
+      "index": 1,
+      "type": "flat plate with two holes",
+      "type_class": "plate",
+      "material": "metal",
+      "material_detail": "rusted",
+      "colour": "dark grey / black",
+      "colour_terms": [
+        "dark",
+        "black",
+        "grey",
+        "gray"
+      ],
+      "marking": "rust speckles, densest along the left edge",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_003",
+      "index": 2,
+      "type": "flat plate with two counterbored holes",
+      "type_class": "plate",
+      "material": "metal",
+      "material_detail": "aluminium",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "concentric machining marks",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_003",
+      "index": 3,
+      "type": "robot figure, standing",
+      "type_class": "robot",
+      "material": "plastic",
+      "material_detail": "3D-printed",
+      "colour": "white with dark blue feet, face and chest logo",
+      "colour_terms": [
+        "white"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_004",
+      "index": 1,
+      "type": "flat plate with two holes",
+      "type_class": "plate",
+      "material": "metal",
+      "material_detail": "rusted",
+      "colour": "dark grey / black",
+      "colour_terms": [
+        "dark",
+        "black",
+        "grey",
+        "gray"
+      ],
+      "marking": "rust speckles along the left edge",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_004",
+      "index": 2,
+      "type": "flat plate with two counterbored holes",
+      "type_class": "plate",
+      "material": "metal",
+      "material_detail": "aluminium",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "concentric machining marks",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_004",
+      "index": 3,
+      "type": "robot figure, standing",
+      "type_class": "robot",
+      "material": "plastic",
+      "material_detail": "3D-printed",
+      "colour": "white with dark blue feet, face and chest logo",
+      "colour_terms": [
+        "white"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_005",
+      "index": 1,
+      "type": "large flat washer",
+      "type_class": "washer",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver-grey",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_005",
+      "index": 2,
+      "type": "robot figure, standing",
+      "type_class": "robot",
+      "material": "plastic",
+      "material_detail": "3D-printed",
+      "colour": "white with dark blue feet, face and chest logo",
+      "colour_terms": [
+        "white"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_005",
+      "index": 3,
+      "type": "small hex nut, face on",
+      "type_class": "hex_nut",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "stamped \"S\"",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29",
+      "exclude_from_totals": "The crop hides its corners: its own mask follows the bright round face and leaves the dull chamfered corners out, and only masked pixels are enhanced, so the describer sees a round ring (89-91 % mask cover, 2026-09-29)."
+    },
+    {
+      "frame": "Image_005",
+      "index": 4,
+      "type": "socket-head cap screw",
+      "type_class": "screw",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_005",
+      "index": 5,
+      "type": "hex nut, face on",
+      "type_class": "hex_nut",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver-grey",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "stamped \"8\"",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_006",
+      "index": 1,
+      "type": "large flat washer",
+      "type_class": "washer",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver-grey",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_006",
+      "index": 2,
+      "type": "small hex nut, face on",
+      "type_class": "hex_nut",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "stamped \"S\"",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29",
+      "exclude_from_totals": "The crop hides its corners: its own mask follows the bright round face and leaves the dull chamfered corners out, and only masked pixels are enhanced, so the describer sees a round ring (89-91 % mask cover, 2026-09-29)."
+    },
+    {
+      "frame": "Image_006",
+      "index": 3,
+      "type": "rectangular block with two counterbored holes",
+      "type_class": "block",
+      "material": "metal",
+      "material_detail": "anodised aluminium",
+      "colour": "dark red",
+      "colour_terms": [
+        "red",
+        "pink",
+        "maroon",
+        "copper"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_006",
+      "index": 4,
+      "type": "socket-head cap screw",
+      "type_class": "screw",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_006",
+      "index": 5,
+      "type": "hex nut, face on",
+      "type_class": "hex_nut",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver-grey",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "stamped \"8\"",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_007",
+      "index": 1,
+      "type": "large flat washer",
+      "type_class": "washer",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_007",
+      "index": 2,
+      "type": "rectangular block with two counterbored holes",
+      "type_class": "block",
+      "material": "metal",
+      "material_detail": "anodised aluminium",
+      "colour": "dark red",
+      "colour_terms": [
+        "red",
+        "pink",
+        "maroon",
+        "copper"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_007",
+      "index": 3,
+      "type": "flat plate with two counterbored holes",
+      "type_class": "plate",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "brown / orange stains (\"rust\", \"stains\" and \"discoloration\" are all correct); concentric machining marks",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_007",
+      "index": 4,
+      "type": "terminal strip (screw terminal block)",
+      "type_class": "terminal_strip",
+      "material": "plastic",
+      "material_detail": "plastic body with metal screws: scored on the body",
+      "colour": "grey body, silver and brass screws",
+      "colour_terms": [
+        "grey",
+        "gray",
+        "pale",
+        "silver",
+        "white"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_007",
+      "index": 5,
+      "type": "hex nut, face on",
+      "type_class": "hex_nut",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver-grey",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_007",
+      "index": 6,
+      "type": "flat double-triangle (arrow) cut-out",
+      "type_class": "double_triangle",
+      "material": "plastic",
+      "material_detail": "3D-printed",
+      "colour": "dark blue",
+      "colour_terms": [
+        "blue",
+        "violet",
+        "purple"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_007",
+      "index": 7,
+      "type": "lattice bracket: tapered, with open cells",
+      "type_class": "lattice_bracket",
+      "material": "plastic",
+      "material_detail": "3D-printed",
+      "colour": "blue",
+      "colour_terms": [
+        "blue"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_008",
+      "index": 1,
+      "type": "large flat washer",
+      "type_class": "washer",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver-grey",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_008",
+      "index": 2,
+      "type": "socket-head cap screw with a hex nut on it",
+      "type_class": "screw",
+      "material": "metal",
+      "material_detail": "",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_008",
+      "index": 3,
+      "type": "grey comb: a four-cell moulded strip with three holes",
+      "type_class": "comb",
+      "material": "plastic",
+      "material_detail": "polypropylene (its text reads \"PP\")",
+      "colour": "light grey",
+      "colour_terms": [
+        "grey",
+        "gray",
+        "white",
+        "pale",
+        "light"
+      ],
+      "marking": "printed text, a CE mark",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_008",
+      "index": 4,
+      "type": "square plate with a milled maze and four corner holes",
+      "type_class": "plate",
+      "material": "metal",
+      "material_detail": "aluminium",
+      "colour": "silver",
+      "colour_terms": [
+        "silver",
+        "grey",
+        "gray"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "judged from the crop",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    },
+    {
+      "frame": "Image_008",
+      "index": 5,
+      "type": "white washer",
+      "type_class": "washer",
+      "material": "metal",
+      "material_detail": "aluminium",
+      "colour": "white",
+      "colour_terms": [
+        "white"
+      ],
+      "marking": "",
+      "source": {
+        "type": "CONST_INVENTORY (test/integration/test_pipeline.py)",
+        "material": "the owner, from the physical part",
+        "colour": "judged from the crop"
+      },
+      "status": "confirmed by the owner, 2026-09-29"
+    }
+  ]
+}

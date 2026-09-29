@@ -364,9 +364,10 @@ App/
     fonts/                    Inter, Inter Display and JetBrains Mono, static, with their OFL licences; built by
                               Example/UI/build_fonts.py
 src/                      Qt-free domain modules + the UI (see "Source layout")
-Example/                  runnable scripts (scan, calibrate, make_reference, analyze, architecture_diagram,
-                          build_logo, build_fonts)
-Data/Images/Test/All/     the eight frames analyze.py runs on, and the tests' pinned set — committed
+Example/                  runnable scripts (scan, calibrate, make_reference, analyze, evaluate_describer,
+                          architecture_diagram, build_logo, build_fonts)
+Data/Images/Test/All/     the eight frames analyze.py runs on, and the tests' pinned set, with answer_key.json
+                          (what each object is, for evaluate_describer.py) — committed
 Data/Images/Test/*/       other folders: raw captures (Mounting_Plate, Labyrinth), not tested — committed
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored
@@ -433,7 +434,7 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
 | Platform | Status | What is known |
 |---|---|---|
 | **macOS, Apple silicon** | **Supported, measured** | MLX on the Apple GPU (Metal). 2.22 s per object (warm), 9.41 GB peak for the whole application, and output identical word for word across runs, processes and memory pressure. |
-| **Linux** | **Supported target, never run** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer reads GPU 0's memory and refuses below it; `--cpu` opts into the CPU backend). **Nothing has run on Linux:** not the application, not the installer, not either model. Speed, memory and whether the text comes out identical are all unknown; the ~8.5 GB (E4B) and ~10.5 GB (12B) GPU figures are estimates. The prompts were tuned for E4B on MLX; a different model reads them differently (measured for the 12B, below). |
+| **Linux** | **Supported, measured on one machine** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer reads GPU 0's memory and refuses below it; `--cpu` opts into the CPU backend). Measured 2026-09-29 on Ubuntu with an RTX 5070 Ti (16 GB, driver 595.91.07), MLX 0.32.2 with the CUDA 13 backend (`mlx[cuda13]`) and PyTorch 2.14.0+cu130 (FastSAM on CUDA): E4B describes in **0.65 s per object** (warm; 0.51–0.93 s over the 37 objects of `Data/Images/Test/All`), loads in 3.9 s, and the whole application peaks at 9.5 GB of GPU memory (MLX 6.99 GB) and 4.0 GB of RAM. Output identical word for word between two processes. Not compared with the Mac's text. |
 | **Windows** | **Not a target, untested** | Nothing known prevents it — `mlx` publishes Windows wheels — but it is not supported and has never been tried. |
 
 **The describer models.** Both are 4-bit MLX conversions, so the same describer loads either
@@ -447,10 +448,11 @@ on every backend. Only the configuration's `Description.Model` chooses between t
 - **Determinism does not travel.** Greedy decoding (`temperature=0`) makes the *sampler*
   deterministic, but a different backend can still produce different text through
   floating-point differences inside the model. Word-for-word identical output is a
-  *measured* property of the Apple-silicon build, not a guarantee. On a new platform,
-  anything pinned to exact description text — tests and the characterization baseline —
-  must be re-verified.
-- **Installing on Linux: installable, still unmeasured.** On Linux `mlx` has no compute
+  *measured* property of each build (Apple silicon; the Linux CUDA machine below), not a
+  guarantee across them: the Linux text has not been compared with the Mac's. No test pins
+  live describer text (the characterization baseline feeds stored text), so the suite passes
+  on both; a new pin on exact model output would have to be verified per platform.
+- **Installing on Linux.** On Linux `mlx` has no compute
   backend of its own; the backend comes from an extra chosen for the machine, kept in one
   selectable file per backend — `requirements/linux-cuda12.txt`, `linux-cuda13.txt` or
   `linux-cpu.txt` (far slower) — installed together with `requirements.txt`, which holds the
@@ -458,17 +460,26 @@ on every backend. Only the configuration's `Description.Model` chooses between t
   from the matching PyTorch index (`cu126`, `cu130` or `cpu`). `./install.sh` makes both
   choices from the NVIDIA driver it finds, after checking GPU 0's memory (11 GB minimum; 15 GB
   for `--model 12b`), and it warns when the card already has more than 1.5 GB in use. With
-  no usable GPU it stops, naming the reason, unless `--cpu` is given. This makes Linux
-  *possible*, not *verified*: no
-  Linux machine has run it yet, and that includes the installer. Its Linux branches — driver
-  detection, the choice of backend and PyTorch build, and the installs themselves — are
-  tested with stubbed commands only, so a working `install.sh` on macOS is no evidence
-  that Linux was tested. The first Linux install is the first real run of those branches;
-  please report the installer's output either way. Without MLX the describer stops with a message saying so.
-- **Making Linux measured** means running the `Data/Images/Test/All` frames there, with E4B so
-  that the backend is the only thing that differs from the Mac, and recording what was recorded
-  for Apple silicon: time per object, peak memory, and
-  word-for-word stability — then re-verifying every exact-text pin.
+  no usable GPU it stops, naming the reason, unless `--cpu` is given. On the measured Linux
+  machine (2026-09-29) its detection ran for real (`--detect-only`: driver 595.91.07, the CUDA 13
+  backend and the `cu130` PyTorch build, 15.9 GB on GPU 0) and so did its Gemma step, which
+  downloaded and verified E4B. The full install was not run there: that machine's environment
+  was set up by hand with `opencv-python-headless`, and the requirements install would add
+  `opencv-python` beside it. The installer's other Linux branches are still tested with stubbed
+  commands only. Without MLX the describer stops with a message saying so.
+- **Linux measured** (2026-09-29, the machine in the table): AMD Ryzen 9 9950X3D, 29 GiB RAM,
+  NVIDIA GeForce RTX 5070 Ti (16 GB, compute capability 12.0), driver 595.91.07 (CUDA 13.2),
+  Python 3.11.16, MLX 0.32.2 + `mlx-cuda-13`, mlx-vlm 0.7.2, PyTorch 2.14.0+cu130. Through the
+  application's path (`Load_Configuration` -> `Configure` -> `Analyze`) on the eight
+  `Data/Images/Test/All` frames with the shipped configuration: E4B 0.65 s per object (mean of
+  37; 0.64-0.66 s over two processes), model load 3.9 s, configure (load and warm-up) 4.8 s (9.4 s
+  once, on the first run after the download, when the warm-up sentence took 5.1 s instead of
+  0.5 s); FastSAM loads in 0.08 s and segments a frame in 34-55 ms on CUDA. Peaks: 6.99 GB MLX,
+  9.5 GB GPU for the whole application (`nvidia-smi`), 4.0 GB process RSS. The first analysis
+  after a load is no slower than the next. Every description and background sentence was
+  identical word for word between two processes, and the full suite passes with and without
+  `--runslow`. `Example/Vision/evaluate_describer.py` scores the configured describer against
+  the confirmed answer key (`Data/Images/Test/All/answer_key.json`) on any machine with the weights.
 - **Packaging:** the PyInstaller recipe this section used to give was for Windows and no
   longer applies. No packaging recipe has been verified on any platform; run from source
   (`python App/run.py`).

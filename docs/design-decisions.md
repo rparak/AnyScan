@@ -2189,3 +2189,54 @@ width included), `::test_the_tagline_is_crisp_on_a_low_density_display`,
 `::test_the_mark_is_the_logos_own`, `::test_the_live_text_is_the_logo_sources_text`, and the `slow`,
 macOS-only `::test_the_logo_and_the_mark_rebuild_byte_identically_from_the_source` (needs Inkscape 1.2.2).
 `test/UI/test_text_contrast.py` measures the lockup's text too (magenta 4.65:1 on `CONST_BG`).
+
+## E4B stays the describer on Linux too: scored against a confirmed answer key, the 12B calls plastic metal
+
+On the Linux CUDA machine (README > Platform) the shipped configuration keeps Gemma 4 E4B. One
+configuration is shared by both machines, so History and Trends compare like with like. The decision
+rests on an answer key, `Data/Images/Test/All/answer_key.json`. It names, for each of the 37 objects the
+shipped pipeline finds in the eight frames (numbered in the pipeline's order), its part type, material
+and colour, each with its source (`CONST_INVENTORY`, judged from the crop, or the owner from the
+physical part). The owner confirmed every entry on 2026-09-29. The scoring rules and the synonym
+patterns are data in the key. `Vision.Utilities.Evaluation` is its only reader and scorer, and
+`Example/Vision/evaluate_describer.py` runs the configured describer through the application's path and
+scores it (`--describer-model` swaps the model in memory, not in the file).
+
+Both models ran the same crops (identical pixel for pixel) with the shipped prompts. Totals over 35
+objects: the two small hex nuts (5.3, 6.2) are scored but left out, by the key, because their crop
+hides their corners (the key's `exclude_from_totals` gives the reason: their own mask misses the dull corners).
+
+| Attribute (correct / wrong / not stated) | E4B | 12B |
+|---|---|---|
+| Part type | 21 / 3 / 11 | 25 / 2 / 8 |
+| Material | 26 / 1 / 8 | 26 / 6 / 3 |
+| Colour | 35 / 0 / 0 | 34 / 0 / 1 |
+| Per object (warm, mean) | 0.65 s | 1.10 s |
+| Peak GPU memory, whole application | 9.5 GB | 11.6 GB |
+
+- **The 12B errs where E4B hedges.** Of the ten confirmed plastic parts (the grey comb twice, the
+  3D-printed double triangle twice, the lattice bracket, four robots, the terminal strip's body) the 12B
+  calls six metal. E4B calls one metal (the terminal strip, "metal die or mold", which both get wrong);
+  where it is unsure it writes "plastic or painted metal", which scores as not stated.
+- **The 12B names part types more often:** the two larger hex nuts ("hexagonal nut", where E4B writes
+  "roughly octagonal metal washer" or "fitting"), the red block twice, the lying robot. That is four
+  objects of 35, against five confident material errors more.
+- **Colour** is right for both on everything they name.
+- **Stable:** both models gave identical text in two separate processes. The 12B matched an earlier run
+  too. The Mac comparison (*Gemma 4 12B was measured against E4B and is not better*) found the same
+  pattern on the previous test set.
+- **The prompts were tuned on E4B.** The object prompt's condition list is metal vocabulary (rust,
+  tarnish), which may prime a model that follows lists literally. A 12B-specific prompt could narrow the
+  material gap; that is untested.
+
+**Why.** A confident wrong material misleads an operator; a hedge does not. With part types four objects
+apart and material errors five apart, E4B is the better describer on this set, and it is 1.7× faster.
+The key makes the comparison repeatable: the script reproduced these E4B totals exactly on a second run,
+and a changed key entry changed them.
+
+**Revisit if** the prompts are rewritten (re-run both models), a new describer is proposed (score it
+with the script against the same key), or the segmentation changes: the script stops when a frame's
+object count differs from the key's, because the numbering no longer applies, and the key must be
+re-confirmed.
+Tests `test/Vision/Utilities/test_evaluation.py` (the key covers `CONST_INVENTORY`, records the owner's
+answers, and each scoring rule); the run itself needs the weights and is the script, not a test.
