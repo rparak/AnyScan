@@ -2201,7 +2201,8 @@ material and colour, each with its source (`CONST_INVENTORY`, judged from the cr
 physical part). The owner confirmed every entry on 2026-09-29. The scoring rules, the synonym patterns, the
 naming cues and the other materials are data in the key. `Vision.Utilities.Evaluation` is its only reader
 and scorer, and `Example/Vision/evaluate_describer.py` runs the configured describer through the
-application's path and scores it (`--describer-model` swaps the model in memory, not in the file).
+application's path and scores it (`--describer-model` swapped the model in memory, not in the file, for
+these comparisons; removed on 2026-09-29).
 
 Both models ran the same crops (identical pixel for pixel) with the shipped prompts. Totals over all 37
 objects, as the scorer gives them and as checked by hand (every "not stated" was read; the scorer agrees
@@ -2286,7 +2287,8 @@ answers, and each scoring rule, including `::test_a_wrong_name_after_the_first_s
 itself needs the weights and is the script, not a test.
 
 **No longer supported (2026-09-29):** Gemma 4 12B and E4B 8-bit. `gemma-4-e4b-it-4bit` is the only describer;
-`./install.sh --model` was removed. The comparisons above remain the evidence for the choice.
+`./install.sh --model` and `evaluate_describer.py --describer-model` were removed. The comparisons above remain
+the evidence for the choice.
 
 ## The object label keeps the model's alternatives, and reads the phrasings that broke it
 
