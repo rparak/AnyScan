@@ -37,7 +37,9 @@ install has not run on Linux, the Gemma download has not run on macOS, and the C
 branches have not run on any machine. Those paths are covered by tests with stubbed commands only.
 If you are the first to take one of them, you are its first real run: if it fails, or finishes but
 the application does not start, please report it with the installer's full output. Only that
-report can confirm the path.
+report can confirm the path. What ran on Linux, and what did not, is recorded in
+docs/design-decisions.md, *The installer on Linux: detection and the Gemma download ran, the rest
+did not*.
 
 By hand instead, create an isolated environment and install the runtime + test dependencies
 (Python 3.10 or newer; tested on 3.10–3.12, developed and characterized on 3.10):

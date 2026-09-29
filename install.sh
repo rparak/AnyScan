@@ -629,7 +629,7 @@ Detect_Nvidia() {
     GPU_MEMORY_MIB="${total}"
     Log INFO "${name} has $(Mib_To_Gb "${total}") GB of memory (${total} MiB), $(Mib_To_Gb "${used}") GB of it in use now; compute capability ${cap}."
     if [ "${total}" -lt "${CONST_MIN_VRAM_MIB}" ]; then
-        No_Usable_Gpu "${name} has $(Mib_To_Gb "${total}") GB of memory; the describer (Gemma 4 E4B) and FastSAM together are estimated at ~8.5 GB, so ${CONST_MIN_VRAM_MIB} MiB ($(( CONST_MIN_VRAM_MIB / 1024 )) GB) is the minimum"
+        No_Usable_Gpu "${name} has $(Mib_To_Gb "${total}") GB of memory; the describer (Gemma 4 E4B) and FastSAM together peaked at 9.5 GB when measured, so ${CONST_MIN_VRAM_MIB} MiB ($(( CONST_MIN_VRAM_MIB / 1024 )) GB) is the minimum"
         return 0
     fi
     if [ "${used}" -gt "${CONST_BUSY_VRAM_MIB}" ]; then

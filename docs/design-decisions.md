@@ -2319,3 +2319,30 @@ starts to show the label.
 Tests `test/Vision/Utilities/test_caption.py::test_condense_label_names_the_part_in_the_phrasings_that_broke_it`,
 `::test_condense_label_keeps_the_models_alternative`, and the characterization baseline
 `test/Vision/test_characterize.py` (its four label lines now keep the alternative).
+
+## The installer on Linux: detection and the Gemma download ran, the rest did not
+
+Recorded 2026-09-29 from that day's Linux run (commit `fd45206`, README > Platform; the machine's
+measurements are in *E4B stays the describer on both machines*). Nothing was re-run for this entry.
+It keeps "tested" and "ran for real" apart for each installer path, as the Mac's runs are kept apart
+in `test/Install/test_install.py`'s docstring.
+
+- **Ran for real on Linux** (Ubuntu, RTX 5070 Ti 16 GB, driver 595.91.07, Python 3.11.16):
+  - detection, as `./install.sh --detect-only`: the CUDA 13 branch, `mlx[cuda13]` and the `cu130`
+    PyTorch build, 15.9 GB read on GPU 0;
+  - the Gemma step (`Ensure_Gemma`): the real `hf download` of E4B at the pinned revision, and the
+    verification of every file against the manifest.
+- **Not run on Linux:** the full install. The machine's environment was set up by hand with
+  `opencv-python-headless`, and the requirements install would add `opencv-python` beside it. So
+  `.venv` creation, the pip resolves on the PyTorch index and the `mlx` extra, the import check, the
+  FastSAM step and the configuration check have not run there.
+- **Not run on any machine:** the CUDA 12 path (`mlx[cuda12]`, `cu126`), the CPU path (`--cpu`,
+  `mlx[cpu]`), and every refusal (no driver, an old driver, low compute capability, too little
+  memory). Stubbed tests cover them.
+- **The 11 GiB floor stands.** It was set from an estimate (~8.5 GB, *Linux: MLX's CUDA backend…*);
+  the measured whole-application peak is 9.5 GB of GPU memory, 6.99 GB of it MLX, which it clears.
+  The installer's comment and refusal message now give the measured peak.
+
+**Revisit if** a machine runs the full Linux install, the CUDA 12 path or the CPU path: record it
+here, then update README > Setup and the docstring of `test/Install/test_install.py`.
+Tests `test/Install/test_install.py` (the stubbed branches); commit `fd45206` for the run.

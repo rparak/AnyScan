@@ -7,8 +7,8 @@ The vision pipeline's describer (stage 4) loads the local vision-language model 
 
 Expected contents: an MLX model directory (config.json, generation_config.json,
 processor_config.json, chat_template.jinja, tokenizer.json, model.safetensors and
-model.safetensors.index.json), about 4.8 GB. It runs through MLX / mlx-vlm on Apple
-silicon (see requirements.txt).
+model.safetensors.index.json), 5.2 GB. It runs through MLX / mlx-vlm: Metal on Apple
+silicon, CUDA on Linux with an NVIDIA GPU (see requirements.txt and requirements/).
 
 Upstream source
 ---------------

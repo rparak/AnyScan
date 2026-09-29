@@ -58,23 +58,23 @@ Description:
       - the FastSAM download path end to end: Ensure_Fastsam against an empty scratch root
         fetched the v8.4.0 asset with the real curl, verified the .part file, moved it into
         place (no .part left), and a second call skipped it as present and verified.
-    Unverified end to end - its first exercise is the first real install on a fresh machine:
-      - the Gemma download (hf download of 5.2 GB, then verification). The hf call is covered
-        here by a stub only. What it shares with the FastSAM path that did run for real is the
-        verification code (Verify_File and its hashes); the hf invocation, its --force-download
-        re-fetch of a mismatched file, and the post-download re-verification loop have not run
-        against the real Hub. The stale-status bug these tests caught in that loop is the kind
-        only a fresh machine would otherwise have shown.
+    Real, on Linux / RTX 5070 Ti (16 GB, driver 595.91.07) / Python 3.11.16 (2026-09-29;
+    docs/design-decisions.md, "The installer on Linux: ..."):
+      - detection (./install.sh --detect-only): the CUDA 13 branch, mlx[cuda13] and the cu130
+        PyTorch build, 15.9 GB on GPU 0.
+      - the Gemma download: Ensure_Gemma fetched E4B with the real hf and verified every file.
+        Whether its --force-download re-fetch of a mismatched file ran is not recorded.
+      - not the full install: that machine's environment was set up by hand, so the .venv
+        creation, the pip resolves (the cu130 index, the mlx extra), the import check, the
+        FastSAM step and the configuration check have not run on Linux.
     Stubs only - UNVERIFIED in the sense of README > Platform:
-      - every Linux branch (CUDA 12, CUDA 13, the refusal and the --cpu opt-in, failing /
+      - every other Linux branch (CUDA 12, the refusal and the --cpu opt-in, failing /
         missing / old nvidia-smi, low compute capability, GPU 0's memory against the 11 GB
-        floor, a busy card, old glibc, musl, aarch64), macOS on
-        Intel, macOS < 14, and Rosetta. The stubs reproduce the command outputs as documented
-        (nvidia-smi's CSV queries and banner, sysctl, getconf); no Linux machine has run this
-        script, and the
-        pip resolves on the Linux paths (the PyTorch cu126/cu130/cpu indexes, the mlx
-        extras) have not been performed. The Gemma download (hf) is stubbed everywhere:
-        its skip path ran for real (for E4B), its fetch path did not.
+        floor, a busy card, old glibc, musl, aarch64), macOS on Intel, macOS < 14, and
+        Rosetta. The stubs reproduce the command outputs as documented (nvidia-smi's CSV
+        queries and banner, sysctl, getconf). The pip resolves on the cu126 and cpu paths
+        have not been performed. The Gemma download has not run on macOS (its skip path
+        has); in these tests hf is a stub everywhere.
 """
 # The repository root and the script under test.
 #   Unit [string]
