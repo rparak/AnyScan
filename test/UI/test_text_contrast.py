@@ -376,6 +376,9 @@ def records(tmp_path_factory) -> tp.List[tp.Dict[str, tp.Any]]:
     Style.Load_Fonts()
     tmp_path = tmp_path_factory.mktemp('contrast')
     painted = []
+    # The class's own descriptor, restored as it was: QPainter.drawText read through the class is an
+    # unbound builtin, and assigning that back breaks every later painter's drawText in the process.
+    descriptor = QPainter.__dict__['drawText']
     draw_text = QPainter.drawText
 
     def Draw_Text(painter: QPainter, *args: tp.Any) -> tp.Any:
@@ -434,7 +437,7 @@ def records(tmp_path_factory) -> tp.List[tp.Dict[str, tp.Any]]:
         _Measure(thumb, 'history/failed-thumbnail', painted, out)
         thumb.close()
     finally:
-        QPainter.drawText = draw_text
+        setattr(QPainter, 'drawText', descriptor)
     return out
 
 
