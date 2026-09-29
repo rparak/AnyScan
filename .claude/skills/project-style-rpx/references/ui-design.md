@@ -87,7 +87,9 @@ practices followed inconsistently are under **Unsettled**.
 ## A density-dependent style asks the one density check 📄
 
 - `Style.Is_Low_Density(widget)` (device pixel ratio below `CONST_LOW_DENSITY_DPR`, 1.5) is the only place
-  density is decided; today the logo height reads it (`Style.Logo_Height`). The ratio is read when a
+  density is decided; the logo height (`Style.Logo_Height`) and the 9 pt type floor in `Style.Font`
+  (`CONST_TYPE_FLOOR_LOW_DENSITY`) read it. A chrome size below 9 pt is raised to 9 pt at DPR 1 and kept
+  on a 2x display. The ratio is read when a
   widget is built, which for the window is before it is shown (Qt 5 then reports the highest ratio of all
   screens), and nothing re-reads it on a screen change (DD *The logo is 59 px on a low-density display*).
 - ✅ `test/UI/test_header.py` measures the logo at DPR 1 and runs itself again at DPR 2.

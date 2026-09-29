@@ -2077,3 +2077,31 @@ fails), Qt is upgraded to one that uses variable-font axes, or the logo's Inter 
 one commit).
 Tests `test/UI/test_fonts.py::test_the_ui_and_monospace_families_resolve_to_the_bundled_fonts`,
 `::test_every_requested_weight_draws_its_own_face` (ui, mono), `::test_each_bundled_family_ships_its_licence`.
+
+## A 9 pt type floor on a low-density display
+
+Below a device pixel ratio of 1.5 (`Style.Is_Low_Density`) no text is set below 9 pt
+(`Style.CONST_TYPE_FLOOR_LOW_DENSITY`): `Style.Font`, which builds every font in the UI (painted text
+included), raises a smaller size to 9 pt there. At DPR 1.5 and above every size is as written. The ratio is
+the application's, read when the font is built: the value a widget reads before its window is shown, with
+the same limit as the logo (a screen change does not rebuild fonts; *The logo is 59 px on a low-density
+display*). It raises ten chrome styles, all 7.5-8.5 pt: the frame and stage badges (`Widgets.py:217`), the
+status-strip labels (`Widgets.py:1066`), the funding note (`Widgets.py:1249`), History's card time, card
+count and failed thumbnail (`History.py:245, 250, 298`), its rolling-window note (`History.py:419`), image
+captions (`History.py:550`) and connection group label and count (`History.py:796, 801`). Content sizes
+(`CONST_TYPE_SCALE`, smallest 9.5 pt) are not touched.
+
+**Why.** On a 1x monitor a regular-weight 7.5-8.5 pt text is 10-11 px, and at that size 0.02-0.05 of its
+ink reaches full contrast, in Noto Sans and in the bundled Inter alike; at 9 pt (12 px) it is 0.12-0.19
+(measured 2026-09-29, offscreen renders pixel-identical to xcb). Bundling Inter did not change that, so the
+floor is independent of the face. A 2x display draws these sizes with 15-17 device px per em and keeps them;
+there the window is pixel-identical to the window without the floor. The cost at DPR 1: the minimum window
+size grows from 1454 x 1034 to 1511 x 1036 px (96 dpi); no label is clipped at it. Applying the floor only
+to regular weights was considered (the two bold uppercase labels gain little, 0.36 to 0.40) and not done:
+one rule is easier to hold than two.
+
+**Revisit if** a chrome size is changed or added below 9 pt (the floor hides it at DPR 1 but not on a
+Retina display), or when the window re-reads its screen's ratio on a screen change.
+Tests `test/UI/test_text_contrast.py::test_every_text_is_at_least_9_pt_on_a_low_density_display`,
+`::test_a_high_density_display_draws_what_it_drew_without_the_floor` (at DPR 2),
+`::test_the_text_checks_run_again_at_dpr_2`.

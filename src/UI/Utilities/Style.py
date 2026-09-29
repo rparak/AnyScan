@@ -73,6 +73,11 @@ CONST_LOGO_HEIGHT   = 54          # the top bar's AnyScan lockup height
 # Below this device pixel ratio a display is low density (a 1x monitor): Is_Low_Density.
 #   Unit [float]
 CONST_LOW_DENSITY_DPR = 1.5
+# The smallest type on a low-density display: Font raises any smaller size to it there. At DPR 1 a
+# regular-weight 7.5-8.5 pt text (10-11 px) has 0.02-0.05 of its ink at full contrast in Inter; at 9 pt
+# (12 px) 0.12-0.19. A 2x display draws those sizes with 15-17 device px per em and keeps them.
+#   Unit [float] (point size)
+CONST_TYPE_FLOOR_LOW_DENSITY = 9.0
 # The lockup height on a low-density display. At 54 px the corner brackets (4 units, 1.24 px) and the
 # connector (3 units, 0.93 px) never cover a whole pixel; at 59 px (0.339 px per unit) both land on one,
 # and the mark's full-contrast ink rises from 0.38 to 0.52 of its pixels. A 2x display already draws every
@@ -234,11 +239,13 @@ def Confidence_Number_Html(number: str, percent: tp.Optional[float],
         Log_Level_Color(level), CONST_LEVEL_CSS_WEIGHTS[level], number)
 
 
-def Is_Low_Density(widget: QWidget) -> bool:
+def Is_Low_Density(widget: tp.Optional[QWidget] = None) -> bool:
     """
     Description:
         Whether a widget is drawn on a low-density display: its device pixel ratio below
         CONST_LOW_DENSITY_DPR. This is the one density check; a style that differs by density asks it.
+        Without a widget (Font, which builds a font before it is set on anything) it reads the
+        application's ratio, which is what a widget reads before its window is shown.
 
         Note:
             The ratio is the widget's own (devicePixelRatioF), which Qt 5.15 takes from the screen of
@@ -249,13 +256,16 @@ def Is_Low_Density(widget: QWidget) -> bool:
             the window moves to a screen of another ratio.
 
     Args:
-        (1) widget [QWidget(object)]: The widget the style is for.
+        (1) widget [QWidget(object)]: The widget the style is for; None for the application's ratio.
 
     Returns:
         (1) parameter [bool]: True below CONST_LOW_DENSITY_DPR.
     """
 
-    return widget.devicePixelRatioF() < CONST_LOW_DENSITY_DPR
+    if widget is not None:
+        return widget.devicePixelRatioF() < CONST_LOW_DENSITY_DPR
+    app = QApplication.instance()
+    return app is not None and app.devicePixelRatio() < CONST_LOW_DENSITY_DPR
 
 
 def Logo_Height(widget: QWidget) -> int:
@@ -460,7 +470,9 @@ def Font(size: float, weight: int = QFont.Normal, mono: bool = False,
          tracking: float = 0.0) -> QFont:
     """
     Description:
-        Build a font. `tracking` is percentage letter spacing, as in the CSS.
+        Build a font. `tracking` is percentage letter spacing, as in the CSS. On a low-density display
+        (Is_Low_Density) a size below CONST_TYPE_FLOOR_LOW_DENSITY is raised to it; every UI font is
+        built here, painted text included, so this is the one place the floor applies.
 
     Args:
         (1) size [float]: Point size.
@@ -472,6 +484,8 @@ def Font(size: float, weight: int = QFont.Normal, mono: bool = False,
         (1) parameter [QFont(object)]: The configured font.
     """
 
+    if size < CONST_TYPE_FLOOR_LOW_DENSITY and Is_Low_Density():
+        size = CONST_TYPE_FLOOR_LOW_DENSITY
     font = QFont(FONT_MONO if mono else FONT_UI)
     font.setPointSizeF(size)
     font.setWeight(weight)

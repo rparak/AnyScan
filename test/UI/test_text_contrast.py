@@ -25,7 +25,10 @@
 import collections
 import os
 import re
+import subprocess
+import sys
 import time
+from datetime import datetime
 # Qt must render headless; set the platform before any QApplication is constructed.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Typing (Support for type hints)
@@ -38,9 +41,10 @@ import numpy as np
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import QPoint
-from PyQt5.QtGui import QImage, QPainter, QPalette
+from PyQt5.QtGui import QFontInfo, QImage, QPainter, QPalette
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget
 # Custom Lib.: AnyScan UI — the window, the History thumbnail, the capture writer
+import UI.Core as Core
 from UI.Core import AnyScan_Window_Cls
 from UI.Views.History import Thumb_Card_Cls, CONST_INFO_SLIDE_MS
 from UI.Capture import Capture_Writer_Cls, Capture_Set_Str, Build_Set_Metadata
@@ -64,6 +68,11 @@ Description:
     painted text is the pen it was drawn with, and its ground is the colour that fills most of the label
     in the grabbed window, which must itself be a theme token. The token values are read from
     Parameters.Theme when the test runs, never copied here.
+
+    The same walk records each text's resolved point size: on a low-density display (DPR 1, this run) no
+    text is below 9 pt (Style.CONST_TYPE_FLOOR_LOW_DENSITY, docs/design-decisions.md, "A 9 pt type floor
+    on a low-density display"). The module runs itself again at DPR 2 (QT_SCALE_FACTOR=2), where the
+    contrast is measured once more and the window must draw exactly the pixels it draws with no floor.
 
     Exempt, by the project's rules: a disabled widget (its lower contrast says 'not available'; held by
     test_control_contrast.py to look different from enabled); a status dot '●', a graphic held to 3:1
@@ -89,6 +98,10 @@ CONST_FLAGGED_TEXTS = (
     'Rolling window', 'No captures in this run yet.', 'Select a capture set.', 'lines', 'Connection sessionA',
     '10:00:00', 'objects', 'Annotated', 'Mask', 'ANALYSIS\nFAILED', 'found by background subtraction',
     'Note from the composer.')
+# The smallest point size on a low-density display, and the ratio the second run uses for a 2x display.
+#   Unit [float] (point size) / [string]
+CONST_LOW_DENSITY_MINIMUM_PT = 9.0
+CONST_HIGH_DENSITY_SCALE = '2'
 # The views the window switches between.
 #   Unit [Tuple<string>]
 CONST_VIEWS = ('live', 'trends', 'history', 'log')
@@ -254,7 +267,7 @@ def _Measure(root: QWidget, state: str, painted: tp.List[tp.Tuple[int, str, str]
     Args:
         (1) root [QWidget(object)]: The shown window (or widget) to grab.
         (2) state [string]: The state's name, for the report.
-        (3) painted [Vector<Tuple>]: The list the drawText hook fills: (widget id, text, pen colour).
+        (3) painted [Vector<Tuple>]: The list the drawText hook fills: (widget id, text, pen colour, point size).
         (4) records [Vector<Dict>]: Where the records are appended.
     """
 
@@ -284,15 +297,15 @@ def _Measure(root: QWidget, state: str, painted: tp.List[tp.Tuple[int, str, str]
         texts += [(span_colour.lower(), span_text) for span_colour, span_text in spans]
         for text_colour, text in texts:
             records.append({'state': state, 'text': text, 'colour': text_colour, 'ground': ground,
-                            'enabled': label.isEnabled(), 'painted': False})
+                            'enabled': label.isEnabled(), 'painted': False, 'pt': QFontInfo(label.font()).pointSizeF()})
     widgets = {id(widget): widget for widget in root.findChildren(QWidget)}
     widgets[id(root)] = root
-    for widget_id, text, pen in painted:
+    for widget_id, text, pen, point_size in painted:
         widget = widgets.get(widget_id)
         if widget is None:
             continue
         records.append({'state': state, 'text': text, 'colour': pen, 'ground': _Ground(Region(widget)),
-                        'enabled': True, 'painted': True})
+                        'enabled': True, 'painted': True, 'pt': point_size})
 
 
 def _Window(tmp_path: tp.Any, loaded: bool) -> AnyScan_Window_Cls:
@@ -361,8 +374,52 @@ def _Write_Set(root: str, set_id: str, run_id: str, scores: tp.Sequence[tp.Optio
                                    metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
 
+def _Working_Window(tmp_path: tp.Any) -> AnyScan_Window_Cls:
+    """
+    Description:
+        The working state: loaded, connected, one analysis with a composer note and an unscored object,
+        and two capture sets in History.
+
+    Args:
+        (1) tmp_path [Path(object)]: Where the log and the captures go.
+
+    Returns:
+        (1) parameter [AnyScan_Window_Cls(object)]: The shown window.
+    """
+
+    window = _Window(tmp_path, loaded=True)
+    _Private(window, '__camera').Connect()
+    _Private(window, '__Sync_Controls')()
+    _Private(window, '__On_Scan_Button_Clicked')()
+    objects = [Detection_Str(Label='ring', Bbox=(4, 4, 20, 16), Segmenter_Score=0.93, Sentence='A steel ring.', Cue='both'),
+               Detection_Str(Label='nut', Bbox=(30, 6, 12, 12), Segmenter_Score=None, Sentence='A hex nut.', Cue='background')]
+    _Private(window, '__On_Analysis_Finished')(Analysis_Str(Objects=objects, Latency_Ms=1180, Verdict='ok',
+                                                             Verdict_Level='ok', Task='caption',
+                                                             Note='Note from the composer.'))
+    root, run_id = _Private(window, '__captures_root'), _Private(window, '__run_id')
+    _Write_Set(root, 'set_0001', run_id, (0.91, 0.90))
+    _Write_Set(root, 'set_0002', run_id, (0.91, None))
+    return window
+
+
 @pytest.fixture(scope='module')
-def records(tmp_path_factory) -> tp.List[tp.Dict[str, tp.Any]]:
+def qt_app() -> QApplication:
+    """
+    Description:
+        A single offscreen QApplication for the module, with the fonts the application loads; held for the
+        module so it outlives the records.
+
+    Returns:
+        (1) parameter [QApplication(object)]: The application.
+    """
+
+    app = QApplication.instance() or QApplication([])
+    Style.Load_Fonts()
+    return app
+
+
+@pytest.fixture(scope='module')
+def records(qt_app, tmp_path_factory) -> tp.List[tp.Dict[str, tp.Any]]:
     """
     Description:
         Every text measured across the states, with QPainter.drawText hooked so painted text reports its
@@ -372,8 +429,7 @@ def records(tmp_path_factory) -> tp.List[tp.Dict[str, tp.Any]]:
         (1) parameter [Vector<Dict>]: The records.
     """
 
-    app = QApplication.instance() or QApplication([])
-    Style.Load_Fonts()
+    app = qt_app
     tmp_path = tmp_path_factory.mktemp('contrast')
     painted = []
     # The class's own descriptor, restored as it was: QPainter.drawText read through the class is an
@@ -384,7 +440,8 @@ def records(tmp_path_factory) -> tp.List[tp.Dict[str, tp.Any]]:
     def Draw_Text(painter: QPainter, *args: tp.Any) -> tp.Any:
         texts = [arg for arg in args if isinstance(arg, str)]
         if texts and isinstance(painter.device(), QWidget):
-            painted.append((id(painter.device()), texts[0], painter.pen().color().name()))
+            painted.append((id(painter.device()), texts[0], painter.pen().color().name(),
+                            QFontInfo(painter.font()).pointSizeF()))
         return draw_text(painter, *args)
 
     QPainter.drawText = Draw_Text
@@ -403,18 +460,7 @@ def records(tmp_path_factory) -> tp.List[tp.Dict[str, tp.Any]]:
         window.close()
 
         # Working: loaded, connected, one analysis with a composer note, capture sets in History.
-        window = _Window(tmp_path, loaded=True)
-        _Private(window, '__camera').Connect()
-        _Private(window, '__Sync_Controls')()
-        _Private(window, '__On_Scan_Button_Clicked')()
-        objects = [Detection_Str(Label='ring', Bbox=(4, 4, 20, 16), Segmenter_Score=0.93, Sentence='A steel ring.', Cue='both'),
-                   Detection_Str(Label='nut', Bbox=(30, 6, 12, 12), Segmenter_Score=None, Sentence='A hex nut.', Cue='background')]
-        _Private(window, '__On_Analysis_Finished')(Analysis_Str(Objects=objects, Latency_Ms=1180, Verdict='ok',
-                                                                 Verdict_Level='ok', Task='caption',
-                                                                 Note='Note from the composer.'))
-        root, run_id = _Private(window, '__captures_root'), _Private(window, '__run_id')
-        _Write_Set(root, 'set_0001', run_id, (0.91, 0.90))
-        _Write_Set(root, 'set_0002', run_id, (0.91, None))
+        window = _Working_Window(tmp_path)
         for key in CONST_VIEWS:
             _View(window, key)
             _Measure(window, 'working/%s' % key, painted, out)
@@ -482,3 +528,98 @@ def test_every_enabled_text_clears_the_floor(records) -> None:
                 ratio, floor, record['state'], record['text'][:40], '/'.join(tokens.get(record['colour'], [record['colour']])),
                 '/'.join(tokens.get(record['ground'], [record['ground']]))))
     assert not failures, '\n' + '\n'.join(sorted(set(failures)))
+
+
+def _Fixed_Now(cls: type, tz: tp.Any = None) -> datetime:
+    """
+    Description:
+        A fixed moment, as the frozen datetime's now(), so two windows built a second apart show the same
+        LAST UPDATE.
+
+    Args:
+        (1) cls [type]: The frozen datetime class.
+        (2) tz [tzinfo]: Ignored.
+
+    Returns:
+        (1) parameter [datetime(object)]: 2026-09-29 12:34:56.
+    """
+
+    return cls(2026, 9, 29, 12, 34, 56)
+
+
+# datetime with now() fixed; 'now' is the name datetime's own interface calls, set here rather than in a
+# class body so the helper keeps the project's naming.
+#   Unit [type]
+CONST_FROZEN_DATETIME = type('Frozen_Datetime', (datetime,), {'now': classmethod(_Fixed_Now)})
+
+
+def _Grab_Views(tmp_path: tp.Any) -> tp.Dict[str, np.ndarray]:
+    """
+    Description:
+        The working window's Live and History views (the two with chrome below 9 pt), as grabbed pixels.
+
+    Args:
+        (1) tmp_path [Path(object)]: Where the log and the captures go.
+
+    Returns:
+        (1) parameter [Dict<string, Matrix<uint8>>]: The view key -> its grab.
+    """
+
+    window = _Working_Window(tmp_path)
+    grabs = {}
+    for key in ('live', 'history'):
+        _View(window, key)
+        grabs[key] = _Pixels(window.grab().toImage())
+    window.close()
+    return grabs
+
+
+def test_every_text_is_at_least_9_pt_on_a_low_density_display(qt_app, records) -> None:
+    """
+    Description:
+        Below DPR 1.5 no text the walk measured, labels and painted text alike, resolves below 9 pt.
+    """
+
+    if qt_app.devicePixelRatio() >= Style.CONST_LOW_DENSITY_DPR:
+        pytest.skip('this run is at DPR %g; the floor is measured in the DPR 1 run' % qt_app.devicePixelRatio())
+    small = sorted({(record['pt'], record['state'], record['text'][:30]) for record in records
+                    if record['pt'] < CONST_LOW_DENSITY_MINIMUM_PT})
+    assert not small, 'below %g pt: %s' % (CONST_LOW_DENSITY_MINIMUM_PT, small)
+
+
+def test_a_high_density_display_draws_what_it_drew_without_the_floor(qt_app, tmp_path, monkeypatch) -> None:
+    """
+    Description:
+        At DPR 1.5 and above the floor changes nothing: the Live and History views are pixel-identical to
+        the same views drawn with the floor at 0 (no floor, the code before it). The clock is fixed so the
+        two builds show the same time.
+    """
+
+    if qt_app.devicePixelRatio() < Style.CONST_LOW_DENSITY_DPR:
+        pytest.skip('this run is at DPR %g; the high-density comparison runs at DPR 2' % qt_app.devicePixelRatio())
+    monkeypatch.setattr(Core, 'datetime', CONST_FROZEN_DATETIME)
+    shipped = _Grab_Views(tmp_path / 'shipped')
+    monkeypatch.setattr(Style, 'CONST_TYPE_FLOOR_LOW_DENSITY', 0.0)
+    without = _Grab_Views(tmp_path / 'without')
+    for key in shipped:
+        differing = int((shipped[key] != without[key]).any(axis=2).sum()) if shipped[key].shape == without[key].shape else -1
+        assert differing == 0, '%s view: %d pixels differ from the view without the floor' % (key, differing)
+
+
+def test_the_text_checks_run_again_at_dpr_2(qt_app, project_root) -> None:
+    """
+    Description:
+        This module, run again in a fresh interpreter at DPR 2, passes: the contrast is measured there too,
+        the high-density comparison passes, and the low-density floor test is the one that skips.
+    """
+
+    if qt_app.devicePixelRatio() >= Style.CONST_LOW_DENSITY_DPR:
+        pytest.skip('this is the DPR %g run' % qt_app.devicePixelRatio())
+    env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_SCALE_FACTOR=CONST_HIGH_DENSITY_SCALE, PYTHONDONTWRITEBYTECODE='1')
+    run = subprocess.run([sys.executable, '-m', 'pytest', os.path.abspath(__file__), '-rA', '-p', 'no:cacheprovider'],
+                         cwd=project_root, env=env, capture_output=True, text=True, timeout=600)
+    report = run.stdout + run.stderr
+    assert run.returncode == 0, report[-3000:]
+    for passed in ('test_every_enabled_text_clears_the_floor', 'test_a_high_density_display_draws_what_it_drew_without_the_floor'):
+        assert 'PASSED test/UI/test_text_contrast.py::%s' % passed in report, report[-3000:]
+    assert 'the floor is measured in the DPR 1 run' in report, report[-3000:]
