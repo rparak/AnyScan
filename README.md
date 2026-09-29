@@ -110,8 +110,10 @@ loaded, which needs the model weights):
 python App/run.py --frame path/to/frame.png
 ```
 
-Without Inter and JetBrains Mono installed, the nearest system faces are used.
-The layout holds either way; the metrics shift slightly.
+The console draws its text in Inter and JetBrains Mono, which ship with it in `App/assets/fonts/`
+(static Regular, Medium, SemiBold and Bold of each, built by `Example/UI/build_fonts.py`), so it looks
+the same on every platform whatever fonts the machine has. Only if that directory is missing does it
+fall back to the nearest system faces.
 
 ## Configuration
 
@@ -358,10 +360,11 @@ App/
     funder-eu-white.png       Funded by the European Union
     anyscan-mark.png          the mark shown in the empty viewport
     anyscan-mark-white.ico    the window / taskbar icon (multi-size, rounded)
-    fonts/                    optional: drop Inter.ttf and JetBrainsMono.ttf here
+    fonts/                    Inter and JetBrains Mono, static, with their OFL licences; built by
+                              Example/UI/build_fonts.py
 src/                      Qt-free domain modules + the UI (see "Source layout")
 Example/                  runnable scripts (scan, calibrate, make_reference, analyze, architecture_diagram,
-                          build_logo)
+                          build_logo, build_fonts)
 Data/Images/Test/All/     the eight frames analyze.py runs on, and the tests' pinned set — committed
 Data/Images/Test/*/       other folders: raw captures (Mounting_Plate, Labyrinth), not tested — committed
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
@@ -511,3 +514,8 @@ Gemma 4 licence, which is the Apache 2.0 text, and `google/gemma-4-E4B-it` is ta
 `license: gemma` tag on `mlx-community/gemma-4-e4b-it-4bit` disagrees; it looks like
 converter boilerplate carried over from earlier Gemma conversions, not the upstream licence.
 Checked 2026-09-24.
+
+The bundled fonts in `App/assets/fonts/`, Inter and JetBrains Mono, are under the **SIL Open Font
+License 1.1**, not MIT; each family's licence text ships beside its files (`Inter-OFL.txt`,
+`JetBrainsMono-OFL.txt`) as the OFL requires. They are static instances of the families' variable
+fonts from google/fonts; neither family declares a Reserved Font Name.

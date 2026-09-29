@@ -2041,3 +2041,39 @@ is drawn, so a new pair below 4.5:1 fails it.
 Tests `test/UI/test_text_contrast.py::test_every_enabled_text_clears_the_floor`,
 `::test_every_text_ground_is_a_theme_token`, `::test_every_flagged_text_was_measured` (one text of every
 flagged style reached); buttons in every state are measured by `test/UI/test_control_contrast.py`.
+
+## The UI fonts are bundled: static Inter and JetBrains Mono at the four weights the UI requests
+
+`App/assets/fonts/` ships Inter and JetBrains Mono, each as four static files (Regular 400, Medium 500,
+SemiBold 600, Bold 700: the QFont Normal, Medium, DemiBold and Bold the UI requests), with each family's
+SIL Open Font License text (`Inter-OFL.txt`, `JetBrainsMono-OFL.txt`). `Style.Load_Fonts` registers every
+.ttf there, and its candidate lists pick Inter and JetBrains Mono first; the system faces after them are
+only the fallback for a missing directory. 1.83 MB in all.
+
+They are built, never edited: `python Example/UI/build_fonts.py` downloads the variable fonts and their
+licences from google/fonts commit `e1d6480102fed30739fead0faee463101f892c8f` (Inter is the file
+`build_logo.py` outlines the logo with), stops unless each SHA-256 is the pinned one, and instances every
+weight with fontTools (4.66.0; another version builds with a WARNING): Inter at `opsz` 14, the text optical
+size. The name table and `usWeightClass` are set so Qt lists one family with four styles. The source's
+timestamps are kept, so the output does not depend on the clock. **Reproduced:** three builds, the last into
+a temporary directory, gave the same SHA-256 for all ten files as the committed ones (2026-09-29).
+
+**Why.** None of `Load_Fonts`' candidates was installed on the Linux test machine, so `FONT_UI` kept the bare
+name "Inter" and fontconfig drew Noto Sans; the monospace text was DejaVu Sans Mono. Noto Sans there has
+only Regular and Bold, so the UI's 500 drew Regular and its 600 drew Bold. On macOS the candidates give, by
+the code and the faces macOS ships (not verified on the Mac), Helvetica Neue, which has no SemiBold (600
+draws Medium), and Courier New. The same style therefore had a different weight on each platform. Static
+files, not the variable ones: Qt 5.15 exposes only a variable font's default instance and synthesises every
+other weight (the button label's full-contrast share fell from 0.42 to 0.20 with the variable Inter,
+measured 2026-09-29). Committed, not fetched by `install.sh`, the way the outlined logo is committed: an
+installer fetch would add a network step and a fontTools dependency to a script tested only with stubs, and
+an offline install would silently fall back. Subsetting to Latin was measured at 0.80 MB and not done: a
+model sentence with a character outside the subset would switch faces mid-line. Inter does not make
+10–11 px regular text crisper at DPR 1 than Noto Sans did (full-contrast share 0.02–0.05 in both), so it
+is not a density fix. The Mac look changes: Inter replaces Helvetica Neue, JetBrains Mono replaces Courier New.
+
+**Revisit if** the UI requests a weight outside the four (the test reads the weights from the source and
+fails), Qt is upgraded to one that uses variable-font axes, or the logo's Inter pin moves (keep the two on
+one commit).
+Tests `test/UI/test_fonts.py::test_the_ui_and_monospace_families_resolve_to_the_bundled_fonts`,
+`::test_every_requested_weight_draws_its_own_face` (ui, mono), `::test_each_bundled_family_ships_its_licence`.

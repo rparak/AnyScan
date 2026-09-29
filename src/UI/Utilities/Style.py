@@ -303,10 +303,13 @@ def Scroll_Style(framed: bool) -> str:
 def Load_Fonts() -> None:
     """
     Description:
-        Pick the closest available faces. Inter and JetBrains Mono are what the
-        design is drawn in. Drop the .ttf files into App/assets/fonts/ and they
-        are used; otherwise the nearest system face is chosen, which shifts the
-        metrics slightly but keeps the layout intact.
+        Register the bundled fonts and pick the faces. Inter and JetBrains Mono, what
+        the design is drawn in, ship in App/assets/fonts/ as static Regular, Medium,
+        SemiBold and Bold files (built by Example/UI/build_fonts.py), so every weight
+        the UI requests has its own face on every platform. The candidate lists are
+        the fallback for a missing directory: the nearest system face is chosen, which
+        shifts the metrics and may merge weights (docs/design-decisions.md, "The UI
+        fonts are bundled").
     """
 
     global FONT_UI, FONT_MONO
