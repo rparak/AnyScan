@@ -14,8 +14,8 @@ says what each part of `src/` holds.
 
 ## Setup
 
-**Platform: macOS on Apple silicon** is the supported, measured platform; Linux is a
-target, not yet measured (see [Platform](#platform)). The installer does
+**Platform: macOS on Apple silicon and Linux with an NVIDIA GPU** are the supported platforms,
+both measured; Linux on one machine, on 2026-09-29 (see [Platform](#platform)). The installer does
 the whole setup below — the virtual environment, the dependencies matched to the hardware
 (Metal on Apple silicon; on Linux, MLX's CUDA 12 or CUDA 13 backend chosen from the NVIDIA
 driver, on a card whose memory it reads), and both models, each verified by checksum and
@@ -29,14 +29,15 @@ On Linux it stops, naming the card and its memory, when GPU 0 has less than 11 G
 is no usable NVIDIA GPU; `--cpu` installs the CPU builds instead (unmeasured, expected to be
 far slower). See [Describer model](#describer-model) for what the model needs.
 
-**Two installer paths have never run for real, and a fresh install is their first test.**
-The installer has been run only on an Apple-silicon Mac that already had both models. There,
-it has checked existing files and downloaded FastSAM, but it has never downloaded Gemma (the
-5.2 GB `hf download` and its verification), and none of its Linux branches (CUDA 12,
-CUDA 13, CPU) has run on a Linux machine. Those paths are covered by tests with stubbed
-commands only. If you are the first to install on a fresh machine or on Linux, you are the
-first real run of that path: if it fails, or finishes but the application does not start,
-please report it with the installer's full output. Only that report can confirm the path.
+**Some installer paths have never run for real, and a fresh install is their first test.**
+On an Apple-silicon Mac that already had both models, the installer has checked the existing
+files and downloaded FastSAM. On the measured Linux machine (2026-09-29) its detection ran, on the
+CUDA 13 path, and its Gemma step downloaded and verified E4B (see [Platform](#platform)). The full
+install has not run on Linux, the Gemma download has not run on macOS, and the CUDA 12 and CPU
+branches have not run on any machine. Those paths are covered by tests with stubbed commands only.
+If you are the first to take one of them, you are its first real run: if it fails, or finishes but
+the application does not start, please report it with the installer's full output. Only that
+report can confirm the path.
 
 By hand instead, create an isolated environment and install the runtime + test dependencies
 (Python 3.10 or newer; tested on 3.10–3.12, developed and characterized on 3.10):
@@ -452,10 +453,9 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
   from the matching PyTorch index (`cu126`, `cu130` or `cpu`). `./install.sh` makes both
   choices from the NVIDIA driver it finds, after checking GPU 0's memory (11 GB minimum), and it
   warns when the card already has more than 1.5 GB in use. With no usable GPU it stops, naming
-  the reason, unless `--cpu` is given. On the measured Linux
-  machine (2026-09-29) its detection ran for real (`--detect-only`: driver 595.91.07, the CUDA 13
-  backend and the `cu130` PyTorch build, 15.9 GB on GPU 0) and so did its Gemma step, which
-  downloaded and verified E4B. The full install was not run there: that machine's environment
+  the reason, unless `--cpu` is given. On the measured Linux machine (2026-09-29) its detection
+  ran for real (`--detect-only`: driver 595.91.07, the CUDA 13 backend and the `cu130` PyTorch
+  build, 15.9 GB on GPU 0) and so did its Gemma step, which downloaded and verified E4B. The full install was not run there: that machine's environment
   was set up by hand with `opencv-python-headless`, and the requirements install would add
   `opencv-python` beside it. The installer's other Linux branches are still tested with stubbed
   commands only. Without MLX the describer stops with a message saying so.

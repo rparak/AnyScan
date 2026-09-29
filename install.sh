@@ -80,10 +80,9 @@ CONST_MLX_CUDA12_MIN_DRIVER='550.54.14'
 CONST_MLX_CUDA13_MIN_DRIVER='580'
 CONST_MLX_CUDA_MIN_COMPUTE_CAP='7.5'
 # The VRAM GPU 0 must have, read from nvidia-smi (MiB). The describer's model and FastSAM share
-# the card. E4B was measured at 5.9 GB while generating on Apple silicon; with FastSAM, both CUDA
-# contexts and the allocators' caches, the whole application is estimated at ~8.5 GB, so 11 GiB is
-# the floor (12 GB cards report ~12,280 MiB). Estimates, not measurements: nothing has run on
-# Linux.
+# the card. Measured on Linux (2026-09-29, CUDA 13): the whole application peaks at 9.5 GB of GPU
+# memory, 6.99 GB of it MLX (docs/design-decisions.md, "E4B stays the describer on both machines"),
+# so 11 GiB is the floor, with room above that peak (12 GB cards report ~12,280 MiB).
 #   Unit [MiB]
 CONST_MIN_VRAM_MIB='11264'
 # Memory already in use on GPU 0 (a display, another process) above which the plan warns.
@@ -1108,7 +1107,7 @@ Main() {
     Log INFO "Setup complete in $(( SECONDS - start )) s: ${PLATFORM_SUMMARY}."
     Report_Unused_Cpu_Flag
     if [ "${PLATFORM_OS}" = 'linux' ]; then
-        Log INFO 'Linux is installable but unmeasured: speed, memory and word-for-word output have not been verified there (README > Platform).'
+        Log INFO 'Linux was measured on one machine, with the CUDA 13 backend (README > Platform); the CUDA 12 and CPU builds have not been measured.'
     fi
     Log INFO 'Start the application with: .venv/bin/python App/run.py'
 }
