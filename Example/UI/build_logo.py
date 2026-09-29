@@ -40,7 +40,12 @@ import typing as tp
 """
 Description:
     Build the AnyScan logo (images/anyscan-logo.svg and its byte-identical copy App/assets/anyscan-logo.svg)
-    from its text source, images/source/anyscan-logo-text.svg, by outlining every <text> in Inter 400.
+    from its text source, images/source/anyscan-logo-text.svg, by outlining every <text> in Inter 400, and
+    the logo's mark alone (App/assets/anyscan-logo-mark.svg) from that outlined logo: the logo without its
+    wordmark and tagline, in the logo's own viewBox, which the top bar draws under the wordmark and tagline
+    set as live text at the source's coordinates (docs/design-decisions.md, "The header's wordmark and
+    tagline are live text"). The mark is derived in Python from the outlined logo, without Inkscape or the
+    font, so --mark-only rebuilds it from the committed logo on any machine.
     The shipped logo carries no text, so every renderer draws the same ink: PyQt5's QtSvg ignores CSS
     font rules and set the old text logo in the application's default font, which clipped its tagline
     on Linux (docs/design-decisions.md, "The logo's text is outlined").
@@ -51,9 +56,11 @@ Description:
     size of each text is pinned in the source (font-variation-settings), so Pango's automatic choice
     cannot change the outlines.
 
-        python Example/UI/build_logo.py                        # rewrite both logo copies
-        python Example/UI/build_logo.py --output /tmp/logo.svg  # build into one file only
+        python Example/UI/build_logo.py                        # rewrite both logo copies and the mark
+        python Example/UI/build_logo.py --output /tmp/logo.svg  # build the logo into one file only
         python Example/UI/build_logo.py --font Inter.ttf        # use a local copy of the pinned font
+        python Example/UI/build_logo.py --output-dir /tmp/logo  # build the logo and the mark elsewhere
+        python Example/UI/build_logo.py --mark-only             # derive the mark from the committed logo
 
     After a rebuild, regenerate the diagram: python Example/UI/architecture_diagram.py.
 """
@@ -63,6 +70,7 @@ CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.absp
 CONST_SOURCE_FILE = os.path.join(CONST_PROJECT_FOLDER, 'images', 'source', 'anyscan-logo-text.svg')
 CONST_OUTPUT_FILES = (os.path.join(CONST_PROJECT_FOLDER, 'images', 'anyscan-logo.svg'),
                       os.path.join(CONST_PROJECT_FOLDER, 'App', 'assets', 'anyscan-logo.svg'))
+CONST_MARK_FILE = os.path.join(CONST_PROJECT_FOLDER, 'App', 'assets', 'anyscan-logo-mark.svg')
 # The font: Inter 4.001 (SIL OFL 1.1), at a pinned google/fonts commit, and its SHA-256.
 #   Unit [string]
 CONST_FONT_NAME = 'Inter[opsz,wght].ttf'
@@ -81,6 +89,14 @@ CONST_MARGIN = 5.0
 CONST_SVG_NS = 'http://www.w3.org/2000/svg'
 CONST_TEXT_PROPERTIES = ('font-size', 'font-family', 'font-weight', 'font-variation-settings', 'text-anchor',
                          '-inkscape-font-specification', 'font-style', 'font-variant', 'font-stretch')
+# The mark's accessible name and description, and the note above it saying where it comes from.
+#   Unit [string]
+CONST_MARK_LABEL = 'AnyScan mark'
+CONST_MARK_DESC = ('The AnyScan mark: inside a camera scan frame, an object is located by a magenta bounding box '
+                   'with an index tag and its generated text description. The logo without its wordmark and '
+                   'tagline, in the logo\'s own viewBox; the top bar sets those as live text.')
+CONST_MARK_NOTE = (' Built by Example/UI/build_logo.py from images/anyscan-logo.svg (the logo without its '
+                   'outlined wordmark and tagline). Do not edit. ')
 
 
 def Sha256(path: str) -> str:
@@ -232,20 +248,84 @@ def Build(font: str, output: str, directory: str) -> None:
           % (output, ox + bx, ox + bx + bw, oy + by, oy + by + bh, vx, vy, vw, vh, CONST_MARGIN))
 
 
+def Mark_Only(logo: str) -> str:
+    """
+    Description:
+        The logo's mark alone: the outlined logo with every outlined top-level text (the wordmark and the
+        tagline, each a <g aria-label> directly under the root) and the comment above each removed. The
+        viewBox is the logo's own, so a text drawn at the source's coordinates lands where the logo has it.
+        The index "1" is inside the mark's group and stays.
+
+    Args:
+        (1) logo [string]: The outlined logo SVG.
+
+    Returns:
+        (1) parameter [string]: The mark-only SVG.
+    """
+
+    ET.register_namespace('', CONST_SVG_NS)
+    root = ET.fromstring(logo, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True)))
+    children = list(root)
+    texts = [child for child in children if child.tag == '{%s}g' % CONST_SVG_NS and 'aria-label' in child.attrib]
+    if len(texts) != 2:
+        sys.exit('[ERROR] The logo has %d outlined top-level texts; the mark is derived from one with exactly two '
+                 '(the wordmark and the tagline).' % len(texts))
+    for text in texts:
+        index = list(root).index(text)
+        if index > 0 and root[index - 1].tag is ET.Comment:
+            root.remove(root[index - 1])
+        root.remove(text)
+    root.set('aria-label', CONST_MARK_LABEL)
+    root.find('{%s}title' % CONST_SVG_NS).text = CONST_MARK_LABEL
+    root.find('{%s}desc' % CONST_SVG_NS).text = CONST_MARK_DESC
+    root.insert(0, ET.Comment(CONST_MARK_NOTE))
+    ET.indent(root, space='  ')
+    return ET.tostring(root, encoding='unicode').replace(' xmlns:svg="%s"' % CONST_SVG_NS, '') + '\n'
+
+
+def Write_Mark(logo_path: str, output: str) -> None:
+    """
+    Description:
+        Derive the mark from an outlined logo file (Mark_Only) and write it.
+
+    Args:
+        (1) logo_path [string]: The outlined logo.
+        (2) output [string]: Where the mark is written.
+    """
+
+    with open(logo_path, 'r', encoding='utf-8') as handle:
+        mark = Mark_Only(handle.read())
+    with open(output, 'w', encoding='utf-8') as handle:
+        handle.write(mark)
+    print('[INFO] Wrote %s: the mark of %s.' % (output, logo_path))
+
+
 def main() -> int:
     """
     Description:
-        Parse the command line, fetch and verify the font, check Inkscape, and build the logo into
-        both copies (or into --output).
+        Parse the command line, fetch and verify the font, check Inkscape, build the logo into both
+        copies and derive the mark from it (or build into --output / --output-dir); with --mark-only,
+        derive the mark from the committed logo alone.
 
     Returns:
         (1) parameter [int]: The exit code.
     """
 
     parser = argparse.ArgumentParser(description='Build the outlined AnyScan logo from its text source.')
-    parser.add_argument('--output', default=None, help='Write only this file (default: both logo copies).')
+    parser.add_argument('--output', default=None, help='Write only the logo, to this file (default: both logo copies).')
+    parser.add_argument('--output-dir', default=None, help='Write the logo and the mark into this directory instead.')
+    parser.add_argument('--mark-only', action='store_true',
+                        help='Derive only the mark, from the committed images/anyscan-logo.svg (no Inkscape, no font).')
     parser.add_argument('--font', default=None, help='A local copy of %s (default: download it).' % CONST_FONT_NAME)
     args = parser.parse_args()
+    if args.output is not None and (args.output_dir is not None or args.mark_only):
+        sys.exit('[ERROR] --output writes the logo alone; it does not combine with --output-dir or --mark-only.')
+    mark = os.path.join(args.output_dir, os.path.basename(CONST_MARK_FILE)) if args.output_dir else CONST_MARK_FILE
+    if args.output_dir is not None:
+        os.makedirs(args.output_dir, exist_ok=True)
+    if args.mark_only:
+        Write_Mark(CONST_OUTPUT_FILES[0], mark)
+        return 0
 
     if shutil.which('inkscape') is None:
         sys.exit('[ERROR] Inkscape is not on PATH. Install Inkscape %s (e.g. brew install --cask inkscape).'
@@ -260,11 +340,19 @@ def main() -> int:
     directory = tempfile.mkdtemp(prefix='anyscan_logo_')
     try:
         font = Fetch_Font(args.font, directory)
-        first = args.output or CONST_OUTPUT_FILES[0]
-        Build(font, first, directory)
-        if args.output is None:
+        if args.output is not None:
+            Build(font, args.output, directory)
+        elif args.output_dir is not None:
+            first = os.path.join(args.output_dir, os.path.basename(CONST_OUTPUT_FILES[0]))
+            Build(font, first, directory)
+            Write_Mark(first, mark)
+        else:
+            first = CONST_OUTPUT_FILES[0]
+            Build(font, first, directory)
             shutil.copyfile(first, CONST_OUTPUT_FILES[1])
-            print('[INFO] Copied it to %s. Now run python Example/UI/architecture_diagram.py.' % CONST_OUTPUT_FILES[1])
+            print('[INFO] Copied it to %s.' % CONST_OUTPUT_FILES[1])
+            Write_Mark(first, mark)
+            print('[INFO] Now run python Example/UI/architecture_diagram.py.')
     finally:
         shutil.rmtree(directory, ignore_errors=True)
     return 0

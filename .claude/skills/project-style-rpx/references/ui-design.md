@@ -93,6 +93,13 @@ practices followed inconsistently are under **Unsettled**.
   widget is built, which for the window is before it is shown (Qt 5 then reports the highest ratio of all
   screens), and nothing re-reads it on a screen change (DD *The logo is 59 px on a low-density display*).
 - ✅ `test/UI/test_header.py` measures the logo at DPR 1 and runs itself again at DPR 2.
+- The header's wordmark and tagline are live text over the mark (`Widgets.Logo_Lockup_Cls`), not the
+  outlined logo: their origins, sizes, words and colours are `Style.CONST_LOGO_TEXT` and the `CONST_LOGO_*`
+  tokens, held to the logo's text source. The wordmark takes the display cut (`Style.Font(display=True)`,
+  Inter Display); nothing else does. Change the logo in its source and rebuild; never hand-edit the
+  mark or the constants apart (DD *The header's wordmark and tagline are live text*).
+- ✅ `test/UI/test_header.py` holds the live lockup's offsets to the outlined logo's within 1 device px at
+  both densities; `test/UI/test_brand_figures.py` holds the mark and the text to the source.
 
 ## Content type comes from the scale; one content, one size ✅ (content) 📄 (chrome)
 

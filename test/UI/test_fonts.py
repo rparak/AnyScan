@@ -41,7 +41,8 @@ Description:
     The bundled UI fonts (docs/design-decisions.md, "The UI fonts are bundled"): after Style.Load_Fonts the
     UI family resolves to Inter and the monospace family to JetBrains Mono, from App/assets/fonts/, and every
     weight the UI code requests draws its own face of each, with the matching style name. The weights are
-    read from the UI source, so a weight added to the code without a face fails here.
+    read from the UI source, so a weight added to the code without a face fails here. The display cut
+    (Inter Display, the header's wordmark) resolves to its own bundled face, never to the text cut.
 """
 # The source the UI's font weights are read from, and the QFont weight names it may use.
 #   Unit [string]
@@ -52,7 +53,7 @@ CONST_WEIGHT_PATTERN = r'QFont\.(Thin|ExtraLight|Light|Normal|Medium|DemiBold|Bo
 CONST_STYLE_OF_WEIGHT = {'Normal': 'Regular', 'Medium': 'Medium', 'DemiBold': 'SemiBold', 'Bold': 'Bold'}
 # The families the bundle provides, and each one's licence file beside it.
 #   Unit [Dict<string, string>]
-CONST_FAMILIES = {'Inter': 'Inter-OFL.txt', 'JetBrains Mono': 'JetBrainsMono-OFL.txt'}
+CONST_FAMILIES = {'Inter': 'Inter-OFL.txt', 'Inter Display': 'Inter-OFL.txt', 'JetBrains Mono': 'JetBrainsMono-OFL.txt'}
 
 
 @pytest.fixture(scope='module')
@@ -111,6 +112,22 @@ def test_every_requested_weight_draws_its_own_face(qt_app, mono) -> None:
     wrong = {name: drawn[name] for name in weights if drawn[name] != expected[name]}
     assert not wrong, 'drawn instead of the expected face: %s' % wrong
     assert len(set(drawn.values())) == len(weights)
+
+
+def test_the_display_cut_is_its_own_bundled_face(qt_app) -> None:
+    """
+    Description:
+        Style.Font(display=True) resolves (QFontInfo) to Inter Display Regular, and the face drawn is
+        App/assets/fonts/InterDisplay-Regular.ttf (its name table is that file's), not the text cut's.
+    """
+
+    font = Style.Font(30, display=True)
+    info = QFontInfo(font)
+    assert (info.family(), info.styleName()) == (Style.CONST_FONT_DISPLAY, 'Regular')
+    fonts = os.path.join(Style.CONST_ASSETS, 'fonts')
+    drawn = QRawFont.fromFont(font).fontTable('name')
+    assert drawn == QRawFont(os.path.join(fonts, 'InterDisplay-Regular.ttf'), 12).fontTable('name')
+    assert drawn != QRawFont(os.path.join(fonts, 'Inter-Regular.ttf'), 12).fontTable('name')
 
 
 def test_each_bundled_family_ships_its_licence() -> None:

@@ -47,7 +47,7 @@ from Parameters.Theme import (                                             # noq
     CONST_THUMB_HIGHLIGHT, CONST_THUMB_HIGHLIGHT_FILL_ALPHA, CONST_TOPBAR_DIVIDER, CONST_SCROLLBAR_HANDLE,
     CONST_OK_SOFT, CONST_OK_BORDER, CONST_WARN, CONST_WARN_INK, CONST_WARN_SOFT,
     CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_ERROR_ON_DARK, CONST_BAND,
-    CONST_BAND_LINE, CONST_BAND_TEXT,
+    CONST_BAND_LINE, CONST_BAND_TEXT, CONST_LOGO_INK, CONST_LOGO_MAGENTA, CONST_LOGO_TAGLINE,
     CONST_LOG_INFO, CONST_LOG_WARNING, CONST_LOG_ERROR, Log_Level_Color, Status_Text_Color)
 
 """
@@ -97,6 +97,22 @@ CONST_NO_VALUE      = '—'
 
 CONST_TAGLINE = 'The camera sees, the model describes.'
 
+# The top bar's lockup (Widgets.Logo_Lockup_Cls): the mark alone, which Example/UI/build_logo.py derives
+# from the outlined logo in the logo's own viewBox, and the logo's two lines of text as its text source
+# (images/source/anyscan-logo-text.svg) sets them, in logo units: the pen origin (x, baseline y), the
+# font size, whether the line is set in the display cut (CONST_FONT_DISPLAY), and the spans with their
+# colours. The lockup draws them as live text at those coordinates; test/UI/test_brand_figures.py holds
+# every value to the text source. The wordmark takes the display cut, the logo's own optical size, so
+# it keeps the logo's width; the tagline keeps the text cut, which is what Inter draws at 11-12 px.
+#   Unit [string] / [Tuple<Tuple<float> 1x2, float, bool, Tuple<Tuple<string, string>>>]
+CONST_LOGO_MARK_FILE = 'anyscan-logo-mark.svg'
+CONST_LOGO_TEXT = (((268.0, 132.0), 87.0, True, (('Any', CONST_LOGO_INK), ('Scan', CONST_LOGO_MAGENTA))),
+                   ((270.0, 184.0), 36.0, False, ((CONST_TAGLINE, CONST_LOGO_TAGLINE),)))
+# The empty space the lockup keeps right of its text's ink: the logo's own margin (build_logo.py's
+# CONST_MARGIN), so no anti-aliased edge is clipped. Ink_Insets takes it off the gap to the divider.
+#   Unit [float] (logo units)
+CONST_LOGO_MARGIN = 5.0
+
 # The resolved UI/monospace font families. NOT CONST_*: Load_Fonts reassigns them
 # once at startup to the nearest available faces — they are resolved state, not
 # constants.
@@ -109,6 +125,11 @@ FONT_MONO = 'Consolas'  # resolved in Load_Fonts
 #   Unit [Tuple<string>]
 CONST_FONT_UI_CANDIDATES = ('Inter', 'Segoe UI Variable Display', 'Segoe UI', 'Helvetica Neue', 'Arial')
 CONST_FONT_MONO_CANDIDATES = ('JetBrains Mono', 'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', 'Courier New')
+# Inter at the display optical size (opsz 32), bundled under its own family name, Regular only: the face
+# the header's wordmark is set in, as the logo outlines it (docs/design-decisions.md, "The header's
+# wordmark and tagline are live text"). Nothing else uses it; without the bundle Qt substitutes a face.
+#   Unit [string]
+CONST_FONT_DISPLAY = 'Inter Display'
 
 # The console's modular type scale (point sizes), smallest to largest. Every type token below
 # names a STEP in this scale rather than a literal, so a size change is 'move to the next step',
@@ -467,7 +488,7 @@ def Ink_Insets(pixmap: QPixmap) -> tp.Tuple[int, int]:
 
 
 def Font(size: float, weight: int = QFont.Normal, mono: bool = False,
-         tracking: float = 0.0) -> QFont:
+         tracking: float = 0.0, display: bool = False) -> QFont:
     """
     Description:
         Build a font. `tracking` is percentage letter spacing, as in the CSS. On a low-density display
@@ -479,6 +500,7 @@ def Font(size: float, weight: int = QFont.Normal, mono: bool = False,
         (2) weight [int]: QFont weight.
         (3) mono [bool]: Use the monospace family.
         (4) tracking [float]: Percentage letter spacing (0 = none).
+        (5) display [bool]: Use the display cut, CONST_FONT_DISPLAY (Regular only; the header's wordmark).
 
     Returns:
         (1) parameter [QFont(object)]: The configured font.
@@ -486,7 +508,7 @@ def Font(size: float, weight: int = QFont.Normal, mono: bool = False,
 
     if size < CONST_TYPE_FLOOR_LOW_DENSITY and Is_Low_Density():
         size = CONST_TYPE_FLOOR_LOW_DENSITY
-    font = QFont(FONT_MONO if mono else FONT_UI)
+    font = QFont(CONST_FONT_DISPLAY if display else FONT_MONO if mono else FONT_UI)
     font.setPointSizeF(size)
     font.setWeight(weight)
     if tracking:

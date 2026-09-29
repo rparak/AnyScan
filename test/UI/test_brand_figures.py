@@ -26,6 +26,11 @@ import base64
 import importlib.util
 import os
 import re
+import shutil
+import subprocess
+import sys
+# XML (Read the logo's text source) [Python standard library]
+import xml.etree.ElementTree as ET
 # Qt must never open a window during tests: the offscreen platform renders without a display.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Typing (Support for type hints)
@@ -61,6 +66,11 @@ Description:
     is not a token. They also hold the diagram to being linked from the README: it went 111 commits
     stale while nothing linked to it. And they hold the diagram self-contained, with every logo in it:
     under <img> a referenced file draws nothing, silently.
+
+    The top bar draws the logo's mark (App/assets/anyscan-logo-mark.svg, derived from the outlined logo by
+    Example/UI/build_logo.py) and sets its wordmark and tagline as live text from Style.CONST_LOGO_TEXT and
+    the logo's colour tokens. These tests hold the mark to being the logo's own, and the live text's
+    positions, sizes, words and colours to the logo's text source.
 """
 # The repository root and the three files involved.
 #   Unit [string]
@@ -70,6 +80,21 @@ CONST_LOGO_ASSET = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-logo.svg')
 CONST_DIAGRAM = os.path.join(CONST_ROOT, 'images', 'anyscan-architecture.svg')
 CONST_README = os.path.join(CONST_ROOT, 'README.md')
 CONST_GENERATOR = os.path.join(CONST_ROOT, 'Example', 'UI', 'architecture_diagram.py')
+CONST_BUILDER = os.path.join(CONST_ROOT, 'Example', 'UI', 'build_logo.py')
+CONST_FONT_BUILDER = os.path.join(CONST_ROOT, 'Example', 'UI', 'build_fonts.py')
+CONST_TEXT_SOURCE = os.path.join(CONST_ROOT, 'images', 'source', 'anyscan-logo-text.svg')
+CONST_MARK = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-logo-mark.svg')
+# Where the mark's ink ends and the logo's text begins, in logo units (the mark's ink ends at 228, the
+# wordmark starts at 268).
+#   Unit [logo units]
+CONST_TEXT_LEFT_UNITS = 248.0
+# Why the full rebuild runs on macOS only (docs/design-decisions.md, "The logo's text is outlined").
+#   Unit [string]
+CONST_FULL_REBUILD_SKIP = ("the committed logo reproduces only on macOS: the Linux Inkscape 1.2.2 AppImage's Pango ignores "
+                           "the source's pinned optical size ('opsz' 32), outlining the wordmark and tagline at opsz 14")
+# A local copy of the pinned variable Inter for the full rebuild; without it build_logo.py downloads it.
+#   Unit [string]
+CONST_FONT_VARIABLE = 'ANYSCAN_LOGO_FONT'
 CONST_ASSETS = os.path.join(CONST_ROOT, 'App', 'assets')
 # The PNG marks the diagram embeds: the JIC mark of the top bar, then the console's funding band.
 #   Unit [List<string>]
@@ -238,11 +263,12 @@ def test_the_diagram_draws_only_theme_tokens() -> None:
     Description:
         Every colour the diagram draws, outside the inline logo, is a value of a Parameters/Theme.py
         token, so the figure reads as the same product as the application. The logo keeps its own
-        palette, which predates the theme (docs/design-decisions.md).
+        palette, which predates the theme (docs/design-decisions.md); its CONST_LOGO_* tokens, which
+        the top bar's live text uses, do not count here, so the diagram cannot draw in them.
     """
 
-    tokens = {value.lower() for name, value in vars(Theme).items()
-              if name.startswith('CONST_') and isinstance(value, str) and CONST_HEX_COLOUR.fullmatch(value)}
+    tokens = {value.lower() for name, value in vars(Theme).items() if name.startswith('CONST_')
+              and not name.startswith('CONST_LOGO_') and isinstance(value, str) and CONST_HEX_COLOUR.fullmatch(value)}
     _, drawing = _Split_Diagram()
     used = {colour.lower() for colour in CONST_HEX_COLOUR.findall(drawing)}
     assert used, 'the scan found no colours at all'
@@ -304,3 +330,118 @@ def test_the_readme_shows_the_diagram() -> None:
     """
 
     assert 'images/anyscan-architecture.svg' in _Read(CONST_README)
+
+
+def _Build(*arguments: str) -> subprocess.CompletedProcess:
+    """
+    Description:
+        Run Example/UI/build_logo.py with arguments.
+
+    Args:
+        (1) arguments [Vector<string>]: Its command-line arguments.
+
+    Returns:
+        (1) parameter [subprocess.CompletedProcess(object)]: The finished run.
+    """
+
+    return subprocess.run([sys.executable, CONST_BUILDER] + list(arguments), capture_output=True, text=True, timeout=600)
+
+
+def test_the_mark_rebuilds_byte_identically_from_the_logo(tmp_path) -> None:
+    """
+    Description:
+        build_logo.py --mark-only, into an empty directory, writes App/assets/anyscan-logo-mark.svg byte
+        for byte from the committed logo: the mark is the builder's output, never a hand edit.
+    """
+
+    run = _Build('--mark-only', '--output-dir', str(tmp_path))
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert _Read(str(tmp_path / 'anyscan-logo-mark.svg')) == _Read(CONST_MARK), \
+        'App/assets/anyscan-logo-mark.svg is stale or hand-edited; run python Example/UI/build_logo.py --mark-only'
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(sys.platform != 'darwin', reason=CONST_FULL_REBUILD_SKIP)
+def test_the_logo_and_the_mark_rebuild_byte_identically_from_the_source(tmp_path) -> None:
+    """
+    Description:
+        build_logo.py, run whole into an empty directory (Inkscape outlines the text source, the mark is
+        derived from that), writes both the logo and the mark byte for byte as committed. Needs Inkscape on
+        PATH and the pinned variable Inter (from $ANYSCAN_LOGO_FONT, else downloaded), so it is `slow`; and
+        macOS, where the committed logo was built (CONST_FULL_REBUILD_SKIP). The mark alone is rebuilt on
+        every platform by test_the_mark_rebuilds_byte_identically_from_the_logo.
+    """
+
+    if shutil.which('inkscape') is None:
+        pytest.fail('Inkscape is not on PATH; the full rebuild cannot run (build_logo.py pins Inkscape 1.2.2).')
+    font = os.environ.get(CONST_FONT_VARIABLE)
+    run = _Build('--output-dir', str(tmp_path), *(('--font', font) if font else ()))
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert _Read(str(tmp_path / 'anyscan-logo.svg')) == _Read(CONST_LOGO_ASSET), 'the rebuilt logo differs from App/assets/anyscan-logo.svg'
+    assert _Read(str(tmp_path / 'anyscan-logo-mark.svg')) == _Read(CONST_MARK), 'the rebuilt mark differs from App/assets/anyscan-logo-mark.svg'
+
+
+def test_the_mark_is_the_logos_own(qt_app) -> None:
+    """
+    Description:
+        Rendered at the top bar's heights, the mark draws the logo's pixels exactly where the logo's mark
+        is, and nothing where the logo's text is: same viewBox, same image size, same mark.
+    """
+
+    for height in (Style.CONST_LOGO_HEIGHT, Style.CONST_LOGO_HEIGHT_LOW_DENSITY):
+        logo = _Pixels(Style.Load_Svg('anyscan-logo.svg', height).toImage())
+        mark = _Pixels(Style.Load_Svg(Style.CONST_LOGO_MARK_FILE, height).toImage())
+        assert logo.shape == mark.shape
+        box = QSvgRenderer(CONST_MARK).viewBoxF()
+        split = int((CONST_TEXT_LEFT_UNITS - box.x()) * logo.shape[0] / box.height())
+        assert np.array_equal(mark[:, :split], logo[:, :split]), 'the mark differs from the logo\'s mark at %d px' % height
+        assert mark[:, split:, 3].max() == 0, 'the mark draws right of the mark at %d px' % height
+        assert logo[:, split:, 3].max() > 0
+
+
+def _Source_Texts() -> tp.List[tp.Tuple[tp.Any, ...]]:
+    """
+    Description:
+        The logo's top-level texts as its text source sets them: pen origin, font size, weight, the
+        spans with their fills, and the pinned optical size.
+
+    Returns:
+        (1) parameter [Vector<Tuple>]: ((x, y), size, weight, ((text, fill), ...), opsz) for the wordmark and the
+                                       tagline.
+    """
+
+    namespace = '{http://www.w3.org/2000/svg}'
+    texts = []
+    for text in ET.parse(CONST_TEXT_SOURCE).getroot().findall(namespace + 'text'):
+        spans = [(text.text or '', text.get('fill').lower())]
+        spans += [(tspan.text, tspan.get('fill', text.get('fill')).lower()) for tspan in text.findall(namespace + 'tspan')]
+        optical = re.search(r"'opsz' (\d+)", text.get('style', ''))
+        texts.append(((float(text.get('x')), float(text.get('y'))), float(text.get('font-size')), text.get('font-weight'),
+                      tuple(span for span in spans if span[0]), int(optical.group(1)) if optical else None))
+    return texts
+
+
+def test_the_live_text_is_the_logo_sources_text() -> None:
+    """
+    Description:
+        The lockup's live text (Style.CONST_LOGO_TEXT) is the text source's wordmark and tagline value for
+        value: each pen origin, font size and word, at weight 400, and each span's colour is the source's
+        fill, as the logo's tokens hold it. The outlined logo carries the same fills. A line set in the
+        display cut is one the source pins at the optical size build_fonts.py builds that cut at.
+    """
+
+    source = _Source_Texts()
+    assert [(origin, size, '400', spans) for origin, size, _, spans in Style.CONST_LOGO_TEXT] == [text[:4] for text in source]
+    fills = {colour for _, _, _, spans in Style.CONST_LOGO_TEXT for _, colour in spans}
+    assert fills == {Theme.CONST_LOGO_INK, Theme.CONST_LOGO_MAGENTA, Theme.CONST_LOGO_TAGLINE}
+    logo = _Read(CONST_LOGO).lower()
+    for colour in fills:
+        assert 'fill="%s"' % colour in logo, '%s is not a fill of the outlined logo' % colour
+    spec = importlib.util.spec_from_file_location('build_fonts', CONST_FONT_BUILDER)
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    display = [fixed['opsz'] for family, _, fixed, _, _ in builder.CONST_FAMILIES if family == Style.CONST_FONT_DISPLAY]
+    assert display, 'build_fonts.py builds no %s' % Style.CONST_FONT_DISPLAY
+    for (_, _, is_display, _), (_, _, _, _, optical) in zip(Style.CONST_LOGO_TEXT, source):
+        if is_display:
+            assert optical == display[0], 'a display line is pinned at opsz %s in the source; the cut is built at %s' % (optical, display[0])

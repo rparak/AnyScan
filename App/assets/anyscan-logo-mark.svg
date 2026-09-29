@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="844.15" height="174" viewBox="39 43 844.15 174" role="img" aria-label="AnyScan mark">
+  <!-- Built by Example/UI/build_logo.py from images/anyscan-logo.svg (the logo without its outlined wordmark and tagline). Do not edit. -->
+  <title>AnyScan mark</title>
+  <desc>The AnyScan mark: inside a camera scan frame, an object is located by a magenta bounding box with an index tag and its generated text description. The logo without its wordmark and tagline, in the logo's own viewBox; the top bar sets those as live text.</desc>
+  <!-- ===== Mark: locate the object (box) -> describe it (text) ===== -->
+  <g transform="translate(40,44)">
+    <!-- camera scan frame: corner brackets -->
+    <g fill="none" stroke="#0f172a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 6,34 V 12 a 6,6 0 0 1 6,-6 h 22" />
+      <path d="m 158,6 h 22 a 6,6 0 0 1 6,6 v 22" />
+      <path d="m 186,138 v 22 a 6,6 0 0 1 -6,6 h -22" />
+      <path d="M 34,166 H 12 a 6,6 0 0 1 -6,-6 v -22" />
+    </g>
+    <!-- the located OBJECT: a machined part with drilled holes -->
+    <path fill-rule="evenodd" fill="#0f172a" stroke="#0f172a" stroke-width="2.5" stroke-linejoin="round" d="M 40,108 V 78 a 6,6 0 0 1 6,-6 H 60 V 58 a 6,6 0 0 1 6,-6 h 12 a 6,6 0 0 1 6,6 v 50 a 6,6 0 0 1 -6,6 H 46 a 6,6 0 0 1 -6,-6 z M 51,96 a 5,5 0 1 0 10,0 5,5 0 1 0 -10,0 z m 18,0 a 5,5 0 1 0 10,0 5,5 0 1 0 -10,0 z M 68,62 a 4,4 0 1 0 8,0 4,4 0 1 0 -8,0 z" />
+    <!-- BOUNDING BOX locating the object -->
+    <path d="m 33,44 h 60 c 1.662,0 3,1.338 3,3 v 72 c 0,1.662 -1.338,3 -3,3 H 33 c -1.662,0 -3,-1.338 -3,-3 V 47 c 0,-1.662 1.338,-3 3,-3 z" fill="none" stroke="#d6006e" stroke-width="3" />
+    <!-- index tag on the box -->
+    <path d="m 33,28 h 14 c 1.662,0 3,1.338 3,3 v 12 c 0,1.662 -1.338,3 -3,3 H 33 c -1.662,0 -3,-1.338 -3,-3 V 31 c 0,-1.662 1.338,-3 3,-3 z" fill="#d6006e" />
+    <g aria-label="1" fill="#ffffff">
+      <path d="M 41.501221,32.541992 V 42 h -1.187012 v -8.34082 h -0.06348 l -2.285156,1.694824 v -1.294922 l 2.056641,-1.51709 z" />
+    </g>
+    <!-- flows to the description -->
+    <path d="m 100,83 h 16" stroke="#d6006e" stroke-width="3" stroke-linecap="round" />
+    <!-- the DESCRIPTION: generated lines of text -->
+    <g fill="#d6006e">
+      <path d="m 129,66 h 40 c 1.662,0 3,1.338 3,3 0,1.662 -1.338,3 -3,3 h -40 c -1.662,0 -3,-1.338 -3,-3 0,-1.662 1.338,-3 3,-3 z" />
+      <path d="m 129,80 h 32 c 1.662,0 3,1.338 3,3 0,1.662 -1.338,3 -3,3 h -32 c -1.662,0 -3,-1.338 -3,-3 0,-1.662 1.338,-3 3,-3 z" />
+      <path d="m 129,94 h 24 c 1.662,0 3,1.338 3,3 0,1.662 -1.338,3 -3,3 h -24 c -1.662,0 -3,-1.338 -3,-3 0,-1.662 1.338,-3 3,-3 z" />
+    </g>
+  </g>
+</svg>

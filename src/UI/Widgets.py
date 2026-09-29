@@ -22,14 +22,16 @@
 ## =========================================================================== ##
 
 # System (Default)
+import math
 import os
 import re
 # Typing (Support for type hints)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, pyqtSignal
-from PyQt5.QtGui import (QColor, QFont, QFontMetrics, QImage, QPainter, QPainterPath, QPen, QPixmap,
-                         QPaintEvent)
+from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, pyqtSignal
+from PyQt5.QtGui import (QColor, QFont, QFontInfo, QFontMetrics, QFontMetricsF, QImage, QPainter, QPainterPath, QPen,
+                         QPixmap, QPaintEvent)
+from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup,
                              QVBoxLayout, QHBoxLayout, QSizePolicy, QApplication)
 # Custom Lib.: AnyScan UI — design tokens and style helpers
@@ -1186,6 +1188,111 @@ class Status_Strip_Cls(Card_Cls):
         # The window sets the System cell from its real state as soon as it is built (never a
         # standing 'Ready'); until then it shows no value.
         self.system.Set_Value(Style.CONST_NO_VALUE, Style.CONST_INK_MUTE, Style.CONST_INK_MUTE)
+
+
+class Logo_Lockup_Cls(QWidget):
+    """
+    Description:
+        The top bar's AnyScan lockup: the mark as an SVG pixmap (Style.CONST_LOGO_MARK_FILE, the logo
+        without its text, in the logo's own viewBox) and the wordmark and tagline as live text in the UI
+        font, Inter 400, at the text source's coordinates and sizes scaled to the lockup's height
+        (Style.CONST_LOGO_TEXT): the wordmark in the display cut (Style.CONST_FONT_DISPLAY), the optical
+        size the logo is outlined at, and the tagline in the text cut. Outlined text is a picture, and at DPR 1 its stems and baseline fall
+        between pixels where nothing can hint them; live text goes through the platform's rasteriser,
+        which hints it (docs/design-decisions.md, "The header's wordmark and tagline are live text").
+        One code path at every density: only the height, Style.Logo_Height, differs.
+
+        The sizes are logo geometry, converted to points through the widget's own logical DPI so the
+        pixel size is the logo's on any screen, and built with Style.Font like every UI font, so the
+        low-density type floor applies to them too.
+    """
+
+    def __init__(self, height: int, parent: tp.Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+
+        # << PRIVATE >> #
+        self.__mark = Style.Load_Svg(Style.CONST_LOGO_MARK_FILE, height)
+        # Each run: its font and, per span, the pen origin in widget pixels, the text and its colour.
+        self.__runs = []
+
+        box = QSvgRenderer(os.path.join(Style.CONST_ASSETS, Style.CONST_LOGO_MARK_FILE)).viewBoxF()
+        scale = height / box.height()
+        right = self.__mark.width() / max(1.0, self.__mark.devicePixelRatio())
+        for (x, y), size, display, spans in Style.CONST_LOGO_TEXT:
+            font = Font(size * scale * 72.0 / self.logicalDpiY(), display=display)
+            text = ''.join(span for span, _ in spans)
+            # Qt 5 draws a face at a whole-pixel size (29.5 px draws at 30), which moves a line's width by up
+            # to half a pixel per em. The display line keeps the logo's width: the spacing takes the
+            # rounding up, so the run advances as far as it would at the requested size.
+            drawn = QFontInfo(font).pixelSize()
+            if display and drawn > 0:
+                requested = font.pointSizeF() * self.logicalDpiY() / 72.0
+                advance = QFontMetricsF(font).horizontalAdvance(text)
+                font.setLetterSpacing(QFont.AbsoluteSpacing, advance * (requested / drawn - 1.0) / len(text))
+            metrics = QFontMetricsF(font)
+            origin = QPointF((x - box.x()) * scale, (y - box.y()) * scale)
+            # A span starts where it starts inside the whole run as shaped (kerning across the colour
+            # change included): the run's advance less the advance of the text from the span onwards.
+            pens = []
+            for index, (span, colour) in enumerate(spans):
+                rest = ''.join(later for later, _ in spans[index:])
+                start = metrics.horizontalAdvance(text) - metrics.horizontalAdvance(rest)
+                pens.append((QPointF(origin.x() + start, origin.y()), span, colour))
+            self.__runs.append((font, pens))
+            right = max(right, origin.x() + metrics.tightBoundingRect(text).right() + Style.CONST_LOGO_MARGIN * scale)
+
+        self.setAccessibleName('AnyScan. %s' % Style.CONST_TAGLINE)
+        self.setFixedSize(int(math.ceil(right)), height)
+
+    def __Paint(self, painter: QPainter) -> None:
+        """
+        Description:
+            Draw the mark and every span of text with its own colour.
+
+        Args:
+            (1) painter [QPainter(object)]: A painter on the widget or on a pixmap of its size.
+        """
+
+        painter.drawPixmap(0, 0, self.__mark)
+        for font, pens in self.__runs:
+            painter.setFont(font)
+            for point, span, colour in pens:
+                painter.setPen(QColor(colour))
+                painter.drawText(point, span)
+
+    def Render(self) -> QPixmap:
+        """
+        Description:
+            The lockup on a transparent pixmap at the application's device pixel ratio, for measuring
+            its ink (Style.Ink_Insets) before the window is shown. The widget itself paints on the bar.
+
+        Returns:
+            (1) parameter [QPixmap(object)]: The render, tagged with its devicePixelRatio.
+        """
+
+        app = QApplication.instance()
+        ratio = max(1.0, float(app.devicePixelRatio() if app else 1.0))
+        pixmap = QPixmap(int(round(self.width() * ratio)), int(round(self.height() * ratio)))
+        pixmap.setDevicePixelRatio(ratio)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        self.__Paint(painter)
+        painter.end()
+        return pixmap
+
+    # << QT OVERRIDE >> #
+    def paintEvent(self, event: QPaintEvent) -> None:
+        """
+        Description:
+            Paint the lockup.
+
+        Args:
+            (1) event [QPaintEvent(object)]: The paint event (unused; the whole lockup is painted).
+        """
+
+        painter = QPainter(self)
+        self.__Paint(painter)
+        painter.end()
 
 
 class Funding_Row_Cls(Card_Cls):

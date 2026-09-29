@@ -1597,7 +1597,12 @@ It is built, never edited: `python Example/UI/build_logo.py` outlines the text s
   `font-variation-settings`: `'opsz' 32` for the wordmark (87) and the tagline (36), `'opsz' 14` for
   the index (13), which is what a browser chooses at those sizes.
 - **Reproduced:** from a clean export of the committed tree into a temporary path, the script's
-  output is byte-identical to `App/assets/anyscan-logo.svg`.
+  output is byte-identical to `App/assets/anyscan-logo.svg`. That holds on the macOS build it was made
+  with. On Linux the Inkscape 1.2.2 AppImage does not reproduce it (measured 2026-09-29): its bundled
+  Pango ignores `font-variation-settings`, so the wordmark and tagline are outlined at the default opsz
+  14 (viewBox 886.48 wide, not 844.15), and it writes path data in another form (other start points,
+  three decimals) even from static instances of the font. The mark (`--mark-only`) reproduces anywhere.
+  The full-rebuild test is therefore `slow` and macOS-only; its skip reason names this cause.
 
 **Why.** PyQt5's QtSvg 5.15 ignores every CSS `font-*` property (measured 2026-09-28: a CSS `fill`
 changed 2,500 px, a CSS `font-family`, `font-weight` or `font-size` changed 0), so it drew the
@@ -1992,7 +1997,8 @@ tagline stays soft at every height in range (its 15 stems sit at 15 sub-pixel ph
 share 0.17 at 64). 57 and 62 were rendered as the alternatives: 57 leaves the brackets at 0.95, 62
 drops the connector to 0.60. A grid-fitted 1x logo file was estimated at 1–1.5 days plus upkeep for a
 gain 59 px gives without it. At DPR 2 every stroke already spans two device pixels or more, so the Mac
-header is unchanged (the logo pixmap is `Load_Svg` at 54 px, identical pixels). The top bar is 5 px
+header is unchanged (the logo pixmap is `Load_Svg` at 54 px, identical pixels; since the lockup's text is
+live, *The header's wordmark and tagline are live text*, only the mark is an image). The top bar is 5 px
 taller at 1x (92 → 97 px); the minimum window width does not change (1406 px). Measured 2026-09-29 on
 a 27" 1920 × 1080 monitor (81 ppi), offscreen renders checked pixel-identical against the xcb platform.
 
@@ -2000,7 +2006,7 @@ a 27" 1920 × 1080 monitor (81 ppi), offscreen renders checked pixel-identical a
 `CONST_LOGO_HEIGHT` changes, or when the window re-reads its screen's ratio on a screen change: then
 the height must follow it, not the ratio at build time.
 Tests `test/UI/test_header.py::test_the_logo_is_59_px_on_a_low_density_display`,
-`::test_the_logo_is_unchanged_on_a_high_density_display` and `::test_the_header_is_measured_again_at_dpr_2`
+`::test_the_logo_is_54_px_on_a_high_density_display` and `::test_the_header_is_measured_again_at_dpr_2`
 (the module run again at `QT_SCALE_FACTOR=2`), with `::test_the_brand_marks_are_spaced_by_the_brand_gap_from_ink`
 at both ratios. At DPR 1 the gap test's ±1 px cannot see a missing ink inset (1.7 px at 59 px); the DPR 2
 run does (measured 33.5 px).
@@ -2046,17 +2052,22 @@ flagged style reached); buttons in every state are measured by `test/UI/test_con
 
 `App/assets/fonts/` ships Inter and JetBrains Mono, each as four static files (Regular 400, Medium 500,
 SemiBold 600, Bold 700: the QFont Normal, Medium, DemiBold and Bold the UI requests), with each family's
-SIL Open Font License text (`Inter-OFL.txt`, `JetBrainsMono-OFL.txt`). `Style.Load_Fonts` registers every
+SIL Open Font License text (`Inter-OFL.txt`, `JetBrainsMono-OFL.txt`). Since the header's wordmark became
+live text it also ships Inter Display Regular (`InterDisplay-Regular.ttf`, Inter at opsz 32, under its own
+family name so it is never taken for the text cut; *The header's wordmark and tagline are live text*). `Style.Load_Fonts` registers every
 .ttf there, and its candidate lists pick Inter and JetBrains Mono first; the system faces after them are
-only the fallback for a missing directory. 1.83 MB in all.
+only the fallback for a missing directory. 2.17 MB in all (1.83 MB before Inter Display).
 
 They are built, never edited: `python Example/UI/build_fonts.py` downloads the variable fonts and their
 licences from google/fonts commit `e1d6480102fed30739fead0faee463101f892c8f` (Inter is the file
 `build_logo.py` outlines the logo with), stops unless each SHA-256 is the pinned one, and instances every
 weight with fontTools (4.66.0; another version builds with a WARNING): Inter at `opsz` 14, the text optical
-size. The name table and `usWeightClass` are set so Qt lists one family with four styles. The source's
+size (Inter Display at opsz 32). The name table and `usWeightClass` are set so Qt lists each family with
+its styles. The source's
 timestamps are kept, so the output does not depend on the clock. **Reproduced:** three builds, the last into
-a temporary directory, gave the same SHA-256 for all ten files as the committed ones (2026-09-29).
+a temporary directory, gave the same SHA-256 for all ten files as the committed ones (2026-09-29). After
+Inter Display was added, two more builds into temporary directories reproduced those ten files unchanged
+and gave the same `InterDisplay-Regular.ttf` both times (SHA-256 `1d1fb6b7…`, 339,200 bytes).
 
 **Why.** None of `Load_Fonts`' candidates was installed on the Linux test machine, so `FONT_UI` kept the bare
 name "Inter" and fontconfig drew Noto Sans; the monospace text was DejaVu Sans Mono. Noto Sans there has
@@ -2076,7 +2087,8 @@ is not a density fix. The Mac look changes: Inter replaces Helvetica Neue, JetBr
 fails), Qt is upgraded to one that uses variable-font axes, or the logo's Inter pin moves (keep the two on
 one commit).
 Tests `test/UI/test_fonts.py::test_the_ui_and_monospace_families_resolve_to_the_bundled_fonts`,
-`::test_every_requested_weight_draws_its_own_face` (ui, mono), `::test_each_bundled_family_ships_its_licence`.
+`::test_every_requested_weight_draws_its_own_face` (ui, mono), `::test_the_display_cut_is_its_own_bundled_face`,
+`::test_each_bundled_family_ships_its_licence`.
 
 ## A 9 pt type floor on a low-density display
 
@@ -2105,3 +2117,75 @@ Retina display), or when the window re-reads its screen's ratio on a screen chan
 Tests `test/UI/test_text_contrast.py::test_every_text_is_at_least_9_pt_on_a_low_density_display`,
 `::test_a_high_density_display_draws_what_it_drew_without_the_floor` (at DPR 2),
 `::test_the_text_checks_run_again_at_dpr_2`.
+
+## The header's wordmark and tagline are live text
+
+The top bar's lockup is `Widgets.Logo_Lockup_Cls`: the mark as an SVG pixmap at `Style.Logo_Height`, and
+"Any" + "Scan" and the tagline drawn as live text. The wordmark is set in the bundled display cut, Inter
+Display Regular (`Style.CONST_FONT_DISPLAY`: Inter at opsz 32, the optical size the logo outlines it at),
+the tagline in the bundled text cut, Inter Regular (opsz 14). One code path at every density; only the
+height differs (59 px below DPR 1.5, 54 px above).
+
+- **Mark:** `App/assets/anyscan-logo-mark.svg`, a second output of `Example/UI/build_logo.py`, derived in
+  Python from the outlined logo: the logo with its two top-level outlined texts removed, in the logo's own
+  viewBox, so the text lands at the text source's coordinates unchanged. The index "1" stays in the mark.
+  Deriving needs neither Inkscape nor the font, so `build_logo.py --mark-only` rebuilds it byte for byte
+  from the committed logo on any machine; a full build derives it from the logo it has just outlined.
+- **Text:** `Style.CONST_LOGO_TEXT` holds each line as the source sets it, in logo units: the pen origin
+  (268, 132) and (270, 184), the sizes 87 and 36, whether the line takes the display cut, and the spans.
+  The colours are the tokens `CONST_LOGO_INK` `#0f172a`, `CONST_LOGO_MAGENTA` `#d6006e` and
+  `CONST_LOGO_TAGLINE` `#475569`, the source's fills exactly (the logo's own palette, see *The logo's
+  palette predates the theme*). "Scan" starts where it starts in the whole word as shaped, so the kerning
+  across the colour change is kept. The sizes are the logo's (29.5 and 12.2 px at 59 px; 27.0 and 11.2 at
+  54), converted to points through the widget's DPI and built with `Style.Font`, so the 9 pt floor applies.
+- **Whole-pixel sizes:** Qt 5 draws a face at a whole-pixel size (FreeType through fontconfig, measured:
+  29.5 px draws at 30, 12.2 at 12). The wordmark would be 1.7 % wide (+2.3 px at DPR 1), so its letter
+  spacing takes the rounding up: the run advances as far as it would at the requested size (−0.27 px per
+  glyph at DPR 1, none at DPR 2, where 27 px is 54 device px). The tagline is left as drawn: 12 px at
+  96 dpi, and 13 px in the offscreen tests (100 dpi), where the floor asks 12.5.
+- **Spacing:** the 32 px gap to the divider is still measured from ink: `Style.Ink_Insets` on
+  `Logo_Lockup_Cls.Render()`, whose right ink is the tagline's.
+- **Unchanged:** `images/anyscan-logo.svg`, its copy in `App/assets/` and the architecture diagram's
+  inline copy stay the outlined logo. Nothing else in the UI shows the full logo: the window icon
+  (`anyscan-mark-white.ico`) and the empty-viewport art (`anyscan-mark.png`) are the mark alone, and the
+  window title carries the tagline as text already.
+
+The layout reproduces the outlined logo's to within 0.74 device px. Measured on the shown header against
+the outlined logo rendered at the same height (device px, live minus outlined, 96 dpi):
+
+| Offset | DPR 1 (59 px) | DPR 2 (54 px) |
+|---|---|---|
+| mark → wordmark left edge | −0.26 | −0.32 |
+| mark top → wordmark baseline | −0.17 | −0.24 |
+| wordmark → tagline left edge | +0.43 | +0.66 |
+| wordmark baseline → tagline baseline | +0.40 | +0.71 |
+| wordmark cap height | +0.54 (22.00 vs 21.46) | +0.04 |
+| tagline cap height | +0.27 (8.67 vs 8.40) | −0.27 |
+| wordmark width | +0.47 (112.91 vs 112.43) | +0.32 (206.42 vs 206.11) |
+
+The tagline is wider than its outlines by design: the text cut sets 9.7 % wider than opsz 32 (right ink
++16 px at DPR 1, +30 device px at DPR 2), and at 11–12 px it is the cut Inter draws for. The brand group
+is 16 px wider than with the outlined logo (450 → 466 px at DPR 1); the minimum window size does not
+change (1511 × 1036 at DPR 1, 1454 × 1029 at DPR 2).
+
+**Why.** Outlined text is a picture: at DPR 1 its stems, cap line and baseline fall between pixels, and
+nothing can hint them, so the tagline had 0.08 of its ink at full contrast (the low-density report's
+measure: of the ink samples, each colour channel of each pixel at coverage ≥ 0.10, the share at ≥ 0.90).
+Live text goes through FreeType's hinting (hintslight here), which puts the cap line and baseline on
+whole pixels: 0.18 at 96 dpi on this display, and the wordmark's cap height snaps to 22 px. At DPR 2
+(Qt does not hint there) the tagline goes from 0.37 to 0.40. Measured 2026-09-29 on the 27" 1920 × 1080
+monitor (xcb and offscreen at 96 dpi pixel-identical). The wordmark was first set in the text cut, 7.5 %
+wider than the logo (+11 px at DPR 1); the display cut, one bundled Regular face, matches it. Tracking
+the text cut down to the width was not done: it would change the letterforms' spacing, not their cut.
+
+**Revisit if** the logo is redesigned (rebuild with `build_logo.py`; `CONST_LOGO_TEXT` must follow the
+text source, which a test enforces, and the display cut's optical size must follow the wordmark's), or
+when Qt 6 is adopted (it draws fractional sizes and can select a variable font's optical size, so the
+spacing correction and the separate cut could go).
+Tests `test/UI/test_header.py::test_the_lockup_matches_the_outlined_logo` (both densities, the wordmark's
+width included), `::test_the_tagline_is_crisp_on_a_low_density_display`,
+`::test_the_lockup_text_is_the_bundled_inter`, `test/UI/test_fonts.py::test_the_display_cut_is_its_own_bundled_face`,
+`test/UI/test_brand_figures.py::test_the_mark_rebuilds_byte_identically_from_the_logo`,
+`::test_the_mark_is_the_logos_own`, `::test_the_live_text_is_the_logo_sources_text`, and the `slow`,
+macOS-only `::test_the_logo_and_the_mark_rebuild_byte_identically_from_the_source` (needs Inkscape 1.2.2).
+`test/UI/test_text_contrast.py` measures the lockup's text too (magenta 4.65:1 on `CONST_BG`).

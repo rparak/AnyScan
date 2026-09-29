@@ -353,14 +353,15 @@ What is committed, and what you must supply:
 App/
   run.py                  the application (entry point)
   assets/                 UI images, committed
-    anyscan-logo.svg          the AnyScan brand lockup (topbar); built, see images/source/
+    anyscan-logo.svg          the AnyScan brand lockup (the outlined logo); built, see images/source/
+    anyscan-logo-mark.svg     the lockup's mark alone, which the topbar draws under its live text; built
     brand-jic-mute.png        the JIC mark beside the lockup
     edih-digimat-white.png    project wordmark, funding band
     partner-ministry-white.png  Ministry of Industry and Trade
     funder-eu-white.png       Funded by the European Union
     anyscan-mark.png          the mark shown in the empty viewport
     anyscan-mark-white.ico    the window / taskbar icon (multi-size, rounded)
-    fonts/                    Inter and JetBrains Mono, static, with their OFL licences; built by
+    fonts/                    Inter, Inter Display and JetBrains Mono, static, with their OFL licences; built by
                               Example/UI/build_fonts.py
 src/                      Qt-free domain modules + the UI (see "Source layout")
 Example/                  runnable scripts (scan, calibrate, make_reference, analyze, architecture_diagram,

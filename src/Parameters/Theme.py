@@ -105,6 +105,14 @@ CONST_SCROLLBAR_HANDLE = '#c7c3d9'
 # it still reads on the bar.
 #   Unit [string] (hex colour)
 CONST_TOPBAR_DIVIDER = '#c9c5d8'
+# The logo's own palette, which the top bar's live wordmark and tagline are set in: the fills of the
+# logo's text source (images/source/anyscan-logo-text.svg), value for value. They predate the theme and
+# are deliberately not CONST_INK / CONST_BRAND (docs/design-decisions.md, "The logo's palette predates
+# the theme"). On CONST_BG, the top bar's ground: 16.16:1, 4.65:1 and 6.86:1.
+#   Unit [string] (hex colour)
+CONST_LOGO_INK      = '#0f172a'   # slate: "Any", and the mark's frame and object
+CONST_LOGO_MAGENTA  = '#d6006e'   # magenta: "Scan", and the mark's box and description
+CONST_LOGO_TAGLINE  = '#475569'   # slate grey: the tagline
 
 # The verdict colours. Green, red and amber are RESERVED here: they mean pass,
 # degraded and fail on the badge, so they must never appear as an object colour.

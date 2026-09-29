@@ -39,12 +39,12 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLay
 # Custom Lib.: AnyScan UI — style, widgets and workers
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
-from UI.Utilities.Style import (Font, Load_Svg, Load_Logo, Rgb_To_Qimage, Bgr_To_Qimage,
+from UI.Utilities.Style import (Font, Load_Logo, Rgb_To_Qimage, Bgr_To_Qimage,
                                 Hairline)
 #   ../UI/Widgets
 from UI.Widgets import (Card_Cls, Card_Head_Cls, Icon_Cls, Viewport_Cls, Tool_Button_Cls,
                         View_Toggle_Cls, Segmented_Control_Cls, Object_List_Cls,
-                        Status_Strip_Cls, Funding_Row_Cls, Meta_Row)
+                        Status_Strip_Cls, Funding_Row_Cls, Logo_Lockup_Cls, Meta_Row)
 #   ../UI/Views/History
 from UI.Views.History import History_View_Cls
 from UI.Views.Trends import Trends_View_Cls
@@ -415,8 +415,9 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             The top bar: the AnyScan brand lockup, the JIC mark, the camera pill and
-            the model pill. The lockup is the `anyscan-logo.svg` — the mark, the
-            wordmark and the tagline. The "developed by JIC" attribution is no longer
+            the model pill. The lockup is Logo_Lockup_Cls: the logo's mark as an SVG and
+            its wordmark and tagline as live text, laid out as `anyscan-logo.svg` lays them
+            out. The "developed by JIC" attribution is no longer
             set as words in the logo; the JIC mark itself carries it, divided off to
             the right and tinted the muted violet #8983a6 (CONST_INK_MUTE until it was darkened for
             text contrast; the mark is artwork, not text, and was not re-tinted) so it reads as quiet
@@ -435,13 +436,12 @@ class AnyScan_Window_Cls(QMainWindow):
         # The brand group spaces its marks from their INK: each image's transparent margin is taken off
         # the gap (Ink_Insets), so CONST_BRAND_GAP is what the eye sees. A margin wider than the gap is
         # not absorbed (no negative spacing, which would lay the divider over the logo's box): it shows.
+        # The lockup's right ink is its wider line of text, measured on a render of it.
         brand = QHBoxLayout()
         brand.setSpacing(0)
-        logo_pixmap = Load_Svg('anyscan-logo.svg', Style.Logo_Height(bar))
-        logo = QLabel()
-        logo.setPixmap(logo_pixmap)
-        brand.addWidget(logo)
-        brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(logo_pixmap)[1]))
+        lockup = Logo_Lockup_Cls(Style.Logo_Height(bar))
+        brand.addWidget(lockup)
+        brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(lockup.Render())[1]))
 
         brand.addWidget(Hairline(vertical=True, length=34, color=Style.CONST_TOPBAR_DIVIDER))
 

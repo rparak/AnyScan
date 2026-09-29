@@ -40,14 +40,18 @@ from fontTools.varLib import instancer
 """
 Description:
     Build the console's bundled UI fonts into App/assets/fonts/: static Inter and JetBrains Mono at the
-    four weights the UI requests (Regular 400, Medium 500, SemiBold 600, Bold 700), and each family's SIL
-    Open Font License text, which the OFL requires to travel with the fonts. Style.Load_Fonts registers
-    every .ttf in that directory (docs/design-decisions.md, "The UI fonts are bundled").
+    four weights the UI requests (Regular 400, Medium 500, SemiBold 600, Bold 700), Inter Display Regular
+    (Inter at the display optical size, which the header's wordmark is set in: docs/design-decisions.md,
+    "The header's wordmark and tagline are live text"), and each family's SIL Open Font License text,
+    which the OFL requires to travel with the fonts. Style.Load_Fonts registers every .ttf in that
+    directory (docs/design-decisions.md, "The UI fonts are bundled").
 
     google/fonts carries only the variable fonts, and Qt 5.15 uses a variable font's default instance
     alone (it synthesises every other weight), so each weight is instanced into its own static file with
-    fontTools: Inter at the text optical size (opsz 14), JetBrains Mono on its one axis. The name table
-    and usWeightClass are set so Qt lists one family with four styles. The sources are the variable
+    fontTools: Inter at the text optical size (opsz 14), Inter Display at opsz 32 (the size build_logo.py
+    pins for the wordmark) under its own family name, so it is never taken for the text cut, and
+    JetBrains Mono on its one axis. The name table and usWeightClass are set so Qt lists each family
+    with its styles. The sources are the variable
     fonts at a pinned google/fonts commit (Inter is the file build_logo.py outlines the logo with), each
     checked against its SHA-256; a missing or different file stops the build. The output does not depend
     on the clock (the source's head timestamps are kept), so a rebuild reproduces the committed files.
@@ -72,14 +76,15 @@ CONST_SOURCES = {
     'JetBrainsMono[wght].ttf': ('ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf',
                                 '48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda'),
     'JetBrainsMono-OFL.txt': ('ofl/jetbrainsmono/OFL.txt', 'b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d')}
-# The families built: the family name Qt lists, the variable source, the axes held fixed besides the
-# weight, and the licence that ships beside it.
-#   Unit [Vector<Tuple>]
-CONST_FAMILIES = (('Inter', 'Inter[opsz,wght].ttf', {'opsz': 14}, 'Inter-OFL.txt'),
-                  ('JetBrains Mono', 'JetBrainsMono[wght].ttf', {}, 'JetBrainsMono-OFL.txt'))
 # The weights the UI requests (QFont Normal, Medium, DemiBold, Bold), each with its style name.
 #   Unit [Vector<Tuple<string, int>>]
 CONST_WEIGHTS = (('Regular', 400), ('Medium', 500), ('SemiBold', 600), ('Bold', 700))
+# The families built: the family name Qt lists, the variable source, the axes held fixed besides the
+# weight, the licence that ships beside it, and the weights built.
+#   Unit [Vector<Tuple>]
+CONST_FAMILIES = (('Inter', 'Inter[opsz,wght].ttf', {'opsz': 14}, 'Inter-OFL.txt', CONST_WEIGHTS),
+                  ('Inter Display', 'Inter[opsz,wght].ttf', {'opsz': 32}, 'Inter-OFL.txt', (('Regular', 400),)),
+                  ('JetBrains Mono', 'JetBrainsMono[wght].ttf', {}, 'JetBrainsMono-OFL.txt', CONST_WEIGHTS))
 # The fontTools version the committed fonts were built with.
 #   Unit [string]
 CONST_FONTTOOLS_VERIFIED = '4.66.0'
@@ -207,7 +212,7 @@ def main() -> int:
         (1) parameter [int]: The exit code.
     """
 
-    parser = argparse.ArgumentParser(description='Build the bundled UI fonts (static Inter and JetBrains Mono).')
+    parser = argparse.ArgumentParser(description='Build the bundled UI fonts (static Inter, Inter Display, JetBrains Mono).')
     parser.add_argument('--output-dir', default=CONST_OUTPUT_DIR, help='Where to write (default: App/assets/fonts/).')
     parser.add_argument('--sources', default=None, help='A directory with local copies of the pinned files.')
     args = parser.parse_args()
@@ -219,8 +224,8 @@ def main() -> int:
     try:
         paths = Fetch_Sources(args.sources, directory)
         os.makedirs(args.output_dir, exist_ok=True)
-        for family, source, fixed, licence in CONST_FAMILIES:
-            for style, weight in CONST_WEIGHTS:
+        for family, source, fixed, licence, weights in CONST_FAMILIES:
+            for style, weight in weights:
                 output = os.path.join(args.output_dir, File_Name(family, style))
                 Build_Static(paths[source], family, fixed, style, weight, output)
                 print('[INFO] Wrote %s (%d bytes, SHA-256 %s).' % (output, os.path.getsize(output), Sha256(output)[:16]))
