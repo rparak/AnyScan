@@ -55,7 +55,7 @@ Description:
     (Load_Configuration -> Configure -> Analyze) over the frames the key names, in the configuration's
     Evaluation.Frames (Data/Images/Test/All), score each object's description on part type, material
     and colour (Vision.Utilities.Evaluation; the rules and patterns are the key's), and print a
-    per-object table and the totals, without and with the objects the key leaves out of them.
+    per-object table and the totals over every object.
 
     It needs the model weights, so it is a tool, not part of the test suite. Greedy decoding makes a
     run repeatable on one machine: the same weights and prompts give the same totals.
@@ -133,7 +133,7 @@ def Score_Run(run: tp.Dict[str, tp.Any], key: tp.Dict[str, tp.Any]) -> tp.List[t
 def Print_Report(rows: tp.List[tp.Dict[str, tp.Any]]) -> None:
     """
     Description:
-        Print the per-object table, then the totals without and with the objects the key leaves out.
+        Print the per-object table, then the totals over every object.
 
     Args:
         (1) rows [Vector<Dict<string, Any>>]: From Score_Run.
@@ -143,23 +143,16 @@ def Print_Report(rows: tp.List[tp.Dict[str, tp.Any]]) -> None:
     print('\n%-12s %-26s %-8s %-4s %-4s %-4s %6s  %s' % ('object', 'key type', 'material', 'type', 'mat', 'col', 'sec', 'description'))
     for row in rows:
         entry = row['entry']
-        flag = ' (excluded)' if entry.get('exclude_from_totals') else ''
-        print('%-12s %-26s %-8s %-4s %-4s %-4s %6.2f  %s%s' % (
+        print('%-12s %-26s %-8s %-4s %-4s %-4s %6.2f  %s' % (
             '%s.%d' % (entry['frame'].replace('Image_', ''), entry['index']), entry['type'][:26], entry['material'],
             short[row['scores']['type']], short[row['scores']['material']], short[row['scores']['colour']], row['seconds'],
-            row['text'][:CONST_TEXT_WIDTH], flag))
-    excluded = [row['entry'] for row in rows if row['entry'].get('exclude_from_totals')]
-    pairs = [(row['entry'], row['scores']) for row in rows]
-    for label, include in (('without the %d excluded object(s)' % len(excluded), False), ('all %d objects' % len(rows), True)):
-        counted = [row for row in rows if include or not row['entry'].get('exclude_from_totals')]
-        totals = Tally(pairs, include_excluded=include)
-        print('\nTotals, %s (%d scored):' % (label, len(counted)))
-        for attribute in CONST_ATTRIBUTES:
-            print('  %-9s correct %2d  wrong %2d  not stated %2d  not decidable %2d' % (
-                attribute, totals[attribute]['correct'], totals[attribute]['wrong'], totals[attribute]['not stated'],
-                totals[attribute]['not decidable']))
-    for entry in excluded:
-        print('Excluded %s object %d: %s' % (entry['frame'], entry['index'], entry['exclude_from_totals']))
+            row['text'][:CONST_TEXT_WIDTH]))
+    totals = Tally([(row['entry'], row['scores']) for row in rows])
+    print('\nTotals, all %d objects:' % len(rows))
+    for attribute in CONST_ATTRIBUTES:
+        print('  %-9s correct %2d  wrong %2d  not stated %2d  not decidable %2d' % (
+            attribute, totals[attribute]['correct'], totals[attribute]['wrong'], totals[attribute]['not stated'],
+            totals[attribute]['not decidable']))
     seconds = [row['seconds'] for row in rows]
     print('\nDescribe time: %.3f s per object (mean over %d).' % (sum(seconds) / len(seconds), len(seconds)))
 

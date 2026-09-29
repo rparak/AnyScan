@@ -76,8 +76,8 @@ def test_the_key_records_the_owners_answers(key) -> None:
     """
     Description:
         The materials the owner gave from the physical parts (2026-09-29): the red block is anodised
-        aluminium, the white washer and the bushing aluminium; the clipped hex nuts 5.3 and 6.2 are the
-        only objects left out of the totals, each with its reason.
+        aluminium, the white washer and the bushing aluminium. Every object counts in the totals (the
+        owner's choice); the clipped hex nuts 5.3 and 6.2 carry a note saying why their crop is special.
     """
 
     objects = {(entry['frame'], entry['index']): entry for entry in key['objects']}
@@ -85,8 +85,8 @@ def test_the_key_records_the_owners_answers(key) -> None:
         assert (objects[place]['material'], objects[place]['material_detail']) == ('metal', 'anodised aluminium')
     for place in (('Image_001', 5), ('Image_002', 4), ('Image_008', 5), ('Image_002', 2)):
         assert (objects[place]['material'], objects[place]['material_detail']) == ('metal', 'aluminium')
-    excluded = sorted(place for place, entry in objects.items() if entry.get('exclude_from_totals'))
-    assert excluded == [('Image_005', 3), ('Image_006', 2)]
+    assert not [entry for entry in key['objects'] if 'exclude_from_totals' in entry]
+    assert sorted(place for place, entry in objects.items() if entry.get('note')) == [('Image_005', 3), ('Image_006', 2)]
 
 
 def test_a_named_type_scores_and_a_feature_is_not_a_type(key) -> None:
@@ -162,12 +162,25 @@ def test_a_material_outside_metal_and_plastic_is_wrong_alone(key) -> None:
     """
     Description:
         A material the key has no class for counts: named alone it is wrong, as every part in the key is
-        metal or plastic (E4B 8-bit's robot, 3.3: "a soft, possibly felt or fabric material"); beside
-        metal or plastic it counts as that one ("plastic or ceramic").
+        metal or plastic (E4B 8-bit's robot, 3.3: "a soft, possibly felt or fabric material").
     """
 
     assert Score_Material('made of a soft, possibly felt or fabric material', 'plastic', key) == 'wrong'
-    assert Score_Material('possibly plastic or ceramic', 'plastic', key) == 'correct'
+
+
+def test_the_right_material_beside_another_is_a_hedge(key) -> None:
+    """
+    Description:
+        Material hedges score as type hedges do: the right material named beside any other material is
+        not stated, whether the other is the key's other class or another material (E4B 4-bit's comb and
+        robot, "plastic or composite"; the 12B's washer and robot, "metallic or ceramic", "plastic or
+        ceramic", 2026-09-29). The right material alone stays correct.
+    """
+
+    assert Score_Material('made of plastic or composite', 'plastic', key) == 'not stated'
+    assert Score_Material('possibly metallic or ceramic', 'metal', key) == 'not stated'
+    assert Score_Material('a solid plastic or painted metal', 'plastic', key) == 'not stated'
+    assert Score_Material('made of white plastic', 'plastic', key) == 'correct'
 
 
 def test_a_plural_synonym_counts(key) -> None:
@@ -183,13 +196,12 @@ def test_a_material_hedge_between_metal_and_plastic_is_not_stated(key) -> None:
     """
     Description:
         One material class named scores against the key; "plastic or painted metal" names both and is
-        not stated; "plastic or ceramic" and "metallic or composite" count as the class they name.
+        not stated; "metallic or composite" on a plastic part names only a wrong material: wrong.
     """
 
     assert Score_Material('made of steel', 'metal', key) == 'correct'
     assert Score_Material('a metallic grey component', 'plastic', key) == 'wrong'
     assert Score_Material('a solid plastic or painted metal', 'plastic', key) == 'not stated'
-    assert Score_Material('possibly plastic or ceramic', 'plastic', key) == 'correct'
     assert Score_Material('a metallic or composite material', 'plastic', key) == 'wrong'
     assert Score_Material('a solid, opaque material', 'metal', key) == 'not stated'
 
@@ -204,16 +216,14 @@ def test_a_colour_is_correct_only_when_one_of_its_terms_is_named() -> None:
     assert Score_Colour('a smooth metallic surface', ['blue']) == 'not stated'
 
 
-def test_objects_the_key_excludes_count_only_when_asked(key) -> None:
+def test_every_object_counts_in_the_totals(key) -> None:
     """
     Description:
-        Tally leaves out the objects the key marks exclude_from_totals, and counts them when asked.
+        Tally counts every scored object, the clipped hex nuts included (the owner, 2026-09-29).
     """
 
-    entries = [entry for entry in key['objects'] if entry['frame'] == 'Image_006']
-    scores = [(entry, Score_Object('a circular metal part', entry, key)) for entry in entries]
-    assert sum(Tally(scores)['type'].values()) == len(entries) - 1
-    assert sum(Tally(scores, include_excluded=True)['type'].values()) == len(entries)
+    scores = [(entry, Score_Object('a circular metal part', entry, key)) for entry in key['objects']]
+    assert sum(Tally(scores)['type'].values()) == len(key['objects']) == 37
 
 
 def test_an_unusable_key_is_refused_with_its_reason(tmp_path, key) -> None:

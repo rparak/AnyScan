@@ -2190,10 +2190,10 @@ width included), `::test_the_tagline_is_crisp_on_a_low_density_display`,
 macOS-only `::test_the_logo_and_the_mark_rebuild_byte_identically_from_the_source` (needs Inkscape 1.2.2).
 `test/UI/test_text_contrast.py` measures the lockup's text too (magenta 4.65:1 on `CONST_BG`).
 
-## The Linux describer choice is open: on the confirmed key E4B and the 12B are one wrong statement apart
+## E4B stays the describer on both machines: the owner's choice, one wrong statement ahead of the 12B
 
-**Status: open, pending the owner's choice (2026-09-29).** The shipped configuration keeps Gemma 4 E4B until
-then; one configuration is shared by both machines, so History and Trends compare like with like.
+**Decided by the owner, 2026-09-29: keep Gemma 4 E4B.** The shipped configuration names it, and one
+configuration is shared by both machines, so History and Trends compare like with like.
 
 The comparison rests on an answer key, `Data/Images/Test/All/answer_key.json`. It names, for each of the 37
 objects the shipped pipeline finds in the eight frames (numbered in the pipeline's order), its part type,
@@ -2204,15 +2204,14 @@ and scorer, and `Example/Vision/evaluate_describer.py` runs the configured descr
 application's path and scores it (`--describer-model` swaps the model in memory, not in the file).
 
 Both models ran the same crops (identical pixel for pixel) with the shipped prompts. Totals over all 37
-objects, as the scorer gives them and as checked by hand (every "not stated" was read; the scorer now
-agrees with the hand check on every one). The key still marks the two small hex nuts (5.3, 6.2),
-whose crop hides their corners, as `exclude_from_totals`, and the script prints the totals both
-without and with them; the numbers here include them.
+objects, as the scorer gives them and as checked by hand (every "not stated" was read; the scorer agrees
+with the hand check on every one). Every object counts, by the owner's choice: the two small hex nuts
+(5.3, 6.2), whose crop hides their corners, carry a `note` in the key saying so, not an exclusion.
 
 | Attribute (correct / wrong / not stated) | E4B 4-bit | 12B |
 |---|---|---|
 | Part type | 15 / 6 / 16 | 25 / 2 / 10 |
-| Material | 28 / 1 / 8 | 28 / 6 / 3 |
+| Material | 26 / 1 / 10 | 26 / 6 / 5 |
 | Colour | 37 / 0 / 0 | 36 / 0 / 1 |
 | Wrong statements, type + material | **7** | **8** |
 | Per object (warm, mean) | 0.65 s | 1.10 s |
@@ -2239,8 +2238,10 @@ without and with them; the numbers here include them.
   design"); (2) conflicting names are a hedge, not stated ("washer or cap": E4B's six large washers,
   21 -> 15 correct); (3) a type counts as claimed wherever a naming cue introduces it ("suggesting it is a
   component or mold insert", in a second sentence), a material outside metal and plastic named alone is
-  wrong ("felt or fabric"), and synonyms count in the plural ("strips"). Scoring on the app's short label
-  (`Condense_Label`) was tried and rejected: it dropped names the text gives.
+  wrong ("felt or fabric"), and synonyms count in the plural ("strips"); (4) material hedges score as
+  type hedges do: the right material beside any other is not stated ("plastic or composite", "metallic or
+  ceramic": E4B's comb and robot, the 12B's washer and robot, 28 -> 26 correct for each). Scoring on the
+  app's short label (`Condense_Label`) was tried and rejected: it dropped names the text gives.
 
 **The 8-bit E4B is not better: don't switch.** `mlx-community/gemma-4-e4b-it-8bit` at revision
 `4255b21bd9a9d3fc807ef7abd80373f5e3a52a73` (8.91 GB, every file checked against its published hash) ran
@@ -2249,7 +2250,7 @@ through the same script, twice, with identical text. On the same 37 objects:
 | Attribute (correct / wrong / not stated) | E4B 4-bit | E4B 8-bit |
 |---|---|---|
 | Part type | 15 / 6 / 16 | 16 / 5 / 16 |
-| Material | 28 / 1 / 8 | 26 / 3 / 8 |
+| Material | 26 / 1 / 10 | 26 / 3 / 8 |
 | Colour | 37 / 0 / 0 | 37 / 0 / 0 |
 | Wrong statements, type + material | 7 | 8 |
 | Per object (warm, mean) | 0.647 s | 0.883 s (+36 %) |
@@ -2267,12 +2268,14 @@ through the same script, twice, with identical text. On the same 37 objects:
   figures can differ from CUDA's; it would have to be measured on the Mac before any switch, and it is not
   worth measuring while it scores worse here.
 
-**Why open.** The first reading (E4B 4 wrong statements, the 12B 8) rested on 35 objects and a scorer that
-missed invented names; with all 37 and the hand-checked scorer they are 7 and 8. What is left to choose
-between is a kind of error, not a count: the 12B names parts better and misreads plastic as metal; E4B
-hedges and misnames parts. That is an operator's priority, the owner's to set.
+**Why.** On all 37 objects, with the hand-checked scorer, E4B makes 7 wrong statements and the 12B 8, so the
+count alone barely separates them (a first reading, 4 against 8, rested on 35 objects and a scorer that
+missed invented names). The owner chose E4B on the kind of error and the cost: the 12B names ten more part
+types but calls six plastic parts metal, while E4B hedges, and its errors are part names; E4B is 1.7x
+faster (0.65 against 1.10 s per object here; 2.2 against 5.5 s on the Mac) with 2.1 GB less GPU memory;
+the prompts were tuned on it; and keeping it leaves every stored description comparable.
 
-**Revisit if** the owner chooses (then record the choice and its reason here), the prompts are rewritten
+**Revisit if** a 12B-specific prompt is tried (score both again), the prompts are rewritten
 (re-run both models), a new describer or E4B conversion is proposed (score it with the script against the
 same key; the 8-bit is not worth measuring on the Mac unless it beats the 4-bit here), or the segmentation
 changes: the script stops when a frame's object count differs from the key's, and the key must be

@@ -2,9 +2,9 @@
   "description": "The answer key for describer quality on Data/Images/Test/All: every object the shipped pipeline finds, numbered in its order in the frame, with what it is. Read and scored by Vision/Utilities/Evaluation.py; run with Example/Vision/evaluate_describer.py. Confirmed by the owner, 2026-09-29.",
   "rules": {
     "type": "Correct when the text names the part type or a synonym (the class's \"correct\" patterns, plurals included), and nothing contradicts it. A naming claim is the noun phrase after a naming cue (\"is a\", \"appears to be a\", \"possibly a\", \"suggesting it is a\", \"resembles a\" ...; \"naming_cues\"), up to the next clause (\"naming_ends\"), in any sentence. Wrong when a naming claim names a wrong type (the class's \"wrong\" patterns) or another part type (\"type_nouns\") and the text never names the right one; not decidable for an \"undecidable\" pattern in a claim; otherwise not stated (a generic \"component\", \"object\" or \"part\"). Conflicting names are a hedge, not stated, as \"plastic or painted metal\" is for material: the right type named and another part type claimed (\"washer or cap\", \"washer or ring\", or a wrong name in a later sentence). Synonyms are no conflict (\"bolt or screw\"). A feature is not a claim (\"the outer white ring\", \"the metal ring\": no naming cue); a ring that is a feature inside a claim (\"outer ring\", \"ring design\") is not one either.",
-    "material": "The text's materials, sorted into metal and plastic by \"materials\". One of the two named: correct if it is the key's, wrong otherwise. Both named (\"plastic or painted metal\"): a hedge, not stated. Another material (\"other_materials\": felt, fabric, ceramic, composite ...) hedged with one of them counts as that one (\"plastic or ceramic\" is plastic); named alone (\"felt or fabric\") it is wrong, as every part in the key is metal or plastic. None: not stated.",
+    "material": "The text's materials, sorted into metal and plastic by \"materials\", and other materials by \"other_materials\" (felt, fabric, ceramic, composite ...). Hedges score as the type's do: the right material named beside any other material (\"plastic or painted metal\", \"plastic or ceramic\") is not stated. The right material alone is correct. A wrong material, alone or beside another (\"metallic or composite\" on a plastic part), is wrong, and so is another material named alone (\"felt or fabric\"), as every part in the key is metal or plastic. None: not stated.",
     "colour": "Judged against the crop the describer receives, which is contrast-stretched: correct when the text names one of the object's colour terms, otherwise not stated. A wrong colour is not scored: the text also names the table's green seen through holes, which a word match cannot tell from the part's colour.",
-    "totals": "Objects with \"exclude_from_totals\" are scored and listed, but left out of the totals, with the reason given.",
+    "totals": "Every object counts in the totals (the owner, 2026-09-29); a \"note\" records what is special about one.",
     "markings": "Markings and damage are recorded, not scored."
   },
   "materials": {
@@ -578,7 +578,7 @@
         "colour": "judged from the crop"
       },
       "status": "confirmed by the owner, 2026-09-29",
-      "exclude_from_totals": "The crop hides its corners: its own mask follows the bright round face and leaves the dull chamfered corners out, and only masked pixels are enhanced, so the describer sees a round ring (89-91 % mask cover, 2026-09-29)."
+      "note": "Counted like every object (the owner, 2026-09-29), though its crop hides its corners: its own mask follows the bright round face and leaves the dull chamfered corners out, and only masked pixels are enhanced, so the describer sees a round ring (89-91 % mask cover)."
     },
     {
       "frame": "Image_005",
@@ -663,7 +663,7 @@
         "colour": "judged from the crop"
       },
       "status": "confirmed by the owner, 2026-09-29",
-      "exclude_from_totals": "The crop hides its corners: its own mask follows the bright round face and leaves the dull chamfered corners out, and only masked pixels are enhanced, so the describer sees a round ring (89-91 % mask cover, 2026-09-29)."
+      "note": "Counted like every object (the owner, 2026-09-29), though its crop hides its corners: its own mask follows the bright round face and leaves the dull chamfered corners out, and only masked pixels are enhanced, so the describer sees a round ring (89-91 % mask cover)."
     },
     {
       "frame": "Image_006",

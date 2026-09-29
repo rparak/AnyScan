@@ -35,8 +35,7 @@ Description:
     Describer quality against a confirmed answer key: the key's reader (Load_Answer_Key, the one
     reader of answer_key.json) and the scoring of one description on part type, material and colour
     (Score_Object), then the totals (Tally). The rules are the key's own, stated in its "rules" block;
-    the patterns they apply are data in the key, not code here, and so is which objects are left out
-    of the totals. Pure text matching, no model, so the rules are tested on their own
+    the patterns they apply are data in the key, not code here. Pure text matching, no model, so the rules are tested on their own
     (test/Vision/Utilities/test_evaluation.py). Example/Vision/evaluate_describer.py runs the describer
     and scores it.
 """
@@ -188,11 +187,12 @@ def Score_Type(text: str, type_class: tp.Dict[str, tp.List[str]], key: tp.Dict[s
 def Score_Material(text: str, material: str, key: tp.Dict[str, tp.Any]) -> str:
     """
     Description:
-        The material's outcome: the key's material classes the text names (metal, plastic). One of them
-        named: correct when it is the object's, wrong otherwise; both, a hedge, not stated. Another
-        material ("other_materials": felt, fabric, ceramic ...) beside one of them counts as that one
-        ("plastic or ceramic"); named alone it is wrong ("felt or fabric"), as every part in the key is
-        metal or plastic. Nothing named: not stated.
+        The material's outcome, with hedges scored as the type's are: the right material named beside any
+        other material is a hedge, not stated, whether the other is the key's other class ("plastic or
+        painted metal") or another material ("plastic or ceramic"; "other_materials": felt, fabric,
+        ceramic ...). The right material alone is correct. A wrong material (the other class, alone or
+        beside another material, or another material alone, as every part in the key is metal or
+        plastic) is wrong. Nothing named: not stated.
 
     Args:
         (1) text [string]: The description.
@@ -204,11 +204,10 @@ def Score_Material(text: str, material: str, key: tp.Dict[str, tp.Any]) -> str:
     """
 
     named = [name for name, patterns in key['materials'].items() if _Matches(text, patterns)]
-    if len(named) == 1:
-        return CONST_CORRECT if named[0] == material else CONST_WRONG
-    if not named and _Matches(text, key.get('other_materials', [])):
-        return CONST_WRONG
-    return CONST_NOT_STATED
+    other = _Matches(text, key.get('other_materials', []))
+    if material in named:
+        return CONST_NOT_STATED if len(named) > 1 or other else CONST_CORRECT
+    return CONST_WRONG if named or other else CONST_NOT_STATED
 
 
 def Score_Colour(text: str, colour_terms: tp.List[str]) -> str:
@@ -247,25 +246,20 @@ def Score_Object(text: str, entry: tp.Dict[str, tp.Any], key: tp.Dict[str, tp.An
             'colour': Score_Colour(text, entry['colour_terms'])}
 
 
-def Tally(scores: tp.List[tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, str]]],
-          include_excluded: bool = False) -> tp.Dict[str, tp.Dict[str, int]]:
+def Tally(scores: tp.List[tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, str]]]) -> tp.Dict[str, tp.Dict[str, int]]:
     """
     Description:
-        The totals: per attribute, how many objects had each outcome. Objects the key marks
-        "exclude_from_totals" count only when include_excluded is True.
+        The totals: per attribute, how many objects had each outcome. Every object counts.
 
     Args:
         (1) scores [Vector<Tuple<Dict, Dict>>]: Each object's key entry and its outcomes.
-        (2) include_excluded [bool]: Count the objects the key leaves out of the totals.
 
     Returns:
         (1) parameter [Dict<string, Dict<string, int>>]: Attribute -> outcome -> count.
     """
 
     totals = {attribute: {outcome: 0 for outcome in CONST_OUTCOMES} for attribute in CONST_ATTRIBUTES}
-    for entry, outcome in scores:
-        if entry.get('exclude_from_totals') and not include_excluded:
-            continue
+    for _, outcome in scores:
         for attribute in CONST_ATTRIBUTES:
             totals[attribute][outcome[attribute]] += 1
     return totals
