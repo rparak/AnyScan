@@ -68,14 +68,13 @@ Description:
     Stubs only - UNVERIFIED in the sense of README > Platform:
       - every Linux branch (CUDA 12, CUDA 13, the refusal and the --cpu opt-in, failing /
         missing / old nvidia-smi, low compute capability, GPU 0's memory against the 11 GB
-        and (--model 12b) 15 GB floors, a busy card, old glibc, musl, aarch64), macOS on
+        floor, a busy card, old glibc, musl, aarch64), macOS on
         Intel, macOS < 14, and Rosetta. The stubs reproduce the command outputs as documented
         (nvidia-smi's CSV queries and banner, sysctl, getconf); no Linux machine has run this
         script, and the
         pip resolves on the Linux paths (the PyTorch cu126/cu130/cpu indexes, the mlx
         extras) have not been performed. The Gemma download (hf) is stubbed everywhere:
-        its skip path ran for real (for E4B and, on 2026-09-25, the 12B manifest against the
-        12B downloaded by hand), its fetch path did not.
+        its skip path ran for real (for E4B), its fetch path did not.
 """
 # The repository root and the script under test.
 #   Unit [string]
@@ -577,25 +576,6 @@ def test_linux_card_with_enough_memory_takes_the_gpu_path(sandbox, total, name):
     assert not _Levels(process, 'WARNING')
 
 
-def test_linux_12b_on_a_12_gb_card_stops_and_points_at_the_default(sandbox):
-    _Stub_Linux(sandbox)
-    _Stub_Nvidia(sandbox, '580.65.06', total='12282', name='NVIDIA GeForce RTX 4070')
-    process = sandbox.Run('MODEL_CHOICE=12b; Detect_Platform')
-
-    assert process.returncode == 1
-    errors = _Levels(process, 'ERROR')
-    assert 'Gemma 4 12B (--model 12b)' in errors[0] and '15360 MiB (15 GB) or more' in errors[0]
-    assert any('Re-run without --model 12b' in m for m in errors)
-
-
-def test_linux_12b_on_a_16_gb_card_takes_the_gpu_path(sandbox):
-    _Stub_Linux(sandbox)
-    _Stub_Nvidia(sandbox, '580.65.06', total='16303', name='NVIDIA GeForce RTX 5070 Ti')
-    process = sandbox.Run('MODEL_CHOICE=12b; Detect_Platform; Show MLX_BACKEND')
-
-    assert _Results(process)['MLX_BACKEND'] == 'cuda13'
-
-
 def test_linux_busy_card_warns_with_the_memory_in_use(sandbox):
     _Stub_Linux(sandbox)
     _Stub_Nvidia(sandbox, '560.35.03', total='16303', used='3100')
@@ -885,71 +865,31 @@ def test_gemma_download_that_does_not_verify_fails(sandbox):
     assert 'After downloading, Gemma file' in _Levels(process, 'ERROR')[0]
 
 
-@pytest.mark.parametrize('arguments, model, cpu', [('', 'e4b', '0'), ('--model 12b', '12b', '0'),
-                                                   ('--model=12b --cpu', '12b', '1'), ('--cpu --model e4b', 'e4b', '1')])
-def test_arguments_set_the_model_and_the_cpu_opt_in(sandbox, arguments, model, cpu):
-    process = sandbox.Run(f'Parse_Arguments {arguments}; Show MODEL_CHOICE CPU_OPT_IN')
+@pytest.mark.parametrize('arguments, cpu', [('', '0'), ('--cpu', '1')])
+def test_arguments_set_the_cpu_opt_in(sandbox, arguments, cpu):
+    process = sandbox.Run(f'Parse_Arguments {arguments}; Show CPU_OPT_IN')
 
-    assert _Results(process) == {'MODEL_CHOICE': model, 'CPU_OPT_IN': cpu}
+    assert _Results(process) == {'CPU_OPT_IN': cpu}
 
 
-@pytest.mark.parametrize('arguments', ['--model 27b', '--model'])
-def test_a_bad_model_argument_stops(sandbox, arguments):
+@pytest.mark.parametrize('arguments', ['--model 12b', '--model=e4b'])
+def test_the_removed_model_option_is_refused(sandbox, arguments):
+    """
+    Description:
+        The installer has one describer model; --model is no longer an option and stops as unknown.
+    """
+
     process = sandbox.Run(f'Parse_Arguments {arguments}')
 
     assert process.returncode == 1
-    assert '--model' in _Levels(process, 'ERROR')[0]
+    assert _Levels(process, 'ERROR')[0].startswith("Unknown argument '--model")
 
 
-def test_the_12b_plan_states_the_provenance_gap_and_the_measured_regression(sandbox):
-    """
-    Description:
-        Someone passing --model 12b sees what they are choosing at that point, not only in the README.
-    """
-
-    process = sandbox.Run('MODEL_CHOICE=12b; PYTHON_VERSION=3.10.14; MLX_BACKEND=metal; Report_Plan')
-
-    infos, warnings = _Levels(process, 'INFO'), _Levels(process, 'WARNING')
-    assert any('Gemma 4 12B, mlx-community/gemma-4-12B-it-4bit@73bcf09 -> models/gemma-4-12B-it-4bit (6.8 GB)' in m
-               for m in infos)
-    assert any('names no base model, revision or licence' in m and 'plausible, not proven' in m for m in warnings)
-    assert any('5.46 s per object against 2.20 s' in m and 'plastic parts' in m for m in warnings)
-
-
-def test_the_default_plan_names_e4b_and_prints_no_notice(sandbox):
+def test_the_plan_names_e4b_and_warns_of_nothing(sandbox):
     process = sandbox.Run('PYTHON_VERSION=3.10.14; MLX_BACKEND=metal; Report_Plan')
 
     assert any('Gemma 4 E4B, mlx-community/gemma-4-e4b-it-4bit@475b908 -> models/gemma-4-e4b-it-4bit (5.2 GB)' in m
                for m in _Levels(process, 'INFO'))
-    assert not _Levels(process, 'WARNING')
-
-
-def test_12b_downloads_into_its_own_directory_from_its_own_repository(sandbox):
-    record = _Stub_Hf(sandbox)
-    snippet = _Gemma_Snippet(sandbox).replace('CONST_GEMMA_FILES=', 'CONST_GEMMA12_FILES=')
-    process = sandbox.Run(snippet + 'MODEL_CHOICE=12b; Ensure_Gemma')
-
-    assert process.returncode == 0
-    call = open(record).read().split()
-    assert 'mlx-community/gemma-4-12B-it-4bit' in call and '73bcf09092aa277861d5a191b989b666f7f32e8f' in call
-    for name, content in CONST_GEMMA_FIXTURE.items():
-        assert open(os.path.join(sandbox.Root, 'models', 'gemma-4-12B-it-4bit', name), 'rb').read() == content
-    assert not os.path.exists(os.path.join(sandbox.Root, 'models', 'gemma-4-e4b-it-4bit'))
-    # The notice is repeated right before the download, not only in the plan minutes earlier.
-    lines = _Log_Lines(process)
-    notice = [i for i, line in enumerate(lines) if 'names no base model, revision or licence' in line]
-    download = [i for i, line in enumerate(lines) if 'Downloading 3 Gemma 4 12B file(s)' in line]
-    assert notice and download and notice[0] < download[0]
-    assert any('plastic parts' in line for line in lines[notice[0]:download[0]])
-
-
-def test_the_12b_notice_is_not_repeated_when_nothing_is_downloaded(sandbox):
-    for name, content in CONST_GEMMA_FIXTURE.items():
-        _Write(os.path.join(sandbox.Root, 'models', 'gemma-4-12B-it-4bit', name), content)
-    _Stub_Hf(sandbox)
-    snippet = _Gemma_Snippet(sandbox).replace('CONST_GEMMA_FILES=', 'CONST_GEMMA12_FILES=')
-    process = sandbox.Run(snippet + 'MODEL_CHOICE=12b; Ensure_Gemma')
-
     assert not _Levels(process, 'WARNING')
 
 
@@ -973,7 +913,7 @@ def test_cpu_with_a_usable_gpu_is_reported_again_at_the_end(sandbox):
 # ---- configurations ---------------------------------------------------------
 
 @pytest.mark.parametrize('gemma, expected_level', [('models/gemma-4-e4b-it-4bit', 'INFO'),
-                                                   ('models/gemma-4-e4b-it-8bit', 'WARNING')])
+                                                   ('models/other-describer', 'WARNING')])
 def test_configuration_pointing_elsewhere_names_the_field(sandbox, gemma, expected_level):
     pytest.importorskip('yaml')
     _Write(os.path.join(sandbox.Root, 'Configuration', 'Config_Test.yaml'),
@@ -986,33 +926,9 @@ def test_configuration_pointing_elsewhere_names_the_field(sandbox, gemma, expect
     messages = _Levels(process, expected_level)
     line = [m for m in messages if 'Description.Model' in m][0]
     if expected_level == 'WARNING':
-        assert "Description.Model is 'models/gemma-4-e4b-it-8bit'" in line
+        assert "Description.Model is 'models/other-describer'" in line
         assert 'Change Description.Model to models/gemma-4-e4b-it-4bit' in line
     assert any('Segmentation.Model points at the installed model' in m for m in _Levels(process, 'INFO'))
-
-
-def test_after_12b_a_configuration_still_on_e4b_is_told_which_field_to_set(sandbox):
-    """
-    Description:
-        --model 12b never edits a configuration: one still naming E4B (on disk) keeps loading, and
-        the installer names the field and the value that would use the 12B.
-    """
-
-    pytest.importorskip('yaml')
-    os.makedirs(os.path.join(sandbox.Root, 'models', 'gemma-4-e4b-it-4bit'))
-    config = os.path.join(sandbox.Root, 'Configuration', 'Config_Test.yaml')
-    _Write(config, b'Segmentation:\n  Model: models/FastSAM/FastSAM-x.pt\nDescription:\n  Model: models/gemma-4-e4b-it-4bit\n')
-    before = open(config, 'rb').read()
-    os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
-    os.symlink(sys.executable, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))
-    process = sandbox.Run(f'CONST_ROOT="{sandbox.Root}"; CONST_VENV_DIR="{sandbox.Root}/venv"; MODEL_CHOICE=12b; '
-                          'Check_Configurations')
-
-    line = [m for m in _Levels(process, 'WARNING') if 'Description.Model' in m][0]
-    assert "is 'models/gemma-4-e4b-it-4bit', not the model this run installed" in line
-    assert 'set Description.Model to models/gemma-4-12B-it-4bit in Configuration/Config_Test.yaml' in line
-    assert 'does not edit configurations' in line
-    assert open(config, 'rb').read() == before
 
 
 # ---- the whole detection path -----------------------------------------------
