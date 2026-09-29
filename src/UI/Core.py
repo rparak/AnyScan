@@ -129,11 +129,24 @@ class AnyScan_Window_Cls(QMainWindow):
     # measured from ink to divider and from divider to ink: the funding band's gap around its divider.
     #   Unit [px]
     CONST_BRAND_GAP = Style.CONST_MARK_GAP
+    # The status strip's value formats, used where each value is set and where its cell reserves its
+    # width, and the largest number each numeric value reserves room for (a digit stands for any
+    # digit: Stat_Cell_Cls.Reserve_Width). A value past its bound would widen its cell again.
+    #   Unit [string] / [int]
+    CONST_TIME_FORMAT = '%H:%M:%S'
+    CONST_RESOLUTION_FORMAT = '%d × %d'
+    CONST_LATENCY_FORMAT = '%d ms'
+    CONST_PERCENT_FORMAT = '%d%%'
+    CONST_ERRORS_FORMAT = '%d errors logged'
+    CONST_WIDEST_COUNT = 9999
+    CONST_WIDEST_RESOLUTION = (9999, 9999)
+    CONST_WIDEST_LATENCY_MS = 99999
+    CONST_WIDEST_PERCENT = 100
     # What the status strip's Camera and System cells can say — the texts they show, and the widths
-    # the cells reserve so that a change of state never shifts the columns ('99' stands for any count).
+    # the cells reserve so that a change of state never shifts the columns.
     CONST_CAMERA_STATES = ('Connecting…', 'Connected', 'Disconnected')
-    CONST_SYSTEM_STATES = ('Analysis failed', 'Error logged', '99 errors logged', 'Models not loaded',
-                           'Camera disconnected', 'Ready')
+    CONST_SYSTEM_STATES = ('Analysis failed', 'Error logged', CONST_ERRORS_FORMAT % CONST_WIDEST_COUNT,
+                           'Models not loaded', 'Camera disconnected', 'Ready')
 
     CONST_READING_HAS_FRAME = ('Frame captured. Press Analyze to read the scene. The result '
                                'appears here as plain English text.')
@@ -342,8 +355,7 @@ class AnyScan_Window_Cls(QMainWindow):
         grid.setRowStretch(0, 1)       # spare height goes to the central view
 
         self.__status = Status_Strip_Cls()
-        self.__status.camera.Reserve_Width(self.CONST_CAMERA_STATES)
-        self.__status.system.Reserve_Width(self.CONST_SYSTEM_STATES)
+        self.__Reserve_Status_Widths()
         grid.addWidget(self.__status, 1, 0)
         grid.addWidget(Funding_Row_Cls(), 2, 0)
 
@@ -377,6 +389,27 @@ class AnyScan_Window_Cls(QMainWindow):
         grid.setColumnStretch(1, 45)
         grid.setRowStretch(0, 1)       # spare height goes to the reading panel
         return view
+
+    def __Reserve_Status_Widths(self) -> None:
+        """
+        Description:
+            Make every status-strip cell as wide as the widest value it can show, from the same
+            formats and bounds its values are set with, so no value change moves a column: the
+            no-value dash and each format at its bound (every digit standing for any digit), the
+            Camera and System states with their dot, the confidence at every severity weight.
+        """
+
+        status, dash = self.__status, Style.CONST_NO_VALUE
+        latest = datetime(2000, 1, 1, 23, 59, 59).strftime(self.CONST_TIME_FORMAT)
+        status.camera.Reserve_Width(self.CONST_CAMERA_STATES, dot=True)
+        status.system.Reserve_Width((dash,) + self.CONST_SYSTEM_STATES, dot=True)
+        status.resolution.Reserve_Width((dash, self.CONST_RESOLUTION_FORMAT % self.CONST_WIDEST_RESOLUTION))
+        status.updated.Reserve_Width((dash, latest))
+        status.images.Reserve_Width((str(self.CONST_WIDEST_COUNT),))
+        status.objects.Reserve_Width((str(self.CONST_WIDEST_COUNT),))
+        status.inference.Reserve_Width((dash, self.CONST_LATENCY_FORMAT % self.CONST_WIDEST_LATENCY_MS))
+        status.confidence.Reserve_Width((dash, self.CONST_PERCENT_FORMAT % self.CONST_WIDEST_PERCENT),
+                                        weights=sorted(set(Style.CONST_LEVEL_WEIGHTS.values())))
 
     def __Build_Topbar(self) -> QWidget:
         """
@@ -753,7 +786,7 @@ class AnyScan_Window_Cls(QMainWindow):
         if self.__analysis_failed:
             text, color = 'Analysis failed', Style.CONST_LOG_ERROR
         elif errors:
-            text, color = ('%d errors logged' % errors if errors > 1 else 'Error logged'), Style.CONST_LOG_ERROR
+            text, color = (self.CONST_ERRORS_FORMAT % errors if errors > 1 else 'Error logged'), Style.CONST_LOG_ERROR
         elif not self.__vision.Models_Loaded:
             text, color = 'Models not loaded', Style.CONST_WARN
         elif not self.__camera.Connected:
@@ -888,7 +921,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__session_analyses = 0
         self.__has_connected = True
         w, h = self.__camera.Resolution
-        self.__status.resolution.Set_Value('%d × %d' % (w, h))
+        self.__status.resolution.Set_Value(self.CONST_RESOLUTION_FORMAT % (w, h))
         if self.__logger is not None:
             # A successful connection resolves a pending connect error, then opens a session.
             if self.__camera_error_id is not None:
@@ -975,7 +1008,7 @@ class AnyScan_Window_Cls(QMainWindow):
                                           % self.__camera.Last_Capture_Retries)
             self.__frame_badge.setText('%d × %d · RGB'
                                        % (self.__frame.shape[1], self.__frame.shape[0]))
-            self.__status.updated.Set_Value(datetime.now().strftime('%H:%M:%S'))
+            self.__status.updated.Set_Value(datetime.now().strftime(self.CONST_TIME_FORMAT))
             if self.__logger is not None:
                 # A successful scan resolves a pending scan error, then reports itself.
                 if self.__scan_error_id is not None:
@@ -1388,7 +1421,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__trends.Add_Analysis(result.Objects)
         self.__status.images.Set_Value(str(self.__trends.Image_Count()))
         self.__status.objects.Set_Value(str(self.__trends.Object_Count()))
-        self.__status.updated.Set_Value(datetime.now().strftime('%H:%M:%S'))
+        self.__status.updated.Set_Value(datetime.now().strftime(self.CONST_TIME_FORMAT))
         self.__Update_Performance_Stats(result)
         if self.__trends_view is not None:
             self.__trends_view.Refresh()
@@ -1411,13 +1444,13 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         self.__latencies.append(result.Latency_Ms)
-        self.__status.inference.Set_Value('%d ms' % int(statistics.median(self.__latencies)))
+        self.__status.inference.Set_Value(self.CONST_LATENCY_FORMAT % int(statistics.median(self.__latencies)))
 
         percent = self.__trends.Run_Mean()
         if percent is not None:
             level = Confidence_Severity(percent, self.__config.Confidence)
-            self.__status.confidence.Set_Value('%d%%' % percent, color=Style.Log_Level_Color(level),
-                                               weight=Style.Log_Level_Weight(level))
+            self.__status.confidence.Set_Value(self.CONST_PERCENT_FORMAT % percent,
+                                               color=Style.Log_Level_Color(level), weight=Style.Log_Level_Weight(level))
             self.__Log_Confidence_Crossing(percent)
         else:
             self.__status.confidence.Set_Value(Style.CONST_NO_VALUE)

@@ -23,6 +23,7 @@
 
 # System (Default)
 import os
+import re
 # Typing (Support for type hints)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
@@ -50,6 +51,24 @@ Description:
     layout, a head's `badge`, the status strip's cells) stay public; everything
     else is name-mangled private state.
 """
+
+
+def Digit_Variants(text: str) -> tp.List[str]:
+    """
+    Description:
+        A text with every digit replaced by each of 0-9 in turn ('12:05' -> '00:00', '11:11', ...,
+        '99:99'). The widest of them is as wide as any text of that shape can be, whatever its digits.
+
+    Args:
+        (1) text [string]: The text.
+
+    Returns:
+        (1) parameter [Vector<string>]: The ten variants (the text alone when it has no digit).
+    """
+
+    if not re.search(r'\d', text):
+        return [text]
+    return [re.sub(r'\d', digit, text) for digit in '0123456789']
 
 
 def Meta_Row(parent_layout: QVBoxLayout, key: str, *, compact: bool, mono: bool = False,
@@ -1071,18 +1090,30 @@ class Stat_Cell_Cls(QWidget):
 
         return self.__value.text()
 
-    def Reserve_Width(self, texts: tp.Sequence[str]) -> None:
+    def Reserve_Width(self, texts: tp.Sequence[str], dot: bool = False,
+                      weights: tp.Optional[tp.Sequence[int]] = None) -> None:
         """
         Description:
-            Hold the value at the width of the widest text it can show (with its status dot), so
-            a state change never resizes the cell and shifts the columns beside it.
+            Hold the value at the width of the widest text it can show, so a change of value never
+            resizes the cell and shifts the columns beside it. A digit in a text stands for any digit:
+            each text is measured with every digit place filled by each of 0-9 (Digit_Variants), so a
+            proportional face's widest digit is reserved too. Measured in the cell's own value font at
+            each weight it can take.
 
         Args:
-            (1) texts [Vector<string>]: Every value the cell can show.
+            (1) texts [Vector<string>]: The widest value of each kind the cell can show.
+            (2) dot [bool]: The cell draws a status dot before its value.
+            (3) weights [Vector<int>]: Every QFont weight the value can take; None keeps the cell's own.
         """
 
-        metrics = QFontMetrics(self.__value.font())
-        self.__value.setMinimumWidth(max(metrics.horizontalAdvance('●  ' + text) for text in texts) + 2)
+        font = QFont(self.__value.font())
+        widths = []
+        for weight in (weights or [font.weight()]):
+            font.setWeight(weight)
+            metrics = QFontMetrics(font)
+            widths += [metrics.horizontalAdvance(('●  ' if dot else '') + variant)
+                       for text in texts for variant in Digit_Variants(text)]
+        self.__value.setMinimumWidth(max(widths) + 2)
 
     def Set_Value(self, text: str, color: tp.Optional[str] = None,
                   dot_color: tp.Optional[str] = None, weight: tp.Optional[int] = None) -> None:

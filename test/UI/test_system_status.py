@@ -64,10 +64,17 @@ Description:
 CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 
 
+# How many event-loop passes the strip is given to settle before a record is taken anyway.
+#   Unit [-]
+CONST_SETTLE_PASSES = 50
+
+
 @pytest.fixture(scope='module')
 def qt_app() -> QApplication:
-    """A single offscreen QApplication for the module."""
-    return QApplication.instance() or QApplication([])
+    """A single offscreen QApplication for the module, with the fonts the application loads."""
+    app = QApplication.instance() or QApplication([])
+    Style.Load_Fonts()
+    return app
 
 
 class _Vision_Cls(object):
@@ -281,24 +288,37 @@ def test_the_camera_cell_reads_connecting_while_a_connect_runs(qt_app, reference
     window.close()
 
 
-def test_no_column_of_the_strip_moves_when_a_state_changes(qt_app, reference_background_path, tmp_path) -> None:
+@pytest.mark.parametrize('width', [0, 1920], ids=['minimum', '1920'])
+def test_no_column_of_the_strip_moves_when_a_state_changes(qt_app, reference_background_path, tmp_path, width) -> None:
     """
     Description:
-        The Camera and System cells reserve the width of their longest state, so whatever they say
-        — every system state, connected or not — every cell of the strip keeps its place and width.
+        Every cell reserves the width of the widest value it can show, so whatever the strip says —
+        every system state, connected or not, a timestamp, a resolution, counts, a latency, a
+        confidence at any severity — every cell keeps its place and width. Measured at the window's
+        minimum width, where no spare width can absorb a longer value, and at 1920 px, each record
+        taken once the layout has settled.
     """
 
     geometries = []
 
-    def _Record(window):
-        QApplication.instance().processEvents()
+    def _Geometry(window):
         status = _Private(window, '__status')
-        geometries.append([(cell.x(), cell.width()) for cell in (status.camera, status.resolution, status.system,
-                                                                 status.updated, status.images, status.objects,
-                                                                 status.inference, status.confidence)])
+        return [(cell.x(), cell.width()) for cell in (status.camera, status.resolution, status.system, status.updated,
+                                                      status.images, status.objects, status.inference, status.confidence)]
+
+    def _Record(window):
+        previous = None
+        for _ in range(CONST_SETTLE_PASSES):
+            QApplication.instance().processEvents()
+            current = (window.width(), _Geometry(window))
+            if current == previous:
+                break
+            previous = current
+        geometries.append(previous)
 
     for loaded, connected in ((False, False), (True, False), (True, True)):
         window = _Window(reference_background_path, tmp_path / ('%s%s' % (loaded, connected)), loaded, connected)
+        window.resize(width or window.minimumSizeHint().width(), 900)
         _Record(window)
         if loaded and connected:
             _Private(window, '__On_Scan_Button_Clicked')()

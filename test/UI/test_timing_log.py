@@ -228,9 +228,10 @@ def test_a_delay_in_one_stage_shows_in_that_stage_only(qt_app, tmp_path, monkeyp
                                                         reference_background, make_synthetic_frame, stage) -> None:
     """
     Description:
-        A delay injected into one stage raises that stage's logged time by the delay, and no other
-        stage's (nor 'other') by more than half of it — measured against the same analysis without the
-        delay. For the crops and descriptions the per-object times on the 'Object detected' lines rise too.
+        A delay injected into one stage shows in that stage: its logged time is at least the delay (a
+        sleep inside the stage guarantees that much, whatever the machine's load). No other stage (nor
+        'other') rises by more than half the delay against the same analysis without it. For the crops
+        and descriptions the per-object times on the 'Object detected' lines are at least the delay too.
     """
 
     vision = _Loaded_Pipeline(fake_runtimes)
@@ -246,7 +247,9 @@ def test_a_delay_in_one_stage_shows_in_that_stage_only(qt_app, tmp_path, monkeyp
     _result, after = _Analyze(window, vision, frame, received, 2)
 
     base, slow = _Timing(before), _Timing(after)
-    assert slow['stages'][stage] - base['stages'][stage] >= CONST_DELAY_MS
+    # The stage's own time, not its rise over the first analysis: the first run's real work in the stage
+    # varies with load (13-17 ms under a parallel suite), so a difference could fall below the delay.
+    assert slow['stages'][stage] >= CONST_DELAY_MS, (stage, slow['stages'])
     for other in CONST_TIMING_STAGES:
         if other != stage:
             assert slow['stages'][other] - base['stages'][other] < CONST_TOLERANCE_MS, other
