@@ -69,6 +69,29 @@ practices followed inconsistently are under **Unsettled**.
   `test_disabled_states_are_exempt_but_distinguishable_from_enabled`, `test_disabled_hover_looks_like_disabled`,
   `test_every_state_of_every_control_was_measured`, and a self-check that hover really rendered).
 
+## Text: every enabled text clears 4.5:1 against its ground ✅
+
+- Contrast is a property of the colour pair, so it holds at every density; a 1x screen only makes it
+  worse (anti-aliasing leaves small text below its token's contrast). A density-dependent palette is not
+  used: the theme is one palette (DD *Text clears 4.5:1 on its ground*).
+- A status word is drawn in its colour's text twin: `Theme.Status_Text_Color` (`CONST_OK` → `CONST_OK_INK`,
+  `CONST_WARN` → `CONST_WARN_INK`). A call site passes the status colour; the widget that draws words
+  (`Stat_Cell_Cls.Set_Value`, the header pill) asks for the text colour. A dot keeps the bright colour and
+  is held to 3:1, as a graphic.
+- Text on the indigo viewport has its own token (`CONST_VIEWPORT_TEXT`, `CONST_ERROR_ON_DARK`); a light-ground
+  text token is not reused there.
+- ✅ `test/UI/test_text_contrast.py` builds the window in its states, measures every visible label, rich-text
+  span and painted text against the ground grabbed under it (which must be a theme token); disabled text is
+  exempt. Buttons are measured by `test_control_contrast.py`.
+
+## A density-dependent style asks the one density check 📄
+
+- `Style.Is_Low_Density(widget)` (device pixel ratio below `CONST_LOW_DENSITY_DPR`, 1.5) is the only place
+  density is decided; today the logo height reads it (`Style.Logo_Height`). The ratio is read when a
+  widget is built, which for the window is before it is shown (Qt 5 then reports the highest ratio of all
+  screens), and nothing re-reads it on a screen change (DD *The logo is 59 px on a low-density display*).
+- ✅ `test/UI/test_header.py` measures the logo at DPR 1 and runs itself again at DPR 2.
+
 ## Content type comes from the scale; one content, one size ✅ (content) 📄 (chrome)
 
 - **Content typography** — text the analysis produces, read as the result: the Scene Understanding

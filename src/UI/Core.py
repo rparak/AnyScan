@@ -385,8 +385,10 @@ class AnyScan_Window_Cls(QMainWindow):
             the model pill. The lockup is the `anyscan-logo.svg` — the mark, the
             wordmark and the tagline. The "developed by JIC" attribution is no longer
             set as words in the logo; the JIC mark itself carries it, divided off to
-            the right and tinted the muted-violet CONST_INK_MUTE so it reads as quiet
-            attribution on the console's own palette.
+            the right and tinted the muted violet #8983a6 (CONST_INK_MUTE until it was darkened for
+            text contrast; the mark is artwork, not text, and was not re-tinted) so it reads as quiet
+            attribution on the console's own palette. The lockup's height is Style.Logo_Height: 59 px
+            on a low-density display, 54 px otherwise.
 
         Returns:
             (1) parameter [QWidget(object)]: The top-bar widget.
@@ -402,7 +404,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # not absorbed (no negative spacing, which would lay the divider over the logo's box): it shows.
         brand = QHBoxLayout()
         brand.setSpacing(0)
-        logo_pixmap = Load_Svg('anyscan-logo.svg', Style.CONST_LOGO_HEIGHT)
+        logo_pixmap = Load_Svg('anyscan-logo.svg', Style.Logo_Height(bar))
         logo = QLabel()
         logo.setPixmap(logo_pixmap)
         brand.addWidget(logo)
@@ -477,7 +479,8 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             A header pill's stylesheet: the card fill, the given border and text colour, the pill
-            radius and padding — one definition for the pill's idle and live states.
+            radius and padding — one definition for the pill's idle and live states. A status colour
+            is drawn in its text twin (Style.Status_Text_Color), so the words clear 4.5:1.
 
         Args:
             (1) border [string]: The border colour token.
@@ -488,7 +491,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         return ('border: 1px solid %s; background: %s; color: %s; border-radius: 15px; padding: 0 12px;'
-                % (border, Style.CONST_CARD, ink))
+                % (border, Style.CONST_CARD, Style.Status_Text_Color(ink)))
 
     def __Build_Camera_Card(self) -> Card_Cls:
         """

@@ -293,7 +293,7 @@ class Thumb_Card_Cls(QFrame):
                 return
         # No thumbnail — a failed analysis. Mark it as an error, not a bland placeholder.
         self.__thumb.setStyleSheet('background: %s; border-radius: 5px; color: %s;'
-                                   % (Style.CONST_VIEWPORT, Style.CONST_LOG_ERROR))
+                                   % (Style.CONST_VIEWPORT, Style.CONST_ERROR_ON_DARK))
         self.__thumb.setText('ANALYSIS\nFAILED')
         self.__thumb.setFont(Font(7.5, QFont.DemiBold, tracking=1))
 

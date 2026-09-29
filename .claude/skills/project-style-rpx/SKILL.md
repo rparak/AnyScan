@@ -45,6 +45,7 @@ Its own tests: `.venv/bin/python -m pytest .claude/skills/project-style-rpx/scri
 | Required configuration fields present, values valid | ✅ `Load_Configuration` |
 | UI colours only from theme tokens (no hex string, no numeric `QColor`) | ✅ `test/UI/test_colour_tokens.py` |
 | Every enabled control state ≥ 4.5:1, measured from rendered pixels | ✅ `test/UI/test_control_contrast.py` |
+| Every enabled text ≥ 4.5:1 against the theme-token ground it is drawn on | ✅ `test/UI/test_text_contrast.py` |
 | Installer log lines in the application's log format | ✅ `test/Install/test_install.py` (every line of the tested paths) |
 | A comment above every import; `# Custom Lib.:` group with `#   ../path` lines | 📄 |
 | `# << PRIVATE >> #` marker, private state as `self.__name` | 📄 |

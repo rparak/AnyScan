@@ -24,8 +24,12 @@
 # System (Default)
 import dataclasses
 import os
+import subprocess
+import sys
 # Qt must never open a window during tests: the offscreen platform renders without a display.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+# Typing (Support for type hints)
+import typing as tp
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
 # Pytest (Testing framework) [pip3 install pytest]
@@ -37,6 +41,9 @@ from PyQt5.QtWidgets import QApplication, QLabel, QWidget
 # Custom Lib.: AnyScan UI — the main window
 #   ../UI/Core
 from UI.Core import AnyScan_Window_Cls
+# Custom Lib.: AnyScan UI — the logo renderer
+#   ../UI/Utilities/Style
+import UI.Utilities.Style as Style
 # Custom Lib.: AnyScan — the one configuration layer
 #   ../Configuration/Core
 from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
@@ -46,6 +53,10 @@ Description:
     The top bar's brand group — the AnyScan logo, a divider, the JIC mark — measured from a grab of
     the real header: the gaps are the space the eye sees, from the logo's rightmost ink to the divider
     and from the divider to the JIC mark's first ink, found in the grabbed pixels, not in the SVG.
+
+    The logo's height follows the display's density (Style.Logo_Height). The module runs at the
+    session's device pixel ratio (1 offscreen) and runs itself once more at DPR 2 in a fresh
+    interpreter, so both the height and the gaps are measured at both ratios.
 """
 CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
 # The chosen gap (docs/design-decisions.md, "The logo's text is outlined"): the funding band's 32 px
@@ -55,6 +66,19 @@ CONST_EXPECTED_GAP = 32
 # A pixel is ink when it differs from the header background by more than this (sum over R, G, B).
 #   Unit [-]
 CONST_INK_THRESHOLD = 30
+# The logo's heights (docs/design-decisions.md, "The logo is 59 px on a low-density display"), and the
+# share of its height that is ink: the viewBox is the ink plus 5 units on each side of 174.
+#   Unit [px] / [-]
+CONST_LOGO_HEIGHT_LOW_DENSITY = 59
+CONST_LOGO_HEIGHT_HIGH_DENSITY = 54
+CONST_LOGO_INK_SHARE = (174 - 2 * 5) / 174.0
+# How far the grabbed ink height may differ from that share: one anti-aliased row at the top and one at
+# the bottom. The two heights' ink differs by 4.7 px, so the check still tells 59 from 54.
+#   Unit [px]
+CONST_INK_HEIGHT_TOLERANCE = 2
+# The ratio the second run uses, standing in for a 2x (Retina) display.
+#   Unit [-]
+CONST_HIGH_DENSITY_SCALE = '2'
 
 
 @pytest.fixture(scope='module')
@@ -122,3 +146,84 @@ def test_the_brand_marks_are_spaced_by_the_brand_gap_from_ink(qt_app, width) -> 
     assert abs((jic_ink_left - (Left(divider) + divider.width())) - gap) <= 1, \
         'divider -> JIC ink is %.1f px, expected %d' % (jic_ink_left - Left(divider) - divider.width(), gap)
     window.close()
+
+
+def _Shown_Logo(qt_app: QApplication) -> tp.Tuple[AnyScan_Window_Cls, QLabel, float]:
+    """
+    Description:
+        A shown window's header logo, and the height of its ink as grabbed from the window.
+
+    Args:
+        (1) qt_app [QApplication(object)]: The application.
+
+    Returns:
+        (1) parameter [Tuple<AnyScan_Window_Cls, QLabel, float>]: The window, the logo label and the ink
+                                                                   height in logical pixels.
+    """
+
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION)
+    window.show()
+    window.resize(1720, 900)
+    for _ in range(20):
+        qt_app.processEvents()
+    logo = [label for label in window.findChildren(QLabel) if label.pixmap() is not None and not label.pixmap().isNull()][0]
+    grab = window.grab(QRect(logo.mapTo(window, QPoint(0, 0)), logo.size()))
+    pixels = _Pixels(grab.toImage())
+    rows = np.flatnonzero((np.abs(pixels - pixels[0, 0]).sum(axis=2) > CONST_INK_THRESHOLD).any(axis=1))
+    return window, logo, (rows[-1] + 1 - rows[0]) / grab.devicePixelRatio()
+
+
+def test_the_logo_is_59_px_on_a_low_density_display(qt_app) -> None:
+    """
+    Description:
+        Below DPR 1.5 the header logo is drawn 59 px tall: its pixmap is 59 logical pixels, and the ink
+        grabbed from the window spans the logo's ink share of 59 px (±CONST_INK_HEIGHT_TOLERANCE), not of 54.
+    """
+
+    if qt_app.devicePixelRatio() >= Style.CONST_LOW_DENSITY_DPR:
+        pytest.skip('this run is at DPR %g; the low-density logo is measured in the DPR 1 run'
+                    % qt_app.devicePixelRatio())
+    window, logo, ink = _Shown_Logo(qt_app)
+    pixmap = logo.pixmap()
+    assert pixmap.height() / pixmap.devicePixelRatio() == CONST_LOGO_HEIGHT_LOW_DENSITY
+    assert abs(ink - CONST_LOGO_HEIGHT_LOW_DENSITY * CONST_LOGO_INK_SHARE) <= CONST_INK_HEIGHT_TOLERANCE, 'logo ink is %.1f px tall' % ink
+    window.close()
+
+
+def test_the_logo_is_unchanged_on_a_high_density_display(qt_app) -> None:
+    """
+    Description:
+        At DPR 1.5 and above the header logo is the 54 px render it has always been: the same pixels as
+        Style.Load_Svg at 54 px, 54 logical pixels tall, and the grabbed ink spans the ink share of 54 px.
+    """
+
+    if qt_app.devicePixelRatio() < Style.CONST_LOW_DENSITY_DPR:
+        pytest.skip('this run is at DPR %g; the high-density logo is measured in the DPR 2 run'
+                    % qt_app.devicePixelRatio())
+    window, logo, ink = _Shown_Logo(qt_app)
+    pixmap = logo.pixmap()
+    assert pixmap.height() / pixmap.devicePixelRatio() == CONST_LOGO_HEIGHT_HIGH_DENSITY
+    assert pixmap.toImage() == Style.Load_Svg('anyscan-logo.svg', CONST_LOGO_HEIGHT_HIGH_DENSITY).toImage()
+    assert abs(ink - CONST_LOGO_HEIGHT_HIGH_DENSITY * CONST_LOGO_INK_SHARE) <= CONST_INK_HEIGHT_TOLERANCE, 'logo ink is %.1f px tall' % ink
+    window.close()
+
+
+def test_the_header_is_measured_again_at_dpr_2(qt_app, project_root) -> None:
+    """
+    Description:
+        This module, run again in a fresh interpreter at DPR 2 (QT_SCALE_FACTOR=2), passes: the high-density
+        logo test and both gap tests pass there, and the low-density test is the one that skips.
+    """
+
+    if qt_app.devicePixelRatio() >= Style.CONST_LOW_DENSITY_DPR:
+        pytest.skip('this is the DPR %g run' % qt_app.devicePixelRatio())
+    env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_SCALE_FACTOR=CONST_HIGH_DENSITY_SCALE, PYTHONDONTWRITEBYTECODE='1')
+    run = subprocess.run([sys.executable, '-m', 'pytest', os.path.abspath(__file__), '-rA', '-p', 'no:cacheprovider'],
+                         cwd=project_root, env=env, capture_output=True, text=True, timeout=300)
+    report = run.stdout + run.stderr
+    assert run.returncode == 0, report[-3000:]
+    for passed in ('test_the_logo_is_unchanged_on_a_high_density_display',
+                   'test_the_brand_marks_are_spaced_by_the_brand_gap_from_ink[0]',
+                   'test_the_brand_marks_are_spaced_by_the_brand_gap_from_ink[1720]'):
+        assert 'PASSED test/UI/test_header.py::%s' % passed in report, report[-3000:]
+    assert 'SKIPPED' in report and 'the low-density logo is measured in the DPR 1 run' in report, report[-3000:]

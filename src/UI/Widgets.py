@@ -1095,7 +1095,7 @@ class Stat_Cell_Cls(QWidget):
 
         Args:
             (1) text [string]: The value text.
-            (2) color [string]: Optional text colour.
+            (2) color [string]: Optional status colour; the words are drawn in its Style.Status_Text_Color.
             (3) dot_color [string]: Optional leading-dot colour (rich text).
             (4) weight [int]: Optional QFont weight; None keeps the cell's own weight.
         """
@@ -1104,12 +1104,14 @@ class Stat_Cell_Cls(QWidget):
             font = self.__value.font()
             font.setWeight(weight)
             self.__value.setFont(font)
-        self.__value.setStyleSheet('color: %s;' % (color or Style.CONST_INK))
+        # The words take the status colour's text twin (Status_Text_Color); the dot keeps the colour.
+        ink = Style.Status_Text_Color(color or Style.CONST_INK)
+        self.__value.setStyleSheet('color: %s;' % ink)
         self.__value.setText(('●  ' if dot_color else '') + text)
         if dot_color:
             self.__value.setText(
                 '<span style="color:%s">●</span>&nbsp;&nbsp;'
-                '<span style="color:%s">%s</span>' % (dot_color, color or Style.CONST_INK, text)
+                '<span style="color:%s">%s</span>' % (dot_color, ink, text)
             )
             self.__value.setTextFormat(Qt.RichText)
 

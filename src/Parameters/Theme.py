@@ -45,8 +45,11 @@ CONST_CARD          = '#ffffff'   # card fill
 CONST_CARD_BORDER   = '#e6e4ef'   # violet-tinted card outline
 CONST_INK           = '#2b2455'   # deep indigo: primary text, and the primary button
 CONST_INK_SOFT      = '#4a4180'   # mid violet: secondary text, object sentences
-CONST_INK_MUTE      = '#8983a6'   # desaturated violet-grey: labels, empty states, disclaimer
+CONST_INK_MUTE      = '#706a8c'   # desaturated violet-grey: labels, empty states, timestamps
 CONST_LINE          = '#ecebf2'   # violet-tinted dividers
+# CONST_INK_MUTE is text, so it clears 4.5:1 on every light ground it is set on: 5.09:1 on the card,
+# 4.69:1 on the control hover and 4.60:1 on the page. It was '#8983a6' (3.58:1 on the card, 3.24:1 on the
+# page) until 2026-09-29; the new value keeps its LCh hue and chroma and lowers only L* (56.4 -> 46.6).
 
 CONST_BRAND         = '#ff005c'   # EDIH-DIGIMAT magenta: object 1 and focus only
 
@@ -68,10 +71,11 @@ CONST_ON_INK                  = '#ffffff'  # the label on any CONST_INK-family f
 CONST_CONTROL_DISABLED_TEXT   = '#b6b2ca'  # label of a disabled segment / plain button (2.06:1 on white)
 CONST_CONTROL_DISABLED_BORDER = CONST_LINE # the outline fades to the divider tone
 CONST_PRIMARY_DISABLED_FILL   = '#cbc8db'  # disabled primary (ANALYZE) fill
-# The disabled primary label is the existing muted ink, not a near-white: exempt from 4.5:1 means the
-# FILL signals 'disabled' (ΔE 68 from enabled), not that the label should vanish. 2.19:1 on the fill
-# reads as muted, not active. It was '#f2f1f6' (1.46:1), which was never a chosen pairing.
-CONST_PRIMARY_DISABLED_TEXT   = CONST_INK_MUTE
+# The disabled primary label is a muted ink, not a near-white: exempt from 4.5:1 means the FILL signals
+# 'disabled' (ΔE 68 from enabled), not that the label should vanish. 2.19:1 on the fill reads as muted,
+# not active. It was '#f2f1f6' (1.46:1), which was never a chosen pairing. It is the muted ink's value
+# before CONST_INK_MUTE was darkened for text contrast, kept so the disabled control looks as it did.
+CONST_PRIMARY_DISABLED_TEXT   = '#8983a6'
 
 # The scrim laid over the window behind a modal dialog: the brand ink at low opacity, so the window
 # recedes without going dark and the dialog reads as the one thing to act on.
@@ -113,8 +117,17 @@ CONST_WARN_INK      = '#b45309'
 CONST_WARN_SOFT     = '#fdf8ef'
 CONST_WARN_BORDER   = '#f3e2c3'
 
+# The text colour of a status colour. CONST_OK (3.30:1 on the card) and CONST_WARN (3.19:1) are bright
+# enough for a dot or an outline, not for words: a status word is drawn in the colour's _INK twin
+# (5.02:1 each) while its dot keeps the bright colour. Every other colour is its own text colour.
+#   Unit [Dict<string, string>]
+CONST_STATUS_TEXT_COLORS = {CONST_OK: CONST_OK_INK, CONST_WARN: CONST_WARN_INK}
+
 CONST_VIEWPORT      = '#2b2455'   # the one dark surface in the console: the brand indigo
 CONST_VIEWPORT_TEXT = '#9b95bd'   # readable lavender-grey on the indigo viewport
+# Error text on the indigo viewport (a failed set's History thumbnail). CONST_LOG_ERROR is 2.18:1 there;
+# this is its LCh hue at a higher lightness (L* 40.0 -> 61.0, same chroma), 4.61:1 on CONST_VIEWPORT.
+CONST_ERROR_ON_DARK = '#fc5e4c'
 
 # The deep-indigo funding band tokens.
 CONST_BAND          = '#2b2455'   # deep-indigo funding band
@@ -269,6 +282,23 @@ def Log_Level_Color(level: str) -> str:
     """
 
     return CONST_LOG_LEVEL_COLORS.get(level, CONST_LOG_INFO)
+
+
+def Status_Text_Color(color: str) -> str:
+    """
+    Description:
+        The colour a status word is drawn in for a status colour: the _INK twin of CONST_OK and
+        CONST_WARN (from CONST_STATUS_TEXT_COLORS), every other colour unchanged. The widgets that put
+        a status colour on words read this, so a call site passes the status colour itself.
+
+    Args:
+        (1) color [string]: The status colour token.
+
+    Returns:
+        (1) parameter [string]: The token to draw the words in.
+    """
+
+    return CONST_STATUS_TEXT_COLORS.get(color, color)
 
 def Hex_To_Rgb(hex_color: str) -> tp.Tuple[int, int, int]:
     """

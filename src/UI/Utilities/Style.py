@@ -46,9 +46,9 @@ from Parameters.Theme import (                                             # noq
     CONST_BUSY_SCRIM, CONST_BUSY_SCRIM_ALPHA, CONST_BUSY_INK, CONST_BUSY_TRACK, CONST_BUSY_TRACK_ALPHA,
     CONST_THUMB_HIGHLIGHT, CONST_THUMB_HIGHLIGHT_FILL_ALPHA, CONST_TOPBAR_DIVIDER, CONST_SCROLLBAR_HANDLE,
     CONST_OK_SOFT, CONST_OK_BORDER, CONST_WARN, CONST_WARN_INK, CONST_WARN_SOFT,
-    CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_BAND,
+    CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_ERROR_ON_DARK, CONST_BAND,
     CONST_BAND_LINE, CONST_BAND_TEXT,
-    CONST_LOG_INFO, CONST_LOG_WARNING, CONST_LOG_ERROR, Log_Level_Color)
+    CONST_LOG_INFO, CONST_LOG_WARNING, CONST_LOG_ERROR, Log_Level_Color, Status_Text_Color)
 
 """
 Description:
@@ -70,6 +70,15 @@ CONST_RADIUS_BTN    = 11
 CONST_GAP           = 16          # gap between cards, everywhere
 CONST_MARK_GAP      = 32          # gap between brand marks and either side of the divider between them
 CONST_LOGO_HEIGHT   = 54          # the top bar's AnyScan lockup height
+# Below this device pixel ratio a display is low density (a 1x monitor): Is_Low_Density.
+#   Unit [float]
+CONST_LOW_DENSITY_DPR = 1.5
+# The lockup height on a low-density display. At 54 px the corner brackets (4 units, 1.24 px) and the
+# connector (3 units, 0.93 px) never cover a whole pixel; at 59 px (0.339 px per unit) both land on one,
+# and the mark's full-contrast ink rises from 0.38 to 0.52 of its pixels. A 2x display already draws every
+# stroke over two device pixels or more, so it keeps CONST_LOGO_HEIGHT.
+#   Unit [int] (logical px)
+CONST_LOGO_HEIGHT_LOW_DENSITY = 59
 
 # Busy-indicator animation, driven by a QTimer in the viewport while the worker
 # runs. Kept here so the whole console's tunable values live in one place.
@@ -223,6 +232,46 @@ def Confidence_Number_Html(number: str, percent: tp.Optional[float],
         return number
     return '<span style="color: %s; font-weight: %d;">%s</span>' % (
         Log_Level_Color(level), CONST_LEVEL_CSS_WEIGHTS[level], number)
+
+
+def Is_Low_Density(widget: QWidget) -> bool:
+    """
+    Description:
+        Whether a widget is drawn on a low-density display: its device pixel ratio below
+        CONST_LOW_DENSITY_DPR. This is the one density check; a style that differs by density asks it.
+
+        Note:
+            The ratio is the widget's own (devicePixelRatioF), which Qt 5.15 takes from the screen of
+            the widget's top-level window once that window has a native handle (it is shown). Before
+            that — which is when the window builds its widgets — Qt returns the application's ratio,
+            the highest of all screens, so a machine with a Retina and a 1x screen counts as high
+            density. The answer is read once, where a style is built; nothing re-evaluates it when
+            the window moves to a screen of another ratio.
+
+    Args:
+        (1) widget [QWidget(object)]: The widget the style is for.
+
+    Returns:
+        (1) parameter [bool]: True below CONST_LOW_DENSITY_DPR.
+    """
+
+    return widget.devicePixelRatioF() < CONST_LOW_DENSITY_DPR
+
+
+def Logo_Height(widget: QWidget) -> int:
+    """
+    Description:
+        The top bar's lockup height for the display a widget is drawn on: CONST_LOGO_HEIGHT_LOW_DENSITY
+        on a low-density display (Is_Low_Density), CONST_LOGO_HEIGHT otherwise.
+
+    Args:
+        (1) widget [QWidget(object)]: The widget the lockup is placed in.
+
+    Returns:
+        (1) parameter [int]: The height in logical pixels.
+    """
+
+    return CONST_LOGO_HEIGHT_LOW_DENSITY if Is_Low_Density(widget) else CONST_LOGO_HEIGHT
 
 
 def Scroll_Style(framed: bool) -> str:

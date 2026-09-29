@@ -1579,7 +1579,7 @@ Tests `test/UI/test_brand_figures.py` (`test_the_three_logo_copies_are_identical
 `<text>`: the wordmark, the tagline and the index "1" are paths, set in Inter 400. It has no
 `<style>`, no `marker` (the arrowhead is not drawn, as the app always showed it), and no C2PA
 metadata. The viewBox is the ink bounds plus 5 units on every side, which keeps the height at 174
-so the top bar's `Style.CONST_LOGO_HEIGHT` (54 px) lockup keeps its scale.
+so the top bar's `Style.CONST_LOGO_HEIGHT` (54 px) lockup keeps its scale. (59 px on a low-density display since 2026-09-29: *The logo is 59 px on a low-density display*.)
 
 It is built, never edited: `python Example/UI/build_logo.py` outlines the text source
 `images/source/anyscan-logo-text.svg` and writes both copies (`--output PATH` writes one file,
@@ -1967,3 +1967,77 @@ Tests `test/Vision/test_core.py::test_a_configuration_load_warms_up_what_the_fir
 as painted); commit `fd369e4`. The load and warm-up log lines:
 `test/UI/test_timing_log.py::test_a_configuration_load_logs_each_model_and_the_warm_up`,
 `::test_a_warm_up_that_stops_early_is_a_warning`, `::test_the_first_analysis_after_each_load_is_marked`.
+
+## The logo is 59 px on a low-density display
+
+Below a device pixel ratio of 1.5 the top bar draws the AnyScan lockup 59 px tall
+(`Style.CONST_LOGO_HEIGHT_LOW_DENSITY`); at 1.5 and above it stays 54 px (`Style.CONST_LOGO_HEIGHT`).
+`Style.Logo_Height(widget)` chooses, through `Style.Is_Low_Density(widget)`, the one density check: the
+widget's `devicePixelRatioF()` below `Style.CONST_LOW_DENSITY_DPR` (1.5). The spacing to the divider is
+still measured from ink (`Style.Ink_Insets`), so the 32 px gap holds at both heights.
+
+How the ratio is read, and its limit: Qt 5.15 gives a widget the ratio of its top-level window's screen
+once that window has a native handle. The header is built before the window is shown, so what it reads
+is the application's ratio, which Qt 5 takes as the highest of all screens: a machine with a Retina and
+a 1x screen gets the 54 px logo on both. The height is read once, when the header is built; nothing
+re-reads it when the window moves to a screen of another ratio. That belongs to mixed-DPR support,
+which this does not add.
+
+**Why.** At 54 px (0.310 px per unit) the corner brackets are 1.24 px wide and the connector 0.93 px, and
+neither covers a whole pixel: their brightest pixels reach 0.66 and 0.53 coverage, so on a 1x monitor
+the mark reads soft. Across 48–64 px, 59 is the smallest height where both land on a whole pixel
+(peak 1.00 and 0.99); the share of the mark's ink at full contrast rises from 0.38 to 0.52 and its edge
+width falls from 2.9 to 1.6 px. The wordmark stems are 2.2 px at 54 and were never the problem. The
+tagline stays soft at every height in range (its 15 stems sit at 15 sub-pixel phases; best full-contrast
+share 0.17 at 64). 57 and 62 were rendered as the alternatives: 57 leaves the brackets at 0.95, 62
+drops the connector to 0.60. A grid-fitted 1x logo file was estimated at 1–1.5 days plus upkeep for a
+gain 59 px gives without it. At DPR 2 every stroke already spans two device pixels or more, so the Mac
+header is unchanged (the logo pixmap is `Load_Svg` at 54 px, identical pixels). The top bar is 5 px
+taller at 1x (92 → 97 px); the minimum window width does not change (1406 px). Measured 2026-09-29 on
+a 27" 1920 × 1080 monitor (81 ppi), offscreen renders checked pixel-identical against the xcb platform.
+
+**Revisit if** the logo is redesigned (its stroke widths change what lands on a pixel), if
+`CONST_LOGO_HEIGHT` changes, or when the window re-reads its screen's ratio on a screen change: then
+the height must follow it, not the ratio at build time.
+Tests `test/UI/test_header.py::test_the_logo_is_59_px_on_a_low_density_display`,
+`::test_the_logo_is_unchanged_on_a_high_density_display` and `::test_the_header_is_measured_again_at_dpr_2`
+(the module run again at `QT_SCALE_FACTOR=2`), with `::test_the_brand_marks_are_spaced_by_the_brand_gap_from_ink`
+at both ratios. At DPR 1 the gap test's ±1 px cannot see a missing ink inset (1.7 px at 59 px); the DPR 2
+run does (measured 33.5 px).
+
+## Text clears 4.5:1 on its ground: the muted ink, status words and error text on the viewport
+
+Every enabled text in the console is at least 4.5:1 (WCAG AA) against the ground it is drawn on, at any
+density. Three changes, all in `Parameters/Theme.py`:
+
+- `CONST_INK_MUTE` is `#706a8c` (was `#8983a6`): the same LCh hue and chroma at L* 46.6 instead of
+  56.4. 5.09:1 on the card, 4.69:1 on the control hover, 4.60:1 on the page (was 3.58, 3.29, 3.24).
+- A status word is drawn in its colour's text twin: `Theme.Status_Text_Color` maps `CONST_OK` to
+  `CONST_OK_INK` and `CONST_WARN` to `CONST_WARN_INK` (`CONST_STATUS_TEXT_COLORS`), 5.02:1 each (was
+  3.30 and 3.19). The two widgets that put a status colour on words read it: `Stat_Cell_Cls.Set_Value`
+  and the header pill's `__Pill_Style`. The status cell's dot keeps the bright colour (a graphic, held
+  to 3:1). The call sites still pass the status colour.
+- `CONST_ERROR_ON_DARK` (`#fc5e4c`, `CONST_LOG_ERROR`'s hue lightened) for red text on the indigo
+  viewport, the failed set's History thumbnail: 4.61:1 (was 2.18:1 with `CONST_LOG_ERROR`).
+
+`CONST_PRIMARY_DISABLED_TEXT` keeps the old muted value `#8983a6` as its own literal, so the disabled
+ANALYZE label looks as it did. Disabled controls stay exempt (see *Control stylesheets*). The JIC mark
+(`brand-jic-mute.png`) is artwork tinted with the old value and is not re-tinted.
+`images/anyscan-architecture.svg` takes `CONST_INK_MUTE` from the theme and was regenerated.
+
+**Why.** The 2026-09-29 audit of every text style found 38 flagged on a 1x monitor; 23 of them were
+`CONST_INK_MUTE` as a text colour (status-strip labels, the "Configuration not loaded." chip, empty
+states, timestamps, History's notes and captions), and the status words were in the bright verdict
+colours. Contrast is defined on colour values, so it applies at every density; a 1x screen makes it
+worse, because anti-aliasing leaves small text below its token's contrast (a 10 px label in the old muted
+ink rendered at 3.40:1 at DPR 1, 3.58:1 at DPR 2). A density-dependent palette was rejected: the theme
+is the one Qt-free palette the vision renderer and the diagram share. The Mac look changes: muted text is
+darker. The failed-set thumbnail cannot be reached in the application today (found 2026-09-29, not
+fixed here): a partial set's metadata carries no run id, and History lists only the current run's sets;
+the test renders the thumbnail widget itself.
+
+**Revisit if** a text colour or a ground changes, or a new surface carries text: the test measures what
+is drawn, so a new pair below 4.5:1 fails it.
+Tests `test/UI/test_text_contrast.py::test_every_enabled_text_clears_the_floor`,
+`::test_every_text_ground_is_a_theme_token`, `::test_every_flagged_text_was_measured` (one text of every
+flagged style reached); buttons in every state are measured by `test/UI/test_control_contrast.py`.
