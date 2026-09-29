@@ -24,11 +24,11 @@ Analysis defaults: objects=[] note='' latency_ms=0 verdict='Idle' verdict_level=
 
 -- label distiller (Condense_Label) --
   Image_007 obj 1  -> 'rectangular flat plate'
-  Image_001 obj 5  -> 'white rectangular plastic component'
+  Image_001 obj 5  -> 'white rectangular plastic or ceramic component'
   Image_001 obj 1  -> 'circular ring'
-  Image_001 obj 6  -> 'metallic bolt'
-  Image_001 obj 2  -> 'somewhat amorphous plastic part'
-  Image_001 obj 7  -> 'roughly octagonal metal washer'
+  Image_001 obj 6  -> 'metallic bolt or screw'
+  Image_001 obj 2  -> 'somewhat amorphous plastic or rubber-like part'
+  Image_001 obj 7  -> 'roughly octagonal metal washer or flange'
   empty            -> 'object'
 
 -- segmentation --

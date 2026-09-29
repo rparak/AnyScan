@@ -24,7 +24,7 @@
 # Custom Lib.: AnyScan domain — report composer (the label vocabulary lives there)
 #   ../Reporting/Core
 from Reporting.Core import (CONST_LABEL_OPENERS, CONST_LABEL_BOUNDARIES, CONST_LABEL_HEDGES,
-                            CONST_LABEL_MAX_WORDS)
+                            CONST_LABEL_MAX_WORDS, CONST_LABEL_ALTERNATIVE_WORDS)
 
 """
 Description:
@@ -55,19 +55,21 @@ def Condense_Label(caption: str) -> str:
     """
 
     text = ' '.join(caption.split()).strip().rstrip('.')
-    # Gemma opens 'The object is a …': peel the opener so the front is the noun phrase itself.
+    # Gemma opens 'The object is a …' or 'This is a …': peel the opener so the front is the noun
+    # phrase itself. Longest first, so 'the part is shaped like' wins over 'the part is'.
     low = text.lower()
-    for opener in CONST_LABEL_OPENERS:
+    for opener in sorted(CONST_LABEL_OPENERS, key=len, reverse=True):
         if low.startswith(opener):
             text = text[len(opener):].lstrip(' ,')
             break
 
-    # Join the comma-separated adjective run; stop at a comma that opens a new clause.
+    # Join the comma-separated adjective run; stop at a comma that opens a new clause: an '-ing'
+    # participle, but not a hyphenated adjective ('metallic-looking object' is one phrase).
     segments = [segment.strip() for segment in text.split(',')]
     phrase = segments[0]
     for segment in segments[1:]:
         first = segment.split()[0].lower() if segment.split() else ''
-        if not first or first.endswith('ing') or first in CONST_LABEL_HEDGES:
+        if not first or (first.endswith('ing') and '-' not in first) or first in CONST_LABEL_HEDGES:
             break
         phrase += ' ' + segment
     text = phrase
@@ -80,12 +82,10 @@ def Condense_Label(caption: str) -> str:
             cut = min(cut, idx)
     text = text[:cut].strip(' ,')
 
-    # Coordination: one word after 'or' is an alternative noun (dropped with 'or'); more words
-    # mean 'or' joined modifiers in front of the noun (only 'or <modifier>' is dropped).
-    before, joined, after = text.partition(' or ')
-    if joined:
-        rest = after.split()
-        text = before if len(rest) <= 1 else ' '.join([before] + rest[1:])
+    # Coordination: 'or' is kept, with its alternative ('washer or cap', 'plastic or ceramic
+    # component'): it is the model's hedge, and the label must not state more than the text does.
+    # The cap below keeps CONST_LABEL_ALTERNATIVE_WORDS more words for it.
+    alternative = ' or ' in text
 
     for article in ('a ', 'an ', 'the '):
         if text.lower().startswith(article):
@@ -100,5 +100,6 @@ def Condense_Label(caption: str) -> str:
     while (len(words) > 1 and '-' not in words[-1] and len(words[-1]) >= 5
            and words[-1].lower().endswith('ed')):
         words.pop()
-    text = ' '.join(words[-CONST_LABEL_MAX_WORDS:]).strip(' ,.')
+    keep = CONST_LABEL_MAX_WORDS + (CONST_LABEL_ALTERNATIVE_WORDS if alternative else 0)
+    text = ' '.join(words[-keep:]).strip(' ,.')
     return text.lower() if text else 'object'

@@ -44,7 +44,7 @@ def test_condense_label_peels_gemmas_opener_but_the_line_keeps_it() -> None:
 
     assert Caption.Condense_Label('The object is a rectangular metallic plate, appearing silver.') == \
         'rectangular metallic plate'
-    assert Caption.Condense_Label('The part appears to be a metallic bolt or screw.') == 'metallic bolt'
+    assert Caption.Condense_Label('The part appears to be a metallic bolt or screw.') == 'metallic bolt or screw'
     assert Reporting.Clean_Detail('The object is a circular ring.') == 'The object is a circular ring.'
 
 
@@ -53,16 +53,15 @@ def test_condense_label_takes_the_phrase_up_to_its_head_noun() -> None:
     Description:
         The label runs up to the head noun, which ends an English noun phrase: a comma between
         adjectives does not cut it ('a rectangular, flat plate' was 'rectangular'); a comma that
-        opens a clause (an '-ing' participle, a hedge) does. One word after 'or' is an alternative
-        noun and goes; more words mean 'or' joined modifiers, and only 'or <modifier>' goes. The
-        last words are kept, where the noun is. Part names ending in '-ing' and short '-ed' words
-        (a colour) are never dropped as participles.
+        opens a clause (an '-ing' participle, a hedge) does. An alternative after 'or' is kept, the
+        model's hedge. The last words are kept, where the noun is. Part names ending in '-ing' and
+        short '-ed' words (a colour) are never dropped as participles.
     """
 
     cases = {'The object is a rectangular, flat plate of a bright, silvery-grey metal.': 'rectangular flat plate',
-             'a stainless steel washer or spacer.': 'stainless steel washer',
+             'a stainless steel washer or spacer.': 'stainless steel washer or spacer',
              'The object is a small, white, rectangular plastic or ceramic component with holes.':
-                 'white rectangular plastic component',
+                 'white rectangular plastic or ceramic component',
              'The object is a rectangular, metallic plate, likely steel.': 'rectangular metallic plate',
              'The object is a rectangular, flat part rendered in a uniform red.': 'rectangular flat part',
              'The object is a circular ring, appearing to be made of metal.': 'circular ring',
@@ -70,6 +69,41 @@ def test_condense_label_takes_the_phrase_up_to_its_head_noun() -> None:
              'a small red block.': 'small red block'}
     for caption, label in cases.items():
         assert Caption.Condense_Label(caption) == label, caption
+
+
+def test_condense_label_names_the_part_in_the_phrasings_that_broke_it() -> None:
+    """
+    Description:
+        The descriptions whose labels named no part (E4B 4-bit, E4B 8-bit and Gemma 12B on the eight
+        test frames, 2026-09-29): "This is a ..." and "The part consists of ..." are openers, not the
+        phrase; a participle after the noun ("rendered in", "pointing to") and a bare " in " end it; a
+        hyphenated adjective ("metallic-looking") does not end the adjective run.
+    """
+
+    cases = {'This is a small, stylized robot figure, predominantly white with blue accents.':
+                 'robot figure predominantly white',
+             'The part consists of four rectangular, white plastic strips arranged in a line.':
+                 'rectangular white plastic strips',
+             'The object is a flat, arrow-shaped piece rendered in vibrant blues and purples.': 'flat arrow-shaped piece',
+             'The part is shaped like a thick, stylized arrow pointing to the right.': 'thick stylized arrow',
+             'The part is a single, dark blue, metallic-looking object with a pointed top.':
+                 'dark blue metallic-looking object'}
+    for caption, label in cases.items():
+        assert Caption.Condense_Label(caption) == label, caption
+
+
+def test_condense_label_keeps_the_models_alternative() -> None:
+    """
+    Description:
+        "washer or cap" stays "washer or cap": the label keeps the model's hedge instead of stating the
+        first name as certain (E4B 4-bit's large washers, 2026-09-29), within its word cap plus the
+        alternative's words.
+    """
+
+    assert Caption.Condense_Label('The object is a circular, metallic washer or cap, appearing dull.') == \
+        'circular metallic washer or cap'
+    label = Caption.Condense_Label('The object is a one two three four five six washer or cap.')
+    assert len(label.split()) <= Caption.CONST_LABEL_MAX_WORDS + Caption.CONST_LABEL_ALTERNATIVE_WORDS
 
 
 def test_condense_label_empty_is_object() -> None:

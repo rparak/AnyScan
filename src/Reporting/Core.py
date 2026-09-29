@@ -75,8 +75,9 @@ CONST_EMPTY_SCENE_EXPLANATION = (
 #   Unit [Tuple<string>]
 CONST_LABEL_OPENERS = (
     "the object appears to be", "the part appears to be", "the item appears to be",
+    "the object is shaped like", "the part is shaped like", "the object consists of", "the part consists of",
     "the object is", "this object is", "the part is", "this part is",
-    "the item is", "this item is", "the component is", "this component is",
+    "the item is", "this item is", "the component is", "this component is", "this is", "it is",
 )
 
 # The label is the noun phrase UP TO ITS HEAD NOUN, which in English comes last in the phrase:
@@ -90,21 +91,23 @@ CONST_LABEL_OPENERS = (
 CONST_LABEL_HEDGES = ('likely', 'possibly', 'probably', 'perhaps', 'apparently', 'presumably')
 
 # The clause boundaries the label distiller cuts the joined phrase at. ' of ' ends it ('plate of
-# bright metal'); commas are handled by the rule above; ' or ' by Condense_Label's coordination
-# rule (a single word after it is an alternative noun and is dropped with it — 'washer or spacer'
-# -> 'washer'; more words mean it joined modifiers — 'plastic or ceramic component' -> 'plastic
-# component').
+# bright metal'), and so does a bare ' in ' or a participle that follows the noun ('piece rendered in
+# vibrant blues', 'arrow pointing to the right'); commas are handled by the rule above. ' or ' is
+# kept: 'washer or cap' stays 'washer or cap', the model's own hedge, which the label must not turn
+# into certainty (docs/design-decisions.md, "The object label keeps the model's alternatives").
 #   Unit [Tuple<string>]
 CONST_LABEL_BOUNDARIES = (
     " is ", " are ", " was ", " with ", " that ", " which ", " has ",
     " have ", " sitting", " lying", " laying", " placed", " resting",
     " standing", " scattered", " showing", " appears", " against ", " next to",
     " on top", " on a ", " on an ", " on the ", " in the ", " in a ", " in an ",
-    " across ", " and ", " of ",
+    " across ", " and ", " of ", " in ", " rendered", " pointing", " appearing", " featuring",
 )
 
-# The most words the distilled label keeps — the LAST ones, where the head noun is.
+# The most words the distilled label keeps — the LAST ones, where the head noun is — and the
+# extra words it keeps for an alternative ('or <noun>'), so the hedge survives the cap.
 CONST_LABEL_MAX_WORDS = 4
+CONST_LABEL_ALTERNATIVE_WORDS = 2
 
 # ---- No background strip -------------------------------------------------------- #
 # Object descriptions are NOT stripped of the background any more. The strip existed because

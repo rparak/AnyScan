@@ -2282,3 +2282,32 @@ answers, and each scoring rule, including `::test_a_wrong_name_after_the_first_s
 `::test_a_material_outside_metal_and_plastic_is_wrong_alone`, `::test_a_plural_synonym_counts`); the run
 itself needs the weights and is the script, not a test.
 
+## The object label keeps the model's alternatives, and reads the phrasings that broke it
+
+`Condense_Label` (`src/Vision/Utilities/Caption.py`), the short label the session log writes as
+`Object detected: type=...` (and the panel shows only when a description is empty), now:
+- keeps an alternative after "or" ("circular metallic washer or cap"), with
+  `CONST_LABEL_ALTERNATIVE_WORDS` (2) more words than `CONST_LABEL_MAX_WORDS`, instead of dropping it and
+  stating the first name as certain;
+- peels "This is a", "It is a", "The part consists of" and "The part is shaped like" as openers, longest
+  first (`CONST_LABEL_OPENERS`, `src/Reporting/Core.py`);
+- ends the phrase at a bare " in " and at a participle after the noun (" rendered", " pointing",
+  " appearing", " featuring"; `CONST_LABEL_BOUNDARIES`);
+- does not end the adjective run at a hyphenated "-ing" word ("metallic-looking object").
+
+**Why.** In the real window (`docs/evidence/label-2026-09-29/`: grabs of Image_003 and Image_005 and their
+log lines) the label only reaches the log; History stores the full description and no label. There it
+read `type=this` for "This is a small, stylized robot figure", and `type=circular metallic washer` for
+"washer or cap". On the 111 descriptions of three describers (E4B 4-bit and 8-bit, the 12B) the old rules
+left 6 / 12 / 1 labels that name no part; these leave 3 / 4 / 0. Scored against the answer key (37
+objects) the E4B 4-bit label goes from 17 / 3 / 17 to 14 / 3 / 20 (correct / wrong / not stated): the six
+kept hedges ("washer or cap") are not stated by design, as in the description scores, and every other
+"not stated" is a generic word ("circular", "part"), checked by hand. Asking the model for a "Name:" line
+instead (a prompt change) was measured and rejected: 10 of its 37 names were wrong ("Dental impression
+tray", "Electronic Connector"), and it changes every stored description.
+
+**Revisit if** the describer's phrasing changes (a new model or prompt), or something other than the log
+starts to show the label.
+Tests `test/Vision/Utilities/test_caption.py::test_condense_label_names_the_part_in_the_phrasings_that_broke_it`,
+`::test_condense_label_keeps_the_models_alternative`, and the characterization baseline
+`test/Vision/test_characterize.py` (its four label lines now keep the alternative).
