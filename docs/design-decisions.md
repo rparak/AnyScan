@@ -2285,6 +2285,9 @@ answers, and each scoring rule, including `::test_a_wrong_name_after_the_first_s
 `::test_a_material_outside_metal_and_plastic_is_wrong_alone`, `::test_a_plural_synonym_counts`); the run
 itself needs the weights and is the script, not a test.
 
+**No longer supported (2026-09-29):** Gemma 4 12B and E4B 8-bit. `gemma-4-e4b-it-4bit` is the only describer;
+`./install.sh --model` was removed. The comparisons above remain the evidence for the choice.
+
 ## The object label keeps the model's alternatives, and reads the phrasings that broke it
 
 `Condense_Label` (`src/Vision/Utilities/Caption.py`), the short label the session log writes as
