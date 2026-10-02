@@ -5,14 +5,14 @@
   <!-- ===== Mark: locate the object (box) -> describe it (text) ===== -->
   <g transform="translate(40,44)">
     <!-- camera scan frame: corner brackets -->
-    <g fill="none" stroke="#0f172a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <g fill="none" stroke="#2b2455" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
       <path d="M 6,34 V 12 a 6,6 0 0 1 6,-6 h 22" />
       <path d="m 158,6 h 22 a 6,6 0 0 1 6,6 v 22" />
       <path d="m 186,138 v 22 a 6,6 0 0 1 -6,6 h -22" />
       <path d="M 34,166 H 12 a 6,6 0 0 1 -6,-6 v -22" />
     </g>
     <!-- the located OBJECT: a machined part with drilled holes -->
-    <path fill-rule="evenodd" fill="#0f172a" stroke="#0f172a" stroke-width="2.5" stroke-linejoin="round" d="M 40,108 V 78 a 6,6 0 0 1 6,-6 H 60 V 58 a 6,6 0 0 1 6,-6 h 12 a 6,6 0 0 1 6,6 v 50 a 6,6 0 0 1 -6,6 H 46 a 6,6 0 0 1 -6,-6 z M 51,96 a 5,5 0 1 0 10,0 5,5 0 1 0 -10,0 z m 18,0 a 5,5 0 1 0 10,0 5,5 0 1 0 -10,0 z M 68,62 a 4,4 0 1 0 8,0 4,4 0 1 0 -8,0 z" />
+    <path fill-rule="evenodd" fill="#2b2455" stroke="#2b2455" stroke-width="2.5" stroke-linejoin="round" d="M 40,108 V 78 a 6,6 0 0 1 6,-6 H 60 V 58 a 6,6 0 0 1 6,-6 h 12 a 6,6 0 0 1 6,6 v 50 a 6,6 0 0 1 -6,6 H 46 a 6,6 0 0 1 -6,-6 z M 51,96 a 5,5 0 1 0 10,0 5,5 0 1 0 -10,0 z m 18,0 a 5,5 0 1 0 10,0 5,5 0 1 0 -10,0 z M 68,62 a 4,4 0 1 0 8,0 4,4 0 1 0 -8,0 z" />
     <!-- BOUNDING BOX locating the object -->
     <path d="m 33,44 h 60 c 1.662,0 3,1.338 3,3 v 72 c 0,1.662 -1.338,3 -3,3 H 33 c -1.662,0 -3,-1.338 -3,-3 V 47 c 0,-1.662 1.338,-3 3,-3 z" fill="none" stroke="#d6006e" stroke-width="3" />
     <!-- index tag on the box -->
