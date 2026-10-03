@@ -39,11 +39,11 @@ from PyQt5.QtWidgets import QApplication, QLabel
 from UI.Core import AnyScan_Window_Cls
 # Custom Lib.: AnyScan domain — the camera, the logger, the export, the configuration
 #   ../Camera/Core
-from Camera.Core import File_Camera_Cls
+from Camera.Core import File_Camera_Cls, Camera_Error_Cls
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
 #   ../Logger/Station_Events
-from Logger.Station_Events import Export_Pending
+from Logger.Station_Events import Read_Events, Export_Pending
 #   ../Configuration/Core
 from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE, CONST_PROJECT_ROOT
 
@@ -51,8 +51,8 @@ from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE, CO
 Description:
     Every way the application ends a camera connection reaches the station event file — through the
     window's real handlers and the launcher's real export wiring (App/run.py, Export_Station_Events),
-    read back from the files on disk: closing while connected, and a CONNECT that fails (which writes
-    nothing). And a failure
+    read back from the files on disk: closing while connected, a connection lost at a Scan and one the
+    connection check finds with no Scan, and a CONNECT that fails (which writes nothing). And a failure
     exporting an earlier log at startup reaches the status strip as a logged error.
 """
 # The shipped configuration, unscaled.
@@ -116,6 +116,16 @@ def _Connect(window: AnyScan_Window_Cls) -> None:
     _Pump_Until(lambda: not _Private(window, '__worker_running'))
 
 
+def _Unplug(camera: File_Camera_Cls) -> None:
+    """Pull the cable: the device reports removed and a grab fails. Nothing here disconnects it."""
+
+    def _Grab() -> None:
+        raise Camera_Error_Cls('The camera did not return a frame in time.')
+
+    camera._Device_Removed = lambda: True
+    camera._Grab = _Grab
+
+
 def _Exported(events: str) -> tp.List[str]:
     """The event types in the daily files, oldest file first, as written."""
     rows = []
@@ -149,16 +159,61 @@ def test_closing_the_window_while_connected_writes_cycle_done_before_station_off
     assert _Exported(events) == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE', 'STATION_OFF']
 
 
+def test_a_connection_lost_with_no_scan_is_closed_by_the_connection_check(qt_app, run, tmp_path,
+                                                                         reference_background_path) -> None:
+    """
+    Description:
+        The cable is pulled while nobody scans. The connection check, running since CONNECT, finds the
+        device gone within its interval: the connection is closed (the Camera cell reads Disconnected),
+        the loss is logged as an ERROR, the check stops, and the cycle is closed then — before the
+        application stops, not at its close.
+    """
+
+    window, logger, events = _Station(tmp_path, run, reference_background_path)
+    _Connect(window)
+    timer = _Private(window, '__connection_timer')
+    assert timer.isActive()
+    _Unplug(_Private(window, '__camera'))
+    _Pump_Until(lambda: not _Private(window, '__camera').Connected, timeout=3 * window.CONST_CONNECTION_CHECK_MS / 1000)
+    assert not _Private(window, '__camera').Connected and not timer.isActive()
+    assert _Cell_Text(window, 'camera') == '● Disconnected'
+    with open(logger.Path, 'r', encoding='utf-8') as handle:
+        log = handle.read()
+    assert '[ERROR  ] The camera connection was lost (%s)' % window.CONST_CONNECTION_LOST_MESSAGE in log
+    assert [event.Event_Type for event in Read_Events(logger.Path)] == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE']
+    window.close()
+    assert _Exported(events) == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE', 'STATION_OFF']
+
+
+def test_a_connection_lost_at_a_scan_closes_the_cycle(qt_app, run, tmp_path, reference_background_path) -> None:
+    """
+    Description:
+        The cable is pulled and the operator presses Scan before the check ticks: the failed grab on a
+        removed device closes the connection, so the Scan reports a lost connection and the cycle closes
+        there; the check is stopped with it.
+    """
+
+    window, logger, events = _Station(tmp_path, run, reference_background_path)
+    _Connect(window)
+    _Unplug(_Private(window, '__camera'))
+    _Private(window, '__On_Scan_Button_Clicked')()
+    assert not _Private(window, '__connection_timer').isActive()
+    assert [event.Event_Type for event in Read_Events(logger.Path)] == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE']
+    window.close()
+    assert _Exported(events) == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE', 'STATION_OFF']
+
+
 def test_a_failed_connect_writes_no_cycle(qt_app, run, tmp_path) -> None:
     """
     Description:
         A CONNECT that fails started nothing: the attempt and its error are logged, but no CYCLE_START
-        is written, so there is no CYCLE_DONE to pair.
+        is written — so there is no CYCLE_DONE to pair — and the connection check never starts.
     """
 
     window, logger, events = _Station(tmp_path, run, str(tmp_path / 'no_such_frame.png'))
     _Connect(window)
     assert not _Private(window, '__camera').Connected
+    assert not _Private(window, '__connection_timer').isActive()
     window.close()
     with open(logger.Path, 'r', encoding='utf-8') as handle:
         assert 'Connecting to the camera.' in handle.read()

@@ -290,3 +290,95 @@ def test_the_cached_undistortion_is_byte_identical_to_cv2_undistort(reference_ba
     assert np.array_equal(cam._Grab(), expected)
     assert np.array_equal(cam._Grab(), expected)                        # from the cached maps
     assert cam.Last_Undistortion['new_camera_matrix'] == [[float(v) for v in row] for row in new_K]
+
+
+class _Unpluggable_Camera_Cls(Camera_Backend_Cls):
+    """A backend whose device can be pulled (removed) and whose grab can fail, without hardware."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.removed, self.failing, self.closed = False, False, 0
+
+    def _Open(self) -> None:
+        pass
+
+    def _Close(self) -> None:
+        self.closed += 1
+
+    def _Device_Removed(self) -> bool:
+        return self.removed
+
+    def _Grab(self):
+        if self.failing:
+            raise Camera_Error_Cls('The camera did not return a frame in time.')
+        return [[0]]
+
+    @property
+    def Resolution(self) -> tp.Tuple[int, int]:
+        return (1, 1)
+
+
+def test_a_failed_grab_on_a_removed_device_disconnects_and_a_transient_one_does_not() -> None:
+    """
+    Description:
+        Connected follows the device, not only the buttons: a grab that fails on a device the backend
+        reports removed closes the connection before the error goes on (a lost connection), while the
+        same failure on a device still present leaves it connected (a transient capture error).
+    """
+
+    cam = _Unpluggable_Camera_Cls()
+    cam.Connect()
+    cam.failing = True
+    with pytest.raises(Camera_Error_Cls):
+        cam.Capture()
+    assert cam.Connected and cam.closed == 0                            # transient: still connected
+
+    cam.removed = True
+    with pytest.raises(Camera_Error_Cls, match='did not return a frame'):
+        cam.Capture()
+    assert not cam.Connected and cam.closed == 1                        # lost: closed by the backend
+
+
+def test_the_connection_check_closes_a_connection_whose_device_is_gone() -> None:
+    """
+    Description:
+        Check_Connection, polled while connected, finds a removed device without a Scan: it closes the
+        connection and says so once; with the device present, or with nothing connected, it does nothing.
+    """
+
+    cam = _Unpluggable_Camera_Cls()
+    assert not cam.Check_Connection()                                   # not connected
+    cam.Connect()
+    assert not cam.Check_Connection() and cam.Connected                 # present
+    cam.removed = True
+    assert cam.Check_Connection() and not cam.Connected and cam.closed == 1
+    assert not cam.Check_Connection() and cam.closed == 1               # already closed
+
+
+def test_the_basler_backend_asks_pylon_whether_the_device_was_removed() -> None:
+    """
+    Description:
+        The Basler backend's removal check is pylon's IsCameraDeviceRemoved on the open device; an SDK
+        call that itself fails is not taken as a removal, and with no device open nothing is removed.
+        (Not yet verified on the hardware: docs/capture-checklist.md has the cable-pull check.)
+    """
+
+    class _Device_Cls(object):
+        """A pylon device stand-in: removed, present, or (None) its SDK call fails."""
+
+        removed = False
+
+        def IsCameraDeviceRemoved(self) -> bool:
+            if self.removed is None:
+                raise RuntimeError('pylon call failed')
+            return self.removed
+
+    device = _Device_Cls()
+    cam = Basler_Camera_Cls()
+    assert not cam._Device_Removed()                                    # nothing open
+    setattr(cam, '_Basler_Camera_Cls__cam', type('_Basler', (), {'camera': device})())
+    assert not cam._Device_Removed()
+    device.removed = True
+    assert cam._Device_Removed()
+    device.removed = None
+    assert not cam._Device_Removed()

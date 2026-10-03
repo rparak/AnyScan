@@ -68,10 +68,12 @@ class Camera_Backend_Cls(object):
     Description:
         The camera interface: Connect, Capture, Disconnect. The base owns the
         connected flag and refuses Capture when disconnected, so a subclass never
-        tracks that itself. _Grab returns an RGB NumPy array — the exchange format
+        tracks that itself. The flag follows the device, not only the buttons: a grab
+        that fails on a device the backend reports removed disconnects it, and so does
+        Check_Connection, which the application polls while connected. _Grab returns an RGB NumPy array — the exchange format
         for the whole application, whatever the SDK hands you.
 
-        _Open, _Close and _Grab are the per-device SPI a subclass implements; they
+        _Open, _Close, _Grab and _Device_Removed are the per-device SPI a subclass implements; they
         keep a single leading underscore rather than the name-mangled __ private
         form precisely because they are overridden across classes.
 
@@ -89,7 +91,7 @@ class Camera_Backend_Cls(object):
                 Cls.Connected; Cls.Resolution
 
                 # Functions of the class.
-                Cls.Connect(); Cls.Capture(); Cls.Disconnect()
+                Cls.Connect(); Cls.Capture(); Cls.Check_Connection(); Cls.Disconnect()
     """
 
     Name = 'camera'
@@ -276,6 +278,34 @@ class Camera_Backend_Cls(object):
 
         raise NotImplementedError
 
+    def _Device_Removed(self) -> bool:
+        """
+        Description:
+            Whether the open device is gone (unplugged, powered off, its link down), as the device's
+            SDK reports it. A backend that cannot lose its device (a saved frame) never is.
+
+        Returns:
+            (1) parameter [bool]: True when the device is reported removed.
+        """
+
+        return False
+
+    def Check_Connection(self) -> bool:
+        """
+        Description:
+            While connected, ask the device whether it is still there; when it is not, disconnect —
+            so Connected says what the hardware is, not what the last button did.
+
+        Returns:
+            (1) parameter [bool]: True when the connection was found lost by this call (and is now
+                                  closed); False when connected and present, or not connected.
+        """
+
+        if not self.__connected or not self._Device_Removed():
+            return False
+        self.Disconnect()
+        return True
+
     def Connect(self) -> None:
         """
         Description:
@@ -301,7 +331,9 @@ class Camera_Backend_Cls(object):
     def Capture(self) -> tp.List[tp.List[int]]:
         """
         Description:
-            Capture one frame as a contiguous RGB array. Refuses when disconnected.
+            Capture one frame as a contiguous RGB array. Refuses when disconnected. A grab that fails
+            on a device reported removed disconnects the backend before the error goes on, so the
+            caller sees a lost connection (Connected False), not a transient capture error.
 
         Returns:
             (1) parameter [Matrix<uint8> HxWx3]: The frame (RGB).
@@ -313,7 +345,12 @@ class Camera_Backend_Cls(object):
         # failed grab cannot leave the previous frame's original behind.
         self._last_distorted = None
         self._last_undistortion = None
-        return self._Grab()
+        try:
+            return self._Grab()
+        except Camera_Error_Cls:
+            if self._Device_Removed():
+                self.Disconnect()
+            raise
 
 
 class File_Camera_Cls(Camera_Backend_Cls):
@@ -589,6 +626,26 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         self.__undistort_cache = {}
         self._last_distorted = None
         self._last_undistortion = None
+
+    def _Device_Removed(self) -> bool:
+        """
+        Description:
+            pylon's own verdict on the open device (InstantCamera.IsCameraDeviceRemoved): for a GigE
+            camera it turns true once the heartbeat times out after the cable is pulled or the power
+            lost. An SDK call that itself fails is not taken as a removal. Not yet verified on the
+            hardware: docs/capture-checklist.md has the cable-pull check.
+
+        Returns:
+            (1) parameter [bool]: True when pylon reports the device removed.
+        """
+
+        cam = getattr(self.__cam, 'camera', None)
+        if cam is None:
+            return False
+        try:
+            return bool(cam.IsCameraDeviceRemoved())
+        except Exception:                                 # noqa: BLE001
+            return False
 
     def _Grab(self) -> tp.List[tp.List[int]]:
         """

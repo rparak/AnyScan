@@ -2370,7 +2370,8 @@ module that writes it. The run-summary CSV (`log_<Hardware>.csv`) is unchanged.
   DISCONNECT; a lost connection (`Log_Camera_Connection_Lost`); a CONNECT while a connection is still
   open (the logger closes the old one); closing the application while connected (`CYCLE_DONE` before
   `STATION_OFF`). A failed CONNECT opens no connection in the logger, so it writes nothing. The export
-  can only see a loss the log records.
+  can only see a loss the log records: *A lost connection is detected by the camera, not only by
+  DISCONNECT* is what makes the application record one.
 - **Crashed runs, and runs whose export failed, are exported at the next start.** The ledger
   `logger/station_events_exported.txt` names every exported log. At startup every `log_*.txt` it does not
   name is exported, oldest first, except this run's own log and a log another running instance still
@@ -2422,3 +2423,36 @@ connection ends, crashes, the ledger, failure and retry, the baseline), `test/UI
 (closing while connected, a failed CONNECT, a startup failure on the strip),
 `test/Configuration/test_core.py` (the required, existing, writable directory),
 `test/UI/test_configuration_dialog.py::test_a_mode_naming_another_station_event_directory_is_refused`.
+
+## A lost connection is detected by the camera, not only by DISCONNECT
+
+Decided 2026-10-03. Before this, nothing made the camera's `Connected` false except DISCONNECT. A Basler
+grab failure left the camera "connected", so the scan handler's lost-connection branch could not run
+outside tests, whose fake cameras disconnected themselves. That was the Camera cell's old fault: a state
+updated by the button, not by what happened. The station event file (the entry above) can only close a
+cycle the log records ending, so a loss nobody detects would keep counting a dead connection as a
+working cycle.
+
+- **The backend reports a removed device.** `Camera_Backend_Cls._Device_Removed` is part of the per-device
+  SPI (always False for a saved frame; for Basler, pylon's `InstantCamera.IsCameraDeviceRemoved`, where a
+  failing SDK call is not taken as a removal).
+- **A grab that fails on a removed device disconnects** in the base `Capture` before the error goes on, so
+  the Scan reports a lost connection. The same failure on a device still present stays a transient
+  capture error.
+- **The window checks once a second while connected** (`CONST_CONNECTION_CHECK_MS`, `Check_Connection`),
+  so a loss while nobody scans is closed when it is detected, about pylon's heartbeat timeout plus up to
+  one interval after the link went down, not at the next Scan. Both paths go through one
+  `__Record_Connection_Lost`, which stops the check and logs the loss.
+- **The fakes that disconnected themselves are retired.** The tests now make the device report removed
+  and let the backend do the disconnecting, so they exercise the code the real camera goes through.
+
+**Unverified on the hardware.** Whether pylon reports the removal on this GigE camera, and how fast, has
+not been tried: `docs/capture-checklist.md` item 4 is the cable-pull check. This entry is one commit so it
+can be reverted on its own if that check fails.
+
+**Revisit if** the cable pull shows pylon does not report the removal, or reports it too slowly to count
+as detection.
+Tests `test/Camera/test_core.py` (the removal check, the grab, `Check_Connection`, the Basler check),
+`test/UI/test_station_event_paths.py` (a loss found by the check and at a Scan),
+`test/UI/test_system_status.py::test_a_lost_connection_reads_disconnected_in_the_camera_cell_too`,
+`test/UI/test_logging_coverage.py::test_mid_session_connection_loss_is_an_error`.

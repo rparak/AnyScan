@@ -24,6 +24,7 @@ here: the sizes are repeatable, not absolute, and the describer is not a defect 
 | 1 | Multi-view calibration set | 40+ | The camera's first multi-view calibration: the lens model, the principal point and the mm/px factor. Not checked against known sizes in this version |
 | 2 | Empty-surface reference | 1 | The background reference, re-shot under the new calibration, with its provenance sidecar |
 | 3 | Parts session: defects, low-contrast parts, harsh shadow | ~40 | Real frames for the open questions in KNOWN_ISSUES (low-contrast parts, harsh shadow) and data for a future defect rule |
+| 4 | Cable pull: a lost connection is detected | 0 | Not a capture: the one check of lost-connection detection on the real camera, which no test can make (it is unverified on the hardware until this is done) |
 
 **Before item 1: confirm the camera is pinned.** Power-cycle the camera (it then starts from its
 factory default, the full 1936 × 1216 sensor), start the application, load the configuration and
@@ -40,6 +41,7 @@ calibration written from it carries it.
    frame, so it belongs to one lens model: the one shot before recalibrating is out of date.
 3. **Then the parts session.** Its frames are then undistorted under the new calibration and
    analysed against the new reference.
+4. **The cable pull last**, any time after item 3 — it disturbs nothing the other items depend on.
 
 ---
 
@@ -217,3 +219,36 @@ subtraction is only meaningful against a reference lit the same way.
 - [ ] the light's position and angle
 - [ ] which configuration copy (and reference) the frames were analysed under
 - [ ] per frame, whether any part's outline reached into its shadow
+
+---
+
+## 4. Cable pull: a lost connection is detected
+
+**Why.** A lost connection closes the camera session and the station event cycle (CYCLE_DONE in the
+daily station event file). It is detected two ways: the application asks pylon once a second whether
+the device was removed (`InstantCamera.IsCameraDeviceRemoved`), and a Scan whose grab fails on a
+removed device reports the loss. Both are tested only with a stand-in device. **Whether pylon reports
+the removal on this GigE camera, and how fast, is unverified** (docs/design-decisions.md, *A lost
+connection is detected by the camera, not only by DISCONNECT*).
+
+**Conditions.** Configuration loaded, CONNECT done, no Scan or Analyze running. Note the clock time to
+the second at each step.
+
+1. Pull the camera's GigE cable. Do not touch the application.
+2. Within a few seconds the Camera cell must read *Disconnected*, the header pill *Camera offline*, and
+   the reading panel *The camera is no longer reachable…*. The log must have an ERROR *The camera
+   connection was lost (…)* followed by *Connection N ended after …*.
+3. Plug the cable back in and CONNECT: it must connect normally.
+4. Repeat 1–3, but press SCAN straight after pulling the cable, before the cell changes. The Scan must
+   report a lost connection (the log's *The camera connection was lost* ERROR), not a *did not return
+   a frame* capture error with the camera still Connected.
+5. Close the application, then open the day's station event file
+   (`General.Station_Events.Directory/<date>.csv`): every CYCLE_START must have its CYCLE_DONE, the
+   two losses' CYCLE_DONE at the detection times.
+
+**Record alongside:**
+
+- [ ] the seconds from pulling the cable to the Camera cell reading *Disconnected* (step 2)
+- [ ] whether step 4's Scan reported a lost connection or a capture error
+- [ ] any loss not detected at all — stop and report it: then a dead connection keeps counting as a
+      working cycle

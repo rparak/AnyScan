@@ -44,7 +44,7 @@ from UI.Core import AnyScan_Window_Cls
 import UI.Utilities.Style as Style
 # Custom Lib.: AnyScan domain — the camera, the logger, the result structure, the configuration
 #   ../Camera/Core
-from Camera.Core import File_Camera_Cls
+from Camera.Core import File_Camera_Cls, Camera_Error_Cls
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
 #   ../Parameters/Vision
@@ -102,6 +102,19 @@ def _Window(reference_background_path: str, tmp_path: tp.Any, loaded: bool, conn
     window.show()
     QApplication.instance().processEvents()
     return window
+
+
+def _Unplug(camera: File_Camera_Cls) -> None:
+    """
+    Pull the camera's cable: its device reports removed and a grab fails. The test never disconnects
+    it — the backend's own Capture does, as it does for the real camera.
+    """
+
+    def _Grab() -> None:
+        raise Camera_Error_Cls('The camera went away.')
+
+    camera._Device_Removed = lambda: True
+    camera._Grab = _Grab
 
 
 def _System(window: AnyScan_Window_Cls) -> tp.Tuple[str, np.ndarray]:
@@ -178,11 +191,7 @@ def test_every_logged_error_counts_until_clear(qt_app, reference_background_path
     window = _Window(reference_background_path, tmp_path, loaded=True, connected=True)
     camera = _Private(window, '__camera')
 
-    def _Lost():
-        camera.Disconnect()
-        raise __import__('Camera.Core', fromlist=['Camera_Error_Cls']).Camera_Error_Cls('The camera went away.')
-
-    camera.Capture = _Lost
+    _Unplug(camera)
     _Private(window, '__On_Scan_Button_Clicked')()
     assert _System(window)[0] == '● Error logged'
 
@@ -230,11 +239,7 @@ def test_a_lost_connection_reads_disconnected_in_the_camera_cell_too(qt_app, ref
     assert _Cell_Text(window, 'resolution') == '1920 × 1200'
     camera = _Private(window, '__camera')
 
-    def _Lost():
-        camera.Disconnect()
-        raise __import__('Camera.Core', fromlist=['Camera_Error_Cls']).Camera_Error_Cls('The camera went away.')
-
-    camera.Capture = _Lost
+    _Unplug(camera)
     _Private(window, '__On_Scan_Button_Clicked')()
     assert _Cell_Text(window, 'camera') == '● Disconnected'
     assert 'offline' in _Private(window, '__pill_camera').text()

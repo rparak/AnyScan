@@ -156,6 +156,15 @@ class AnyScan_Window_Cls(QMainWindow):
     CONST_CONFIGURATION_RESTART = 'Restart to change configuration.'
     # The disabled CONNECT button's tooltip before a configuration is loaded.
     CONST_CONNECT_NEEDS_CONFIGURATION = 'Load a configuration first.'
+    # How often a connected camera is asked whether its device is still there, so a connection lost
+    # while nobody scans is closed when it is detected — not at the next Scan, possibly hours later.
+    # The loss is then logged (closing the connection's cycle) about the SDK's heartbeat timeout plus
+    # this interval after the link went down.
+    #   Unit [ms]
+    CONST_CONNECTION_CHECK_MS = 1000
+    # What the operator reads when that check finds the device gone.
+    CONST_CONNECTION_LOST_MESSAGE = ('The camera is no longer reachable: it was unplugged, lost power or its GigE '
+                                     'link went down. Check the camera and its cable, then press CONNECT.')
 
     def __init__(self, camera: tp.Optional[tp.Any] = None,
                  logger: tp.Optional[Session_Logger_Cls] = None, *,
@@ -265,6 +274,10 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__conn_thread = None
         self.__conn_worker = None
         self.__connecting = False
+        # The connection check: running while the camera is connected, stopped however it ends.
+        self.__connection_timer = QTimer(self)
+        self.__connection_timer.setInterval(self.CONST_CONNECTION_CHECK_MS)
+        self.__connection_timer.timeout.connect(self.__On_Connection_Check)
         # Whether the Configuration dialog is loading a configuration (the header shows it).
         self.__configuration_loading = False
         # Widgets, populated by __Build_Ui.
@@ -935,6 +948,7 @@ class AnyScan_Window_Cls(QMainWindow):
             # reconnecting in the same run yields a distinct session (and directory).
             self.__session_id = '%s_s%d' % (datetime.now().strftime('%Y%m%d-%H%M%S'),
                                             session_index)
+        self.__connection_timer.start()
         self.__Sync_Controls()
 
     def __On_Connect_Failed(self, message: str) -> None:
@@ -962,6 +976,7 @@ class AnyScan_Window_Cls(QMainWindow):
             Disconnect the camera and clear the frame and its status.
         """
 
+        self.__connection_timer.stop()
         self.__camera.Disconnect()
         self.__frame = None
         self.__frame_distorted = None
@@ -970,6 +985,35 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__frame_badge.setText('No frame')
         if self.__logger is not None:
             self.__logger.Log_Camera_Disconnected()
+        self.__Sync_Controls()
+
+    def __Record_Connection_Lost(self, message: str) -> None:
+        """
+        Description:
+            A connection that ended without DISCONNECT — however it was found, at a Scan or by the
+            connection check: stop the check, and log the loss (an ERROR that closes the logger's
+            connection, and with it the station event cycle) and count it for the System cell.
+
+        Args:
+            (1) message [string]: What was found.
+        """
+
+        self.__connection_timer.stop()
+        if self.__logger is not None:
+            self.__logger.Log_Camera_Connection_Lost(message)
+            self.__Count_Logged_Error()
+
+    def __On_Connection_Check(self) -> None:
+        """
+        Description:
+            The connection check's tick: when the camera reports its device gone, the connection is
+            closed now and reported where the operator looks, as a lost connection found at a Scan is.
+        """
+
+        if not self.__camera.Check_Connection():
+            return
+        self.__Record_Connection_Lost(self.CONST_CONNECTION_LOST_MESSAGE)
+        self.__Fail(self.CONST_CONNECTION_LOST_MESSAGE)
         self.__Sync_Controls()
 
     def Report_Error(self, message: str) -> None:
@@ -1001,16 +1045,14 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__frame_distorted = self.__camera.Last_Distorted_Frame
             self.__frame_undistortion = self.__camera.Last_Undistortion
         except Camera_Error_Cls as exc:
-            if self.__logger is not None:
-                # A capture that failed AND left the camera disconnected is a mid-session
-                # connection LOST (ERROR, closes the session); a failure while still
-                # connected is a transient capture error (tracked ERROR that a later scan
-                # can resolve).
-                if not self.__camera.Connected:
-                    self.__logger.Log_Camera_Connection_Lost(str(exc))
-                    self.__Count_Logged_Error()
-                else:
-                    self.__scan_error_id = self.__Log_Error(str(exc))
+            # A capture that failed AND left the camera disconnected (the backend found its
+            # device removed) is a mid-session connection LOST (ERROR, closes the session); a
+            # failure while still connected is a transient capture error (tracked ERROR that a
+            # later scan can resolve).
+            if not self.__camera.Connected:
+                self.__Record_Connection_Lost(str(exc))
+            elif self.__logger is not None:
+                self.__scan_error_id = self.__Log_Error(str(exc))
             self.__Fail(str(exc))
         else:
             self.__viewport.Show_Frame(Rgb_To_Qimage(self.__frame))
@@ -1864,6 +1906,7 @@ class AnyScan_Window_Cls(QMainWindow):
             (1) event [QCloseEvent(object)]: The Qt close event.
         """
 
+        self.__connection_timer.stop()
         for thread in (self.__thread, self.__conn_thread):
             if thread is not None:
                 thread.quit()

@@ -95,10 +95,15 @@ class _Idle_Camera_Cls(Camera_Backend_Cls):
 
 
 class _Lost_Camera_Cls(_Idle_Camera_Cls):
-    """A camera whose Capture drops the connection and fails — a mid-session loss."""
+    """
+    A camera whose device is gone — the SDK reports it removed and a grab fails. It never disconnects
+    itself: the backend's own Capture does, as it does for the real camera.
+    """
 
-    def Capture(self):
-        self.Disconnect()
+    def _Device_Removed(self) -> bool:
+        return True
+
+    def _Grab(self):
         raise Camera_Error_Cls('device connection lost')
 
 
