@@ -2169,6 +2169,14 @@ the outlined logo rendered at the same height (device px, live minus outlined, 9
 | tagline cap height | +0.27 (8.67 vs 8.40) | −0.27 |
 | wordmark width | +0.47 (112.91 vs 112.43) | +0.32 (206.42 vs 206.11) |
 
+*Corrected 2026-10-03:* this table was measured at 96 dpi, where the tagline is 9.15 pt and draws at
+12 px. The offscreen test platform is 100 dpi, where the logo's 12.2 px tagline is 8.79 pt, the 9 pt
+floor raises it to 12.5 px and it draws at 13 px: tagline cap height 9.48 against the outlined 8.40.
+`test_the_lockup_matches_the_outlined_logo` compared it with the outlined size regardless, so it failed in
+every DPR 1 offscreen run from `92bacdc`, when it was added. It now scales the outlined tagline's cap height
+by the size the floor rule gives (`Style.Font` of the logo's size, at Qt's whole pixel), derived from the
+rule and not read back from the lockup's font, so a mis-sized tagline still fails at both densities.
+
 The tagline is wider than its outlines by design: the text cut sets 9.7 % wider than opsz 32 (right ink
 +16 px at DPR 1, +30 device px at DPR 2), and at 11–12 px it is the cut Inter draws for. The brand group
 is 16 px wider than with the outlined logo (450 → 466 px at DPR 1); the minimum window size does not

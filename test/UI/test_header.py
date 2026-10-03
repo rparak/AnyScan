@@ -381,7 +381,9 @@ def _Live_And_Outlined(qt_app: QApplication) -> tp.Tuple[tp.Dict[str, float], tp
         (1) qt_app [QApplication(object)]: The application.
 
     Returns:
-        (1) parameter [Tuple<Dict, Dict>]: (live, outlined) features.
+        (1) parameter [Tuple<Dict, Dict>]: (live, outlined) features; the outlined ones also carry
+                                           'tagline_drawn_scale', the tagline's expected drawn size over
+                                           the logo's.
     """
 
     window, logo, _ = _Shown_Logo(qt_app)
@@ -389,6 +391,14 @@ def _Live_And_Outlined(qt_app: QApplication) -> tp.Tuple[tp.Dict[str, float], tp
     window.close()
     live = _Lockup_Features(pixels, ratio, logo.height())
     outlined = _Lockup_Features(_Outlined(logo.height(), pixels[0, 0].astype(float)), ratio, logo.height())
+    # The pixel size the tagline should be drawn at over the logo's: the logo's size put through Style.Font,
+    # which applies the type floor, at the size Qt draws (a whole pixel) — derived from the rule, never read
+    # back from the lockup's own font, so a lockup that sizes its tagline wrongly still fails.
+    (_, size, display, _), box = Style.CONST_LOGO_TEXT[1], QSvgRenderer(os.path.join(Style.CONST_ASSETS,
+                                                                                    Style.CONST_LOGO_MARK_FILE)).viewBoxF()
+    logo_px = size * logo.height() / box.height()
+    expected = QFontInfo(Style.Font(logo_px * 72.0 / logo.logicalDpiY(), display=display)).pixelSize()
+    outlined['tagline_drawn_scale'] = expected / logo_px
     return live, outlined
 
 
@@ -402,6 +412,11 @@ def test_the_lockup_matches_the_outlined_logo(qt_app) -> None:
 
     live, outlined = _Live_And_Outlined(qt_app)
     live_offsets, outlined_offsets = _Offsets(live), _Offsets(outlined)
+    # The tagline's cap height is the logo's at the size the lockup DRAWS it: below 9 pt at DPR 1 the
+    # type floor raises it (docs/design-decisions.md, "A 9 pt type floor on a low-density display") — at
+    # the offscreen tests' 100 dpi the logo's 12.2 px tagline is 8.79 pt, drawn at 13 px — and Qt draws a
+    # whole-pixel size. The offsets between the lines are still the logo's.
+    outlined_offsets['tagline cap height'] *= outlined['tagline_drawn_scale']
     off = {name: (round(live_offsets[name], 2), round(outlined_offsets[name], 2)) for name in live_offsets
            if abs(live_offsets[name] - outlined_offsets[name]) > CONST_LOCKUP_TOLERANCE}
     assert not off, 'offsets (live, outlined) in device px beyond %g px: %s' % (CONST_LOCKUP_TOLERANCE, off)
