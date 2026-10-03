@@ -145,6 +145,14 @@ Comments are block comments above the code, saying *why*; multi-step bodies numb
   in Python instead of sourcing `install.sh`; `Screen_Understanding` compared against the same
   helpers re-assembled (it now pins the exact text); the reading's Task "tested" by comparing
   constants to literals, never running the code that chooses it.
+- **A test never takes its expectation from the thing under test.** An expected value read back
+  from the code or data being checked moves with it, so the error the test exists for cancels out.
+  Derive the expectation from the rule, independently. Instances, both caught only by a mutation:
+  the required-field test built its list from `CONST_FIELDS`, so making a field optional there
+  removed it from the test too (`test_a_file_without_the_station_event_directory_fails_the_load` now
+  names it); a first fix of `test_the_lockup_matches_the_outlined_logo` scaled the expected tagline
+  height by the lockup's own font size, and a tagline drawn 15 % too large still passed (the
+  expectation is now `Style.Font` of the logo's size: the type floor's rule, not the lockup's output).
 - **A UI test asserts what is rendered, not the value handed to the widget.** Grab the widget
   (`widget.grab()`) and compare pixels, or render a rich-text label through `QTextDocument`, and
   measure on a SHOWN, laid-out widget. Instances: the hover state that never rendered; the log
