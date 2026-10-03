@@ -404,8 +404,8 @@ class Configuration_Dialog_Cls(QDialog):
         """
         Description:
             Validate the selected configuration, then put it in force on a worker thread. A file
-            that is invalid, or that names different hardware, is refused on the spot: nothing
-            changes.
+            that is invalid, or that names different hardware or a different station-event directory,
+            is refused on the spot: nothing changes.
         """
 
         item = self.__list.currentItem()
@@ -431,7 +431,18 @@ class Configuration_Dialog_Cls(QDialog):
             self.Load_Refused.emit(message)
             return
 
-        # 3\ The models, off the GUI thread.
+        # 3\ One station-event directory per run: the launcher exports this run's log to the startup
+        #    configuration's at close, so a mode naming another could not take effect.
+        if candidate.Station_Events_Directory != self.__config.Station_Events_Directory:
+            message = ("Configuration was not loaded. '%s' exports station events to %s, but this run exports "
+                       'them to %s; start AnyScan with --config %s to use it.'
+                       % (candidate.Identity.Display_Name, candidate.Station_Events_Directory,
+                          self.__config.Station_Events_Directory, candidate.Path))
+            self.__Show_Result(message, ok=False)
+            self.Load_Refused.emit(message)
+            return
+
+        # 4\ The models, off the GUI thread.
         self.__candidate = candidate
         self.__label_stage.setText('Loading configuration…')
         self.__Set_Busy(True)

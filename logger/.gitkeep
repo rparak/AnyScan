@@ -7,13 +7,21 @@ directory itself if it is missing (src/Logger/Core.py).
 
 What lands here
 ---------------
-    logger/log_<date>_<HH-MM>.txt    one session log per application start (Logger/Core.py)
-    logger/log_<Hardware>.csv        the run summary, one row per analysis, named after the
+    logger/log_<date>_<HH-MM-SS>.txt one session log per application start (Logger/Core.py)
+    logger/log_<Hardware>.csv        the run summary, one row per run, named after the
                                      loaded configuration's hardware id (log_unconfigured.csv
                                      before one is loaded); an older column set is archived
                                      beside it rather than overwritten
     logger/captures/                 each analysis's capture set — the frames, annotated
                                      image, label mask, _objects.json and _understanding.txt,
                                      bounded to the newest 50 sets (UI/Capture.py)
+    logger/station_events_exported.txt
+                                     the ledger of session logs already exported to the daily
+                                     station event files (Logger/Station_Events.py)
+    logger/Station_Events/           the shipped directory of the daily station event files
+                                     (General.Station_Events.Directory); tracked by its .gitkeep
 
-All of it can be deleted between sessions; nothing the application needs to start is kept here.
+Deleting the session logs between sessions loses nothing the application needs to start, but a log
+not yet in the ledger has not been exported. Logger/Station_Events/ must exist for the shipped
+configuration to load. Deleting the ledger makes the next start record every log already here as
+exported without exporting it.

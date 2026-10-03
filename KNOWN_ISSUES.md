@@ -409,3 +409,16 @@ wording will fix.
 - **The likely fix, not built:** give the describer what the measurement already knows — e.g. the
   measured shape class and dimensions in the prompt ("this part measures A/F 11.7 mm, hexagonal") —
   rather than letting the model guess shape from pixels.
+
+## A killed run never gets its run-summary CSV row
+
+The run-summary CSV (`log_<Hardware>.csv`) gets its row from `Session_Logger_Cls.Close`, so a run that
+never closes (killed with SIGKILL, a power loss, a hard crash) has a complete `.txt` log but no row, and
+nothing adds one later. The daily station event file had the same gap and closes it with an export ledger
+(docs/design-decisions.md, *The daily station event file is exported from the session log at close*):
+every log the ledger does not name is exported at the next start.
+
+- **Impact:** the CSV under-counts runs and their time after an abnormal exit. The `.txt` log of that run
+  still records every event, so the time can be reconstructed by hand.
+- **Not fixed here:** out of scope for the station event change. The same ledger mechanism could cover
+  it: a run-summary row computed from a finished log, written at the next start for a log without one.

@@ -11,7 +11,7 @@ The imports between `src/` packages today (2026-09-24), which is also the rule:
 Parameters                         data structures and tokens only — imports nothing of the project
 Camera, Configuration, Reporting → Parameters
 Calibration                      → Camera, Parameters
-Logger                           → Configuration
+Logger                           → Configuration     (Logger.Station_Events → Logger.Core)
 Vision                           → Camera, Reporting, Parameters
 UI                               → everything above          (App/run.py → UI and the domain)
 ```
@@ -40,6 +40,7 @@ goes through that module's reader. A second parser drifts from the writer silent
 | Capture set: `<set>_objects.json`, `<set>_distorted.json` | `UI.Capture` (`Build_Set_Metadata`, `Distorted_Frame_Record`, `Read_Capture_Set`) |
 | Calibration capture manifest (`capture.json`) | `Calibration.Core` (`Record_Capture`, `Captured_Window`) |
 | Session log lines and the run-summary CSV | `Logger.Core` (`Parse_Line` is the only log-line parser; the Log view uses it) |
+| Daily station event files (`<Station_Events.Directory>/YYYY-MM-DD.csv`) and their export ledger (`logger/station_events_exported.txt`) | `Logger.Station_Events` (the daily files are written, never read back; the ledger is written and read. It reads the session log only through `Parse_Line` and the logger's event markers, never sentence wording) |
 | Describer answer key (`Data/Images/Test/All/answer_key.json`) | `Vision.Utilities.Evaluation` (`Load_Answer_Key`; written by hand, confirmed by the owner) |
 
 No module parses YAML for itself; tools in `Example/` go through these readers too

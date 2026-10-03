@@ -191,6 +191,11 @@ class Configuration_Str:
     # Whether this configuration classifies (OK/NOK) or only detects.
     #   Unit [bool]
     Classification_Enabled: bool = CONST_CLASSIFICATION_ENABLED_DEFAULT
+    # The directory the daily station event files are exported to (absolute; it exists and is writable,
+    # checked at load). Fixed for the run by the startup configuration: a later mode naming another is
+    # refused (Logger.Station_Events).
+    #   Unit [string]
+    Station_Events_Directory: str = ''
     # The UI identity, the confidence thresholds, and the vision stages' parameters.
     Identity: Identity_Str = field(default_factory=Identity_Str)
     Confidence: Confidence_Thresholds_Str = field(default_factory=Confidence_Thresholds_Str)

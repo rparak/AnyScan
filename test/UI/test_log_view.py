@@ -275,11 +275,13 @@ def test_seed_from_file_reproduces_the_live_view(qt_app, tmp_path) -> None:
         one line, so it seeds as the one row the sink delivered, not orphaned continuations).
     """
 
+    # The live view starts as the window's does: seeded with what the file already holds (the
+    # logger's own start line), then following the sink.
     logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), install_handlers=False)
     live = Log_View_Cls()
+    live.Seed_From_File(logger.Path)
     logger.Set_Line_Sink(live.Sink)
 
-    logger.Log_Info('Application started.')
     logger.Log_Camera_Connected('a2A1920-51gcPRO @ 1920 x 1200')
     logger.Log_Warning('Frame dropped by the transport; retrying.')
     logger.Log_Object_Detected('ring', 91, (300, 200, 240, 240))

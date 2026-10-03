@@ -108,6 +108,23 @@ CONST_CSV_ARCHIVE_TEMPLATE = '{stem}_until_{date}{suffix}{extension}'
 # would corrupt the file mid-stream when a row is added to an existing file.
 #   Unit [string]
 CONST_CSV_BOM = '﻿'
+# The event markers: a fixed token at the END of the message of each line that opens or closes the run
+# or a camera connection. A reader of the log (Logger.Station_Events) matches these tokens, never the
+# sentence before them, so a line can be reworded freely as long as it keeps its marker — and a line
+# that loses its marker fails test/Logger/test_station_events.py. They name the LOG's own events; what
+# they mean to another system is that reader's mapping, not the logger's.
+#   Unit [string]
+CONST_MARKER_RUN_START = '#run-start'
+CONST_MARKER_RUN_STOP = '#run-stop'
+CONST_MARKER_CONNECTION_START = '#connection-start'
+CONST_MARKER_CONNECTION_END = '#connection-end'
+#   Unit [Tuple<string>]
+CONST_MARKERS = (CONST_MARKER_RUN_START, CONST_MARKER_RUN_STOP, CONST_MARKER_CONNECTION_START,
+                 CONST_MARKER_CONNECTION_END)
+# The line that opens every run, written by the logger itself at its start time — so the run's start
+# in the log, the '.txt' file name and the CSV's application_start are one moment.
+#   Unit [string]
+CONST_RUN_START_LINE = 'Application started. ' + CONST_MARKER_RUN_START
 
 
 @dataclass
@@ -199,6 +216,43 @@ def Parse_Line(line: str) -> Log_Line_Str:
             return Log_Line_Str(Date=date, Time=time, Level=level, Message=message, Parsed=True)
     # Not a well-formed line: keep it whole, marked unparsed, so nothing is lost or mis-split.
     return Log_Line_Str(Message=line, Parsed=False)
+
+
+def Event_Marker(Log_Line_Str: Log_Line_Str) -> str:
+    """
+    Description:
+        The event marker a parsed log line ends with (CONST_MARKERS), or '' when it carries none. Only
+        a parsed line counts, and only its LAST token, so a message that merely quotes a marker
+        mid-sentence is not an event.
+
+    Args:
+        (1) Log_Line_Str [Log_Line_Str(object)]: One line, from Parse_Line.
+
+    Returns:
+        (1) parameter [string]: The marker, or ''.
+    """
+
+    if not Log_Line_Str.Parsed:
+        return ''
+    token = Log_Line_Str.Message.rsplit(' ', 1)[-1]
+    return token if token in CONST_MARKERS else ''
+
+
+def Line_Time(Log_Line_Str: Log_Line_Str) -> datetime:
+    """
+    Description:
+        A parsed line's date and time as the naive LOCAL datetime the logger wrote (the default
+        CONST_DATE_FORMAT and CONST_TIME_FORMAT, which the application uses). The log stores no zone.
+
+    Args:
+        (1) Log_Line_Str [Log_Line_Str(object)]: One parsed line, from Parse_Line.
+
+    Returns:
+        (1) parameter [datetime(object)]: The line's local time, without a zone.
+    """
+
+    return datetime.strptime('%s %s' % (Log_Line_Str.Date, Log_Line_Str.Time),
+                             '%s %s' % (CONST_DATE_FORMAT, CONST_TIME_FORMAT))
 
 
 def Escape_Message(text: str) -> str:
@@ -390,8 +444,9 @@ class Session_Logger_Cls(object):
                 Cls = Session_Logger_Cls(config_path=CONST_DEFAULT_CONFIG_FILE)
 
             Features:
-                # Log lifecycle events and close (which appends the CSV summary row).
-                Cls.Log_Info('Application started'); Cls.Log_Camera_Connected(); Cls.Close()
+                # Log lifecycle events and close (which appends the CSV summary row). The
+                # 'Application started' line is the logger's own, written at construction.
+                Cls.Log_Camera_Connected(); Cls.Close()
     """
 
     def __init__(self, log_dir: tp.Optional[str] = None,
@@ -435,6 +490,16 @@ class Session_Logger_Cls(object):
         self.__log_dir = os.path.abspath(log_dir) if log_dir is not None else CONST_DEFAULT_LOG_DIR
         os.makedirs(self.__log_dir, exist_ok=True)
         self.__path, self.__file = self.__Create_Log_File(self.__Build_Filename(self.__start_time))
+        # The file is held under an exclusive lock for as long as the run writes it, so a reader of
+        # earlier logs (Logger.Station_Events) can tell a live run's log from a crashed one.
+        self.__Lock_File_Nonblocking(self.__file)
+        # The run's first line, at its start time.
+        with self.__lock:
+            self.__Write_Line(CONST_RUN_START_LINE, self.__start_time)
+
+        # An optional callback run with this log's path once Close has closed the file — the export
+        # of what the log recorded (Set_Close_Callback). It runs on every close path.
+        self.__close_callback = None
 
         # The run-summary CSV, named after the loaded configuration (Csv_Filename_For_Config);
         # an explicit csv_filename overrides it, an absolute one is honoured as-is, otherwise it
@@ -607,6 +672,22 @@ class Session_Logger_Cls(object):
 
     # ------------------------------------------------------------------ public API
 
+    def Set_Close_Callback(self, callback: tp.Optional[tp.Callable[[str], None]]) -> None:
+        """
+        Description:
+            Register (or clear, with None) a callback run with this log's path at the very end of
+            Close, after the 'Application stopped' line is written and the file closed — so it sees
+            the complete log, on every close path (the window, the launcher's try/finally, atexit, a
+            signal). It runs once, like Close. The log is closed by then, so the callback reports its
+            own failures; one that escapes is printed and never stops the shutdown.
+
+        Args:
+            (1) callback [function or None]: A callable taking the log's path, or None to detach.
+        """
+
+        with self.__lock:
+            self.__close_callback = callback
+
     def Set_Line_Sink(self, sink: tp.Optional[tp.Callable[[str], None]]) -> None:
         """
         Description:
@@ -736,14 +817,15 @@ class Session_Logger_Cls(object):
             if self.__open_session is not None:
                 self.__open_session.End = now
                 self.__Write_Line(f'Camera connected while connection '
-                                  f'{self.__open_session.Index} was still open. Closed it.',
-                                  now, CONST_LEVEL_WARNING)
+                                  f'{self.__open_session.Index} was still open. Closed it. '
+                                  f'{CONST_MARKER_CONNECTION_END}', now, CONST_LEVEL_WARNING)
                 self.__open_session = None
             Session_Str_i = Session_Str(Index=len(self.__sessions) + 1, Start=now)
             self.__sessions.append(Session_Str_i)
             self.__open_session = Session_Str_i
             detail = f' {info}.' if info else '.'
-            self.__Write_Line(f'Camera connected{detail} Connection {Session_Str_i.Index} started.', now)
+            self.__Write_Line(f'Camera connected{detail} Connection {Session_Str_i.Index} started. '
+                              f'{CONST_MARKER_CONNECTION_START}', now)
             return Session_Str_i.Index
 
     def Log_Camera_Disconnected(self, info: str = '') -> None:
@@ -768,7 +850,7 @@ class Session_Logger_Cls(object):
             duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
             detail = f' {info}.' if info else ''
             self.__Write_Line(f'Camera disconnected. Connection {Session_Str_i.Index} ended after '
-                              f'{duration}.{detail}', now)
+                              f'{duration}.{detail} {CONST_MARKER_CONNECTION_END}', now)
 
     def Log_Camera_Connection_Lost(self, info: str = '') -> None:
         """
@@ -790,7 +872,8 @@ class Session_Logger_Cls(object):
                 Session_Str_i.End = now
                 self.__open_session = None
                 duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
-                self.__Write_Line(f'Connection {Session_Str_i.Index} ended after {duration}.', now)
+                self.__Write_Line(f'Connection {Session_Str_i.Index} ended after {duration}. '
+                                  f'{CONST_MARKER_CONNECTION_END}', now)
 
     def Log_Scan_Started(self, scan_id: tp.Optional[int] = None) -> None:
         """
@@ -1015,6 +1098,25 @@ class Session_Logger_Cls(object):
         except (ImportError, OSError, ValueError):
             pass
 
+    def __Lock_File_Nonblocking(self, file_obj: tp.Any) -> None:
+        """
+        Description:
+            Take an exclusive advisory lock on this run's own '.txt' without waiting: the run is its
+            only writer, so the lock exists to be SEEN — Logger.Station_Events skips a log another
+            process still holds. Best-effort, like __Lock_File: without fcntl (Windows) there is no
+            lock, and a second instance's live log can be taken for a crashed one.
+
+        Args:
+            (1) file_obj [file(object)]: The open file to lock.
+        """
+
+        try:
+            # Fcntl (Unix file control) [Python standard library, POSIX only]
+            import fcntl
+            fcntl.flock(file_obj.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (ImportError, OSError, ValueError):
+            pass
+
     def __Unlock_File(self, file_obj: tp.Any) -> None:
         """
         Description:
@@ -1194,7 +1296,7 @@ class Session_Logger_Cls(object):
                 self.__open_session = None
                 duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
                 self.__Write_Line(f'Connection {Session_Str_i.Index} ended after {duration} '
-                                  f'(closed at shutdown).', now)
+                                  f'(closed at shutdown). {CONST_MARKER_CONNECTION_END}', now)
 
             # Append the run summary as one CSV row while the '.txt' handle is still
             # open, so a header-mismatch warning or a write failure can be reported into
@@ -1207,7 +1309,7 @@ class Session_Logger_Cls(object):
                 self.__Write_Line(f'Failed to write the run-summary CSV row: {error}.',
                                   now, CONST_LEVEL_ERROR)
 
-            self.__Write_Line('Application stopped.', now)
+            self.__Write_Line('Application stopped. ' + CONST_MARKER_RUN_STOP, now)
 
             if self.__file is not None and not self.__file.closed:
                 self.__file.flush()
@@ -1219,6 +1321,14 @@ class Session_Logger_Cls(object):
 
             if self.__install_handlers:
                 self.__Remove_Handlers()
+
+            # The log is complete and closed: hand it to the export of what it recorded. Nothing can
+            # be written to the log any more, so an escaping failure goes to the console.
+            if self.__close_callback is not None:
+                try:
+                    self.__close_callback(self.__path)
+                except Exception as error:  # noqa: BLE001 - shutdown must not raise
+                    print('[ERROR] The close callback of %s failed: %s' % (os.path.basename(self.__path), error))
 
     # << CONTEXT MANAGER >> #
     def __enter__(self) -> 'Session_Logger_Cls':

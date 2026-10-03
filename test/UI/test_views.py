@@ -183,17 +183,17 @@ def test_log_view_seeds_from_the_file_and_then_follows_the_sink(qt_app, referenc
     """
 
     logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), install_handlers=False)
-    logger.Log_Info('Seed line one.')
+    logger.Log_Info('Seed line one.')                    # after the logger's own start line
     logger.Log_Warning('Seed line two.')
 
     window = _Framed_Window(reference_background_path, logger=logger)
     log_view = _Private(window, '__log_view')
-    assert log_view.Shown_Count() == 2                   # both seed lines rendered
+    assert log_view.Shown_Count() == 3                   # the start line and both seed lines rendered
 
     logger.Log_Error('A live line.')                     # arrives via the sink
     for _ in range(2):
         qt_app.processEvents()
-    assert log_view.Shown_Count() == 3
+    assert log_view.Shown_Count() == 4
 
     logger.Set_Line_Sink(None)                           # detach before the tmp logger is gone
     logger.Close()
@@ -338,13 +338,17 @@ def test_startup_names_the_configuration_it_offers_and_claims_nothing_loaded(tmp
         "from PyQt5.QtCore import QTimer\n"
         "from PyQt5.QtWidgets import QApplication\n"
         "run.Session_Logger_Cls = functools.partial(run.Session_Logger_Cls, log_dir=%r, install_handlers=False)\n"
+        "import dataclasses\n"
+        "load = run.Load_Configuration\n"
+        "run.Load_Configuration = lambda path: dataclasses.replace(load(path), Station_Events_Directory=%r)\n"
         "original = QApplication.exec_\n"
         "QApplication.exec_ = lambda self: (QTimer.singleShot(200, self.quit), original())[1]\n"
         "sys.argv = ['run.py']\n"
-        "sys.exit(run.main())\n") % (os.path.join(project, 'App'), os.path.join(project, 'src'), str(tmp_path))
+        "sys.exit(run.main())\n") % (os.path.join(project, 'App'), os.path.join(project, 'src'), str(tmp_path),
+                                    str(tmp_path))
     result = subprocess.run([sys.executable, '-c', driver], capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr[-2000:]
-    (log_path,) = _glob.glob(os.path.join(str(tmp_path), '*.txt'))
+    (log_path,) = _glob.glob(os.path.join(str(tmp_path), 'log_*.txt'))
     log = open(log_path, encoding='utf-8').read()
     assert "Configuration found: 'Cfg. Segment Anything' (%s)" % CONST_CONFIGURATION.Name in log
     for claim in ('Loaded configuration', 'reads calibration', 'Classification is', 'Measuring objects',

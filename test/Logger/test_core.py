@@ -316,15 +316,18 @@ def test_line_format(tmp_path: tp.Any) -> None:
     """
     Description:
         Every event line is exactly '[Date] [Time] [LEVEL] message', with the level in a
-        fixed-width field so it reads as a column.
+        fixed-width field so it reads as a column. The first is the logger's own start line, at
+        its start time, carrying the run-start marker.
     """
 
     clock = Clock_Cls(_T('14:37:02'))
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
-    Session_Logger.Log_Info('Application started')
+    clock.now = _T('14:37:05')
+    Session_Logger.Log_Warning('Careful now')
     with open(Session_Logger.Path, 'r', encoding='utf-8') as f:
-        first_line = f.readline().rstrip('\n')
-    assert first_line == '2026-09-12 14:37:02 [INFO   ] Application started'
+        lines = f.read().splitlines()
+    assert lines == ['2026-09-12 14:37:02 [INFO   ] Application started. #run-start',
+                     '2026-09-12 14:37:05 [WARNING] Careful now']
     Session_Logger.Close()
 
 
@@ -665,7 +668,7 @@ def test_csv_write_failure_is_logged_and_not_raised(tmp_path: tp.Any) -> None:
     assert not os.path.exists(unreachable_csv)
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
     assert '[ERROR  ] Failed to write the run-summary CSV row' in content
-    assert content.rstrip().endswith('Application stopped.')
+    assert content.rstrip().endswith('Application stopped. #run-stop')
 
 
 def test_txt_has_no_run_summary_block(tmp_path: tp.Any) -> None:
@@ -681,7 +684,7 @@ def test_txt_has_no_run_summary_block(tmp_path: tp.Any) -> None:
     content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
     assert 'RUN SUMMARY' not in content
     assert 'Camera connected. Connection 1 started.' in content
-    assert content.rstrip().endswith('Application stopped.')
+    assert content.rstrip().endswith('Application stopped. #run-stop')
 
 
 def test_line_sink_receives_separated_fields_and_the_matching_line(tmp_path: tp.Any) -> None:
@@ -757,7 +760,7 @@ def test_parse_line_round_trips_real_lines(tmp_path: tp.Any) -> None:
     Session_Logger.Log_Error('Backend timed out')
     Session_Logger.Close()
 
-    lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()
+    lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()[1:]   # after the start line
     info = Parse_Line(lines[0])
     assert (info.Date, info.Time, info.Level, info.Message, info.Parsed) == \
         ('2026-09-12', '10:20:30', CONST_LEVEL_INFO, 'A plain event.', True)
@@ -839,8 +842,8 @@ def test_newline_in_message_is_escaped_to_one_file_line(tmp_path: tp.Any) -> Non
     Session_Logger.Set_Line_Sink(lambda record, line: received.append((record, line)))
     Session_Logger.Log_Error('driver failed:\nstack line one\r\nstack line two')
 
-    # One event -> one physical line, with the breaks escaped visibly.
-    lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()
+    # One event -> one physical line, with the breaks escaped visibly (after the start line).
+    lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()[1:]
     assert len(lines) == 1
     assert '\\n' in lines[0] and '\\r' in lines[0]
     assert 'stack line one' in lines[0] and 'stack line two' in lines[0]

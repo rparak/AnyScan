@@ -36,6 +36,11 @@ env/
 # not the directory, so logger/.gitkeep is tracked and a fresh clone has the directory.
 /logger/*
 !/logger/.gitkeep
+# The shipped station-event directory (General.Station_Events.Directory) must exist for the shipped
+# configuration to load, so the directory is tracked by its .gitkeep; the daily files in it are not.
+!/logger/Station_Events/
+/logger/Station_Events/*
+!/logger/Station_Events/.gitkeep
 
 # Claude Code: its local state (locks, worktrees, checkpoints, ...) stays out; the project's
 # skills are tracked. Anchored to the repo root like /models/* and /logger/* above. It is here,

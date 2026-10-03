@@ -598,3 +598,28 @@ def test_the_loading_line_follows_the_loaders_phases(qt_app, configurations, mon
     assert (np.abs(pixels - bgr).max(axis=2) <= 24).sum() >= 20                  # glyphs, in the stage ink
     assert stage.fontMetrics().horizontalAdvance('Warming up…') <= stage.contentsRect().width()
     dialog.reject()
+
+
+def test_a_mode_naming_another_station_event_directory_is_refused(qt_app, tmp_path, configurations) -> None:
+    """
+    Description:
+        The station-event directory is fixed for the run by the startup configuration — this run's log
+        is exported there at close — so a mode that names another is refused like one for other
+        hardware: the dialog says why, naming both directories, and the configuration in force stays.
+    """
+
+    elsewhere = tmp_path / 'elsewhere'
+    elsewhere.mkdir()
+    path = _Mode_File(configurations['dir'], 'Elsewhere', edit=lambda d: d['General']['Station_Events'].update(
+        Directory=str(elsewhere)))
+    window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(loaded=False))
+    in_force = _Private(window, '__config')
+    dialog = _Load_Through_Dialog(window, path)
+    dialog.show()
+    shown = ' '.join(_Texts(dialog))
+    assert 'exports station events to %s' % elsewhere in shown
+    assert 'this run exports them to %s' % in_force.Station_Events_Directory in shown
+    assert _Private(window, '__config') is in_force
+    dialog.reject()
+    logger.Close()
+    assert '[WARNING] Configuration not loaded:' in _Log_Text(logger)

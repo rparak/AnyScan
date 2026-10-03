@@ -142,6 +142,12 @@ holds:
   missing directory never stops it loading; `analyze.py` checks the directory and each frame's size
   against `Camera.Resolution`.
 - **General.Classification.**
+- **General.Station_Events.Directory (required):** where the daily station event files go
+  (`YYYY-MM-DD.csv`, one per local date: `STATION_ON`/`OFF` for the application, `CYCLE_START`/`DONE`
+  for each camera connection, `ts` in UTC). They are exported from the session log when the
+  application closes, and a crashed run's log is exported at the next start. The directory must exist
+  and be writable at load, and it is fixed for the run. The mode file's comment says how to read the
+  files; `docs/design-decisions.md` has the reasons.
 - **Camera:** acquisition settings; the **sensor window** (`Camera.Resolution`, `Camera.Offset`:
   1920 × 1200 centred at (8, 8) on the 1936 × 1216 sensor), which is set on the camera on every
   connect and read back; and the camera, lens and lighting as a person names them.
@@ -155,9 +161,9 @@ loads, with a warning: frames are not undistorted and sizes are not reported unt
 `Configuration.Core.Load_Configuration` is the only code that reads these files. It checks the whole
 file before anything is applied:
 
-- A missing **required** field (the hardware, a model path, the background reference, a prompt,
-  the display name or model set, the camera's acquisition settings or sensor window) fails the
-  load and names it.
+- A missing **required** field (the hardware, the station-event directory, a model path, the
+  background reference, a prompt, the display name or model set, the camera's acquisition settings or
+  sensor window) fails the load and names it.
 - What depends on the sensor window is checked against it: a background reference of another size
   fails the load, naming both sizes, and so does a calibration solved at another window. The
   camera never takes its size from the reference. A calibration that does not record its window

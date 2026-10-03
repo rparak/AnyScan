@@ -38,6 +38,37 @@ General:
   # Default: false. Enabling it exposes the verdict UI; it does not create classification.
   Classification:
     Enabled: false
+  # The daily station event files, for the external system that tracks the station's uptime.
+  # One file per LOCAL date, 'YYYY-MM-DD.csv': UTF-8, the header 'station_id,event_type,ts', rows
+  # appended. station_id is always SF4 (the installation's identity in that contract; a second
+  # station would make it a field here). event_type: STATION_ON (application start), STATION_OFF
+  # (application stop), CYCLE_START (camera connected), CYCLE_DONE (the connection ended: DISCONNECT,
+  # a lost connection when it is detected, a CONNECT over an open connection, or closing while
+  # connected, written before STATION_OFF). ts is UTC to the second, '2026-09-25T05:33:45Z'.
+  # A failed CONNECT writes nothing.
+  #
+  # The files are exported from the session log (logger/log_*.txt) when the application closes; a
+  # run that crashed, or whose export failed, is exported at the next start (the ledger
+  # logger/station_events_exported.txt names every exported log). So a file is current up to the
+  # last closed run, not live.
+  #
+  # Reading the files:
+  #   - Each row goes to the file of its own local date: a run or a cycle crossing midnight starts in
+  #     one file and ends in the next. An unpaired row at the START or END of a file is normal. An
+  #     unpaired STATION_ON or CYCLE_START with no match in a LATER file means an abnormal exit (the
+  #     application was killed or lost power): nothing could record the end.
+  #   - The name is the local date but ts is UTC, as the contract specifies, so they disagree near
+  #     midnight: an event at 00:30 local in summer has ts 22:30Z of the PREVIOUS date. Find an event
+  #     by the file's local date, not by ts's date. (Naming by the UTC date would keep each file's ts
+  #     on one date; the contract is the external system's — see docs/design-decisions.md.)
+  #   - The log records local time without a zone. In the hour that repeats when summer time ends
+  #     (02:00-03:00 twice), a time is read as its first, summer-time occurrence: an event in the
+  #     second pass gets a ts one hour early.
+  # REQUIRED. The directory must exist and be writable, checked at load (it is never created). It is
+  # fixed for the run by the startup configuration: loading a mode that names another is refused.
+  # Relative to the repository root, or absolute.
+  Station_Events:
+    Directory: logger/Station_Events
 
 # What the UI calls this configuration and its models, and the task a reading is labelled with.
 # Model files never appear in the UI: the header names the model set, the dialog the configuration.

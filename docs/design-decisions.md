@@ -2346,3 +2346,79 @@ in `test/Install/test_install.py`'s docstring.
 **Revisit if** a machine runs the full Linux install, the CUDA 12 path or the CPU path: record it
 here, then update README > Setup and the docstring of `test/Install/test_install.py`.
 Tests `test/Install/test_install.py` (the stubbed branches); commit `fd45206` for the run.
+
+## The daily station event file is exported from the session log at close, not written live
+
+Decided 2026-10-03. An external system tracks the station's uptime from one CSV per day,
+`<General.Station_Events.Directory>/YYYY-MM-DD.csv`: `station_id,event_type,ts`, with `SF4`,
+`STATION_ON` / `STATION_OFF` (application start and stop) and `CYCLE_START` / `CYCLE_DONE` (one camera
+connection, CONNECT to its end), and `ts` in UTC to the second. `Logger/Station_Events.py` is the one
+module that writes it. The run-summary CSV (`log_<Hardware>.csv`) is unchanged.
+
+- **Exported, not live.** The file is generated from a finished session log (`log_*.txt`), read through
+  the logger's own `Parse_Line`: the run-summary CSV's mechanism with a different structure. The logger's
+  `Set_Close_Callback` runs the export after `Close` has written `Application stopped` and closed the
+  file, so every close path exports: the window, the launcher's try/finally, atexit and SIGINT/SIGTERM.
+  `STATION_ON` takes its time from the log's start line, which the logger now writes itself at its start
+  time (it was `App/run.py`'s), so the log, the `.txt` name and the CSV's `application_start` agree.
+- **Matched on markers, not wording.** The five lines that open or close the run or a connection end in
+  a fixed token (`#run-start`, `#run-stop`, `#connection-start`, `#connection-end`; `Logger.Core`'s
+  `CONST_MARKER_*`). The markers name the log's own events; the mapping to the four station events is
+  `Station_Events`'. A line can be reworded freely; one that loses its marker fails
+  `test_every_way_a_connection_ends_closes_its_cycle_and_closing_ends_it_before_station_off`.
+- **Every way a connection ends closes its cycle**, because each one writes `#connection-end` in the log:
+  DISCONNECT; a lost connection (`Log_Camera_Connection_Lost`); a CONNECT while a connection is still
+  open (the logger closes the old one); closing the application while connected (`CYCLE_DONE` before
+  `STATION_OFF`). A failed CONNECT opens no connection in the logger, so it writes nothing. The export
+  can only see a loss the log records.
+- **Crashed runs, and runs whose export failed, are exported at the next start.** The ledger
+  `logger/station_events_exported.txt` names every exported log. At startup every `log_*.txt` it does not
+  name is exported, oldest first, except this run's own log and a log another running instance still
+  holds (the logger keeps an exclusive `flock` on its live log). A crashed log has no `#run-stop` and may
+  have an open connection: it exports `STATION_ON` / `CYCLE_START` with no pair, and nothing is invented to
+  close them. That unpaired row is what the YAML comment tells the external system an abnormal exit looks
+  like.
+- **The ledger line is written only after the rows.** An export that fails (a share unmounted, a full
+  disk) is therefore simply not marked, and the next start retries it through the same path as a crashed
+  run. At close the log is already shut, so the failure is printed to the console; at startup it goes to
+  the new run's log as an ERROR and is counted in the status strip's System cell (`Report_Error`).
+- **The duplicate window is accepted.** A crash between writing a log's rows and its ledger line exports
+  that log twice on the next start. That window is two fsynced writes. So is the case of a run crossing
+  midnight whose second file fails after the first was written: every file is opened before any row is
+  written, so a missing or unwritable directory fails before any row, but a disk filling between the two
+  files would leave the first file's rows to be written again.
+- **No ledger yet means start here.** On the first start, every log already in `logger/` is recorded as
+  handled without being exported. The logs older than the markers carry no events, and backfilling by
+  sentence wording is what the markers exist to avoid.
+- **The directory is required and fixed for the run.** `General.Station_Events.Directory` must exist and
+  take a file at load (a probe file is created and removed; permission bits mislead on shares), and it is
+  never created, so a missing share surfaces before a shift. The startup configuration's directory is the
+  one the close export uses, so the Configuration dialog refuses a mode that names another.
+- **`SF4` is a constant** (`CONST_STATION_ID`): it is the installation's identity in the external contract,
+  and there is one station. A second station would make it a configuration field.
+
+**The file is named by the LOCAL date, as the contract specifies, while `ts` is UTC.** They disagree near
+midnight: an event at 00:30 local in summer has `ts` 22:30Z of the previous date, and a reader that finds
+an event by its `ts` date looks in the wrong file. Naming by the UTC date would keep every file's `ts` on
+one date and needs no zone knowledge to read. That was recommended, but the format is the external owner's
+contract, not this project's, so the local date stands and the question has been raised with the system's
+owner. The local date is the log line's own date field, so naming needs no conversion. A run or a cycle
+crossing midnight therefore starts in one file and ends in the next, and an unpaired row at a file's start
+or end is normal. Only an unpaired `STATION_ON` / `CYCLE_START` with no match in a later file means an
+abnormal exit.
+
+**The log stores local time without a zone**, converted with the machine's rules. In the hour that repeats
+when summer time ends (02:00–03:00 twice), a log time is read as its first, summer-time pass (`fold=0`).
+An event in the second pass gets a `ts` one hour early, so a cycle spanning that hour can read an hour
+short or negative. This is recorded rather than engineered around, because the log cannot tell the passes
+apart.
+
+The live-log lock is `fcntl` only: Windows is not a target (the installer stops on it, README > Platform).
+
+**Revisit if** the external system's owner agrees to UTC file names, or a second station joins (station
+id into the configuration).
+Tests `test/Logger/test_station_events.py` (format, order, UTC, midnight, the repeated hour, every way a
+connection ends, crashes, the ledger, failure and retry, the baseline), `test/UI/test_station_event_paths.py`
+(closing while connected, a failed CONNECT, a startup failure on the strip),
+`test/Configuration/test_core.py` (the required, existing, writable directory),
+`test/UI/test_configuration_dialog.py::test_a_mode_naming_another_station_event_directory_is_refused`.

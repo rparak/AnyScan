@@ -1,0 +1,7 @@
+Daily station event files — contents not tracked in git (see .gitignore)
+=========================================================================
+
+The shipped configuration's General.Station_Events.Directory. The application exports one file per
+local date here, 'YYYY-MM-DD.csv' (Logger/Station_Events.py); the mode file's comment on that field
+says how to read them. An installation points the field at the directory the external system reads.
+The directory must exist for the configuration to load, which is why this file keeps it.

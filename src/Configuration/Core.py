@@ -24,6 +24,7 @@
 # System (Default)
 import os
 import math
+import tempfile
 # Hashlib (the reference image's and the calibration's fingerprints)
 import hashlib
 # JSON (quoting a path safely in YAML)
@@ -56,8 +57,9 @@ Description:
 
     The rules:
         - A REQUIRED field (the hardware, both model paths, the background reference — which must
-          exist — both prompts, the identity's display name and model set, the camera's acquisition
-          settings and its sensor window) has no default: its absence fails the load, naming the field.
+          exist — the station-event directory — which must exist and be writable — both prompts, the
+          identity's display name and model set, the camera's acquisition settings and its sensor
+          window) has no default: its absence fails the load, naming the field.
         - The SENSOR WINDOW (Camera.Resolution, Camera.Offset) is set on the camera on connect, and
           what depends on it is checked against it here, at load: a background reference of another
           size fails the load, naming both sizes, and so does a calibration solved at another window.
@@ -250,6 +252,7 @@ def __Check(kind: str, value: tp.Any) -> tp.Tuple[bool, tp.Any, str]:
 #   Unit [Vector<Tuple>]
 CONST_FIELDS = (
     (('General', 'Classification', 'Enabled'), ('Classification_Enabled',), 'bool', False),
+    (('General', 'Station_Events', 'Directory'), ('Station_Events_Directory',), 'path', True),
     (('Identity', 'Display_Name'), ('Identity', 'Display_Name'), 'text', True),
     (('Identity', 'Model_Set'), ('Identity', 'Model_Set'), 'text', True),
     (('Identity', 'Task'), ('Identity', 'Task'), 'text', False),
@@ -888,6 +891,10 @@ def __Resolve_And_Cross_Check(Configuration_Str: Configuration_Str, problems: tp
             Parameters_Str.Model_Path = __Resolve_Model_Path(Parameters_Str.Model_Path)
     if Configuration_Str.Evaluation.Frames:
         Configuration_Str.Evaluation.Frames = __Resolve_Model_Path(Configuration_Str.Evaluation.Frames)
+    if Configuration_Str.Station_Events_Directory:
+        Configuration_Str.Station_Events_Directory = __Resolve_Model_Path(Configuration_Str.Station_Events_Directory)
+        __Check_Writable_Directory(Configuration_Str.Station_Events_Directory, 'General.Station_Events.Directory',
+                                   problems)
     reference = Configuration_Str.Segmentation.Background_Reference
     if reference:
         reference = Configuration_Str.Segmentation.Background_Reference = __Resolve_Model_Path(reference)
@@ -895,6 +902,30 @@ def __Resolve_And_Cross_Check(Configuration_Str: Configuration_Str, problems: tp
             problems.append('Segmentation.Background.Reference: the file "%s" does not exist' % reference)
             reference = ''
     return reference
+
+
+def __Check_Writable_Directory(directory: str, dotted: str, problems: tp.List[str]) -> None:
+    """
+    Description:
+        A directory the application must write to must exist and take a file — checked by creating and
+        removing one, since permission bits mislead on network shares and Windows ACLs. It is never
+        created here: a missing directory is a setup problem to surface before a shift, not after it.
+
+    Args:
+        (1) directory [string]: The resolved directory.
+        (2) dotted [string]: Its key path, for the message.
+        (3) problems [Vector<string>]: Collects what is wrong.
+    """
+
+    if not os.path.isdir(directory):
+        problems.append('%s: the directory "%s" does not exist' % (dotted, directory))
+        return
+    try:
+        handle, probe = tempfile.mkstemp(prefix='.anyscan_write_check_', dir=directory)
+        os.close(handle)
+        os.remove(probe)
+    except OSError as error:
+        problems.append('%s: the directory "%s" is not writable (%s)' % (dotted, directory, error.strerror or error))
 
 
 def __Read_Custom_Cfg(data: tp.Dict[str, tp.Any], problems: tp.List[str]) -> tp.Dict[str, tp.Any]:

@@ -51,6 +51,8 @@ from UI.Core import AnyScan_Window_Cls
 # Custom Lib.: AnyScan — the session logger
 #   ../Logger/Core
 from Logger.Core import Session_Logger_Cls
+#   ../Logger/Station_Events — the daily station event files, exported from the session logs
+import Logger.Station_Events as Station_Events
 
 # The Windows AppUserModelID: without it the taskbar groups the app under
 # python.exe's identity, so the title bar shows the AnyScan icon while the taskbar
@@ -88,6 +90,54 @@ def Parse_Args(argv: tp.List[str]) -> argparse.Namespace:
     # parse_known_args so Qt's own flags (-style, -platform, …) pass through.
     args, _ = ap.parse_known_args(argv[1:])
     return args
+
+
+def Export_Station_Events(logger: Session_Logger_Cls, window: AnyScan_Window_Cls, directory: str) -> None:
+    """
+    Description:
+        Wire the station event export: register this run's export at close, then export the earlier
+        logs not yet exported, logging what happened — a failure as an ERROR the System cell counts. A
+        failure at close cannot reach the closed log, so it is printed; the log stays out of the ledger
+        and the next start exports it.
+
+    Args:
+        (1) logger [Session_Logger_Cls(object)]: This run's session logger.
+        (2) window [AnyScan_Window_Cls(object)]: The main window, which counts a reported error.
+        (3) directory [string]: The daily files' directory, from the startup configuration.
+    """
+
+    def _At_Close(log_path: str) -> None:
+        """
+        Description:
+            Export this run's log once it is closed.
+
+        Args:
+            (1) log_path [string]: The closed session log.
+        """
+
+        try:
+            Station_Events.Export_Log(log_path, directory)
+        except Station_Events.Station_Events_Error_Cls as error:
+            print('[ERROR] %s' % error)
+
+    logger.Set_Close_Callback(_At_Close)
+    log_dir = os.path.dirname(logger.Path)
+    try:
+        Pending_Export_Str = Station_Events.Export_Pending(log_dir, directory, logger.Path)
+    except Station_Events.Station_Events_Error_Cls as error:
+        window.Report_Error(str(error))
+        return
+    if Pending_Export_Str.Baselined:
+        logger.Log_Info('Station events: no export ledger existed, so the %d session log(s) already in %s were '
+                        'recorded as exported without exporting them; the export history starts with this run.'
+                        % (Pending_Export_Str.Baselined, log_dir))
+    for name in Pending_Export_Str.Exported:
+        logger.Log_Info('Station events of the earlier session log %s exported to %s (it had not been exported: '
+                        'the run did not close cleanly, or its export failed).' % (name, directory))
+    for name in Pending_Export_Str.Live:
+        logger.Log_Info('Station events of %s left for the instance still running it to export.' % name)
+    for _name, message in Pending_Export_Str.Failed:
+        window.Report_Error(message)
 
 
 def main() -> int:
@@ -132,7 +182,6 @@ def main() -> int:
     # the run: the Configuration dialog may change the mode, never the hardware.
     config_path = os.path.abspath(args.config)
     logger = Session_Logger_Cls(config_path=config_path)
-    logger.Log_Info('Application started.')
 
     # Load the startup configuration through the one configuration layer, validated as a whole.
     # The application is usable at once (History, Log, Trends); its models are NOT loaded here —
@@ -157,6 +206,12 @@ def main() -> int:
     camera = File_Camera_Cls(os.path.abspath(args.frame)) if args.frame else Basler_Camera_Cls()
     window = AnyScan_Window_Cls(camera=camera, logger=logger, Configuration_Str=configuration)
     window.setWindowIcon(icon)
+
+    # The daily station event files go to the startup configuration's directory, fixed for the run (a
+    # mode naming another is refused). This run's log is exported when it closes, on every close path;
+    # the logs of earlier runs that were not — a crash, or a failed export — are exported now.
+    Export_Station_Events(logger, window, configuration.Station_Events_Directory)
+
     window.resize(1720, 1020)
     window.showMaximized()   # F11 toggles fullscreen, Esc closes
     try:

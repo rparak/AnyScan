@@ -166,6 +166,7 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
     assert config.Scale is not None
     assert (config.Scale.Mm_Per_Px_X, config.Scale.Mm_Per_Px_Y) == (0.10189853878198323, 0.10207658577821295)
     assert (config.Camera.Resolution, config.Camera.Offset) == ((1920, 1200), (8, 8))
+    assert config.Station_Events_Directory == os.path.join(CONST_PROJECT_ROOT, 'logger', 'Station_Events')
     assert (config.Camera.Calibration.Resolution, config.Camera.Calibration.Offset) == ((1920, 1200), (8, 8))
     # No notes. The two lenient paths this used to expect (a calibration that does not record its window,
     # a reference with no provenance sidecar) ended when the recalibration and the reference made by
@@ -191,6 +192,60 @@ def test_a_missing_required_field_fails_the_load_naming_it(tmp_path: tp.Any, pat
         Load_Configuration(_Write(tmp_path, mode, calibration))
     named = path[-1] if path[:2] == ('Camera', 'Custom_Cfg') and len(path) == 3 else '.'.join(path)
     assert named in str(error.value)
+
+
+def test_a_file_without_the_station_event_directory_fails_the_load(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        General.Station_Events.Directory is REQUIRED — named here, not drawn from the field table, so
+        making it optional in the table cannot remove the test with it. There is no default directory
+        the external system could be reading.
+    """
+
+    mode, calibration = _Shipped()
+    _Delete(mode, ('General', 'Station_Events', 'Directory'))
+    with pytest.raises(Configuration_Error_Cls, match='General.Station_Events.Directory is required but missing'):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+
+
+def test_a_missing_station_event_directory_fails_the_load_and_is_not_created(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The station-event directory must exist when the configuration loads — the external system
+        depends on its files, so the problem surfaces before a shift, not after it. The loader never
+        creates it.
+    """
+
+    mode, calibration = _Shipped()
+    missing = os.path.join(str(tmp_path), 'share', 'station')
+    mode['General']['Station_Events']['Directory'] = missing
+    with pytest.raises(Configuration_Error_Cls, match='General.Station_Events.Directory: the directory "%s" does '
+                                                      'not exist' % re.escape(missing)):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert not os.path.exists(missing)
+
+
+def test_an_unwritable_station_event_directory_fails_the_load(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A directory that exists but takes no file fails the load too, checked by creating one (permission
+        bits mislead on shares); a writable one loads, keeps no trace of the check, and is absolute.
+    """
+
+    mode, calibration = _Shipped()
+    directory = tmp_path / 'station'
+    directory.mkdir()
+    mode['General']['Station_Events']['Directory'] = str(directory)
+    path = _Write(tmp_path, mode, calibration)
+    assert Load_Configuration(path).Station_Events_Directory == str(directory)
+    assert os.listdir(str(directory)) == []
+    os.chmod(str(directory), 0o500)
+    try:
+        with pytest.raises(Configuration_Error_Cls, match='General.Station_Events.Directory: the directory .* is '
+                                                          'not writable'):
+            Load_Configuration(path)
+    finally:
+        os.chmod(str(directory), 0o700)
 
 
 @pytest.mark.parametrize('what', ['K'] + ['Coefficients.%s' % key for key in CONST_COEFFICIENT_KEYS])

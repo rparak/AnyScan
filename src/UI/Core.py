@@ -972,6 +972,19 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__logger.Log_Camera_Disconnected()
         self.__Sync_Controls()
 
+    def Report_Error(self, message: str) -> None:
+        """
+        Description:
+            Log an ERROR found outside the window — the launcher's export of earlier logs at startup —
+            and count it in the System cell, so it reaches the status strip like the window's own.
+
+        Args:
+            (1) message [string]: The error sentence.
+        """
+
+        if self.__logger is not None:
+            self.__Log_Error(message)
+
     def __On_Scan_Button_Clicked(self) -> None:
         """
         Description:
@@ -1776,7 +1789,8 @@ class AnyScan_Window_Cls(QMainWindow):
     def __On_Configuration_Refused(self, message: str) -> None:
         """
         Description:
-            A configuration was refused before anything loaded (invalid, or other hardware).
+            A configuration was refused before anything loaded (invalid, other hardware, or another
+            station-event directory).
 
         Args:
             (1) message [string]: Why.
