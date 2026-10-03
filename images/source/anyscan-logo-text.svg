@@ -6,7 +6,7 @@
   <!-- ===== Mark: locate the object (box) -> describe it (text) ===== -->
   <g transform="translate(40,44)">
     <!-- camera scan frame: corner brackets -->
-    <g fill="none" stroke="#0F172A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <g fill="none" stroke="#2B2455" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
       <path d="M6 34 V12 A6 6 0 0 1 12 6 H34"/>
       <path d="M158 6 H180 A6 6 0 0 1 186 12 V34"/>
       <path d="M186 138 V160 A6 6 0 0 1 180 166 H158"/>
@@ -14,7 +14,7 @@
     </g>
 
     <!-- the located OBJECT: a machined part with drilled holes -->
-    <path fill-rule="evenodd" fill="#0F172A" stroke="#0F172A" stroke-width="2.5" stroke-linejoin="round"
+    <path fill-rule="evenodd" fill="#2B2455" stroke="#2B2455" stroke-width="2.5" stroke-linejoin="round"
           d="M40 108 L40 78 A6 6 0 0 1 46 72 L60 72 L60 58 A6 6 0 0 1 66 52 L78 52 A6 6 0 0 1 84 58 L84 108 A6 6 0 0 1 78 114 L46 114 A6 6 0 0 1 40 108 Z
              M51 96 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0 Z
              M69 96 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0 Z
@@ -38,8 +38,8 @@
   </g>
 
   <!-- ===== Wordmark ===== -->
-  <text x="268" y="132" font-family="Inter" font-weight="400" font-size="87" style="font-variation-settings:'wght' 400, 'opsz' 32" fill="#0F172A">Any<tspan fill="#D6006E">Scan</tspan></text>
+  <text x="268" y="132" font-family="Inter" font-weight="400" font-size="87" style="font-variation-settings:'wght' 400, 'opsz' 32" fill="#2B2455">Any<tspan fill="#D6006E">Scan</tspan></text>
 
   <!-- tagline -->
-  <text x="270" y="184" font-family="Inter" font-weight="400" font-size="36" style="font-variation-settings:'wght' 400, 'opsz' 32" fill="#475569">The camera sees, the model describes.</text>
+  <text x="270" y="184" font-family="Inter" font-weight="400" font-size="36" style="font-variation-settings:'wght' 400, 'opsz' 32" fill="#4A4180">The camera sees, the model describes.</text>
 </svg>

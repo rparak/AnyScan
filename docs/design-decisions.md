@@ -1565,6 +1565,12 @@ input or a record is added or removed: the diagram draws each one.
   the logo this way beside the indigo UI, and the diagram mirrors that on an opaque `CONST_BG`
   card, which reads like a screenshot on a light or a dark README. Do not "fix" the logo to the
   tokens: it is the brand lockup, not a UI surface.
+  *Corrected 2026-10-03:* the owner redesigned the logo's colours in `4599d7b`. The ink (mark, "Any")
+  is now `#2B2455`, the theme's `CONST_INK`, and the tagline `#4A4180`, `CONST_INK_SOFT`; the magenta
+  stays the logo's own `#D6006E`, not `CONST_BRAND`. That commit changed the three outlined files only,
+  so the text source (`images/source/anyscan-logo-text.svg`), the live text's `CONST_LOGO_INK` /
+  `CONST_LOGO_TAGLINE` (now aliases of the two theme tokens) and this diagram followed in the next commit.
+  A full `build_logo.py` rebuild from the recoloured source reproduces `4599d7b`'s logo byte for byte.
 
 **Revisit if** the logo is redesigned (rebuild it with `Example/UI/build_logo.py`, regenerate), or
 if the code changes what the diagram shows. The generator holds the colours; the content is
@@ -2133,9 +2139,9 @@ height differs (59 px below DPR 1.5, 54 px above).
   from the committed logo on any machine; a full build derives it from the logo it has just outlined.
 - **Text:** `Style.CONST_LOGO_TEXT` holds each line as the source sets it, in logo units: the pen origin
   (268, 132) and (270, 184), the sizes 87 and 36, whether the line takes the display cut, and the spans.
-  The colours are the tokens `CONST_LOGO_INK` `#0f172a`, `CONST_LOGO_MAGENTA` `#d6006e` and
-  `CONST_LOGO_TAGLINE` `#475569`, the source's fills exactly (the logo's own palette, see *The logo's
-  palette predates the theme*). "Scan" starts where it starts in the whole word as shaped, so the kerning
+  The colours are the tokens `CONST_LOGO_INK` `#2b2455`, `CONST_LOGO_MAGENTA` `#d6006e` and
+  `CONST_LOGO_TAGLINE` `#4a4180`, the source's fills exactly (since `4599d7b` the ink and the tagline
+  are the theme's `CONST_INK` and `CONST_INK_SOFT`; see *The logo's palette predates the theme*, corrected). "Scan" starts where it starts in the whole word as shaped, so the kerning
   across the colour change is kept. The sizes are the logo's (29.5 and 12.2 px at 59 px; 27.0 and 11.2 at
   54), converted to points through the widget's DPI and built with `Style.Font`, so the 9 pt floor applies.
 - **Whole-pixel sizes:** Qt 5 draws a face at a whole-pixel size (FreeType through fontconfig, measured:

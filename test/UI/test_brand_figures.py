@@ -263,8 +263,8 @@ def test_the_diagram_draws_only_theme_tokens() -> None:
     Description:
         Every colour the diagram draws, outside the inline logo, is a value of a Parameters/Theme.py
         token, so the figure reads as the same product as the application. The logo keeps its own
-        palette, which predates the theme (docs/design-decisions.md); its CONST_LOGO_* tokens, which
-        the top bar's live text uses, do not count here, so the diagram cannot draw in them.
+        palette (its magenta is not a theme token; docs/design-decisions.md); its CONST_LOGO_* tokens,
+        which the top bar's live text uses, do not count here, so the diagram cannot draw in them.
     """
 
     tokens = {value.lower() for name, value in vars(Theme).items() if name.startswith('CONST_')
