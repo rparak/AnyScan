@@ -89,6 +89,19 @@ class _Recording_Vision_Cls(Vision_Backend_Cls):
                             Verdict_Level='idle', Task='rec')
 
 
+class _Loaded_Vision_Cls(_Recording_Vision_Cls):
+    """A recording backend with its models loaded (CONNECT needs them); fail=True makes Analyze raise."""
+
+    def __init__(self, fail: bool = False) -> None:
+        super().__init__()
+        self.Models_Loaded, self.fail = True, fail
+
+    def Analyze(self, image, progress_cb=None, stage_cb=None) -> Analysis_Str:
+        if self.fail:
+            raise RuntimeError('The segmenter failed to process the frame.')
+        return super().Analyze(image, progress_cb, stage_cb)
+
+
 class _Blocking_Vision_Cls(Vision_Backend_Cls):
     """A vision backend that blocks, so a worker is still running when the window closes."""
 
@@ -274,6 +287,53 @@ def test_closeevent_stops_a_running_analysis_thread(qt_app, reference_background
 
     # Secondary guard: Qt never logged a destroyed-while-running warning.
     assert not any('Destroyed while thread is still running' in m for m in messages), messages
+
+
+@pytest.mark.parametrize('slot, frame, fail', [('__On_Connect_Finished', 'reference', False),
+                                               ('__On_Connect_Failed', 'missing', False),
+                                               ('__On_Analysis_Finished', 'reference', False),
+                                               ('__On_Analysis_Failed', 'reference', True)],
+                         ids=['connect finished', 'connect failed', 'analysis finished', 'analysis failed'])
+def test_a_workers_thread_has_ended_when_the_window_has_taken_its_result(qt_app, monkeypatch, tmp_path,
+                                                                        reference_background_path, slot, frame,
+                                                                        fail) -> None:
+    """
+    Description:
+        The slot that takes a worker's result joins the worker's thread before it lets the worker go
+        (UI.Workers.Join_Worker_Thread), so the thread has ENDED when the slot returns. Without the join
+        the thread is still running then — its quit is queued behind the slot — and letting the worker go
+        makes PyQt delete it on that thread, concurrently with the GUI thread: the deadlock the UI suite
+        hung on about once in thirty runs (the worker thread waiting for the GIL under a Qt lock, the GUI
+        thread holding the GIL and waiting for that lock in a setStyleSheet). Checked for both ends of
+        CONNECT and of an analysis.
+    """
+
+    path = reference_background_path if frame == 'reference' else str(tmp_path / 'no_such_frame.png')
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(path))
+    setattr(window, CONST_MANGLE + '__vision', _Loaded_Vision_Cls(fail))
+    seen = {'thread': None, 'running after the slot': []}
+    original = getattr(AnyScan_Window_Cls, CONST_MANGLE + slot)
+
+    def _Observed(self, *args) -> None:
+        original(self, *args)
+        seen['running after the slot'].append(seen['thread'].isRunning())
+
+    monkeypatch.setattr(AnyScan_Window_Cls, CONST_MANGLE + slot, _Observed)
+    if slot.startswith('__On_Connect'):
+        _Private(window, '__On_Connect_Button_Clicked')()
+        seen['thread'] = _Private(window, '__conn_thread')
+    else:
+        camera = _Private(window, '__camera')
+        camera.Connect()
+        setattr(window, CONST_MANGLE + '__frame', camera.Capture())
+        _Private(window, '__On_Analyze_Button_Clicked')()
+        seen['thread'] = _Private(window, '__thread')
+    deadline = time.time() + 5
+    while not seen['running after the slot'] and time.time() < deadline:
+        qt_app.processEvents()
+        time.sleep(0.005)
+    window.close()
+    assert seen['running after the slot'] == [False]
 
 
 def _Wait_Idle(qt_app, window, seconds: float = 3.0) -> None:

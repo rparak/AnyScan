@@ -358,6 +358,37 @@ def test_loading_runs_off_the_gui_thread_then_confirms_and_stays_open(qt_app, tm
     assert not dialog.isVisible()
 
 
+@pytest.mark.parametrize('slot, fail', [('__On_Load_Finished', None), ('__On_Load_Failed', 'The model file is missing.')],
+                         ids=['load finished', 'load failed'])
+def test_the_load_thread_has_ended_when_the_dialog_has_taken_its_result(qt_app, monkeypatch, configurations, slot,
+                                                                         fail) -> None:
+    """
+    Description:
+        The dialog's slot that takes the loader's result joins the loader's thread before it lets the
+        worker go (UI.Workers.Join_Worker_Thread), so the thread has ENDED when the slot returns. Without
+        the join it is still running then, and letting the worker go makes PyQt delete it on that thread
+        while the GUI thread goes on into the window's Configuration_Loaded handler: the deadlock the UI
+        suite hung on (sampled in test_timing_log's configuration load).
+    """
+
+    config = Load_Configuration(configurations['seg'])
+    dialog = Configuration_Dialog_Cls(_Fake_Vision_Cls(delay=0.05, fail=fail), config)
+    seen = {'thread': None, 'running after the slot': []}
+    original = getattr(Configuration_Dialog_Cls, CONST_DIALOG_MANGLE + slot)
+
+    def _Observed(self, *args) -> None:
+        original(self, *args)
+        seen['running after the slot'].append(seen['thread'].isRunning())
+
+    monkeypatch.setattr(Configuration_Dialog_Cls, CONST_DIALOG_MANGLE + slot, _Observed)
+    dialog.Select(configurations['second'])
+    dialog.Load()
+    seen['thread'] = getattr(dialog, CONST_DIALOG_MANGLE + '__thread')
+    _Pump_Until(lambda: bool(seen['running after the slot']))
+    dialog.reject()
+    assert seen['running after the slot'] == [False]
+
+
 def test_a_failed_load_says_so_and_the_previous_configuration_stays(qt_app, tmp_path, configurations) -> None:
     """
     Description:

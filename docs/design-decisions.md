@@ -2569,3 +2569,40 @@ cutting, close during an analysis, connections as no cycle, and
 `test/Logger/test_csv_archive.py::test_a_current_header_of_another_format_version_is_archived_with_its_version`,
 `test/UI/test_station_event_paths.py` (an analysis finished and failed through the window, a scan closed by
 the window's close, a loss at a Scan and by the check).
+
+## A worker's thread is joined before the slot that takes its result lets the worker go
+
+Decided 2026-10-07. Each result slot calls `UI.Workers.Join_Worker_Thread` (quit, then wait) before it
+drops its references to the worker and the thread. This covers both ends of CONNECT and of an analysis in
+`UI/Core.py`, and both ends of a configuration load in `UI/Configuration_Dialog.py`. The module's own
+docstring already described this ("quits and waits on the thread once a worker's terminal signal fires").
+The slots did not do it.
+
+**Why.** The UI suite hung or crashed in about 4 of 53 runs. One hang was sampled live (`sample`) in
+`test_timing_log.py::test_a_configuration_load_logs_each_model_and_the_warm_up`:
+
+- **Worker thread:** inside `QThread::exec`, a deferred delete was destroying the load worker. `~QObject`
+  called PyQt's `QThread.disconnectNotify` under a Qt signal-slot lock, and that waited for the GIL.
+- **GUI thread:** it held the GIL. It was inside the dialog's load slot, which emits `Configuration_Loaded`
+  into the window's `setStyleSheet`, and it waited in `QObject::connect` for that same lock.
+
+The deferred delete is PyQt's: when the last Python reference to a QObject living in another, still
+running, thread goes, PyQt calls `deleteLater` and the object is destroyed on that thread. A probe showed
+it destroyed on the worker thread. The slot dropped that reference while the thread's `quit` was still
+queued behind it.
+
+`QThread.wait` releases the GIL. With the join, the thread finishes its own clean-up while the GUI thread
+is parked and holds no Qt lock, and afterwards nothing is destroyed off the GUI thread. The wait is only
+the worker returning from `Run`, because the terminal signal is the worker's last act.
+
+**What is not shown.** The other failures, a segfault while building a later test's window and a
+`QThread: Destroyed while thread is still running` abort, left no stack that names this cause. After the
+fix, 30 of 30 UI runs passed (213 tests each). At the old rate, about 1 run in 13, that is evidence, not
+proof, that they shared it.
+
+**Revisit if** a worker is ever reused after its result, or the UI suite crashes or hangs again. The loop
+that found this was 30 runs of `test/UI` under a 300 s per-run alarm, with `faulthandler` on and a
+native `sample` of any hung run, because pytest's capture keeps `faulthandler_timeout` dumps.
+Tests `test/UI/test_threading.py::test_a_workers_thread_has_ended_when_the_window_has_taken_its_result`,
+`test/UI/test_configuration_dialog.py::test_the_load_thread_has_ended_when_the_dialog_has_taken_its_result`.
+Removing any single join fails exactly its own case.

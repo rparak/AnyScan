@@ -51,7 +51,7 @@ from UI.Views.Trends import Trends_View_Cls
 #   ../UI/Views/Log
 from UI.Views.Log import Log_View_Cls
 #   ../UI/Workers
-from UI.Workers import Analysis_Worker_Cls, Connect_Worker_Cls
+from UI.Workers import Analysis_Worker_Cls, Connect_Worker_Cls, Join_Worker_Thread
 #   ../UI/Configuration_Dialog
 from UI.Configuration_Dialog import Configuration_Dialog_Cls
 # Custom Lib.: AnyScan domain — backends, renderers and the result structure
@@ -925,6 +925,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         self.__worker_running = False
+        Join_Worker_Thread(self.__conn_thread)              # before the references go: Join_Worker_Thread
         self.__conn_thread = None
         self.__conn_worker = None
         self.__connecting = False
@@ -961,6 +962,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         self.__worker_running = False
+        Join_Worker_Thread(self.__conn_thread)              # before the references go: Join_Worker_Thread
         self.__conn_thread = None
         self.__conn_worker = None
         self.__connecting = False
@@ -1156,6 +1158,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         self.__worker_running = False
+        Join_Worker_Thread(self.__thread)                   # before the references go: Join_Worker_Thread
         self.__thread = None
         self.__worker = None
         self.__viewport.Stop_Busy()
@@ -1389,6 +1392,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         self.__worker_running = False
+        Join_Worker_Thread(self.__thread)                   # before the references go: Join_Worker_Thread
         self.__thread = None
         self.__worker = None
         self.__viewport.Stop_Busy()

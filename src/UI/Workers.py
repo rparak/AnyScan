@@ -33,8 +33,34 @@ Description:
     The off-thread workers. Long-running work (a scan, model inference, a model load, a
     Basler handshake) never runs on the GUI thread; each worker is moved onto a QThread
     owned by the window and reports back only through signals. The window quits and
-    waits on the thread once a worker's terminal signal fires, then deletes both.
+    waits on the thread once a worker's terminal signal fires (Join_Worker_Thread), then
+    deletes both.
 """
+
+
+def Join_Worker_Thread(thread: tp.Any) -> None:
+    """
+    Description:
+        Quit a worker's thread and wait until it has ended — called by the slot that receives
+        the worker's terminal signal, BEFORE it drops its references to the worker and the thread.
+
+        The worker lives on that thread, so dropping its last Python reference while the thread
+        still runs makes PyQt delete it there (deleteLater), concurrently with the GUI thread.
+        That deletion calls PyQt's QThread.disconnectNotify under a Qt signal-slot lock and waits
+        for the GIL; the GUI thread holds the GIL and, in the same slot, makes Qt connections
+        (a setStyleSheet) that wait for that lock — a deadlock, caught in the test suite as a
+        hang about once in thirty runs. QThread.wait releases the GIL, so the thread finishes its
+        own clean-up (the worker's deleteLater from 'finished') while the GUI thread is parked,
+        and afterwards nothing is destroyed off the GUI thread. The quit is already queued by the
+        terminal signal; the wait is the worker returning from Run, so it does not hold the GUI.
+
+    Args:
+        (1) thread [QThread(object)]: The worker's thread, or None when there is none.
+    """
+
+    if thread is not None:
+        thread.quit()
+        thread.wait()
 
 
 class Analysis_Worker_Cls(QObject):

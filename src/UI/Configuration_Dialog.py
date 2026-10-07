@@ -37,7 +37,7 @@ from UI.Utilities.Style import Font
 #   ../UI/Widgets
 from UI.Widgets import Tool_Button_Cls
 #   ../UI/Workers
-from UI.Workers import Model_Load_Worker_Cls
+from UI.Workers import Model_Load_Worker_Cls, Join_Worker_Thread
 # Custom Lib.: AnyScan — the configuration layer (the one reader of a configuration file)
 #   ../Configuration/Core
 from Configuration.Core import (Load_Configuration, Discover_Configurations, Configuration_Error_Cls,
@@ -474,6 +474,7 @@ class Configuration_Dialog_Cls(QDialog):
         """
 
         candidate, self.__candidate = self.__candidate, None
+        Join_Worker_Thread(self.__thread)                   # before the references go: Join_Worker_Thread
         self.__thread = self.__worker = None
         self.__Set_Busy(False)
         self.__config = candidate
@@ -492,6 +493,7 @@ class Configuration_Dialog_Cls(QDialog):
         """
 
         self.__candidate = None
+        Join_Worker_Thread(self.__thread)                   # before the references go: Join_Worker_Thread
         self.__thread = self.__worker = None
         self.__Set_Busy(False)
         self.__Show_Result('Configuration was not loaded. %s' % message, ok=False)
