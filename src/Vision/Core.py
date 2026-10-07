@@ -28,7 +28,7 @@ import time
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures, composer, and vision utilities
 #   ../Parameters/Vision
-from Parameters.Vision import (Detection_Str, Analysis_Str, Load_Timing_Str, Model_Load_Str,
+from Parameters.Vision import (Detection_Str, Analysis_Str, Heatmap_Str, Load_Timing_Str, Model_Load_Str,
                                CONST_STAGE_BACKGROUND, CONST_STAGE_SEGMENTATION, CONST_STAGE_SEGMENTATION_POST,
                                CONST_STAGE_FUSION, CONST_STAGE_CROPS, CONST_STAGE_DESCRIPTIONS,
                                CONST_STAGE_BACKGROUND_SENTENCE, CONST_STAGE_COMPOSE)
@@ -38,7 +38,7 @@ from Parameters.Configuration import Configuration_Str
 from Reporting.Core import (Compose, Verdict, Background_Sentence,
                             CONST_EMPTY_SCENE_EXPLANATION, CONST_BACKGROUND_FALLBACK)
 #   ../Vision/Utilities/Segmentation
-from Vision.Utilities.Segmentation import Background_Foreground
+from Vision.Utilities.Segmentation import Background_Difference, Foreground_Mask, CONST_DIFFERENCE_SCALE_MAX
 #   ../Vision/Utilities/Fusion
 from Vision.Utilities.Fusion import Fuse_Objects
 #   ../Vision/Utilities/Enhancement
@@ -65,7 +65,7 @@ Description:
     The vision pipeline — four stages, one module each (see the flow diagram on
     Vision_Pipeline_Cls):
 
-        (1) background subtraction   Vision.Utilities.Segmentation.Background_Foreground
+        (1) background subtraction   Vision.Utilities.Segmentation (Background_Difference, Foreground_Mask)
                                          -> the background-subtracted foreground mask
         (2) instance segmentation    Vision.Segmenter.Fast_Sam_Cls.Segment
                                          -> per-instance masks + confidences
@@ -207,7 +207,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
           current frame (RGB)  +  reference background
                    |  (RGB -> BGR)
                    v
-          (1) background subtraction ......... Segmentation.Background_Foreground
+          (1) background subtraction ......... Segmentation.Background_Difference, Foreground_Mask
                    |  the background-subtracted foreground mask
                    |  (absdiff -> blur -> floored Otsu -> open -> dilate);
                    |  one of the two cues fused in stage 3
@@ -766,11 +766,13 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
         # ---- Stage 1 - background subtraction (Vision.Utilities.Segmentation) ----
         # The background-subtracted foreground mask: one of the two cues fused in
-        # stage 3. Pure cv2/np differencing, so it lives in Segmentation, not here.
+        # stage 3. Pure cv2/np differencing, so it lives in Segmentation, not here. The
+        # difference before thresholding is kept for the Camera View's heatmap.
         bg_bgr = self.__Load_Background(cv2, frame_bgr.shape)
         started = time.perf_counter()
-        background_fg = Background_Foreground(bg_bgr, frame_bgr, cv2, np,
-                                              Segmentation_Parameters_Str=self.__config.Segmentation)
+        difference = Background_Difference(bg_bgr, frame_bgr, cv2, np)
+        background_fg, threshold, otsu = Foreground_Mask(difference, cv2, np,
+                                                         Segmentation_Parameters_Str=self.__config.Segmentation)
         stage_s[CONST_STAGE_BACKGROUND] = time.perf_counter() - started
 
         # ---- Stage 2 - instance segmentation (Vision.Segmenter) ----
@@ -808,6 +810,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         stage_s[CONST_STAGE_BACKGROUND_SENTENCE] = time.perf_counter() - started
         result = self.__Compose_Result(objects, t0, len(masks), background_sentence, background_audit,
                                        stage_s, object_times)
+        # The heatmap's source today: the background difference on its fixed scale, with the threshold
+        # applied — named by what set it — marked on the legend.
+        result.Heatmap = Heatmap_Str(Values=difference, Low=0.0, High=float(CONST_DIFFERENCE_SCALE_MAX),
+                                     Title='Difference from the reference', Unit='grey level',
+                                     Marks=[(threshold, ('Otsu %d' if otsu >= threshold else 'floor %d') % threshold)])
         # Measure every masked object through the configured scale (none without one). It runs
         # after Latency_Ms has stopped, so its time is carried beside the total, not in it.
         started = time.perf_counter()

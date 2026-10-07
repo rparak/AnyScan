@@ -62,6 +62,8 @@ from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
 from Vision.Core import Vision_Pipeline_Cls
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Render_Views, Seg_Lines
+#   ../Vision/Utilities/Heatmap
+from Vision.Utilities.Heatmap import Render_Heatmap
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines, Frame_Confidence
 #   ../Reporting/Trends
@@ -1597,11 +1599,17 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__reading_note.setText(result.Note)
         self.__reading_note.setVisible(bool(result.Note))
 
-        # Both are held for the instant annotated/mask swap (§2b); the remembered view
-        # choice is restored so a mask-view session stays in mask view.
-        self.__viewport.Show_Views(Bgr_To_Qimage(annotated_bgr), Bgr_To_Qimage(mask_bgr),
-                                   self.__view_choice)
-        self.__view_toggle.Set_View(self.__view_choice)
+        # All are held for the instant swap (§2b); the remembered view choice is restored so a
+        # mask-view session stays in mask view. The heatmap is rendered here, for the screen only —
+        # never handed to the capture writer — and its segment is available only when the result
+        # brought one (a heatmap choice falls back to the annotated view meanwhile, still remembered).
+        heatmap = (Bgr_To_Qimage(Render_Heatmap(result.Heatmap, cv2, np)) if result.Heatmap is not None
+                   else None)
+        view = self.__view_choice if heatmap is not None or self.__view_choice != 'heatmap' else 'annotated'
+        self.__viewport.Show_Views(Bgr_To_Qimage(annotated_bgr), Bgr_To_Qimage(mask_bgr), view,
+                                   heatmap=heatmap, legend=result.Heatmap)
+        self.__view_toggle.Set_Segment_Enabled('heatmap', heatmap is not None)
+        self.__view_toggle.Set_View(view)
         self.__stage_badge.Set_State(result.Verdict, result.Verdict_Level)
 
         self.__meta_task.setText(result.Task)
@@ -1719,12 +1727,12 @@ class AnyScan_Window_Cls(QMainWindow):
     def __On_View_Toggle(self, view: str) -> None:
         """
         Description:
-            Switch the Camera View between the annotated image and the mask. This only
-            swaps the held render in place — it never re-runs analysis and never reads
+            Switch the Camera View between the annotated image, the mask and the heatmap. This
+            only swaps the held render in place — it never re-runs analysis and never reads
             from disk — and remembers the choice for the next analysis.
 
         Args:
-            (1) view [string]: 'annotated' or 'mask'.
+            (1) view [string]: 'annotated', 'mask' or 'heatmap'.
         """
 
         self.__view_choice = view

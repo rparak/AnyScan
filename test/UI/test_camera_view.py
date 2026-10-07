@@ -23,6 +23,8 @@
 
 # System (Default)
 import os
+# Typing (Support for type hints)
+import typing as tp
 # Qt must render headless; set the platform before any QApplication is constructed.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Numpy (Array computing) [pip3 install numpy]
@@ -39,7 +41,9 @@ from Camera.Core import File_Camera_Cls
 #   ../Vision/Core
 from Vision.Core import Vision_Backend_Cls
 #   ../Parameters/Vision
-from Parameters.Vision import Analysis_Str
+from Parameters.Vision import Analysis_Str, Detection_Str, Heatmap_Str
+#   ../Parameters/Theme
+import Parameters.Theme as Theme
 # Dataclasses (the shipped configuration, unscaled, for the window)
 import dataclasses
 # Custom Lib.: AnyScan — the configuration layer the window is built from
@@ -213,3 +217,134 @@ def test_disconnect_drops_the_result_and_hides_the_toggle(qt_app, reference_back
     _Private(window, '__On_Disconnect_Button_Clicked')()
     assert not viewport.Has_Views()
     assert toggle.isHidden()
+
+
+def _Heatmap_Result(window, right: int, marks: tp.Sequence[tp.Tuple[float, str]] = ((51.0, 'Otsu 51'),),
+                    objects: tp.Sequence[Detection_Str] = ()) -> Analysis_Str:
+    """A finished reading whose heatmap is 0 on the frame's left half and `right` on its right half."""
+    height, width = _Private(window, '__frame').shape[:2]
+    values = np.zeros((height, width), dtype=np.uint8)
+    values[:, width // 2:] = right
+    return Analysis_Str(Objects=list(objects), Verdict='Empty', Verdict_Level='idle', Task='t',
+                        Heatmap=Heatmap_Str(Values=values, Low=0.0, High=128.0, Title='Difference from the reference',
+                                            Unit='grey level', Marks=list(marks)))
+
+
+def _Painted(viewport, grab: np.ndarray, fx: float, fy: float) -> tp.Tuple[int, int, int]:
+    """The BGR painted at a fraction (fx, fy) of where the viewport draws its image."""
+    rect = getattr(viewport, '_Viewport_Cls__Draw_Rect')()
+    scale = grab.shape[0] / viewport.height()
+    x, y = int((rect.left() + fx * rect.width()) * scale), int((rect.top() + fy * rect.height()) * scale)
+    return tuple(int(v) for v in grab[y, x, :3])
+
+
+def _Close(painted: tp.Tuple[int, int, int], hex_color: str) -> bool:
+    """Whether a painted BGR is the theme colour, within smooth scaling's rounding."""
+    return max(abs(a - b) for a, b in zip(painted, Theme.Hex_To_Bgr(hex_color))) <= 3
+
+
+def _Legend(grab: np.ndarray, viewport) -> np.ndarray:
+    """The viewport's bottom-left corner, where the legend is painted (320 x 110 px)."""
+    scale = grab.shape[0] / viewport.height()
+    return grab[grab.shape[0] - int(110 * scale):, :int(320 * scale)]
+
+
+def test_the_heatmap_view_paints_each_value_in_its_colour_on_the_fixed_scale(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        Choosing Heatmap paints the heatmap: a difference of 0 in the theme's first heatmap colour, 64 in
+        its middle one, 128 in its last — on a FIXED scale, so the half that stays 0 keeps its colour when
+        the other half gets hotter, and 64 is never stretched to the top colour because it is the frame's
+        maximum.
+    """
+
+    window = _Scanned_Window(reference_background_path)
+    viewport = _Private(window, '__viewport')
+    colors = Theme.Heatmap_Colors()
+    _Private(window, '__On_Analysis_Finished')(_Heatmap_Result(window, right=64))
+    _Private(window, '__On_View_Toggle')('heatmap')
+    grab = _Grab(viewport)
+    assert _Close(_Painted(viewport, grab, 0.25, 0.4), colors[0])
+    assert _Close(_Painted(viewport, grab, 0.75, 0.4), colors[128])
+
+    _Private(window, '__On_Analysis_Finished')(_Heatmap_Result(window, right=128))
+    grab = _Grab(viewport)
+    assert _Close(_Painted(viewport, grab, 0.25, 0.4), colors[0])
+    assert _Close(_Painted(viewport, grab, 0.75, 0.4), colors[255])
+
+
+def test_the_legend_marks_the_threshold_and_shows_only_on_the_heatmap(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        Two readings that differ only in the threshold marked on the legend render differently in the
+        legend's corner of the heatmap view, and identically above it; the same threshold renders
+        identically. In the annotated view the two are identical everywhere: the legend belongs to the
+        heatmap.
+    """
+
+    window = _Scanned_Window(reference_background_path)
+    viewport = _Private(window, '__viewport')
+    finished = _Private(window, '__On_Analysis_Finished')
+    _Private(window, '__On_View_Toggle')('heatmap')
+    grabs = {}
+    for name, marks in (('30', ((30.0, 'Otsu 30'),)), ('60', ((60.0, 'Otsu 60'),)), ('60 again', ((60.0, 'Otsu 60'),))):
+        finished(_Heatmap_Result(window, right=64, marks=marks))
+        _Private(window, '__On_View_Toggle')('heatmap')
+        heatmap = _Grab(viewport)
+        _Private(window, '__On_View_Toggle')('annotated')
+        grabs[name] = (heatmap, _Grab(viewport))
+    (heat_30, annotated_30), (heat_60, annotated_60), (heat_again, _annotated) = grabs['30'], grabs['60'], grabs['60 again']
+    assert not np.array_equal(_Legend(heat_30, viewport), _Legend(heat_60, viewport))
+    half = heat_30.shape[0] // 2
+    assert np.array_equal(heat_30[:half], heat_60[:half])
+    assert np.array_equal(heat_60, heat_again)
+    assert np.array_equal(annotated_30, annotated_60)
+
+
+def test_the_heatmap_shows_the_difference_alone_with_no_boxes(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        The heatmap is the difference image alone: a reading with a located object renders the same
+        heatmap as one without, while its annotated view does show the object's box.
+    """
+
+    window = _Scanned_Window(reference_background_path)
+    viewport = _Private(window, '__viewport')
+    part = Detection_Str(Label='ring', Bbox=(300, 300, 400, 300), Sentence='A ring.', Segmenter_Score=0.9, Cue='both')
+    grabs = []
+    for objects in ((), (part,)):
+        _Private(window, '__On_Analysis_Finished')(_Heatmap_Result(window, right=64, objects=objects))
+        _Private(window, '__On_View_Toggle')('heatmap')
+        heatmap = _Grab(viewport)
+        _Private(window, '__On_View_Toggle')('annotated')
+        grabs.append((heatmap, _Grab(viewport)))
+    (heat_empty, annotated_empty), (heat_part, annotated_part) = grabs
+    assert np.array_equal(heat_empty, heat_part)
+    assert not np.array_equal(annotated_empty, annotated_part)
+
+
+def test_without_a_heatmap_its_segment_is_unavailable_and_the_choice_waits(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        A reading that brought no heatmap paints the annotated view even when the operator had chosen the
+        heatmap, and the toggle renders differently (its heatmap segment disabled). The choice is kept:
+        the next reading with a heatmap is shown as a heatmap again.
+    """
+
+    window = _Scanned_Window(reference_background_path)
+    viewport, toggle = _Private(window, '__viewport'), _Private(window, '__view_toggle')
+    finished = _Private(window, '__On_Analysis_Finished')
+    finished(_Heatmap_Result(window, right=64))
+    _Private(window, '__On_View_Toggle')('heatmap')
+    toggle_available = _Grab(toggle)
+
+    finished(_Result())
+    shown = _Grab(viewport)
+    assert not np.array_equal(_Grab(toggle), toggle_available)
+
+    finished(_Heatmap_Result(window, right=128))                    # no toggle between: the choice was kept
+    assert _Close(_Painted(viewport, _Grab(viewport), 0.75, 0.4), Theme.Heatmap_Colors()[255])
+
+    finished(_Result())
+    _Private(window, '__On_View_Toggle')('annotated')
+    assert np.array_equal(shown, _Grab(viewport))                   # what was shown was the annotated view

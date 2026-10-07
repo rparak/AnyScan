@@ -290,6 +290,45 @@ class Load_Timing_Str(object):
 
 
 @dataclass
+class Heatmap_Str(object):
+    """
+    Description:
+        A per-pixel map for the Camera View's heatmap, with everything its legend shows, from whatever
+        stage computed it. The view only renders this (Vision.Utilities.Heatmap, then the viewport), so
+        another source — a similarity to a reference part — fills the same structure and changes no UI.
+        Shown only, never saved: not in the capture set, not in History.
+
+    Initialization of the Class:
+        Args:
+            (1) Values [Matrix<number> HxW]: The per-pixel values.
+
+        Example:
+            Initialization:
+                # Initialization of the structure.
+                Cls = Heatmap_Str(Values=gray, High=128.0, Title='Difference from the reference')
+
+            Features:
+                # Access the fields of the structure.
+                Cls.Values; Cls.Low; Cls.High; Cls.Title; Cls.Unit; Cls.Marks
+    """
+
+    # The per-pixel values, the frame's size.
+    #   Unit [Matrix<number> HxW]
+    Values: tp.Any = None
+    # The fixed scale the colours span: Low maps to the map's first colour, High (and above) to its last.
+    #   Unit [float] (in Unit)
+    Low: float = 0.0
+    High: float = 1.0
+    # What the values are, for the legend ('Difference from the reference', 'grey level').
+    #   Unit [string]
+    Title: str = ''
+    Unit: str = ''
+    # Values marked on the legend, each with its label (the threshold applied: 'Otsu 51').
+    #   Unit [Vector<Tuple<float, string>>]
+    Marks: tp.List[tp.Tuple[float, str]] = field(default_factory=list)
+
+
+@dataclass
 class Analysis_Str(object):
     """
     Description:
@@ -351,6 +390,9 @@ class Analysis_Str(object):
     # Where the time went (Timing_Str), or None when the backend does not time its stages.
     #   Unit [Timing_Str(object)]
     Timing: tp.Optional[Timing_Str] = None
+    # The Camera View's heatmap (Heatmap_Str), or None when the backend computes none.
+    #   Unit [Heatmap_Str(object)]
+    Heatmap: tp.Optional[Heatmap_Str] = None
 
 
 # The hysteresis margin, in percent, for the status-bar session-mean LOG crossings only: after

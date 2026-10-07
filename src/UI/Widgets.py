@@ -40,7 +40,7 @@ import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline, Load_Logo
 # Custom Lib.: AnyScan domain — the confidence thresholds the object list colours numbers by
 #   ../Parameters/Vision
-from Parameters.Vision import Confidence_Thresholds_Str
+from Parameters.Vision import Confidence_Thresholds_Str, Heatmap_Str
 # Custom Lib.: AnyScan domain — the shared Scene-Understanding formatter
 #   ../Reporting/Core
 from Reporting.Core import Object_Label, Object_Confidence, Object_Size, CONST_LABEL_SEPARATOR
@@ -303,6 +303,10 @@ class Viewport_Cls(QWidget):
         self.__annotated = None
         self.__mask = None
         self.__view = 'annotated'
+        # The third view, the heatmap (Vision.Utilities.Heatmap), and its Heatmap_Str for the legend
+        # painted over it; both None when the analysis brought none.
+        self.__heatmap = None
+        self.__legend = None
         # Busy overlay. __busy shows the scrim and step text; __animated adds the
         # turning arc, driven by __timer, which runs ONLY while the analysis worker
         # is busy — a timer left running repaints a static screen forever.
@@ -335,25 +339,45 @@ class Viewport_Cls(QWidget):
         self.__image = image
         self.__annotated = None
         self.__mask = None
+        self.__heatmap = None
+        self.__legend = None
         self.update()
 
-    def Show_Views(self, annotated: QImage, mask: QImage, view: str) -> None:
+    def Show_Views(self, annotated: QImage, mask: QImage, view: str, *, heatmap: tp.Optional[QImage],
+                   legend: tp.Optional[Heatmap_Str]) -> None:
         """
         Description:
-            Hold both analysis renders from the completed result and paint the selected
-            one. The two images are swapped in place by Set_View with no re-analysis and
+            Hold the analysis renders from the completed result and paint the selected
+            one. The images are swapped in place by Set_View with no re-analysis and
             no disk read.
 
         Args:
             (1) annotated [QImage(object)]: The annotated image.
             (2) mask [QImage(object)]: The label mask image.
-            (3) view [string]: The view to show now ('annotated' or 'mask').
+            (3) view [string]: The view to show now ('annotated', 'mask' or 'heatmap').
+            (4) heatmap [QImage(object) or None]: REQUIRED, keyword-only: the heatmap image, or None
+                when the analysis brought none.
+            (5) legend [Heatmap_Str(object) or None]: REQUIRED, keyword-only: the heatmap's scale, title
+                and marks, painted as its legend; None with no heatmap.
         """
 
         self.__annotated = annotated
         self.__mask = mask
+        self.__heatmap = heatmap
+        self.__legend = legend
         self.__view = view
         self.update()
+
+    def Has_Heatmap(self) -> bool:
+        """
+        Description:
+            Whether a heatmap is held — its segment of the view toggle is available only then.
+
+        Returns:
+            (1) parameter [bool]: True when the held analysis brought a heatmap.
+        """
+
+        return self.__heatmap is not None
 
     def Set_View(self, view: str) -> None:
         """
@@ -393,6 +417,8 @@ class Viewport_Cls(QWidget):
         """
 
         if self.__annotated is not None:
+            if self.__view == 'heatmap' and self.__heatmap is not None:
+                return self.__heatmap
             return self.__mask if self.__view == 'mask' else self.__annotated
         return self.__image
 
@@ -401,22 +427,26 @@ class Viewport_Cls(QWidget):
         Description:
             Drop the analysis renders but keep the frame. A new run supersedes the old,
             so its renders are cleared the moment it starts — the toggle cannot show, and
-            two runs in quick succession cannot leave a mixed annotated/mask pair.
+            two runs in quick succession cannot leave a mixed set of renders.
         """
 
         self.__annotated = None
         self.__mask = None
+        self.__heatmap = None
+        self.__legend = None
         self.update()
 
     def Clear(self) -> None:
         """
         Description:
-            Drop the frame and both analysis renders, returning to the empty state.
+            Drop the frame and the analysis renders, returning to the empty state.
         """
 
         self.__image = None
         self.__annotated = None
         self.__mask = None
+        self.__heatmap = None
+        self.__legend = None
         self.update()
 
     def Set_Empty_Text(self, text: str) -> None:
@@ -542,10 +572,61 @@ class Viewport_Cls(QWidget):
             self.__Paint_Empty(p)
         else:
             p.drawImage(self.__Draw_Rect(), displayed)
+            if displayed is self.__heatmap and self.__legend is not None:
+                self.__Paint_Legend(p, self.__legend)
 
         if self.__busy:
             self.__Paint_Busy(p)
         p.end()
+
+    def __Paint_Legend(self, p: QPainter, legend: Heatmap_Str) -> None:
+        """
+        Description:
+            The heatmap's legend, in the viewport's bottom-left corner on a solid viewport-ink panel: the
+            title and unit, the colour bar from the scale's low end to its high end (the high end marked
+            '≥', since values above it take its colour), and each mark — the threshold applied — as a
+            tick through the bar with its label under it. Painted from the Heatmap_Str alone, so a
+            heatmap from another source brings its own legend.
+
+        Args:
+            (1) p [QPainter(object)]: The active painter.
+            (2) legend [Heatmap_Str(object)]: The heatmap's scale, title and marks.
+        """
+
+        pad, bar_h, margin = 10, 10, 12
+        font = Font(9)
+        metrics = QFontMetrics(font)
+        line = metrics.height()
+        title = '%s (%s)' % (legend.Title, legend.Unit) if legend.Unit else legend.Title
+        # The bar is as wide as the title (at least 192 px), so the title and its unit are never cut.
+        bar_w = max(192, metrics.horizontalAdvance(title))
+        panel = QRect(margin, self.height() - margin - (pad * 2 + line * 2 + bar_h + 8), bar_w + pad * 2,
+                      pad * 2 + line * 2 + bar_h + 8)
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, False)
+        p.fillRect(panel, Style.Token_Color(Style.CONST_VIEWPORT))
+        p.setFont(font)
+        p.setPen(Style.Token_Color(Style.CONST_VIEWPORT_TEXT))
+        x0, y = panel.left() + pad, panel.top() + pad
+        p.drawText(QRect(x0, y, bar_w, line), Qt.AlignLeft | Qt.AlignVCenter, title)
+        bar = QRect(x0, y + line + 4, bar_w, bar_h)
+        colors = Style.Heatmap_Colors()
+        for column in range(bar_w):
+            p.fillRect(QRect(bar.left() + column, bar.top(), 1, bar_h),
+                       Style.Token_Color(colors[round(column * (len(colors) - 1) / (bar_w - 1))]))
+        labels_y = bar.bottom() + 4
+        p.drawText(QRect(x0, labels_y, bar_w, line), Qt.AlignLeft | Qt.AlignVCenter, '%g' % legend.Low)
+        p.drawText(QRect(x0, labels_y, bar_w, line), Qt.AlignRight | Qt.AlignVCenter, '≥ %g' % legend.High)
+        span = float(legend.High - legend.Low)
+        for value, label in legend.Marks:
+            x = bar.left() + round(min(max((value - legend.Low) / span, 0.0), 1.0) * (bar_w - 1))
+            p.fillRect(QRect(x - 1, bar.top() - 3, 2, bar_h + 6), Style.Token_Color(Style.CONST_BUSY_INK))
+            width = metrics.horizontalAdvance(label)
+            left = min(max(x - width // 2, x0), x0 + bar_w - width)
+            p.setPen(Style.Token_Color(Style.CONST_BUSY_INK))
+            p.drawText(QRect(left, labels_y, width, line), Qt.AlignCenter, label)
+            p.setPen(Style.Token_Color(Style.CONST_VIEWPORT_TEXT))
+        p.restore()
 
     def __Paint_Busy(self, p: QPainter) -> None:
         """
@@ -753,6 +834,18 @@ class Segmented_Control_Cls(QWidget):
         if button is not None and not button.isChecked():
             button.setChecked(True)
 
+    def Set_Segment_Enabled(self, key: str, enabled: bool) -> None:
+        """
+        Description:
+            Enable or disable one segment — a choice that is not available now stays visible, greyed.
+
+        Args:
+            (1) key [string]: The segment key.
+            (2) enabled [bool]: Whether it can be chosen.
+        """
+
+        self.__buttons[key].setEnabled(enabled)
+
     def Selection(self) -> tp.Optional[str]:
         """
         Description:
@@ -771,8 +864,9 @@ class Segmented_Control_Cls(QWidget):
 class View_Toggle_Cls(Segmented_Control_Cls):
     """
     Description:
-        The Camera View's annotated/mask selector (§2b) — a Segmented_Control_Cls fixed to
-        two segments, so it shares the console's one segmented-control look. It re-exposes
+        The Camera View's annotated/mask/heatmap selector (§2b) — a Segmented_Control_Cls fixed
+        to three segments, so it shares the console's one segmented-control look. The heatmap
+        segment is disabled while the held analysis brought no heatmap. It re-exposes
         the control under its domain names: View_Changed (a user click) and Set_View
         (restore a remembered choice without re-emitting). The window hides it until an
         analysis has completed — there is nothing to toggle before then.
@@ -782,7 +876,7 @@ class View_Toggle_Cls(Segmented_Control_Cls):
     View_Changed = pyqtSignal(str)
 
     # The segments, in order, as (key, label).
-    CONST_SEGMENTS = (('annotated', 'Annotated'), ('mask', 'Mask'))
+    CONST_SEGMENTS = (('annotated', 'Annotated'), ('mask', 'Mask'), ('heatmap', 'Heatmap'))
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(self.CONST_SEGMENTS, parent=parent)

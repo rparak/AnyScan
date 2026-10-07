@@ -128,3 +128,25 @@ def test_module_is_qt_free(top_level_imports) -> None:
     """
 
     assert not top_level_imports(Segmentation.__file__) & {'PyQt5', 'cv2', 'numpy'}
+
+
+def test_the_threshold_applied_is_returned_with_which_one_set_it() -> None:
+    """
+    Description:
+        Foreground_Mask returns the threshold it applied and Otsu's own, so the heatmap's legend can mark
+        the one that set the mask: on a frame with a strong object Otsu wins (above the floor of 28); on a
+        nearly empty frame Otsu lands below the floor, and the floor is what applied.
+    """
+
+    bg = np.full((120, 160, 3), 100, dtype=np.uint8)
+    strong = bg.copy()
+    strong[40:80, 50:110] = 220                                     # a difference of 120 grey levels
+    _mask, threshold, otsu = Segmentation.Foreground_Mask(Segmentation.Background_Difference(bg, strong, cv2, np),
+                                                          cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
+    assert threshold == otsu > 28
+
+    faint = bg.copy()
+    faint[40:80, 50:110] = 110                                      # a difference of 10: a shadow at most
+    mask, threshold, otsu = Segmentation.Foreground_Mask(Segmentation.Background_Difference(bg, faint, cv2, np),
+                                                         cv2, np, Segmentation_Parameters_Str=CONST_PARAMETERS)
+    assert otsu < 28 and threshold == 28 and not mask.any()

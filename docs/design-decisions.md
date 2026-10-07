@@ -2660,3 +2660,61 @@ stopped slot joins its thread as the others do), and
 `::test_closing_never_destroys_a_running_thread_and_exits_cleanly`. That last one runs in its own
 interpreter, for the analysis case and the CONNECT escape (second close, and the bound). Without the
 deferral, the suite itself aborts with Qt's message.
+
+## The Camera View's heatmap: the background difference, fixed 0–128 scale, cividis, screen only
+
+Decided 2026-10-07. The Camera View has a third view beside Annotated and Mask: **Heatmap**. For each
+pixel it shows how much the frame differs from the reference, the background cue before thresholding. It
+is the diagnostic for why an object was or was not found: shadows, glare, low-contrast parts, where two
+parts merge.
+
+- **The image is the one stage 1 thresholds, not a recomputed one.** `Background_Foreground` is split
+  into `Background_Difference` (the per-channel absolute difference, blurred 5×5, as grey, 0–255) and
+  `Foreground_Mask` (floored Otsu, opening, dilation). The function returns the threshold it applied and
+  Otsu's own. `Analyze` calls the two halves and puts that very array on `Analysis_Str.Heatmap`, so the
+  legend's threshold mark applies to exactly the pixels shown. `Background_Foreground` stays as their
+  composition for the callers that want only the mask.
+- **A fixed scale, not normalised per frame.** It runs linearly from 0 to 128 grey levels, and a value
+  above 128 takes the top colour (the legend says "≥ 128"). Per-frame normalisation would paint an empty
+  frame's noise as hot as a part.
+  - The scale's basis, the 8 frames of `Data/Images/Test/All` under the current lighting: background
+    median 6–7, the busiest frames' 90th percentile 56–75, Otsu 30–65 (the floor of 28 never bound),
+    objects up to 156–172.
+  - At 128, the band that decides found or missed gets the lower half of the lightness range, and
+    everything above it is at least twice the highest threshold seen.
+  - `CONST_DIFFERENCE_SCALE_MAX`'s comment records the basis, and that it must be re-checked at the
+    side-light session.
+- **The legend marks the threshold applied, named by what set it:** "Otsu 51", or "floor 28" when the
+  floor wins.
+- **Cividis, defined in `Parameters/Theme.py`.** It is held to ΔE ≥ 12 (`CONST_ANNOTATE_MIN_DELTA_E`)
+  against the OK and NOK verdict colours (box, ink and fill), the status colours and their text twins, and
+  the log and on-dark error colours. Viridis fails that: ΔE 4.2 from the OK ink and 12.0 from `CONST_OK`.
+  Inferno and plasma pass near the reserved amber and red. Cividis's closest is 12.5, the OK ink.
+  - It is defined as 17 anchors from matplotlib's map, expanded to 256 colours in L*a*b*. Lightness rises
+    from L* 13.8 to 91.3.
+  - Uniformity is held as rising lightness, not even CIE76 steps. Both viridis and cividis are uneven in
+    CIE76 (coefficient of variation 0.33), because they are uniform in CAM02-UCS.
+- **The difference image alone:** no boxes or outlines.
+- **Screen only.** The heatmap is rendered in the window, never handed to the capture writer, not shown in
+  History, not in the validation harness.
+- **The view toggle:** the Heatmap segment is disabled for a reading with no heatmap, and the chosen view
+  is kept for the next one.
+
+**A second source later.** A future mode will show DINOv2 similarity to a reference part. The heatmap's
+data and legend are a Qt-free `Heatmap_Str` (values, scale, title, unit, marks), filled by the stage that
+computes it. The view only renders a `Heatmap_Str`, so a second source changes no UI code. There is **no
+configuration field for the source**: with one source it would have one legal value. When a second
+exists, **the source should follow what the mode can actually compute, not the `Classification` flag**.
+A catalogue mode may identify parts by geometry alone, with no similarity model, while a classifying
+mode might not have a reference part to compare against.
+
+**Revisit if** the side-light session moves the background or object ranges (re-derive the 0–128 scale),
+or a second heatmap source is added (then decide the source by the mode's capability, as above).
+Tests `test/Parameters/test_theme.py` (lightness rises, distinct from the reserved colours),
+`test/Vision/Utilities/test_heatmap.py` (the fixed scale, one value one colour across frames),
+`test/Vision/Utilities/test_segmentation.py::test_the_threshold_applied_is_returned_with_which_one_set_it`,
+`test/Vision/test_core.py::test_the_heatmap_is_the_difference_the_mask_was_thresholded_from`,
+`test/UI/test_camera_view.py` (the painted colours on the fixed scale, the legend's mark and where it
+shows, no boxes, the segment and the remembered choice),
+`test/UI/test_logging_coverage.py::test_the_heatmap_is_never_written_to_the_capture_set`. Each was proven
+by breaking what it names, 14 mutations in all.

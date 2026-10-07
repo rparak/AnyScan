@@ -674,3 +674,40 @@ def Detection_Mask_Outline() -> str:
 #   Unit [string] (hex colour) / [Tuple<string> 1x3] (box, ink, fill)
 CONST_DETECTION_MASK_OUTLINE, CONST_DETECTION_MASK_FILL = Neutral_Mask_Colors(CONST_DETECTION_BOX)
 CONST_DETECTION_COLORS = (CONST_DETECTION_BOX, CONST_DETECTION_INK, CONST_DETECTION_MASK_FILL)
+# The Camera View's heatmap colours: cividis (Nuñez, Anderton & Renslow, 2018), 17 anchors taken from
+# matplotlib's map at equal steps and expanded to 256 colours in L*a*b* (Heatmap_Colors). Cividis, not
+# viridis: viridis passes ΔE 4.2 from the OK verdict's ink and 12.0 from CONST_OK's green; cividis has no
+# green, red or magenta, keeps every colour >= ΔE 12 (CONST_ANNOTATE_MIN_DELTA_E) from the verdict, status
+# and log colours — the closest, 12.5, is the OK ink — and is built for colour-vision deficiency. Its
+# lightness rises from L* 13.8 to 91.3, so a hotter pixel always reads lighter. The expansion differs from
+# matplotlib's map by up to ΔE 4.1; the tests pin the properties of THIS map, not that fidelity
+# (test/Parameters/test_theme.py).
+#   Unit [Tuple<string>] (hex colour)
+CONST_HEATMAP_ANCHORS = ('#00224e', '#002e6a', '#1a386f', '#32436d', '#434e6c', '#535a6d', '#61656f', '#6f7073',
+                         '#7d7c78', '#8b8778', '#9a9376', '#aaa073', '#bbad6d', '#ccba64', '#ddc858', '#efd748',
+                         '#fee838')
+# The number of colours the heatmap is drawn in: one per grey level of an 8-bit lookup table.
+#   Unit [int]
+CONST_HEATMAP_SIZE = 256
+
+
+def Heatmap_Colors() -> tp.List[str]:
+    """
+    Description:
+        The heatmap's CONST_HEATMAP_SIZE colours, low to high: CONST_HEATMAP_ANCHORS at equal steps,
+        interpolated linearly in L*a*b* between neighbours (in RGB the map's dark end bends and the
+        steps go uneven), and rounded to hex.
+
+    Returns:
+        (1) parameter [Vector<string>]: The colours (hex), the first for the scale's low end.
+    """
+
+    anchors = [__Lab(color) for color in CONST_HEATMAP_ANCHORS]
+    spans = len(anchors) - 1
+    colors = []
+    for index in range(CONST_HEATMAP_SIZE):
+        position = index * spans / (CONST_HEATMAP_SIZE - 1)
+        low = min(int(position), spans - 1)
+        t = position - low
+        colors.append(__Lab_To_Hex(*(a + (b - a) * t for a, b in zip(anchors[low], anchors[low + 1]))))
+    return colors

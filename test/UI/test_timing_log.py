@@ -217,7 +217,7 @@ def _Slowed(function: tp.Callable, seconds: float) -> tp.Callable:
 #   Unit [Dict<string, Tuple>]
 CONST_INJECTIONS = {CONST_STAGE_SEGMENTATION: ('knob', 'inference_s'),
                     CONST_STAGE_SEGMENTATION_POST: ('knob', 'post_s'),
-                    CONST_STAGE_BACKGROUND: ('function', 'Background_Foreground'),
+                    CONST_STAGE_BACKGROUND: ('function', 'Background_Difference'),
                     CONST_STAGE_FUSION: ('function', 'Fuse_Objects'),
                     CONST_STAGE_CROPS: ('function', 'Enhance_Crop'),
                     CONST_STAGE_DESCRIPTIONS: ('knob', 'generate_s')}

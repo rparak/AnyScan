@@ -235,3 +235,37 @@ def test_white_floor_rejects_what_reads_as_white_and_admits_the_l80_fill() -> No
     assert Theme.Delta_E(shipped, '#FFFFFF') >= floor                # the L* ~80 fill clears it
     assert Theme.Delta_E(shipped, '#FFFFFF') < 25.0                  # and a 25 floor would reject it
 
+
+
+def test_the_heatmap_colours_rise_in_lightness_across_the_scale() -> None:
+    """
+    Description:
+        A hotter pixel always reads lighter: the heatmap's 256 colours rise in L* from a dark low end to
+        a light high end, never falling by more than hex rounding (0.15 L*) between neighbours and
+        rising strictly over every sixteenth step.
+    """
+
+    colors = Theme.Heatmap_Colors()
+    lightness = [Theme.Lch_Of(color)[0] for color in colors]
+    assert len(colors) == 256
+    assert lightness[0] < 20.0 and lightness[-1] > 85.0
+    assert all(lightness[i + 1] >= lightness[i] - 0.15 for i in range(255))
+    assert all(lightness[i + 16] > lightness[i] for i in range(0, 240, 16))
+
+
+def test_the_heatmap_colours_stay_clear_of_the_verdict_status_and_log_colours() -> None:
+    """
+    Description:
+        No heatmap colour can be mistaken for a colour that means something else: every one of the 256
+        clears the project's distinctness floor (CONST_ANNOTATE_MIN_DELTA_E) against the OK and NOK
+        verdict colours (box, ink and fill), the status colours and their text twins, and the log and
+        on-dark error colours. Viridis fails this (ΔE 4.2 from the OK ink), which is why the map is
+        cividis.
+    """
+
+    from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
+    reserved = (list(Theme.CONST_VERDICT_COLORS['OK']) + list(Theme.CONST_VERDICT_COLORS['NOK'])
+                + [Theme.CONST_OK, Theme.CONST_OK_INK, Theme.CONST_WARN, Theme.CONST_WARN_INK,
+                   Theme.CONST_LOG_ERROR, Theme.CONST_ERROR_ON_DARK])
+    closest = min((Theme.Delta_E(color, mark), color, mark) for color in Theme.Heatmap_Colors() for mark in reserved)
+    assert closest[0] >= CONST_ANNOTATE_MIN_DELTA_E, closest

@@ -215,7 +215,7 @@ def test_viewport_paints_every_state(qt_app, paint_errors) -> None:
     viewport.Stop_Busy()
     assert np.array_equal(_Grab(viewport), frame)
 
-    viewport.Show_Views(_Qimage((200, 40, 40)), _Qimage((10, 10, 10)), 'annotated')
+    viewport.Show_Views(_Qimage((200, 40, 40)), _Qimage((10, 10, 10)), 'annotated', heatmap=None, legend=None)
     annotated = _Grab(viewport)
     viewport.Set_View('mask')
     mask = _Grab(viewport)

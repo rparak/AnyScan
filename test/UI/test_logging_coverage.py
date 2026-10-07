@@ -40,7 +40,7 @@ from Logger.Core import Session_Logger_Cls
 #   ../Camera/Core
 from Camera.Core import Camera_Backend_Cls, Camera_Error_Cls
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Analysis_Str
+from Parameters.Vision import Detection_Str, Analysis_Str, Heatmap_Str
 #   ../Reporting/Core
 from Reporting.Core import Screen_Understanding
 # Dataclasses (the shipped configuration, unscaled, for the window)
@@ -350,3 +350,29 @@ def test_the_scanned_frames_distorted_original_reaches_the_capture_set(qt_app, t
     assert written is not None and tuple(written[0, 0]) == (30, 20, 10)       # BGR on disk
     record = json.loads((session / '20260923-100000_1_distorted.json').read_text())
     assert record['distorted'] is True and record['undistortion']['configuration'] == 'Config_x.yaml'
+
+
+def test_the_heatmap_is_never_written_to_the_capture_set(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The heatmap is for the screen only: a reading that brought one writes exactly the files a reading
+        without one writes, and none of them is a heatmap.
+    """
+
+    window, logger = _Window(tmp_path)
+    setattr(window, CONST_MANGLE + '__frame', np.zeros((40, 60, 3), dtype=np.uint8))
+    setattr(window, CONST_MANGLE + '__session_id', '20260912-143000_s1')
+    heatmap = Heatmap_Str(Values=np.full((40, 60), 64, dtype=np.uint8), Low=0.0, High=128.0,
+                          Title='Difference from the reference', Unit='grey level', Marks=[(51.0, 'Otsu 51')])
+    for set_id, map_or_none in (('20260912-143202_1', heatmap), ('20260912-143210_2', None)):
+        setattr(window, CONST_MANGLE + '__current_set_id', set_id)
+        _Private(window, '__On_Analysis_Finished')(Analysis_Str(Objects=_Objects(), Background='A plain surface.',
+                                                                Latency_Ms=100, Verdict='2 found', Verdict_Level='ok',
+                                                                Task='caption', Heatmap=map_or_none))
+    logger.Close()
+
+    names = os.listdir(str(tmp_path / 'captures' / '20260912-143000_s1'))
+    written = {set_id: {name[len(set_id):] for name in names if name.startswith(set_id)}
+               for set_id in ('20260912-143202_1', '20260912-143210_2')}
+    assert written['20260912-143202_1'] == written['20260912-143210_2'] and written['20260912-143202_1']
+    assert not any('heat' in name.lower() for name in names)

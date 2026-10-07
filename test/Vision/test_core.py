@@ -447,3 +447,36 @@ def test_a_failed_load_before_any_model_was_loaded_leaves_nothing_to_reload(fake
     assert [event for event, _path in events] == ['load segmenter']
     assert not vision.Models_Loaded
     assert vision.Model_Names[1] == 'gemma-4-e4b-it-4bit'                 # the previous one's
+
+
+def test_the_heatmap_is_the_difference_the_mask_was_thresholded_from(fake_models, monkeypatch, reference_background,
+                                                                     make_synthetic_frame) -> None:
+    """
+    Description:
+        Analyze hands the Camera View the background difference it thresholded — that very array, not a
+        recomputed one — on the fixed 0 .. 128 scale, with the threshold applied marked and named by what
+        set it: Otsu on a frame with a part, the floor of 28 on an empty one (the reference itself).
+    """
+
+    import cv2
+    import dataclasses
+    _events, config, _Variant = fake_models
+    thresholded = []
+    real = Vision_Core.Foreground_Mask
+
+    def _Recorded(gray, *args, **kwargs):
+        mask, threshold, otsu = real(gray, *args, **kwargs)
+        thresholded.append((gray, threshold))
+        return mask, threshold, otsu
+
+    monkeypatch.setattr(Vision_Core, 'Foreground_Mask', _Recorded)
+    vision = Vision_Pipeline_Cls(Configuration_Str=dataclasses.replace(config, Scale=None))
+    part = cv2.cvtColor(make_synthetic_frame(reference_background, [(300, 300, 560, 560)]), cv2.COLOR_BGR2RGB)
+    with_part = vision.Analyze(part)
+    empty = vision.Analyze(cv2.cvtColor(reference_background, cv2.COLOR_BGR2RGB))
+
+    (part_difference, part_threshold), (_empty_difference, _empty_threshold) = thresholded
+    assert with_part.Heatmap.Values is part_difference
+    assert (with_part.Heatmap.Low, with_part.Heatmap.High) == (0.0, 128.0)
+    assert part_threshold > 28 and with_part.Heatmap.Marks == [(part_threshold, 'Otsu %d' % part_threshold)]
+    assert empty.Heatmap.Marks == [(28.0, 'floor 28')]
