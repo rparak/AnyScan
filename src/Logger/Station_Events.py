@@ -32,18 +32,20 @@ from dataclasses import dataclass, field
 import typing as tp
 # Custom Lib.: AnyScan — the session log's one line parser and its event markers
 #   ../Logger/Core
-from Logger.Core import (Parse_Line, Event_Marker, Line_Time, CONST_MARKER_RUN_START, CONST_MARKER_RUN_STOP,
-                         CONST_MARKER_CONNECTION_START, CONST_MARKER_CONNECTION_END)
+from Logger.Core import Parse_Line, Event_Marker, Line_Time, Cycles, CONST_MARKER_RUN_START, CONST_MARKER_RUN_STOP
 
 """
 Description:
     Initialization of constants.
 
     The daily station event file: the one module that writes this format. An external system tracks the
-    station's uptime from it — when the application ran (STATION_ON / STATION_OFF) and when a camera was
-    connected (CYCLE_START / CYCLE_DONE). The file is never written live: it is EXPORTED from a finished
-    session log ('log_*.txt'), read through the logger's own Parse_Line and matched on the logger's event
-    markers, never on sentence wording — the same mechanism as the run-summary CSV, a different structure.
+    station's uptime from it — when the application ran (STATION_ON / STATION_OFF) and when it worked
+    (CYCLE_START / CYCLE_DONE: a scan, or a re-analysis, to the end of its analysis). The file is never
+    written live: it is EXPORTED from a finished session log ('log_*.txt'), read through the logger's own
+    Parse_Line and matched on the logger's event markers, never on sentence wording. The cycles are the
+    logger's own Cycles over those markers — the computation behind the run-summary CSV's
+    total_session_time — so the two files' time accounts are one definition. Until 2026-10-07 a cycle was a
+    camera connection (CONNECT to its end); files are never rewritten, so rows before that date mean that.
 
     When a log is exported:
         - At application close, by the logger's close callback, on every close path (the window, the
@@ -66,10 +68,12 @@ CONST_STATION_ID = 'SF4'
 # The file's columns, in order — the header row.
 #   Unit [Vector<string>]
 CONST_COLUMNS = ['station_id', 'event_type', 'ts']
-# The four event types, from the logger's event markers.
+# The station's two event types, from the logger's run markers; the cycles' two come from Cycles.
 #   Unit [Dict<string, string>]
-CONST_EVENT_TYPES = {CONST_MARKER_RUN_START: 'STATION_ON', CONST_MARKER_RUN_STOP: 'STATION_OFF',
-                     CONST_MARKER_CONNECTION_START: 'CYCLE_START', CONST_MARKER_CONNECTION_END: 'CYCLE_DONE'}
+CONST_STATION_EVENT_TYPES = {CONST_MARKER_RUN_START: 'STATION_ON', CONST_MARKER_RUN_STOP: 'STATION_OFF'}
+#   Unit [string]
+CONST_CYCLE_START = 'CYCLE_START'
+CONST_CYCLE_DONE = 'CYCLE_DONE'
 # The file is named by the event's LOCAL date (the contract); ts is UTC to the second.
 #   Unit [string]
 CONST_FILENAME_FORMAT = '%Y-%m-%d.csv'
@@ -154,29 +158,38 @@ def Local_To_Utc(local: datetime, zone: tp.Optional[tzinfo] = None) -> datetime:
 def Read_Events(log_path: str, zone: tp.Optional[tzinfo] = None) -> tp.List[Station_Event_Str]:
     """
     Description:
-        The station events one session log records, in the order it records them: each line carrying an
-        event marker, parsed by the logger's Parse_Line. A crashed run's log simply ends — no STATION_OFF,
-        and an open connection without its CYCLE_DONE — and nothing is invented to close it.
+        The station events one session log records, in time order: STATION_ON at the run's start line, a
+        CYCLE_START / CYCLE_DONE pair for each of the logger's Cycles over the lines' event markers, and
+        STATION_OFF at its stop line — the lines parsed by the logger's Parse_Line. A log holds one run, so
+        its start comes first and its stop last, and every cycle lies between them (a cycle closed at its
+        capture's end, decided later, still precedes the next event). A crashed run's log simply ends — no
+        STATION_OFF, and an open cycle without its CYCLE_DONE — and nothing is invented to close it.
 
     Args:
         (1) log_path [string]: The session log.
         (2) zone [tzinfo or None]: The zone whose rules convert local time to UTC; None for the machine's.
 
     Returns:
-        (1) parameter [Vector<Station_Event_Str>]: The events, in log order.
+        (1) parameter [Vector<Station_Event_Str>]: The events, in time order.
     """
 
-    events = []
+    markers = []
     with open(log_path, 'r', encoding='utf-8', errors='replace') as log_file:
         for line in log_file:
             Log_Line_Str_i = Parse_Line(line.rstrip('\r\n'))
             marker = Event_Marker(Log_Line_Str_i)
-            if not marker:
-                continue
-            local = Line_Time(Log_Line_Str_i)
-            events.append(Station_Event_Str(Event_Type=CONST_EVENT_TYPES[marker], Local=local,
-                                            Utc=Local_To_Utc(local, zone)))
-    return events
+            if marker:
+                markers.append((marker, Line_Time(Log_Line_Str_i)))
+    timed = [(CONST_STATION_EVENT_TYPES[marker], local) for marker, local in markers
+             if marker == CONST_MARKER_RUN_START]
+    for Cycle_Str_i in Cycles(markers):
+        timed.append((CONST_CYCLE_START, Cycle_Str_i.Start))
+        if Cycle_Str_i.End is not None:
+            timed.append((CONST_CYCLE_DONE, Cycle_Str_i.End))
+    timed += [(CONST_STATION_EVENT_TYPES[marker], local) for marker, local in markers
+              if marker == CONST_MARKER_RUN_STOP]
+    return [Station_Event_Str(Event_Type=event_type, Local=local, Utc=Local_To_Utc(local, zone))
+            for event_type, local in timed]
 
 
 def Write_Events(events: tp.List[Station_Event_Str], directory: str) -> None:

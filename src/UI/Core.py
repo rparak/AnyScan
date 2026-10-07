@@ -158,7 +158,7 @@ class AnyScan_Window_Cls(QMainWindow):
     CONST_CONNECT_NEEDS_CONFIGURATION = 'Load a configuration first.'
     # How often a connected camera is asked whether its device is still there, so a connection lost
     # while nobody scans is closed when it is detected — not at the next Scan, possibly hours later.
-    # The loss is then logged (closing the connection's cycle) about the SDK's heartbeat timeout plus
+    # The loss is then logged (closing the connection) about the SDK's heartbeat timeout plus
     # this interval after the link went down.
     #   Unit [ms]
     CONST_CONNECTION_CHECK_MS = 1000
@@ -992,7 +992,8 @@ class AnyScan_Window_Cls(QMainWindow):
         Description:
             A connection that ended without DISCONNECT — however it was found, at a Scan or by the
             connection check: stop the check, and log the loss (an ERROR that closes the logger's
-            connection, and with it the station event cycle) and count it for the System cell.
+            connection) and count it for the System cell. A loss ends no cycle by itself: a running
+            analysis goes on, and a failed capture ends its own (Logger.Core.Cycles).
 
         Args:
             (1) message [string]: What was found.
@@ -1045,10 +1046,13 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__frame_distorted = self.__camera.Last_Distorted_Frame
             self.__frame_undistortion = self.__camera.Last_Undistortion
         except Camera_Error_Cls as exc:
-            # A capture that failed AND left the camera disconnected (the backend found its
-            # device removed) is a mid-session connection LOST (ERROR, closes the session); a
-            # failure while still connected is a transient capture error (tracked ERROR that a
-            # later scan can resolve).
+            # The failed capture ends this scan's cycle now, whatever the reason that follows. A
+            # capture that failed AND left the camera disconnected (the backend found its device
+            # removed) is a mid-session connection LOST (ERROR, closes the session); a failure while
+            # still connected is a transient capture error (tracked ERROR that a later scan can
+            # resolve).
+            if self.__logger is not None:
+                self.__logger.Log_Scan_Failed()
             if not self.__camera.Connected:
                 self.__Record_Connection_Lost(str(exc))
             elif self.__logger is not None:
@@ -1394,6 +1398,8 @@ class AnyScan_Window_Cls(QMainWindow):
             # that caused the failure is in the capture directory under that id, and this
             # is the case where the link matters most.
             suffix = ' (set=%s)' % set_id if set_id else ''
+            # The failed analysis still ends its cycle — the station was working — then the reason.
+            self.__logger.Log_Analysis_Failed(self.__session_analyses, set_id)
             self.__analysis_error_id = self.__Log_Error(message + suffix)
             # A failed analysis renders no annotated image or mask (rendering is on the
             # success path), but the raw frame exists — write a PARTIAL set (raw + a note)

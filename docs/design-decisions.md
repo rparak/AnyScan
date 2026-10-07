@@ -374,7 +374,9 @@ Tests `test/UI/test_history.py::test_history_lists_only_the_current_run`, `::tes
 
 **Session = camera connection = the UI's "Connection".** The logger's session bookkeeping, the
 capture directory names (`<timestamp>_s<N>`) and the run-summary CSV's `total_session_time` all
-count **camera connections**. In the UI a connection
+count **camera connections**. *Corrected 2026-10-07:* `total_session_time` no longer does. It is now the
+summed cycles, each from a scan to the end of its analysis (*A cycle is a scan to the end of its analysis,
+not a camera connection*). The column keeps its name because the name is the data contract. In the UI a connection
 is called a **Connection** — the History grid headers, the Info panel, and the Log view's prose
 lines ("Camera connected. Connection 1 started.", "Connection 1 ended after …", "Created the
 capture directory for connection …"). The Log is UI and speaks the UI's words. The CSV is a file
@@ -595,7 +597,8 @@ Tests `test/Logger/test_core.py::test_csv_filename_follows_the_loaded_configurat
 
 The CSV is cut to `log_file, application_start, application_stop, cycle_time, total_session_time,
 idle_time` — the run's time account: when the application ran, for how long, how much of that a
-camera was connected, and how much it was idle (`cycle_time == total_session_time + idle_time`
+camera was connected (*corrected 2026-10-07:* how much of it the station worked, scan to the end of
+analysis, under format version 2), and how much it was idle (`cycle_time == total_session_time + idle_time`
 exactly, every duration derived from the whole-second values the row prints). Counts, errors,
 confidence and inference figures, the run id, the Clear count and the JSON detail cells are gone;
 the `.txt` log beside each row still records every event, and the capture sets carry the per-image
@@ -2369,6 +2372,12 @@ Decided 2026-10-03. An external system tracks the station's uptime from one CSV 
 connection, CONNECT to its end), and `ts` in UTC to the second. `Logger/Station_Events.py` is the one
 module that writes it. The run-summary CSV (`log_<Hardware>.csv`) is unchanged.
 
+*Corrected 2026-10-07:* a cycle is no longer a connection but a scan, or a re-analysis, to the end of its
+analysis. The connection markers are gone, and the scan and analysis markers replace them. The cycles are
+`Logger.Core.Cycles`, the one computation behind this file and the run-summary CSV's `total_session_time`.
+See *A cycle is a scan to the end of its analysis, not a camera connection*. The bullets on markers and
+connection ends below describe the file until that date.
+
 - **Exported, not live.** The file is generated from a finished session log (`log_*.txt`), read through
   the logger's own `Parse_Line`: the run-summary CSV's mechanism with a different structure. The logger's
   `Set_Close_Callback` runs the export after `Close` has written `Application stopped` and closed the
@@ -2432,9 +2441,9 @@ The live-log lock is `fcntl` only: Windows is not a target (the installer stops 
 
 **Revisit if** the external system's owner agrees to UTC file names, or a second station joins (station
 id into the configuration).
-Tests `test/Logger/test_station_events.py` (format, order, UTC, midnight, the repeated hour, every way a
-connection ends, crashes, the ledger, failure and retry, the baseline), `test/UI/test_station_event_paths.py`
-(closing while connected, a failed CONNECT, a startup failure on the strip),
+Tests `test/Logger/test_station_events.py` (format, order, UTC, midnight, the repeated hour, crashes, the
+ledger, failure and retry, the baseline), `test/UI/test_station_event_paths.py` (a failed CONNECT, a startup
+failure on the strip),
 `test/Configuration/test_core.py` (the required, existing, writable directory),
 `test/UI/test_configuration_dialog.py::test_a_mode_naming_another_station_event_directory_is_refused`.
 
@@ -2445,7 +2454,9 @@ grab failure left the camera "connected", so the scan handler's lost-connection 
 outside tests, whose fake cameras disconnected themselves. That was the Camera cell's old fault: a state
 updated by the button, not by what happened. The station event file (the entry above) can only close a
 cycle the log records ending, so a loss nobody detects would keep counting a dead connection as a
-working cycle.
+working cycle. *Corrected 2026-10-07:* a connection no longer defines a cycle, so a loss closes none by
+itself. The detection still matters for cycles. A Scan on a removed device fails its capture and ends that
+scan's cycle as a lost connection, not as a stale frame on a camera still marked connected.
 
 - **The backend reports a removed device.** `Camera_Backend_Cls._Device_Removed` is part of the per-device
   SPI (always False for a saved frame; for Basler, pylon's `InstantCamera.IsCameraDeviceRemoved`, where a
@@ -2470,3 +2481,91 @@ Tests `test/Camera/test_core.py` (the removal check, the grab, `Check_Connection
 `test/UI/test_station_event_paths.py` (a loss found by the check and at a Scan),
 `test/UI/test_system_status.py::test_a_lost_connection_reads_disconnected_in_the_camera_cell_too`,
 `test/UI/test_logging_coverage.py::test_mid_session_connection_loss_is_an_error`.
+
+## A cycle is a scan to the end of its analysis, not a camera connection
+
+Decided 2026-10-07. A cycle used to run from CONNECT to its end, and a camera left connected all shift
+counted as a shift of work. A cycle now brackets the station's real work. It runs from SCAN (or a
+re-analysis) to the end of that scan's analysis. It is defined once, in `Logger.Core.Cycles`, over the
+log's event markers. The same definition produces the run-summary CSV's `total_session_time` and the daily
+station file's `CYCLE_START` / `CYCLE_DONE`. `cycle_time` (application start to stop) and
+`idle_time = cycle_time − total_session_time` keep their meaning.
+
+The cases, read from the window's code paths:
+
+- **The analysis ends the cycle, whether it finished or failed.** A failure still ends the cycle at the
+  failure time, because the station was working.
+- **A scan never analysed ends at the end of its capture, not at the next event.** Only the latest frame
+  is analysed, so each scan before it is captured and discarded. Its cycle is closed at its capture end
+  once a later SCAN, or the stop, shows that no analysis came. The log supports this through
+  *Frame scan finished*. Counting up to the next event would add the time an operator walks away. DISCONNECT,
+  Clear and a lost connection end nothing by themselves.
+- **A failed capture ends its cycle at the failure.** This includes a cable pulled during the grab, which
+  is how a lost connection ends a cycle. The frame held before it is kept.
+- **A re-analysis opens a cycle at its own start.** This covers the same frame analysed again, or a kept
+  frame analysed after a failed capture. It is real work with no SCAN, so a `CYCLE_START` means a scan or
+  a re-analysis.
+- **A loss does not cut a cycle.** An analysis keeps running when the camera goes, and ends its cycle when
+  it finishes. A frame scanned before a loss is kept, and analysing it later closes its scan's cycle as
+  usual.
+- **Closing cuts a running analysis's cycle at the close.** `CYCLE_DONE` comes before `STATION_OFF`. The
+  analysis's own end line is never written.
+- **No overlap.** SCAN and DISCONNECT are disabled while an analysis runs, so cycles never overlap and
+  no second is counted twice.
+- **Scanning without a camera** has no path. SCAN is enabled only while connected.
+- **A crash leaves the last cycle unpaired, whatever its state.** That includes a scan whose capture end
+  is in the log. Nothing after the log's end can show the analysis never came, and an unpaired
+  `CYCLE_START` stays the sign of an abnormal exit.
+
+**Markers.** These lines end in a fixed token:
+
+| Marker | Line |
+|---|---|
+| `#scan-start` | *Frame scan started* |
+| `#scan-end` | *Frame scan finished* |
+| `#scan-failed` | new *Frame scan failed*, before the capture's ERROR |
+| `#analysis-start` | *Analysis N started* |
+| `#analysis-end` | *Analysis N finished*, and the new *Analysis N failed* before the analysis's ERROR |
+
+`#connection-start` and `#connection-end` are removed. Nothing reads a connection as an event any more.
+The connection sentences and their durations stay in the log.
+
+**One computation, so the two files agree.** The logger keeps each marker it writes, at the line's
+whole-second time, recognised by the same `Event_Marker` that `Station_Events` applies to the file.
+`Compute_Summary` runs `Cycles` over those markers, and the export runs it over the parsed file. The
+CSV's `total_session_time` therefore equals the daily file's summed `CYCLE_DONE − CYCLE_START` to the
+second. The cycles come from the whole-second times the log shows, not the exact clock. The one known
+disagreement is a cycle in the repeated summer-time hour, which the daily file reads an hour off (see the
+entry above).
+
+**The change is marked in the files where it can be.**
+
+- **Run-summary CSV: an explicit format version, kept beside the file.** The CSV has no place for a
+  version. A line before the header, or a constant column, would break every reader. So
+  `log_<Hardware>.csv.version` holds the number (`CONST_CSV_FORMAT_VERSION`), and a CSV with none is
+  version 1:
+  - 1: `total_session_time` was connection time.
+  - 2: from 2026-10-07, the summed cycles.
+- **The existing archive mechanism keys on it.** A CSV whose header or version is not current is renamed
+  aside unchanged, to `_until_<date>`, with its version file beside it. The first run after this change
+  therefore archives every existing CSV, so connection-time rows and cycle rows never share a file. A fresh
+  CSV gets its version file before its header.
+  - A CSV copied without its version file is read as version 1 and archived. That is the safe direction:
+    rows are never mixed.
+- **Daily station files: no mark in the file.** `station_id,event_type,ts` is the external system's
+  contract, so the change date is recorded here and in the mode file's comment. Old files are not
+  rewritten. Rows before 2026-10-07 bracket connections, and rows after bracket scan-to-analysis. The
+  file for 2026-10-07 itself may hold both kinds, if a run before the update and one after share the
+  date.
+
+**Revisit if** an analysis can run alongside a SCAN (cycles would overlap and need a union), the UI gains
+a second way to start a scan, or the external system's owner wants the definition change marked inside
+its files.
+Tests `test/Logger/test_station_events.py` (several scans summed, a failed analysis, a scan never analysed
+closed by the next SCAN, DISCONNECT, a loss and close, a failed capture, a re-analysis, a loss not
+cutting, close during an analysis, connections as no cycle, and
+`::test_the_daily_files_cycles_sum_to_the_run_summarys_total_session_time`),
+`test/Logger/test_core.py` (the CSV row, whole-second cycles),
+`test/Logger/test_csv_archive.py::test_a_current_header_of_another_format_version_is_archived_with_its_version`,
+`test/UI/test_station_event_paths.py` (an analysis finished and failed through the window, a scan closed by
+the window's close, a loss at a Scan and by the check).

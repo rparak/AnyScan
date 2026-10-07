@@ -42,10 +42,17 @@ General:
   # One file per LOCAL date, 'YYYY-MM-DD.csv': UTF-8, the header 'station_id,event_type,ts', rows
   # appended. station_id is always SF4 (the installation's identity in that contract; a second
   # station would make it a field here). event_type: STATION_ON (application start), STATION_OFF
-  # (application stop), CYCLE_START (camera connected), CYCLE_DONE (the connection ended: DISCONNECT,
-  # a lost connection when it is detected, a CONNECT over an open connection, or closing while
-  # connected, written before STATION_OFF). ts is UTC to the second, '2026-09-25T05:33:45Z'.
-  # A failed CONNECT writes nothing.
+  # (application stop), CYCLE_START and CYCLE_DONE (one cycle of work). ts is UTC to the second,
+  # '2026-09-25T05:33:45Z'.
+  #
+  # A cycle, from 2026-10-07: CYCLE_START is a SCAN starting OR a re-analysis starting (the same frame
+  # analysed again, with no scan of its own). CYCLE_DONE is the end of that analysis, whether it
+  # finished or failed. A scan that is never analysed is done at the end of its capture, a failed
+  # capture at the failure, and closing during an analysis at the close (before STATION_OFF). A camera
+  # connection is no cycle, and a lost connection does not end one. The cycles sum to the run-summary
+  # CSV's total_session_time (logger/log_<hardware>.csv): one definition, both files.
+  # UNTIL 2026-10-07 a cycle was a camera connection (CONNECT to its end). Files are never rewritten,
+  # so rows before that date bracket connections, and the file for 2026-10-07 may hold both kinds.
   #
   # The files are exported from the session log (logger/log_*.txt) when the application closes; a
   # run that crashed, or whose export failed, is exported at the next start (the ledger

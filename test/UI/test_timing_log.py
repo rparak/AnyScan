@@ -452,7 +452,8 @@ def test_the_inference_time_readers_see_what_they_saw_before(qt_app, tmp_path, m
         Latency_Ms keeps its interval: it starts before the models are checked (a pipeline never
         preloaded pays the describer's load inside it, in 'other', and is marked first after load) and
         stops before the measurement (a slow measurement does not move it; the timing line names it as
-        outside). Its readers are unchanged: the 'finished in' line has its old text, the timing total
+        outside). Its readers are unchanged: the 'finished in' line has its old text (plus, since
+        2026-10-07, the '#analysis-end' event marker that ends the scan's cycle), the timing total
         is the same number, and the capture set's '_objects.json' — and the History record read back
         from it — carry it as inference_ms.
     """
@@ -476,7 +477,7 @@ def test_the_inference_time_readers_see_what_they_saw_before(qt_app, tmp_path, m
 
     finished = [_Message(line) for line in lines if ' finished in ' in line]
     assert finished == ['Analysis 3 finished in %d ms. 2 objects detected, none scored for confidence. '
-                        'Capture set set3.' % result.Latency_Ms]
+                        'Capture set set3. #analysis-end' % result.Latency_Ms]
     root = str(tmp_path / 'log' / 'captures')
     with open(os.path.join(root, 'session1', 'set3_objects.json'), 'r', encoding='utf-8') as handle:
         assert json.load(handle)['inference_ms'] == result.Latency_Ms

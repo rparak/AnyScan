@@ -224,8 +224,10 @@ subtraction is only meaningful against a reference lit the same way.
 
 ## 4. Cable pull: a lost connection is detected
 
-**Why.** A lost connection closes the camera session and the station event cycle (CYCLE_DONE in the
-daily station event file). It is detected two ways: the application asks pylon once a second whether
+**Why.** A lost connection closes the camera session. A Scan on a removed device must report the loss,
+because its failed capture ends that scan's cycle in the daily station event file. A frame must not
+appear to come from a camera that still reads connected. The loss itself ends no cycle (since
+2026-10-07). It is detected two ways: the application asks pylon once a second whether
 the device was removed (`InstantCamera.IsCameraDeviceRemoved`), and a Scan whose grab fails on a
 removed device reports the loss. Both are tested only with a stand-in device. **Whether pylon reports
 the removal on this GigE camera, and how fast, is unverified** (docs/design-decisions.md, *A lost
@@ -243,12 +245,13 @@ the second at each step.
    report a lost connection (the log's *The camera connection was lost* ERROR), not a *did not return
    a frame* capture error with the camera still Connected.
 5. Close the application, then open the day's station event file
-   (`General.Station_Events.Directory/<date>.csv`): every CYCLE_START must have its CYCLE_DONE, the
-   two losses' CYCLE_DONE at the detection times.
+   (`General.Station_Events.Directory/<date>.csv`): every CYCLE_START must have its CYCLE_DONE. The
+   first loss, with no Scan, writes no cycle. Step 4's Scan writes one CYCLE_START at the Scan and its
+   CYCLE_DONE at the failed capture.
 
 **Record alongside:**
 
 - [ ] the seconds from pulling the cable to the Camera cell reading *Disconnected* (step 2)
 - [ ] whether step 4's Scan reported a lost connection or a capture error
-- [ ] any loss not detected at all — stop and report it: then a dead connection keeps counting as a
-      working cycle
+- [ ] any loss not detected at all — stop and report it: then the camera reads connected after the
+      cable is gone, and a Scan reports a capture error instead of the loss

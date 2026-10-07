@@ -89,14 +89,27 @@ CONST_CSV_UNCONFIGURED_ID = 'unconfigured'
 CONST_CSV_DELIMITER = ','
 # The run-summary CSV columns, in the exact order they are written. The header row is this list;
 # each data row is rendered one-to-one from a Summary_Str. The row is the run's TIME ACCOUNT only:
-# when the application ran, for how long, how much of that a camera was connected, and how much
-# it was idle (cycle_time == total_session_time + idle_time exactly). Counts, errors, confidence
-# and inference figures are not summarised here; the '.txt' log beside each row holds every event.
+# when the application ran, for how long (cycle_time), how much of that the station worked — the
+# summed cycles, each from a scan (or a re-analysis) to the end of its analysis (total_session_time,
+# Cycles) — and how much it was idle (cycle_time == total_session_time + idle_time exactly). Counts,
+# errors, confidence and inference figures are not summarised here; the '.txt' log holds every event.
 #   Unit [Vector<string>]
 CONST_CSV_COLUMNS = ['log_file', 'application_start', 'application_stop', 'cycle_time',
                      'total_session_time', 'idle_time']
-# A CSV whose header is not exactly CONST_CSV_COLUMNS is never appended to: its rows would mean
-# something different from the rows after them. It is renamed aside, byte-for-byte unchanged, as
+# The run-summary CSV's format version: what its rows MEAN, which the header cannot say when a column
+# keeps its name and changes its meaning. The CSV has no place for it (a line before the header, or a
+# constant column, would break every reader of the file), so it is kept in a file beside it,
+# '<csv>.version', holding the number. A CSV with no version file is version 1.
+#   1 - until 2026-10-07: total_session_time was the summed camera CONNECTIONS (CONNECT to DISCONNECT).
+#   2 - from 2026-10-07: total_session_time is the summed cycles (scan to the end of its analysis).
+# A CSV of another version is archived like one with another header (CONST_CSV_ARCHIVE_TEMPLATE), and a
+# freshly started CSV gets the current version file before its header.
+#   Unit [int]
+CONST_CSV_FORMAT_VERSION = 2
+#   Unit [string]
+CONST_CSV_VERSION_SUFFIX = '.version'
+# A CSV whose header is not exactly CONST_CSV_COLUMNS, or whose version is not CONST_CSV_FORMAT_VERSION,
+# is never appended to: its rows would mean something different from the rows after them. It is renamed aside, byte-for-byte unchanged, as
 # '<name>_until_<date>.csv' — the date its last row was written — and the canonical name starts
 # afresh with the current header, so the file a reader finds under the canonical name is the live
 # one and the history sits beside it under a name that says what it is.
@@ -108,19 +121,29 @@ CONST_CSV_ARCHIVE_TEMPLATE = '{stem}_until_{date}{suffix}{extension}'
 # would corrupt the file mid-stream when a row is added to an existing file.
 #   Unit [string]
 CONST_CSV_BOM = '﻿'
-# The event markers: a fixed token at the END of the message of each line that opens or closes the run
-# or a camera connection. A reader of the log (Logger.Station_Events) matches these tokens, never the
-# sentence before them, so a line can be reworded freely as long as it keeps its marker — and a line
-# that loses its marker fails test/Logger/test_station_events.py. They name the LOG's own events; what
-# they mean to another system is that reader's mapping, not the logger's.
+# The event markers: a fixed token at the END of the message of each line that opens or closes the run,
+# a scan or an analysis. The run's time account is computed from these tokens alone (Cycles), by the
+# logger for the run-summary CSV and by Logger.Station_Events from the file for the daily station events,
+# never from the sentence before them — so a line can be reworded freely as long as it keeps its marker,
+# and a line that loses its marker fails test/Logger/test_station_events.py. They name the LOG's own
+# events; what they mean to another system is that reader's mapping, not the logger's.
+#   scan-start      - SCAN pressed, the capture begins.
+#   scan-end        - the capture succeeded (the frame is the one an Analyze would analyse).
+#   scan-failed     - the capture failed (the frame held before it is kept).
+#   analysis-start  - an analysis began.
+#   analysis-end    - the analysis finished, or failed.
+# A camera connection carries no marker: it does not define a cycle (it did until 2026-10-07).
 #   Unit [string]
 CONST_MARKER_RUN_START = '#run-start'
 CONST_MARKER_RUN_STOP = '#run-stop'
-CONST_MARKER_CONNECTION_START = '#connection-start'
-CONST_MARKER_CONNECTION_END = '#connection-end'
+CONST_MARKER_SCAN_START = '#scan-start'
+CONST_MARKER_SCAN_END = '#scan-end'
+CONST_MARKER_SCAN_FAILED = '#scan-failed'
+CONST_MARKER_ANALYSIS_START = '#analysis-start'
+CONST_MARKER_ANALYSIS_END = '#analysis-end'
 #   Unit [Tuple<string>]
-CONST_MARKERS = (CONST_MARKER_RUN_START, CONST_MARKER_RUN_STOP, CONST_MARKER_CONNECTION_START,
-                 CONST_MARKER_CONNECTION_END)
+CONST_MARKERS = (CONST_MARKER_RUN_START, CONST_MARKER_RUN_STOP, CONST_MARKER_SCAN_START, CONST_MARKER_SCAN_END,
+                 CONST_MARKER_SCAN_FAILED, CONST_MARKER_ANALYSIS_START, CONST_MARKER_ANALYSIS_END)
 # The line that opens every run, written by the logger itself at its start time — so the run's start
 # in the log, the '.txt' file name and the CSV's application_start are one moment.
 #   Unit [string]
@@ -255,6 +278,74 @@ def Line_Time(Log_Line_Str: Log_Line_Str) -> datetime:
                              '%s %s' % (CONST_DATE_FORMAT, CONST_TIME_FORMAT))
 
 
+@dataclass
+class Cycle_Str:
+    """
+    Description:
+        One cycle of the station's work: from a scan (or a re-analysis) to the end of its analysis.
+    """
+
+    # When the cycle started: the scan's start, or a re-analysis's start.
+    #   Unit [datetime(object)]
+    Start: tp.Optional[datetime] = None
+    # When it ended; None when the log ends with it still open (the run crashed).
+    #   Unit [datetime(object)]
+    End: tp.Optional[datetime] = None
+
+
+def Cycles(markers: tp.List[tp.Tuple[str, datetime]]) -> tp.List[Cycle_Str]:
+    """
+    Description:
+        The cycles a run's event markers record — the one definition of a cycle, from which both the
+        run-summary CSV's total_session_time and the daily file's CYCLE_START / CYCLE_DONE are derived:
+
+            - A scan opens a cycle at its start. Its analysis closes it at the analysis's end, whether the
+              analysis finished or failed (the station was working).
+            - A scan whose frame is never analysed closes at the END OF ITS CAPTURE, decided when the next
+              scan starts or the run stops — the time after it is the operator's, not the station's. Only
+              the latest frame is ever analysed, so each scan before it is such a scan.
+            - A failed capture closes its cycle at the failure.
+            - An analysis with no open cycle (the same frame analysed again, or after a failed capture)
+              opens one at its own start: it is real work with no scan of its own.
+            - The run's stop closes a running analysis's cycle at the stop.
+            - A camera connection plays no part: a loss does not stop a running analysis, and a frame kept
+              after a loss can still be analysed, which closes its scan's cycle as usual.
+
+        Scan and DISCONNECT are disabled while an analysis runs, so the cycles never overlap and no
+        second is counted twice. A log that ends without its stop (a crash) leaves its last cycle open.
+
+    Args:
+        (1) markers [Vector<Tuple<string, datetime>>]: Each event marker (CONST_MARKERS) and its line's
+                                                       time, in log order.
+
+    Returns:
+        (1) parameter [Vector<Cycle_Str>]: The cycles, in order.
+    """
+
+    cycles = []
+    Cycle_Str_i = None
+    capture_end = None
+    analysing = False
+    for marker, time in markers:
+        if marker in (CONST_MARKER_SCAN_START, CONST_MARKER_RUN_STOP) and Cycle_Str_i is not None:
+            # A frame never analysed: its cycle ended with its capture. A running analysis: cut here.
+            Cycle_Str_i.End = capture_end if capture_end is not None and not analysing else time
+            Cycle_Str_i = None
+        if marker == CONST_MARKER_SCAN_START or (marker == CONST_MARKER_ANALYSIS_START and Cycle_Str_i is None):
+            Cycle_Str_i = Cycle_Str(Start=time)
+            cycles.append(Cycle_Str_i)
+            capture_end = None
+            analysing = False
+        if marker == CONST_MARKER_SCAN_END:
+            capture_end = time
+        elif marker == CONST_MARKER_ANALYSIS_START:
+            analysing = True
+        elif marker in (CONST_MARKER_SCAN_FAILED, CONST_MARKER_ANALYSIS_END) and Cycle_Str_i is not None:
+            Cycle_Str_i.End = time
+            Cycle_Str_i = None
+    return cycles
+
+
 def Escape_Message(text: str) -> str:
     """
     Description:
@@ -346,10 +437,10 @@ class Summary_Str:
     # The whole-run cycle time, start -> stop.
     #   Unit [float]
     Cycle_Seconds: float = 0.0
-    # The summed duration of the camera sessions.
+    # The summed duration of the run's cycles (Cycles): scan to the end of its analysis.
     #   Unit [float]
     Total_Session_Seconds: float = 0.0
-    # The time no session was open, cycle_seconds - total_session_seconds.
+    # The time no cycle was open, cycle_seconds - total_session_seconds.
     #   Unit [float]
     Idle_Seconds: float = 0.0
 
@@ -410,7 +501,8 @@ class Session_Logger_Cls(object):
         with the 'Application stopped' line. When the application closes it also appends
         exactly one time-account row, per run, to a single run-summary CSV file that
         accumulates over every run and is never rewritten or truncated; a file with an older
-        column set is renamed aside unchanged and a fresh one started (CONST_CSV_ARCHIVE_TEMPLATE).
+        column set or format version is renamed aside unchanged and a fresh one started
+        (CONST_CSV_ARCHIVE_TEMPLATE, CONST_CSV_FORMAT_VERSION).
 
         The logger is Qt-free and thread-safe. A single clock provider is injected so
         the behaviour is deterministic under test; nothing calls datetime.now directly.
@@ -466,8 +558,10 @@ class Session_Logger_Cls(object):
         self.__start_time = clock()
         self.__stop_time = None
 
-        # The per-run bookkeeping: the camera sessions (the CSV's time account) and the tracked
-        # errors (the '.txt' reports each one's resolution and how long it lasted).
+        # The per-run bookkeeping: the event markers as written (the CSV's time account, Cycles), the
+        # camera sessions (the '.txt' reports how long each lasted) and the tracked errors (the '.txt'
+        # reports each one's resolution and how long it lasted).
+        self.__markers = []
         self.__sessions = []
         self.__open_session = None
         self.__errors = []
@@ -647,6 +741,12 @@ class Session_Logger_Cls(object):
         # view renders what it was handed and never parses; the formatted line goes too (minus
         # the trailing newline) for a sink that wants the raw string.
         record = Log_Line_Str(Date=date, Time=time, Level=level, Message=info, Parsed=True)
+        # The event marker as a reader of the file finds it (Event_Marker on the same record), at the
+        # line's whole-second time, so the CSV's time account and the daily file's are one computation
+        # over the same markers.
+        marker = Event_Marker(record)
+        if marker:
+            self.__markers.append((marker, now.replace(microsecond=0)))
         self.__Emit_To_Sink(record, line[:-1] if line.endswith('\n') else line)
 
     def __Emit_To_Sink(self, record: Log_Line_Str, line: str) -> None:
@@ -817,15 +917,14 @@ class Session_Logger_Cls(object):
             if self.__open_session is not None:
                 self.__open_session.End = now
                 self.__Write_Line(f'Camera connected while connection '
-                                  f'{self.__open_session.Index} was still open. Closed it. '
-                                  f'{CONST_MARKER_CONNECTION_END}', now, CONST_LEVEL_WARNING)
+                                  f'{self.__open_session.Index} was still open. Closed it.',
+                                  now, CONST_LEVEL_WARNING)
                 self.__open_session = None
             Session_Str_i = Session_Str(Index=len(self.__sessions) + 1, Start=now)
             self.__sessions.append(Session_Str_i)
             self.__open_session = Session_Str_i
             detail = f' {info}.' if info else '.'
-            self.__Write_Line(f'Camera connected{detail} Connection {Session_Str_i.Index} started. '
-                              f'{CONST_MARKER_CONNECTION_START}', now)
+            self.__Write_Line(f'Camera connected{detail} Connection {Session_Str_i.Index} started.', now)
             return Session_Str_i.Index
 
     def Log_Camera_Disconnected(self, info: str = '') -> None:
@@ -850,7 +949,7 @@ class Session_Logger_Cls(object):
             duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
             detail = f' {info}.' if info else ''
             self.__Write_Line(f'Camera disconnected. Connection {Session_Str_i.Index} ended after '
-                              f'{duration}.{detail} {CONST_MARKER_CONNECTION_END}', now)
+                              f'{duration}.{detail}', now)
 
     def Log_Camera_Connection_Lost(self, info: str = '') -> None:
         """
@@ -872,13 +971,12 @@ class Session_Logger_Cls(object):
                 Session_Str_i.End = now
                 self.__open_session = None
                 duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
-                self.__Write_Line(f'Connection {Session_Str_i.Index} ended after {duration}. '
-                                  f'{CONST_MARKER_CONNECTION_END}', now)
+                self.__Write_Line(f'Connection {Session_Str_i.Index} ended after {duration}.', now)
 
     def Log_Scan_Started(self, scan_id: tp.Optional[int] = None) -> None:
         """
         Description:
-            Log the start of a scan.
+            Log the start of a scan: it opens a cycle (CONST_MARKER_SCAN_START, Cycles).
 
         Args:
             (1) scan_id [int]: Optional scan identifier.
@@ -886,12 +984,13 @@ class Session_Logger_Cls(object):
 
         with self.__lock:
             detail = f' (scan {scan_id})' if scan_id is not None else ''
-            self.__Write_Line(f'Frame scan started{detail}.', self.__clock())
+            self.__Write_Line(f'Frame scan started{detail}. {CONST_MARKER_SCAN_START}', self.__clock())
 
     def Log_Scan_Ended(self, scan_id: tp.Optional[int] = None) -> None:
         """
         Description:
-            Log the end of a scan.
+            Log the end of a successful scan: the time its cycle ends if its frame is never analysed
+            (CONST_MARKER_SCAN_END, Cycles).
 
         Args:
             (1) scan_id [int]: Optional scan identifier.
@@ -899,13 +998,28 @@ class Session_Logger_Cls(object):
 
         with self.__lock:
             detail = f' (scan {scan_id})' if scan_id is not None else ''
-            self.__Write_Line(f'Frame scan finished{detail}.', self.__clock())
+            self.__Write_Line(f'Frame scan finished{detail}. {CONST_MARKER_SCAN_END}', self.__clock())
+
+    def Log_Scan_Failed(self, scan_id: tp.Optional[int] = None) -> None:
+        """
+        Description:
+            Log that a scan's capture failed: its cycle ends now (CONST_MARKER_SCAN_FAILED, Cycles). The
+            reason is the caller's own ERROR line, logged after this one.
+
+        Args:
+            (1) scan_id [int]: Optional scan identifier.
+        """
+
+        with self.__lock:
+            detail = f' (scan {scan_id})' if scan_id is not None else ''
+            self.__Write_Line(f'Frame scan failed{detail}. {CONST_MARKER_SCAN_FAILED}', self.__clock())
 
     def Log_Analysis_Started(self, index: int, set_id: tp.Optional[str] = None) -> None:
         """
         Description:
             Log the start of an analysis as a sentence, naming its capture set so the log
-            points at the files.
+            points at the files. It continues its scan's cycle, or opens one for a frame
+            analysed again (CONST_MARKER_ANALYSIS_START, Cycles).
 
         Args:
             (1) index [int]: The 1-based analysis index within the session.
@@ -916,7 +1030,7 @@ class Session_Logger_Cls(object):
             line = 'Analysis %d started.' % index
             if set_id:
                 line += ' Capture set %s.' % set_id
-            self.__Write_Line(line, self.__clock())
+            self.__Write_Line('%s %s' % (line, CONST_MARKER_ANALYSIS_START), self.__clock())
 
     def Log_Cleared(self) -> None:
         """
@@ -937,7 +1051,8 @@ class Session_Logger_Cls(object):
             Log a finished analysis as a sentence. It carries the inference time
             and the mean detector confidence WITH its coverage — how many of the objects
             were scored — because the log is the forensic record and a mean over a partial
-            set must say so; the short percentage-only form belongs in the UI, not here.
+            set must say so; the short percentage-only form belongs in the UI, not here. It
+            ends the analysis's cycle (CONST_MARKER_ANALYSIS_END, Cycles).
 
         Args:
             (1) index [int]: The 1-based analysis index within the session.
@@ -962,7 +1077,25 @@ class Session_Logger_Cls(object):
             line = 'Analysis %d finished in %d ms. %s.' % (index, latency_ms, count_clause)
             if set_id:
                 line += ' Capture set %s.' % set_id
-            self.__Write_Line(line, self.__clock())
+            self.__Write_Line('%s %s' % (line, CONST_MARKER_ANALYSIS_END), self.__clock())
+
+    def Log_Analysis_Failed(self, index: int, set_id: tp.Optional[str] = None) -> None:
+        """
+        Description:
+            Log that an analysis failed: its cycle still ends now, as a finished one does — the station
+            was working (CONST_MARKER_ANALYSIS_END, Cycles). The reason is the caller's own ERROR line,
+            logged after this one.
+
+        Args:
+            (1) index [int]: The 1-based analysis index within the session.
+            (2) set_id [string]: The capture-set identifier for this analysis.
+        """
+
+        with self.__lock:
+            line = 'Analysis %d failed.' % index
+            if set_id:
+                line += ' Capture set %s.' % set_id
+            self.__Write_Line('%s %s' % (line, CONST_MARKER_ANALYSIS_END), self.__clock())
 
     def Log_Analysis_Timing(self, index: int, total_ms: int, stages: tp.List[tp.Tuple[str, int]],
                             other_ms: int, measurement_ms: int, first_after_load: bool) -> None:
@@ -1043,8 +1176,11 @@ class Session_Logger_Cls(object):
             and holds no formatting — the CSV renderer (Render_Summary_Csv_Row) owns
             that. This keeps 'compute summary' and 'render summary' separately testable.
 
-            An open session is closed at the stop time. With zero sessions the summary is
-            still complete: the whole cycle is idle.
+            total_session_time is the summed cycles (Cycles) over the event markers this
+            logger wrote — the markers Logger.Station_Events reads back from the file, so the
+            two time accounts are one computation. A cycle still open is closed at the stop
+            time as the run's stop closes it. With no cycle the summary is still complete:
+            the whole run is idle.
 
         Args:
             (1) stop_time [datetime(object)]: The application stop time (defaults to the
@@ -1059,18 +1195,16 @@ class Session_Logger_Cls(object):
                 stop_time = self.__stop_time if self.__stop_time is not None else self.__clock()
 
             # Every figure is derived from the values AS WRITTEN, so a row's arithmetic checks out
-            # when someone recomputes it: the cycle from the whole-second start/stop the row
-            # prints, the session total rounded to whole seconds, and idle as the cycle minus
-            # that total, so cycle_time == total_session_time + idle_time exactly.
+            # when someone recomputes it: the run from the whole-second start/stop the row prints,
+            # the cycles from the whole-second times of their marker lines, and idle as the run
+            # minus the cycles, so cycle_time == total_session_time + idle_time exactly.
             start_s = self.__start_time.replace(microsecond=0)
             stop_s = stop_time.replace(microsecond=0)
             cycle_seconds = (stop_s - start_s).total_seconds()
-            session_exact = sum(((Session_Str_i.End if Session_Str_i.End is not None else stop_time)
-                                 - Session_Str_i.Start).total_seconds()
-                                for Session_Str_i in self.__sessions)
-            # A connection spanning the whole run can round a second past the whole-second cycle;
-            # cap it so idle never goes negative and the three columns still add up.
-            session_seconds = float(min(round(session_exact), cycle_seconds))
+            # The stop's marker is written after the CSV row, so it is added here (after Close it is
+            # already there, and a second stop closes nothing).
+            session_seconds = sum((Cycle_Str_i.End - Cycle_Str_i.Start).total_seconds()
+                                  for Cycle_Str_i in Cycles(self.__markers + [(CONST_MARKER_RUN_STOP, stop_s)]))
 
             return Summary_Str(Log_File=os.path.basename(self.__path),
                                Application_Start=self.__start_time,
@@ -1137,7 +1271,7 @@ class Session_Logger_Cls(object):
         """
         Description:
             Whether an open handle still refers to the file now at the CSV path. Another run may
-            have renamed the CSV aside (an older column set, archived) while this one waited for
+            have renamed the CSV aside (an older format, archived) while this one waited for
             the lock; writing through the stale handle would put the row into the archived file.
 
         Args:
@@ -1176,11 +1310,43 @@ class Session_Logger_Cls(object):
                 return path
         raise OSError('no free archive name for %s' % self.__csv_path)
 
+    def __Read_Csv_Version(self) -> int:
+        """
+        Description:
+            The run-summary CSV's format version, from its version file (CONST_CSV_VERSION_SUFFIX): 1
+            when there is none (every CSV written before versions existed), 0 when it holds anything but
+            a number, so an unreadable version is never taken for the current one.
+
+        Returns:
+            (1) parameter [int]: The version.
+        """
+
+        try:
+            with open(self.__csv_path + CONST_CSV_VERSION_SUFFIX, 'r', encoding='utf-8') as version_file:
+                text = version_file.read().strip()
+        except FileNotFoundError:
+            return 1
+        return int(text) if text.isdigit() else 0
+
+    def __Write_Csv_Version(self) -> None:
+        """
+        Description:
+            Write the current format version (CONST_CSV_FORMAT_VERSION) beside the CSV, flushed and
+            synced. Called for a fresh CSV before its header, so a crash between the two leaves an empty
+            CSV that the next run starts again, never a header without its version.
+        """
+
+        with open(self.__csv_path + CONST_CSV_VERSION_SUFFIX, 'w', encoding='utf-8', newline='') as version_file:
+            version_file.write('%d\n' % CONST_CSV_FORMAT_VERSION)
+            version_file.flush()
+            os.fsync(version_file.fileno())
+
     def __Archive_Older_Format(self, now: datetime) -> None:
         """
         Description:
-            When the CSV at the canonical path has a header other than CONST_CSV_COLUMNS, rename
-            it aside, byte-for-byte unchanged (__Archive_Path), so the next row starts a fresh file
+            When the CSV at the canonical path has a header other than CONST_CSV_COLUMNS, or a format
+            version other than CONST_CSV_FORMAT_VERSION, rename it aside, byte-for-byte unchanged
+            (__Archive_Path), with its version file beside it, so the next row starts a fresh file
             instead of appending rows that mean something different under a header that no longer
             describes them. The check and the rename run under the file lock; a handle that no
             longer refers to the file at the path (another run archived it meanwhile) re-checks
@@ -1202,7 +1368,8 @@ class Session_Logger_Cls(object):
                         continue
                     first = csv_file.readline().decode('utf-8-sig', errors='replace').rstrip('\r\n')
                     header = next(csv.reader([first], delimiter=CONST_CSV_DELIMITER), [])
-                    if not first or header == CONST_CSV_COLUMNS:
+                    version = self.__Read_Csv_Version()
+                    if not first or (header == CONST_CSV_COLUMNS and version == CONST_CSV_FORMAT_VERSION):
                         return
                     archive = self.__Archive_Path(os.fstat(csv_file.fileno()).st_mtime)
                     try:
@@ -1214,19 +1381,25 @@ class Session_Logger_Cls(object):
             if deferred is not None:
                 os.rename(self.__csv_path, deferred)
                 archive = deferred
-            self.__Write_Line('The run-summary CSV had an older column set (%d columns); it was '
-                              'renamed, unchanged, to %s and a new %s was started with the current '
-                              '%d columns.' % (len(header), os.path.basename(archive),
-                                               os.path.basename(self.__csv_path),
-                                               len(CONST_CSV_COLUMNS)), now)
+            # The version file goes with its CSV, so the archive still says what its rows mean.
+            if os.path.exists(self.__csv_path + CONST_CSV_VERSION_SUFFIX):
+                os.rename(self.__csv_path + CONST_CSV_VERSION_SUFFIX, archive + CONST_CSV_VERSION_SUFFIX)
+            if header != CONST_CSV_COLUMNS:
+                reason = 'had an older column set (%d columns)' % len(header)
+            else:
+                reason = 'was format version %d, whose rows mean something else' % version
+            self.__Write_Line('The run-summary CSV %s; it was renamed, unchanged, to %s and a new %s '
+                              'was started, format version %d with the current %d columns.'
+                              % (reason, os.path.basename(archive), os.path.basename(self.__csv_path),
+                                 CONST_CSV_FORMAT_VERSION, len(CONST_CSV_COLUMNS)), now)
             return
 
     def __Append_Csv_Summary(self, Summary_Str: Summary_Str, now: datetime) -> None:
         """
         Description:
-            Append exactly one row to the run-summary CSV. The header row is written only
-            when the file is created (or is empty); an existing file with the current
-            columns is appended to, never rewritten, and one with an older column set is
+            Append exactly one row to the run-summary CSV. The header row (and the version
+            file) is written only when the file is created (or is empty); an existing file with
+            the current columns and version is appended to, never rewritten, and any other is
             first archived unchanged (__Archive_Older_Format), so no row is ever written
             under a header that does not describe it. The append is guarded by an exclusive
             file lock so concurrent runs cannot interleave a row.
@@ -1257,6 +1430,7 @@ class Session_Logger_Cls(object):
                 write_header = os.fstat(csv_file.fileno()).st_size == 0
                 writer = csv.writer(csv_file, delimiter=CONST_CSV_DELIMITER)
                 if write_header:
+                    self.__Write_Csv_Version()
                     csv_file.write(CONST_CSV_BOM)
                     writer.writerow(CONST_CSV_COLUMNS)
                 writer.writerow(row)
@@ -1289,14 +1463,14 @@ class Session_Logger_Cls(object):
             now = self.__clock()
             self.__stop_time = now
 
-            # Close an open session at the stop time and mark it accordingly.
+            # Close an open connection at the stop time and say so in the log.
             if self.__open_session is not None:
                 Session_Str_i = self.__open_session
                 Session_Str_i.End = now
                 self.__open_session = None
                 duration = Format_HMS((now - Session_Str_i.Start).total_seconds())
                 self.__Write_Line(f'Connection {Session_Str_i.Index} ended after {duration} '
-                                  f'(closed at shutdown). {CONST_MARKER_CONNECTION_END}', now)
+                                  f'(closed at shutdown).', now)
 
             # Append the run summary as one CSV row while the '.txt' handle is still
             # open, so a header-mismatch warning or a write failure can be reported into

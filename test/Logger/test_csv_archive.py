@@ -31,16 +31,18 @@ from datetime import datetime, timedelta
 import pytest
 # Custom Lib.: AnyScan — the session logger and its CSV contract
 #   ../Logger/Core
-from Logger.Core import Session_Logger_Cls, CONST_CSV_COLUMNS, CONST_CSV_BOM
+from Logger.Core import Session_Logger_Cls, CONST_CSV_COLUMNS, CONST_CSV_BOM, CONST_CSV_VERSION_SUFFIX
 
 """
 Description:
     The run-summary CSV was cut to six columns, so a file written before the cut has rows that
-    mean something different. Such a file is never appended to: it is renamed aside, byte-for-byte
-    unchanged, as '<name>_until_<date>.csv', and the canonical name starts afresh. Tested end to
-    end through the logger: the archive is identical to the old file, the new file carries only
-    current-format rows, a current-format file is simply appended to, an
-    earlier archive of the same day is never overwritten, and the '.txt' says what happened.
+    mean something different; so has a file of an earlier format version, whose header is the
+    current one (version 1: total_session_time was connection time). Such a file is never appended
+    to: it is renamed aside, byte-for-byte unchanged, as '<name>_until_<date>.csv', and the
+    canonical name starts afresh. Tested end to end through the logger: the archive is identical to
+    the old file, the new file carries only current-format rows, a current-format file is simply
+    appended to, an earlier archive of the same day is never overwritten, and the '.txt' says what
+    happened.
 """
 
 # The 22-column header every file written before the cut carries, and two of its rows (one with a
@@ -90,15 +92,17 @@ def _Write_Old_File(path: str, columns: tp.List[str] = CONST_OLD_COLUMNS) -> byt
 
 
 def _Run(tmp_path: tp.Any, start: datetime, session: bool = True) -> Session_Logger_Cls:
-    """One run of 90 s, connected for the middle 60 s, closed (so its row is appended)."""
+    """One run of 90 s, a scan and its analysis in the middle 60 s, closed (so its row is appended)."""
     clock = Clock_Cls(start)
     logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
                                 install_handlers=False)
     if session:
         clock.now = start + timedelta(seconds=15)
-        logger.Log_Camera_Connected()
+        logger.Log_Scan_Started()
+        logger.Log_Scan_Ended()
+        logger.Log_Analysis_Started(1)
         clock.now = start + timedelta(seconds=75)
-        logger.Log_Camera_Disconnected()
+        logger.Log_Analysis_Finished(1, 1000, 0, 0, None)
     clock.now = start + timedelta(seconds=90)
     logger.Close()
     return logger
@@ -146,9 +150,42 @@ def test_a_current_format_file_is_appended_to_not_archived(tmp_path) -> None:
     second = _Run(tmp_path, datetime(2026, 9, 23, 10, 0, 0))
     rows = _Rows(str(tmp_path / 'log_unconfigured.csv'))
     assert rows[0] == CONST_CSV_COLUMNS and len(rows) == 3
+    assert (tmp_path / ('log_unconfigured.csv' + CONST_CSV_VERSION_SUFFIX)).read_text() == '2\n'
     assert not any('_until_' in name for name in os.listdir(tmp_path))
     for logger in (first, second):
         assert 'older column set' not in open(logger.Path, encoding='utf-8').read()
+
+
+@pytest.mark.parametrize('version, read_as', [(None, 1), ('1\n', 1), ('two\n', 0)],
+                         ids=['no version file', 'version 1', 'unreadable'])
+def test_a_current_header_of_another_format_version_is_archived_with_its_version(tmp_path, version, read_as) -> None:
+    """
+    Description:
+        A file with the current header but not format version 2 — no version file (every file written
+        before 2026-10-07, when total_session_time was connection time), an older version, or one that
+        is not a number — is archived unchanged like an older header, its version file moved beside the
+        archive; the new file is version 2 with this run's row only, and the '.txt' names the version.
+    """
+
+    canonical = str(tmp_path / 'log_unconfigured.csv')
+    old = _Write_Old_File(canonical, CONST_CSV_COLUMNS)
+    if version is not None:
+        with open(canonical + CONST_CSV_VERSION_SUFFIX, 'w', encoding='utf-8') as handle:
+            handle.write(version)
+    logger = _Run(tmp_path, datetime(2026, 10, 7, 9, 0, 0))
+
+    archive = tmp_path / 'log_unconfigured_until_2026-09-20.csv'
+    assert archive.read_bytes() == old
+    archived_version = tmp_path / ('log_unconfigured_until_2026-09-20.csv' + CONST_CSV_VERSION_SUFFIX)
+    if version is None:
+        assert not archived_version.exists()
+    else:
+        assert archived_version.read_text() == version
+    assert len(_Rows(canonical)) == 2
+    assert open(canonical + CONST_CSV_VERSION_SUFFIX, encoding='utf-8').read() == '2\n'
+    text = open(logger.Path, encoding='utf-8').read()
+    assert 'was format version %d, whose rows mean something else' % read_as in text
+    assert 'log_unconfigured_until_2026-09-20.csv' in text
 
 
 def test_an_earlier_archive_of_the_same_day_is_never_overwritten(tmp_path) -> None:
@@ -169,7 +206,8 @@ def test_the_row_is_the_runs_time_account(tmp_path) -> None:
     """
     Description:
         The six cells: the log file, start and stop to the second, and three durations that add
-        up — cycle_time == total_session_time + idle_time. A run with no connection is all idle.
+        up — cycle_time == total_session_time + idle_time, the session time being the scan to the
+        end of its analysis. A run with no scan is all idle.
     """
 
     logger = _Run(tmp_path, datetime(2026, 9, 23, 9, 0, 0))

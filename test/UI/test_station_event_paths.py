@@ -46,14 +46,18 @@ from Logger.Core import Session_Logger_Cls
 from Logger.Station_Events import Read_Events, Export_Pending
 #   ../Configuration/Core
 from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE, CONST_PROJECT_ROOT
+#   ../Parameters/Vision
+from Parameters.Vision import Analysis_Str
 
 """
 Description:
-    Every way the application ends a camera connection reaches the station event file — through the
-    window's real handlers and the launcher's real export wiring (App/run.py, Export_Station_Events),
-    read back from the files on disk: closing while connected, a connection lost at a Scan and one the
-    connection check finds with no Scan, and a CONNECT that fails (which writes nothing). And a failure
-    exporting an earlier log at startup reaches the status strip as a logged error.
+    The window's scans and analyses reach the station event file as cycles, and its connections do not —
+    through the window's real handlers and the launcher's real export wiring (App/run.py,
+    Export_Station_Events), read back from the files on disk: a scan closed by the window's close, an
+    analysis that finishes and one that fails, a connection lost at a Scan (the failed capture ends its
+    cycle) and one the connection check finds with no Scan (no cycle), and a CONNECT that fails (which
+    writes nothing). And a failure exporting an earlier log at startup reaches the status strip as a
+    logged error.
 """
 # The shipped configuration, unscaled.
 #   Unit [Configuration_Str(object)]
@@ -76,9 +80,20 @@ def run() -> tp.Any:
 
 
 class _Vision_Cls(object):
-    """A stand-in backend with its models loaded (CONNECT needs them), never asked to analyse."""
+    """A stand-in backend with its models loaded (CONNECT needs them); an analysis finds nothing."""
 
     Name, Models_Loaded, Model_Names = 'JIC_AnyScan_All_v1', True, ('FastSAM-x.pt', 'gemma')
+
+    def Analyze(self, image: tp.Any, progress_cb: tp.Any = None, stage_cb: tp.Any = None) -> Analysis_Str:
+        return Analysis_Str(Objects=[], Background='A plain surface.', Latency_Ms=5, Verdict='0 found',
+                            Verdict_Level='ok', Task='caption')
+
+
+class _Failing_Vision_Cls(_Vision_Cls):
+    """A stand-in backend whose analysis fails."""
+
+    def Analyze(self, image: tp.Any, progress_cb: tp.Any = None, stage_cb: tp.Any = None) -> Analysis_Str:
+        raise RuntimeError('The segmenter failed to process the frame.')
 
 
 def _Private(window: AnyScan_Window_Cls, name: str) -> tp.Any:
@@ -94,17 +109,19 @@ def _Pump_Until(condition: tp.Callable[[], bool], timeout: float = 5.0) -> None:
         time.sleep(0.01)
 
 
-def _Station(tmp_path: tp.Any, run: tp.Any, frame: str) -> tp.Tuple[AnyScan_Window_Cls, Session_Logger_Cls, str]:
+def _Station(tmp_path: tp.Any, run: tp.Any, frame: str,
+             vision: tp.Any = None) -> tp.Tuple[AnyScan_Window_Cls, Session_Logger_Cls, str]:
     """
-    A window started as the launcher starts it: a real logger, a file camera on the given frame, and the
-    station event export wired by run.Export_Station_Events into tmp_path/events.
+    A window started as the launcher starts it: a real logger, a file camera on the given frame, the
+    stand-in vision backend (or the one given), and the station event export wired by
+    run.Export_Station_Events into tmp_path/events.
     """
     events = tmp_path / 'events'
     events.mkdir()
     logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path / 'log'), install_handlers=False)
     configuration = dataclasses.replace(CONST_CONFIGURATION, Station_Events_Directory=str(events))
     window = AnyScan_Window_Cls(Configuration_Str=configuration, camera=File_Camera_Cls(frame), logger=logger)
-    setattr(window, '_AnyScan_Window_Cls__vision', _Vision_Cls())
+    setattr(window, '_AnyScan_Window_Cls__vision', vision or _Vision_Cls())
     run.Export_Station_Events(logger, window, str(events))
     _Private(window, '__Sync_Controls')()
     return window, logger, str(events)
@@ -144,17 +161,41 @@ def _Cell_Text(window: AnyScan_Window_Cls, name: str) -> str:
     return ' '.join(document.toPlainText().replace('\xa0', ' ').split())
 
 
-def test_closing_the_window_while_connected_writes_cycle_done_before_station_off(qt_app, run, tmp_path,
-                                                                                reference_background_path) -> None:
+def test_a_scan_closed_by_the_windows_close_is_one_cycle_and_the_connection_none(qt_app, run, tmp_path,
+                                                                                  reference_background_path) -> None:
     """
     Description:
-        The operator closes the application with the camera still connected: the window's close ends the
-        run, and the export written at that close pairs every CYCLE_START — CYCLE_DONE, then STATION_OFF.
+        The operator connects, scans and closes the application with the camera still connected and the
+        frame never analysed: the export written at the window's close pairs the scan's CYCLE_START with
+        its CYCLE_DONE, then STATION_OFF. The connection itself is no cycle.
     """
 
     window, logger, events = _Station(tmp_path, run, reference_background_path)
     _Connect(window)
     assert _Private(window, '__camera').Connected
+    _Private(window, '__button_scan').click()
+    window.close()
+    assert _Exported(events) == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE', 'STATION_OFF']
+
+
+@pytest.mark.parametrize('vision, ending', [(_Vision_Cls, 'finished in'), (_Failing_Vision_Cls, 'failed.')],
+                         ids=['finished', 'failed'])
+def test_an_analysis_through_the_window_ends_its_scans_cycle(qt_app, run, tmp_path, reference_background_path,
+                                                             vision, ending) -> None:
+    """
+    Description:
+        SCAN then ANALYZE through the buttons, on the worker thread: the analysis's end — finished or
+        failed — writes the line that ends the scan's cycle, so the export pairs one CYCLE_START with one
+        CYCLE_DONE before STATION_OFF.
+    """
+
+    window, logger, events = _Station(tmp_path, run, reference_background_path, vision())
+    _Connect(window)
+    _Private(window, '__button_scan').click()
+    _Private(window, '__button_analyze').click()
+    _Pump_Until(lambda: not _Private(window, '__worker_running'))
+    with open(logger.Path, 'r', encoding='utf-8') as handle:
+        assert [line for line in handle if line.rstrip().endswith('#analysis-end')][0].count(ending) == 1
     window.close()
     assert _Exported(events) == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE', 'STATION_OFF']
 
@@ -165,8 +206,7 @@ def test_a_connection_lost_with_no_scan_is_closed_by_the_connection_check(qt_app
     Description:
         The cable is pulled while nobody scans. The connection check, running since CONNECT, finds the
         device gone within its interval: the connection is closed (the Camera cell reads Disconnected),
-        the loss is logged as an ERROR, the check stops, and the cycle is closed then — before the
-        application stops, not at its close.
+        the loss is logged as an ERROR and the check stops. Nothing was scanned, so there is no cycle.
     """
 
     window, logger, events = _Station(tmp_path, run, reference_background_path)
@@ -180,17 +220,17 @@ def test_a_connection_lost_with_no_scan_is_closed_by_the_connection_check(qt_app
     with open(logger.Path, 'r', encoding='utf-8') as handle:
         log = handle.read()
     assert '[ERROR  ] The camera connection was lost (%s)' % window.CONST_CONNECTION_LOST_MESSAGE in log
-    assert [event.Event_Type for event in Read_Events(logger.Path)] == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE']
+    assert [event.Event_Type for event in Read_Events(logger.Path)] == ['STATION_ON']
     window.close()
-    assert _Exported(events) == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE', 'STATION_OFF']
+    assert _Exported(events) == ['STATION_ON', 'STATION_OFF']
 
 
 def test_a_connection_lost_at_a_scan_closes_the_cycle(qt_app, run, tmp_path, reference_background_path) -> None:
     """
     Description:
         The cable is pulled and the operator presses Scan before the check ticks: the failed grab on a
-        removed device closes the connection, so the Scan reports a lost connection and the cycle closes
-        there; the check is stopped with it.
+        removed device closes the connection, so the Scan reports a lost connection, and the failed
+        capture closes the scan's cycle there; the check is stopped with it.
     """
 
     window, logger, events = _Station(tmp_path, run, reference_background_path)

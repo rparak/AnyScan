@@ -144,8 +144,10 @@ holds:
 - **General.Classification.**
 - **General.Station_Events.Directory (required):** where the daily station event files go
   (`YYYY-MM-DD.csv`, one per local date: `STATION_ON`/`OFF` for the application, `CYCLE_START`/`DONE`
-  for each camera connection, `ts` in UTC). They are exported from the session log when the
-  application closes, and a crashed run's log is exported at the next start. The directory must exist
+  for each scan, or re-analysis, to the end of its analysis; for each camera connection until
+  2026-10-07; `ts` in UTC). The cycles sum to the run-summary CSV's `total_session_time`. They are
+  exported from the session log when the application closes, and a crashed run's log is exported at
+  the next start. The directory must exist
   and be writable at load, and it is fixed for the run. The mode file's comment says how to read the
   files; `docs/design-decisions.md` has the reasons.
 - **Camera:** acquisition settings; the **sensor window** (`Camera.Resolution`, `Camera.Offset`:

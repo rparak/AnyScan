@@ -149,10 +149,11 @@ def _Read_Header_Line(path: str) -> str:
 def _Build_Reference_Run(tmp_path: tp.Any) -> tp.Tuple[Session_Logger_Cls, Clock_Cls, datetime]:
     """
     Description:
-        Drive the realistic reference scenario: two sessions (the second still open at
-        shutdown), three analyzed images, and two errors (one resolved, one left
-        unresolved). The clock is returned so a test can advance it to the stop time
-        before closing the run.
+        Drive the realistic reference scenario: two connections (the second still open at
+        shutdown), three scans analysed (9 s, 3 s and 749 s from scan to the end of the
+        analysis), a fourth scan never analysed (2 s of capture), and two errors (one
+        resolved, one left unresolved): 763 s of cycles. The clock is returned so a test can
+        advance it to the stop time before closing the run.
 
     Args:
         (1) tmp_path [pathlib.Path(object)]: The pytest temporary directory.
@@ -165,15 +166,26 @@ def _Build_Reference_Run(tmp_path: tp.Any) -> tp.Tuple[Session_Logger_Cls, Clock
     clock = Clock_Cls(_T('14:37:02'))
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
 
-    clock.now = _T('14:37:12'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('14:37:21'); Session_Logger.Log_Analysis_Finished(14, 1000, 3, 0, None)
-    clock.now = _T('14:37:25'); Session_Logger.Log_Analysis_Finished(15, 1000, 2, 0, None)
+    clock.now = _T('14:37:10'); Session_Logger.Log_Camera_Connected()
+    clock.now = _T('14:37:12'); Session_Logger.Log_Scan_Started()
+    clock.now = _T('14:37:13'); Session_Logger.Log_Scan_Ended()
+    clock.now = _T('14:37:14'); Session_Logger.Log_Analysis_Started(14)
+    clock.now = _T('14:37:21'); Session_Logger.Log_Analysis_Finished(14, 1000, 3, 0, None)     # 9 s
+    clock.now = _T('14:37:22'); Session_Logger.Log_Scan_Started()
+    clock.now = _T('14:37:23'); Session_Logger.Log_Scan_Ended()
+    Session_Logger.Log_Analysis_Started(15)
+    clock.now = _T('14:37:25'); Session_Logger.Log_Analysis_Finished(15, 1000, 2, 0, None)     # 3 s
     clock.now = _T('14:37:34'); error_id = Session_Logger.Log_Error('camera timeout')
     clock.now = _T('14:37:49'); Session_Logger.Log_Error_Resolved(error_id)
     clock.now = _T('14:40:02'); Session_Logger.Log_Camera_Disconnected()
     clock.now = _T('14:52:30'); Session_Logger.Log_Camera_Connected()
-    clock.now = _T('15:05:00'); Session_Logger.Log_Analysis_Finished(42, 1000, 4, 0, None)
+    clock.now = _T('14:52:31'); Session_Logger.Log_Scan_Started()
+    clock.now = _T('14:52:32'); Session_Logger.Log_Scan_Ended()
+    clock.now = _T('14:52:40'); Session_Logger.Log_Analysis_Started(42)
+    clock.now = _T('15:05:00'); Session_Logger.Log_Analysis_Finished(42, 1000, 4, 0, None)     # 749 s
+    clock.now = _T('15:20:00'); Session_Logger.Log_Scan_Started()
     clock.now = _T('15:20:01'); Session_Logger.Log_Error('analysis failed on image 233')
+    clock.now = _T('15:20:02'); Session_Logger.Log_Scan_Ended()                                # 2 s, never analysed
 
     return (Session_Logger, clock, _T('16:12:44'))
 
@@ -491,7 +503,8 @@ def test_reference_run_row_values(tmp_path: tp.Any) -> None:
     """
     Description:
         The data row for the realistic reference scenario carries the expected value in every
-        column: the run's time account, with the second session closed at the stop time.
+        column: the run's time account — the whole run, its 763 s of cycles (the unanalysed last
+        scan counted to the end of its capture, not to the stop), and the rest idle.
     """
 
     Session_Logger, clock, stop_time = _Build_Reference_Run(tmp_path)
@@ -501,14 +514,14 @@ def test_reference_run_row_values(tmp_path: tp.Any) -> None:
     assert row == {'log_file': 'log_2026-09-12_14-37-02.txt',
                    'application_start': '2026-09-12 14:37:02',
                    'application_stop': '2026-09-12 16:12:44',
-                   'cycle_time': '01:35:42', 'total_session_time': '01:23:04',
-                   'idle_time': '00:12:38'}
+                   'cycle_time': '01:35:42', 'total_session_time': '00:12:43',
+                   'idle_time': '01:22:59'}
 
 
 def test_zero_activity_row_is_complete(tmp_path: tp.Any) -> None:
     """
     Description:
-        A run with no connection still produces one full row — the whole cycle idle — never a
+        A run with no scan still produces one full row — the whole run idle — never a
         skipped or partial row.
     """
 
@@ -525,16 +538,20 @@ def test_zero_activity_row_is_complete(tmp_path: tp.Any) -> None:
     assert row['idle_time'] == '00:00:06'
 
 
-def test_session_open_at_shutdown_is_counted(tmp_path: tp.Any) -> None:
+def test_an_analysis_running_at_shutdown_is_counted_to_the_stop(tmp_path: tp.Any) -> None:
     """
     Description:
-        A session still open at shutdown is measured to the stop time; the '.txt' file marks it
+        An analysis still running at shutdown has its cycle measured from its scan to the stop
+        time; the connection still open is closed with it, and the '.txt' file marks that
         '(closed at shutdown)'.
     """
 
     clock = Clock_Cls(_T('12:00:00'))
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock, install_handlers=False)
-    clock.now = _T('12:00:10'); Session_Logger.Log_Camera_Connected()
+    clock.now = _T('12:00:05'); Session_Logger.Log_Camera_Connected()
+    clock.now = _T('12:00:10'); Session_Logger.Log_Scan_Started()
+    clock.now = _T('12:00:11'); Session_Logger.Log_Scan_Ended()
+    Session_Logger.Log_Analysis_Started(1)
     clock.now = _T('12:30:10'); Session_Logger.Close()
 
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
@@ -544,11 +561,11 @@ def test_session_open_at_shutdown_is_counted(tmp_path: tp.Any) -> None:
     assert '(closed at shutdown)' in content
 
 
-def test_multiple_sessions_total_session_time(tmp_path: tp.Any) -> None:
+def test_connections_are_not_counted_as_work(tmp_path: tp.Any) -> None:
     """
     Description:
-        Multiple sessions in one run each record their own duration, and the CSV's
-        total session time is their sum.
+        A camera connection is not a cycle: two connections with no scan each log their own
+        duration in the '.txt', and the CSV's total_session_time stays zero.
     """
 
     clock = Clock_Cls(_T('10:00:00'))
@@ -559,8 +576,10 @@ def test_multiple_sessions_total_session_time(tmp_path: tp.Any) -> None:
     clock.now = _T('10:07:30'); Session_Logger.Log_Camera_Disconnected()    # 150 s
     clock.now = _T('10:10:00'); Session_Logger.Close()
 
+    content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
+    assert 'Connection 1 ended after 00:01:00.' in content and 'Connection 2 ended after 00:02:30.' in content
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
-    assert row['total_session_time'] == '00:03:30'      # 60 + 150 = 210 s
+    assert row['total_session_time'] == '00:00:00' and row['idle_time'] == '00:10:00'
 
 
 def test_errors_are_tracked_for_the_log_and_not_summarised(tmp_path: tp.Any) -> None:
@@ -599,9 +618,11 @@ def test_summary_arithmetic_is_self_consistent_at_sub_second_times(tmp_path: tp.
     """
     Description:
         Real clocks have sub-second parts. The whole-second columns are derived from the values
-        the row prints, so cycle_time equals the printed stop minus the printed start AND
-        total_session_time + idle_time, and the session total is the sessions' exact durations
-        (1.586 s + 0.650 s) rounded once — not each rounded and then summed.
+        written, so cycle_time equals the printed stop minus the printed start AND
+        total_session_time + idle_time, and the cycles are measured between the whole-second
+        times of their marker lines — what the log shows and the daily station file reads —
+        not from the exact clock: 38 -> 39 and 40 -> 40 make 1 s, where the exact durations
+        (1.586 s + 0.200 s) would round to 2.
     """
 
     def Parse_Time(text: str) -> datetime:
@@ -610,10 +631,13 @@ def test_summary_arithmetic_is_self_consistent_at_sub_second_times(tmp_path: tp.
     clock = Clock_Cls(Parse_Time('20:18:37.300'))
     Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
                                         install_handlers=False)
-    clock.now = Parse_Time('20:18:38.412'); Session_Logger.Log_Camera_Connected()
-    clock.now = Parse_Time('20:18:39.998'); Session_Logger.Log_Camera_Disconnected()
-    clock.now = Parse_Time('20:18:40.100'); Session_Logger.Log_Camera_Connected()
-    clock.now = Parse_Time('20:18:40.750'); Session_Logger.Close()        # closes connection 2 at shutdown
+    clock.now = Parse_Time('20:18:38.412'); Session_Logger.Log_Scan_Started()
+    clock.now = Parse_Time('20:18:38.900'); Session_Logger.Log_Scan_Ended()
+    clock.now = Parse_Time('20:18:39.000'); Session_Logger.Log_Analysis_Started(1)
+    clock.now = Parse_Time('20:18:39.998'); Session_Logger.Log_Analysis_Finished(1, 1000, 0, 0, None)
+    clock.now = Parse_Time('20:18:40.100'); Session_Logger.Log_Scan_Started()
+    clock.now = Parse_Time('20:18:40.300'); Session_Logger.Log_Scan_Ended()
+    clock.now = Parse_Time('20:18:40.750'); Session_Logger.Close()        # the second scan, never analysed
 
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
     printed = (datetime.strptime(row['application_stop'], '%Y-%m-%d %H:%M:%S')
@@ -621,7 +645,7 @@ def test_summary_arithmetic_is_self_consistent_at_sub_second_times(tmp_path: tp.
     cycle = _Hms_To_Seconds(row['cycle_time'])
     assert cycle == printed == 3
     assert cycle == _Hms_To_Seconds(row['total_session_time']) + _Hms_To_Seconds(row['idle_time'])
-    assert _Hms_To_Seconds(row['total_session_time']) == round(1.586 + 0.650) == 2
+    assert _Hms_To_Seconds(row['total_session_time']) == 1
 
 
 def test_csv_row_written_on_exception_exit(tmp_path: tp.Any) -> None:
@@ -637,7 +661,9 @@ def test_csv_row_written_on_exception_exit(tmp_path: tp.Any) -> None:
         with Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
                                 install_handlers=False) as Session_Logger:
             csv_holder['path'] = Session_Logger.Csv_Path
-            clock.now = _T('11:00:05'); Session_Logger.Log_Camera_Connected()
+            clock.now = _T('11:00:05'); Session_Logger.Log_Scan_Started()
+            Session_Logger.Log_Scan_Ended()
+            Session_Logger.Log_Analysis_Started(1)
             clock.now = _T('11:00:10'); Session_Logger.Log_Analysis_Finished(1, 1000, 2, 0, None)
             raise RuntimeError('boom')
 
