@@ -23,6 +23,7 @@
 
 # System (Default)
 import time
+import threading
 # Typing (Support for type hints)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
@@ -36,6 +37,15 @@ Description:
     waits on the thread once a worker's terminal signal fires (Join_Worker_Thread), then
     deletes both.
 """
+
+
+class Analysis_Stopped_Error_Cls(Exception):
+    """
+    Description:
+        Raised from the analysis worker's progress hook, before the next object, once a stop was
+        requested (Analysis_Worker_Cls.Request_Stop). It ends Analyze where it is; the worker reports
+        Analysis_Stopped. Never shown to the operator: the stop is the close they asked for.
+    """
 
 
 def Join_Worker_Thread(thread: tp.Any) -> None:
@@ -90,10 +100,10 @@ class Analysis_Worker_Cls(QObject):
             Features:
                 # Signals of the class.
                 Cls.Stage_Changed; Cls.Progress_Changed
-                Cls.Analysis_Finished; Cls.Analysis_Failed
+                Cls.Analysis_Finished; Cls.Analysis_Failed; Cls.Analysis_Stopped
 
                 # Functions of the class.
-                Cls.Run()
+                Cls.Run(); Cls.Request_Stop()
     """
 
     # << SIGNALS >> #
@@ -101,6 +111,7 @@ class Analysis_Worker_Cls(QObject):
     Progress_Changed = pyqtSignal(int, int)  # (objects done, total)
     Analysis_Finished = pyqtSignal(object)   # the Analysis_Str
     Analysis_Failed = pyqtSignal(str)        # an actionable sentence for the panel
+    Analysis_Stopped = pyqtSignal(int, int)  # stopped on request: (objects described, total)
 
     def __init__(self, vision: tp.Any, image: tp.List[tp.List[int]]) -> None:
         super().__init__()
@@ -108,6 +119,35 @@ class Analysis_Worker_Cls(QObject):
         # << PRIVATE >> #
         self.__vision = vision
         self.__image = image
+        # Set from the GUI thread by Request_Stop, read on the worker thread before each object.
+        self.__stop = threading.Event()
+
+    def Request_Stop(self) -> None:
+        """
+        Description:
+            Ask the running analysis to stop before its next object (the window's close). Called
+            directly from the GUI thread — the worker's own thread is busy in Analyze, so a queued
+            call would arrive only after it. The object being described, or the segmentation before
+            the first object, is finished first: neither can be interrupted.
+        """
+
+        self.__stop.set()
+
+    def __Progress(self, done: int, total: int) -> None:
+        """
+        Description:
+            The pipeline's progress hook, called before each object (done < total) and once at
+            the end: report the progress, or — before an object, once a stop was requested — raise
+            Analysis_Stopped_Error_Cls instead.
+
+        Args:
+            (1) done [int]: The objects described so far.
+            (2) total [int]: The objects in the frame.
+        """
+
+        if done < total and self.__stop.is_set():
+            raise Analysis_Stopped_Error_Cls(done, total)
+        self.Progress_Changed.emit(done, total)
 
     def Run(self) -> None:
         """
@@ -115,15 +155,18 @@ class Analysis_Worker_Cls(QObject):
             Execute the analysis and emit the result. Runs on the worker thread and
             reports progress and errors through signals only. self.__image is
             already the RGB ndarray the camera captured — the Qt-free backend takes
-            it directly.
+            it directly. A requested stop ends it before the next object with
+            Analysis_Stopped instead.
         """
 
         try:
             result = self.__vision.Analyze(
                 self.__image,
-                progress_cb=lambda done, total: self.Progress_Changed.emit(done, total),
+                progress_cb=self.__Progress,
                 stage_cb=lambda text: self.Stage_Changed.emit(text),
             )
+        except Analysis_Stopped_Error_Cls as stop:
+            self.Analysis_Stopped.emit(*stop.args)
         except Exception as exc:                          # noqa: BLE001
             # Every failure is a sentence the operator can act on; the panel prints
             # it verbatim.

@@ -1097,6 +1097,25 @@ class Session_Logger_Cls(object):
                 line += ' Capture set %s.' % set_id
             self.__Write_Line('%s %s' % (line, CONST_MARKER_ANALYSIS_END), self.__clock())
 
+    def Log_Analysis_Stopped(self, index: int, done: int, total: int, set_id: tp.Optional[str] = None) -> None:
+        """
+        Description:
+            Log that an analysis was stopped before its next object because the application is
+            closing: its cycle ends now (CONST_MARKER_ANALYSIS_END, Cycles), moments before the stop.
+
+        Args:
+            (1) index [int]: The 1-based analysis index within the session.
+            (2) done [int]: The objects described before the stop.
+            (3) total [int]: The objects in the frame.
+            (4) set_id [string]: The capture-set identifier for this analysis.
+        """
+
+        with self.__lock:
+            line = 'Analysis %d stopped at close after %d of %d objects.' % (index, done, total)
+            if set_id:
+                line += ' Capture set %s.' % set_id
+            self.__Write_Line('%s %s' % (line, CONST_MARKER_ANALYSIS_END), self.__clock())
+
     def Log_Analysis_Timing(self, index: int, total_ms: int, stages: tp.List[tp.Tuple[str, int]],
                             other_ms: int, measurement_ms: int, first_after_load: bool) -> None:
         """

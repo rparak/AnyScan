@@ -2606,3 +2606,57 @@ native `sample` of any hung run, because pytest's capture keeps `faulthandler_ti
 Tests `test/UI/test_threading.py::test_a_workers_thread_has_ended_when_the_window_has_taken_its_result`,
 `test/UI/test_configuration_dialog.py::test_the_load_thread_has_ended_when_the_dialog_has_taken_its_result`.
 Removing any single join fails exactly its own case.
+
+## Closing waits for a running worker, stops an analysis before its next object, and has an escape
+
+Decided 2026-10-07. `closeEvent` used to `wait(5000)` on a worker's thread and then close regardless. An
+analysis takes 2.20 s per object on the Mac and 0.65 s on the station, so nine objects run longer than
+that. Reproduced with an eight-second analysis:
+
+- the window froze for 5.0 s;
+- it then closed with the thread still running;
+- at interpreter exit the window destroyed its `QThread`: `QThread: Destroyed while thread is still
+  running`, exit status 134. The log, CSV row and export had already been written, inside `closeEvent`.
+
+That abort is not the one in the old test runs: no test analysis runs past 0.3 s.
+
+Now a close never blocks and never destroys a running thread:
+
+- **While a worker runs, the close is refused and deferred.** An analysis is asked to stop: the worker's
+  progress hook, which runs before each object, raises `Analysis_Stopped_Error_Cls` once
+  `Request_Stop` is set. `Analyze` lets it through, and the worker emits `Analysis_Stopped`. The object
+  being described, or the segmentation before the first object, finishes first, because neither can be
+  interrupted. A CONNECT cannot be interrupted at all, so it is waited for. The busy line says which, and
+  that a second close quits at once.
+- **A stopped analysis** logs *Analysis N stopped at close after k of n objects*, ending its cycle with
+  `#analysis-end`, and writes a partial capture set (the raw frame and a note), as a failed one does.
+- **Every slot that ends a worker** joins the thread and then finishes the pending close. The close then
+  runs the logger's: CSV row, `Application stopped`, export.
+
+**Stopping, not waiting, for an analysis.** The operator asked to close, and the result would never be
+shown, so waiting up to about 20 s on the Mac for it looks like a hang. The stop is bounded by one step,
+and the raw frame is kept.
+
+**The escape.** A worker that never ends would make the application impossible to close. A Basler
+handshake can hang with the network down, and an analysis can stick in one call. So a second close
+request, or `CONST_CLOSE_ESCAPE_MS` (30 s) after the first, calls `__Exit_Now`:
+
+- It logs a WARNING naming what it abandons, closes the logger (CSV row and export, all synced), and ends
+  the process with `os._exit(0)`.
+- Normal exit would destroy the window, and with it the running thread, and abort. `os._exit` runs no
+  destructors, so nothing is destroyed.
+- What is skipped is the camera SDK's own shutdown: the OS closes the socket, and the camera may hold its
+  control channel until its heartbeat expires, so a reconnect right away can be refused once.
+- A normal handshake takes seconds and an analysis stops within one object, so the 30 s bound is reached
+  only by a hang.
+
+**Revisit if** a worker ever needs a clean shutdown of its own (then the escape must wait for it), or
+the camera is found refusing reconnects after an escape (then add a pylon shutdown to the escape, bounded).
+Tests `test/UI/test_threading.py`: `::test_closing_during_an_analysis_stops_it_before_its_next_object_then_closes`,
+`::test_a_close_arriving_as_the_analysis_finishes_closes_once_with_the_whole_result`,
+`::test_closing_while_connecting_waits_for_the_camera_then_closes`,
+`::test_a_workers_thread_has_ended_when_the_window_has_taken_its_result[analysis stopped]` (the
+stopped slot joins its thread as the others do), and
+`::test_closing_never_destroys_a_running_thread_and_exits_cleanly`. That last one runs in its own
+interpreter, for the analysis case and the CONNECT escape (second close, and the bound). Without the
+deferral, the suite itself aborts with Qt's message.

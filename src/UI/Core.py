@@ -24,6 +24,7 @@
 # System (Default)
 import typing as tp
 import os
+import sys
 import statistics
 import uuid
 from datetime import datetime
@@ -162,6 +163,12 @@ class AnyScan_Window_Cls(QMainWindow):
     # this interval after the link went down.
     #   Unit [ms]
     CONST_CONNECTION_CHECK_MS = 1000
+    # How long a close waits for a worker that does not end — a CONNECT whose camera never answers,
+    # an analysis stuck in one step — before the application exits without it (__Exit_Now). A second
+    # close request exits at once. A Basler handshake takes seconds and an analysis stops within one
+    # object, so this is reached only by a hang.
+    #   Unit [ms]
+    CONST_CLOSE_ESCAPE_MS = 30000
     # What the operator reads when that check finds the device gone.
     CONST_CONNECTION_LOST_MESSAGE = ('The camera is no longer reachable: it was unplugged, lost power or its GigE '
                                      'link went down. Check the camera and its cable, then press CONNECT.')
@@ -280,6 +287,14 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__connection_timer.timeout.connect(self.__On_Connection_Check)
         # Whether the Configuration dialog is loading a configuration (the header shows it).
         self.__configuration_loading = False
+        # A close requested while a worker ran (closeEvent): the window closes when that worker
+        # ends, or — if it does not end — the escape exits without it (__Exit_Now).
+        self.__closing = False
+        self.__close_escape = QTimer(self)
+        self.__close_escape.setSingleShot(True)
+        self.__close_escape.setInterval(self.CONST_CLOSE_ESCAPE_MS)
+        self.__close_escape.timeout.connect(
+            lambda: self.__Exit_Now('it had not ended %g s after the close request' % (self.CONST_CLOSE_ESCAPE_MS / 1000)))
         # Widgets, populated by __Build_Ui.
         # The central view stack (Live / History / Log) and the header switch that drives it.
         # The header, status strip and funding row sit OUTSIDE the stack, so they stay fixed
@@ -951,6 +966,7 @@ class AnyScan_Window_Cls(QMainWindow):
                                             session_index)
         self.__connection_timer.start()
         self.__Sync_Controls()
+        self.__Close_If_Requested()
 
     def __On_Connect_Failed(self, message: str) -> None:
         """
@@ -971,6 +987,7 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__camera_error_id = self.__Log_Error(message)
         self.__Fail(message)
         self.__Sync_Controls()
+        self.__Close_If_Requested()
 
     def __On_Disconnect_Button_Clicked(self) -> None:
         """
@@ -1121,14 +1138,16 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__worker.moveToThread(self.__thread)
 
         self.__thread.started.connect(self.__worker.Run)
-        self.__worker.Stage_Changed.connect(self.__viewport.Set_Busy_Text)
+        self.__worker.Stage_Changed.connect(self.__On_Analysis_Stage)
         self.__worker.Progress_Changed.connect(self.__On_Analysis_Progress)
         self.__worker.Analysis_Finished.connect(self.__On_Analysis_Finished)
         self.__worker.Analysis_Failed.connect(self.__On_Analysis_Failed)
+        self.__worker.Analysis_Stopped.connect(self.__On_Analysis_Stopped)
 
         # Tear the thread down once the worker is done, whichever way it ended.
         self.__worker.Analysis_Finished.connect(self.__thread.quit)
         self.__worker.Analysis_Failed.connect(self.__thread.quit)
+        self.__worker.Analysis_Stopped.connect(self.__thread.quit)
         self.__thread.finished.connect(self.__worker.deleteLater)
         self.__thread.finished.connect(self.__thread.deleteLater)
 
@@ -1144,9 +1163,112 @@ class AnyScan_Window_Cls(QMainWindow):
             (2) total [int]: The total number of objects.
         """
 
+        # A close is stopping the analysis: the line says so, not the next object.
+        if self.__closing:
+            return
         # `done` is the number completed; the one being read is done + 1.
         current = min(done + 1, total)
         self.__viewport.Set_Busy_Text('Analysing object %d of %d…' % (current, total))
+
+    def __On_Analysis_Stage(self, text: str) -> None:
+        """
+        Description:
+            Show the analysis's phase on the busy line — unless a close is stopping it, when the
+            line keeps saying so.
+
+        Args:
+            (1) text [string]: The phase ('Segmenting…', 'Describing…').
+        """
+
+        if not self.__closing:
+            self.__viewport.Set_Busy_Text(text)
+
+    def __On_Analysis_Stopped(self, done: int, total: int) -> None:
+        """
+        Description:
+            The analysis stopped before its next object because the window is closing: log it (the
+            line ends its cycle), write the partial capture — the raw frame and a note — as for a
+            failed analysis, and finish the close.
+
+        Args:
+            (1) done [int]: The objects described before the stop.
+            (2) total [int]: The objects in the frame.
+        """
+
+        self.__worker_running = False
+        Join_Worker_Thread(self.__thread)                   # before the references go: Join_Worker_Thread
+        self.__thread = None
+        self.__worker = None
+        self.__viewport.Stop_Busy()
+        set_id = self.__current_set_id
+        if self.__logger is not None:
+            self.__logger.Log_Analysis_Stopped(self.__session_analyses, done, total, set_id)
+            self.__Write_Partial_Capture(
+                set_id, 'Analysis STOPPED at close after %d of %d objects — partial capture (raw frame only, '
+                'no annotated image or mask).' % (done, total), 'the analysis stopped at close')
+        self.__Close_If_Requested()
+
+    def __Close_If_Requested(self) -> None:
+        """
+        Description:
+            Called by every slot that ends a worker: when a close was waiting for it, close now.
+        """
+
+        if self.__closing:
+            self.close()
+
+    def __Close_After_Worker(self) -> None:
+        """
+        Description:
+            A close arrived while a worker runs: refuse it for now and let the worker end. An analysis
+            is asked to stop before its next object; a CONNECT cannot be interrupted, so it is waited
+            for. The busy line says which, and that a second close quits at once; the escape timer
+            bounds the wait (CONST_CLOSE_ESCAPE_MS). The connection check stops here, so it cannot
+            report a loss into a closing window.
+        """
+
+        self.__closing = True
+        self.__connection_timer.stop()
+        if self.__connecting:
+            text = 'Closing when the camera answers… Close again to quit now.'
+            line = 'Close requested while connecting to the camera: the window closes when it answers.'
+        else:
+            self.__worker.Request_Stop()
+            text = 'Stopping the analysis, then closing… Close again to quit now.'
+            line = ('Close requested during analysis %d: it stops before its next object, then the window '
+                    'closes.' % self.__session_analyses)
+        self.__viewport.Set_Busy_Text(text)
+        if self.__logger is not None:
+            self.__logger.Log_Info(line)
+        self.__close_escape.start()
+
+    def __Exit_Now(self, reason: str) -> None:
+        """
+        Description:
+            The escape from a close whose worker does not end: close the log — the run-summary CSV row
+            and the station-event export run there — and end the process with os._exit, with the
+            worker's thread still running. Destroying a running QThread aborts the process ('QThread:
+            Destroyed while thread is still running'), and normal interpreter exit destroys the window
+            and the thread it owns; os._exit runs no destructors, so nothing is destroyed. Everything
+            the run must leave is written and synced by then (the log, the CSV, the daily files and the
+            ledger fsync; captures are written synchronously). What is skipped is the camera SDK's own
+            shutdown: the OS closes the socket, and the camera may hold its control channel until its
+            heartbeat expires.
+
+        Args:
+            (1) reason [string]: Why the wait ended ('close was requested again', or the timeout).
+        """
+
+        self.__close_escape.stop()
+        self.__connection_timer.stop()
+        what = 'the camera connection' if self.__connecting else 'analysis %d' % self.__session_analyses
+        if self.__logger is not None:
+            self.__logger.Log_Warning('Closing without waiting for %s: %s. The application exits with it still '
+                                      'running.' % (what, reason))
+            self.__logger.Close()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
 
     def __On_Analysis_Finished(self, result: Analysis_Str) -> None:
         """
@@ -1215,6 +1337,7 @@ class AnyScan_Window_Cls(QMainWindow):
                                                   timing.First_After_Load)
             self.__Write_Capture(set_id, result, frame_bgr, annotated_bgr, mask_bgr)
         self.__Sync_Controls()
+        self.__Close_If_Requested()
 
     def __Write_Capture(self, set_id: str, result: Analysis_Str, frame_bgr: tp.Any,
                         annotated_bgr: tp.Any, mask_bgr: tp.Any) -> None:
@@ -1408,29 +1531,32 @@ class AnyScan_Window_Cls(QMainWindow):
             # A failed analysis renders no annotated image or mask (rendering is on the
             # success path), but the raw frame exists — write a PARTIAL set (raw + a note)
             # so the crash leaves evidence rather than nothing.
-            self.__Write_Partial_Capture(set_id, message)
+            self.__Write_Partial_Capture(
+                set_id, 'Analysis FAILED — partial capture (raw frame only, no annotated image or mask). '
+                'Failure: %s' % message, 'the failed analysis')
         self.__analysis_failed = True
         self.__Fail(message)
         self.__Sync_System_Status()
+        self.__Close_If_Requested()
 
-    def __Write_Partial_Capture(self, set_id: str, message: str) -> None:
+    def __Write_Partial_Capture(self, set_id: str, note: str, why: str) -> None:
         """
         Description:
-            Write the partial capture for a failed analysis — the raw frame and a note —
-            and log that it is partial. Like the full capture, a write failure here is
-            caught and logged, never raised, so it cannot mask the analysis failure.
+            Write the partial capture for an analysis that produced no result — failed, or stopped
+            at close — the raw frame and a note, and log that it is partial. Like the full capture,
+            a write failure here is caught and logged, never raised, so it cannot mask what ended
+            the analysis.
 
         Args:
             (1) set_id [string]: The capture-set id, or None when no analysis was in flight.
-            (2) message [string]: The failure sentence, recorded in the note.
+            (2) note [string]: The note, written into the set's '_understanding.txt'.
+            (3) why [string]: The analysis it stands for, in the log line ('the failed analysis').
         """
 
         if self.__capture_writer is None or set_id is None or self.__frame is None \
                 or self.__session_id is None:
             return
         frame_bgr = cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR)
-        note = ('Analysis FAILED — partial capture (raw frame only, no annotated image or '
-                'mask). Failure: %s' % message)
         stamp = 'set %s (partial) | %s' % (set_id, datetime.now().isoformat(timespec='seconds'))
         try:
             evicted, created = self.__capture_writer.Write_Partial(
@@ -1440,8 +1566,8 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__Log_Error('failed to write partial capture set %s: %s' % (set_id, exc))
             return
         self.__Log_Capture_Side_Effects(created)
-        self.__logger.Log_Warning('Wrote a partial capture set %s for the failed analysis. It '
-                                  'holds the raw frame only.' % set_id)
+        self.__logger.Log_Warning('Wrote a partial capture set %s for %s. It holds the raw frame only.'
+                                  % (set_id, why))
         self.__Log_Capture_Evictions(evicted)
         self.__Refresh_History(evicted)
 
@@ -1908,19 +2034,27 @@ class AnyScan_Window_Cls(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         """
         Description:
-            Stop any running worker thread (analysis or connect) before the window is
-            torn down, or Qt warns 'QThread: Destroyed while thread is still running'
-            and may crash on exit.
+            Close the window — never with a worker's thread still running, which would be destroyed
+            with the window and abort the process ('QThread: Destroyed while thread is still
+            running'). While a worker runs the close is refused and deferred (__Close_After_Worker):
+            an analysis stops before its next object, a CONNECT is waited for, and the window closes
+            when the worker's slot ends it (__Close_If_Requested). A second close while waiting, or
+            CONST_CLOSE_ESCAPE_MS without the worker ending, exits without it (__Exit_Now). Every
+            worker's slot joins its thread, so none is left running when the close goes through.
 
         Args:
             (1) event [QCloseEvent(object)]: The Qt close event.
         """
 
+        if self.__worker_running:
+            event.ignore()
+            if self.__closing:
+                self.__Exit_Now('close was requested again')
+            else:
+                self.__Close_After_Worker()
+            return
+        self.__close_escape.stop()
         self.__connection_timer.stop()
-        for thread in (self.__thread, self.__conn_thread):
-            if thread is not None:
-                thread.quit()
-                thread.wait(5000)
         # Write the run summary and close the log file on a normal window close. Close
         # is idempotent, so the launcher's try/finally may safely run it again.
         if self.__logger is not None:
