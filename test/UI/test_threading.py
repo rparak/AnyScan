@@ -316,6 +316,26 @@ def _Pump(qt_app, condition, seconds: float = 5.0) -> None:
         time.sleep(0.005)
 
 
+def _Busy_Band(viewport: tp.Any) -> np.ndarray:
+    """
+    What the viewport paints now in the band its busy line is drawn in — from 14 px below its centre, 40 px
+    tall, the full width (Viewport_Cls.__Paint_Busy) — below the spinner, so the turning arc never enters it.
+    """
+    QApplication.instance().processEvents()
+    image = viewport.grab().toImage().convertToFormat(4)          # QImage.Format_RGB32
+    pointer = image.constBits()
+    pointer.setsize(image.byteCount())
+    pixels = np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4).copy()
+    scale = image.height() / viewport.height()
+    top = int(round((viewport.height() / 2.0 + 14) * scale))
+    return pixels[top:top + int(round(40 * scale)), :image.width()]
+
+
+# The busy line a close during an analysis shows, as the operator reads it.
+#   Unit [string]
+CONST_STOPPING_TEXT = 'Stopping the analysis, then closing… Close again to quit now.'
+
+
 def test_closing_during_an_analysis_stops_it_before_its_next_object_then_closes(qt_app, tmp_path,
                                                                                reference_background_path) -> None:
     """
@@ -328,7 +348,7 @@ def test_closing_during_an_analysis_stops_it_before_its_next_object_then_closes(
         once, and the daily events pair the cycle before STATION_OFF.
     """
 
-    vision = _Object_Vision_Cls(total=8, seconds=0.2)
+    vision = _Object_Vision_Cls(total=8, seconds=0.4)
     window, logger, exported = _Logged_Window(tmp_path, vision, File_Camera_Cls(reference_background_path))
     messages = []
     qInstallMessageHandler(lambda mode, ctx, message: messages.append(message))
@@ -341,14 +361,21 @@ def test_closing_during_an_analysis_stops_it_before_its_next_object_then_closes(
         _Pump(qt_app, lambda: vision.described >= 1)
         window.close()
         assert window.isVisible() and thread.isRunning(), 'the close did not wait for the analysis'
-        # While the object under way finishes (0.2 s), the worker's own progress and stage reports do not
-        # replace the line saying the window is stopping. Emitted here, on the GUI thread, they reach the
-        # window's slots directly. (The text the viewport holds: the overlay is painted, and nothing reads
-        # painted text back.)
+        # While the object under way finishes (0.4 s), the busy line says the window is stopping, and the
+        # worker's own progress and stage reports do not replace it — checked in the painted band, since
+        # nothing reads painted text back: two renders that differ only in the text are compared. Emitted
+        # here, on the GUI thread, the reports reach the window's slots directly.
+        viewport = _Private(window, '__viewport')
+        shown = _Busy_Band(viewport)
         worker = _Private(window, '__worker')
         worker.Progress_Changed.emit(2, 8)
         worker.Stage_Changed.emit('Describing…')
-        assert getattr(_Private(window, '__viewport'), '_Viewport_Cls__busy_text').startswith('Stopping the analysis')
+        assert np.array_equal(_Busy_Band(viewport), shown), 'a report after the close repainted the busy line'
+        viewport.Set_Busy_Text('Analysing object 3 of 8…')
+        assert not np.array_equal(_Busy_Band(viewport), shown), 'the band does not show the busy text'
+        viewport.Set_Busy_Text(CONST_STOPPING_TEXT)
+        assert np.array_equal(_Busy_Band(viewport), shown), 'the busy line was not the stopping sentence'
+        assert thread.isRunning(), "the analysis stopped before the busy line was checked"
         _Pump(qt_app, lambda: not window.isVisible())
         assert not window.isVisible() and thread.isFinished()
     finally:
