@@ -398,6 +398,22 @@ to, so it is a deliberate move made with the pins, never a side effect of a tool
 added under a new name, never written over an old one (docs/design-decisions.md, *A replaced image
 never keeps its name*). Only `models/` is user-supplied.
 
+**Changing the logo.** Edit `images/source/anyscan-logo-text.svg`, then rebuild in this order. The
+diagram embeds the logo, so regenerating it before the logo is rebuilt would copy the old one.
+`build_logo.py` writes `images/anyscan-logo.svg`, its copy in `App/assets/` and the mark; it needs
+Inkscape 1.2.2.
+
+```bash
+python Example/UI/build_logo.py
+```
+
+```bash
+python Example/UI/architecture_diagram.py
+```
+
+`test/UI/test_brand_figures.py` fails if the three copies of the logo, or the diagram and its
+generator, disagree.
+
 If a logo file is missing the console prints its filename in that slot rather
 than silently leaving a gap, so a broken asset path is visible immediately.
 
