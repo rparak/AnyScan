@@ -55,6 +55,7 @@ Its own tests: `.venv/bin/python -m pytest .claude/skills/project-style-rpx/scri
 | Every optional field in the shipped mode file documents its default, and that default is the code's; every required field says `REQUIRED` | ✅ `test/Configuration/test_core.py::test_every_documented_default_in_the_shipped_mode_file_is_the_code_default` |
 | A test calls the code it names, never a copy of that code's logic | 📄 — shown per test by breaking the target once (references/python.md > Tests) |
 | A test never takes its expectation from the thing under test (a table it validates, the output it measures) | 📄 — shown per test by breaking the target once (references/python.md > Tests) |
+| A rewrite of tests matches the collected count it expects (removed + added), since a green run cannot show a deleted test | 📄 (references/python.md > Tests) |
 | A UI test asserts what is rendered — grabbed pixels, rendered text — not the value handed to the widget | 📄 (references/python.md > Tests) |
 | A test that needs model weights goes through `require_weights`: loud skip by default, failure under `--runslow`, never an early `return` | 📄 — the fixture is in `test/conftest.py`; nothing forces its use |
 | An expected failure is never satisfiable by a missing input: an `xfail(raises=...)` test checks its inputs with `pytest.fail`, and a pinned data set's inventory names exactly its files | ✅ for the test set (`test/integration/test_pipeline.py::test_the_inventory_names_every_frame_of_the_test_set`); 📄 for xfails (references/python.md > Tests) |

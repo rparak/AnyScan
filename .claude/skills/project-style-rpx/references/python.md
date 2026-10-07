@@ -166,6 +166,13 @@ Comments are block comments above the code, saying *why*; multi-step bodies numb
   same byte length, restored within the same second, leaves a `.pyc` that still looks current
   (it is keyed on the source's size and whole-second mtime), so later runs execute the mutant — the
   symptom is a test failing for a reason no longer in the source. Clearing `__pycache__` fixes it.
+- **A rewrite of tests is checked by its collected count.** When you replace or rewrite tests, compare
+  `pytest --collect-only -q` before and after with the count you expect: tests removed, plus tests
+  added, parametrized cases each counted. A green run cannot show that a test was deleted. Instance:
+  replacing `test_closeevent_stops_a_running_analysis_thread` cut the file up to the next helper. That
+  also deleted `test_a_workers_thread_has_ended_when_the_window_has_taken_its_result` (4 cases), and a
+  10-run loop of `test/UI` passed 10 of 10 without them. Only 214 passed against the expected 218
+  showed it.
 - **An expected failure must not be satisfiable by a missing input.** A strict `xfail` with
   `raises=AssertionError` accepts *any* `AssertionError`, including the one a missing-frame check
   raises, so the test reads a real fault as confirmation that it is working. Instance: `2d163a6`
