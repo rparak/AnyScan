@@ -75,7 +75,7 @@ General:
   # fixed for the run by the startup configuration: loading a mode that names another is refused.
   # Relative to the repository root, or absolute.
   Station_Events:
-    Directory: /home/sf4/sf4/events/
+    Directory: logger/Station_Events
 
 # What the UI calls this configuration and its models, and the task a reading is labelled with.
 # Model files never appear in the UI: the header names the model set, the dialog the configuration.

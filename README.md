@@ -147,9 +147,15 @@ holds:
   for each scan, or re-analysis, to the end of its analysis; for each camera connection until
   2026-10-07; `ts` in UTC). The cycles sum to the run-summary CSV's `total_session_time`. They are
   exported from the session log when the application closes, and a crashed run's log is exported at
-  the next start. The directory must exist
-  and be writable at load, and it is fixed for the run. The mode file's comment says how to read the
-  files; `docs/design-decisions.md` has the reasons.
+  the next start. The directory must exist and be writable at load, and it is fixed for the run. The
+  mode file's comment says how to read the files; `docs/design-decisions.md` has the reasons.
+  **A station sets its own directory in a local copy of the mode file, never in the shipped one.** The
+  shipped file keeps `logger/Station_Events`. A station copies the mode file to a directory outside the
+  repository, keeping its name, and symlinks `Calibration_<Hardware>.yaml` beside it. The loader looks
+  for the calibration next to the mode file, and the symlink follows any recalibration. The copy sets
+  `Directory` to the station's path, and the station starts with `--config <that copy>`. The
+  Configuration dialog lists only `Configuration/`, whose modes name `logger/Station_Events`, so on
+  such a station the dialog refuses them: another mode needs its own local copy too.
 - **Camera:** acquisition settings; the **sensor window** (`Camera.Resolution`, `Camera.Offset`:
   1920 × 1200 centred at (8, 8) on the 1936 × 1216 sensor), which is set on the camera on every
   connect and read back; and the camera, lens and lighting as a person names them.
