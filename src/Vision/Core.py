@@ -298,7 +298,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         # The configuration in force: every stage's parameters, the models, the scale.
         self.__config = Configuration_Str
         # The describer CONST_DESCRIBER selected (None for the model-free fallback), created and
-        # loaded on the first analysis, and the name it was created for.
+        # loaded by Load_Models (or by the first analysis, when never preloaded), and the name it
+        # was created for.
         self.__describer = None
         self.__describer_name = None
         self.__cv2 = None
@@ -906,7 +907,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         """
         Description:
             Compose the panel's reading from the described objects: the per-object
-            sentences, the summary, the note, the verdict badge, the latency, the global
+            sentences, the note, the verdict badge, the latency, the global
             background sentence and its audit, and the timing of the stages. The objects are
             never reordered here — their order is the index contract, and the per-object timing
             follows it.

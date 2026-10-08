@@ -236,8 +236,8 @@ def __Cue(sam_overlap: float, bg_overlap: float) -> str:
     Description:
         Attribute a fused component to the cue(s) that located it: 'both' when each
         cue covers at least CONST_FUSE_CUE_MIN_OVERLAP of it, otherwise the single
-        cue that does; when neither reaches the threshold (a component bridged by the
-        closing), the larger contributor is credited so an object is never unattributed.
+        cue that does; when neither reaches the threshold, the larger contributor is
+        credited so an object is never unattributed.
 
     Args:
         (1) sam_overlap [float]: Fraction of the component the FastSAM union covers.

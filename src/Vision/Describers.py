@@ -75,8 +75,7 @@ CONST_GEMMA_THINKING = False
 class Describer_Error_Cls(RuntimeError):
     """
     Description:
-        Raised when a describer cannot run (runtime missing, weights unreadable, prompts
-        missing). Its message is a full sentence for the Scene Understanding panel.
+        Raised when a describer cannot run (runtime missing, weights unreadable). Its message is a full sentence for the Scene Understanding panel.
     """
 
 
@@ -85,8 +84,8 @@ class Describer_Backend_Cls(object):
     Description:
         The describer interface. Load() once (on a configuration load, the first CONNECT, or
         lazily on the first analysis), then Describe(crop_bgr, purpose) -> the model's text.
-        Name identifies the model in the audit. (The Task a reading is labelled with is the
-        configuration's Identity.Task, not the describer's.)
+        (The Task a reading is labelled with is the configuration's Identity.Task, not the
+        describer's.)
 
     Initialization of the Class:
         Args:
@@ -95,7 +94,7 @@ class Describer_Backend_Cls(object):
         Example:
             Initialization:
                 # Initialization of the class (a concrete subclass).
-                Cls = Gemma_Describer_Cls()
+                Cls = Gemma_Describer_Cls(Description_Parameters_Str)
 
             Features:
                 # Functions of the class.
@@ -166,8 +165,8 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
             mx.synchronize(), so Describe returns with its GPU work complete and the time it is
             charged is its own (measured: generate already returns with nothing pending, so the
             sync costs nothing today). A model loaded on one thread generates
-            on another (measured: the app loads on the first analysis's worker thread and
-            describes on later ones).
+            on another (measured: the app loads on the model-load worker's thread and
+            describes on the analysis workers').
 
     Initialization of the Class:
         Args:
@@ -302,7 +301,8 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
     def Describe(self, crop_bgr: tp.Any, purpose: str) -> str:
         """
         Description:
-            One greedy generation for the purpose's prompt on one image.
+            One generation for the purpose's prompt on one image, at the configured
+            Description.Temperature (0, the shipped value, is greedy).
 
         Args:
             (1) crop_bgr [Matrix<uint8> HxWx3]: The image (BGR).

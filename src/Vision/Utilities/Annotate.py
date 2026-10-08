@@ -41,8 +41,8 @@ Description:
     UI reads). It is Qt-free — OpenCV and NumPy are injected — so the harness and the
     Qt-free vision layer render exactly what the UI would, keyed by each object's VERDICT
     colour (Theme.Verdict_Color) or the one neutral detection colour when a configuration
-    only detects. The live UI viewport paints its overlay with Qt from the SAME palette;
-    the two agree because they share the tokens, not the primitives.
+    only detects. The UI shows these same renders (Render_Views), so the harness, the
+    capture set and the screen agree by construction.
 
     Note:
         Everything scales with resolution — line widths, font size, chip padding — off the
@@ -207,8 +207,9 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
                    cv2: tp.Any, np: tp.Any, *, verdict_colored: bool) -> tp.Any:
     """
     Description:
-        The scene with each object marked by its BOUNDING BOX and INDEX number ONLY — no
-        mask fill and no contour on the real image, because the mask has its own view and
+        The scene with each object marked by its BOUNDING BOX (and, for a measured,
+        non-symmetric object, its rotated rectangle, the box then dashed) and INDEX number
+        ONLY — no mask fill and no contour on the real image, because the mask has its own view and
         its own file (Draw_Label_Mask). When verdict_colored, the box and chip are the object's
         VERDICT colour (Theme.Verdict_Color) — pass or fail; when not (a configuration that only
         DETECTS), every object is one NEUTRAL colour (Theme.Detection_Color), since there is no

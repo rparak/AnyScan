@@ -172,7 +172,7 @@ def Zone(bbox: tp.Tuple[int, int, int, int], size: tp.Tuple[int, int]) -> str:
 def Clean_Detail(text: str) -> str:
     """
     Description:
-        Tidy the model's caption into a standalone second sentence. The composer,
+        Tidy the model's caption into the object's line. The composer,
         not the model, owns punctuation and capitalisation, so the raw string is
         normalised here: surrounding whitespace gone, first letter of every
         sentence capitalised, exactly one terminal full stop.

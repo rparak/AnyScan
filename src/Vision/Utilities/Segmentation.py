@@ -144,8 +144,8 @@ def Background_Foreground(bg: tp.List[tp.List[int]], fg: tp.List[tp.List[int]],
         of the segmenter: it is the second cue stage 3 fuses with the FastSAM masks,
         so a part FastSAM misses still survives if the difference sees it.
 
-        The reference must already match the frame's pixel dimensions; the caller
-        resizes it once (see Vision.Core.__Load_Background).
+        The reference must already match the frame's pixel dimensions; the caller refuses one
+        that does not (see Vision.Core.__Load_Background), never resizing it.
 
     Args:
         (1) bg [Matrix<uint8> HxWx3]: The empty-surface background reference (BGR).

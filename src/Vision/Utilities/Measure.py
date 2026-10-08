@@ -232,7 +232,7 @@ def Measure_Mask(mask: tp.Any, scale: Scale_Str, cv2: tp.Any, np: tp.Any) -> tp.
         measurement.Hexagonality = round(float(harmonics[3] / widths.mean()), 4)
         if measurement.Hexagonality >= CONST_MEASURE_HEX_HARMONIC:
             # Across flats: the smallest caliper width, converted through the factor along its
-            # own direction (exact for equal x/y factors; the configured two differ by 0.004 %).
+            # own direction (exact for equal x/y factors; the calibration's two differ by ~0.17 %).
             i = int(np.argmin(widths))
             mm_per_px = math.hypot(scale.Mm_Per_Px_X * math.cos(theta[i]),
                                    scale.Mm_Per_Px_Y * math.sin(theta[i]))

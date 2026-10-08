@@ -45,8 +45,8 @@ Description:
 
     Note:
         This module is Qt-free and its bare import is cheap. ultralytics (which
-        transitively pulls torch, OpenCV and matplotlib) is imported lazily on the
-        first Segment call, never at module load, so importing this module — as the
+        transitively pulls torch, OpenCV and matplotlib) is imported lazily when the
+        model first loads (Load, or the first Segment), never at module load, so importing this module — as the
         Qt-free separation test does — pulls no heavy runtime and no Qt backend.
 """
 # retina_masks returns full-resolution masks. (The weights, device and FastSAM's confidence / IoU /
@@ -80,7 +80,7 @@ class Segmenter_Backend_Cls(object):
         Example:
             Initialization:
                 # Initialization of the class (a concrete subclass).
-                Cls = Fast_Sam_Cls()
+                Cls = Fast_Sam_Cls(Segmentation_Parameters_Str)
 
             Features:
                 # Functions of the class.
@@ -127,8 +127,8 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
 
         Note:
             Notes that cost hours if missed:
-              (1) ultralytics is imported lazily inside Segment, never at module
-                  load, so a bare import of this module stays cheap and Qt-free
+              (1) ultralytics is imported lazily when the model loads (Load, or the
+                  first Segment), never at module load, so a bare import of this module stays cheap and Qt-free
                   (ultralytics pulls matplotlib). The one-time 'settings updated'
                   warning ultralytics logs on import is silenced at that boundary.
               (2) The model loads once and is kept: Load() preloads it (the application
@@ -137,7 +137,7 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
                   before another model loads.
               (3) retina_masks=True returns full-resolution masks; each mask is still
                   resized to the exact frame size before it is returned, so stage 3
-                  can score it against the change mask pixel for pixel.
+                  can combine it with the change mask pixel for pixel.
               (4) The model call is followed by a sync of the device the weights are ON (read
                   from the model after the call: FastSAM loads its weights on the CPU and moves
                   them on its first pass, so the configured 'auto' says nothing). MPS and CUDA

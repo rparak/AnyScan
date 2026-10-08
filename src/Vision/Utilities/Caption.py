@@ -39,13 +39,15 @@ Description:
 def Condense_Label(caption: str) -> str:
     """
     Description:
-        A two-to-three word noun phrase for the label, distilled from a caption.
+        A short noun phrase for the label, distilled from a caption: at most
+        CONST_LABEL_MAX_WORDS words, plus CONST_LABEL_ALTERNATIVE_WORDS to keep an
+        alternative after 'or'.
 
-        Object_Description renders the label as 'A <label>.', so a paragraph there
-        produces a line that is not a sentence. The front matter and any trailing
-        clause are stripped and the phrase is capped; the full caption survives
-        untouched in Detection_Str.Detail as the line's second sentence, so an
-        imperfect distillation loses nothing.
+        The label is the log's 'Object detected: type=...', and Object_Description's
+        'A <label>.' when no description remains, so a paragraph there produces a line
+        that is not a sentence. The front matter and any trailing clause are stripped and
+        the phrase is capped; the full caption survives untouched in Detection_Str.Detail,
+        which is the object's line, so an imperfect distillation loses nothing.
 
     Args:
         (1) caption [string]: The model's raw caption.

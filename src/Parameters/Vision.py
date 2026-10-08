@@ -126,7 +126,8 @@ class Detection_Str(object):
                 Cls.Label; Cls.Bbox; Cls.Detail; Cls.Sentence
     """
 
-    # The distilled noun-phrase label shown at the start of the object's line.
+    # The distilled noun-phrase label: the log's 'Object detected: type=...', and the object's line
+    # ('A <label>.') when no description remains.
     #   Unit [string]
     Label: str
     # The bounding box as (x, y, w, h) in full-frame pixels.
@@ -138,7 +139,7 @@ class Detection_Str(object):
     # Any text read off the object (e.g. a marking), or None.
     #   Unit [string]
     Text: tp.Optional[str] = None
-    # The model's full caption, rendered as the object line's second sentence.
+    # The model's full caption, rendered as the object's line (Object_Description).
     #   Unit [string]
     Detail: str = ''
     # The final composed sentence the panel prints for this object.
@@ -381,10 +382,10 @@ class Analysis_Str(object):
     # (not from any crop), shown as the first line of the Screen-Understanding text.
     #   Unit [string]
     Background: str = ''
-    # The post-processing audit: one (level, message) record per background strip and
-    # substance substitution the composer made, each tagged with the object index. The
-    # UI logs these to the session log; the harness prints them, so nothing the
-    # composer rewrote is silent. 'level' is 'info' or 'warning'.
+    # The pipeline's audit records, as (level, message): today only the background sentence's, a
+    # warning when the neutral fallback sentence stood in for the model's. The UI logs these to the
+    # session log; the harness prints them, so nothing put in the model's place is silent. 'level'
+    # is 'info' or 'warning'.
     #   Unit [Vector<Tuple<string> 1x2>]
     Audit: tp.List[tp.Tuple[str, str]] = field(default_factory=list)
     # Where the time went (Timing_Str), or None when the backend does not time its stages.
