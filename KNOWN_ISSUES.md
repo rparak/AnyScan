@@ -422,3 +422,23 @@ every log the ledger does not name is exported at the next start.
   still records every event, so the time can be reconstructed by hand.
 - **Not fixed here:** out of scope for the station event change. The same ledger mechanism could cover
   it: a run-summary row computed from a finished log, written at the next start for a log without one.
+
+## One full test run died with a fatal error, and nothing named it
+
+On 2026-10-08 one run of the whole suite (`pytest -q`) ended without its summary: the last line of its
+output was a fatal-error dump's list of loaded native modules, *Extension modules: numpy._core...,
+pypylon._genicam, pypylon._pylon, PyQt5.QtCore, PyQt5.QtGui, PyQt5.QtWidgets, PyQt5.QtSvg, PyQt5.QtTest,
+..., fontTools.misc.bezierTools, fontTools.varLib.iup (total: 22)*. Only that line was kept, so the
+test that was running, the thread and the kind of error (an abort such as PyQt5's qFatal on an exception
+escaping a slot, or a segfault) are unknown. pytest's faulthandler prints that dump to stderr only between
+its configure and unconfigure, so it happened during the session, not at interpreter exit. The tree was
+`99c7e70` with the Trends change of `4f3a78b` uncommitted in it, pure-Python arithmetic in
+`Reporting/Trends.py`. The same tree then passed 13 full runs in a row (745 passed, 14 skipped each, no
+dump), as had about 20 full runs and a 30-run stress loop of `test/UI` earlier that day.
+
+- **Impact:** one run in 14 or fewer on that tree, cause unknown. Not called a flake: it is unnamed.
+- **What would answer it:** the next one. `test/conftest.py` now keeps a crash record in the run's temp
+  directory (its path is in the run's header): each test's node id as it starts, and faulthandler's dump of
+  every thread on a fatal error, during the session or at exit
+  (`test/integration/test_crash_record.py`). pytest keeps the last three runs' temp directories and a full
+  run makes three, so copy the record before running pytest again.

@@ -27,6 +27,7 @@ import sys
 import time
 import traceback
 import types
+import faulthandler
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
@@ -74,6 +75,18 @@ for _path in CONST_IMPORT_PATHS:
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
+# The crash record: a file in the run's temp directory (pytest's basetemp) that names each test as it
+# starts and receives faulthandler's dump of every thread on a fatal error, so a crash leaves its test
+# and its stacks on disk even when the terminal output is lost. One full run on 2026-10-08 died with
+# only a fatal-error dump's last line seen (KNOWN_ISSUES.md). pytest keeps the last three runs' temp
+# directories, and a full suite run makes three (its own and test_header.py's and
+# test_text_contrast.py's DPR 2 re-runs): copy a crashed run's record before running pytest again.
+#   Unit [string]
+CONST_CRASH_RECORD_NAME = 'crash_record.txt'
+#   Unit [StashKey(object)]
+CONST_CRASH_RECORD_FD = pytest.StashKey[int]()
+CONST_CRASH_RECORD_PATH = pytest.StashKey[str]()
+
 
 # << PYTEST HOOK >> #
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -117,6 +130,101 @@ def pytest_collection_modifyitems(config: pytest.Config, items: tp.List[pytest.I
         if 'slow' in item.keywords:
             item.add_marker(skip_slow)
 
+
+
+# << PYTEST HOOK >> #
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config: pytest.Config) -> None:
+    """
+    Description:
+        Open the crash record and send faulthandler's fatal-error dump to it, every thread's stack.
+        It runs after pytest's own faulthandler plugin, which pointed the dump at stderr, so the
+        record replaces that destination for the whole session.
+
+    Args:
+        (1) config [pytest.Config(object)]: The active pytest configuration.
+    """
+
+    # The basetemp the tmp_path fixtures use; pytest exposes it publicly only through a fixture.
+    path = os.path.join(str(config._tmp_path_factory.getbasetemp()), CONST_CRASH_RECORD_NAME)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_APPEND, 0o644)
+    config.stash[CONST_CRASH_RECORD_FD] = fd
+    config.stash[CONST_CRASH_RECORD_PATH] = path
+    os.write(fd, ('pytest run, pid %d: %s\n' % (os.getpid(), ' '.join(sys.argv))).encode('utf-8'))
+    faulthandler.enable(file=fd, all_threads=True)
+
+
+# << PYTEST HOOK >> #
+def pytest_report_header(config: pytest.Config) -> str:
+    """
+    Description:
+        Say where the crash record is, so whoever sees a run die knows where to look.
+
+    Args:
+        (1) config [pytest.Config(object)]: The active pytest configuration.
+
+    Returns:
+        (1) parameter [string]: The header line.
+    """
+
+    return 'crash record: %s' % config.stash.get(CONST_CRASH_RECORD_PATH, '(none)')
+
+
+# << PYTEST HOOK >> #
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_protocol(item: pytest.Item, nextitem: tp.Optional[pytest.Item]) -> None:
+    """
+    Description:
+        Write the test's node id to the crash record before its setup starts, unbuffered, so a dump
+        that follows it belongs to that test (its setup, call or teardown).
+
+    Args:
+        (1) item [pytest.Item(object)]: The test.
+        (2) nextitem [pytest.Item(object)]: The next test, or None.
+
+    Returns:
+        (1) parameter [None]: None, so the run protocol goes on as usual.
+    """
+
+    fd = item.config.stash.get(CONST_CRASH_RECORD_FD, None)
+    if fd is not None:
+        os.write(fd, ('START %s\n' % item.nodeid).encode('utf-8'))
+    return None
+
+
+# << PYTEST HOOK >> #
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """
+    Description:
+        Mark the end of the tests in the crash record: a dump after this line is not a test's.
+
+    Args:
+        (1) session [pytest.Session(object)]: The test session.
+        (2) exitstatus [int]: The session's exit status.
+    """
+
+    fd = session.config.stash.get(CONST_CRASH_RECORD_FD, None)
+    if fd is not None:
+        os.write(fd, ('SESSION FINISHED, exit status %d\n' % exitstatus).encode('utf-8'))
+
+
+# << PYTEST HOOK >> #
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """
+    Description:
+        pytest's faulthandler plugin turns the dump off as it unconfigures; turn it back on to the crash
+        record, so a crash at interpreter exit is recorded too. The descriptor stays open for that and
+        closes with the process.
+
+    Args:
+        (1) config [pytest.Config(object)]: The active pytest configuration.
+    """
+
+    fd = config.stash.get(CONST_CRASH_RECORD_FD, None)
+    if fd is not None:
+        os.write(fd, b'UNCONFIGURED: a dump below happened at interpreter exit\n')
+        faulthandler.enable(file=fd, all_threads=True)
 
 
 def _Guard_Qt_Callbacks(phase: str) -> tp.Generator[None, tp.Any, tp.Any]:
