@@ -12,6 +12,10 @@ fused, so an object is kept if **either** one finds it. [Detection logic](#detec
 walks through the same stages in detail, and [Source layout](#source-layout--the-app-and-the-shared-library)
 says what each part of `src/` holds.
 
+What the application does — its stages, modes, views, configuration sections, calibration, records,
+and what has and has not been verified on hardware — is mapped in
+[docs/capabilities.md](docs/capabilities.md), which links back here for setup.
+
 ## Setup
 
 **Platform: macOS on Apple silicon and Linux with an NVIDIA GPU** are the supported platforms,
@@ -123,42 +127,18 @@ fall back to the nearest system faces.
 Everything a user can change without touching code lives in one file per mode,
 `Configuration/Config_<Hardware>_Mode_<Mode>.yaml`, for example
 `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml`. The hardware comes first so
-camera-specific data still separates by camera; the mode comes after, so it is visible. The file
-holds:
+camera-specific data still separates by camera; the mode comes after, so it is visible. What each
+section of the file controls is in [docs/capabilities.md](docs/capabilities.md#configuration), and the
+file's own comments give every field's default and unit.
 
-- **Identity:** the name shown in the Configuration dialog ("Cfg. Segment Anything"), the model set
-  shown in the header ("JIC_AnyScan_All_v1"), and the Task a reading is labelled with.
-- **Segmentation:**
-  - the FastSAM model and its settings (device, confidence, IoU, image size)
-  - the **background reference** (`Segmentation.Background.Reference`) every frame is differenced
-    against. It carries a provenance sidecar (`Image_Background_NNN.json`), written by
-    `Example/Camera/make_reference.py` from the capture set it was made from
-  - the background-difference and fusion parameters
-- **Description:** the Gemma model, the two prompts, temperature, max tokens, the background crop
-  margin and the background-sentence limits.
-- **Confidence:** the 80% / 60% warning and error thresholds.
-- **Evaluation (harness-only):** `Evaluation.Frames`, the test frames `Example/Vision/analyze.py` runs
-  on (`Data/Images/Test/All`). The application never reads it, so the loader only resolves the path and a
-  missing directory never stops it loading; `analyze.py` checks the directory and each frame's size
-  against `Camera.Resolution`.
-- **General.Classification.**
-- **General.Station_Events.Directory (required):** where the daily station event files go
-  (`YYYY-MM-DD.csv`, one per local date: `STATION_ON`/`OFF` for the application, `CYCLE_START`/`DONE`
-  for each scan, or re-analysis, to the end of its analysis; for each camera connection until
-  2026-10-07; `ts` in UTC). The cycles sum to the run-summary CSV's `total_session_time`. They are
-  exported from the session log when the application closes, and a crashed run's log is exported at
-  the next start. The directory must exist and be writable at load, and it is fixed for the run. The
-  mode file's comment says how to read the files; `docs/design-decisions.md` has the reasons.
-  **A station sets its own directory in a local copy of the mode file, never in the shipped one.** The
-  shipped file keeps `logger/Station_Events`. A station copies the mode file to a directory outside the
-  repository, keeping its name, and symlinks `Calibration_<Hardware>.yaml` beside it. The loader looks
-  for the calibration next to the mode file, and the symlink follows any recalibration. The copy sets
-  `Directory` to the station's path, and the station starts with `--config <that copy>`. The
-  Configuration dialog lists only `Configuration/`, whose modes name `logger/Station_Events`, so on
-  such a station the dialog refuses them: another mode needs its own local copy too.
-- **Camera:** acquisition settings; the **sensor window** (`Camera.Resolution`, `Camera.Offset`:
-  1920 × 1200 centred at (8, 8) on the 1936 × 1216 sensor), which is set on the camera on every
-  connect and read back; and the camera, lens and lighting as a person names them.
+**A station sets its own station-event directory in a local copy of the mode file, never in the
+shipped one.** The shipped file keeps `logger/Station_Events`. A station copies the mode file to a
+directory outside the repository, keeping its name, and symlinks `Calibration_<Hardware>.yaml` beside
+it. The loader looks for the calibration next to the mode file, and the symlink follows any
+recalibration. The copy sets `General.Station_Events.Directory` to the station's path, and the station
+starts with `--config <that copy>`. The Configuration dialog lists only `Configuration/`, whose modes
+name `logger/Station_Events`, so on such a station the dialog refuses them: another mode needs its own
+local copy too.
 
 The calibration is not in the mode file. It lives once per camera in
 `Configuration/Calibration_<Hardware>.yaml`, and every mode on that hardware shares it, as it

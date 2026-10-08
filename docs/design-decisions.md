@@ -2718,3 +2718,26 @@ Tests `test/Parameters/test_theme.py` (lightness rises, distinct from the reserv
 shows, no boxes, the segment and the remembered choice),
 `test/UI/test_logging_coverage.py::test_the_heatmap_is_never_written_to_the_capture_set`. Each was proven
 by breaking what it names, 14 mutations in all.
+
+## The capabilities document is a map, and a test holds it to the code
+
+Decided 2026-10-08. `docs/capabilities.md` says what the application does: the pipeline stages, the
+modes, the views, what each configuration section controls, calibration, the records it writes, and
+what has been verified on hardware. It explains nothing twice. A reason links here, an open behaviour
+links to `KNOWN_ISSUES.md`, and setup links to the README. The README's list of what each mode-file
+section holds moved into it, so there is one copy. The README keeps the file names, the loader's checks
+and how a station keeps its own copy.
+
+**Why.** A capability document that is wrong is worse than none, because a reader trusts it instead
+of the code. So everything in it that the code names is checked in both directions:
+`test/integration/test_capabilities_doc.py` compares its tables with the mode and calibration files'
+sections, the mode files, the view switch, the Camera View renders, the Live card and Trends chart
+titles, the capture-set suffixes, the run-summary columns and the station event types. Every
+configuration key path it writes must exist in a file, and every link and anchor must resolve. Fields
+below a section are left to the files' own comments, which a test already holds to the code's
+defaults. Proven by 17 mutations, each failing the test it targets: a row or heading removed from the
+document, and a section, key, view label, chart title or CSV column changed in the code.
+
+**Revisit if** the test fails on wording rather than on a capability (then it checks the wrong thing),
+or a capability that matters has no name in the code for the test to read.
+Tests `test/integration/test_capabilities_doc.py`.
