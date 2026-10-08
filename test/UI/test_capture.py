@@ -269,3 +269,30 @@ def test_no_distorted_frame_without_one_and_it_is_evicted_with_its_set(tmp_path)
     names = sorted(os.listdir(tmp_path / 'c' / 's'))
     assert not any(name.startswith('old') for name in names)
     assert 'new_distorted.png' in names and 'new_distorted.json' in names
+
+
+def test_a_session_directory_removed_during_eviction_is_skipped(tmp_path, monkeypatch) -> None:
+    """
+    Description:
+        Eviction is best-effort and never raises. Another instance writing to the same captures root
+        can remove an empty session directory between eviction's listing of the root and its
+        listing of that directory; the set just written must still be reported written. Before
+        this, the FileNotFoundError escaped Write after the set had fully landed, so the window
+        logged a write failure for a set that exists.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write(writer, 'A', 'a1')
+    vanished = str(tmp_path / 'A')
+    listdir = os.listdir
+
+    def Listdir_With_A_Removed(path='.'):
+        if os.path.abspath(str(path)) == vanished:
+            raise FileNotFoundError(2, 'No such file or directory', vanished)
+        return listdir(path)
+
+    monkeypatch.setattr(os, 'listdir', Listdir_With_A_Removed)
+    evicted, created = _Write(writer, 'B', 'b1')
+    monkeypatch.undo()
+    assert (evicted, created) == ([], 'B')
+    assert (tmp_path / 'B' / 'b1_raw.png').exists()

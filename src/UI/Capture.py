@@ -967,7 +967,12 @@ class Capture_Writer_Cls(object):
         grouped = {}
         for session_id in self.__Session_Dirs():
             session_dir = os.path.join(self.__dir, session_id)
-            for name in os.listdir(session_dir):
+            try:
+                names = os.listdir(session_dir)
+            except OSError:
+                # Removed since the root was listed (another instance emptied it): nothing to evict.
+                continue
+            for name in names:
                 set_id = self.__Set_Id(name)
                 if set_id is None:
                     continue
