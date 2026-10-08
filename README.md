@@ -118,7 +118,8 @@ python App/run.py --frame path/to/frame.png
 ```
 
 The console draws its text in Inter and JetBrains Mono, which ship with it in `App/assets/fonts/`
-(static Regular, Medium, SemiBold and Bold of each, built by `Example/UI/build_fonts.py`), so it looks
+(static Regular, Medium, SemiBold and Bold of each, and Inter Display Regular for the header's
+wordmark, built by `Example/UI/build_fonts.py`), so it looks
 the same on every platform whatever fonts the machine has. Only if that directory is missing does it
 fall back to the nearest system faces.
 
@@ -372,16 +373,15 @@ App/
     fonts/                    Inter, Inter Display and JetBrains Mono, static, with their OFL licences; built by
                               Example/UI/build_fonts.py
 src/                      Qt-free domain modules + the UI (see "Source layout")
-Example/                  runnable scripts (scan, calibrate, make_reference, analyze, evaluate_describer,
-                          architecture_diagram, build_logo, build_fonts)
+Example/                  runnable scripts (scan, calibrate, calibration_tilt_study, generate_checkerboard,
+                          make_reference, analyze, evaluate_describer, architecture_diagram, build_logo,
+                          build_fonts)
 Data/Images/Test/All/     the eight frames analyze.py runs on, and the tests' pinned set, with answer_key.json
                           (what each object is, for evaluate_describer.py) — committed
 Data/Images/Test/*/       other folders: raw captures (Mounting_Plate, Labyrinth), not tested — committed
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored
 Data/Results/             analyze.py and scan.py output — git-ignored
-  Camera/                   the reference background and calibration-result images
-    Image_Background_001.png  the empty-surface reference ANALYZE subtracts
 images/                   documentation illustrations for this README — committed
   source/anyscan-logo-text.svg  the logo's text source; Example/UI/build_logo.py outlines it
 models/                   model weights — you supply these, NOT committed
@@ -437,16 +437,14 @@ than silently leaving a gap, so a broken asset path is visible immediately.
 These are the Qt-free domain modules plus the Qt UI; `App/run.py` imports only
 these, and the domain half imports with PyQt5 unavailable (a tested contract).
 
-**A shared robotics library** — inherited, reused, and **not** touched by the
-application; reached only from `Example/`:
+**Outside the application** — the app itself never imports these two:
 
-- `Transformation/` — homogeneous transforms, Euler angles, quaternions.
-- `Calibration/` — checkerboard camera calibration.
-
-`Example/Camera/scan.py` and `calibrate.py` use both halves — they drive the real
-camera and calibrate it — but the app itself never imports `Transformation/` or
-`Calibration/`. That is why those modules are held to a lighter style touch than
-the app. The camera setup itself lives in `Configuration/*.yaml`, read and written
+- `Transformation/` — homogeneous transforms, Euler angles, quaternions: a robotics
+  library inherited and not touched, so it is excluded from the style check. Nothing in
+  the repository imports it today.
+- `Calibration/` — the multi-view checkerboard calibration, written in this project's
+  style. `Example/Camera/calibrate.py` drives the real camera and calibrates through it;
+  `Example/Vision/analyze.py` uses its natural sort key. The camera setup itself lives in `Configuration/*.yaml`, read and written
 through `Configuration/Core.py`.
 
 ## Platform
@@ -537,13 +535,13 @@ Both hardware-facing parts sit behind an interface, so a replacement touches one
 
 - **The index is a contract.** The position of a detection in the list is the
   number drawn on the frame *and* at the start of its sentence, in the same
-  hue. Never reorder `objects` after `compose()`.
+  hue. Never reorder `objects` after `Compose()`.
 - **Colour means something.** Green, red and amber are pass, fail and degraded,
   which is why they are absent from the object palette. Magenta marks a
-  detected object. The primary button is black, so the strongest control reads
+  failed (NOK) object. The primary button is black, so the strongest control reads
   as structural.
 - **One voice.** Every sentence the operator reads is written by the report
-  composer near the top of the file, so swapping the model never changes how
+  composer (`src/Reporting/Core.py`), so swapping the model never changes how
   the console talks.
 
 ## Licence note

@@ -47,7 +47,7 @@ file is not the generator's output, so regenerate it, never edit it.
 | `Logger` | The session log, the run-summary CSV and cycle accounting (`Logger.Core`), and the daily station event export (`Logger.Station_Events`). | No |
 | `UI` | The window, its four views, the Configuration dialog, the worker threads, and the capture-set writer and reader (`UI/Capture.py`, Qt-free). | Yes |
 | `Calibration` | The multi-view checkerboard solve behind `Example/Camera/calibrate.py`. The application never imports it. | No |
-| `Transformation` | Inherited robotics maths (transforms, Euler angles, quaternions), reached only from `Example/`. Never rewritten. | No |
+| `Transformation` | Inherited robotics maths (transforms, Euler angles, quaternions). Nothing in the repository imports it. Never rewritten. | No |
 
 **Dependency direction.** `Parameters` is at the bottom, and `UI` is at the top and imports the
 rest. Nothing below `UI` imports `UI` or Qt, and a domain module reports through injected callbacks,
@@ -137,7 +137,8 @@ piece of hardware. The modes shipped today:
 
 The central area switches between four views. The header carries the logo, the model-set pill and
 the camera pill. The control column holds the buttons above. The status strip along the bottom
-shows Camera, Resolution, System, Last update, Images analysed and Objects detected.
+shows Camera, Resolution, System, Last update, Images analysed, Objects detected, Inference (run
+median) and Confidence (run mean).
 
 ### Live
 
