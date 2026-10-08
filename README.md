@@ -216,10 +216,12 @@ a stated tolerance does not.
   and even centred it gains W · t / (Z − t) ≈ 0.2 mm, so a 0.1 mm tolerance cannot be held for it
   anywhere in the frame. An across-flats width is largely spared; a round Ø takes about half. Only a
   telecentric lens removes this.
-- **Scale unverified:** the calibration in force was solved from a single image, and its principal
-  point, (160.7, 355.5), sits about 800 px from the frame centre. The multi-view recalibration
-  (checklist item 1) replaces the lens model, but nothing in this version checks the resulting scale
-  against parts of known size.
+- **Scale unverified:** the calibration in force is a multi-view solve from 2026-09-28. It used 63
+  views (22 flat, 41 tilted) at a reprojection RMS of 0.45 px. Its principal point lies about 25 px
+  from the frame centre, and its factor is 0.102 mm/px. It replaced a single-image calibration whose
+  principal point sat about 800 px off centre. Nothing in this version checks the resulting scale
+  against parts of known size. A good fit shows that the lens model is consistent, not that the sizes
+  are right.
 - Sizes are shown to 0.01 mm as a formatting choice: one pixel is about 0.10 mm, and the error above
   is up to about 1.5 mm, so the second decimal — and the first — says nothing about accuracy.
 
@@ -243,11 +245,20 @@ one. Treat surface condition in the text as a hint that may be absent, never as 
 
 ## Captures on the rig
 
-Three captures only the rig can produce, in this order: a **multi-view calibration set**, then the
-**empty-surface reference** shot under the new calibration (made with `make_reference.py`, which
-writes its provenance sidecar), then a **parts session** — defective parts with clean controls,
-low-contrast parts, and a harsh shadow. The procedures, the conditions and what to record alongside
-each frame are in [docs/capture-checklist.md](docs/capture-checklist.md). None of them verifies the
+The rig's captures, in order. The first two were made on 2026-09-28 and are in force:
+
+1. a **multi-view calibration set**;
+2. the **empty-surface reference**, shot under that calibration and made with `make_reference.py`,
+   which writes its provenance sidecar.
+
+Two are still to do:
+
+3. a **parts session**: defective parts with clean controls, low-contrast parts, and a harsh shadow;
+4. the **cable pull**, which checks that a lost connection is detected.
+
+The procedures, the conditions and what to record alongside each frame are in
+[docs/capture-checklist.md](docs/capture-checklist.md). Items 1 and 2 are repeated when the camera,
+the lens or the mount changes. None of them verifies the
 measurements (see [Limitations](#limitations)).
 
 ## Tests

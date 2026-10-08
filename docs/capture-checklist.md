@@ -19,14 +19,20 @@ here: the sizes are repeatable, not absolute, and the describer is not a defect 
 - `<set>` numbers restart at 1 on every CONNECT. With one CONNECT per item and no retakes, the number
   is the frame's position in the item's table. On a retake, write down the number that replaced it.
 
-| # | Item | Frames | What it is for |
-|---|---|---|---|
-| 1 | Multi-view calibration set | 40+ | The camera's first multi-view calibration: the lens model, the principal point and the mm/px factor. Not checked against known sizes in this version |
-| 2 | Empty-surface reference | 1 | The background reference, re-shot under the new calibration, with its provenance sidecar |
-| 3 | Parts session: defects, low-contrast parts, harsh shadow | ~40 | Real frames for the open questions in KNOWN_ISSUES (low-contrast parts, harsh shadow) and data for a future defect rule |
-| 4 | Cable pull: a lost connection is detected | 0 | Not a capture: the one check of lost-connection detection on the real camera, which no test can make (it is unverified on the hardware until this is done) |
+| # | Item | Frames | What it is for | Status |
+|---|---|---|---|---|
+| 1 | Multi-view calibration set | 40+ | The lens model, the principal point and the mm/px factor. Not checked against known sizes in this version | **Done 2026-09-28** — in force |
+| 2 | Empty-surface reference | 1 | The background reference, shot under the calibration in force, with its provenance sidecar | **Done 2026-09-28** — in force |
+| 3 | Parts session: defects, low-contrast parts, harsh shadow | ~40 | Real frames for the open questions in KNOWN_ISSUES (low-contrast parts, harsh shadow) and data for a future defect rule | To do |
+| 4 | Cable pull: a lost connection is detected | 0 | Not a capture: the one check of lost-connection detection on the real camera, which no test can make (it is unverified on the hardware until this is done) | To do |
 
-**Before item 1: confirm the camera is pinned.** Power-cycle the camera (it then starts from its
+Items 1 and 2 are repeated, in that order, whenever the camera, the lens, its focus or the mount
+changes. Their procedures stay below for that.
+
+**Before item 1: confirm the camera is pinned.** Done on 2026-09-24 at 16:20: after a power-cycle the
+log read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain
+10.00, BayerRG8 (read back from the camera)*, and the status bar read 1920 × 1200. Repeat the check
+after any change to the camera's settings or firmware. Power-cycle the camera (it then starts from its
 factory default, the full 1936 × 1216 sensor), start the application, load the configuration and
 CONNECT. The log must read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor …
 (read back from the camera)*, and the status bar 1920 × 1200. Anything else: stop and report it —
@@ -47,8 +53,14 @@ calibration written from it carries it.
 
 ## 1. Multi-view calibration set
 
-**Why.** The calibration in force was solved from a single view; its principal point sits ~800 px off
-centre. A multi-view solve needs flat boards (for the lens model and the mm/px factor) and tilted
+**Done 2026-09-28.** The set is `Data/Images/Calibration/20260928-103531`: 63 views (22 flat, 41
+tilted), reprojection RMS 0.45 px, flat-board height 4.22 mm, principal point about 25 px from the
+frame centre, factor 0.102 mm/px. Its record is `Calibration.Solved` in the calibration file
+(commit `f5cd075`).
+
+**Why.** The calibration it replaced was solved from a single view, and its principal point sat
+~800 px off centre: one near-frontal view cannot separate the principal point from the board's
+position. A multi-view solve needs flat boards (for the lens model and the mm/px factor) and tilted
 boards (the lens model only). The tilts are what pin the principal point: the synthetic study behind
 `Calibration.Core` shows recovery degrades sharply below 5° of tilt, and plateaus from three views of
 at least 10°.
@@ -105,11 +117,17 @@ capture set keeps its frame before undistortion, so frames can be re-undistorted
 
 ## 2. Empty-surface reference (one frame)
 
-**Why.** After the sensor-window change every other artefact is captured at a pinned, recorded window.
-The reference in force (`Data/Images/Background/Image_Background_001.png`) is the right size, but the window it was
-shot at is a guess — "probably (0, 0)" — and so are the calibration and lighting it was shot under. And
-it is an undistorted frame, so item 1's new lens model puts its geometry out of date. Re-shooting it
-removes the last unverified artefact. It is one frame of an empty table.
+**Done 2026-09-28.** `Data/Images/Background/Image_Background_001.png` was made by `make_reference.py`
+from the capture set `20260928-111434_s1`, seven minutes after item 1's solve. Its sidecar records the
+window (1920 × 1200 at (8, 8)), the fingerprint of the calibration in force, the lighting, and the four
+edge slivers accepted with `--accept-objects`. It was written over the old reference's name, which
+*A replaced image never keeps its name* (docs/design-decisions.md) now forbids: the next reference is
+`_002`, as below.
+
+**Why.** The reference is an undistorted frame, so it belongs to one lens model and one sensor window:
+a new calibration puts its geometry out of date. Shot through the application, with its provenance
+from the capture set's own records, it is a verified artefact rather than a guess. It is one frame of
+an empty table.
 
 **Conditions.** Item 1's calibration adopted and in force (application restarted), shipped
 configuration, shipped lighting, camera untouched since item 1, **the table empty** — nothing in view,
@@ -131,8 +149,8 @@ that set's own records, not from a person.
    python make_reference.py --from ../../logger/captures/<connection>/<set>_raw.png
    ```
 
-   It writes `Data/Images/Background/Image_Background_002.png` (the next free number — `_001` is never
-   overwritten: the characterization baseline was analysed against it) and its sidecar
+   It writes `Data/Images/Background/Image_Background_002.png` (the next free number — an existing reference
+   is never overwritten: capture sets and the characterization baseline cite it by name) and its sidecar
    `Image_Background_002.json`: the window the camera read back, the lens model that undistorted the
    frame, the configuration, the camera, lens and lighting, and the time. It refuses a set that records
    no window and an existing file. If the analysis found objects, it refuses too, and lists each one:

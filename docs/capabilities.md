@@ -159,6 +159,12 @@ are not undistorted and sizes are not reported.
 | `Calibration.Coefficients` | The lens distortion, `k1 k2 p1 p2 k3`. | `calibrate.py` |
 | `Calibration.Conversion_Factor` | mm per pixel in x and y, exact in the flat boards' plane only. | `calibrate.py` |
 
+**The calibration in force** was solved on the rig on 2026-09-28 (commit `f5cd075`). It used 63
+views (22 flat, 41 tilted), with a reprojection RMS of 0.45 px. Its principal point lies about 25 px
+from the frame centre, and its factor is 0.102 mm/px in both axes. `Calibration.Solved` in the
+calibration file is the record. Its scale has not been checked against parts of known size
+([README > Limitations](../README.md#limitations)).
+
 Why many views, and why the factor comes from flat boards only:
 [*Calibration: many views solved together…*](design-decisions.md#calibration-many-views-solved-together-the-factor-from-flat-boards-undistorted-corners).
 
@@ -255,7 +261,7 @@ Each row names its evidence. A row with none is not verified.
 | Multi-view calibration of the rig's camera | Solved on the rig, 2026-09-28: 63 views, RMS 0.45 px | `Calibration.Solved` in the calibration file; commit `f5cd075` |
 | Absolute size against parts of known size | **Not verified** | [README > Limitations](../README.md#limitations) |
 | Empty-surface reference `Image_Background_001` | Shot on the rig, with its provenance sidecar | commit `f5cd075` |
-| The sensor window set and read back on CONNECT | Not recorded | The check before item 1 in [capture-checklist.md](capture-checklist.md) |
+| The sensor window set and read back on CONNECT | Verified, 2026-09-24 16:20, after a power-cycle from factory defaults | Session log: *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain 10.00, BayerRG8 (read back from the camera)*; status bar 1920 × 1200 |
 | Lost-connection detection (cable pull) | **Not verified** | capture-checklist item 4 |
 | Parts session: defects, low-contrast parts, harsh shadow | Not recorded | capture-checklist item 3 |
 | Daily station event export on the station | Not recorded | — |
