@@ -291,11 +291,11 @@ the last N analyses): add it as its own cell with its own scope in the label, ne
 an existing one.
 *Corrected 2026-10-08:* since `d14a130` the third scope is the **run** (since the start or the last
 Clear), labelled "Inference (run median)" and "Confidence (run mean)", and its accumulator is
-`Reporting.Trends` (`AnyScan_Window_Cls.__trends.Run_Mean()`), not `__session_scores`. It still
-weights each object equally, but averages each scored object's whole percentage
-(`int(round(100 × score))`) rather than the raw scores, so it can differ by one point from
-`Frame_Confidence` over the same objects (scores 0.569 and 0.802: 69 % by `Frame_Confidence`, 68 %
-by `Trends`).
+`Reporting.Trends` (`AnyScan_Window_Cls.__trends.Run_Mean()`), not `__session_scores`. It weights
+each object equally over the raw scores and rounds once, and Trends' frame mean is `Frame_Confidence`'s,
+so the Trends tooltip, the Live panel and History show the same frame mean. Until 2026-10-08 Trends
+rounded each object first and could read a point lower (scores 0.569 and 0.802: 68 % in Trends, 69 %
+everywhere else); `test/Reporting/test_trends.py::test_the_means_round_once_from_the_raw_scores` pins it.
 Commit `8c48a73`; tests `test/UI/test_status_metrics.py::test_frame_mean_and_session_mean_are_over_their_own_scopes`, `::test_session_mean_weights_each_object_equally_not_each_frame`, `test/UI/test_reading_view.py::test_object_blocks_carry_the_shared_label_and_description`.
 
 ## Segmentation polygons keep only the outer contour, and the set carries a JSON record

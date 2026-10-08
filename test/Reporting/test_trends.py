@@ -26,6 +26,8 @@
 import Reporting.Trends as Trends
 from Reporting.Trends import (Trends_Accumulator_Cls, Nice_Ticks, Value_To_Pixel, Nearest_Index,
                               Thin_Label_Indices)
+#   ../Reporting/Core — the frame mean's one computation
+from Reporting.Core import Frame_Confidence
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -102,6 +104,32 @@ def test_last_run_mean_point_equals_the_status_mean() -> None:
     assert [row.Frame_Mean for row in rows] == [90, 30]
     assert [row.Run_Mean for row in rows] == [90, 75]
     assert rows[-1].Run_Mean == acc.Run_Mean() == 75
+
+
+def test_the_means_round_once_from_the_raw_scores() -> None:
+    """
+    Description:
+        The frame mean is Reporting.Core.Frame_Confidence's — the figure the Live panel, the capture
+        record and History show — and the run mean is the raw scores' mean, rounded once. Rounding each
+        object first moved them: scores 0.569 and 0.802 are 57 % and 80 %, whose mean 68.5 rounds (half
+        to even) to 68, while the scores' own mean, 68.55 %, is 69 %. The confidence dots stay whole
+        percentages.
+    """
+
+    acc = Trends_Accumulator_Cls()
+    objects = [_Det(0.569), _Det(0.802)]
+    acc.Add_Analysis(objects)
+    row = acc.Images()[0]
+    assert [obj.Confidence for obj in row.Objects] == [57, 80]
+    assert row.Frame_Mean == Frame_Confidence(objects)[0] == 69
+    assert row.Run_Mean == acc.Run_Mean() == 69
+
+    acc = Trends_Accumulator_Cls()
+    acc.Add_Analysis([_Det(0.569)])
+    acc.Add_Analysis([_Det(0.802), _Det(None)])
+    assert [row.Frame_Mean for row in acc.Images()] == [57, 80]
+    assert [row.Run_Mean for row in acc.Images()] == [57, 69]
+    assert acc.Run_Mean() == 69
 
 
 def test_unscored_objects_are_not_confidence_points() -> None:

@@ -30,6 +30,9 @@ from dataclasses import dataclass, field
 # Custom Lib.: AnyScan domain — the detection structure
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
+# Custom Lib.: AnyScan — the frame mean's one computation (the Live panel, the capture record, History)
+#   ../Reporting/Core
+from Reporting.Core import Frame_Confidence
 
 """
 Description:
@@ -130,8 +133,8 @@ class Trends_Accumulator_Cls(object):
     def __init__(self) -> None:
         # << PRIVATE >> #
         self.__images = []
-        # Every scored object's confidence across the run, pooled, for the running run mean —
-        # each object weighted equally, never the mean of per-frame means.
+        # Every scored object's raw score across the run, pooled, for the running run mean — each
+        # object weighted equally, never the mean of per-frame means, and rounded once, at the end.
         self.__scores = []
 
     def Add_Analysis(self, objects: tp.List[Detection_Str]) -> None:
@@ -155,12 +158,13 @@ class Trends_Accumulator_Cls(object):
                 continue
             percent = int(round(100.0 * det.Segmenter_Score))
             row.Objects.append(Trend_Object_Str(Confidence=percent, Verdict=det.Verdict))
-            self.__scores.append(percent)
+            self.__scores.append(det.Segmenter_Score)
 
-        frame_scores = [obj.Confidence for obj in row.Objects]
-        row.Frame_Mean = int(round(sum(frame_scores) / len(frame_scores))) if frame_scores else None
-        row.Run_Mean = (int(round(sum(self.__scores) / len(self.__scores)))
-                        if self.__scores else None)
+        # Both means from the raw scores, rounded once: rounding each object first moved them a point
+        # away from the Live panel's frame mean (0.569 and 0.802 are 57 and 80, whose mean rounds to 68;
+        # the scores' own mean is 69 %).
+        row.Frame_Mean = Frame_Confidence(objects)[0]
+        row.Run_Mean = self.Run_Mean()
 
         previous = self.__images[-1] if self.__images else None
         base_total = previous.Cumulative_Total if previous else 0
@@ -216,7 +220,7 @@ class Trends_Accumulator_Cls(object):
             (1) parameter [int]: The run mean percentage, or None.
         """
 
-        return int(round(sum(self.__scores) / len(self.__scores))) if self.__scores else None
+        return int(round(100.0 * sum(self.__scores) / len(self.__scores))) if self.__scores else None
 
     def Reset(self) -> None:
         """
