@@ -341,6 +341,39 @@ def Hex_To_Bgr(hex_color: str) -> tp.Tuple[int, int, int]:
     return (b, g, r)
 
 
+def __Srgb_Linear(channel: float) -> float:
+    """
+    Description:
+        Undo the sRGB gamma for one 0..255 channel, giving linear light 0..1 — the step both the
+        L*a*b* conversion and the WCAG relative luminance start from.
+
+    Args:
+        (1) channel [float]: The channel value (0..255).
+
+    Returns:
+        (1) parameter [float]: The linear-light value (0..1).
+    """
+
+    channel /= 255.0
+    return ((channel + 0.055) / 1.055) ** 2.4 if channel > 0.04045 else channel / 12.92
+
+
+def __Lab_F(t: float) -> float:
+    """
+    Description:
+        The CIELAB nonlinearity applied to a normalised XYZ component (L*a*b* from XYZ, and the L*
+        of a given relative luminance).
+
+    Args:
+        (1) t [float]: The normalised component.
+
+    Returns:
+        (1) parameter [float]: The transformed component.
+    """
+
+    return t ** (1.0 / 3.0) if t > 0.008856 else 7.787 * t + 16.0 / 116.0
+
+
 def __Lab(hex_color: str) -> tp.Tuple[float, float, float]:
     """
     Description:
@@ -353,41 +386,12 @@ def __Lab(hex_color: str) -> tp.Tuple[float, float, float]:
         (1) parameter [Vector<float> 1x3]: The (L, a, b) coordinates.
     """
 
-    def _Linear(channel: float) -> float:
-        """
-        Description:
-            Undo the sRGB gamma for one 0..255 channel, giving linear light 0..1.
-
-        Args:
-            (1) channel [float]: The channel value (0..255).
-
-        Returns:
-            (1) parameter [float]: The linear-light value (0..1).
-        """
-
-        channel /= 255.0
-        return ((channel + 0.055) / 1.055) ** 2.4 if channel > 0.04045 else channel / 12.92
-
-    r, g, b = (_Linear(c) for c in Hex_To_Rgb(hex_color))
+    r, g, b = (__Srgb_Linear(c) for c in Hex_To_Rgb(hex_color))
     x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
     y = (0.2126 * r + 0.7152 * g + 0.0722 * b)
     z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
 
-    def _F(t: float) -> float:
-        """
-        Description:
-            The CIELAB nonlinearity applied to a normalised XYZ component.
-
-        Args:
-            (1) t [float]: The normalised component.
-
-        Returns:
-            (1) parameter [float]: The transformed component.
-        """
-
-        return t ** (1.0 / 3.0) if t > 0.008856 else 7.787 * t + 16.0 / 116.0
-
-    fx, fy, fz = _F(x), _F(y), _F(z)
+    fx, fy, fz = __Lab_F(x), __Lab_F(y), __Lab_F(z)
     return (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
 
 
@@ -442,22 +446,7 @@ def Relative_Luminance(hex_color: str) -> float:
         (1) parameter [float]: The relative luminance (0 = black .. 1 = white).
     """
 
-    def _Linear(channel: float) -> float:
-        """
-        Description:
-            Undo the sRGB gamma for one 0..255 channel, giving linear light 0..1.
-
-        Args:
-            (1) channel [float]: The channel value (0..255).
-
-        Returns:
-            (1) parameter [float]: The linear-light value (0..1).
-        """
-
-        channel /= 255.0
-        return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
-
-    r, g, b = (_Linear(c) for c in Hex_To_Rgb(hex_color))
+    r, g, b = (__Srgb_Linear(c) for c in Hex_To_Rgb(hex_color))
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
@@ -568,7 +557,7 @@ def Neutral_Mask_Bounds(box_hex: str) -> tp.Tuple[float, float]:
     """
 
     y_min = CONST_MASK_FILL_MIN_GROUND_CONTRAST * 0.05 - 0.05
-    f_min = y_min ** (1.0 / 3.0) if y_min > 0.008856 else 7.787 * y_min + 16.0 / 116.0
+    f_min = __Lab_F(y_min)
     outline_lower = 116.0 * f_min - 16.0
     chroma = Lch_Of(box_hex)[1]
     white_floor = CONST_MASK_FILL_MIN_WHITE_DELTA_E
