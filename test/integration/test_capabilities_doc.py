@@ -51,7 +51,7 @@ Description:
 
     docs/capabilities.md describes what the application does, and a capability document that is
     wrong is worse than none. These tests hold it to the code in both directions: everything the
-    code names (configuration sections, modes, views, records) is in the document, and every
+    code names (src/ packages, configuration sections, modes, views, records) is in the document, and every
     configuration key the document names is in a configuration file. Its prose and its hardware
     table cannot be checked; its links can.
 """
@@ -372,6 +372,43 @@ def test_every_key_path_the_document_names_exists_in_a_configuration_file(projec
 
     assert named, 'The document names no configuration key path; the pattern no longer matches it.'
     assert named <= keys, 'docs/capabilities.md names keys no configuration file has: %s.' % sorted(named - keys)
+
+
+def Src_Packages(project_root: str) -> tp.List[str]:
+    """
+    Description:
+        The packages under src/: each directory holding Python source at any depth. A directory
+        left with only caches (__pycache__) is not a package.
+
+    Args:
+        (1) project_root [string]: The repository root.
+
+    Returns:
+        (1) parameter [Vector<string>]: Their names, sorted.
+    """
+
+    src = os.path.join(project_root, 'src')
+    return sorted(name for name in os.listdir(src)
+                  if os.path.isdir(os.path.join(src, name))
+                  and glob.glob(os.path.join(src, name, '**', '*.py'), recursive=True))
+
+
+def test_the_architecture_table_names_exactly_the_src_packages(project_root) -> None:
+    """
+    Description:
+        The Architecture section's Package table lists every package under src/, and only those: a
+        package added without a row, or a row whose package has been removed or renamed, fails here.
+    """
+
+    doc = Read_Text(os.path.join(project_root, CONST_CAPABILITIES_DOC))
+    documented = Table_First_Column(Section(doc, '## Architecture'), 'Package')
+    packages = Src_Packages(project_root)
+
+    assert packages, 'No package found under src/.'
+    assert sorted(documented) == packages, ('Architecture table out of step with src/. Missing from the '
+                                            'document: %s. Not a package: %s.'
+                                            % (sorted(set(packages) - set(documented)),
+                                               sorted(set(documented) - set(packages))))
 
 
 def test_the_modes_table_names_exactly_the_shipped_mode_files(project_root) -> None:
