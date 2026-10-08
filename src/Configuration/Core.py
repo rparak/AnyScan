@@ -1220,6 +1220,153 @@ def Config_Loaded_Log_Line(Configuration_Str: Configuration_Str) -> str:
                Configuration_Str.Mode, Configuration_Str.Identity.Model_Set, state))
 
 
+def __Check_Writable(Camera_Calibration_Parameters_Str: Camera_Calibration_Parameters_Str, hardware: str,
+                     output_path: str) -> None:
+    """
+    Description:
+        Step 1 of Write_Calibration: refuse a calibration that does not record its window, and a
+        file holding anything the writer does not own (another key, another hardware).
+
+    Args:
+        (1) Camera_Calibration_Parameters_Str [Camera_Calibration_Parameters_Str(object)]: The solved
+            calibration.
+        (2) hardware [string]: The hardware id the calibration belongs to.
+        (3) output_path [string]: The file to be written.
+
+    Raises:
+        AssertionError: The write is refused; the message says why.
+    """
+
+    assert (Camera_Calibration_Parameters_Str.Resolution is not None
+            and Camera_Calibration_Parameters_Str.Offset is not None), (
+        'the calibration does not record the sensor window (Resolution and Offset) it was solved at')
+    if os.path.exists(output_path):
+        with open(output_path, 'r', encoding='utf-8') as f:
+            existing = yaml.safe_load(f)
+        assert isinstance(existing, dict), 'it does not hold a YAML mapping'
+        foreign = [key for key in existing if key not in CONST_CALIBRATION_FILE_KEYS]
+        block = existing.get('Calibration') or {}
+        foreign += ['Calibration.%s' % key for key in block if key not in CONST_CALIBRATION_BLOCK_KEYS]
+        assert not foreign, ('it holds %s, which this writer does not own and would delete'
+                             % ', '.join(foreign))
+        assert existing.get('Hardware') in (None, hardware), (
+            'it belongs to hardware %r, not %r' % (existing.get('Hardware'), hardware))
+
+
+def __Header_Lines(header_source: tp.Optional[str], hardware: str) -> tp.List[str]:
+    """
+    Description:
+        Step 2 of Write_Calibration: the header comment, the leading comment lines of the file in
+        force, or a minimal one when there is none.
+
+    Args:
+        (1) header_source [string or None]: The calibration file whose header is copied.
+        (2) hardware [string]: The hardware id, for the minimal header.
+
+    Returns:
+        (1) parameter [Vector<string>]: The header lines.
+    """
+
+    header = []
+    if header_source is not None and os.path.isfile(header_source):
+        with open(header_source, 'r', encoding='utf-8') as f:
+            for line in f.read().splitlines():
+                if line.strip() and not line.lstrip().startswith('#'):
+                    break
+                header.append(line)
+    # The file's own header ends where the writer's body begins: the body writes the hardware
+    # comment itself, so a copy of it (and the blank lines around it) is not header.
+    while header and header[-1].strip() in ('', CONST_CALIBRATION_HARDWARE_COMMENT):
+        header.pop()
+    if not header:
+        header = ['# The calibration of hardware %s.' % hardware,
+                  '# Written by Example/Camera/calibrate.py via Configuration.Core.Write_Calibration.', '']
+    return header
+
+
+def __Calibration_Body(Camera_Calibration_Parameters_Str: Camera_Calibration_Parameters_Str, hardware: str,
+                       record: tp.Dict[str, tp.Any]) -> str:
+    """
+    Description:
+        Step 3 of Write_Calibration: 'Hardware' and the 'Calibration' block as YAML text, the numbers
+        formatted with repr() to keep their full, round-trippable precision.
+
+    Args:
+        (1) Camera_Calibration_Parameters_Str [Camera_Calibration_Parameters_Str(object)]: The solved
+            calibration.
+        (2) hardware [string]: The hardware id.
+        (3) record [Dict]: How the calibration was solved (see Write_Calibration).
+
+    Returns:
+        (1) parameter [string]: The body text.
+    """
+
+    matrix_rows = '\n'.join('    - [' + ', '.join(repr(float(value)) for value in row) + ']'
+                            for row in Camera_Calibration_Parameters_Str.K)
+    coefficients = '\n'.join(f'    {key}: {repr(float(value))}'
+                             for key, value in Camera_Calibration_Parameters_Str.Coefficients.items())
+    factors = '\n'.join(f'    {key}: {repr(float(value))}'
+                        for key, value in Camera_Calibration_Parameters_Str.Conversion_Factor.items())
+    views = record['views']
+    return (CONST_CALIBRATION_HARDWARE_COMMENT + '\n'
+            f'Hardware: {hardware}\n\n'
+            'Calibration:\n'
+            '  # How this calibration was solved (Example/Camera/calibrate.py --images).\n'
+            '  Solved:\n'
+            f'    Date: {record["date"]}\n'
+            f'    Images: {json.dumps(record["images"])}\n'
+            '    # Views used: flat boards (lens model + factor) and tilted ones (lens model).\n'
+            f'    Views: {{Total: {int(views["total"])}, Flat: {int(views["flat"])}, '
+            f'Tilted: {int(views["tilted"])}}}\n'
+            f'    Reprojection_RMS_Px: {repr(float(record["rms_px"]))}\n'
+            '    # The board\'s square size [mm], as calipered.\n'
+            f'    Square_Size_Mm: {repr(float(record["square_mm"]))}\n'
+            '    # The reference plane: the flat boards\' surface height above the table [mm].\n'
+            '    # The factor is exact in this plane only.\n'
+            f'    Board_Height_Mm: {repr(float(record["board_height_mm"]))}\n'
+            '  # The sensor window this calibration was solved at [px]: its size and its offset on the\n'
+            '  # sensor. K and the conversion factor are in this window\'s pixels; a configuration that\n'
+            '  # sets the camera to any other window fails to load with this calibration.\n'
+            '  Resolution: {x: %d, y: %d}\n' % tuple(int(v) for v in Camera_Calibration_Parameters_Str.Resolution) +
+            '  Offset: {x: %d, y: %d}\n' % tuple(int(v) for v in Camera_Calibration_Parameters_Str.Offset) +
+            '  # Camera calibration (intrinsic) matrix K, 3 x 3, row-major.\n'
+            f'  K:\n{matrix_rows}\n'
+            '  # Distortion coefficients: [k1, k2, p1, p2, k3].\n'
+            f'  Coefficients:\n{coefficients}\n'
+            '  # Pixel-to-millimeter conversion factors for the x and y axes [mm/px], in the\n'
+            '  # undistorted (alpha = 1) pixel space measurement happens in.\n'
+            f'  Conversion_Factor:\n{factors}\n')
+
+
+def __Replace_File(path: str, text: str) -> None:
+    """
+    Description:
+        Step 4 of Write_Calibration: write the text beside the target, then replace it whole, so a
+        write that fails part-way (a full disk) leaves the file in force, not a torn one.
+
+    Args:
+        (1) path [string]: The file replaced.
+        (2) text [string]: Its new content.
+
+    Raises:
+        OSError: The write failed; the target is as it was and nothing is left beside it.
+    """
+
+    temporary = path + '.writing'
+    try:
+        with open(temporary, 'w', encoding='utf-8') as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        if os.path.exists(path):
+            shutil.copymode(path, temporary)
+        os.replace(temporary, path)
+    except BaseException:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+        raise
+
+
 def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Parameters_Str, *,
                       hardware: str, header_source: tp.Optional[str], output_path: str,
                       record: tp.Dict[str, tp.Any]) -> bool:
@@ -1256,90 +1403,10 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
     """
 
     try:
-        # 1\ Refuse a calibration that does not record its window, and anything the writer does not own.
-        assert (Camera_Calibration_Parameters_Str.Resolution is not None
-                and Camera_Calibration_Parameters_Str.Offset is not None), (
-            'the calibration does not record the sensor window (Resolution and Offset) it was solved at')
-        if os.path.exists(output_path):
-            with open(output_path, 'r', encoding='utf-8') as f:
-                existing = yaml.safe_load(f)
-            assert isinstance(existing, dict), 'it does not hold a YAML mapping'
-            foreign = [key for key in existing if key not in CONST_CALIBRATION_FILE_KEYS]
-            block = existing.get('Calibration') or {}
-            foreign += ['Calibration.%s' % key for key in block if key not in CONST_CALIBRATION_BLOCK_KEYS]
-            assert not foreign, ('it holds %s, which this writer does not own and would delete'
-                                 % ', '.join(foreign))
-            assert existing.get('Hardware') in (None, hardware), (
-                'it belongs to hardware %r, not %r' % (existing.get('Hardware'), hardware))
-
-        # 2\ The header comment: the leading comment lines of the file in force.
-        header = []
-        if header_source is not None and os.path.isfile(header_source):
-            with open(header_source, 'r', encoding='utf-8') as f:
-                for line in f.read().splitlines():
-                    if line.strip() and not line.lstrip().startswith('#'):
-                        break
-                    header.append(line)
-        # The file's own header ends where the writer's body begins: the body writes the hardware
-        # comment itself, so a copy of it (and the blank lines around it) is not header.
-        while header and header[-1].strip() in ('', CONST_CALIBRATION_HARDWARE_COMMENT):
-            header.pop()
-        if not header:
-            header = ['# The calibration of hardware %s.' % hardware,
-                      '# Written by Example/Camera/calibrate.py via Configuration.Core.Write_Calibration.', '']
-
-        # 3\ Format the numeric values with repr() to preserve full, round-trippable precision.
-        matrix_rows = '\n'.join('    - [' + ', '.join(repr(float(value)) for value in row) + ']'
-                                for row in Camera_Calibration_Parameters_Str.K)
-        coefficients = '\n'.join(f'    {key}: {repr(float(value))}'
-                                 for key, value in Camera_Calibration_Parameters_Str.Coefficients.items())
-        factors = '\n'.join(f'    {key}: {repr(float(value))}'
-                            for key, value in Camera_Calibration_Parameters_Str.Conversion_Factor.items())
-        views = record['views']
-        body = (CONST_CALIBRATION_HARDWARE_COMMENT + '\n'
-                f'Hardware: {hardware}\n\n'
-                'Calibration:\n'
-                '  # How this calibration was solved (Example/Camera/calibrate.py --images).\n'
-                '  Solved:\n'
-                f'    Date: {record["date"]}\n'
-                f'    Images: {json.dumps(record["images"])}\n'
-                '    # Views used: flat boards (lens model + factor) and tilted ones (lens model).\n'
-                f'    Views: {{Total: {int(views["total"])}, Flat: {int(views["flat"])}, '
-                f'Tilted: {int(views["tilted"])}}}\n'
-                f'    Reprojection_RMS_Px: {repr(float(record["rms_px"]))}\n'
-                '    # The board\'s square size [mm], as calipered.\n'
-                f'    Square_Size_Mm: {repr(float(record["square_mm"]))}\n'
-                '    # The reference plane: the flat boards\' surface height above the table [mm].\n'
-                '    # The factor is exact in this plane only.\n'
-                f'    Board_Height_Mm: {repr(float(record["board_height_mm"]))}\n'
-                '  # The sensor window this calibration was solved at [px]: its size and its offset on the\n'
-                '  # sensor. K and the conversion factor are in this window\'s pixels; a configuration that\n'
-                '  # sets the camera to any other window fails to load with this calibration.\n'
-                '  Resolution: {x: %d, y: %d}\n' % tuple(int(v) for v in Camera_Calibration_Parameters_Str.Resolution) +
-                '  Offset: {x: %d, y: %d}\n' % tuple(int(v) for v in Camera_Calibration_Parameters_Str.Offset) +
-                '  # Camera calibration (intrinsic) matrix K, 3 x 3, row-major.\n'
-                f'  K:\n{matrix_rows}\n'
-                '  # Distortion coefficients: [k1, k2, p1, p2, k3].\n'
-                f'  Coefficients:\n{coefficients}\n'
-                '  # Pixel-to-millimeter conversion factors for the x and y axes [mm/px], in the\n'
-                '  # undistorted (alpha = 1) pixel space measurement happens in.\n'
-                f'  Conversion_Factor:\n{factors}\n')
-
-        # 4\ Write the header and the regenerated content beside the target, then replace it whole: a
-        #    write that fails part-way (a full disk) must leave the calibration in force, not a torn one.
-        temporary = output_path + '.writing'
-        try:
-            with open(temporary, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(header).rstrip('\n') + '\n\n' + body)
-                f.flush()
-                os.fsync(f.fileno())
-            if os.path.exists(output_path):
-                shutil.copymode(output_path, temporary)
-            os.replace(temporary, output_path)
-        except BaseException:
-            if os.path.exists(temporary):
-                os.remove(temporary)
-            raise
+        __Check_Writable(Camera_Calibration_Parameters_Str, hardware, output_path)
+        header = __Header_Lines(header_source, hardware)
+        body = __Calibration_Body(Camera_Calibration_Parameters_Str, hardware, record)
+        __Replace_File(output_path, '\n'.join(header).rstrip('\n') + '\n\n' + body)
         return True
 
     except (AssertionError, OSError, KeyError, yaml.YAMLError) as error:
