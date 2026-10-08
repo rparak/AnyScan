@@ -122,7 +122,7 @@ CONST_DEVICES = ('auto', 'cpu', 'mps', 'cuda')
 CONST_CALIBRATION_FILE_KEYS = ('Hardware', 'Calibration')
 # The comment the calibration writer puts above 'Hardware:'. The header it copies from the file in
 # force stops before it — otherwise every write over an existing file added one more copy (the
-# calibration of f5cd075 carried two).
+# calibration of eb00508 carried two).
 #   Unit [string]
 CONST_CALIBRATION_HARDWARE_COMMENT = ("# The hardware this calibration belongs to; must equal the hardware part "
                                       "of this file's name.")

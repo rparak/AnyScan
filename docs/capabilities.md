@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `95d0b99` (2026-10-08).
+Last reviewed against the code at commit `248caa9` (2026-10-08).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -210,7 +210,7 @@ are not undistorted and sizes are not reported.
 | `Calibration.Coefficients` | The lens distortion, `k1 k2 p1 p2 k3`. | `calibrate.py` |
 | `Calibration.Conversion_Factor` | mm per pixel in x and y, exact in the flat boards' plane only. | `calibrate.py` |
 
-**The calibration in force** was solved on the rig on 2026-09-28 (commit `f5cd075`). It used 63
+**The calibration in force** was solved on the rig on 2026-09-28 (commit `eb00508`). It used 63
 views (22 flat, 41 tilted), with a reprojection RMS of 0.45 px. Its principal point lies about 25 px
 from the frame centre, and its factor is 0.102 mm/px in both axes. `Calibration.Solved` in the
 calibration file is the record. Its scale has not been checked against parts of known size
@@ -305,13 +305,13 @@ Each row names its evidence. A row with none is not verified.
 | Capability | Status | Evidence |
 |---|---|---|
 | The whole application on Apple-silicon macOS | Verified, measured | [README > Platform](../README.md#platform) |
-| The whole application on Linux (RTX 5070 Ti, CUDA 13) | Verified on one machine, 2026-09-29 | README > Platform; commit `fd45206` |
+| The whole application on Linux (RTX 5070 Ti, CUDA 13) | Verified on one machine, 2026-09-29 | README > Platform; commit `3cec51a` |
 | Installer on Linux: detection and the Gemma download | Verified, 2026-09-29 | [*The installer on Linux…*](design-decisions.md#the-installer-on-linux-detection-and-the-gemma-download-ran-the-rest-did-not) |
 | Installer on Linux: the full install, the CUDA 12 path, the CPU path, every refusal | **Not run** (stubbed tests only) | Same entry |
 | Windows | **Never tried**, not a target | README > Platform |
-| Multi-view calibration of the rig's camera | Solved on the rig, 2026-09-28: 63 views, RMS 0.45 px | `Calibration.Solved` in the calibration file; commit `f5cd075` |
+| Multi-view calibration of the rig's camera | Solved on the rig, 2026-09-28: 63 views, RMS 0.45 px | `Calibration.Solved` in the calibration file; commit `eb00508` |
 | Absolute size against parts of known size | **Not verified** | [README > Limitations](../README.md#limitations) |
-| Empty-surface reference `Image_Background_001` | Shot on the rig, with its provenance sidecar | commit `f5cd075` |
+| Empty-surface reference `Image_Background_001` | Shot on the rig, with its provenance sidecar | commit `eb00508` |
 | The sensor window set and read back on CONNECT | Verified, 2026-09-24 16:20, after a power-cycle from factory defaults | Session log: *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain 10.00, BayerRG8 (read back from the camera)*; status bar 1920 × 1200 |
 | Lost-connection detection (cable pull) | **Not verified** | capture-checklist item 4 |
 | Parts session: defects, low-contrast parts, harsh shadow | Not recorded | capture-checklist item 3 |

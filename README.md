@@ -206,7 +206,7 @@ a stated tolerance does not.
 
 - **Repeatable:** on the test set (`Data/Images/Test/All`, 2026-09-28), the large washer in six frames
   measures Ø 22.79–23.10 mm, and the rust-stained plate in three placements 60.92–61.10 × 39.98–40.55 mm
-  (`Image_007`, and `010` and `013`, which have since left the set — recoverable from `2d163a6^`). Repeatability says nothing about correctness — a wrong scale is
+  (`Image_007`, and `010` and `013`, which have since left the set — recoverable from `b5ca788^`). Repeatability says nothing about correctness — a wrong scale is
   the same in every frame.
 - **Position and thickness:** one camera with an ordinary lens, looking down, sees a thick part's
   outline partly above the plane it was calibrated in, and off the optical axis sees its side wall
@@ -232,7 +232,7 @@ corrosion is reported depends on how the part is framed, and nothing in the outp
 clean-sounding description of a stained part looks exactly like a correct description of a clean
 one. Treat surface condition in the text as a hint that may be absent, never as a finding.
 
-- **Evidence** (the previous test set, `f5cd075^`; not re-run on `All/`): the rust on its `Image_002`
+- **Evidence** (the previous test set, `eb00508^`; not re-run on `All/`): the rust on its `Image_002`
   plate — the stain the object prompt was written to catch —
   is named at crop paddings 0.20 and 0.36 and missed at 0.00–0.12 and 0.28. The text is identical on
   every run at a given padding, so this is a step with the framing, not sampling noise. The shipped

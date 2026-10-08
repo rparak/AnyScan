@@ -53,7 +53,7 @@ Description:
     test/Vision/data/characterization.txt on every run.
 
     It replaces Example/Vision/characterize.py, a manual gate (run it, then `git diff` its log)
-    that caught a missed baseline update once (0e67622) because someone happened to run it. The
+    that caught a missed baseline update once (714a3c9) because someone happened to run it. The
     snapshot is deliberately free of toolchain detail: no Python / NumPy / OpenCV versions, no
     foreground pixel counts, no box coordinates — only what the application's behaviour decides,
     so a dependency bump does not fail it.

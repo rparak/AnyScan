@@ -56,7 +56,7 @@ calibration written from it carries it.
 **Done 2026-09-28.** The set is `Data/Images/Calibration/20260928-103531`: 63 views (22 flat, 41
 tilted), reprojection RMS 0.45 px, flat-board height 4.22 mm, principal point about 25 px from the
 frame centre, factor 0.102 mm/px. Its record is `Calibration.Solved` in the calibration file
-(commit `f5cd075`).
+(commit `eb00508`).
 
 **Why.** The calibration it replaced was solved from a single view, and its principal point sat
 ~800 px off centre: one near-frontal view cannot separate the principal point from the board's
@@ -172,7 +172,7 @@ changes only the light.
 
 ### 3a. Defective parts, with clean controls
 
-**Why.** Whether a defect is reported depends on the framing: the previous test set's `Image_002` (`f5cd075^`) rust is named at crop
+**Why.** Whether a defect is reported depends on the framing: the previous test set's `Image_002` (`eb00508^`) rust is named at crop
 paddings 0.20 and 0.36 and missed at others (README > Limitations, *The describer is not a defect detector*).
 That is one stain on one frame. These frames measure detection across defects and framings, and they
 are the data an anomaly-detection rule — the route for defects, feeding the Classification verdict —

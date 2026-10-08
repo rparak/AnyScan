@@ -189,7 +189,7 @@ retuned back. A stale why-comment is corrected, not deleted, when its reason sti
   change, which is then reported and decided as one, not absorbed into the refactor.
 - **An expected failure must not be satisfiable by a missing input.** A strict `xfail` with
   `raises=AssertionError` accepts *any* `AssertionError`, including the one a missing-frame check
-  raises, so the test reads a real fault as confirmation that it is working. Instance: `2d163a6`
+  raises, so the test reads a real fault as confirmation that it is working. Instance: `b5ca788`
   removed `All/Image_009`–`013`; the count test's `assert frame is not None` raised `AssertionError`,
   and the three strict xfails on 009, 011 and 012 reported XFAIL, which is worse than a test that
   cannot fail. So check an xfail's inputs with `pytest.fail` (or build them in memory, as

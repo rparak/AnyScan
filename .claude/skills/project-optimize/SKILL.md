@@ -85,7 +85,7 @@ of checks, can score high and read fine. Splitting it scatters what belongs toge
 a finding when it does several things that already read as steps (numbered comments, blocks with
 their own purpose), and the split gives each step a name.
 
-**The pattern is commit `00149cc`**, which split `Load_Configuration` (F 52 → C 14), `Calibrate`
+**The pattern is commit `4f7f201`**, which split `Load_Configuration` (F 52 → C 14), `Calibrate`
 (E 36 → C 11) and `analyze.main` (D 21 → B 7) along their own steps:
 
 - `Load_Configuration` was compared with the committed loader on 1,052 mutated mode files: 175

@@ -66,7 +66,7 @@ CONST_EMPTY_SCENE_EXPLANATION = (
 )
 
 # The describer's own sentence openers, peeled for the LABEL only: Gemma begins every
-# description "The object is a …" (all 15 objects of the previous test set, f5cd075^); unpeeled,
+# description "The object is a …" (all 15 objects of the previous test set, eb00508^); unpeeled,
 # the distiller cut at ' is ' and every label read 'object'. (Florence-2's caption template
 # lead-ins — "In this image we can see …" — were peeled here too until Florence was removed;
 # Gemma never writes them.)

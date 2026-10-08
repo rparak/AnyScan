@@ -75,9 +75,9 @@ station's absolute path, a host name, a mount point — lives in that machine's 
 file, outside the repository, never in the shipped one. The shipped file keeps a repository-relative
 value that works on a fresh clone.
 
-Instance: `4e2dcef` put the station's `/home/sf4/sf4/events/` into the shipped
+Instance: `8d8a13c` put the station's `/home/sf4/sf4/events/` into the shipped
 `General.Station_Events.Directory`. The loader requires that directory to exist, so everywhere else the
-shipped configuration stopped loading and 17 test modules failed before any test ran. `c1d4f51` put back
+shipped configuration stopped loading and 17 test modules failed before any test ran. `9d44669` put back
 `logger/Station_Events`; README > Configuration says how a station keeps its own copy (same file name,
 the calibration symlinked beside it, started with `--config`).
 

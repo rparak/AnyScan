@@ -932,7 +932,7 @@ def test_writing_a_calibration_twice_over_the_same_file_gives_the_same_file(tmp_
         Write_Calibration copies the header comment of the file it writes over and regenerates the
         rest — including the comment above 'Hardware:', which is therefore not header. Writing the
         same result twice gives the same bytes, with that comment once: before this, every write over
-        an existing calibration added one more copy of it (the calibration of f5cd075 carried two).
+        an existing calibration added one more copy of it (the calibration of eb00508 carried two).
     """
 
     target = tmp_path / ('Calibration_%s.yaml' % CONST_HARDWARE)

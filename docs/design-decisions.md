@@ -58,7 +58,7 @@ box's lightness:
 white — which `#F1F2F4` did at ΔE 4.7. It was set to 25 for one round, and 25 capped the neutral
 fill at L\* ~75 (the outline/fill floor was never the constraint: with the outline near L\* 50 it
 stays at 28–30). Previews at L\* 80 and 85 settled it: L\* 80 (ΔE ~21 from white) still reads
-clearly as grey, including at full size on the previous test set's `Image_001` (`f5cd075^`; a visual
+clearly as grey, including at full size on the previous test set's `Image_001` (`eb00508^`; a visual
 check, not re-done on `All/`); L\* 85 (ΔE ~16) starts drifting back toward
 the white that was removed. So 21 is a chosen margin with L\* 85 as the point where it starts to fail
 visually, not a measurement limit — `Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E` carries this note so it
@@ -90,13 +90,13 @@ The EDIH-DIGIMAT brand magenta `#ff005c` reads as a fail marker at a glance, so 
 **NOK** verdict colour — exactly what that quality makes it good for. **Revisit only** if
 the verdict scheme itself changes; do not repurpose the magenta as a decorative object
 colour or swap it for a calmer red, because its fail-lookalike quality is the point.
-Commit `3494ba3`; test `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`.
+Commit `ab7df30`; test `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`.
 
 ## The colour-name saturation cutoff is 120, and was not tuned for the red block
 
 The model-free describer calls a pixel "coloured" only above HSV saturation 120
 (`Describe_Fallback.CONST_COLOR_SAT_MIN`); below it the object reads as grey/metal. 120
-sits in a real gap. It was set on the previous test set (`f5cd075^`: metal up to S=98,
+sits in a real gap. It was set on the previous test set (`eb00508^`: metal up to S=98,
 saturated colours from S=184, a pink-red block at S=121) and re-measured on
 `Data/Images/Test/All` (2026-09-28, median saturation per object): metal, plastic and white
 parts 2–78 (the dark plates 17–41), the blue parts 168–189, and the red block 124 and 143 —
@@ -106,7 +106,7 @@ cutoff, and lowering the line to "protect" the red block would only move the tig
 the metals. So it stays at 120. **Revisit
 if** new captures show real coloured parts clustering in the 98–184 band; the honest fix
 then is a better colour feature, not a nudged threshold.
-Commit `62c5097`; tests `test/Vision/test_describe_fallback.py::test_weak_metallic_cast_reads_grey_not_blue`, `::test_red_straddling_the_hue_wrap_votes_red_not_blue`.
+Commit `2fe808e`; tests `test/Vision/test_describe_fallback.py::test_weak_metallic_cast_reads_grey_not_blue`, `::test_red_straddling_the_hue_wrap_votes_red_not_blue`.
 
 ## Objects are not all routed through FastSAM to complete the confidence metric
 
@@ -121,7 +121,7 @@ changing *detection* to populate a *status* field. **Revisit by** giving the
 background-subtraction cue its own confidence (normalised change magnitude or mask-edge
 sharpness) so every object scores from whichever cue found it; until then the coverage
 fraction is the honest disclosure.
-Commit `4407c87`; [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) "confidence status metric is partial"; tests `test/UI/test_status_metrics.py::test_confidence_denominator_is_the_scored_count_not_the_total`, `::test_confidence_is_no_value_when_no_object_has_a_score`.
+Commit `5def2d0`; [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) "confidence status metric is partial"; tests `test/UI/test_status_metrics.py::test_confidence_denominator_is_the_scored_count_not_the_total`, `::test_confidence_is_no_value_when_no_object_has_a_score`.
 
 ## The fusion needs both cues — the previous test set's `Image_001` proved it in both directions
 
@@ -142,17 +142,17 @@ representative set, and the tests hold the background-only path. The entry stand
 background-only direction now rests on the original run, not on a frame in the repository.
 
 *Re-measured 2026-09-28 on the current test set* (`Data/Images/Test/All`; the frames above are the
-previous set, removed in `f5cd075`, recoverable from `f5cd075^` — names there do not match `All/`): 44
+previous set, removed in `eb00508`, recoverable from `eb00508^` — names there do not match `All/`): 44
 objects, 41 `both` and 3 `fastsam` (one each in `All/Image_001`, `007` and `013`), none background-only.
 The FastSAM-only direction is sharper than before — the dark rusted plate in `All/Image_013` is 2 % seen
 by the background cue — and the background-only direction still rests on the original run. The entry
 stands.
 
-*Re-measured 2026-09-28 on the eight frames left after `2d163a6`* removed `All/Image_009`–`013`
-(recoverable from `2d163a6^`): 37 objects, 35 `both` and 2 `fastsam` (the blue double triangle in
+*Re-measured 2026-09-28 on the eight frames left after `b5ca788`* removed `All/Image_009`–`013`
+(recoverable from `b5ca788^`): 37 objects, 35 `both` and 2 `fastsam` (the blue double triangle in
 `All/Image_001`, the lattice bracket in `007`), none background-only. The 2 % plate was in `013` and is
 no longer in the set; the FastSAM-only direction rests on the triangle and the bracket. The entry stands.
-Commit `fe4f10c`; tests `test/Vision/Utilities/test_fusion.py::test_object_seen_only_by_fastsam_survives`, `::test_object_seen_only_by_background_survives`.
+Commit `feca088`; tests `test/Vision/Utilities/test_fusion.py::test_object_seen_only_by_fastsam_survives`, `::test_object_seen_only_by_background_survives`.
 
 ## The closing never joins two components
 
@@ -163,10 +163,10 @@ were separate before the closing are never one object after it. `Segmentation.Fu
 stays 15.
 
 **Why.** Closing the fused mask as a whole joined any two parts less than the kernel apart: in the
-test set as it then was, `All/Image_010` and `013` (removed in `2d163a6`, recoverable from `2d163a6^`),
+test set as it then was, `All/Image_010` and `013` (removed in `b5ca788`, recoverable from `b5ca788^`),
 two plates 10.8 and 9.8 px apart came back as one object. That was a bridge with no reason behind it,
 and a smaller kernel would only have moved the distance at which it happens. Across all twenty real
-frames then available (the thirteen of `2d163a6^` and the previous seven) the closing
+frames then available (the thirteen of `b5ca788^` and the previous seven) the closing
 healed nothing — every count was the same with no closing at all — and with the new rule every other
 object's mask is identical pixel for pixel, the lattice bracket and the maze plate included. 010 and
 013 then counted two. Cost: fusion ~25 ms slower per frame. The trade-off is stated: a part the cues see
@@ -195,7 +195,7 @@ one renderer makes the on-screen annotation byte-identical to the export and key
 object to the same colour in both views. **Revisit if** the UI needs interaction the raster
 cannot give (hover, per-object selection, live zoom overlays), in which case reintroduce Qt
 painting but drive its colours from the same `Theme` tokens so the two cannot drift.
-Commit `5461678`; test `test/UI/test_camera_view.py::test_switching_view_does_not_invoke_the_pipeline`.
+Commit `94b74fa`; test `test/UI/test_camera_view.py::test_switching_view_does_not_invoke_the_pipeline`.
 
 ## Staleness clears the result rather than marking it
 
@@ -207,7 +207,7 @@ would say so — and clearing is unambiguous where a "stale" badge invites the o
 keep reading a mismatched overlay. **Revisit if** a use case needs to compare an old
 analysis against a new frame side by side, which would call for an explicit two-pane
 compare, not a marked-stale single view.
-Commit `5461678`; tests `test/UI/test_camera_view.py::test_a_new_scan_makes_the_result_stale_and_hides_the_toggle`, `test/UI/test_threading.py`.
+Commit `94b74fa`; tests `test/UI/test_camera_view.py::test_a_new_scan_makes_the_result_stale_and_hides_the_toggle`, `test/UI/test_threading.py`.
 
 ## `strip_background` binds `surface` to a background noun instead of matching the word
 
@@ -225,7 +225,7 @@ about a milled plate is kept while "a green surface" is stripped. Every strip an
 substitution is logged to the audit, so over-stripping is visible, not silent. **Revisit
 if** captions show a background noun the list misses (extend the list, with a kept/stripped
 test pair) — never by widening back to bare word-matching.
-Commit `47be425`; test `test/Reporting/test_core.py::test_strip_background_noun_binding`.
+Commit `dfbb3b2`; test `test/Reporting/test_core.py::test_strip_background_noun_binding`.
 
 ## A failed analysis writes a PARTIAL capture set, on purpose
 
@@ -241,7 +241,7 @@ directory. The missing annotated/mask/YOLO files are therefore expected for a pa
 not an incomplete implementation — reading them as a bug is the mistake this note exists to
 prevent. **Revisit if** a future pipeline renders the annotation before it can fail, in
 which case a failed set could carry the annotation too.
-Commit `44be4a6`; tests `test/UI/test_logging_coverage.py::test_mid_analysis_failure_tags_the_error_and_writes_a_partial_set`, `test/UI/test_capture.py::test_a_write_failure_raises`.
+Commit `1b208df`; tests `test/UI/test_logging_coverage.py::test_mid_analysis_failure_tags_the_error_and_writes_a_partial_set`, `test/UI/test_capture.py::test_a_write_failure_raises`.
 
 ## The YOLO `<set>.txt` ids are per-frame indices, NOT classes — do not train on them
 
@@ -259,7 +259,7 @@ same warning in its own header, so the caution travels with the data. They becom
 dataset only once ids are reassigned by actual class. **Revisit when** classification
 exists: the id then comes from the class, and this note is rewritten — the id stops being a
 per-frame handle and becomes a real label.
-Commit `44be4a6`; tests `test/Reporting/test_core.py::test_yolo_lines_are_normalised_and_indexed_from_the_object_list`, `test/UI/test_capture.py::test_yolo_file_holds_the_given_lines_and_classes_has_a_header`.
+Commit `1b208df`; tests `test/Reporting/test_core.py::test_yolo_lines_are_normalised_and_indexed_from_the_object_list`, `test/UI/test_capture.py::test_yolo_file_holds_the_given_lines_and_classes_has_a_header`.
 
 ## The three confidence figures have one home each, at three different scopes
 
@@ -289,7 +289,7 @@ the frame mean under a session label). Coverage stays out of the status bar (it 
 log and the frame table). **Revisit if** a fourth scope is wanted (e.g. a rolling window of
 the last N analyses): add it as its own cell with its own scope in the label, never overload
 an existing one.
-Commit `5191b73`; tests `test/UI/test_status_metrics.py::test_frame_mean_and_session_mean_are_over_their_own_scopes`, `::test_session_mean_weights_each_object_equally_not_each_frame`, `test/UI/test_reading_view.py::test_object_blocks_carry_the_shared_label_and_description`.
+Commit `8c48a73`; tests `test/UI/test_status_metrics.py::test_frame_mean_and_session_mean_are_over_their_own_scopes`, `::test_session_mean_weights_each_object_equally_not_each_frame`, `test/UI/test_reading_view.py::test_object_blocks_carry_the_shared_label_and_description`.
 
 ## Segmentation polygons keep only the outer contour, and the set carries a JSON record
 
@@ -315,7 +315,7 @@ any other reader use the JSON. A `<set>_thumb.jpg` (~320 px long edge) is writte
 annotated image so History never decodes full PNGs to fill its grid. **Revisit if** History needs
 a field the JSON does not carry — add it to `Build_Set_Metadata`, the single builder, so the file
 and the reader stay in step.
-Commit `157eabe`; tests `test/Vision/Utilities/test_annotate.py::test_seg_keeps_only_the_outer_contour_for_a_holed_object`, `test/UI/test_history_data.py::test_metadata_round_trips_and_matches_the_detection_list`.
+Commit `61bb651`; tests `test/Vision/Utilities/test_annotate.py::test_seg_keeps_only_the_outer_contour_for_a_holed_object`, `test/UI/test_history_data.py::test_metadata_round_trips_and_matches_the_detection_list`.
 
 ## Classification is a per-configuration switch that exposes the verdict UI, not one that creates it
 
@@ -355,7 +355,7 @@ missing classifier, not the config.
 
 **Revisit when** a classifier lands: it sets `Detection_Str.Verdict`, the empty-NOK message stops
 being the normal state, and the switch starts gating a feature that actually runs.
-Commit `c34983e`; tests `test/Configuration/test_core.py`, `test/UI/test_history.py::test_the_two_empty_nok_states_are_distinguishable`, `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`.
+Commit `1fbbd7b`; tests `test/Configuration/test_core.py`, `test/UI/test_history.py::test_the_two_empty_nok_states_are_distinguishable`, `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`.
 
 ## History shows only the current run, identified by a run id
 
@@ -542,16 +542,16 @@ changed; it goes on citing, asserting or loading whatever now carries the name.
 1. **The first renumbering.** The frame committed as `Data/Image_006.png` became `Data/Camera/Image_001.png`
    and later `Data/Images/Test/Image_001.png` (one blob, three names); notes written against the old
    numbers pointed at different images. A clone at the old commit still has them under the old names.
-2. **`f5cd075` deleted the seven test frames and added thirteen others under the same names.**
+2. **`eb00508` deleted the seven test frames and added thirteen others under the same names.**
    `All/Image_001` is not the old `Image_001`. The tests' pins (`Image_001` → nine objects, `Image_004`
    → one plate) looked for the old names in the old folder, found nothing and *skipped* — two tests
    tested nothing from then on, and nothing said so. Measured evidence citing `Image_002–005` cited
    frames that no longer existed.
-3. **`f5cd075` overwrote `Data/Images/Background/Image_Background_001.png`** with a new reference
+3. **`eb00508` overwrote `Data/Images/Background/Image_Background_001.png`** with a new reference
    shot under the new calibration. Capture sets record the reference by path
    (`_objects.json` `background_reference`), so every set made before then names an image it was
    not differenced against.
-4. **`2d163a6` removed `All/Image_009`–`013` and left their pins in place:** the five inventory counts
+4. **`b5ca788` removed `All/Image_009`–`013` and left their pins in place:** the five inventory counts
    and the strict xfails on 009, 011 and 012. The xfails expected an `AssertionError`, and a missing
    frame raises one, so three of the five read as expected failures; only 010 and 013 failed, and only
    under `--runslow` with the weights. Not a replacement, but the same failure: the name outlived the
@@ -661,8 +661,8 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   part an orientation that changes on noise, so a drawn rectangle would appear to spin on a part
   that has not moved. The test is elongation — the square root of the mask's second-moment
   eigenvalue ratio — below **1.15**: the thirteen frames `Data/Images/Test/All` held on 2026-09-28
-  (`2d163a6^`) put round parts at 1.002–1.016 and the least elongated non-square part at 1.468 (the
-  robot in 005; the plates 1.49–1.60). Re-measured on the eight left after `2d163a6`, every figure
+  (`b5ca788^`) put round parts at 1.002–1.016 and the least elongated non-square part at 1.468 (the
+  robot in 005; the plates 1.49–1.60). Re-measured on the eight left after `b5ca788`, every figure
   holds except the plates, 1.49–1.54. **A square is the exception:** it is as un-elongated as a
   disc (1.013, the maze plate in `All/Image_008`) but its sides are real edges that `minAreaRect`
   finds reliably, so un-elongated parts are only called symmetric when also round — extent (contour
@@ -728,7 +728,7 @@ number.
   direction. It is also the robust choice here: the masks clip the nuts' corners (their widest
   caliper width is 1.055–1.121 × their across flats on `All/`, not 1.155), which pulls a mean or an
   across-corners number but not the flats. When the convention was introduced (on the previous test
-  set, `f5cd075^`) the two nuts moved from Ø 12.0 to A/F 11.7 mm and from Ø 11.6 to A/F 11.5 mm — much
+  set, `eb00508^`) the two nuts moved from Ø 12.0 to A/F 11.7 mm and from Ø 11.6 to A/F 11.5 mm — much
   less than the theoretical 7.5 %, for exactly that reason.
 - **Stored.** `_objects.json` records `across_flats` and `hexagonality` (null when the part is not
   symmetric). A record written before this convention has no `across_flats` and reads back as a
@@ -879,7 +879,7 @@ another repository; rewriting them would misstate that origin.
 
 ## The describer is Gemma 4 E4B, prompted, behind a describer seam
 
-*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 Stage 4 (the per-object description and the one background sentence) moves from Florence-2 to
 **Gemma 4 E4B-it**, the local `models/gemma-4-e4b-it-4bit`. Segmentation stays on FastSAM.
@@ -944,7 +944,7 @@ weights exist).
 
 ## The background strip is removed, not retuned
 
-*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 `Reporting.Strip_Background` deleted any object sentence that was *about* the background and
 trimmed trailing phrases like "on a green surface". It existed because Florence-2 wrote table
@@ -969,7 +969,7 @@ Tests `test/Reporting/test_core.py::test_a_sentence_naming_the_surface_is_kept_w
 
 ## The label distiller peels Gemma's opener — and the label is still weak
 
-*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 Gemma opens every description "The object is a …" (all 15 objects of the seven frames), which the
 Florence lead-ins do not cover; the distiller cut at " is " and every label — which feeds `type=`
@@ -990,7 +990,7 @@ Test `test/Vision/Utilities/test_caption.py::test_condense_label_peels_gemmas_op
 
 ## The label runs up to the head noun (supersedes the comma cut)
 
-*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 The first opener fix left 8 of 15 labels a single adjective, because the distiller cut at the
 first comma and Gemma lists adjectives with commas ("a rectangular, flat plate"). The problem was
@@ -1024,7 +1024,7 @@ Test `test/Vision/Utilities/test_caption.py::test_condense_label_takes_the_phras
 
 ## The substance substitution is removed
 
-*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 `Reporting.Substitute_Substance` rewrote "wood", "paper" and "cardboard" to "metal" in object
 descriptions, because Florence-2 read the concentric machining marks as wood grain. Over the seven
@@ -1042,7 +1042,7 @@ Test `test/Reporting/test_core.py::test_the_models_words_are_not_rewritten`.
 
 ## Florence-2 is removed; Gemma is the only describer
 
-*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 After the seven-frame comparison (both models on the same crops, the same pipeline, each in its own
 process) Gemma was kept: warm, after load, 2.22 s per object against Florence's 1.12 s — the
@@ -1192,7 +1192,7 @@ itself under the pointer stays visibly disabled. The exemption is a named consta
 **Exempt means the fill signals, not that the label disappears.** Disabled ANALYZE first shipped
 with a `#f2f1f6` label on its `#cbc8db` fill: 1.46:1, ΔE 5.3 from the enabled label. It was nearly
 invisible instead of looking greyed out. It was not a deliberate pairing. Both values arrived as
-bare literals in a commit about the Annotated/Mask toggle (`5461678`), with no comment or reason,
+bare literals in a commit about the Annotated/Mask toggle (`94b74fa`), with no comment or reason,
 apparently each lightened on its own to "fade" the button. The fill already carries the disabled
 signal (ΔE 68 from enabled), so the label is now the existing `CONST_INK_MUTE`: 2.19:1, clearly
 muted and still readable. The more legible `#6b6590` (3.30:1) was turned down because it would
@@ -1311,7 +1311,7 @@ shutdown rather than at startup.
 
 ## The object crop padding stays at 0.20 for Gemma
 
-*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 **What it is.** `Description.Object_Crop_Padding` pads each object's crop outward by a fraction of
 its longer side before the crop is enhanced and described. It was set to 0.20 for Florence-2, which
@@ -1413,7 +1413,7 @@ Every path through `Vision_Pipeline_Cls.Analyze` runs stage 1, background subtra
 configured `Segmentation.Background.Reference`, which the configuration requires. There is no analysis
 without a reference.
 
-**Why.** Until commit `7b1559c` a second detector, `CONST_DETECTOR == 'florence'`, ran Florence-2's
+**Why.** Until commit `58bed68` a second detector, `CONST_DETECTOR == 'florence'`, ran Florence-2's
 `<REGION_PROPOSAL>` on the whole frame with no reference — the only path that could analyse an
 arbitrary image. No code set it (the default was `'fastsam'`), no test exercised it, and it was slower
 than FastSAM: an untested branch carrying a capability nothing used. The application, `analyze.py` and
@@ -1422,7 +1422,7 @@ image from a camera with no reference capture. (Moved here from KNOWN_ISSUES on 
 
 **Revisit if** the application has to analyse images from a camera with no empty-surface reference.
 Restoring it means a whole-frame detector ahead of stage 1, the describe-each-box loop and its crop
-helper (all recoverable from `7b1559c`'s parent) — and the test the original never had.
+helper (all recoverable from `58bed68`'s parent) — and the test the original never had.
 Tests `test/Vision/test_analyze_harness.py::test_missing_reference_fails_before_writing_anything`.
 
 ## Type: a scale for content, chosen sizes for chrome
@@ -1437,7 +1437,7 @@ metadata, overlays — is sized per widget and is not held to the scale.
 **Why.** The content is what a person reads to decide something, and its hierarchy is what makes it
 readable: a size is chosen as a step on the scale ("one step down from the label"), so a change
 moves a token, and the relative order cannot invert unnoticed. It did once: History's info panel
-put its heading below the text it headed until it got its own tokens (commit `9fd3b5c`). Live and
+put its heading below the text it headed until it got its own tokens (commit `3c908b1`). Live and
 History use **separate** token sets on purpose — Live is glanced at across a workbench and runs large
 (descriptions 12.5 pt), History is read up close while comparing two images (10.5 pt) — so the same
 description is deliberately a different size in the two views, and tuning one distance cannot move
@@ -1568,12 +1568,12 @@ input or a record is added or removed: the diagram draws each one.
   the logo this way beside the indigo UI, and the diagram mirrors that on an opaque `CONST_BG`
   card, which reads like a screenshot on a light or a dark README. Do not "fix" the logo to the
   tokens: it is the brand lockup, not a UI surface.
-  *Corrected 2026-10-03:* the owner redesigned the logo's colours in `4599d7b`. The ink (mark, "Any")
+  *Corrected 2026-10-03:* the owner redesigned the logo's colours in `352688d`. The ink (mark, "Any")
   is now `#2B2455`, the theme's `CONST_INK`, and the tagline `#4A4180`, `CONST_INK_SOFT`; the magenta
   stays the logo's own `#D6006E`, not `CONST_BRAND`. That commit changed the three outlined files only,
   so the text source (`images/source/anyscan-logo-text.svg`), the live text's `CONST_LOGO_INK` /
   `CONST_LOGO_TAGLINE` (now aliases of the two theme tokens) and this diagram followed in the next commit.
-  A full `build_logo.py` rebuild from the recoloured source reproduces `4599d7b`'s logo byte for byte.
+  A full `build_logo.py` rebuild from the recoloured source reproduces `352688d`'s logo byte for byte.
 
 **Revisit if** the logo is redesigned (rebuild it with `Example/UI/build_logo.py`, regenerate), or
 if the code changes what the diagram shows. The generator holds the colours; the content is
@@ -1645,7 +1645,7 @@ Tests `test/UI/test_brand_figures.py` (`test_the_logo_renders_the_same_in_any_de
 
 ## Gemma 4 12B was measured against E4B and is not better; E4B stays the describer
 
-*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 The obvious intuition is that a bigger model describes better. It was measured on 2026-09-25,
 and it does not hold here. `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09` (6.77 GB, the same
@@ -1909,7 +1909,7 @@ Tests `test/Camera/test_generate_checkerboard.py::test_the_calibration_detector_
 
 ## The first analysis's one-time costs are paid at configuration load ("Warming up…")
 
-*Evidence from the previous test set* — the seven frames removed in `f5cd075` (recoverable from `f5cd075^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the timing run again. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the timing run again. The `Image_NNN` names below refer to that set.*
 
 `Vision_Pipeline_Cls.Configure`, once the configuration is in force, reads the reference, runs
 FastSAM on it (it has the frame's size) and describes the background sentence — which is also
@@ -1978,7 +1978,7 @@ Tests `test/Vision/test_core.py::test_a_configuration_load_warms_up_what_the_fir
 `::test_a_failed_warm_up_is_not_a_failed_load`,
 `::test_the_reload_after_a_failed_load_is_warmed_up_like_a_load`,
 `test/UI/test_configuration_dialog.py::test_the_loading_line_follows_the_loaders_phases` ("Warming up…"
-as painted); commit `fd369e4`. The load and warm-up log lines:
+as painted); commit `aae4fd1`. The load and warm-up log lines:
 `test/UI/test_timing_log.py::test_a_configuration_load_logs_each_model_and_the_warm_up`,
 `::test_a_warm_up_that_stops_early_is_a_warning`, `::test_the_first_analysis_after_each_load_is_marked`.
 
@@ -2143,7 +2143,7 @@ height differs (59 px below DPR 1.5, 54 px above).
 - **Text:** `Style.CONST_LOGO_TEXT` holds each line as the source sets it, in logo units: the pen origin
   (268, 132) and (270, 184), the sizes 87 and 36, whether the line takes the display cut, and the spans.
   The colours are the tokens `CONST_LOGO_INK` `#2b2455`, `CONST_LOGO_MAGENTA` `#d6006e` and
-  `CONST_LOGO_TAGLINE` `#4a4180`, the source's fills exactly (since `4599d7b` the ink and the tagline
+  `CONST_LOGO_TAGLINE` `#4a4180`, the source's fills exactly (since `352688d` the ink and the tagline
   are the theme's `CONST_INK` and `CONST_INK_SOFT`; see *The logo's palette predates the theme*, corrected). "Scan" starts where it starts in the whole word as shaped, so the kerning
   across the colour change is kept. The sizes are the logo's (29.5 and 12.2 px at 59 px; 27.0 and 11.2 at
   54), converted to points through the widget's DPI and built with `Style.Font`, so the 9 pt floor applies.
@@ -2176,7 +2176,7 @@ the outlined logo rendered at the same height (device px, live minus outlined, 9
 12 px. The offscreen test platform is 100 dpi, where the logo's 12.2 px tagline is 8.79 pt, the 9 pt
 floor raises it to 12.5 px and it draws at 13 px: tagline cap height 9.48 against the outlined 8.40.
 `test_the_lockup_matches_the_outlined_logo` compared it with the outlined size regardless, so it failed in
-every DPR 1 offscreen run from `92bacdc`, when it was added. It now scales the outlined tagline's cap height
+every DPR 1 offscreen run from `3de32ef`, when it was added. It now scales the outlined tagline's cap height
 by the size the floor rule gives (`Style.Font` of the logo's size, at Qt's whole pixel), derived from the
 rule and not read back from the lockup's font, so a mis-sized tagline still fails at both densities.
 
@@ -2339,7 +2339,7 @@ Tests `test/Vision/Utilities/test_caption.py::test_condense_label_names_the_part
 
 ## The installer on Linux: detection and the Gemma download ran, the rest did not
 
-Recorded 2026-09-29 from that day's Linux run (commit `fd45206`, README > Platform; the machine's
+Recorded 2026-09-29 from that day's Linux run (commit `3cec51a`, README > Platform; the machine's
 measurements are in *E4B stays the describer on both machines*). Nothing was re-run for this entry.
 It keeps "tested" and "ran for real" apart for each installer path, as the Mac's runs are kept apart
 in `test/Install/test_install.py`'s docstring.
@@ -2362,7 +2362,7 @@ in `test/Install/test_install.py`'s docstring.
 
 **Revisit if** a machine runs the full Linux install, the CUDA 12 path or the CPU path: record it
 here, then update README > Setup and the docstring of `test/Install/test_install.py`.
-Tests `test/Install/test_install.py` (the stubbed branches); commit `fd45206` for the run.
+Tests `test/Install/test_install.py` (the stubbed branches); commit `3cec51a` for the run.
 
 ## The daily station event file is exported from the session log at close, not written live
 

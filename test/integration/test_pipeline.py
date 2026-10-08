@@ -57,7 +57,7 @@ Description:
 CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 # The pinned test set's inventory (Evaluation.Frames = Data/Images/Test/All): how many parts are on
 # each frame, counted by looking at the frame — NOT what the pipeline reports, so a wrong count fails.
-# The five two-plate frames 009-013 were removed from the set in 2d163a6 (recoverable from 2d163a6^);
+# The five two-plate frames 009-013 were removed from the set in b5ca788 (recoverable from b5ca788^);
 # their evidence is in KNOWN_ISSUES.md, "Touching parts merge before the closing".
 #   Unit [Dict<string, int>]
 CONST_INVENTORY = {
