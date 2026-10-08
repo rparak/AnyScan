@@ -121,7 +121,7 @@ changing *detection* to populate a *status* field. **Revisit by** giving the
 background-subtraction cue its own confidence (normalised change magnitude or mask-edge
 sharpness) so every object scores from whichever cue found it; until then the coverage
 fraction is the honest disclosure.
-Commit `5def2d0`; [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) "confidence status metric is partial"; tests `test/UI/test_status_metrics.py::test_confidence_denominator_is_the_scored_count_not_the_total`, `::test_confidence_is_no_value_when_no_object_has_a_score`.
+Commit `5def2d0`; [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) "confidence status metric is partial"; tests `test/UI/test_status_metrics.py::test_status_confidence_denominator_is_the_scored_count_not_the_total`, `::test_status_confidence_is_no_value_when_no_object_has_a_score` (*Corrected 2026-10-08:* renamed from `test_confidence_…`).
 
 ## The fusion needs both cues — the previous test set's `Image_001` proved it in both directions
 
@@ -289,6 +289,13 @@ the frame mean under a session label). Coverage stays out of the status bar (it 
 log and the frame table). **Revisit if** a fourth scope is wanted (e.g. a rolling window of
 the last N analyses): add it as its own cell with its own scope in the label, never overload
 an existing one.
+*Corrected 2026-10-08:* since `d14a130` the third scope is the **run** (since the start or the last
+Clear), labelled "Inference (run median)" and "Confidence (run mean)", and its accumulator is
+`Reporting.Trends` (`AnyScan_Window_Cls.__trends.Run_Mean()`), not `__session_scores`. It still
+weights each object equally, but averages each scored object's whole percentage
+(`int(round(100 × score))`) rather than the raw scores, so it can differ by one point from
+`Frame_Confidence` over the same objects (scores 0.569 and 0.802: 69 % by `Frame_Confidence`, 68 %
+by `Trends`).
 Commit `8c48a73`; tests `test/UI/test_status_metrics.py::test_frame_mean_and_session_mean_are_over_their_own_scopes`, `::test_session_mean_weights_each_object_equally_not_each_frame`, `test/UI/test_reading_view.py::test_object_blocks_carry_the_shared_label_and_description`.
 
 ## Segmentation polygons keep only the outer contour, and the set carries a JSON record
@@ -590,7 +597,7 @@ default), for the same reason `verdict_colored` is; `None` is an explicit "no co
 and writes to `log_unconfigured.csv`, which belongs to no hardware. **A configuration change
 therefore starts a new CSV** — different hardware, different summary, which is the intent. The
 shipped config produces the existing name, so current files continue unchanged.
-Tests `test/Logger/test_core.py::test_csv_filename_follows_the_loaded_configuration`,
+Tests `test/Logger/test_core.py::test_csv_filename_follows_the_hardware_of_the_loaded_configuration` (*Corrected 2026-10-08:* renamed from `…follows_the_loaded_configuration`),
 `::test_logger_requires_the_configuration_to_be_stated`.
 
 ## Run-summary CSV: six time-account columns; an older format is archived, never appended to
@@ -635,11 +642,13 @@ overwritten; the row is the time account), `test/Logger/test_core.py`.
 ## Object measurement: mm per pixel, our own angle convention, and a symmetric case with a square exception
 
 Each masked object is measured from the minimum-area rotated rectangle of its mask
-(`Vision.Utilities.Measure`), converted through `Camera.Calibration.Conversion_Factor`.
+(`Vision.Utilities.Measure`), converted through the calibration file's `Calibration.Conversion_Factor`
+(*Corrected 2026-10-08:* this named `Camera.Calibration.Conversion_Factor`, which is not a key path).
 
 - **The factor is millimetres per pixel.** The YAML labels it `[mm/px]`, and the calibration
   derives it as `square_size_mm / mean corner spacing in px`
-  (`Calibration.Core.__Get_Pixel_To_MM_Factor`) — so `mm = px × factor`, per axis. Two physical
+  (`Calibration.Core.__Get_Pixel_To_MM_Factor`; *Corrected 2026-10-08:* now `__Solve_Factor` and
+  `__Solve_Scale`) — so `mm = px × factor`, per axis. Two physical
   cross-checks agree: 1920 px × 0.098 ≈ 188 mm field width, and K's focal length 3886 px × 0.098
   mm/px ≈ 381 mm working distance. Nothing applied the factor before this; it is read once through
   `Read_Conversion_Factor`, passed as a `Scale_Str` (required, keyword-only, like the classification
@@ -963,7 +972,7 @@ only peels a template lead-in and applies the substance substitution.
 - **Consequence while Florence is reachable:** Florence's captions keep their table phrases
   ("A hex bolt on a green surface."), which is what the comparison should see.
 Tests `test/Reporting/test_core.py::test_a_sentence_naming_the_surface_is_kept_whole`,
-`::test_describe_object_detail_reading_and_fallback`,
+`::test_object_description_detail_reading_and_fallback` (*Corrected 2026-10-08:* renamed from `test_describe_…`),
 `test/integration/test_pipeline.py::test_pipeline_camera_to_reporting`.
 
 
@@ -1704,7 +1713,9 @@ comparison is like for like.
 
 **Decision:** E4B stays the describer on macOS and is the default on Linux. The 12B is available
 only as `./install.sh --model 12b`, which prints the provenance gap and these results when the
-flag is given.
+flag is given. *Corrected 2026-10-08:* `--model` was removed on 2026-09-29 and the 12B is no longer
+supported (*No longer supported (2026-09-29)*, under *E4B stays the describer on both machines*);
+`test/Install/test_install.py` now pins `--model` as an unknown option.
 **Revisit if** a 12B-specific prompt fixes the plastics without losing the rust and the clean
 plate. Then it is an argument for the 12B on macOS too, at 2.5× the time per object.
 
@@ -1737,7 +1748,10 @@ weights, built for vLLM. A file-size estimate would have missed that.
     set, two CUDA contexts and FastSAM), and 16 GB cards report ~16,300 MiB;
   - **a card already using more than 1.5 GB** (a display, another process) gets a warning.
 
-  These are estimates: nothing has run on Linux.
+  These are estimates: nothing has run on Linux. *Corrected 2026-10-08:* the 2026-09-29 Linux run
+  measured a 9.5 GB whole-application peak, which the 11 GiB floor clears (*The installer on Linux:
+  detection and the Gemma download ran, the rest did not*); the `--model 12b` bullets here and below
+  describe an option removed that day.
 - **No silent CPU fallback.** A machine without a usable NVIDIA GPU (no driver, a failing
   `nvidia-smi`, an old driver, compute capability below 7.5, too little memory) now stops. The
   message names the reason and the 11 GB minimum, and suggests `--cpu`. A silent fallback
@@ -2106,10 +2120,11 @@ Below a device pixel ratio of 1.5 (`Style.Is_Low_Density`) no text is set below 
 included), raises a smaller size to 9 pt there. At DPR 1.5 and above every size is as written. The ratio is
 the application's, read when the font is built: the value a widget reads before its window is shown, with
 the same limit as the logo (a screen change does not rebuild fonts; *The logo is 59 px on a low-density
-display*). It raises ten chrome styles, all 7.5-8.5 pt: the frame and stage badges (`Widgets.py:217`), the
-status-strip labels (`Widgets.py:1066`), the funding note (`Widgets.py:1249`), History's card time, card
-count and failed thumbnail (`History.py:245, 250, 298`), its rolling-window note (`History.py:419`), image
-captions (`History.py:550`) and connection group label and count (`History.py:796, 801`). Content sizes
+display*). It raises ten chrome styles, all 7.5-8.5 pt: the frame and stage badges (`Widgets.py`
+`Badge_Cls`), the status-strip labels (`Stat_Cell_Cls`), the funding note (`Funding_Row_Cls`), History's
+card time, card count and failed thumbnail (`History.py` `Thumb_Card_Cls`), and in `History_View_Cls`
+its rolling-window note, image captions and connection group label and count. (*Corrected 2026-10-08:*
+these were cited by line number, which had drifted.) Content sizes
 (`CONST_TYPE_SCALE`, smallest 9.5 pt) are not touched.
 
 **Why.** On a 1x monitor a regular-weight 7.5-8.5 pt text is 10-11 px, and at that size 0.02-0.05 of its
