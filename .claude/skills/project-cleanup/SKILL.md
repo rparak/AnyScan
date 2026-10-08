@@ -6,7 +6,7 @@ description: >-
   two phases, always in this order: report first with nothing changed, then small, independently
   verifiable steps. Use it for "clean up", "remove unused code", "dead code", "optimise", "speed
   up", "tidy the docs", or a review of what can go. Every code, test, YAML and Markdown convention
-  comes from project-style-rpx, and commits follow feature-manager § 7.
+  comes from project-style-rpx, and commits follow feature-manager § 8.
 ---
 
 # project-cleanup
@@ -14,7 +14,7 @@ description: >-
 Two phases, always in this order. **Phase 1 changes nothing.** Phase 2 runs only the steps the user
 has approved.
 
-**Conventions come from `project-style-rpx`**, and commits follow `feature-manager` § 7 (small, your
+**Conventions come from `project-style-rpx`**, and commits follow `feature-manager` § 8 (small, your
 own hunks only, never pushed unasked). Neither is restated here. A cleanup that changes behaviour is
 not a cleanup: it goes through `feature-manager`.
 
@@ -107,7 +107,7 @@ step.
   package, or a behaviour described in the prose. The drift tests fail on a named thing left behind.
   A described behaviour has no name for them to check, so read the document for it.
 - **Every step that changes `src/`, `App/`, `Configuration/` or `Example/` reviews
-  `docs/capabilities.md`**, per `feature-manager` § 8. A behaviour-preserving step affects no
+  `docs/capabilities.md`**, per `feature-manager` § 9. A behaviour-preserving step affects no
   capability: move the *Last reviewed* line and say *Capabilities: no change (behaviour-preserving)*
   in the message. The review test fails on a step that skips it.
 - **Performance**: measure before and after on the same frames, on the same machine, with several

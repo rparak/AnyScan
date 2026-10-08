@@ -3,8 +3,9 @@ name: feature-manager
 description: >-
   Turns a change request written as notes — often Czech or Slovak, often short or incomplete —
   into a well-scoped change to the AnyScan application and carries it through. It restates the
-  request as requirements, checks the premise before fixing, reports before building, measures
-  instead of judging, and commits small. Use it for any new feature, behaviour change or bug fix
+  request as requirements, checks the premise before fixing, challenges whether the requested
+  solution is the right one (a vision, AI and software reviewer's checklist), reports before
+  building, measures instead of judging, and commits small. Use it for any new feature, behaviour change or bug fix
   in this repository, including a one-line note ("přidat export do CSV", "fúzia spája dve
   platne"). Every code, test, YAML and Markdown convention comes from project-style-rpx, which
   this skill does not restate.
@@ -42,7 +43,8 @@ default and build on it.
 - The plan **rests on an assumption** you have not checked: what the user means by a term, or what
   causes the behaviour they describe.
 
-A small, unambiguous change (a typo, a label, one obvious fix) goes straight to section 3.
+A small, unambiguous change (a typo, a label, one obvious fix) needs no question. Sections 2 and 3
+then take a line each, and it goes straight to building.
 
 ## 2. Check the premise
 
@@ -66,7 +68,86 @@ segmenter" would have fixed one frame of three.
 When the premise is wrong, report what you found and ask whether the request still stands. Do not
 quietly build a different fix.
 
-## 3. Report before implementing
+## 3. Challenge the approach
+
+Section 2 asks whether the problem is where the request says. This step asks whether the **requested
+solution** is the right one. Act as a reviewer with machine-vision, AI and software-engineering
+judgement, not as the person who will build it.
+
+- **Is this the right lever?** If a better alternative exists, name it, give its trade-off, and say
+  which you would choose. Cases from this project:
+  - *Filtering after identification instead of changing segmentation.* Decide what to keep once the
+    objects are found, rather than retuning the stage that finds them. No design-decisions entry
+    records this; the stage-3 mask filter (commits `cad71fe`, `6431f6e`) is the nearest.
+  - *Measuring a threshold before moving it.* See
+    [*The colour-name saturation cutoff is 120…*](../../../docs/design-decisions.md#the-colour-name-saturation-cutoff-is-120-and-was-not-tuned-for-the-red-block),
+    [*The object crop padding stays at 0.20 for Gemma*](../../../docs/design-decisions.md#the-object-crop-padding-stays-at-020-for-gemma),
+    and route 2 in [*Touching parts merge before the closing*](../../../KNOWN_ISSUES.md#touching-parts-merge-before-the-closing):
+    a larger `Image_Size` looked like the fix and cost frames that counted correctly.
+  - *A larger model that wasn't better.* See
+    [*Gemma 4 12B was measured against E4B and is not better…*](../../../docs/design-decisions.md#gemma-4-12b-was-measured-against-e4b-and-is-not-better-e4b-stays-the-describer).
+- **Will the result mean what it seems to?** Flag where an output could look right and be wrong: a
+  number shown more precisely than it is known, a clean description of a part nobody checked, a
+  test that passes because its input is missing.
+
+Go through the checklist below for the areas the change touches. Each item links to where it
+happened here. Read the record; it is not retold.
+
+**Vision**
+
+- [ ] Lighting and the reference match:
+      [*The background reference carries its provenance…*](../../../docs/design-decisions.md#the-background-reference-carries-its-provenance-harnesses-capture-through-the-apps-path).
+- [ ] Calibration and the frame window match:
+      [*The configuration sets the camera's sensor window*](../../../docs/design-decisions.md#the-configuration-sets-the-cameras-sensor-window).
+- [ ] Precision shown versus precision measured:
+      [*Sizes keep full precision…*](../../../docs/design-decisions.md#sizes-keep-full-precision-only-the-display-rounds-to-a-fixed-two-decimals)
+      and [README > Limitations](../../../README.md#measurements-are-repeatable-not-absolute).
+- [ ] Results from eight frames generalising:
+      [*The fusion's parameters are validated on eight real frames only*](../../../KNOWN_ISSUES.md#the-fusions-parameters-are-validated-on-eight-real-frames-only).
+- [ ] Parts touching:
+      [*Touching parts merge before the closing*](../../../KNOWN_ISSUES.md#touching-parts-merge-before-the-closing)
+      and [*The closing never joins two components*](../../../docs/design-decisions.md#the-closing-never-joins-two-components).
+
+**AI**
+
+- [ ] Prompts that prime the answer (expected values, checklists recited back): the checklist echo in
+      [*Gemma 4 12B was measured against E4B…*](../../../docs/design-decisions.md#gemma-4-12b-was-measured-against-e4b-and-is-not-better-e4b-stays-the-describer),
+      and [*Gemma reads some through-holes as "a central green element"*](../../../KNOWN_ISSUES.md#gemma-reads-some-through-holes-as-a-central-green-element),
+      where wording tuned to one frame made another worse.
+- [ ] A describer is not a detector:
+      [README > Limitations](../../../README.md#the-describer-is-not-a-defect-detector).
+- [ ] Model comparisons on the same crops and settings:
+      [*E4B stays the describer on both machines…*](../../../docs/design-decisions.md#e4b-stays-the-describer-on-both-machines-the-owners-choice-one-wrong-statement-ahead-of-the-12b).
+- [ ] Provenance of weights: the pinned revision and the licence check in
+      [README > Describer model](../../../README.md#describer-model) and [Licence note](../../../README.md#licence-note).
+
+**Evaluation**
+
+- [ ] The metric that matters: in quality control, false acceptance (a bad part passed), not overall
+      accuracy. No project record yet, since nothing classifies; see
+      [*Classification is a per-configuration switch…*](../../../docs/design-decisions.md#classification-is-a-per-configuration-switch-that-exposes-the-verdict-ui-not-one-that-creates-it).
+- [ ] A test set changed without its inventory:
+      [*A replaced image never keeps its name*](../../../docs/design-decisions.md#a-replaced-image-never-keeps-its-name).
+
+**Software**
+
+- [ ] Worker threads and close paths:
+      [*A worker's thread is joined before the slot that takes its result lets the worker go*](../../../docs/design-decisions.md#a-workers-thread-is-joined-before-the-slot-that-takes-its-result-lets-the-worker-go)
+      and [*Closing waits for a running worker…*](../../../docs/design-decisions.md#closing-waits-for-a-running-worker-stops-an-analysis-before-its-next-object-and-has-an-escape).
+- [ ] Configuration fields that do nothing:
+      [yaml.md > *A field must be read…*](../project-style-rpx/references/yaml.md#a-field-must-be-read-by-something-that-can-change-behaviour-).
+- [ ] Machine-specific values committed:
+      [yaml.md > *Machine-specific values…*](../project-style-rpx/references/yaml.md#machine-specific-values-stay-out-of-the-repository-).
+
+**Then:**
+
+- **The request stands:** say so in one line (*Approach: as requested — …*) and continue.
+- **It does not:** stop and ask, with the alternative and its trade-off stated. Building waits for
+  the answer.
+- **Never silently build something you would advise against**, and never silently build the
+  alternative instead.
+
+## 4. Report before implementing
 
 Any non-trivial change starts with a report, and nothing is written until the user has seen it:
 
@@ -74,6 +155,7 @@ Any non-trivial change starts with a report, and nothing is written until the us
 |---|---|
 | **Requirements** | from section 1, with the user's answers |
 | **Diagnosis** | from section 2, when it is a fix |
+| **Approach** | from section 3: as requested, or the alternative the user chose, and why |
 | **Modules** | each file to change, and what changes in it |
 | **Configuration** | fields added, changed or removed, with default, unit and REQUIRED status, and which mode files |
 | **Records** | any change to a capture set, the run-summary CSV, the station event file or the session log's markers |
@@ -82,7 +164,7 @@ Any non-trivial change starts with a report, and nothing is written until the us
 | **Risks** | what could break, what cannot be tested without the rig (`docs/capture-checklist.md`) |
 | **Open questions** | what still needs the user |
 
-## 4. Measure, don't judge
+## 5. Measure, don't judge
 
 - **Thresholds come from data.** Derive a value from measurements on real frames, and record the
   method next to it (style: a comment recording why a value was chosen stays). "Looks about right"
@@ -96,7 +178,7 @@ Any non-trivial change starts with a report, and nothing is written until the us
 - **Say what was not measured.** Name every number that comes from an earlier set, an estimate or
   another machine.
 
-## 5. Configuration
+## 6. Configuration
 
 All in `project-style-rpx`. Check each before adding or changing a field:
 
@@ -108,7 +190,7 @@ All in `project-style-rpx`. Check each before adding or changing a field:
   *Machine-specific values stay out of the repository*).
 - A new section needs a row in `docs/capabilities.md`. Its test fails until the row exists.
 
-## 6. Tests
+## 7. Tests
 
 The rules are in `project-style-rpx` `references/python.md` > Tests. The order on this project:
 
@@ -127,7 +209,7 @@ The rules are in `project-style-rpx` `references/python.md` > Tests. The order o
 A test that fails intermittently is named with its cause before it is called a flake: loop it with a
 per-run timeout and sample the hang. "Passed on re-run" is not a diagnosis.
 
-## 7. Commits
+## 8. Commits
 
 - **Small and separate per concern.** A style rule, a feature, its doc correction and an unrelated
   fix found on the way are separate commits. A test change and the code it pins go together.
@@ -139,7 +221,7 @@ per-run timeout and sample the hang. "Passed on re-run" is not a diagnosis.
 - The message says what changed and why, with the numbers (before/after, the collected count, the
   mutations that proved the tests). End it with the attribution line the session gives.
 
-## 8. The same change updates the docs
+## 9. The same change updates the docs
 
 In the same commit as the behaviour it describes:
 
@@ -168,6 +250,8 @@ In the same commit as the behaviour it describes:
 
 - [ ] Requirements restated, and open points answered or asked
 - [ ] Premise checked on a real frame, and the stage named
+- [ ] Approach challenged: the lever, what the result will mean, the domain checklist for the
+      areas touched; the request stands (one line), or the user chose after the alternative was stated
 - [ ] Report shown before a non-trivial change
 - [ ] Numbers before and after, with what was not measured stated
 - [ ] Every configuration field read, validated, documented, and none machine-specific
