@@ -62,7 +62,7 @@ CONST_RUNTIME_MODULES = ('torch', 'ultralytics', 'mlx.core', 'mlx_vlm', 'mlx_vlm
 
 # Directories the domain code and the harness live in, added to the import path
 # so tests can import the extracted src/ modules, the application entry (run) and
-# the characterization harness without any package wrapping.
+# the analysis harness (Example/Vision/analyze.py) without any package wrapping.
 #   Unit [Vector<string>]
 CONST_IMPORT_PATHS = [
     os.path.join(CONST_PROJECT_FOLDER, 'src'),

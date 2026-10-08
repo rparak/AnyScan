@@ -139,9 +139,10 @@ def _Log_Text(logger) -> str:
 def test_analysis_writes_a_capture_set_linked_by_id(qt_app, tmp_path) -> None:
     """
     Description:
-        A completed analysis writes the four capture artefacts under logger/captures, and
+        A completed analysis writes its capture set under logger/captures (the raw frame, the
+        annotated image, the mask, the '_understanding.txt' and the YOLO '.txt' among it), and
         the analysis log lines carry the same set id so the log points at the files. The
-        '.txt' is exactly the shared Screen-Understanding text the panel shows.
+        '_understanding.txt' is exactly the shared Screen-Understanding text the panel shows.
     """
 
     window, logger = _Window(tmp_path)
@@ -175,7 +176,7 @@ def test_analysis_writes_a_capture_set_linked_by_id(qt_app, tmp_path) -> None:
 def test_capture_write_failure_logs_error_and_does_not_raise(qt_app, tmp_path) -> None:
     """
     Description:
-        Writing four files must never break the analysis: a write failure is caught,
+        Writing the capture set must never break the analysis: a write failure is caught,
         logged as an ERROR, and the UI carries on.
     """
 

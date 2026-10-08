@@ -30,9 +30,10 @@ import Parameters.Theme as Theme
 """
 Description:
     Tests for the Qt-free colour palette. The palette is a shared design token, so the
-    tests pin what both the UI and the annotation renderer depend on: the index colours
-    are stable and distinct, the palette extension never lands on a reserved verdict
-    hue, and the hex conversions match OpenCV's channel order.
+    tests pin what both the UI and the annotation renderer depend on: the verdict colours
+    come from one constant, the neutral detection colour and the label-mask pairs are
+    derived and distinct, the heatmap scale rises in lightness clear of the reserved
+    colours, and the hex conversions match OpenCV's channel order.
 """
 
 

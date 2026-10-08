@@ -46,11 +46,11 @@ from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
-    Headless (offscreen) test that the window logs the post-processing audit (§3): every
-    background strip and substance substitution the composer recorded is written to the
-    application log — a warning via Log_Warning, otherwise Log_Info — so nothing the
-    composer rewrote passes silently, and a view switch is NOT logged. No camera and no
-    weights needed.
+    Headless (offscreen) test that the window logs the pipeline's audit records (§3): each
+    (level, message) record of an analysis is written to the application log — a warning via
+    Log_Warning, otherwise Log_Info — so nothing put in the model's place passes silently, and a
+    view switch is NOT logged. The records here are stand-ins; today the pipeline's only source
+    is the background sentence's fallback. No camera and no weights needed.
 """
 # The window's configuration: the shipped one, loaded through the configuration layer, without a
 # scale (nothing measured) — what these tests built the window with before configurations existed.
@@ -100,9 +100,8 @@ def _Private(window, name: str):
 def test_analysis_audit_is_logged_by_level(qt_app, reference_background_path) -> None:
     """
     Description:
-        Each audit record is logged: an 'info' record (a substitution) through Log_Info
-        and a 'warning' record (a fallback strip) through Log_Warning, carrying the
-        object index the composer tagged. A view switch afterwards logs nothing.
+        Each audit record is logged with its text as given: an 'info' record through Log_Info
+        and a 'warning' record through Log_Warning. A view switch afterwards logs nothing.
     """
 
     spy = _Spy_Logger_Cls()
