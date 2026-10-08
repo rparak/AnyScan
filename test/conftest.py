@@ -27,7 +27,9 @@ import sys
 import time
 import traceback
 import types
+import atexit
 import faulthandler
+from datetime import datetime
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
@@ -75,14 +77,26 @@ for _path in CONST_IMPORT_PATHS:
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-# The crash record: a file in the run's temp directory (pytest's basetemp) that names each test as it
-# starts and receives faulthandler's dump of every thread on a fatal error, so a crash leaves its test
-# and its stacks on disk even when the terminal output is lost. One full run on 2026-10-08 died with
-# only a fatal-error dump's last line seen (KNOWN_ISSUES.md). pytest keeps the last three runs' temp
-# directories, and a full suite run makes three (its own and test_header.py's and
-# test_text_contrast.py's DPR 2 re-runs): copy a crashed run's record before running pytest again.
+# The crash record: test/crash_records/crash_record.txt (git-ignored) names each test as it starts and
+# receives faulthandler's dump of every thread on a fatal error, so a crash leaves its test and its stacks
+# on disk even when the terminal output is lost. One full run on 2026-10-08 died with only a fatal-error
+# dump's last line seen (KNOWN_ISSUES.md). A run that exits ends its record with CONST_CRASH_RECORD_CLEAN;
+# the next run overwrites such a record and keeps one without it as crash_record_<its time>.txt, the
+# newest CONST_CRASH_RECORD_KEEP of those, so running the suite again never deletes a crash. It is outside
+# pytest's temp directories, which pytest rotates (three kept; a full run makes three).
 #   Unit [string]
+CONST_CRASH_RECORD_DIR = os.path.join(CONST_PROJECT_FOLDER, 'test', 'crash_records')
 CONST_CRASH_RECORD_NAME = 'crash_record.txt'
+CONST_CRASH_RECORD_CLEAN = 'CLEAN EXIT'
+#   Unit [int]
+CONST_CRASH_RECORD_KEEP = 10
+# The environment: a folder in place of CONST_CRASH_RECORD_DIR (the crash-record test's probe runs), and
+# the pid of the session that records. The suite's nested pytest runs (test_header.py's and
+# test_text_contrast.py's DPR 2 re-runs) inherit it and record nothing: on the one fixed file they would
+# take the running parent's unfinished record for a crash.
+#   Unit [string]
+CONST_CRASH_RECORD_DIR_VARIABLE = 'ANYSCAN_CRASH_RECORD_DIR'
+CONST_CRASH_RECORD_OWNER_VARIABLE = 'ANYSCAN_CRASH_RECORD_OWNER'
 #   Unit [StashKey(object)]
 CONST_CRASH_RECORD_FD = pytest.StashKey[int]()
 CONST_CRASH_RECORD_PATH = pytest.StashKey[str]()
@@ -132,26 +146,66 @@ def pytest_collection_modifyitems(config: pytest.Config, items: tp.List[pytest.I
 
 
 
+def _Keep_Crashed_Record(folder: str) -> None:
+    """
+    Description:
+        Before a run overwrites the crash record, keep the previous one if its run did not exit — no
+        CONST_CRASH_RECORD_CLEAN as its last line — as crash_record_<its last write>.txt, then remove
+        all but the newest CONST_CRASH_RECORD_KEEP kept records, oldest first.
+
+    Args:
+        (1) folder [string]: The crash-record folder.
+    """
+
+    path = os.path.join(folder, CONST_CRASH_RECORD_NAME)
+    if os.path.isfile(path):
+        with open(path, 'r', encoding='utf-8', errors='replace') as handle:
+            lines = handle.read().splitlines()
+        if not lines or lines[-1] != CONST_CRASH_RECORD_CLEAN:
+            stamp = datetime.fromtimestamp(os.path.getmtime(path)).strftime('%Y-%m-%d_%H-%M-%S')
+            kept, number = os.path.join(folder, 'crash_record_%s.txt' % stamp), 1
+            while os.path.exists(kept):
+                number += 1
+                kept = os.path.join(folder, 'crash_record_%s_%d.txt' % (stamp, number))
+            os.replace(path, kept)
+    crashed = sorted(name for name in os.listdir(folder)
+                     if name.startswith('crash_record_') and name.endswith('.txt'))
+    for name in crashed[:-CONST_CRASH_RECORD_KEEP]:
+        os.remove(os.path.join(folder, name))
+
+
 # << PYTEST HOOK >> #
 @pytest.hookimpl(trylast=True)
 def pytest_configure(config: pytest.Config) -> None:
     """
     Description:
-        Open the crash record and send faulthandler's fatal-error dump to it, every thread's stack.
-        It runs after pytest's own faulthandler plugin, which pointed the dump at stderr, so the
-        record replaces that destination for the whole session.
+        Start this run's crash record and send faulthandler's fatal-error dump to it, every thread's
+        stack, after keeping the previous record if its run crashed. It runs after pytest's own
+        faulthandler plugin, which pointed the dump at stderr, so the record replaces that destination
+        for the whole session. A nested run (CONST_CRASH_RECORD_OWNER_VARIABLE set by another process)
+        records nothing. The record ends with CONST_CRASH_RECORD_CLEAN when the process exits through
+        Python; a crash after that, in the interpreter's own finalisation, is not kept.
 
     Args:
         (1) config [pytest.Config(object)]: The active pytest configuration.
     """
 
-    # The basetemp the tmp_path fixtures use; pytest exposes it publicly only through a fixture.
-    path = os.path.join(str(config._tmp_path_factory.getbasetemp()), CONST_CRASH_RECORD_NAME)
+    owner = os.environ.get(CONST_CRASH_RECORD_OWNER_VARIABLE)
+    if owner and owner != str(os.getpid()):
+        return
+    os.environ[CONST_CRASH_RECORD_OWNER_VARIABLE] = str(os.getpid())
+    folder = os.environ.get(CONST_CRASH_RECORD_DIR_VARIABLE) or CONST_CRASH_RECORD_DIR
+    os.makedirs(folder, exist_ok=True)
+    _Keep_Crashed_Record(folder)
+    path = os.path.join(folder, CONST_CRASH_RECORD_NAME)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_APPEND, 0o644)
     config.stash[CONST_CRASH_RECORD_FD] = fd
     config.stash[CONST_CRASH_RECORD_PATH] = path
-    os.write(fd, ('pytest run, pid %d: %s\n' % (os.getpid(), ' '.join(sys.argv))).encode('utf-8'))
+    os.write(fd, ('pytest run started %s, pid %d: %s\n' % (datetime.now().isoformat(timespec='seconds'),
+                                                           os.getpid(), ' '.join(sys.argv))).encode('utf-8'))
     faulthandler.enable(file=fd, all_threads=True)
+    # Registered now, so it runs after every exit handler a test registers later (atexit is last-in, first-out).
+    atexit.register(os.write, fd, (CONST_CRASH_RECORD_CLEAN + '\n').encode('utf-8'))
 
 
 # << PYTEST HOOK >> #

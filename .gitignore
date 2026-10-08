@@ -48,3 +48,8 @@ env/
 /.claude/*
 !/.claude/skills/
 !/.claude/settings.json
+
+# The test suite's crash record (test/conftest.py): this run's crash_record.txt and the records of
+# runs that crashed, kept (newest ten) so running the suite again never deletes one. Local evidence,
+# not committed.
+/test/crash_records/

@@ -437,8 +437,9 @@ its configure and unconfigure, so it happened during the session, not at interpr
 dump), as had about 20 full runs and a 30-run stress loop of `test/UI` earlier that day.
 
 - **Impact:** one run in 14 or fewer on that tree, cause unknown. Not called a flake: it is unnamed.
-- **What would answer it:** the next one. `test/conftest.py` now keeps a crash record in the run's temp
-  directory (its path is in the run's header): each test's node id as it starts, and faulthandler's dump of
-  every thread on a fatal error, during the session or at exit
-  (`test/integration/test_crash_record.py`). pytest keeps the last three runs' temp directories and a full
-  run makes three, so copy the record before running pytest again.
+- **What would answer it:** the next one. `test/conftest.py` now keeps a crash record,
+  `test/crash_records/crash_record.txt` (git-ignored): each test's node id as it starts, and
+  faulthandler's dump of every thread on a fatal error, during the session or at exit. A run that did not
+  exit cleanly has its record kept by the next run as `crash_record_<time>.txt` (the newest ten), so
+  running the suite again never deletes one (`test/integration/test_crash_record.py`). A crash in the
+  interpreter's own finalisation, after the record's last line is written, is not kept.
