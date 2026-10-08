@@ -309,8 +309,8 @@ class Basler_Cls:
     def __Log(self, message: str) -> None:
         """
         Description:
-            Print an informational message unless the configuration asks for
-            quiet operation. Skipped-node messages are normal on some
+            Print an informational message when CONST_VERBOSE is set (a module
+            constant, off by default). Skipped-node messages are normal on some
             platforms and only clutter the output once the setup is known.
 
         Args:

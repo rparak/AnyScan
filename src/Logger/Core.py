@@ -503,7 +503,7 @@ class Session_Logger_Cls(object):
     """
     Description:
         A plain-text session logger. It records the full lifecycle of one application
-        run to a single '.txt' file, one '[Date] [Time] [Info]' line per event, ending
+        run to a single '.txt' file, one 'date time [LEVEL] message' line per event, ending
         with the 'Application stopped' line. When the application closes it also appends
         exactly one time-account row, per run, to a single run-summary CSV file that
         accumulates over every run and is never rewritten or truncated; a file with an older
@@ -579,9 +579,9 @@ class Session_Logger_Cls(object):
         self.__lock = threading.RLock()
         self.__closed = False
 
-        # An optional sink that receives each formatted line as it is written, so a live
-        # reader (the UI log view) shows exactly what went to disk without a second
-        # formatter. It is set after construction (Set_Line_Sink); the call is wrapped so a
+        # An optional sink that receives each line's fields and its formatted text as it is
+        # written, so a live reader (the UI log view) shows exactly what went to disk without a
+        # second formatter. It is set after construction (Set_Line_Sink); the call is wrapped so a
         # failing sink can never stop a line reaching the file.
         self.__line_sink = None
 
@@ -713,7 +713,7 @@ class Session_Logger_Cls(object):
     def __Write_Line(self, info: str, now: datetime, level: str = CONST_LEVEL_INFO) -> None:
         """
         Description:
-            Write one '[Date] [Time] [LEVEL] message' line at the given time and flush it
+            Write one 'date time [LEVEL] message' line at the given time and flush it
             to disk, so a hard crash still leaves a usable log. The level sits in a
             fixed-width field between the timestamp and the message, so it reads as a
             column; it is passed by the call site, never parsed from the message. Assumes
@@ -799,15 +799,15 @@ class Session_Logger_Cls(object):
         with self.__lock:
             self.__close_callback = callback
 
-    def Set_Line_Sink(self, sink: tp.Optional[tp.Callable[[str], None]]) -> None:
+    def Set_Line_Sink(self, sink: tp.Optional[tp.Callable[[Log_Line_Str, str], None]]) -> None:
         """
         Description:
-            Register (or clear, with None) an optional sink that receives each formatted line
-            as it is written to disk — the seam a live reader (the UI log view) renders from,
-            so it shows exactly what the file holds with no second formatter. The sink is
-            called after the disk write and is fully wrapped, so nothing it does can prevent a
-            line reaching the file. The view seeds itself from the file once, then follows via
-            this sink.
+            Register (or clear, with None) an optional sink that receives each line (its fields
+            and its formatted text) as it is written to disk — the seam a live reader (the UI
+            log view) renders from, so it shows exactly what the file holds with no second
+            formatter. The sink is called after the disk write and is fully wrapped, so nothing
+            it does can prevent a line reaching the file. The view seeds itself from the file
+            once, then follows via this sink.
 
         Args:
             (1) sink [function or None]: A callable taking (record, line) — the line's fields

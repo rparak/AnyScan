@@ -37,7 +37,7 @@ def Get_Alpha_Beta_Parameters(image: tp.List[tp.List[int]], clip_limit: float) -
         to determine the equation:
             g(i, j) = alpha * f(i, j) + beta,
 
-            where g(i, j) are the input (source) pixels of the image, f(i, j) are the output pixels 
+            where f(i, j) are the input (source) pixels of the image, g(i, j) are the output pixels 
             of the image, and alpha, beta are the contrast and brightness parameters.
 
     Args:
@@ -125,7 +125,7 @@ class Process_Image_Cls:
     def __Blur(self, image: np.ndarray, kernel_size: tp.Tuple[int, int] = (5, 5), sigma: float = 1.0) -> np.ndarray:
         """
         Description:
-            Applies Gaussian blur to reduce sharpness and simulate camera effects.
+            Applies a Gaussian blur: the first step Process applies to every captured frame.
 
         Args:
             (1) image [np.ndarray]: Input image.

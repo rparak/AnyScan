@@ -82,7 +82,8 @@ class Camera_Configuration_Str:
     Offset: tp.Tuple[int, int] = (0, 0)
     # Custom camera configuration.
     #   Note:
-    #       Optional structure for vendor/API specific settings (e.g., exposure, gain, white balance, pixel format).
+    #       Required vendor/API specific settings (e.g., exposure, gain, white balance, pixel format); the
+    #       configuration refuses a file without them, and Basler_Cls refuses an empty one.
     Custom_Cfg: tp.Dict[str, tp.Any] = field(default_factory=dict)
     # Calibration of the camera above, or None when the hardware has no calibration file yet: frames
     # are then not undistorted and objects are not measured (a camera being calibrated for the first

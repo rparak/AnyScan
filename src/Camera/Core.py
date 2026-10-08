@@ -494,7 +494,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         self.__calib = None
         self.__cv2 = None
         self.__np = None
-        # (width, height) -> (K, distortion coeffs, optimal new camera matrix)
+        # (width, height) -> (K, distortion coeffs, optimal new camera matrix, map_1, map_2)
         self.__undistort_cache = {}
 
     @property
@@ -658,7 +658,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
 
         cv2, np = self.__cv2, self.__np
 
-        # One frame. Capture() auto-starts grabbing (LatestImageOnly) and uses a
+        # One frame. Capture() grabs exactly one (StartGrabbingMax, GrabStrategy_OneByOne) with a
         # 5000 ms retrieve timeout that raises on hang; translate any failure into a
         # message the operator can act on rather than freezing the window.
         try:
