@@ -1603,9 +1603,13 @@ class Session_Logger_Cls(object):
             (2) frame [any]: The interrupted stack frame.
         """
 
-        self.Close()
+        # Read before Close: it restores the previous handlers and forgets them.
         previous = self.__previous_signal_handlers.get(signum)
+        self.Close()
         if callable(previous):
             previous(signum, frame)
         elif signum == signal.SIGINT:
             raise KeyboardInterrupt
+        elif previous == signal.SIG_DFL:
+            # Close has put the default action back; deliver the signal again so it runs.
+            os.kill(os.getpid(), signum)

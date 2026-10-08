@@ -25,6 +25,9 @@
 import os
 import re
 import csv
+import sys
+import signal
+import subprocess
 from datetime import datetime
 # Typing (Support for type hints)
 import typing as tp
@@ -51,6 +54,9 @@ Description:
 #   Unit [string]
 CONST_GOLDEN_HEADER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                    'data', 'golden_header.csv')
+# The source tree, for the signal tests' fresh interpreters.
+#   Unit [string]
+CONST_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'src'))
 
 
 class Clock_Cls(object):
@@ -880,3 +886,82 @@ def test_newline_in_message_is_escaped_to_one_file_line(tmp_path: tp.Any) -> Non
     assert '\n' not in record.Message and '\r' not in record.Message
     assert line == lines[0]
     assert Parse_Line(lines[0]) == record
+
+
+def _Run_Signalled(tmp_path: tp.Any, before: str) -> subprocess.CompletedProcess:
+    """
+    Description:
+        Run a fresh interpreter that builds a logger with its shutdown hooks installed (as the
+        application does), sends itself SIGTERM, and would print 'still running' if it survived.
+        A fresh process, because a signal test must never touch the suite's own handlers.
+
+    Args:
+        (1) tmp_path [Path(object)]: The log directory.
+        (2) before [string]: Python lines run before the logger is built (a handler to chain to).
+
+    Returns:
+        (1) parameter [CompletedProcess(object)]: The finished process.
+    """
+
+    script = '\n'.join((
+        'import os, sys, signal, time',
+        'sys.path.insert(0, %r)' % CONST_SRC,
+        before,
+        'from Logger.Core import Session_Logger_Cls',
+        'logger = Session_Logger_Cls(config_path=None, log_dir=%r)' % str(tmp_path),
+        'os.kill(os.getpid(), signal.SIGTERM)',
+        'time.sleep(5)',
+        "print('still running', flush=True)"))
+    return subprocess.run([sys.executable, '-c', script], capture_output=True, text=True,
+                          cwd=str(tmp_path), timeout=30)
+
+
+def _Last_Log_Line(tmp_path: tp.Any) -> str:
+    """
+    Description:
+        The last line of the one '.txt' log in a directory.
+
+    Args:
+        (1) tmp_path [Path(object)]: The log directory.
+
+    Returns:
+        (1) parameter [string]: Its last line.
+    """
+
+    logs = [name for name in os.listdir(tmp_path) if name.endswith('.txt')]
+    assert len(logs) == 1, logs
+    return open(os.path.join(tmp_path, logs[0]), 'r', encoding='utf-8').read().splitlines()[-1]
+
+
+def test_sigterm_closes_the_run_and_still_terminates_the_process(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        SIGTERM writes the run's close (its 'Application stopped' line and CSV row) and then ends
+        the process as the default action would: killed by SIGTERM. Before this, the handler
+        returned after the close, so the process ran on with its log already closed and every
+        later line silently dropped.
+    """
+
+    result = _Run_Signalled(tmp_path, '')
+    assert result.returncode == -signal.SIGTERM, result.stdout + result.stderr
+    assert 'still running' not in result.stdout
+    assert _Last_Log_Line(tmp_path).endswith('Application stopped. #run-stop')
+    assert any(name.endswith('.csv') for name in os.listdir(tmp_path))
+
+
+def test_a_signal_handler_installed_before_the_logger_still_runs(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A SIGTERM handler that was in place before the logger is chained to after the close.
+        Before this, Close removed the logger's handlers and forgot the previous ones before the
+        signal handler looked them up, so the previous handler never ran.
+    """
+
+    result = _Run_Signalled(tmp_path, '\n'.join((
+        'def previous(signum, frame):',
+        "    print('previous handler ran', flush=True)",
+        '    os._exit(7)',
+        'signal.signal(signal.SIGTERM, previous)')))
+    assert result.returncode == 7, result.stdout + result.stderr
+    assert 'previous handler ran' in result.stdout
+    assert _Last_Log_Line(tmp_path).endswith('Application stopped. #run-stop')
