@@ -1,5 +1,5 @@
 ---
-name: project-cleanup
+name: project-optimize
 description: >-
   Finds what in the AnyScan repository is unused, duplicated, stale, slow or untestable, reports
   it with evidence, and removes or optimises it only after the user approves a plan. It works in
@@ -9,7 +9,7 @@ description: >-
   comes from project-style-rpx, and commits follow feature-manager § 8.
 ---
 
-# project-cleanup
+# project-optimize
 
 Two phases, always in this order. **Phase 1 changes nothing.** Phase 2 runs only the steps the user
 has approved.

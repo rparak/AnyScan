@@ -37,10 +37,10 @@ Description:
     Initialization of constants.
 
     The project's Claude Code skills (.claude/skills/<name>/SKILL.md) open with a YAML frontmatter that
-    Claude Code parses to list and load them. Nothing else ever parsed it, so two faults went unseen:
-    project-cleanup's description held an unquoted ': ', which made the frontmatter invalid YAML and
-    the skill failed to load; project-style-rpx's held ' #', which YAML reads as the start of a comment,
-    so its description was silently cut to its first 86 characters. These tests parse every SKILL.md
+    Claude Code parses to list and load them. Nothing else ever parsed it, so two faults went unseen.
+    project-optimize's description (then project-cleanup's) held an unquoted ': ', which made the
+    frontmatter invalid YAML, and the skill failed to load. project-style-rpx's held ' #', which YAML
+    reads as the start of a comment, so its description was silently cut to its first 86 characters. These tests parse every SKILL.md
     as YAML, as Claude Code does, and check what it needs.
 """
 # The repository root (test/integration/ -> ../..). The parametrization needs it at collection time,
@@ -102,7 +102,7 @@ def test_the_skills_directory_holds_the_projects_skills(project_root) -> None:
 
     names = {os.path.basename(os.path.dirname(path)) for path in Skill_Files(project_root)}
 
-    assert {'project-style-rpx', 'feature-manager', 'project-cleanup'} <= names
+    assert {'project-style-rpx', 'feature-manager', 'project-optimize'} <= names
 
 
 @pytest.mark.parametrize('skill_path', Skill_Files(CONST_PROJECT_ROOT))

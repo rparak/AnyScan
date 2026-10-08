@@ -348,5 +348,5 @@ is reviewed against this file, and the review is recorded:
   that line and fails on any that left this file untouched. A skipped review fails it; a careless
   one does not, and that part stays with the reviewer.
 
-The rule is in the `feature-manager` skill's Done checklist, and `project-cleanup` removes a removed
+The rule is in the `feature-manager` skill's Done checklist, and `project-optimize` removes a removed
 capability from this file in the same commit.
