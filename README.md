@@ -5,7 +5,7 @@
 One script, `run.py`, reproducing the approved AnyScan design as a desktop
 application. Built at JIC within the EDIH-DIGIMAT project.
 
-![AnyScan architecture: a Basler camera takes a frame, undistorted when calibrated; FastSAM and background subtraction find the objects, fused; each object is described by a local vision-language model and measured in mm when the camera is calibrated; the PyQt5 desktop app shows Live, Trends, History and Log; the configuration, the optional per-camera calibration and the required reference background set up the stages; every analysis is recorded as a capture set, the run CSV and the session log](images/anyscan-architecture.svg)
+![AnyScan architecture: a Basler camera takes a frame, undistorted when calibrated; FastSAM and background subtraction find the objects, fused; each object is described by a local vision-language model and measured in mm when the camera is calibrated; the PyQt5 desktop app shows Live, Trends, History and Log; the configuration, the optional per-camera calibration and the required reference background set up the stages; every analysis is recorded as a capture set, the run CSV and the session log, which is exported to the daily station event file](images/anyscan-architecture.svg)
 
 The diagram shows how a frame becomes a reading, at the top level. Two independent cues are
 fused, so an object is kept if **either** one finds it. [Detection logic](#detection-logic)

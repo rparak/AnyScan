@@ -419,7 +419,8 @@ def Draw_Architecture(logo_svg: str) -> str:
           'desktop application shows the result in its Live, Trends, History and Log views. Three files set '
           'the stages up: one YAML configuration per camera and mode, an optional calibration per camera, '
           'and the required empty-surface reference every frame is differenced against. Every analysis is recorded as a '
-          'capture set, a row of the run summary CSV and the session log, which History and Log read back. '
+          'capture set, a row of the run summary CSV and the session log, which History and Log read back, and '
+          'the session log is exported to the daily station event file. '
           'Built at JIC within the EDIH-DIGIMAT project, funded by the European Union.</desc>')
     c.Blank()
     c.Open('<defs>')
@@ -515,7 +516,7 @@ def Draw_Architecture(logo_svg: str) -> str:
 
     c.Open('<g id="records">', 'What the application writes and reads back')
     c.Connector(1026, y_set, y + h + 4)
-    c.Card(892, y_set, 268, h_set, 'Records', ['a capture set per', 'analysis, the run CSV,', 'the session log'])
+    c.Card(892, y_set, 268, h_set, 'Records', ['a capture set per', 'analysis, the run CSV,', 'the session log, the', 'daily station events'])
     c.Close('g')
     c.Blank()
 
