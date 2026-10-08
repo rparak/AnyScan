@@ -474,6 +474,7 @@ class Basler_Cls:
         except Exception:
             pass
 
+    # Kept uncalled, like Print_Statistics: hand diagnostics for the Linux station, whose Statistic_* nodes may exist.
     def Is_Grabbing(self) -> bool:
         """
         Description:
@@ -528,7 +529,6 @@ class Basler_Cls:
             time.sleep(0.2)
 
         print(f'[ERROR] Failed to capture a complete image after {max_attempts} attempts.')
-        #self.Print_Statistics()
 
         return None
 
