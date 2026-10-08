@@ -965,3 +965,30 @@ def test_a_signal_handler_installed_before_the_logger_still_runs(tmp_path: tp.An
     assert result.returncode == 7, result.stdout + result.stderr
     assert 'previous handler ran' in result.stdout
     assert _Last_Log_Line(tmp_path).endswith('Application stopped. #run-stop')
+
+
+def test_a_log_line_that_cannot_be_written_is_dropped_not_raised(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A log write that fails (a full disk) drops the line and returns: logging must never be
+        load-bearing. Before this, the OSError escaped Log_Error; raised in a Qt slot (the capture
+        write's own "disk full" handler logs an ERROR) it aborted the application, losing the
+        run's CSV row and export. Close still completes. A fresh interpreter caps the size of any
+        file it writes (RLIMIT_FSIZE) just above the log's start line, so the write really fails.
+    """
+
+    script = '\n'.join((
+        'import os, sys, signal, resource',
+        'sys.path.insert(0, %r)' % CONST_SRC,
+        'from Logger.Core import Session_Logger_Cls',
+        'logger = Session_Logger_Cls(config_path=None, log_dir=%r, install_handlers=False)' % str(tmp_path),
+        'signal.signal(signal.SIGXFSZ, signal.SIG_IGN)',
+        'resource.setrlimit(resource.RLIMIT_FSIZE, (os.path.getsize(logger.Path) + 10, resource.RLIM_INFINITY))',
+        "logger.Log_Error('Failed to write capture set: ' + 'x' * 200)",
+        "print('carried on', flush=True)",
+        'logger.Close()',
+        "print('closed', flush=True)"))
+    result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True,
+                            cwd=str(tmp_path), timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.split() == ['carried', 'on', 'closed']

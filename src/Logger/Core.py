@@ -729,8 +729,13 @@ class Session_Logger_Cls(object):
         date = now.strftime(self.__date_format)
         time = now.strftime(self.__time_format)
         line = '%s %s [%-*s] %s\n' % (date, time, CONST_LEVEL_WIDTH, level, info)
-        self.__file.write(line)
-        self.__file.flush()
+        try:
+            self.__file.write(line)
+            self.__file.flush()
+        except OSError:
+            # A full or failing disk: the line is dropped whole (no sink, no marker), never raised.
+            # Logging must not be load-bearing: raised in a Qt slot, this aborted the application.
+            return
         try:
             os.fsync(self.__file.fileno())
         except (OSError, ValueError):
@@ -1505,12 +1510,17 @@ class Session_Logger_Cls(object):
             self.__Write_Line('Application stopped. ' + CONST_MARKER_RUN_STOP, now)
 
             if self.__file is not None and not self.__file.closed:
-                self.__file.flush()
                 try:
+                    self.__file.flush()
                     os.fsync(self.__file.fileno())
                 except (OSError, ValueError):
+                    # A full or failing disk (a dropped line's bytes are still buffered): the log
+                    # closes with what reached it, and shutdown goes on to the export.
                     pass
-                self.__file.close()
+                try:
+                    self.__file.close()
+                except OSError:
+                    pass
 
             if self.__install_handlers:
                 self.__Remove_Handlers()
