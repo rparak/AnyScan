@@ -348,5 +348,7 @@ is reviewed against this file, and the review is recorded:
   that line and fails on any that left this file untouched. A skipped review fails it; a careless
   one does not, and that part stays with the reviewer.
 
-The rule is in the `feature-manager` skill's Done checklist, and `project-optimize` removes a removed
-capability from this file in the same commit.
+The rule is in the `feature-manager` skill's Done checklist. `project-optimize` changes no capability:
+its steps move the *Last reviewed* line, update an internal name this file gives (a package, a module in
+the data flow) in the same commit, and hand any removal of something the user sees or operates to
+`feature-manager`.
