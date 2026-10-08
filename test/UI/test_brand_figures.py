@@ -22,6 +22,7 @@
 ## =========================================================================== ##
 
 # System (Default)
+import ast
 import base64
 import importlib.util
 import os
@@ -256,6 +257,46 @@ def test_the_three_logo_copies_are_identical() -> None:
     inline, _ = _Split_Diagram()
     assert inline.strip() == source.strip(), \
         'the logo inlined in images/anyscan-architecture.svg differs from images/anyscan-logo.svg'
+
+
+def _Module_Constants(path: str) -> tp.Dict[str, tp.Any]:
+    """
+    Description:
+        A script's module-level literal constants, read from its source without importing it (the font
+        builder imports fontTools at module load).
+
+    Args:
+        (1) path [string]: The script.
+
+    Returns:
+        (1) parameter [Dict]: Each module-level name assigned a literal, and its value.
+    """
+
+    constants = {}
+    for node in ast.parse(open(path, encoding='utf-8').read()).body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            try:
+                constants[node.targets[0].id] = ast.literal_eval(node.value)
+            except ValueError:
+                pass
+    return constants
+
+
+def test_the_logo_and_the_ui_fonts_pin_the_same_inter() -> None:
+    """
+    Description:
+        build_logo.py outlines the wordmark in the variable Inter that build_fonts.py instances the UI
+        fonts from, and each script pins it on its own (each runs alone, without the other's imports).
+        The two pins are one file: the same name, the same URL at the same google/fonts commit, the same
+        SHA-256, so bumping one without the other fails here rather than letting the logo and the UI
+        drift apart.
+    """
+
+    logo = _Module_Constants(CONST_BUILDER)
+    fonts = _Module_Constants(CONST_FONT_BUILDER)
+    remote, sha256 = fonts['CONST_SOURCES'][logo['CONST_FONT_NAME']]
+    assert logo['CONST_FONT_URL'] == fonts['CONST_GOOGLE_FONTS'] + remote
+    assert logo['CONST_FONT_SHA256'] == sha256
 
 
 def test_the_diagram_draws_only_theme_tokens() -> None:
