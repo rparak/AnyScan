@@ -51,7 +51,7 @@ CONST_LINE          = '#ecebf2'   # violet-tinted dividers
 # 4.69:1 on the control hover and 4.60:1 on the page. It was '#8983a6' (3.58:1 on the card, 3.24:1 on the
 # page) until 2026-09-29; the new value keeps its LCh hue and chroma and lowers only L* (56.4 -> 46.6).
 
-CONST_BRAND         = '#ff005c'   # EDIH-DIGIMAT magenta: object 1 and focus only
+CONST_BRAND         = '#ff005c'   # EDIH-DIGIMAT magenta: the architecture diagram's labels; NOK repeats it
 
 # The interactive-control tokens (segmented controls, tool buttons). A control state is ALWAYS
 # a (background, label) PAIR: a state rule that moves the background without naming the label

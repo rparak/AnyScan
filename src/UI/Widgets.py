@@ -368,17 +368,6 @@ class Viewport_Cls(QWidget):
         self.__view = view
         self.update()
 
-    def Has_Heatmap(self) -> bool:
-        """
-        Description:
-            Whether a heatmap is held — its segment of the view toggle is available only then.
-
-        Returns:
-            (1) parameter [bool]: True when the held analysis brought a heatmap.
-        """
-
-        return self.__heatmap is not None
-
     def Set_View(self, view: str) -> None:
         """
         Description:
