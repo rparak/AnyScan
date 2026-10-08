@@ -1,6 +1,13 @@
 ---
 name: feature-manager
-description: Turns a change request written as notes — often Czech or Slovak, often short or incomplete — into a well-scoped change to the AnyScan application and carries it through. It restates the request as requirements, checks the premise before fixing, reports before building, measures instead of judging, and commits small. Use it for any new feature, behaviour change or bug fix in this repository, including a one-line note ("přidat export do CSV", "fúzia spája dve platne"). Every code, test, YAML and Markdown convention comes from project-style-rpx, which this skill does not restate.
+description: >-
+  Turns a change request written as notes — often Czech or Slovak, often short or incomplete —
+  into a well-scoped change to the AnyScan application and carries it through. It restates the
+  request as requirements, checks the premise before fixing, reports before building, measures
+  instead of judging, and commits small. Use it for any new feature, behaviour change or bug fix
+  in this repository, including a one-line note ("přidat export do CSV", "fúzia spája dve
+  platne"). Every code, test, YAML and Markdown convention comes from project-style-rpx, which
+  this skill does not restate.
 ---
 
 # feature-manager

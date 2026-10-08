@@ -1,6 +1,12 @@
 ---
 name: project-cleanup
-description: Finds what in the AnyScan repository is unused, duplicated, stale, slow or untestable, reports it with evidence, and removes or optimises it only after the user approves a plan. It works in two phases, always in this order: report first with nothing changed, then small, independently verifiable steps. Use it for "clean up", "remove unused code", "dead code", "optimise", "speed up", "tidy the docs", or a review of what can go. Every code, test, YAML and Markdown convention comes from project-style-rpx, and commits follow feature-manager § 7.
+description: >-
+  Finds what in the AnyScan repository is unused, duplicated, stale, slow or untestable, reports
+  it with evidence, and removes or optimises it only after the user approves a plan. It works in
+  two phases, always in this order: report first with nothing changed, then small, independently
+  verifiable steps. Use it for "clean up", "remove unused code", "dead code", "optimise", "speed
+  up", "tidy the docs", or a review of what can go. Every code, test, YAML and Markdown convention
+  comes from project-style-rpx, and commits follow feature-manager § 7.
 ---
 
 # project-cleanup

@@ -1,6 +1,15 @@
 ---
 name: project-style-rpx
-description: The anyscan-pyqt project's conventions — Python (RP naming with _Cls/_Str/CONST_*, the #-comment MIT header, tp.* hints, numbered Description/Args/Returns docstrings, *_Error_Cls exceptions carrying operator sentences, pytest layout, the Qt-override exemptions), the shell installer, the YAML configuration and calibration files, the design-decisions Markdown, and the structural rules (layer boundaries, one reader per file format, no parameter or configuration field that cannot take effect). Use it for any change in this repository — new or edited Python, a new script, a configuration field, a design-decision entry, a review — even when style is not mentioned. It describes what this codebase does, and says which rules check_style.py enforces and which are documentation only.
+description: >-
+  The anyscan-pyqt project's conventions — Python (RP naming with _Cls/_Str/CONST_*, the #-comment
+  MIT header, tp.* hints, numbered Description/Args/Returns docstrings, *_Error_Cls exceptions
+  carrying operator sentences, pytest layout, the Qt-override exemptions), the shell installer,
+  the YAML configuration and calibration files, the design-decisions Markdown, and the structural
+  rules (layer boundaries, one reader per file format, no parameter or configuration field that
+  cannot take effect). Use it for any change in this repository — new or edited Python, a new
+  script, a configuration field, a design-decision entry, a review — even when style is not
+  mentioned. It describes what this codebase does, and says which rules check_style.py enforces
+  and which are documentation only.
 ---
 
 # project-style-rpx
