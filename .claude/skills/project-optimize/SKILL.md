@@ -47,6 +47,12 @@ feature-manager**, and do not do it here. Cases:
   `logger/` contents, calibration capture sets.
 - **`src/Transformation/`**: inherited code, excluded in `check_style.json` with its reason. Report
   findings in it under their own heading, and never rewrite it.
+- **The repository root as a workspace.** Reviewers, mutations and reproductions run only in a
+  scratch clone (`cp -c -R`, an APFS clone) or a temporary directory outside the repository, with that
+  directory as the working directory. A script's `tempfile.mkdtemp(dir='.')` run from the root once
+  left six session-log folders and a truncated copy of the calibration there; the real calibration
+  was intact only because the script wrote to a copy. Every reviewer's prompt says this, and
+  `git status` is checked when each one returns.
 
 ## Phase 1 — Report, change nothing
 
