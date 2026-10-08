@@ -77,8 +77,9 @@ judgement, not as the person who will build it.
 - **Is this the right lever?** If a better alternative exists, name it, give its trade-off, and say
   which you would choose. Cases from this project:
   - *Filtering after identification instead of changing segmentation.* Decide what to keep once the
-    objects are found, rather than retuning the stage that finds them. No design-decisions entry
-    records this; the stage-3 mask filter (commits `cad71fe`, `6431f6e`) is the nearest.
+    objects are found and identified, rather than retuning the stage that finds them. *From design
+    discussion of the planned catalogue mode, not yet built: no record to link. Replace this with a
+    link to the catalogue mode's design-decisions entry when it lands.*
   - *Measuring a threshold before moving it.* See
     [*The colour-name saturation cutoff is 120…*](../../../docs/design-decisions.md#the-colour-name-saturation-cutoff-is-120-and-was-not-tuned-for-the-red-block),
     [*The object crop padding stays at 0.20 for Gemma*](../../../docs/design-decisions.md#the-object-crop-padding-stays-at-020-for-gemma),
@@ -124,8 +125,8 @@ happened here. Read the record; it is not retold.
 **Evaluation**
 
 - [ ] The metric that matters: in quality control, false acceptance (a bad part passed), not overall
-      accuracy. No project record yet, since nothing classifies; see
-      [*Classification is a per-configuration switch…*](../../../docs/design-decisions.md#classification-is-a-per-configuration-switch-that-exposes-the-verdict-ui-not-one-that-creates-it).
+      accuracy. *From design discussion of the planned catalogue mode, not yet built: no record to
+      link. Replace this with a link to the catalogue mode's design-decisions entry when it lands.*
 - [ ] A test set changed without its inventory:
       [*A replaced image never keeps its name*](../../../docs/design-decisions.md#a-replaced-image-never-keeps-its-name).
 
