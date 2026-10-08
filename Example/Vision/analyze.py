@@ -24,7 +24,6 @@
 # System (Default)
 import sys
 import os
-import re
 import glob
 import hashlib
 import argparse
@@ -64,6 +63,8 @@ from Parameters.Vision import Analysis_Str
 from Configuration.Core import Load_Configuration, Configuration_Error_Cls, CONST_DEFAULT_CONFIG_FILE
 #   ../Parameters/Configuration
 from Parameters.Configuration import Configuration_Str
+#   ../Calibration/Core — the natural sort key ('Image_2' before 'Image_10')
+from Calibration.Core import Natural_Key
 
 """
 Description:
@@ -122,23 +123,6 @@ CONST_STAMP_FONT_SCALE = 0.5
 CONST_FINGERPRINT_LEN = 10
 
 
-def _Natural_Key(path: str) -> tp.Tuple[tp.Any, ...]:
-    """
-    Description:
-        Sort key that orders 'Image_2.png' before 'Image_10.png': each run of digits in the
-        basename compares as an integer, the rest as lower-cased text.
-
-    Args:
-        (1) path [string]: The file path to derive the key from.
-
-    Returns:
-        (1) parameter [Tuple]: A tuple of (int | str) segments for use as a sort key.
-    """
-
-    return tuple(int(chunk) if chunk.isdigit() else chunk.lower()
-                 for chunk in re.split(r'(\d+)', os.path.basename(path)))
-
-
 def Discover_Scenes(data_dir: str) -> tp.List[str]:
     """
     Description:
@@ -154,7 +138,8 @@ def Discover_Scenes(data_dir: str) -> tp.List[str]:
         (1) parameter [Vector<string>]: The scene-frame paths, naturally sorted.
     """
 
-    return sorted(glob.glob(os.path.join(data_dir, CONST_SCENE_GLOB)), key=_Natural_Key)
+    return sorted(glob.glob(os.path.join(data_dir, CONST_SCENE_GLOB)),
+                  key=lambda path: Natural_Key(os.path.basename(path)))
 
 
 def _Fingerprint(path: str) -> str:
