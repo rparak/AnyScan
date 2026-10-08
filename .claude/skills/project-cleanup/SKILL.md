@@ -96,8 +96,14 @@ step.
   rendered pixels. A difference stops the step.
 - **Removing a test** is itself a finding with evidence (it cannot fail, or it duplicates another).
   The collected count drops by exactly that many.
-- **Removing a configuration field** removes its code path, its row in `docs/capabilities.md`, and
-  its documented default. The capabilities test fails until the row is gone.
+- **Removing a capability removes it from `docs/capabilities.md` in the same commit**: a
+  configuration field (with its code path and documented default), a view, a record, a harness, a
+  package, or a behaviour described in the prose. The drift tests fail on a named thing left behind.
+  A described behaviour has no name for them to check, so read the document for it.
+- **Every step that changes `src/`, `App/`, `Configuration/` or `Example/` reviews
+  `docs/capabilities.md`**, per `feature-manager` § 8. A behaviour-preserving step affects no
+  capability: move the *Last reviewed* line and say *Capabilities: no change (behaviour-preserving)*
+  in the message. The review test fails on a step that skips it.
 - **Performance**: measure before and after on the same frames, on the same machine, with several
   runs. Report both numbers and the spread, and say which machine.
 - **Docs**: a stale statement is corrected, not deleted, when the fact it records still matters.

@@ -12,6 +12,8 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
+Last reviewed against the code at commit `95d0b99` (2026-10-08).
+
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
 [Keeping this file true](#keeping-this-file-true)).
@@ -333,5 +335,18 @@ A capability document that is wrong is worse than none.
   suffixes, CSV columns and event types the code writes.
 - **Links**: every relative link and `#anchor` in this file resolves.
 
-The test cannot check prose, or the hardware table. When a change adds or removes a capability,
-update this file in the same commit (the `feature-manager` skill's rule).
+Those checks catch a **name** that changed. They cannot catch a **behaviour** that changed under
+the same name, or a stale sentence in the prose or the hardware table. So every change to the code
+is reviewed against this file, and the review is recorded:
+
+- The *Last reviewed* line at the top names the commit this file was last checked against.
+- **Every later commit that changes `src/`, `App/`, `Configuration/` or `Example/` must also change
+  this file**, in the same commit. Either the content changes, or, when the change affects no
+  capability, only the *Last reviewed* line moves: it is set to the commit the change is based on,
+  and the commit message says *Capabilities: no change* and why.
+- `test_every_code_change_since_the_last_review_updated_the_document` lists the code commits since
+  that line and fails on any that left this file untouched. A skipped review fails it; a careless
+  one does not, and that part stays with the reviewer.
+
+The rule is in the `feature-manager` skill's Done checklist, and `project-cleanup` removes a removed
+capability from this file in the same commit.

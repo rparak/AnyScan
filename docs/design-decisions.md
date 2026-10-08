@@ -2738,6 +2738,19 @@ below a section are left to the files' own comments, which a test already holds 
 defaults. Proven by 17 mutations, each failing the test it targets: a row or heading removed from the
 document, and a section, key, view label, chart title or CSV column changed in the code.
 
+**A review is required and recorded** (added 2026-10-08, the same day). Names going out of step are
+caught, but a behaviour changed under an unchanged name is not. So the document carries a *Last reviewed
+against the code at commit* line, and every later commit that changes `src/`, `App/`, `Configuration/` or
+`Example/` must change the document too: its content, or, when no capability changed, that line, with
+*Capabilities: no change* and the reason in the message. A review that is skipped then fails a test; a
+careless one does not, and stays the reviewer's responsibility. Tests and docs alone are exempt, since
+they describe no capability. A commit message alone was rejected as the record, because nothing can
+check it reliably; a file change in the commit can be checked. Proven in a scratch clone: a code-only
+commit and a harness-only commit fail, a code commit with a doc change or a moved line passes, a
+tests-only commit passes, a line naming a commit not in the history fails, and a copy without git
+history skips with its reason.
+
 **Revisit if** the test fails on wording rather than on a capability (then it checks the wrong thing),
-or a capability that matters has no name in the code for the test to read.
+a capability that matters has no name in the code for the test to read, or the review line is moved
+by habit without the review (then the record says nothing, and a per-section review would be needed).
 Tests `test/integration/test_capabilities_doc.py`.

@@ -136,9 +136,20 @@ per-run timeout and sample the hang. "Passed on re-run" is not a diagnosis.
 
 In the same commit as the behaviour it describes:
 
-- **`docs/capabilities.md`**: a capability added, changed or removed. Its test
-  (`test/integration/test_capabilities_doc.py`) catches named things. Prose and the hardware table
-  are yours to keep true.
+- **`docs/capabilities.md` is reviewed for every commit that changes `src/`, `App/`,
+  `Configuration/` or `Example/`.** This is required and is never skipped. Read the sections the
+  change touches, prose and hardware table included, then do one of two things:
+  - **It affects a capability.** Update the document. A behaviour that changed under the same name
+    counts: the drift tests cannot see it, so the review must.
+  - **It affects none.** Move the *Last reviewed against the code at commit* line to the commit your
+    change is based on (`git rev-parse --short HEAD` before committing). Put *Capabilities: no change*
+    and the reason in the commit message.
+
+  Either way the document is in the commit.
+  `test_every_code_change_since_the_last_review_updated_the_document` fails on any code commit that
+  left it untouched, so a code change and its doc change can never be split across commits. The
+  other tests in that file catch named things (sections, views, packages, records) going out of
+  step.
 - **`docs/design-decisions.md`**: a new entry for every deliberate choice whose reason is not
   visible in the code, with **Revisit if** and its pinning tests (style: `references/markdown.md`).
   An entry the change contradicts is corrected in place.
@@ -155,5 +166,8 @@ In the same commit as the behaviour it describes:
 - [ ] Every configuration field read, validated, documented, and none machine-specific
 - [ ] Each new test broken once; collected count as expected; UI rendered and looked at
 - [ ] `check_style.py` 0 issues on changed files; suite run, with skips reported
-- [ ] capabilities, design-decisions and KNOWN_ISSUES updated in the same change
+- [ ] **`docs/capabilities.md` reviewed (required).** Either updated, or its *Last reviewed* line
+      moved and the commit message says *Capabilities: no change* with the reason. Never silently
+      skipped: the review test fails on a code commit without it
+- [ ] design-decisions and KNOWN_ISSUES updated in the same change
 - [ ] Commits small, only your hunks staged, nothing pushed

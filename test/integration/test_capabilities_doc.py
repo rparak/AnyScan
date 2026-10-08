@@ -25,10 +25,13 @@
 import os
 import re
 import glob
+import subprocess
 # Typing (Support for type hints)
 import typing as tp
 # YAML (The configuration files' format)
 import yaml
+# pytest (A repository without its git history skips the review check, loudly)
+import pytest
 # Custom Lib.: AnyScan configuration — the mode-file name split
 #   ../Configuration/Core
 from Configuration.Core import Hardware_And_Mode
@@ -69,6 +72,13 @@ CONST_KEY_PATH = re.compile(r'(?<![\w.])([A-Z][A-Za-z0-9_]*(?:\.[A-Z][A-Za-z0-9_
 # A Markdown link's target; external links and mail are not checked.
 #   Unit [Pattern]
 CONST_LINK = re.compile(r'\]\(([^)\s]+)\)')
+
+# The line naming the commit the document was last reviewed against the code at, and the paths whose
+# changes a review must cover: the application, its configuration, and the harnesses it lists.
+#   Unit [Pattern]
+CONST_LAST_REVIEWED = re.compile(r'^Last reviewed against the code at commit `([0-9a-f]{7,40})`', re.M)
+#   Unit [Vector<string>]
+CONST_REVIEWED_PATHS = ['src', 'App', 'Configuration', 'Example']
 
 # The Live card titles the window builds, read from its source (they are literals in the builders).
 #   Unit [Pattern]
@@ -500,3 +510,54 @@ def test_every_relative_link_and_anchor_resolves(project_root) -> None:
             broken.append(target)
 
     assert broken == [], 'Broken links in docs/capabilities.md: %s' % broken
+
+
+def Git(project_root: str, *arguments: str) -> subprocess.CompletedProcess:
+    """
+    Description:
+        Run git in the repository.
+
+    Args:
+        (1) project_root [string]: The repository root.
+        (2) arguments [Vector<string>]: git's arguments.
+
+    Returns:
+        (1) parameter [subprocess.CompletedProcess(object)]: The finished run.
+    """
+
+    return subprocess.run(['git', '-C', project_root] + list(arguments), capture_output=True, text=True, timeout=60)
+
+
+def test_every_code_change_since_the_last_review_updated_the_document(project_root) -> None:
+    """
+    Description:
+        The drift tests catch a name that changed; they cannot catch a behaviour that changed under
+        the same name. So a review is required, and recorded: the document names the commit it was
+        last reviewed against, and every later commit that changes src/, App/, Configuration/ or
+        Example/ must also change the document, either its content or, when the change affects no
+        capability, that line. A code commit that skips the review fails here. A repository copied
+        without its git history skips the check, naming why.
+    """
+
+    if Git(project_root, 'rev-parse', '--git-dir').returncode != 0:
+        pytest.skip('REVIEW CHECK NOT RUN: %s is not a git repository, so the commits since the last '
+                    'review cannot be listed.' % project_root)
+
+    doc = Read_Text(os.path.join(project_root, CONST_CAPABILITIES_DOC))
+    match = CONST_LAST_REVIEWED.search(doc)
+    assert match, "docs/capabilities.md has no 'Last reviewed against the code at commit `<hash>`' line."
+    reviewed = match.group(1)
+    if Git(project_root, 'merge-base', '--is-ancestor', reviewed, 'HEAD').returncode != 0:
+        pytest.fail('The last-reviewed commit %s is not in this branch\'s history (rewritten, or a shallow '
+                    'clone). Review the document against the code and name HEAD\'s commit.' % reviewed)
+
+    code_commits = Git(project_root, 'log', '--format=%h', '%s..HEAD' % reviewed, '--',
+                       *CONST_REVIEWED_PATHS).stdout.split()
+    unreviewed = [commit for commit in code_commits
+                  if CONST_CAPABILITIES_DOC.replace(os.sep, '/') not in
+                  Git(project_root, 'show', '--name-only', '--format=', commit).stdout.split('\n')]
+
+    assert unreviewed == [], ('Commits changing the code since the last review (%s) left docs/capabilities.md '
+                              'untouched: %s. Review the document against each: update it, or, when no '
+                              'capability changed, move its Last reviewed line, in the same commit.'
+                              % (reviewed, ', '.join(unreviewed)))
