@@ -1613,7 +1613,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__stage_badge.Set_State(result.Verdict, result.Verdict_Level)
 
         self.__meta_task.setText(result.Task)
-        self.__meta_latency.setText('%d ms' % result.Latency_Ms)
+        self.__meta_latency.setText(self.CONST_LATENCY_FORMAT % result.Latency_Ms)
         self.__meta_confidence.setText(self.__Frame_Confidence_Text(result.Objects))
 
         # One successful analysis into the shared accumulator; the status counts read back from it.
@@ -1719,7 +1719,7 @@ class AnyScan_Window_Cls(QMainWindow):
         if mean is None:
             return Style.CONST_NO_VALUE
         # The number carries its severity colour and weight (rich text); the coverage stays plain.
-        number = Style.Confidence_Number_Html('%d%%' % mean, mean, self.__config.Confidence)
+        number = Style.Confidence_Number_Html(self.CONST_PERCENT_FORMAT % mean, mean, self.__config.Confidence)
         if scored < len(objects):
             return '%s over %d of %d' % (number, scored, len(objects))
         return number

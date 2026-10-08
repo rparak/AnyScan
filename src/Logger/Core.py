@@ -23,6 +23,7 @@
 
 # System (Default)
 import os
+import re
 import csv
 import atexit
 import signal
@@ -69,6 +70,11 @@ CONST_LEVEL_WIDTH = 7
 CONST_DATE_FORMAT = '%Y-%m-%d'
 CONST_TIME_FORMAT = '%H:%M:%S'
 CONST_FILENAME_TIME_FORMAT = '%H-%M-%S'
+# A session log's name as __Build_Filename and __Create_Log_File make it at the default date format:
+# 'log_<date>_<time>.txt', with '_2', '_3', ... for a second run in the same second. The station export
+# finds earlier runs' logs by it.
+#   Unit [Pattern(object)]
+CONST_LOG_NAME_PATTERN = re.compile(r'^log_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(_\d+)?\.txt$')
 # The timestamp formats used inside the run-summary CSV. These are fixed by the
 # CSV column contract and are deliberately independent of the per-line formats
 # above, so the injected line formats never change the CSV layout.

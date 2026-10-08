@@ -23,7 +23,6 @@
 
 # System (Default)
 import os
-import re
 import csv
 from datetime import datetime, timezone, tzinfo
 # Dataclasses (Data Classes)
@@ -32,7 +31,8 @@ from dataclasses import dataclass, field
 import typing as tp
 # Custom Lib.: AnyScan — the session log's one line parser and its event markers
 #   ../Logger/Core
-from Logger.Core import Parse_Line, Event_Marker, Line_Time, Cycles, CONST_MARKER_RUN_START, CONST_MARKER_RUN_STOP
+from Logger.Core import (Parse_Line, Event_Marker, Line_Time, Cycles, CONST_MARKER_RUN_START, CONST_MARKER_RUN_STOP,
+                         CONST_LOG_NAME_PATTERN)
 
 """
 Description:
@@ -81,9 +81,6 @@ CONST_TS_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 # The ledger of exported logs, in the log directory.
 #   Unit [string]
 CONST_LEDGER_FILENAME = 'station_events_exported.txt'
-# A session log's name: 'log_<date>_<time>.txt', with '_2', '_3', ... for a second run in the same second.
-#   Unit [string]
-CONST_LOG_NAME_PATTERN = re.compile(r'^log_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(_\d+)?\.txt$')
 
 
 class Station_Events_Error_Cls(OSError):

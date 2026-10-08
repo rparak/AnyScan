@@ -775,7 +775,7 @@ class Capture_Writer_Cls(object):
         if self.__keep_raw:
             self.__Write_Png(session_dir, set_id + CONST_CAPTURE_RAW_SUFFIX, raw_bgr, cv2)
             self.__Write_Distorted(session_dir, set_id, distorted_bgr, undistortion, cv2)
-        self.__Write_Text(session_dir, set_id + '_understanding.txt', '# ' + stamp + '\n'
+        self.__Write_Text(session_dir, set_id + CONST_CAPTURE_UNDERSTANDING_SUFFIX, '# ' + stamp + '\n'
                           + note + '\n')
         return self.__Evict(), (session_id if created else None)
 
