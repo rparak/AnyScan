@@ -100,7 +100,7 @@ def test_missing_file_raises_on_connect() -> None:
         Connecting to a path with no file raises an actionable Camera_Error_Cls.
     """
 
-    with pytest.raises(Camera_Error_Cls):
+    with pytest.raises(Camera_Error_Cls, match='No saved frame at "/no/such/frame.png". Pass --frame'):
         File_Camera_Cls('/no/such/frame.png').Connect()
 
 

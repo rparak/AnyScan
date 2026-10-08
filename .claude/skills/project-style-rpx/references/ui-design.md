@@ -64,9 +64,11 @@ practices followed inconsistently are under **Unsettled**.
   correct-looking stylesheet to 1.08:1 on screen.
 - A disabled control signals through its fill (and outline), not by making its label vanish. It is
   exempt from the 4.5:1 floor — its lower contrast is what says "not available" — but it must stay
-  distinguishable from its enabled state, and disabled-hover must look like disabled.
+  distinguishable from its enabled state, and disabled-hover must look like disabled. Qt's stylesheet
+  engine never matches `:hover` on a disabled widget, so no stylesheet can break the last one; a paint
+  path keyed on `underMouse()` would need its own test.
 - ✅ `test/UI/test_control_contrast.py` (`test_no_enabled_state_falls_below_the_text_contrast_floor`,
-  `test_disabled_states_are_exempt_but_distinguishable_from_enabled`, `test_disabled_hover_looks_like_disabled`,
+  `test_disabled_states_are_exempt_but_distinguishable_from_enabled`,
   `test_every_state_of_every_control_was_measured`, and a self-check that hover really rendered).
 
 ## Text: every enabled text clears 4.5:1 against its ground ✅

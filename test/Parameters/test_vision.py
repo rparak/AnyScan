@@ -68,6 +68,8 @@ def test_detection_str_requires_label_and_bbox() -> None:
 
     with pytest.raises(TypeError):
         Detection_Str()
+    with pytest.raises(TypeError, match='Bbox'):
+        Detection_Str(Label='part')
 
 
 def test_analysis_str_defaults() -> None:

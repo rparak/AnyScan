@@ -371,19 +371,3 @@ def test_disabled_states_are_exempt_but_distinguishable_from_enabled(records) ->
                for r in exempt
                if max(r['delta_e_label'], r['delta_e_fill']) < CONST_MIN_DISABLED_DELTA_E]
     assert not failing, 'disabled not distinguishable from enabled:\n  %s' % '\n  '.join(failing)
-
-
-def test_disabled_hover_looks_like_disabled(records) -> None:
-    """
-    Description:
-        The cursor resting on a disabled control changes nothing: a disabled CONNECT under the
-        pointer (it disables itself on click) renders exactly as a disabled CONNECT. A hover rule
-        leaking onto the disabled state would show here as a different fill or label.
-    """
-
-    by_key = {(r['control'], r['selection'], r['state']): r for r in records}
-    for (control, selection, state), record in by_key.items():
-        if state == 'disabled_hover':
-            plain = by_key[(control, selection, 'disabled')]
-            assert (record['background'], record['label']) == (plain['background'], plain['label']), \
-                '%s %s: hovered disabled differs from disabled' % (control, selection)

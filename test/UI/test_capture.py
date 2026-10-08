@@ -194,17 +194,23 @@ def test_retention_evicts_oldest_across_sessions_and_removes_empty_dirs(tmp_path
     assert (tmp_path / 'B' / 'b2_raw.png').exists()
 
 
-def test_a_write_failure_raises(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize('failing', ['_raw.png', '_thumb.jpg'])
+def test_a_write_failure_raises(tmp_path, monkeypatch, failing) -> None:
     """
     Description:
-        A PNG that does not land (cv2.imwrite reports failure) raises, rather than passing
-        silently as a success; the caller wraps this to log an ERROR and continue.
+        An image that does not land (cv2.imwrite reports failure) raises, rather than passing
+        silently as a success; the caller wraps this to log an ERROR and continue. The full-size
+        PNG and the thumbnail are written by different paths, so each fails alone while the other
+        writes really land: failing every write at once was caught by the thumbnail's check even
+        with the PNG's removed.
     """
 
-    monkeypatch.setattr(cv2, 'imwrite', lambda *args, **kwargs: False)
+    imwrite = cv2.imwrite
+    monkeypatch.setattr(cv2, 'imwrite',
+                        lambda path, *args, **kwargs: False if path.endswith(failing) else imwrite(path, *args, **kwargs))
     writer = Capture_Writer_Cls(str(tmp_path))
     raw, annotated, mask = _Images()
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match='cv2.imwrite reported failure for .*set1%s' % failing):
         writer.Write('s', 'set1', raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
                      ['0 0.4 0.4 0.6 0.6'], {'set_id': 'set1'}, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 

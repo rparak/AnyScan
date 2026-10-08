@@ -29,8 +29,6 @@ import subprocess
 import importlib.util
 # Typing (Support for type hints)
 import typing as tp
-# Pytest (Testing framework) [pip3 install pytest]
-import pytest
 # OpenCV (Computer Vision) [pip3 install opencv-python]
 import cv2
 # Numpy (Array computing) [pip3 install numpy]

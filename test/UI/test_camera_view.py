@@ -293,12 +293,13 @@ def test_the_legend_marks_the_threshold_and_shows_only_on_the_heatmap(qt_app, re
         heatmap = _Grab(viewport)
         _Private(window, '__On_View_Toggle')('annotated')
         grabs[name] = (heatmap, _Grab(viewport))
-    (heat_30, annotated_30), (heat_60, annotated_60), (heat_again, _annotated) = grabs['30'], grabs['60'], grabs['60 again']
+    (heat_30, annotated_30), (heat_60, annotated_60), (heat_again, annotated_again) = grabs['30'], grabs['60'], grabs['60 again']
     assert not np.array_equal(_Legend(heat_30, viewport), _Legend(heat_60, viewport))
     half = heat_30.shape[0] // 2
     assert np.array_equal(heat_30[:half], heat_60[:half])
     assert np.array_equal(heat_60, heat_again)
     assert np.array_equal(annotated_30, annotated_60)
+    assert np.array_equal(annotated_60, annotated_again)
 
 
 def test_the_heatmap_shows_the_difference_alone_with_no_boxes(qt_app, reference_background_path) -> None:
