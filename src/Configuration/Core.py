@@ -24,6 +24,7 @@
 # System (Default)
 import os
 import math
+import shutil
 import tempfile
 # Hashlib (the reference image's and the calibration's fingerprints)
 import hashlib
@@ -1233,7 +1234,9 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
             first, and the write is REFUSED if the file holds any top-level key other than
             'Hardware' and 'Calibration', any key in 'Calibration' the writer does not produce, or
             another hardware — so content someone added to a calibration file is never silently
-            regenerated away. The existing header comment is kept.
+            regenerated away. The existing header comment is kept. The file is written whole
+            beside the target and then replaces it, so a write that fails part-way leaves the
+            calibration in force as it was.
 
     Args:
         (1) Camera_Calibration_Parameters_Str [Camera_Calibration_Parameters_Str(object)]: The
@@ -1322,9 +1325,21 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
                 '  # undistorted (alpha = 1) pixel space measurement happens in.\n'
                 f'  Conversion_Factor:\n{factors}\n')
 
-        # 4\ Write the header and the regenerated content.
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(header).rstrip('\n') + '\n\n' + body)
+        # 4\ Write the header and the regenerated content beside the target, then replace it whole: a
+        #    write that fails part-way (a full disk) must leave the calibration in force, not a torn one.
+        temporary = output_path + '.writing'
+        try:
+            with open(temporary, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(header).rstrip('\n') + '\n\n' + body)
+                f.flush()
+                os.fsync(f.fileno())
+            if os.path.exists(output_path):
+                shutil.copymode(output_path, temporary)
+            os.replace(temporary, output_path)
+        except BaseException:
+            if os.path.exists(temporary):
+                os.remove(temporary)
+            raise
         return True
 
     except (AssertionError, OSError, KeyError, yaml.YAMLError) as error:

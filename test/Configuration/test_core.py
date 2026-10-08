@@ -24,8 +24,10 @@
 # System (Default)
 import os
 import re
+import sys
 import json
 import shutil
+import subprocess
 # Typing (Support for type hints)
 import typing as tp
 # PyYAML (YAML parser and emitter) [pip3 install pyyaml]
@@ -710,6 +712,38 @@ def test_the_calibration_writer_refuses_to_delete_content_it_does_not_own(tmp_pa
         assert not Write_Calibration(_Solved(), hardware=CONST_HARDWARE, header_source=None,
                                      output_path=str(target), record=CONST_RECORD)
         assert target.read_text() == content
+
+
+def test_a_calibration_write_that_fails_part_way_leaves_the_file_in_force(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A write that fails part-way, as on a full disk, returns False and leaves the calibration in
+        force byte for byte, with nothing else left beside it: "False if refused or failed" means
+        nothing was written. Before this, the file in force was opened for writing directly and was
+        left truncated, so the next load failed. A fresh interpreter caps the size of any file it
+        writes (RLIMIT_FSIZE, below the calibration's size), so the write really fails part-way.
+    """
+
+    target = tmp_path / ('Calibration_%s.yaml' % CONST_HARDWARE)
+    shutil.copy(Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), target)
+    before = target.read_bytes()
+    script = '\n'.join((
+        'import sys, signal, resource, numpy as np',
+        'sys.path.insert(0, %r)' % os.path.join(CONST_PROJECT_ROOT, 'src'),
+        'from Configuration.Core import Write_Calibration',
+        'from Parameters.Camera import Camera_Calibration_Parameters_Str',
+        'solved = Camera_Calibration_Parameters_Str(K=np.eye(3), Coefficients={%s},' % ', '.join(
+            "'%s': 0.0" % key for key in ('k1', 'k2', 'p1', 'p2', 'k3')),
+        "    Conversion_Factor={'x': 0.1, 'y': 0.1}, Resolution=(1920, 1200), Offset=(8, 8))",
+        'signal.signal(signal.SIGXFSZ, signal.SIG_IGN)',
+        'resource.setrlimit(resource.RLIMIT_FSIZE, (300, resource.RLIM_INFINITY))',
+        'sys.exit(0 if Write_Calibration(solved, hardware=%r, header_source=%r, output_path=%r, record=%r) else 3)'
+        % (CONST_HARDWARE, str(target), str(target), CONST_RECORD)))
+    result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True, cwd=str(tmp_path))
+    assert result.returncode == 3, result.stdout + result.stderr          # refused: the write failed
+    assert 'File too large' in result.stdout
+    assert target.read_bytes() == before
+    assert sorted(os.listdir(tmp_path)) == [target.name]
 
 
 def test_a_camera_without_a_calibration_file_loads_uncalibrated_with_a_warning(tmp_path: tp.Any) -> None:
