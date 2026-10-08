@@ -265,7 +265,7 @@ class Card_Head_Cls(QWidget):
                  parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
         # `box` is exposed so the window can add a right-aligned control (e.g. the
-        # Camera View's annotated/mask toggle) into the head after the badge.
+        # Camera View's view toggle) into the head after the badge.
         self.box = QHBoxLayout(self)
         self.box.setContentsMargins(2, 2, 2, 14)
         self.box.setSpacing(10)
@@ -284,10 +284,10 @@ class Card_Head_Cls(QWidget):
 class Viewport_Cls(QWidget):
     """
     Description:
-        The camera image and the boxes drawn over it. The image is letterboxed
-        inside the widget, so the overlay recomputes the draw rectangle on every
-        paint — that maths lives here and nowhere else, the single most common
-        source of boxes that land in the wrong place.
+        The camera image, with the analysis renders (boxes already drawn in by Render_Views),
+        the heatmap legend and the busy overlay. The image is letterboxed inside the widget,
+        so the draw rectangle is recomputed on every paint — that maths lives here and
+        nowhere else, the single most common source of an image that lands in the wrong place.
     """
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
@@ -330,7 +330,7 @@ class Viewport_Cls(QWidget):
             Show a captured frame and drop any analysis renders. A new frame makes the
             previous frame's annotations stale — showing them over a different scene is
             the one genuinely misleading failure — so they are cleared here, and the
-            window disables the view toggle to match.
+            window hides the view toggle to match.
 
         Args:
             (1) image [QImage(object)]: The frame to paint.
@@ -376,7 +376,7 @@ class Viewport_Cls(QWidget):
             unchanged.
 
         Args:
-            (1) view [string]: 'annotated' or 'mask'.
+            (1) view [string]: 'annotated', 'mask' or 'heatmap'.
         """
 
         if view != self.__view:
@@ -454,7 +454,7 @@ class Viewport_Cls(QWidget):
     def Set_Busy(self, text: str) -> None:
         """
         Description:
-            A static overlay for the short, GUI-thread steps (connect, scan). No
+            A static overlay for the short, GUI-thread step (the scan). No
             animation is possible: the GUI thread is about to block, so a spinner
             would freeze mid-turn. processEvents forces the text to paint first.
 
@@ -543,8 +543,8 @@ class Viewport_Cls(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:
         """
         Description:
-            Paint the dark surface, the letterboxed frame, its boxes, and any busy
-            overlay on top.
+            Paint the dark surface, the letterboxed frame (the boxes are in its render), the
+            heatmap's legend when it shows, and any busy overlay on top.
         """
 
         p = QPainter(self)
@@ -729,8 +729,8 @@ class Segmented_Control_Cls(QWidget):
     """
     Description:
         The console's ONE segmented control: a row of mutually-exclusive, checkable segments
-        styled as a single pill, so every selector (the Camera View's annotated/mask toggle,
-        the header's Live/History/Log switch) shares one visual language. It emits
+        styled as a single pill, so every selector (the Camera View's annotated/mask/heatmap toggle,
+        the header's Live/Trends/History/Log switch) shares one visual language. It emits
         Segment_Selected with the chosen key only on a USER click; Set_Selection reflects a
         choice programmatically without re-emitting, so restoring a remembered choice never
         loops. The first segment is selected at construction.
@@ -876,10 +876,10 @@ class View_Toggle_Cls(Segmented_Control_Cls):
         """
         Description:
             Reflect a view choice WITHOUT emitting View_Changed — restore the operator's
-            remembered annotated/mask choice when a new analysis completes.
+            remembered view choice when a new analysis completes.
 
         Args:
-            (1) view [string]: 'annotated' or 'mask'.
+            (1) view [string]: 'annotated', 'mask' or 'heatmap'.
         """
 
         self.Set_Selection(view)

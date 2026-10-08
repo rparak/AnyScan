@@ -665,8 +665,9 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
 class Trends_View_Cls(QWidget):
     """
     Description:
-        The Trends view: the two run charts stacked in cards. It holds no data of its own — the
-        window hands it the accumulator's rows on Refresh, and it forwards them to the two charts.
+        The Trends view: the two run charts stacked in cards. It holds no data of its own — it is
+        bound to the window's accumulator and, on Refresh, forwards the accumulator's rows to the
+        two charts.
 
     Initialization of the Class:
         Args:

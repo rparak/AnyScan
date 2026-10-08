@@ -156,8 +156,8 @@ class Capture_Set_Str:
     """
     Description:
         One capture set as read back from disk — the set-level fields, its objects, the paths
-        of the images that exist, and whether it is partial (a failed analysis that left only a
-        raw frame). This is the plain structure the History view renders; building it does no
+        of the images that exist, and whether it is partial (an analysis that failed, or was
+        stopped at close, and left only a raw frame). This is the plain structure the History view renders; building it does no
         Qt work, so it is testable without a UI.
     """
 
@@ -206,8 +206,8 @@ class Capture_Set_Str:
     Annotated_Path: tp.Optional[str] = None
     Mask_Path: tp.Optional[str] = None
     Thumb_Path: tp.Optional[str] = None
-    # True when the set has no '_objects.json' — a failed analysis (raw frame only) or an
-    # unreadable metadata file. Note carries the reason, and the set is shown, never hidden.
+    # True when the set has no '_objects.json' — a failed or stopped analysis (raw frame only) or
+    # an unreadable metadata file. Note carries the reason, and the set is shown, never hidden.
     Partial: bool = False
     Note: str = ''
     # The newest file mtime in the set, for sorting newest-first.
@@ -517,7 +517,7 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
     Description:
         Read one capture set into a plain structure. When '_objects.json' is present and valid,
         the set-level fields and the objects are populated from it; the image paths that exist
-        are recorded. When the metadata is absent (a failed analysis left only a raw frame) or
+        are recorded. When the metadata is absent (a failed or stopped analysis left only a raw frame) or
         cannot be read/parsed, the set is marked partial with a note — never dropped, because a
         failed set is the one an operator most wants to see. A missing or malformed field never
         raises: every value is read defensively. This is the one reader of a set's '_objects.json'
@@ -656,8 +656,9 @@ class Capture_Writer_Cls(object):
 
             Features:
                 # Write one set into a session; returns (evicted ids, created dir or None).
-                evicted, created = Cls.Write(session_id, set_id, raw, annotated, mask,
-                                             text, yolo_lines, stamp, cv2, np)
+                evicted, created = Cls.Write(session_id, set_id, raw, annotated, mask, text,
+                                             yolo_lines, seg_lines, metadata, stamp, cv2, np,
+                                             distorted_bgr=distorted, undistortion=undistortion)
     """
 
     def __init__(self, captures_dir: str, retention_sets: int = CONST_CAPTURE_RETENTION_SETS,
@@ -746,9 +747,9 @@ class Capture_Writer_Cls(object):
                       undistortion: tp.Optional[tp.Dict[str, tp.Any]]) -> tp.Tuple[tp.List[str], tp.Optional[str]]:
         """
         Description:
-            Write a PARTIAL set into the session's directory for a FAILED analysis — the
-            raw frame (when kept) and a '.txt' note saying the analysis failed and only the
-            raw frame is present — so a crash leaves evidence (the frame that caused it)
+            Write a PARTIAL set into the session's directory for an analysis that FAILED or was
+            STOPPED at close — the raw frame (when kept) and a '.txt' note saying why and that only
+            the raw frame is present — so a crash leaves evidence (the frame that caused it)
             rather than nothing. The annotated image, mask and YOLO records do not exist,
             because they are produced only after a successful analysis. Retention is
             enforced as for a full set.

@@ -48,11 +48,12 @@ CONST_MAX_ROWS = 1000
 """
 Description:
     The Log view — the session log shown live in the central area. Its source of truth is the
-    logger: the logger emits each formatted line to a sink as it writes it, and this view
-    renders from that sink, seeded once from the file at startup. The view NEVER formats a
-    line and never re-derives the fields on its own — it calls the logger's one Parse_Line to
-    split the already-written line into date, time, level and message, then lays those four in
-    columns. Same formatted string in both places, so the file and the view cannot drift.
+    logger: the logger hands each line's fields (and the formatted line) to a sink as it writes
+    it, and this view renders from that sink, seeded once from the file at startup. The view
+    NEVER formats a line and never re-derives the fields on its own — a live line arrives as the
+    fields the logger wrote, and a seeded line is split by the logger's one Parse_Line — then
+    lays date, time, level and message in columns. One formatter, so the file and the view
+    cannot drift.
 
     Reading concerns that belong to the view, not the file: the timestamp and level are
     monospace and fixed-width so the message column starts at a consistent x; the level and
@@ -102,7 +103,7 @@ class Log_View_Cls(Card_Cls):
         are view concerns that never touch the file.
 
         Thread-safety: Sink is called from whichever thread logged the event, so it only emits
-        a Qt signal (Line_Received); the actual widget work runs on the GUI thread in the
+        a Qt signal (Record_Received); the actual widget work runs on the GUI thread in the
         connected slot. Emitting a signal is safe across threads, and the logger wraps the
         Sink call, so a render fault here can never stop a line reaching disk.
     """
@@ -231,8 +232,8 @@ class Log_View_Cls(Card_Cls):
         """
         Description:
             Seed the view once from the log file — the lines written before the sink was
-            attached (e.g. the application-start line). Each line is rendered through the same
-            Append_Line path as a live line, so there is one rendering route. A missing or
+            attached (e.g. the application-start line). Each line is parsed by Append_Line and
+            rendered by Append_Record, as a live line is, so there is one rendering route. A missing or
             unreadable file seeds nothing rather than raising.
 
         Args:

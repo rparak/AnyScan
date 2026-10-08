@@ -111,7 +111,7 @@ class AnyScan_Window_Cls(QMainWindow):
                 Cls.showMaximized()
 
             Features:
-                # Qt-dispatched overrides: keyPressEvent, closeEvent.
+                # Qt-dispatched overrides: eventFilter, keyPressEvent, closeEvent.
     """
 
     # The reading panel says what to do next, which depends on how far the operator
@@ -216,7 +216,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # The session logger is injected by the launcher; None disables logging so the
         # window still builds under test and in the screenshot harness.
         self.__logger = logger
-        # The per-analysis capture writer (four artefacts per analysis under
+        # The per-analysis capture writer (one capture set per analysis under
         # logger/captures/, retention-bounded). Only when a logger is present, since the
         # captures live beside its log; None disables capture entirely.
         self.__capture_writer = None
@@ -268,7 +268,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # Only the status-bar run mean is logged, and only when it CROSSES a threshold — not
         # every analysis — so this remembers where it was to detect a crossing. Reset on Clear.
         self.__confidence_band = 'ok'
-        # The Camera View's remembered annotated/mask choice (§2b): it persists across
+        # The Camera View's remembered view choice (§2b): it persists across
         # analyses in a session, so an operator working in mask view is not thrown back
         # to annotated by the next Analyze.
         self.__view_choice = 'annotated'
@@ -298,7 +298,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__close_escape.timeout.connect(
             lambda: self.__Exit_Now('it had not ended %g s after the close request' % (self.CONST_CLOSE_ESCAPE_MS / 1000)))
         # Widgets, populated by __Build_Ui.
-        # The central view stack (Live / History / Log) and the header switch that drives it.
+        # The central view stack (Live / Trends / History / Log) and the header switch that drives it.
         # The header, status strip and funding row sit OUTSIDE the stack, so they stay fixed
         # and keep updating whichever view is shown.
         self.__stack = None
@@ -362,7 +362,7 @@ class AnyScan_Window_Cls(QMainWindow):
 
         # Only the central area changes when the view switch is used: the topbar (above), the
         # status strip and the funding row (below) stay fixed and keep updating regardless of
-        # which view is shown. The three views live in a stack; switching is a page change, so
+        # which view is shown. The four views live in a stack; switching is a page change, so
         # each view keeps its state and an analysis still drives the status strip and the Live
         # cards while another view is on top.
         self.__stack = QStackedWidget()
@@ -485,7 +485,7 @@ class AnyScan_Window_Cls(QMainWindow):
         row.addStretch(1)
 
         # The central-view switch, in the same segmented-control language as the Camera View's
-        # annotated/mask toggle, centred in the header. Live is selected at startup (the first
+        # view toggle, centred in the header. Live is selected at startup (the first
         # segment). It only changes which central view is shown — never the header, status strip
         # or footer.
         self.__view_switch = Segmented_Control_Cls(self.CONST_VIEW_SEGMENTS)
@@ -559,7 +559,7 @@ class AnyScan_Window_Cls(QMainWindow):
     def __Build_Camera_Card(self) -> Card_Cls:
         """
         Description:
-            The camera card: head, viewport and the five action buttons.
+            The camera card: head, viewport and the six action buttons.
 
         Returns:
             (1) parameter [Card_Cls(object)]: The camera card.
@@ -568,8 +568,8 @@ class AnyScan_Window_Cls(QMainWindow):
         card = Card_Cls()
         head = Card_Head_Cls('camera', 'Camera View', 'No frame')
         self.__frame_badge = head.badge
-        # The annotated/mask selector lives in the head, right-aligned: it belongs to the
-        # view, not the action row. Hidden until an analysis has produced both renders.
+        # The view selector (annotated/mask/heatmap) lives in the head, right-aligned: it belongs to
+        # the view, not the action row. Hidden until an analysis has produced its renders.
         self.__view_toggle = View_Toggle_Cls()
         self.__view_toggle.setVisible(False)
         head.box.addWidget(self.__view_toggle)
@@ -663,7 +663,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # Every value here is for the CURRENT frame — the whole panel describes one frame,
         # so the labels carry no scope qualifier. 'Inference time' is this analysis's
         # latency and 'Confidence (mean)' the mean across this frame's objects, distinct
-        # from the session median/mean in the status strip below.
+        # from the run median/mean in the status strip below.
         self.__meta_task = Meta_Row(meta, 'Task', compact=False, first=True)
         self.__meta_latency = Meta_Row(meta, 'Inference time', compact=False, mono=True)
         self.__meta_confidence = Meta_Row(meta, 'Confidence (mean)', compact=False, mono=True)
@@ -765,8 +765,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_configuration.setToolTip(self.CONST_CONFIGURATION_RESTART if self.__has_connected else '')
         self.__Sync_Model_State()
 
-        # The annotated/mask toggle is meaningful only once an analysis has delivered
-        # both renders, and never while a worker runs. Its visibility follows the held
+        # The view toggle is meaningful only once an analysis has delivered its
+        # renders, and never while a worker runs. Its visibility follows the held
         # renders, so a stale frame (which drops them) hides it in the same breath.
         has_views = self.__viewport.Has_Views()
         self.__view_toggle.setVisible(has_views)
@@ -1319,10 +1319,9 @@ class AnyScan_Window_Cls(QMainWindow):
                                                       describe_ms=times.Describe_Ms, tokens=tokens)
                 else:
                     self.__logger.Log_Object_Detected(det.Label, confidence, det.Bbox)
-            # The post-processing audit: every background sentence the composer stripped
-            # and every substance substitution it made, each tagged with the object index.
-            # Rewriting what the model said is a domain assumption, so it is recorded — a
-            # warning when stripping had to fall back, otherwise info — never silent.
+            # The pipeline's audit records: today only the background sentence's, a warning when
+            # the neutral fallback sentence stood in for the model's. Replacing what the model
+            # would have said is recorded, never silent.
             for level, message in result.Audit:
                 if level == 'warning':
                     self.__logger.Log_Warning(message)
@@ -1577,7 +1576,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             Render the reading: the summary lead, the object lines, the note, the
-            box overlay, the verdict badge, the meta rows and the counters. The two Camera
+            Camera View's renders, the verdict badge, the meta rows and the counters. The two Camera
             View images are rendered by the caller (once, in BGR, shared with the capture
             writer), so the on-screen and on-disk images are identical.
 

@@ -57,8 +57,8 @@ Description:
 
     The DETAIL panel shows the two result images — Annotated and Mask — SIDE BY SIDE at equal
     size, so they can be compared (there is no Raw/Annotated/Mask toggle). Raw is not shown for a
-    successful set (it is still written to disk); a PARTIAL set — a failed analysis with only a raw
-    frame — instead renders that raw frame across the full width under a failure banner, because
+    successful set (it is still written to disk); a PARTIAL set — a failed or stopped analysis with
+    only a raw frame — instead renders that raw frame across the full width under a failure banner, because
     that frame is the thing worth looking at. The set identity (id, date, time) and the set-level
     record (session, objects, task, inference time, frame mean confidence) are always visible.
 
@@ -291,7 +291,8 @@ class Thumb_Card_Cls(QFrame):
                 self.__thumb.setPixmap(pixmap.scaled(CONST_THUMB_W, CONST_THUMB_H,
                                                      Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 return
-        # No thumbnail — a failed analysis. Mark it as an error, not a bland placeholder.
+        # No thumbnail — a partial set (a failed analysis, or one stopped at close). Marked as an
+        # error, not a bland placeholder.
         self.__thumb.setStyleSheet('background: %s; border-radius: 5px; color: %s;'
                                    % (Style.CONST_VIEWPORT, Style.CONST_ERROR_ON_DARK))
         self.__thumb.setText('ANALYSIS\nFAILED')
@@ -358,7 +359,7 @@ class History_View_Cls(QWidget):
     Description:
         The History view: the compact 'Captures' grid on the left, the selected set on the right.
         It is given the captures root and reads it on Refresh (the window calls Refresh when
-        History is shown and whenever a set is written). Everything it renders comes from the
+        History is shown, and when a set is written or evicted while History is on screen). Everything it renders comes from the
         Qt-free reader.
     """
 
@@ -649,8 +650,8 @@ class History_View_Cls(QWidget):
     def Refresh(self) -> None:
         """
         Description:
-            Rediscover the sets on disk and rebuild the grid. Called when History is shown and
-            whenever a set is written or evicted. If the set being viewed is gone (evicted), the
+            Rediscover the sets on disk and rebuild the grid. Called when History is shown, and
+            when a set is written or evicted while it is on screen. If the set being viewed is gone (evicted), the
             detail is cleared with a note; otherwise the current selection is kept, or the first
             set is selected.
         """

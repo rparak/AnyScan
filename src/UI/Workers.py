@@ -31,8 +31,8 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 """
 Description:
-    The off-thread workers. Long-running work (a scan, model inference, a model load, a
-    Basler handshake) never runs on the GUI thread; each worker is moved onto a QThread
+    The off-thread workers. Long-running work (model inference, a model load, a Basler
+    handshake) never runs on the GUI thread (a scan, one short grab, does, behind Set_Busy); each worker is moved onto a QThread
     owned by the window and reports back only through signals. The window quits and
     waits on the thread once a worker's terminal signal fires (Join_Worker_Thread), then
     deletes both.
