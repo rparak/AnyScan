@@ -43,7 +43,8 @@ from Calibration.Core import (Detect_Board, Next_Capture_Name, Record_Capture, C
                               Report_Lines, Calibration_Error_Cls, Calibration_Parameters)
 #   ../Configuration/Core — the configuration layer the calibration is written and read through
 from Configuration.Core import (Load_Configuration, Write_Calibration, Calibration_Path_For,
-                                Hardware_Record, CONST_DEFAULT_CONFIG_FILE)
+                                Hardware_Record, Build_Reference_Sidecar, Reference_Sidecar_Path,
+                                CONST_DEFAULT_CONFIG_FILE)
 
 """
 Description:
@@ -369,11 +370,48 @@ def test_no_flat_view_fails_loudly(render) -> None:
         Calibrate(_Tilted(render), CONST_RENDER_SQUARE, 0.0, CONST_SQUARES)
 
 
+def _Make_Reference_Sidecar(mode: str) -> None:
+    """
+    Description:
+        Write the mode file's reference sidecar as make_reference.py would for a reference shot now: at
+        the mode file's window, undistorted with the calibration in force beside it (or none), under its
+        lighting. A configuration whose reference has no sidecar, or one made under another calibration,
+        does not load, so a test that puts a new calibration in force makes the reference again.
+
+    Args:
+        (1) mode [string]: The mode file.
+    """
+
+    import yaml
+    with open(mode, 'r', encoding='utf-8') as handle:
+        data = yaml.safe_load(handle)
+    camera = data['Camera']
+    reference = data['Segmentation']['Background']['Reference']
+    calibration = Calibration_Path_For(mode, 'a2A1920_51gcPRO_Computar_M1228_MPW3')
+    undistortion = None
+    if os.path.isfile(calibration):
+        with open(calibration, 'r', encoding='utf-8') as handle:
+            block = yaml.safe_load(handle)['Calibration']
+        undistortion = {'calibration': os.path.basename(calibration), 'K': block['K'],
+                        'coefficients': block['Coefficients']}
+    sidecar = Build_Reference_Sidecar(
+        reference, source='logger/captures/c/s_raw.png', shot='2026-10-08T09:00:00',
+        configuration=os.path.basename(mode),
+        window={'resolution': [camera['Resolution']['x'], camera['Resolution']['y']],
+                'offset': [camera['Offset']['x'], camera['Offset']['y']]},
+        undistortion=undistortion,
+        hardware={'camera': camera.get('Model', ''), 'lens': camera.get('Lens', ''),
+                  'lighting': camera.get('Lighting', '')})
+    with open(Reference_Sidecar_Path(reference), 'w', encoding='utf-8') as handle:
+        json.dump(sidecar, handle)
+
+
 def _Configuration_Copy(directory: tp.Any, window: tp.Optional[tp.Tuple[int, int]] = None) -> tp.Tuple[str, str]:
     """
     A copy of the shipped mode file and its hardware's calibration in a directory: (mode, calibration).
     With a window (width, height), the copy sets the camera — and the copied calibration's recorded
-    window — to it at offset (0, 0), with a grey background reference of that size — the configuration the rendered 960 x 600 boards belong to.
+    window — to it at offset (0, 0), with a grey background reference of that size and its sidecar —
+    the configuration the rendered 960 x 600 boards belong to.
     """
     import yaml
     hardware = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
@@ -400,6 +438,7 @@ def _Configuration_Copy(directory: tp.Any, window: tp.Optional[tp.Tuple[int, int
         data['Calibration']['Offset'] = {'x': 0, 'y': 0}
         with open(calibration, 'w', encoding='utf-8') as handle:
             yaml.safe_dump(data, handle, sort_keys=False)
+        _Make_Reference_Sidecar(mode)
     return mode, calibration
 
 
@@ -428,6 +467,7 @@ def test_result_goes_to_a_new_calibration_file_and_leaves_the_one_in_force(tmp_p
     assert written['Solved']['Board_Height_Mm'] == 4.5 and written['Solved']['Square_Size_Mm'] == 12.0
 
     shutil.move(str(output), in_force)                            # adopt it
+    _Make_Reference_Sidecar(mode)                                 # a new calibration needs a new reference
     config = Load_Configuration(mode)
     assert (config.Scale.Mm_Per_Px_X, config.Scale.Mm_Per_Px_Y) == pytest.approx(solved.Factor)
     assert config.Camera.Calibration.K[0, 2] == pytest.approx(solved.K[0, 2])
@@ -461,7 +501,8 @@ def test_images_harness_writes_a_new_calibration_and_says_adoption_is_separate(t
     written = [name for name in os.listdir(tmp_path) if name.startswith('Calibration_') and '_calib-' in name]
     assert len(written) == 1
     assert sorted(os.listdir(tmp_path)) == sorted([os.path.basename(mode), os.path.basename(in_force),
-                                                   'Background_960x600.png', 'images'] + written)
+                                                   'Background_960x600.png', 'Background_960x600.json',
+                                                   'images'] + written)
 
     for name in os.listdir(images):
         if name.startswith('flat_'):
@@ -494,7 +535,8 @@ def test_a_first_calibration_is_written_straight_into_force(tmp_path, render, ca
     Description:
         A camera with no calibration yet (its configuration loads uncalibrated) has nothing in force
         to keep, so 'calibrate.py --images' writes the result as the hardware's calibration directly
-        — and the configuration then loads calibrated. This is the loop a new camera starts from.
+        — and, its reference made again under the new calibration, the configuration then loads
+        calibrated. This is the loop a new camera starts from.
     """
 
     spec = importlib.util.spec_from_file_location(
@@ -503,6 +545,7 @@ def test_a_first_calibration_is_written_straight_into_force(tmp_path, render, ca
     spec.loader.exec_module(calibrate)
     mode, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
     os.remove(in_force)
+    _Make_Reference_Sidecar(mode)                                 # the reference of an uncalibrated camera
     assert Load_Configuration(mode).Camera.Calibration is None
     images = tmp_path / 'images'
     images.mkdir()
@@ -512,6 +555,7 @@ def test_a_first_calibration_is_written_straight_into_force(tmp_path, render, ca
     assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False, mode) == 0
     assert 'is now in force' in capsys.readouterr().out
     assert os.path.isfile(in_force)
+    _Make_Reference_Sidecar(mode)                                 # a new calibration needs a new reference
     assert Load_Configuration(mode).Scale is not None
 
 

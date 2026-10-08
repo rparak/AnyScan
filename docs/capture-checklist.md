@@ -160,8 +160,8 @@ that set's own records, not from a person.
    One large box, or one near the centre (for example *1 object, 40 000 px, centre*), means something
    is on the table: clear it and shoot again.
 4. Set `Segmentation.Background.Reference: Data/Images/Background/Image_Background_002.png` and restart the
-   application: the load now checks the reference against its sidecar, and the *no provenance sidecar*
-   warning is gone.
+   application: the load checks the reference against its sidecar (a reference without one fails the
+   load).
 
 ---
 

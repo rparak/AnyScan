@@ -485,7 +485,10 @@ calibration and the background reference are being re-shot, so there was nothing
 WARNING that names the risk (measurements may be wrong by an unknown amount), not a load failure —
 blocking live use over a calibration being replaced that week would gain nothing. **Once the
 multi-view recalibration is in force, make an absent window a load failure**; the code beside the
-warning (`Configuration.Core.__Read_Calibration`) says so.
+warning (`Configuration.Core.__Read_Calibration`) says so. *Corrected 2026-10-08:* the leniency has
+ended. The multi-view recalibration in force since 2026-09-28 records its window, so an absent window
+now fails the load, naming the camera's window and `calibrate.py`
+(`test_a_calibration_without_its_window_fails_the_load`).
 
 **Revisit if** the camera changes (another sensor makes 1920 × 1200 at (8, 8) wrong — the window
 belongs to the hardware, in its mode files); a measurement ever needs the 16 px per axis the window
@@ -521,7 +524,10 @@ That gap is real and stays until lighting is measured rather than named.
 **Temporary leniency, twice.** A reference with no sidecar loads with a WARNING (the reference in force
 predates sidecars), like a calibration with no recorded window. Both paths say beside them in the code
 that they become load failures once their reason expires: the recalibration in force, and a reference
-made by the tool in force (checklist item 2).
+made by the tool in force (checklist item 2). *Corrected 2026-10-08:* both reasons have expired (the
+recalibration and `Image_Background_001` with its sidecar, both in force since 2026-09-28), and both
+paths are load failures now (`test_a_reference_without_a_sidecar_fails_the_load_naming_what_is_unknown`,
+`test_a_calibration_without_its_window_fails_the_load`).
 
 **`scan.py` goes through the application's camera path.** It undistorted frames without the
 application's processing step, so its frames were not what the pipeline sees — and it is the harness

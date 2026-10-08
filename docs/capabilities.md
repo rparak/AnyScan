@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `afe6cf2` (2026-10-08).
+Last reviewed against the code at commit `9dd9298` (2026-10-08).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -184,7 +184,7 @@ unit. This table says what each section controls.
 | `Identity` | What the UI calls the configuration (`Display_Name`, in the dialog) and its models (`Model_Set`, in the header pill), and the `Task` a reading is labelled with. | Yes (`Task` optional) |
 | `Confidence` | The warning and error thresholds [%] below which a confidence is shown and logged as such. | No |
 | `Segmentation` | Stages 1–3: the FastSAM weights and inference settings. | Yes (`Model`) |
-| `Segmentation.Background` | Stage 1: the empty-surface reference (checked against its provenance sidecar) and the difference's threshold floor, opening and dilation. | Yes (`Reference`) |
+| `Segmentation.Background` | Stage 1: the empty-surface reference (checked against its provenance sidecar, which it must have) and the difference's threshold floor, opening and dilation. | Yes (`Reference`) |
 | `Segmentation.Fusion` | Stage 3: the closing, the speck filter, and when a FastSAM mask counts as the table itself. | No |
 | `Description` | Stage 4: the Gemma weights, generation settings, the reference crop margin, the object crop padding and the background sentence's limits. | Yes (`Model`) |
 | `Description.Prompts` | The two prompts sent to Gemma: `Object` per crop, `Background` once per configuration. Data, iterated here and never in code. | Yes |
@@ -207,7 +207,7 @@ are not undistorted and sizes are not reported.
 | `Hardware` | The hardware the calibration belongs to. | `calibrate.py` |
 | `Calibration` | The solved calibration: the intrinsic matrix `K` and the following. | `calibrate.py` |
 | `Calibration.Solved` | How it was solved: date, capture directory, view counts (flat and tilted), RMS, board square size and height. | `calibrate.py` |
-| `Calibration.Resolution`, `Calibration.Offset` | The sensor window it was solved at. A configuration with another window fails to load. | `calibrate.py` |
+| `Calibration.Resolution`, `Calibration.Offset` | The sensor window it was solved at. A configuration with another window fails to load, and so does a calibration that does not record it. | `calibrate.py` |
 | `Calibration.Coefficients` | The lens distortion, `k1 k2 p1 p2 k3`. | `calibrate.py` |
 | `Calibration.Conversion_Factor` | mm per pixel in x and y, exact in the flat boards' plane only. | `calibrate.py` |
 

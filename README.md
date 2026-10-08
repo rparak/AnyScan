@@ -156,12 +156,12 @@ file before anything is applied:
 - What depends on the sensor window is checked against it: a background reference of another size
   fails the load, naming both sizes, and so does a calibration solved at another window. The
   camera never takes its size from the reference. A calibration that does not record its window
-  loads with a warning for now (see `docs/design-decisions.md`).
+  fails the load too: it cannot be checked.
 - The background reference is checked against its sidecar: it must be the image the sidecar
   describes, shot at the camera's window, undistorted with the calibration in force, and under the
   lighting `Camera.Lighting` names. The window and calibration checks are structural; the lighting
   check compares two typed fields, so **changing the lamp without updating `Camera.Lighting` goes
-  unnoticed**. A reference without a sidecar loads with a warning for now.
+  unnoticed**. A reference without a sidecar fails the load.
 - A missing **optional** field takes the default written in the file's comments, and the log says so.
 - A value that is present but invalid fails the load; it never falls back to a default.
 

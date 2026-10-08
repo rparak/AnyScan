@@ -172,7 +172,7 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
     assert (config.Camera.Calibration.Resolution, config.Camera.Calibration.Offset) == ((1920, 1200), (8, 8))
     # No notes. The two lenient paths this used to expect (a calibration that does not record its window,
     # a reference with no provenance sidecar) ended when the recalibration and the reference made by
-    # make_reference.py came into force: a note here now means one of them regressed.
+    # make_reference.py came into force; both now fail the load.
     assert config.Notes == []
 
 
@@ -624,6 +624,25 @@ def test_a_calibration_solved_at_another_window_fails_the_load(tmp_path: tp.Any)
         Load_Configuration(_Write(tmp_path, mode, calibration))
 
 
+def test_a_calibration_without_its_window_fails_the_load(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A calibration that does not record the sensor window it was solved at fails the load: its
+        principal point and factor cannot be checked against the camera's window, so measurements could
+        be wrong by an unknown amount. The message names the camera's window and says calibrate.py
+        records it. (It loaded with a WARNING while the calibration in force predated recorded windows.)
+    """
+
+    mode, calibration = _Shipped()
+    del calibration['Calibration']['Resolution']
+    del calibration['Calibration']['Offset']
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert ('does not record the sensor window it was solved at, so it cannot be checked against the camera '
+            '(1920 × 1200 at offset (8, 8))') in str(error.value)
+    assert 'Example/Camera/calibrate.py' in str(error.value)
+
+
 def test_a_misspelt_window_key_is_a_warning(tmp_path: tp.Any) -> None:
     """
     Description:
@@ -856,18 +875,20 @@ def _Reference_Copy(tmp_path: tp.Any, mode: tp.Dict[str, tp.Any], calibration: t
     return _Write(tmp_path, mode, calibration), reference
 
 
-def test_a_reference_without_a_sidecar_loads_with_a_warning_naming_what_is_unknown(tmp_path: tp.Any) -> None:
+def test_a_reference_without_a_sidecar_fails_the_load_naming_what_is_unknown(tmp_path: tp.Any) -> None:
     """
     Description:
-        The reference in force predates sidecars: it loads, with a WARNING that the window, calibration
-        and lighting it was shot under are unknown and that make_reference.py writes the record. (The
-        leniency ends once a reference made by the tool is in force; see __Check_Reference_Sidecar.)
+        A reference with no provenance sidecar fails the load: the window, calibration and lighting it
+        was shot under are unknown, so background subtraction could be comparing frames against a
+        reference from another window, lens model or light. The message says make_reference.py writes
+        the record. (It loaded with a WARNING while the reference in force predated sidecars.)
     """
 
     mode, calibration = _Shipped()
-    config = Load_Configuration(_Reference_Copy(tmp_path, mode, calibration, sidecar=None)[0])
-    (warning,) = [message for level, message in config.Notes if 'sidecar' in message]
-    assert 'no provenance sidecar' in warning and 'make_reference.py' in warning
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(_Reference_Copy(tmp_path, mode, calibration, sidecar=None)[0])
+    assert 'Image_Background_002.png has no provenance sidecar (Image_Background_002.json)' in str(error.value)
+    assert 'Example/Camera/make_reference.py' in str(error.value)
 
 
 def test_a_reference_whose_sidecar_matches_loads_silently(tmp_path: tp.Any) -> None:

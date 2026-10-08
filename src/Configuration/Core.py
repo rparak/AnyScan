@@ -512,13 +512,13 @@ def Reference_Sidecar_Path(reference: str) -> str:
     return os.path.splitext(reference)[0] + CONST_REFERENCE_SIDECAR_SUFFIX
 
 
-def __Check_Reference_Sidecar(reference: str, Camera_Configuration_Str: tp.Any, problems: tp.List[str],
-                              notes: tp.List[tp.Tuple[str, str]]) -> None:
+def __Check_Reference_Sidecar(reference: str, Camera_Configuration_Str: tp.Any, problems: tp.List[str]) -> None:
     """
     Description:
         Check the background reference against its sidecar: the image is the one the sidecar
         describes (its SHA-256), and it was shot at the camera's window, undistorted with the lens
-        model in force, and under the lighting the configuration names. Any mismatch fails the load.
+        model in force, and under the lighting the configuration names. Any mismatch fails the load,
+        and so does a missing sidecar.
 
         Note:
             The guarantees are not equal. The WINDOW and CALIBRATION checks are structural: both
@@ -533,22 +533,15 @@ def __Check_Reference_Sidecar(reference: str, Camera_Configuration_Str: tp.Any, 
         (2) Camera_Configuration_Str [Camera_Configuration_Str(object)]: The camera block, with its
             window and its calibration (None when the hardware has none).
         (3) problems [Vector<string>]: The problem list, appended to.
-        (4) notes [Vector<Tuple<string> 1x2>]: The (level, message) notes, appended to.
     """
 
     path = Reference_Sidecar_Path(reference)
     name = os.path.basename(reference)
     if not os.path.isfile(path):
-        # LENIENT FOR NOW, deliberately. The reference in force predates sidecars; it is being
-        # replaced by one made with Example/Camera/make_reference.py (docs/capture-checklist.md,
-        # item 2), which writes one. Once that reference is in force, make a missing sidecar a load
-        # failure (a problem, like the mismatches below) so this lenient path does not outlive its
-        # reason — the same as the calibration's unrecorded window in __Read_Calibration.
-        notes.append(('WARNING', '%s has no provenance sidecar (%s), so the window, calibration and lighting '
-                                 'it was shot under are unknown: background subtraction may be comparing '
-                                 'frames against a reference from another window, lens model or light. '
-                                 'Make references with Example/Camera/make_reference.py, which writes it.'
-                                 % (name, os.path.basename(path))))
+        problems.append('%s has no provenance sidecar (%s), so the window, calibration and lighting it was '
+                        'shot under are unknown: background subtraction may be comparing frames against a '
+                        'reference from another window, lens model or light. Make the reference with '
+                        'Example/Camera/make_reference.py, which writes it' % (name, os.path.basename(path)))
         return
     try:
         with open(path, 'r', encoding='utf-8') as handle:
@@ -639,8 +632,8 @@ def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tupl
 
         The sensor window it was solved at (Resolution, Offset) must equal the camera's: K's
         principal point and the factor are in that window's pixels, so a calibration of another
-        window fails the load rather than producing wrong millimetres. A file that does not record
-        its window loads with a warning (see the note in the code on when that tightens).
+        window fails the load rather than producing wrong millimetres, and so does a file that does
+        not record its window: it cannot be checked.
 
     Args:
         (1) path [string]: The calibration file path.
@@ -674,17 +667,12 @@ def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tupl
 
     # The window the calibration was solved at, against the camera's.
     if 'Resolution' not in block and 'Offset' not in block:
-        # LENIENT FOR NOW, deliberately. The calibration in force predates recorded windows and is
-        # being replaced by the multi-view recalibration (docs/capture-checklist.md, item 1), which
-        # records its window. Once that calibration is in force, make an absent window a load
-        # failure (a problem, like the mismatch below) so this lenient path does not outlive its
-        # reason: a calibration whose window is unknown can be wrong by an unknown amount.
         camera = __Describe_Window(resolution, offset) if resolution and offset else 'the configured window'
-        notes.append(('WARNING', '%s does not record the sensor window it was solved at, so it cannot be '
-                                 'checked against the camera (%s). If they differ, its principal point and '
-                                 'conversion factor are in the wrong pixels: undistortion and every '
-                                 'measurement may be wrong by an unknown amount. Recalibrate with '
-                                 'Example/Camera/calibrate.py, which records the window.' % (name, camera)))
+        problems.append('%s does not record the sensor window it was solved at, so it cannot be checked '
+                        'against the camera (%s). If they differ, its principal point and conversion factor '
+                        'are in the wrong pixels: undistortion and every measurement may be wrong by an '
+                        'unknown amount. Recalibrate with Example/Camera/calibrate.py, which records the '
+                        'window' % (name, camera))
     else:
         solved_at = __Read_Window(block.get('Resolution'), '%s: Calibration.Resolution' % name, 1, problems)
         solved_offset = __Read_Window(block.get('Offset'), '%s: Calibration.Offset' % name, 0, problems)
@@ -788,7 +776,7 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     # 6\ The reference's provenance, against the window, the calibration and the lighting — after
     #    the calibration is read, since the reference must have been undistorted with it.
     if reference and resolution and offset and os.path.isfile(reference):
-        __Check_Reference_Sidecar(reference, Configuration_Str_i.Camera, problems, notes)
+        __Check_Reference_Sidecar(reference, Configuration_Str_i.Camera, problems)
 
     # 7\ Keys nothing reads — usually a misspelt optional field.
     for key in __Unknown_Keys(data):
