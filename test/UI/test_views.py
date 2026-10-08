@@ -354,3 +354,49 @@ def test_startup_names_the_configuration_it_offers_and_claims_nothing_loaded(tmp
     for claim in ('Loaded configuration', 'reads calibration', 'Classification is', 'Measuring objects',
                   'will not be measured'):
         assert claim not in log, claim
+
+
+def test_sigterm_ends_an_idle_application_without_waiting_for_an_event(tmp_path) -> None:
+    """
+    Description:
+        SIGTERM to the running application closes the run and ends the process within seconds,
+        even when its window is idle. Python runs a signal handler only when the interpreter next
+        runs, and an idle Qt loop runs none; before this, the logger's close waited for the next
+        mouse move or repaint, and a supervisor's SIGKILL could come first, leaving the run without
+        its CSV row. The launcher itself is run (in a subprocess, offscreen, with the logger's
+        handlers installed as in production); its loop is sent SIGTERM after 1 s and would quit on
+        its own only after 60 s, through a C++ slot that runs no Python.
+    """
+
+    import subprocess
+    import sys
+    import signal
+    project = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+    driver = (
+        "import os, sys, functools, signal, threading\n"
+        "os.environ['QT_QPA_PLATFORM'] = 'offscreen'\n"
+        "sys.path.insert(0, %r); sys.path.insert(0, %r)\n"
+        "import run\n"
+        "from PyQt5.QtCore import QTimer\n"
+        "from PyQt5.QtWidgets import QApplication\n"
+        "run.Session_Logger_Cls = functools.partial(run.Session_Logger_Cls, log_dir=%r)\n"
+        "import dataclasses\n"
+        "load = run.Load_Configuration\n"
+        "run.Load_Configuration = lambda path: dataclasses.replace(load(path), Station_Events_Directory=%r)\n"
+        "original = QApplication.exec_\n"
+        "def exec_(self):\n"
+        "    QTimer.singleShot(60000, self.quit)\n"
+        "    threading.Timer(1.0, os.kill, (os.getpid(), signal.SIGTERM)).start()\n"
+        "    return original()\n"
+        "QApplication.exec_ = exec_\n"
+        "sys.argv = ['run.py']\n"
+        "sys.exit(run.main())\n") % (os.path.join(project, 'App'), os.path.join(project, 'src'), str(tmp_path),
+                                    str(tmp_path))
+    try:
+        result = subprocess.run([sys.executable, '-c', driver], capture_output=True, text=True, timeout=40)
+    except subprocess.TimeoutExpired:
+        pytest.fail('SIGTERM was not acted on while the application was idle')
+    assert result.returncode == -signal.SIGTERM, result.stderr[-2000:]
+    (log_path,) = [os.path.join(str(tmp_path), name) for name in os.listdir(str(tmp_path))
+                   if name.startswith('log_') and name.endswith('.txt')]
+    assert open(log_path, encoding='utf-8').read().splitlines()[-1].endswith('Application stopped. #run-stop')
