@@ -52,6 +52,9 @@ Its own tests: `.venv/bin/python -m pytest .claude/skills/project-style-rpx/scri
 | `# << PRIVATE >> #` marker, private state as `self.__name` | 📄 |
 | `*_Error_Cls` messages are full operator sentences | 📄 |
 | A configuration field is read by something that can change behaviour | 📄 — the loader cannot see it (see references/structure.md) |
+| A value true on one machine only (a station's absolute path) lives in that machine's local copy of the mode file, never in the shipped one | 📄 — a required path is caught indirectly, when the suite loads the shipped file elsewhere (references/yaml.md) |
+| A comment is removed only when stale, false or restating the code; one recording why a value was chosen stays | 📄 (references/python.md > Docstrings) |
+| A behaviour-preserving change is proven equivalent: pinning tests pass on the old code first, then the output is byte-identical | 📄 (references/python.md > Tests) |
 | Every optional field in the shipped mode file documents its default, and that default is the code's; every required field says `REQUIRED` | ✅ `test/Configuration/test_core.py::test_every_documented_default_in_the_shipped_mode_file_is_the_code_default` |
 | A test calls the code it names, never a copy of that code's logic | 📄 — shown per test by breaking the target once (references/python.md > Tests) |
 | A test never takes its expectation from the thing under test (a table it validates, the output it measures) | 📄 — shown per test by breaking the target once (references/python.md > Tests) |

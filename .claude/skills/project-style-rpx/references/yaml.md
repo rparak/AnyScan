@@ -66,3 +66,21 @@ three instances so far were found by hand:
   passed); removed, with the box path and the parameters that only served it.
 
 See references/structure.md (*No parameter or field that cannot take effect*) for the same rule in code.
+
+## Machine-specific values stay out of the repository 📄
+
+A committed file holds values that are right on every machine that clones it: paths relative to the
+repository root, the rig's hardware as a person names it. A value that is true on one machine only — a
+station's absolute path, a host name, a mount point — lives in that machine's local copy of the mode
+file, outside the repository, never in the shipped one. The shipped file keeps a repository-relative
+value that works on a fresh clone.
+
+Instance: `4e2dcef` put the station's `/home/sf4/sf4/events/` into the shipped
+`General.Station_Events.Directory`. The loader requires that directory to exist, so everywhere else the
+shipped configuration stopped loading and 17 test modules failed before any test ran. `c1d4f51` put back
+`logger/Station_Events`; README > Configuration says how a station keeps its own copy (same file name,
+the calibration symlinked beside it, started with `--config`).
+
+Only a **required** path is caught, and only indirectly: the test suite loads the shipped file, so a path
+that does not exist on the machine running the tests fails them. An optional or non-path value specific
+to one machine passes every check.

@@ -98,6 +98,13 @@ def Hardware_And_Mode(config_path: str) -> tp.Tuple[str, str]:
 Comments are block comments above the code, saying *why*; multi-step bodies number their steps
 `# 1\ …`, `# 2\ …` (e.g. `Load_Configuration`).
 
+A comment is removed only when it is **stale** (describes code that has changed), **false**, or
+**restates the code** (`# increment i`). A comment that explains why — and above all one recording why a
+value was chosen (the measurement behind a threshold, the alternative rejected, the incident that set
+it) — stays, even when it is long and even when the code around it is rewritten. It is the project's
+memory of a decision that the code alone cannot show; removing it as "noise" is how a tuned value gets
+retuned back. A stale why-comment is corrected, not deleted, when its reason still holds.
+
 ## Types and data 📄 (✅ annotations present)
 
 - Annotate every parameter and return with `tp.*` (`tp.Optional`, `tp.Tuple`, `tp.Dict`…);
@@ -173,6 +180,13 @@ Comments are block comments above the code, saying *why*; multi-step bodies numb
   also deleted `test_a_workers_thread_has_ended_when_the_window_has_taken_its_result` (4 cases), and a
   10-run loop of `test/UI` passed 10 of 10 without them. Only 214 passed against the expected 218
   showed it.
+- **A behaviour-preserving change is proven equivalent.** A refactor, a deduplication or a
+  performance change claims the output is unchanged, so show it. First write pinning tests for the
+  behaviour the change touches and run them on the **old** code — a pin written after the change can
+  only describe the new behaviour. Then compare the output byte for byte before and after on the same
+  inputs: the characterization golden file (`test/Vision/data/characterization.txt`), an analysed frame's
+  capture set, a CSV row, rendered pixels. A difference is either a bug in the change or a behaviour
+  change, which is then reported and decided as one, not absorbed into the refactor.
 - **An expected failure must not be satisfiable by a missing input.** A strict `xfail` with
   `raises=AssertionError` accepts *any* `AssertionError`, including the one a missing-frame check
   raises, so the test reads a real fault as confirmation that it is working. Instance: `2d163a6`
