@@ -52,7 +52,8 @@ Description:
 # its hue names it. OpenCV hue is 0..179. The saturation cutoff is set for machined
 # metal: bare steel under the green-lit rig carries a genuine but weak colour cast, which a
 # low cutoff mis-reads as blue, while a real coloured part sits higher — so the cutoff sits in
-# that gap. Median saturation on Data/Images/Test/All (2026-09-28): metal, plastic and white
+# that gap. Median saturation on Data/Images/Test/All (2026-09-28; the previous set, no longer in the
+# repository, recoverable from 1061966): metal, plastic and white
 # parts 2-78, the blue parts 168-189, the red block 124-143 — the tight side of the gap.
 CONST_COLOR_VALUE_MIN = 40
 CONST_COLOR_SAT_MIN = 120

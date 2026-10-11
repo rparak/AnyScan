@@ -184,7 +184,8 @@ CONST_MASK_FILL_WINDOW_MARGIN = 0.5
 #   red; its fail-lookalike quality is the whole reason it belongs here.
 #   The OK box '#6C63B5' is a deliberately LIGHTER tint than its ink twin '#4a4180':
 #   '#4a4180' alone is too dark to read against the dark rusted plates (the previous test set's
-#   Image_003/005, eb00508^; the same plates are in Data/Images/Test/All 003, 004), so the
+#   Image_003/005, eb00508^; the same plates are in the dark rusted plate frames of
+#   Data/Images/Test, e.g. Image_015), so the
 #   box carries the lighter value and the ink is reserved for text on the white card.
 #
 #   The THIRD entry is the label-mask FILL: a tint of the box that is visibly the box's own

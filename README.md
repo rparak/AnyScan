@@ -205,7 +205,8 @@ in another. Nothing in this version verifies the absolute scale either, so the o
 magnitude is unknown. Comparing like parts in like positions works; deciding whether a part is within
 a stated tolerance does not.
 
-- **Repeatable:** on the test set (`Data/Images/Test/All`, 2026-09-28), the large washer in six frames
+- **Repeatable:** on the previous test set (`Data/Images/Test/All`, 2026-09-28; no longer in the repository,
+  recoverable from `1061966`), the large washer in six frames
   measures Ø 22.79–23.10 mm, and the rust-stained plate in three placements 60.92–61.10 × 39.98–40.55 mm
   (`Image_007`, and `010` and `013`, which have since left the set — recoverable from `b5ca788^`). Repeatability says nothing about correctness — a wrong scale is
   the same in every frame.
@@ -376,9 +377,10 @@ src/                      Qt-free domain modules + the UI (see "Source layout")
 Example/                  runnable scripts (scan, calibrate, calibration_tilt_study, generate_checkerboard,
                           make_reference, analyze, evaluate_describer, architecture_diagram, build_logo,
                           build_fonts)
-Data/Images/Test/All/     the eight frames analyze.py runs on, and the tests' pinned set, with answer_key.json
-                          (what each object is, for evaluate_describer.py) — committed
-Data/Images/Test/*/       other folders: raw captures (Mounting_Plate, Labyrinth), not tested — committed
+Data/Images/Test/         the 41 frames analyze.py runs on (Image_014-054), and the tests' pinned set —
+                          committed. No answer key yet: the previous set's named objects on frames
+                          that are gone, and is kept as the scoring tests' data
+                          (test/Vision/Utilities/data/answer_key_1061966.json)
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored
 Data/Results/             analyze.py and scan.py output — git-ignored
@@ -392,7 +394,7 @@ models/                   model weights — you supply these, NOT committed
 `Data/` is input and output and `images/` is documentation — kept apart on purpose. The test
 frames and the reference are tracked; the calibration captures (about 4 MB a frame, 40+ a set) and
 the analysis output are not — a calibration records the directory it was solved from. Adding a
-frame to, or renumbering one in, `Data/Images/Test/All/` changes what every pinned expectation refers
+frame to, or renumbering one in, `Data/Images/Test/` changes what every pinned expectation refers
 to, so it is a deliberate move made with the pins, never a side effect of a tool — and a frame is
 added under a new name, never written over an old one (docs/design-decisions.md, *A replaced image
 never keeps its name*). Only `models/` is user-supplied.
@@ -484,7 +486,8 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
   NVIDIA GeForce RTX 5070 Ti (16 GB, compute capability 12.0), driver 595.91.07 (CUDA 13.2),
   Python 3.11.16, MLX 0.32.2 + `mlx-cuda-13`, mlx-vlm 0.7.2, PyTorch 2.14.0+cu130. Through the
   application's path (`Load_Configuration` -> `Configure` -> `Analyze`) on the eight
-  `Data/Images/Test/All` frames with the shipped configuration: E4B 0.65 s per object (mean of
+  `Data/Images/Test/All` frames (the previous set, no longer in the repository; recoverable from
+  `1061966`; not re-run on the current one) with the shipped configuration: E4B 0.65 s per object (mean of
   37; 0.64-0.66 s over two processes), model load 3.9 s, configure (load and warm-up) 4.8 s (9.4 s
   once, on the first run after the download, when the warm-up sentence took 5.1 s instead of
   0.5 s); FastSAM loads in 0.08 s and segments a frame in 34-55 ms on CUDA. Peaks: 6.99 GB MLX,
@@ -492,7 +495,8 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
   after a load is no slower than the next. Every description and background sentence was
   identical word for word between two processes, and the full suite passes with and without
   `--runslow`. `Example/Vision/evaluate_describer.py` scores the configured describer against
-  the confirmed answer key (`Data/Images/Test/All/answer_key.json`) on any machine with the weights.
+  a confirmed answer key on any machine with the weights; the current test set has none yet (the
+  previous set's, `Data/Images/Test/All/answer_key.json`, is recoverable from `1061966`).
 - **Packaging:** the PyInstaller recipe this section used to give was for Windows and no
   longer applies. No packaging recipe has been verified on any platform; run from source
   (`python App/run.py`).
@@ -517,7 +521,8 @@ it, and the configuration's `Description.Model` names its directory.
 - **Provenance:** its model card gives its source, `google/gemma-4-E4B-it` at revision `fee6332`,
   where the licence was checked (Apache 2.0; see [Licence note](#licence-note)).
 - **Scoring it:** `python Example/Vision/evaluate_describer.py` runs it through the application's
-  path and scores its descriptions against `Data/Images/Test/All/answer_key.json`.
+  path and scores its descriptions against the test set's answer key. The current set has none yet;
+  the previous set's (`Data/Images/Test/All/answer_key.json`) is recoverable from `1061966`.
 
 ## Swapping a component
 

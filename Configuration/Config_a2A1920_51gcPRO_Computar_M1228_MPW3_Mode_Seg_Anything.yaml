@@ -160,7 +160,7 @@ Description:
   # How the wording was chosen (Phase 0 of the describer swap, docs/design-decisions.md):
   #   measured on the Image_002 (rust-stained) and Image_007 (clean) plates and on four
   #   plastic parts of Image_001, at temperature 0 — frames of the previous test set (eb00508^;
-  #   the names do not match Data/Images/Test/All), not re-run on the current one.
+  #   the names do not match Data/Images/Test), not re-run on the current one.
   #   - "look carefully for ... name any you find and where they are" is kept firm: a
   #     softer "if you can see ..." missed the rust on Image_002 entirely.
   #   - "if there are none, say that the surface looks clean" makes a clean answer
@@ -233,9 +233,9 @@ Camera:
 # only resolves them — a missing directory never stops the application from loading.
 Evaluation:
   # The test frames analyze.py runs on (Image_NNN.png): the pinned set the tests' expectations refer
-  # to (the eight frames' inventory, test/integration/test_pipeline.py CONST_INVENTORY). analyze.py
+  # to (the 41 frames' inventory, test/integration/test_pipeline.py CONST_INVENTORY). analyze.py
   # checks the directory, and each frame's size against Camera.Resolution. Adding, moving or
   # renumbering a frame here changes what the pins test — a deliberate move, updated with them, never
-  # a tool's side effect. Data/Images/Test/Mounting_Plate and Labyrinth are raw captures, not tested.
-  # Default: not set (analyze.py then needs --input-dir).
-  Frames: Data/Images/Test/All
+  # a tool's side effect. The previous set, Data/Images/Test/All, is no longer in the repository
+  # (recoverable from 1061966). Default: not set (analyze.py then needs --input-dir).
+  Frames: Data/Images/Test

@@ -41,7 +41,7 @@ goes through that module's reader. A second parser drifts from the writer silent
 | Calibration capture manifest (`capture.json`) | `Calibration.Core` (`Record_Capture`, `Captured_Window`) |
 | Session log lines and the run-summary CSV | `Logger.Core` (`Parse_Line` is the only log-line parser; the Log view uses it) |
 | Daily station event files (`<Station_Events.Directory>/YYYY-MM-DD.csv`) and their export ledger (`logger/station_events_exported.txt`) | `Logger.Station_Events` (the daily files are written, never read back; the ledger is written and read. It reads the session log only through `Parse_Line` and the logger's event markers, never sentence wording) |
-| Describer answer key (`Data/Images/Test/All/answer_key.json`) | `Vision.Utilities.Evaluation` (`Load_Answer_Key`; written by hand, confirmed by the owner) |
+| Describer answer key (`answer_key.json` beside the test frames; the current set has none yet, the previous set's is kept as test data in `test/Vision/Utilities/data/answer_key_1061966.json`) | `Vision.Utilities.Evaluation` (`Load_Answer_Key`; written by hand, confirmed by the owner) |
 
 No module parses YAML for itself; tools in `Example/` go through these readers too
 (`make_reference.py` → `Read_Capture_Set`; `calibrate.py` → `Calibration.Core.Captured_Window`).

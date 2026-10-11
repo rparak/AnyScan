@@ -22,8 +22,6 @@
 ## =========================================================================== ##
 
 # System (Default)
-import glob
-import importlib.util
 import json
 import os
 # Pytest (Testing framework) [pip3 install pytest]
@@ -36,40 +34,22 @@ from Vision.Utilities.Evaluation import (Load_Answer_Key, Score_Type, Score_Mate
 """
 Description:
     The describer's answer key and its scoring rules (Vision.Utilities.Evaluation), without a model:
-    the shipped key covers the pinned test set as CONST_INVENTORY counts it and records the owner's
-    answers, and each rule scores the way the key's "rules" block states. The describer run itself
-    (Example/Vision/evaluate_describer.py) needs the weights and is not part of the suite.
+    the key records the owner's answers, and each rule scores the way the key's "rules" block states.
+    The key is the previous test set's (Data/Images/Test/All/answer_key.json at 1061966, copied byte for
+    byte): its frames are gone, but its rules, patterns and the owner's answers are the data the scoring
+    is tested on. The current set (Data/Images/Test) has no key yet, so nothing checks a key against its
+    inventory until one is written. The describer run itself (Example/Vision/evaluate_describer.py) needs
+    the weights and is not part of the suite.
 """
-# The pinned test set, its answer key, and the inventory that counts its objects.
+# The previous test set's answer key, kept as the scoring rules' test data.
 #   Unit [string]
-CONST_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..')
-CONST_FRAMES = os.path.join(CONST_ROOT, 'Data', 'Images', 'Test', 'All')
-CONST_KEY = os.path.join(CONST_FRAMES, CONST_ANSWER_KEY_FILE)
-CONST_PIPELINE_TESTS = os.path.join(CONST_ROOT, 'test', 'integration', 'test_pipeline.py')
+CONST_KEY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'answer_key_1061966.json')
 
 
 @pytest.fixture(scope='module')
 def key() -> dict:
-    """The shipped answer key, through its reader."""
+    """The previous test set's answer key, through its reader."""
     return Load_Answer_Key(CONST_KEY)
-
-
-def test_the_key_numbers_every_object_the_inventory_counts(key) -> None:
-    """
-    Description:
-        The key names exactly the frames of the pinned set, and per frame exactly the objects
-        CONST_INVENTORY counts, numbered 1..n, so a moved or added frame fails here without the weights.
-    """
-
-    spec = importlib.util.spec_from_file_location('pipeline_tests', CONST_PIPELINE_TESTS)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    frames = sorted(os.path.splitext(os.path.basename(path))[0] for path in glob.glob(os.path.join(CONST_FRAMES, 'Image_[0-9]*.png')))
-    counted = {os.path.splitext(name)[0]: count for name, count in module.CONST_INVENTORY.items()}
-    for frame in frames:
-        indices = sorted(entry['index'] for entry in key['objects'] if entry['frame'] == frame)
-        assert indices == list(range(1, counted[frame] + 1)), frame
-    assert sorted({entry['frame'] for entry in key['objects']}) == frames
 
 
 def test_the_key_records_the_owners_answers(key) -> None:

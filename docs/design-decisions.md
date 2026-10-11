@@ -98,7 +98,8 @@ The model-free describer calls a pixel "coloured" only above HSV saturation 120
 (`Describe_Fallback.CONST_COLOR_SAT_MIN`); below it the object reads as grey/metal. 120
 sits in a real gap. It was set on the previous test set (`eb00508^`: metal up to S=98,
 saturated colours from S=184, a pink-red block at S=121) and re-measured on
-`Data/Images/Test/All` (2026-09-28, median saturation per object): metal, plastic and white
+`Data/Images/Test/All` (2026-09-28, median saturation per object; no longer in the repository, recoverable from `1061966`, not re-measured
+on the current set): metal, plastic and white
 parts 2–78 (the dark plates 17–41), the blue parts 168–189, and the red block 124 and 143 —
 still the one tight case, now 4 points above the line in `All/Image_006`. The field is decided
 by a per-pixel majority vote, not the median, which is more robust than any median-based
@@ -141,7 +142,7 @@ today's. This does not meet the revisit clause: seven frames, six with one objec
 representative set, and the tests hold the background-only path. The entry stands. The
 background-only direction now rests on the original run, not on a frame in the repository.
 
-*Re-measured 2026-09-28 on the current test set* (`Data/Images/Test/All`; the frames above are the
+*Re-measured 2026-09-28 on the test set of that time* (`Data/Images/Test/All`, no longer in the repository, recoverable from `1061966`; the frames above are the
 previous set, removed in `eb00508`, recoverable from `eb00508^` — names there do not match `All/`): 44
 objects, 41 `both` and 3 `fastsam` (one each in `All/Image_001`, `007` and `013`), none background-only.
 The FastSAM-only direction is sharper than before — the dark rusted plate in `All/Image_013` is 2 % seen
@@ -149,7 +150,8 @@ by the background cue — and the background-only direction still rests on the o
 stands.
 
 *Re-measured 2026-09-28 on the eight frames left after `b5ca788`* removed `All/Image_009`–`013`
-(recoverable from `b5ca788^`): 37 objects, 35 `both` and 2 `fastsam` (the blue double triangle in
+(recoverable from `b5ca788^`; the eight are gone too, recoverable from `1061966`, and the current set is not
+re-measured): 37 objects, 35 `both` and 2 `fastsam` (the blue double triangle in
 `All/Image_001`, the lattice bracket in `007`), none background-only. The 2 % plate was in `013` and is
 no longer in the set; the FastSAM-only direction rests on the triangle and the bracket. The entry stands.
 Commit `feca088`; tests `test/Vision/Utilities/test_fusion.py::test_object_seen_only_by_fastsam_survives`, `::test_object_seen_only_by_background_survives`.
@@ -182,8 +184,9 @@ is pinned by the synthetic test below alone.
 bridge it needs is evidence-specific (e.g. both pieces inside one FastSAM mask), not a kernel.
 Tests `test/Vision/Utilities/test_fusion.py::test_the_closing_never_joins_components_that_were_separate`,
 `::test_the_closing_still_fills_a_gap_inside_one_component`,
-`test/integration/test_pipeline.py::test_counts_match_the_inventory` (slow; the eight frames, none of
-them with near parts).
+`test/integration/test_pipeline.py::test_counts_match_the_inventory` (slow; the 41 frames of
+`Data/Images/Test`, whose nearest parts are the plates of the 2×2 grids `Image_052`–`054`, set close
+together but not touching, each counted four).
 
 ## The annotated view is the exported render, not live Qt painting
 
@@ -569,6 +572,12 @@ changed; it goes on citing, asserting or loading whatever now carries the name.
    frame raises one, so three of the five read as expected failures; only 010 and 013 failed, and only
    under `--runslow` with the weights. Not a replacement, but the same failure: the name outlived the
    frame, and the pins did not follow the set.
+5. **On 2026-10-11 the set was replaced whole, and the names were not reused.** Forty-one frames of a
+   2026-10-09 session took the place of `All/` and its raw-capture neighbours, directly in
+   `Data/Images/Test`. They arrived as `Image_001`–`041`; none matched any committed image by bytes or
+   by pixels. The names `Image_001`–`013` were still cited for the previous set's evidence, so the new
+   frames were numbered `Image_014`–`054`, the inventory was recounted by eye and confirmed by the owner,
+   and every citation of `All/` says in place that its frame is gone (recoverable from `1061966`).
 
 **What held.** The reference's sidecar records the image's SHA-256 and the fingerprint of the lens
 model that undistorted it, and `Load_Configuration` checks both: a reference swapped under an old
@@ -676,7 +685,8 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   part an orientation that changes on noise, so a drawn rectangle would appear to spin on a part
   that has not moved. The test is elongation — the square root of the mask's second-moment
   eigenvalue ratio — below **1.15**: the thirteen frames `Data/Images/Test/All` held on 2026-09-28
-  (`b5ca788^`) put round parts at 1.002–1.016 and the least elongated non-square part at 1.468 (the
+  (`b5ca788^`; that folder is no longer in the repository, recoverable from `1061966`, and the figures are not re-measured on the
+  current set) put round parts at 1.002–1.016 and the least elongated non-square part at 1.468 (the
   robot in 005; the plates 1.49–1.60). Re-measured on the eight left after `b5ca788`, every figure
   holds except the plates, 1.49–1.54. **A square is the exception:** it is as un-elongated as a
   disc (1.013, the maze plate in `All/Image_008`) but its sides are real edges that `minAreaRect`
@@ -730,7 +740,7 @@ number.
 - **What counts as hexagonal.** The part's caliper (Feret) width is sampled over 180° from its
   convex hull; a hexagon's repeats every 60°, so its third harmonic is strong. *Hexagonality* is
   that harmonic's amplitude over the mean width, and **0.0075** is the threshold. Measured on
-  `Data/Images/Test/All` (2026-09-28; 9 round and 6 hexagonal instances of 4 washer/bushing and 2
+  `Data/Images/Test/All` (2026-09-28, no longer in the repository, recoverable from `1061966`; 9 round and 6 hexagonal instances of 4 washer/bushing and 2
   nut parts): round 0.0010–0.0028, nuts 0.0114–0.0290 (lower than an ideal hexagon's 0.038–0.057
   because the masks round the corners), pixelated ideal discs ≤ 0.0021 down to 24 px across. 0.0075
   sits between the closest washer (0.0028) and nut (0.0114) — 2.7× and 1.5× from each; the small nut
@@ -894,7 +904,7 @@ another repository; rewriting them would misstate that origin.
 
 ## The describer is Gemma 4 E4B, prompted, behind a describer seam
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 Stage 4 (the per-object description and the one background sentence) moves from Florence-2 to
 **Gemma 4 E4B-it**, the local `models/gemma-4-e4b-it-4bit`. Segmentation stays on FastSAM.
@@ -959,7 +969,7 @@ weights exist).
 
 ## The background strip is removed, not retuned
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 `Reporting.Strip_Background` deleted any object sentence that was *about* the background and
 trimmed trailing phrases like "on a green surface". It existed because Florence-2 wrote table
@@ -984,7 +994,7 @@ Tests `test/Reporting/test_core.py::test_a_sentence_naming_the_surface_is_kept_w
 
 ## The label distiller peels Gemma's opener — and the label is still weak
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 Gemma opens every description "The object is a …" (all 15 objects of the seven frames), which the
 Florence lead-ins do not cover; the distiller cut at " is " and every label — which feeds `type=`
@@ -1005,7 +1015,7 @@ Test `test/Vision/Utilities/test_caption.py::test_condense_label_peels_gemmas_op
 
 ## The label runs up to the head noun (supersedes the comma cut)
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 The first opener fix left 8 of 15 labels a single adjective, because the distiller cut at the
 first comma and Gemma lists adjectives with commas ("a rectangular, flat plate"). The problem was
@@ -1039,7 +1049,7 @@ Test `test/Vision/Utilities/test_caption.py::test_condense_label_takes_the_phras
 
 ## The substance substitution is removed
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 `Reporting.Substitute_Substance` rewrote "wood", "paper" and "cardboard" to "metal" in object
 descriptions, because Florence-2 read the concentric machining marks as wood grain. Over the seven
@@ -1057,7 +1067,7 @@ Test `test/Reporting/test_core.py::test_the_models_words_are_not_rewritten`.
 
 ## Florence-2 is removed; Gemma is the only describer
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 After the seven-frame comparison (both models on the same crops, the same pipeline, each in its own
 process) Gemma was kept: warm, after load, 2.22 s per object against Florence's 1.12 s — the
@@ -1141,7 +1151,7 @@ one unverified state; the platforms are now scoped separately:
   (`mlx[cuda12]`, `[cuda13]` or `[cpu]`) chosen for the machine — so `requirements.txt` keeps
   its macOS-only line, and the Linux line is added with the first measured Linux machine. The
   README gives the install command meanwhile. Becoming *measured* means the same run over the
-  `Data/Images/Test/All` frames: time per object, peak memory, word-for-word stability.
+  `Data/Images/Test` frames: time per object, peak memory, word-for-word stability.
 - **Windows — not a target, untested.** Nothing known prevents it (`mlx` publishes Windows
   wheels), but it is not supported and has never been tried.
 
@@ -1326,7 +1336,7 @@ shutdown rather than at startup.
 
 ## The object crop padding stays at 0.20 for Gemma
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 **What it is.** `Description.Object_Crop_Padding` pads each object's crop outward by a fraction of
 its longer side before the crop is enhanced and described. It was set to 0.20 for Florence-2, which
@@ -1660,7 +1670,7 @@ Tests `test/UI/test_brand_figures.py` (`test_the_logo_renders_the_same_in_any_de
 
 ## Gemma 4 12B was measured against E4B and is not better; E4B stays the describer
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
 The obvious intuition is that a bigger model describes better. It was measured on 2026-09-25,
 and it does not hold here. `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09` (6.77 GB, the same
@@ -1929,7 +1939,7 @@ Tests `test/Camera/test_generate_checkerboard.py::test_the_calibration_detector_
 
 ## The first analysis's one-time costs are paid at configuration load ("Warming up…")
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test/All`). *Not re-run on the current set: it needs the timing run again. The `Image_NNN` names below refer to that set.*
+*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the timing run again. The `Image_NNN` names below refer to that set.*
 
 `Vision_Pipeline_Cls.Configure`, once the configuration is in force, reads the reference, runs
 FastSAM on it (it has the frame's size) and describes the background sentence — which is also
@@ -2233,7 +2243,8 @@ macOS-only `::test_the_logo_and_the_mark_rebuild_byte_identically_from_the_sourc
 **Decided by the owner, 2026-09-29: keep Gemma 4 E4B.** The shipped configuration names it, and one
 configuration is shared by both machines, so History and Trends compare like with like.
 
-The comparison rests on an answer key, `Data/Images/Test/All/answer_key.json`. It names, for each of the 37
+The comparison rests on an answer key, `Data/Images/Test/All/answer_key.json` (the key and its eight frames
+are no longer in the repository, recoverable from `1061966`; the current set has no key yet). It names, for each of the 37
 objects the shipped pipeline finds in the eight frames (numbered in the pipeline's order), its part type,
 material and colour, each with its source (`CONST_INVENTORY`, judged from the crop, or the owner from the
 physical part). The owner confirmed every entry on 2026-09-29. The scoring rules, the synonym patterns, the
@@ -2319,8 +2330,9 @@ the prompts were tuned on it; and keeping it leaves every stored description com
 same key; the 8-bit is not worth measuring on the Mac unless it beats the 4-bit here), or the segmentation
 changes: the script stops when a frame's object count differs from the key's, and the key must be
 re-confirmed.
-Tests `test/Vision/Utilities/test_evaluation.py` (the key covers `CONST_INVENTORY`, records the owner's
-answers, and each scoring rule, including `::test_a_wrong_name_after_the_first_sentence_counts`,
+Tests `test/Vision/Utilities/test_evaluation.py` (on this key, kept byte for byte as
+`test/Vision/Utilities/data/answer_key_1061966.json` since its frames left the repository: it records the
+owner's answers, and each scoring rule, including `::test_a_wrong_name_after_the_first_sentence_counts`,
 `::test_a_material_outside_metal_and_plastic_is_wrong_alone`, `::test_a_plural_synonym_counts`); the run
 itself needs the weights and is the script, not a test.
 
@@ -2698,7 +2710,8 @@ parts merge.
 - **A fixed scale, not normalised per frame.** It runs linearly from 0 to 128 grey levels, and a value
   above 128 takes the top colour (the legend says "≥ 128"). Per-frame normalisation would paint an empty
   frame's noise as hot as a part.
-  - The scale's basis, the 8 frames of `Data/Images/Test/All` under the current lighting: background
+  - The scale's basis, the 8 frames of `Data/Images/Test/All` (no longer in the repository, recoverable from `1061966`) under the lighting
+    of 2026-10-07, not re-measured on the current set: background
     median 6–7, the busiest frames' 90th percentile 56–75, Otsu 30–65 (the floor of 28 never bound),
     objects up to 156–172.
   - At 128, the band that decides found or missed gets the lower half of the lightness range, and

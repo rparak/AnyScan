@@ -52,9 +52,9 @@ from Configuration.Core import Load_Configuration, Configuration_Error_Cls, CONS
 Description:
     Score the configured describer against the confirmed answer key: run the application's path
     (Load_Configuration -> Configure -> Analyze) over the frames the key names, in the configuration's
-    Evaluation.Frames (Data/Images/Test/All), score each object's description on part type, material
-    and colour (Vision.Utilities.Evaluation; the rules and patterns are the key's), and print a
-    per-object table and the totals over every object.
+    Evaluation.Frames (Data/Images/Test; the current set has no answer key yet), score each object's
+    description on part type, material and colour (Vision.Utilities.Evaluation; the rules and patterns
+    are the key's), and print a per-object table and the totals over every object.
 
     It needs the model weights, so it is a tool, not part of the test suite. Greedy decoding makes a
     run repeatable on one machine: the same weights and prompts give the same totals.

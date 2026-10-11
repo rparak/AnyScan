@@ -103,8 +103,8 @@ happened here. Read the record; it is not retold.
 - [ ] Precision shown versus precision measured:
       [*Sizes keep full precision…*](../../../docs/design-decisions.md#sizes-keep-full-precision-only-the-display-rounds-to-a-fixed-two-decimals)
       and [README > Limitations](../../../README.md#measurements-are-repeatable-not-absolute).
-- [ ] Results from eight frames generalising:
-      [*The fusion's parameters are validated on eight real frames only*](../../../KNOWN_ISSUES.md#the-fusions-parameters-are-validated-on-eight-real-frames-only).
+- [ ] Results from one table's frames generalising:
+      [*The fusion's parameters are validated on one table under one light*](../../../KNOWN_ISSUES.md#the-fusions-parameters-are-validated-on-one-table-under-one-light).
 - [ ] Parts touching:
       [*Touching parts merge before the closing*](../../../KNOWN_ISSUES.md#touching-parts-merge-before-the-closing)
       and [*The closing never joins two components*](../../../docs/design-decisions.md#the-closing-never-joins-two-components).
@@ -173,7 +173,7 @@ Any non-trivial change starts with a report, and nothing is written until the us
 - **Before and after numbers** for any change to detection, description, measurement or timing:
   object counts, sizes, timings, on the same frames, from the same harness
   (`Example/Vision/analyze.py`, `evaluate_describer.py`).
-- **Real frames from the test set.** `Data/Images/Test/All` is the pinned set. Changing it is a
+- **Real frames from the test set.** `Data/Images/Test` is the pinned set. Changing it is a
   deliberate move that carries its inventory, xfails and doc citations with it. Synthetic frames are
   for cases the set cannot show, and are labelled as such.
 - **Say what was not measured.** Name every number that comes from an earlier set, an estimate or

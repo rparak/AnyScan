@@ -55,7 +55,8 @@ Description:
 
 # The elongation below which an object is not elongated: the square root of the ratio of its
 # mask's second-moment eigenvalues (the axis-length ratio of the equivalent ellipse, 1.0 for a
-# disc or a square). Measured on the eight Data/Images/Test/All frames (2026-09-28): round parts
+# disc or a square). Measured on the eight Data/Images/Test/All frames (2026-09-28; the previous set,
+# no longer in the repository, recoverable from 1061966; not re-run on the current one): round parts
 # (washers, nuts, the bushing) 1.002-1.016; the least elongated non-square part 1.468 (the robot in
 # 005), the plates 1.49-1.54, the screws 3.76-4.05. (The thirteen-frame set of b5ca788^ gave the same,
 # with plates up to 1.60.) 1.15 sits ten times the round parts' noise above
@@ -64,7 +65,7 @@ Description:
 CONST_MEASURE_SYMMETRIC_ELONGATION = 1.15
 # The extent (contour area / rotated-rectangle area) at or above which a non-elongated object is
 # square-like, not round: a disc is pi/4 = 0.785 in theory, measured 0.777-0.809 on the round parts
-# of Data/Images/Test/All; the square maze plate (All/Image_008) measured 0.983.
+# of Data/Images/Test/All (the previous set, as above); the square maze plate (All/Image_008) measured 0.983.
 #   Unit [float]
 CONST_MEASURE_SQUARE_EXTENT = 0.92
 # The smallest mask (pixels) that is measured at all; below it the rectangle is noise.
@@ -74,7 +75,8 @@ CONST_MEASURE_MIN_AREA_PX = 16
 # periodicity — as a fraction of the mean width) at or above which the part is hexagonal and its
 # size is reported across flats. A hexagon's across-corners width is 2/sqrt(3) = 1.155 x its
 # across-flats, so the mean diameter of a nut sits ~7.5 % from either standard number; a nut is
-# specified by its across-flats (the wrench size). Measured on Data/Images/Test/All: the washers and
+# specified by its across-flats (the wrench size). Measured on Data/Images/Test/All (the previous set, as
+# above): the washers and
 # the bushing 0.0010-0.0028, the nuts 0.0114-0.0290 (their corners are rounded; an ideal hexagon is
 # 0.038-0.057 down to 20 px across), pixelated ideal discs <= 0.0021 down to 20 px across. 0.0075
 # sits between the closest washer (0.0028) and nut (0.0114), ~2.7x and ~1.5x from each. Only the 60°

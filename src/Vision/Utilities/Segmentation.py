@@ -53,7 +53,8 @@ CONST_BG_BLUR = 5
 # The top of the fixed scale the Camera View's heatmap shows this difference on (Vision.Core builds its
 # Heatmap_Str from it): 0 .. 128 grey levels, linear, a value above saturating to the top colour. Fixed,
 # not normalised per frame, so an empty frame's noise never looks as hot as a part. Its basis: the eight
-# frames of Data/Images/Test/All against the shipped reference (2026-10-07), under the current lighting —
+# frames of Data/Images/Test/All (the previous set, no longer in the repository; recoverable from 1061966)
+# against the shipped reference (2026-10-07), under the lighting of that time —
 # background median 6-7, the busiest frames' 90th percentile 56-75, Otsu thresholds 30-65 (the floor of 28
 # never bound), objects up to 156-172. At 128 the band that decides found or missed (shadows from ~10 up to
 # the threshold) gets the lower half of the lightness range, and everything above it is at least twice the

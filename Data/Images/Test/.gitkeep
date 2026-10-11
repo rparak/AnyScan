@@ -3,9 +3,11 @@ Test frames — tracked in git.
 Real captures from the rig, undistorted with the calibration in force
 (Configuration/Calibration_<Hardware>.yaml) and shot at the camera window the
 configuration sets, so they are comparable with the empty-surface reference in
-Data/Images/Background/. Each subdirectory holds Image_NNN.png frames.
+Data/Images/Background/. The frames are Image_NNN.png directly in this directory.
 
-The configuration's Evaluation.Frames names the ONE subdirectory that is the pinned
-test set: Example/Vision/analyze.py runs it, and the tests' expected object counts refer
-to it by frame name. A frame's name is only meaningful inside that set — renumbering,
+The configuration's Evaluation.Frames names this directory as the pinned test set:
+Example/Vision/analyze.py runs it, and the tests' expected object counts refer to it
+by frame name. A frame's name is only meaningful inside that set — renumbering,
 adding or moving frames changes what the pins test, so update them in the same change.
+A name once used is never given to another image: 001-013 belonged to the previous
+set (All/, recoverable from git commit 1061966), so this set starts at 014.

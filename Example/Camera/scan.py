@@ -46,7 +46,7 @@ Description:
     Initialization of constants.
 """
 # Where a scanned frame is saved (git-ignored), as Scan_<timestamp>.png — never into the pinned
-# test set (Data/Images/Test/All/): adding a frame there changes what every expectation refers to, so
+# test set (Data/Images/Test/): adding a frame there changes what every expectation refers to, so
 # it is a deliberate move, not a side effect of a scan.
 #   Unit [string]
 CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Results')

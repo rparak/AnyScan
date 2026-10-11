@@ -29,7 +29,7 @@ sentence), and a bare `except Exception` can mask an unexpected error as a routi
   the remaining `except Exception` clauses in `__Connect`, `Capture`, `__Set_Optional` and
   `__Close` together with a real camera run.
 
-## The fusion's parameters are validated on eight real frames only
+## The fusion's parameters are validated on one table under one light
 
 This entry used to describe a coverage gate and a mask dilation (`CONST_FILTER_CHANGE_COVERAGE`,
 `CONST_SEG_MASK_DILATE_KERNEL`) tuned on synthetic scenes. **Neither exists any more.** The gate
@@ -48,19 +48,27 @@ Two constants in `Vision/Utilities/Fusion.py` also remain: the 0.10 cue-attribut
 only labels which cue found an object, and the row band / object cap, which order and limit the
 objects.
 
-Unlike the old gate, these have run on real captures: the eight frames of the pinned test set
-(`Evaluation.Frames`, `Data/Images/Test/All`), shot under the calibration and reference in force, with
-every frame's count pinned against a by-eye inventory
-(`test/integration/test_pipeline.py::test_counts_match_the_inventory`). All eight match. Five more
-frames, two plates each, were in the set until `b5ca788` removed them (recoverable from `b5ca788^`);
-three of those merged, in the entry below. The seven frames of the previous test set (removed in
-`eb00508`, recoverable from `eb00508^`, shot under the previous calibration) give the same counts as
-before the closing changed, object masks unchanged pixel for pixel. Eight frames of one table, under one
-light, is still a narrow base.
+Unlike the old gate, these have run on real captures, with every frame's count pinned against a
+by-eye inventory (`test/integration/test_pipeline.py::test_counts_match_the_inventory`). The pinned
+test set is now the 41 frames of the 2026-10-09 session (`Evaluation.Frames`, `Data/Images/Test`,
+`Image_014`–`054`, counted by eye and confirmed by the owner 2026-10-11). Against the shipped reference
+(`Image_Background_001`, shot 2026-09-28) 32 of them match; the other nine find every part and one
+extra object besides (see *Nine frames count one extra object against the old reference*). The three
+2×2 grids of plates set close together (`Image_052`–`054`) come back as four objects each.
+
+Before it, the set was eight frames (`Data/Images/Test/All`, shot under the calibration and reference
+then in force; no longer in the repository, recoverable from `1061966`), and all eight matched. Five
+more frames, two plates each, were in that set until `b5ca788` removed them (recoverable from
+`b5ca788^`); three of those merged, in the entry below. The seven frames of the set before that
+(removed in `eb00508`, recoverable from `eb00508^`, shot under the previous calibration) give the same
+counts as before the closing changed, object masks unchanged pixel for pixel. 41 frames of one table,
+under one light, is still a narrow base.
 
 - **Seen since:** parts that touch or nearly touch, and a dark rusted plate the background cue barely
   sees (2 % of it), carried by FastSAM alone — both on frames no longer in the set (`All/Image_009`–`013`,
-  recoverable from `b5ca788^`).
+  recoverable from `b5ca788^`). And an extra object in the bottom-right corner, where the old
+  reference's border does not line up with the frames' (nine frames of the current set; see the entry
+  below).
 - **Not yet seen on real data:** parts close to the table's colour, and any other lighting.
 - **The failure signatures to watch:**
   - a real part missing from the count (a cue failed and the other did not carry it)
@@ -74,13 +82,47 @@ light, is still a narrow base.
   When a failure signature appears, look at which stage causes it before changing a parameter: the
   touching-plate merge looked like a closing-kernel problem and three of five were not.
 
+## Nine frames count one extra object against the old reference
+
+On nine frames of the pinned test set — `Image_015`, `024`, `032`, `034`, `035`, `037`, `038`, `040`
+and `041` — the pipeline returns every part counted by eye plus **one extra object in the bottom-right
+corner**, at x 1780–1802, y 1007–1024, running to the frame's edge (118–141 × 176–193 px; measured
+2026-10-11 through the count test's path: the shipped configuration, FastSAM on the CPU, the fallback
+describer). The other 32 frames match their counts.
+
+The frames were shot on 2026-10-09; the reference in force, `Image_Background_001`, on 2026-09-28. The
+empty table in the frames' corners differs from the reference by 3.7–11.8 grey levels (median of four
+80 px corners, worst channel), against 0.3–1.9 for the previous set's eight frames. In the bottom-right
+corner the reference carries a dark undistortion border along its right and bottom edges that the new
+frames' border does not line up with; the difference image shows that misaligned edge on each frame
+looked at (`Image_014`, which matches, and `Image_015` and `024`, which do not).
+All nine contain the dark rusted plate, but not every dark plate frame is among them (`Image_021`
+matches), so what tips these nine and not the others is **not established** — the mean colour of that
+corner alone does not separate them (1.1–1.3 levels on the nine, 0.6–23.7 on the rest).
+
+- **Impact:** an object counted that is not there, always in the same corner. A real part is never lost on
+  these frames.
+- **Pinned by:** `test/integration/test_pipeline.py::test_counts_match_the_inventory`, with the true
+  counts. The nine are `CONST_PENDING_FRAMES`, strict xfails (`raises=AssertionError`) while
+  `Segmentation.Background.Reference` names `Image_Background_001.png`: one that starts passing fails
+  the suite. A missing frame fails through `pytest.fail`, which the xfail does not accept, and the
+  inventory guard names every frame.
+- **Not fixed here:** a reference shot under the session's own lighting comes first. Once
+  `Image_Background_002` is made with `Example/Camera/make_reference.py` and the configuration names it,
+  the marks lift by themselves and each of the nine must pass on its count or fail visibly: re-check
+  them then, and re-measure the corner difference. Only a mismatch that survives the new reference is a
+  detection problem.
+
 ## Touching parts merge before the closing
 
 *Evidence from frames no longer in the test set* — `All/Image_009`–`013`, the five two-plate frames,
 were removed in `b5ca788` and are recoverable from `b5ca788^`. Every number in this entry was measured
-on them (and, where stated, on the previous set's seven frames, `eb00508^`). The eight frames now in
-`All/` hold no touching parts, so the entry cannot be re-measured on the current set; route 2 below is
-re-measured where the eight can answer it. The reasoning stands; the frames are gone.
+on them (and, where stated, on the previous set's seven frames, `eb00508^`). The eight frames that
+followed in `All/` (no longer in the repository, recoverable from `1061966`) held no touching parts;
+route 2 below was re-measured where those eight could answer it. The current set (`Data/Images/Test`)
+has plates set close together in its 2×2 grids (`Image_052`–`054`), but none touching by eye, and all
+three come back as four objects, so it does not re-measure this entry either. The reasoning stands;
+the frames are gone.
 
 Of the five two-plate frames, three came back as ONE object: `All/Image_009`, `011` and `012`. Five routes to separating them have been measured, and all five fail. They fail for the
 same reason, and that reason is why this entry exists:
@@ -318,9 +360,10 @@ one object), but the silhouette is no longer tight, and the enhanced crop fed to
 describer would then contain a strip of table.
 
 - **Fixed case, pinned by:** `test/integration/test_pipeline.py::test_plates_come_back_as_compact_silhouettes_on_a_real_capture`
-  (slow; `All/Image_003` → three objects, each plate's rectangularity ≥ 0.80) and, for every frame's
-  count, `::test_counts_match_the_inventory`. The current set has no single shadowed plate like the
-  old `Image_004`, so that exact case is no longer pinned.
+  (slow; `Image_031` → six objects, the machined plate's and the red block's rectangularity ≥ 0.80,
+  measured 0.963 and 0.944 on 2026-10-11; it was `All/Image_003`, no longer in the repository,
+  recoverable from `1061966`) and, for every frame's count, `::test_counts_match_the_inventory`. The
+  single shadowed plate of the set before (`Image_004`, `eb00508^`) is not pinned as such.
 - **Open case, pinned by:** `test/integration/test_pipeline.py::test_synthetic_harsh_shadow_not_absorbed_xfail`
   (slow; `xfail(strict=True)`. It asserts the desired behaviour — no object reaches into
   the shadow band — which currently fails. When the pipeline stops absorbing the harsh
@@ -343,8 +386,9 @@ frame's own confidence shows the coverage (e.g. `87% over 5 of 9`).
 
 The limitation stands; its example is stale. When it was written, four of the previous
 test set's `Image_001`'s nine objects were background-only; re-measured 2026-09-25, none of
-that set's objects were. On the current set (`All/`, the eight frames left after `b5ca788`,
-re-measured 2026-09-28) none are either: 37 objects, 35 `both` and 2 `fastsam` (the blue double
+that set's objects were. On the set that followed (`All/`, the eight frames left after `b5ca788`,
+re-measured 2026-09-28; no longer in the repository, recoverable from `1061966`; not re-measured on the
+current set) none were either: 37 objects, 35 `both` and 2 `fastsam` (the blue double
 triangle in `Image_001`, the lattice bracket in `Image_007`), every object scored 0.82–0.98. The
 thirteen-frame set had a third `fastsam` object, the dark plate the background cue sees 2 % of, in
 `Image_013` (`b5ca788^`). So the test frames score fully and
