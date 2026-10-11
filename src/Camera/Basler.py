@@ -77,6 +77,11 @@ CONST_FRAME_RATE = 5.0
 CONST_VERBOSE = False
 
 
+# The automatic modes switched off on connect and read back: exposure, gain and white balance stay as the
+# station file sets them (Camera.Custom_Cfg), never adjusted by the camera.
+#   Unit [Tuple<string>]
+CONST_BASLER_AUTO_NODES = ('ExposureAuto', 'GainAuto', 'BalanceWhiteAuto')
+
 class Basler_Settings_Error_Cls(ValueError):
     """
     Description:
@@ -401,6 +406,9 @@ class Basler_Cls:
         """
 
         self.__Configure_Window()
+        # Disable Auto Gain, then set the gain. Left to the camera's power-up default until 2026-10-11, which
+        # is Off on this model but would silently override the configured gain if a saved user set had it on.
+        self.camera.GainAuto.SetValue('Off')
         self.camera.Gain.SetValue(self.config['Gain'])
         # Disable Auto White Balance.
         self.camera.BalanceWhiteAuto.SetValue('Off')
@@ -422,6 +430,14 @@ class Basler_Cls:
         self.__applied.update({'exposure_us': float(self.camera.ExposureTime.Value),
                                'gain': float(self.camera.Gain.Value),
                                'pixel_format': str(self.camera.PixelFormat.Value)})
+        # The three automatic modes, read back: the colour, the background difference and the stain check all
+        # assume fixed exposure, gain and white balance, so a camera that keeps one automatic is refused.
+        autos = {node: str(getattr(self.camera, node).Value) for node in CONST_BASLER_AUTO_NODES}
+        kept = ['%s %s' % (node, value) for node, value in autos.items() if value != 'Off']
+        if kept:
+            raise Basler_Settings_Error_Cls('The camera kept an automatic mode on after it was switched off: %s. '
+                                            'Power-cycle the camera and connect again.' % ', '.join(kept))
+        self.__applied['autos'] = autos
 
         self.__Configure_Transport()
 

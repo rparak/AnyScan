@@ -3104,3 +3104,24 @@ Tests `test/Vision/Utilities/test_holes.py`, `test/Configuration/test_core.py` (
 `test/Vision/test_core.py` (the crop segmented once per judged part, a part without its holes NOK),
 `test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate` (slow, one strict xfail)
 and `::test_every_mounting_plate_shows_all_its_holes_within_tolerance` (slow).
+
+
+## Exposure, gain and white balance are fixed: the automatic modes are switched off and read back
+
+Decided 2026-10-11, on the owner's instruction. On connect `Camera.Basler` switches off `ExposureAuto`,
+`GainAuto` and `BalanceWhiteAuto`, sets the station file's exposure (10 000 µs), gain (10) and white-balance
+ratios (red 0.95, green 0.90, blue 1.20), then reads the three modes back; a camera that keeps one on is
+refused, naming it, and every connect logs them. Until now exposure and white balance were switched off but not
+read back, and gain auto was never set — the camera's power-up default (Off on this model) was trusted.
+
+**Why.** The background difference, the colour names and the stain check (a hue and saturation band, measured
+under these settings) all assume the camera does not adjust itself between frames.
+
+**Not controlled:** gamma and the colour preset (`LightSourcePreset`) are not set; they come from the camera's
+power-up user set. They are not automatic, but a changed user set would change the colours without a word.
+**Unverified on the rig** (capture checklist): only a stand-in device has run the read-back.
+
+**Revisit if** the camera's user set is changed, or a stain or colour measurement drifts with no change in the
+station file (then set gamma and the preset too).
+Tests `test/Camera/test_basler.py::test_a_camera_that_keeps_an_automatic_mode_is_refused`,
+`::test_a_factory_default_camera_is_set_to_the_configured_window`, `::test_the_camera_layer_logs_the_window_it_read_back`.

@@ -106,7 +106,7 @@ class _Device_Cls(object):
         self.Gain = _Node_Cls(self, 'Gain', 0.0)
         self.ExposureTime = _Node_Cls(self, 'ExposureTime', 5000.0)
         self.PixelFormat = _Node_Cls(self, 'PixelFormat', 'Mono8')
-        for name in ('BalanceWhiteAuto', 'BalanceRatioSelector', 'BalanceRatio', 'ExposureAuto'):
+        for name in ('BalanceWhiteAuto', 'BalanceRatioSelector', 'BalanceRatio', 'ExposureAuto', 'GainAuto'):
             setattr(self, name, _Node_Cls(self, name, None))
 
     def IsGrabbing(self) -> bool:
@@ -163,6 +163,10 @@ def test_a_factory_default_camera_is_set_to_the_configured_window(monkeypatch) -
     applied = camera.Applied_Settings
     assert (applied['resolution'], applied['offset'], applied['sensor']) == ((1920, 1200), (8, 8), CONST_SENSOR)
     assert (applied['exposure_us'], applied['gain'], applied['pixel_format']) == (10000.0, 10.0, 'BayerRG8')
+    assert applied['autos'] == {'ExposureAuto': 'Off', 'GainAuto': 'Off', 'BalanceWhiteAuto': 'Off'}
+    # Gain auto is switched off before the gain is set, so a camera that powered up with it on keeps the value.
+    names = [name for name, _value in device.calls]
+    assert ('GainAuto', 'Off') in device.calls and names.index('GainAuto') < names.index('Gain')
 
 
 def test_the_set_order_reaches_a_window_a_naive_order_cannot(monkeypatch) -> None:
@@ -212,6 +216,23 @@ def test_a_camera_that_does_not_keep_the_window_fails_on_read_back(monkeypatch) 
     assert not device.open
 
 
+@pytest.mark.parametrize('node', ['ExposureAuto', 'GainAuto', 'BalanceWhiteAuto'])
+def test_a_camera_that_keeps_an_automatic_mode_is_refused(monkeypatch, node: str) -> None:
+    """
+    Description:
+        Exposure, gain and white balance stay as the station file sets them: a camera that accepts the
+        switch to Off but keeps an automatic mode (here: still Continuous) is refused at connect, naming the
+        mode, and closed — the colours, the background difference and the stain check assume them fixed.
+    """
+
+    device = _Device_Cls(sticky=(node,))
+    getattr(device, node).Value = 'Continuous'
+    with pytest.raises(Basler_Settings_Error_Cls, match='kept an automatic mode on after it was switched off: %s '
+                                                        'Continuous' % node):
+        _Connect(monkeypatch, device)
+    assert not device.open
+
+
 def test_an_sdk_refusal_while_setting_is_a_settings_error(monkeypatch) -> None:
     """
     Description:
@@ -236,7 +257,8 @@ class _Fake_Basler_Cls(object):
             raise Basler_Settings_Error_Cls(self.refuse)
         self.camera = object()
         self.Applied_Settings = {'resolution': tuple(resolution), 'offset': tuple(offset), 'sensor': CONST_SENSOR,
-                                 'exposure_us': 10000.0, 'gain': 9.999998795594486, 'pixel_format': 'BayerRG8'}
+                                 'exposure_us': 10000.0, 'gain': 9.999998795594486, 'pixel_format': 'BayerRG8',
+                                 'autos': {'ExposureAuto': 'Off', 'GainAuto': 'Off', 'BalanceWhiteAuto': 'Off'}}
 
 
 def _Configured_Camera() -> Basler_Camera_Cls:
@@ -265,7 +287,8 @@ def test_the_camera_layer_logs_the_window_it_read_back(monkeypatch) -> None:
     camera.Connect()
     assert camera.Resolution == (1920, 1200)
     assert ('INFO', 'Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain '
-                    '10.00, BayerRG8 (read back from the camera).') in camera.events
+                    '10.00, BayerRG8, ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off (read back from the camera).') \
+        in camera.events
 
 
 def test_a_settings_error_is_reported_as_it_stands_not_as_no_camera(monkeypatch) -> None:
