@@ -77,9 +77,9 @@ judgement, not as the person who will build it.
 - **Is this the right lever?** If a better alternative exists, name it, give its trade-off, and say
   which you would choose. Cases from this project:
   - *Filtering after identification instead of changing segmentation.* Decide what to keep once the
-    objects are found and identified, rather than retuning the stage that finds them. *From design
-    discussion of the planned catalogue mode, not yet built: no record to link. Replace this with a
-    link to the catalogue mode's design-decisions entry when it lands.*
+    objects are found and identified, rather than retuning the stage that finds them. See
+    [*A catalogue mode identifies by similarity, and an object of the part's shape that does not look like it is NOK*](../../../docs/design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok):
+    FastSAM and the fusion keep finding every object; DINOv2 and the rule decide which is the part.
   - *Measuring a threshold before moving it.* See
     [*The colour-name saturation cutoff is 120…*](../../../docs/design-decisions.md#the-colour-name-saturation-cutoff-is-120-and-was-not-tuned-for-the-red-block),
     [*The object crop padding stays at 0.20 for Gemma*](../../../docs/design-decisions.md#the-object-crop-padding-stays-at-020-for-gemma),
@@ -125,8 +125,8 @@ happened here. Read the record; it is not retold.
 **Evaluation**
 
 - [ ] The metric that matters: in quality control, false acceptance (a bad part passed), not overall
-      accuracy. *From design discussion of the planned catalogue mode, not yet built: no record to
-      link. Replace this with a link to the catalogue mode's design-decisions entry when it lands.*
+      accuracy. See the same entry, *Why step 3 has no lower bound*: a same-sized foreign object reads
+      NOK, not Warning, because that is the safer error.
 - [ ] A test set changed without its inventory:
       [*A replaced image never keeps its name*](../../../docs/design-decisions.md#a-replaced-image-never-keeps-its-name).
 

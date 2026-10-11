@@ -29,8 +29,9 @@ overwrite a file holding any key it does not own, so content someone added is ne
 - Text the model receives (the prompts) lives here as data, with the reasoning behind the wording in
   the comment above it — iterated here, never in code.
 - The mode file's section order is `Hardware, General, Identity, Confidence, Segmentation,
-  Description, Camera, Evaluation`. There is one mode file, so that order is its order, not an
-  observed rule.
+  Description, Camera, Evaluation`, with a catalogue mode's `Catalogue` block after `Identity`. The
+  three mode files share it because the catalogue modes were copied from the first; it is their order,
+  not a rule anything checks.
   The calibration's order is fixed by its writer.
 
 ## Loading ✅
