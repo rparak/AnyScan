@@ -108,8 +108,9 @@ then composes and measures. The numbers are the ones the README and the mode fil
   otherwise Warning. A size checked more than 74.3 mm from the frame centre carries a note that it is not
   verified there
   ([*A catalogue mode identifies by similarity…*](design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok)).
-  The verdict colours the frame and the mask, and its reasons are in Scene Understanding and the log. An
-  OK or NOK part's description gains the side that is up, in the catalogue's words, from DINOv2.
+  The verdict colours the frame and the mask and sets the badge; its state and reasons are in Scene
+  Understanding, and the log adds the side and the similarity. An OK or NOK part's description gains the
+  side that is up, in the catalogue's words, from DINOv2.
 
 ## Modes
 
@@ -129,8 +130,8 @@ piece of hardware. The modes shipped today:
   verdicts (colours, the History filter, the words). The switch that once said so, the
   `General` block's `Classification`, is removed
   ([*Classification is a per-configuration switch…*](design-decisions.md#classification-is-a-per-configuration-switch-that-exposes-the-verdict-ui-not-one-that-creates-it),
-  corrected). The status badge and History's filter still speak OK/NOK only
-  ([KNOWN_ISSUES](../KNOWN_ISSUES.md#the-status-badge-and-historys-filter-do-not-know-warning-or-unspecified)).
+  corrected). History's filter still speaks OK/NOK only
+  ([KNOWN_ISSUES](../KNOWN_ISSUES.md#historys-filter-does-not-know-warning-or-unspecified)).
 - **A catalogue mode** is a mode file with a `Catalogue` block naming one item,
   `Data/Catalogue/<item>/<item>.yaml`: the part's name and description, each side's name and description,
   its known defects, its thickness, tolerance and checks, with its reference images beside it. The
@@ -174,12 +175,17 @@ Two cards:
   outlines), **Mask** (the label mask: black ground, tinted fill, verdict contour) and **Heatmap**
   (the background difference on a fixed 0–128 scale, on screen only, never saved).
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
-  description, size and confidence, plus Task, Inference time and Confidence (mean).
+  description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
+  each object adds `State: …`, a `Reason: …` line per reason it is not OK (measured and expected values for
+  a dimension), and a note when its size was checked outside the verified zone; the similarity is in the log
+  only. The badge states the worst verdict: `NOK · n of m` (magenta), `Not judged · n` and
+  `Foreign object · n` (amber), `All OK · n` (green); outside a catalogue mode, `n found`.
 
 ### Trends
 
-Two charts of the current run: **Detected objects** (cumulative) and **Confidence** (per-object
-scores, the frame mean and the running run mean). Both read one accumulator, so the last point and
+Two charts of the current run: **Detected objects** (cumulative; in a catalogue mode also per verdict —
+OK, NOK, Warning and Unspecified, which add up to the total) and **Confidence** (per-object scores, the
+frame mean and the running run mean). Both read one accumulator, so the last point and
 the status strip agree.
 
 ### History

@@ -528,9 +528,9 @@ def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_a
 
     verdicts = [line for line in lines if re.match(r'Object \d+: ', _Message(line))]
     assert [line.split('] ', 1)[0].split('[')[-1].strip() for line in verdicts] == ['INFO', 'WARNING']
-    assert _Message(verdicts[0]) == ('Object 1: NOK — the part, front up (similarity 0.90). length 62.00 mm, expected '
-                                     '60.00 ± 1.50 mm: OUT OF TOLERANCE The size check is not verified here: 80 mm '
-                                     'from the frame centre, verified to 74 mm.')
+    assert _Message(verdicts[0]) == ('Object 1: NOK, front up, similarity 0.90. Reason: The length is 62.00 mm, '
+                                     'expected 60.00 ± 1.50 mm. Note: The size check is not verified here: 80 mm from '
+                                     'the frame centre, verified to 74 mm.')
     detected = [i for i, line in enumerate(lines) if _Message(line).startswith('Object detected:')]
     assert [lines.index(line) for line in verdicts] == [i + 1 for i in detected]
     timing_line = [_Message(line) for line in lines if re.match(r'Analysis \d+ timing', _Message(line))][0]

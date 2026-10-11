@@ -223,7 +223,8 @@ class Badge_Cls(QLabel):
     def Set_Level(self, level: str) -> None:
         """
         Description:
-            Repaint the badge for a severity level ('ok' | 'warn' | anything else).
+            Repaint the badge for a severity level ('ok' | 'warn' | 'fail' | anything else): 'fail' is a
+            catalogue mode's NOK, in the NOK ink.
 
         Args:
             (1) level [string]: The severity level.
@@ -233,6 +234,8 @@ class Badge_Cls(QLabel):
             border, bg, fg = Style.CONST_OK_BORDER, Style.CONST_OK_SOFT, Style.CONST_OK_INK
         elif level == 'warn':
             border, bg, fg = Style.CONST_WARN_BORDER, Style.CONST_WARN_SOFT, Style.CONST_WARN_INK
+        elif level == 'fail':
+            border, bg, fg = Style.CONST_FAIL_BORDER, Style.CONST_FAIL_SOFT, Style.CONST_FAIL_INK
         else:
             border, bg, fg = Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK_MUTE
         self.setStyleSheet(

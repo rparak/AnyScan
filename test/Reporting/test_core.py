@@ -376,79 +376,103 @@ def _Judged(verdict: str, similarity: float = 0.94, distance: float = 30.0,
                                                         Center_Distance_Mm=distance, Verified_Radius_Mm=74.3))
 
 
-def test_each_verdict_says_what_it_rests_on() -> None:
+def test_each_state_reads_as_the_owner_specified() -> None:
     """
     Description:
-        The verdict lines lead with the state and give its evidence: OK names the side and the similarity;
-        a Warning says the object is not the part and should not be there; an Unspecified one gives its
-        area against the part's and says what to do — the request's message, in English.
+        Scene Understanding shows the state and, when it is not OK, why — never the similarity, which is in the
+        log only: OK is 'State: OK.' alone; a Warning is 'State: Warning.' and 'Reason: The object should not be
+        on the surface.'; an Unspecified object says why it could not be judged and what to do.
     """
 
     from Reporting.Core import Verdict_Lines
-    assert Verdict_Lines(_Judged('OK')) == ['OK — the part, front up (similarity 0.94).']
-    assert Verdict_Lines(_Judged('Warning', similarity=0.31)) == [
-        'Warning — not the part (similarity 0.31): it should not be on the surface.']
+    assert Verdict_Lines(_Judged('OK')) == ['State: OK.']
+    assert Verdict_Lines(_Judged('Warning', similarity=0.31)) == ['State: Warning.',
+                                                                  'Reason: The object should not be on the surface.']
     assert Verdict_Lines(_Judged('Unspecified', area=2.04)) == [
-        "Unspecified — 2.04 times the part's area: probably several parts together. Separate them and scan again."]
+        'State: Unspecified.',
+        "Reason: Its area is 2.04 times the part's, probably several parts together, so it cannot be judged. "
+        'Separate them and scan again.']
+    for verdict in ('OK', 'NOK', 'Warning', 'Unspecified'):
+        assert not [line for line in Verdict_Lines(_Judged(verdict)) if 'similarity' in line.lower()], verdict
 
 
-def test_a_nok_says_what_was_measured_and_what_was_expected() -> None:
+def test_a_nok_gives_each_reason_with_measured_and_expected_values() -> None:
     """
     Description:
-        Every reason a part is NOK has its own line: a dimension out of tolerance with its measured value,
-        nominal and tolerance; a part that has the outline but not the look, with its similarity and the
-        threshold; a part whose outline could not be measured. A passing dimension is not listed.
+        Every reason a part is NOK has its own 'Reason:' line: a dimension out of tolerance with its measured
+        value, nominal and tolerance; the part's outline without its look; an outline that could not be
+        measured. A passing dimension is not listed.
     """
 
     from Reporting.Core import Verdict_Lines
     from Vision.Utilities.Dimensions import Check_Dimension
     long = [Check_Dimension('length', 62.04, 60.0, 1.5), Check_Dimension('width', 40.1, 40.0, 1.5)]
     assert Verdict_Lines(_Judged('NOK', checks=long)) == [
-        'NOK — the part, front up (similarity 0.94).',
-        'length 62.04 mm, expected 60.00 ± 1.50 mm: OUT OF TOLERANCE']
+        'State: NOK.', 'Reason: The length is 62.04 mm, expected 60.00 ± 1.50 mm.']
     assert Verdict_Lines(_Judged('NOK', similarity=0.58)) == [
-        'NOK — the part, front up (similarity 0.58).',
-        "It has the part's outline but does not look like the part (similarity 0.58; the part is identified from 0.75)."]
-    assert Verdict_Lines(_Judged('NOK', checks=[]))[1:] == ['Its outline could not be measured.']
+        'State: NOK.', "Reason: It has the part's outline but does not look like the part."]
+    assert Verdict_Lines(_Judged('NOK', checks=[]))[1:] == ['Reason: Its outline could not be measured.']
 
 
 @pytest.mark.parametrize('verdict', ['OK', 'NOK'])
 def test_a_size_checked_outside_the_verified_zone_says_so(verdict: str) -> None:
     """
     Description:
-        A part judged on its size beyond the radius the size checks were verified to carries a note giving
-        its distance and the radius — the verdict stands (a NOK stays NOK), the note explains it. Inside the
+        A part judged on its size beyond the radius the size checks were verified to carries a note giving its
+        distance and the radius — the verdict stands (a NOK stays NOK), the note explains it. Inside the
         radius, and on an object not judged by size, there is no note.
     """
 
     from Reporting.Core import Verdict_Lines
-    note = 'The size check is not verified here: 82 mm from the frame centre, verified to 74 mm.'
-    assert Verdict_Lines(_Judged(verdict, distance=82.2))[-1] == note
-    assert Verdict_Lines(_Judged(verdict, distance=82.2))[0].startswith(verdict + ' — ')
-    unverified = 'The size check is not verified here'
+    note = 'Note: The size check is not verified here: 82 mm from the frame centre, verified to 74 mm.'
+    lines = Verdict_Lines(_Judged(verdict, distance=82.2))
+    assert lines[0] == 'State: %s.' % verdict and lines[-1] == note
+    unverified = 'Note: The size check is not verified here'
     assert not [line for line in Verdict_Lines(_Judged(verdict, distance=74.3)) if line.startswith(unverified)]
     assert not [line for line in Verdict_Lines(_Judged('Warning', distance=82.2)) if line.startswith(unverified)]
 
 
-def test_the_verdict_reaches_the_file_and_the_log() -> None:
+def test_the_verdict_reaches_the_file_and_the_log_keeps_the_similarity() -> None:
     """
     Description:
-        The Screen Understanding file's object line carries the verdict lines, indented, under the object;
-        the log carries them on one line, at WARNING for a Warning or an Unspecified object and at INFO for
-        OK and NOK. Outside a catalogue mode the object line is exactly what it was.
+        The Screen Understanding file's object line carries the verdict lines, indented, under the object. The
+        log carries the verdict on one line with what Scene Understanding leaves out — the side of a judged
+        part and the similarity of every object — at WARNING for a Warning or an Unspecified object and at
+        INFO for OK and NOK. Outside a catalogue mode the object line is exactly what it was.
     """
 
     from Reporting.Core import Object_Line, Verdict_Log_Line
     line = Object_Line(0, _Judged('NOK', similarity=0.58))
-    assert line.split('\n')[1:] == ['    NOK — the part, front up (similarity 0.58).',
-                                    "    It has the part's outline but does not look like the part (similarity 0.58; "
-                                    'the part is identified from 0.75).']
+    assert line.split('\n')[1:] == ['    State: NOK.',
+                                    "    Reason: It has the part's outline but does not look like the part."]
     plain = Detection_Str(Label='plate', Bbox=(0, 0, 1, 1), Sentence='A plate.')
     assert Object_Line(0, plain) == 'Object 1 · Confidence — - A plate.'
     assert Verdict_Log_Line(1, _Judged('Warning', similarity=0.31)) == (
-        'WARNING', 'Object 2: Warning — not the part (similarity 0.31): it should not be on the surface.')
+        'WARNING', 'Object 2: Warning, similarity 0.31. Reason: The object should not be on the surface.')
+    assert Verdict_Log_Line(0, _Judged('NOK', similarity=0.58, distance=82.2)) == (
+        'INFO', "Object 1: NOK, front up, similarity 0.58. Reason: It has the part's outline but does not look like "
+                'the part. Note: The size check is not verified here: 82 mm from the frame centre, verified to 74 mm.')
+    assert Verdict_Log_Line(0, _Judged('OK')) == ('INFO', 'Object 1: OK, front up, similarity 0.94.')
     assert Verdict_Log_Line(0, _Judged('Unspecified', area=2.0))[0] == 'WARNING'
-    assert [Verdict_Log_Line(0, _Judged(verdict))[0] for verdict in ('OK', 'NOK')] == ['INFO', 'INFO']
+
+
+@pytest.mark.parametrize('verdicts, badge', [
+    (['OK', 'OK'], ('All OK · 2', 'ok')),
+    (['OK', 'Warning', 'Warning'], ('Foreign object · 2', 'warn')),
+    (['OK', 'Warning', 'Unspecified'], ('Not judged · 1', 'warn')),
+    (['OK', 'NOK', 'Unspecified', 'Warning', 'NOK'], ('NOK · 2 of 5', 'fail')),
+], ids=['all ok', 'warning', 'unspecified over warning', 'nok over all'])
+def test_the_badge_states_the_worst_verdict(verdicts: tp.List[str], badge: tp.Tuple[str, str]) -> None:
+    """
+    Description:
+        In a catalogue mode the badge is never green while anything on the surface is not OK: any NOK (the
+        'fail' level), else any Unspecified, else any Warning (both 'warn'), else all OK ('ok') — each in words
+        as well as colour. Outside a catalogue mode it still counts what was found.
+    """
+
+    from Reporting.Core import Verdict
+    assert Verdict([_Judged(verdict) for verdict in verdicts]) == badge
+    assert Verdict([Detection_Str(Label='plate', Bbox=(0, 0, 1, 1))] * 3) == ('3 found', 'ok')
 
 
 def test_a_judged_part_says_which_side_is_up_in_the_catalogues_words() -> None:

@@ -267,10 +267,17 @@ def test_a_warning_or_unspecified_object_is_counted_but_neither_ok_nor_nok() -> 
     """
     Description:
         A catalogue mode's Warning (not the part) and Unspecified (not judged) objects count in the total
-        but in neither the OK nor the NOK series: an object that is not the part did not pass.
+        but in neither the OK nor the NOK series — an object that is not the part did not pass — and in
+        series of their own, so the four add up to the total and the Warnings found are visible.
     """
 
     acc = Trends_Accumulator_Cls()
     acc.Add_Analysis([_Det(0.9, 'OK'), _Det(0.9, 'Warning'), _Det(0.9, 'Unspecified'), _Det(0.9, 'NOK')])
     last = acc.Images()[-1]
     assert (last.Cumulative_Total, last.Cumulative_Ok, last.Cumulative_Nok) == (4, 1, 1)
+    assert (last.Cumulative_Warning, last.Cumulative_Unspecified) == (1, 1)
+    acc.Add_Analysis([_Det(0.9, 'Warning')] * 2)
+    last = acc.Images()[-1]
+    assert (last.Warning, last.Cumulative_Warning) == (2, 3)
+    assert last.Cumulative_Ok + last.Cumulative_Nok + last.Cumulative_Warning + last.Cumulative_Unspecified == \
+        last.Cumulative_Total

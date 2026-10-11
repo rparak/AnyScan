@@ -2949,6 +2949,14 @@ is flagged as a failed part, never passed or ignored), and the thin threshold is
   reason it is not OK with measured and expected values), and the log (one line per object, Warning and
   Unspecified at WARNING). Trends counts only OK as OK: a Warning did not pass. The status badge and History's
   filter still speak OK/NOK only (KNOWN_ISSUES).
+  *Corrected 2026-10-11 (phase B.1), the owner's wording:* Scene Understanding shows `State: <state>.` and a
+  `Reason:` line per reason (a Warning: "The object should not be on the surface."; an Unspecified object: why
+  it could not be judged and what to do; a NOK: each failed dimension with measured and expected values, or
+  "It has the part's outline but does not look like the part."), then the size note; no similarity there —
+  it stays in the log, with the side. An OK or NOK part's description says which side is up. The badge states
+  the worst verdict (NOK in the NOK ink on its tint, the 'fail' level; Unspecified, then Warning, in amber;
+  all OK in green), and Trends charts OK, NOK, Warning and Unspecified. Only History's filter is left
+  (KNOWN_ISSUES).
 - **What it does not judge yet.** The stain, the holes and the logo. The five stained-plate frames read OK
   until the stain check (phase D); their expected NOK is a strict xfail naming it.
 - **Confidence stays a mask score.** The similarity is shown as "similarity", never as Confidence

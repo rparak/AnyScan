@@ -127,6 +127,13 @@ CONST_WARN          = '#d97706'   # degraded but working
 CONST_WARN_INK      = '#b45309'
 CONST_WARN_SOFT     = '#fdf8ef'
 CONST_WARN_BORDER   = '#f3e2c3'
+# The status badge's FAIL level: a catalogue mode with a NOK object on the surface. The ink is the NOK
+# verdict's own ink (CONST_VERDICT_COLORS['NOK'][1]), so the badge and the marks on the frame say NOK in one
+# colour (the owner's choice over the log's red); the tint and border are built in that ink's hue at the
+# warning badge's lightness and chroma (L* 97.7 / C* 4.9 and L* 90.5 / C* 17.3), clipped to sRGB.
+CONST_FAIL_INK      = '#d1004a'
+CONST_FAIL_SOFT     = '#FFF5F6'
+CONST_FAIL_BORDER   = '#FFD9DB'
 
 # The text colour of a status colour. CONST_OK (3.30:1 on the card) and CONST_WARN (3.19:1) are bright
 # enough for a dot or an outline, not for words: a status word is drawn in the colour's _INK twin

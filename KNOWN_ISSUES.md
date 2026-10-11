@@ -459,17 +459,17 @@ dump), as had about 20 full runs and a 30-run stress loop of `test/UI` earlier t
   running the suite again never deletes one (`test/integration/test_crash_record.py`). A crash in the
   interpreter's own finalisation, after the record's last line is written, is not kept.
 
-## The status badge and History's filter do not know Warning or Unspecified
+## History's filter does not know Warning or Unspecified
 
-A catalogue mode judges each object OK, NOK, Unspecified or Warning, and the frame, the mask, the Scene
-Understanding panel and the log say which. Two places still speak only OK and NOK. The status badge above
-the panel says how many objects were found (green "2 found") whatever their verdicts, so it stays green with a
-NOK on screen. History's filter puts a set with any NOK under NOK and every other set under OK, so a set whose
-only problem is a Warning or an Unspecified object is listed as OK, and its thumbnail outline is the OK colour.
-Seen on `Image_086` in the labyrinth mode (2026-10-11): the blank plate NOK, the badge green.
+A catalogue mode judges each object OK, NOK, Unspecified or Warning, and the frame, the mask, Scene
+Understanding, the badge, Trends and the log say which. History's filter still speaks only OK and NOK: it puts
+a set with any NOK under NOK and every other set under OK, so a set whose only problem is a Warning or an
+Unspecified object is listed as OK, and its thumbnail outline is the OK colour. (Until 2026-10-11 the status
+badge had the same gap — green "2 found" with a NOK on screen, seen on `Image_086`; it now states the worst
+verdict.)
 
-- **Impact:** an operator reading only the badge or the filter misses a NOK on the frame, or a Warning in a set.
-  The verdicts themselves, and every record, are right.
-- **Not fixed here:** phase B gave the objects their states; the badge, the History filter and the capture set's
-  record of the evidence are the catalogue's UI phase (E).
+- **Impact:** a reviewer filtering History for problems misses a set with only a Warning or an Unspecified
+  object. The verdicts themselves, and every record, are right.
+- **Not fixed here:** the History filter, and the capture set's record of the evidence, are the catalogue's
+  UI phase (E), by the owner's ruling.
 - **Pinned by:** nothing yet: the phase that fixes it pins it.

@@ -292,6 +292,35 @@ def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app,
     assert first.count() == 3 and second.count() == 2
     verdict = first.itemAt(1).widget()
     assert verdict.text() == '\n'.join(Verdict_Lines(judged))
-    assert verdict.text().startswith('NOK — the part, front up (similarity 0.91).')
+    assert verdict.text() == ('State: NOK.\nReason: The length is 62.00 mm, expected 60.00 ± 1.50 mm.\n'
+                              'Note: The size check is not verified here: 80 mm from the frame centre, verified to 74 mm.')
     assert verdict.textFormat() == Qt.PlainText and verdict.font().weight() > first.itemAt(2).widget().font().weight()
     assert first.itemAt(2).widget().text() == 'A machined plate.'
+
+
+@pytest.mark.parametrize('level, ground, ink', [('fail', 'CONST_FAIL_SOFT', 'CONST_FAIL_INK'),
+                                                ('warn', 'CONST_WARN_SOFT', 'CONST_WARN_INK'),
+                                                ('ok', 'CONST_OK_SOFT', 'CONST_OK_INK')])
+def test_the_badge_paints_each_verdict_level_legibly(qt_app, level: str, ground: str, ink: str) -> None:
+    """
+    Description:
+        The status badge, rendered: a NOK paints the 'fail' level — the NOK ink on its magenta tint — and the
+        warning and OK levels their own; on each, the darkest painted text clears 4.5:1 against the ground
+        actually painted, and the ground is the level's token, so a NOK can never show green.
+    """
+
+    import numpy as np
+    from UI.Widgets import Badge_Cls
+    from Parameters.Theme import Contrast_Ratio
+    badge = Badge_Cls()
+    badge.Set_State('NOK · 2 of 5', level)
+    badge.resize(badge.sizeHint())
+    image = badge.grab().toImage().convertToFormat(4)          # QImage.Format_RGB32
+    pixels = np.frombuffer(image.constBits().asstring(image.byteCount()), dtype=np.uint8)
+    pixels = pixels.reshape(image.height(), image.bytesPerLine() // 4, 4)[:, :image.width(), 2::-1]
+    hexes = ['#%02X%02X%02X' % tuple(int(v) for v in p) for p in pixels.reshape(-1, 3)]
+    centre = '#%02X%02X%02X' % tuple(int(v) for v in pixels[pixels.shape[0] // 2, 3])
+    assert centre.lower() == getattr(Style, ground).lower()
+    darkest = min(hexes, key=lambda h: sum(int(h[i:i + 2], 16) for i in (1, 3, 5)))
+    assert Contrast_Ratio(darkest, getattr(Style, ground)) >= 4.5
+    assert Contrast_Ratio(getattr(Style, ink), getattr(Style, ground)) >= 4.5

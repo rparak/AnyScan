@@ -869,6 +869,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         if self.__config.Catalogue is not None:
             started = time.perf_counter()
             self.__Classify_Objects(result.Objects, frame_bgr, cv2, np)
+            # The badge was composed before the verdicts existed; it states the worst of them now.
+            result.Verdict, result.Verdict_Level = Verdict(result.Objects)
             result.Timing.Identification_Ms = int((time.perf_counter() - started) * 1000)
         self.__first_after_load = False
         return result

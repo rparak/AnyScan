@@ -80,6 +80,23 @@ CONST_MARKER_MIN_SPACING = 10.0
 CONST_CHART_MIN_HEIGHT = 240
 
 
+def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
+    """
+    Description:
+        The objects chart's per-verdict series when the run classifies, as (label, Trend_Image_Str attribute,
+        colour): OK and NOK in their verdict colours, the Warnings — objects that should not be on the surface
+        — in the amber, and the Unspecified ones, so the four add up to the total. Unspecified is drawn in the
+        neutral colour's ink twin: its box (#B8BECA) is a frame colour, too light for a line on the white card.
+
+    Returns:
+        (1) parameter [Vector<Tuple<string> 1x3>]: The series, in legend order.
+    """
+
+    return [('OK', 'Cumulative_Ok', Verdict_Color('OK')[0]), ('NOK', 'Cumulative_Nok', Verdict_Color('NOK')[0]),
+            ('Warning', 'Cumulative_Warning', Verdict_Color('Warning')[0]),
+            ('Unspecified', 'Cumulative_Unspecified', Verdict_Color('Unspecified')[1])]
+
+
 class Chart_Base_Cls(QWidget):
     """
     Description:
@@ -464,7 +481,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
         self._Set_Axes(0.5, n + 0.5 if n else 1.5, 0.0, y_ticks[-1], x_ticks, y_ticks, x_text)
         legend = [('Total', Style.CONST_INK)]
         if classification_enabled:
-            legend += [('OK', Verdict_Color('OK')[0]), ('NOK', Verdict_Color('NOK')[0])]
+            legend += [(label, color) for label, _attr, color in _Verdict_Series()]
         self._Set_Legend(legend)
         self._Set_Columns([float(row.Index) for row in rows])
         self.update()
@@ -472,7 +489,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
     def _Paint_Series(self, painter: QPainter, rect: QRectF) -> None:
         """
         Description:
-            Draw the cumulative-count line(s) — Total, and OK/NOK when the run classifies — with a
+            Draw the cumulative-count line(s) — Total, and per verdict when the run classifies — with a
             small marker at each image.
 
         Args:
@@ -482,8 +499,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
 
         series = [('Cumulative_Total', Style.CONST_INK)]
         if self.__classified:
-            series += [('Cumulative_Ok', Verdict_Color('OK')[0]),
-                       ('Cumulative_Nok', Verdict_Color('NOK')[0])]
+            series += [(attr, color) for _label, attr, color in _Verdict_Series()]
         for attr, color in series:
             painter.setPen(QPen(QColor(color), 2))
             previous = None
@@ -506,7 +522,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
         """
         Description:
             The hover read-out for an image: its index, the objects THIS image added, and the
-            running total (with the OK/NOK split when the run classifies).
+            running total (with the split by verdict when the run classifies).
 
         Args:
             (1) index [int]: The hovered image column index.
@@ -520,7 +536,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
                  ('This image: +%d' % row.Total, Style.CONST_INK_SOFT),
                  ('Total: %d' % row.Cumulative_Total, Style.CONST_INK)]
         if self.__classified:
-            lines.append(('OK %d · NOK %d' % (row.Cumulative_Ok, row.Cumulative_Nok),
+            lines.append((' · '.join('%s %d' % (label, getattr(row, attr)) for label, attr, _color in _Verdict_Series()),
                           Style.CONST_INK_SOFT))
         return lines
 

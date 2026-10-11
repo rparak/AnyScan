@@ -54,7 +54,7 @@ from Vision.Segmenter import Segmenter_Error_Cls
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Render_Views
 #   ../Reporting/Core
-from Reporting.Core import Screen_Understanding, Object_Size, Dimension_Check_Text, Verdict_Lines
+from Reporting.Core import Screen_Understanding, Object_Size, Dimension_Check_Text, Verdict_Log_Line
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str, CONST_VERDICTS
 # Custom Lib.: AnyScan — the ONE configuration layer the application loads its configuration
@@ -550,8 +550,8 @@ def _Report_Frame(stem: str, result: Analysis_Str) -> tp.Tuple[str, int, int, tp
         print('[INFO]     Obj. %d [%s]%s - %s' % (i, det.Cue, ' (%s)' % size if size else '', det.Sentence))
         for check in det.Dimension_Checks:
             print('[INFO]         %s' % Dimension_Check_Text(check))
-        for line in Verdict_Lines(det):
-            print('[INFO]         %s' % line)
+        if det.Catalogue is not None:
+            print('[INFO]         %s' % Verdict_Log_Line(i - 1, det)[1])
     for level, message in result.Audit:
         print('[%s]     %s' % (level.upper(), message))
     return stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms

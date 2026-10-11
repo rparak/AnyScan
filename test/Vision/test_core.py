@@ -614,6 +614,8 @@ def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference
     assert plate.Sentence.endswith(' It lies with its %s up.' % plate.Catalogue.Side_Name)
     assert plate.Catalogue.Side_Name in ('machined front', 'unmachined back')
     assert 'It lies with its' not in small.Sentence
+    # The badge states the worst verdict, recomposed after the verdicts: a Warning beside an OK part.
+    assert (result.Verdict, result.Verdict_Level) == ('Foreign object · 1', 'warn')
     assert result.Timing.Identification_Ms is not None
 
 

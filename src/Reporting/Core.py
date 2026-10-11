@@ -285,17 +285,31 @@ def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tupl
         badge colour, returned separately so the interface never parses the
         wording to decide how to paint it.
 
+        In a catalogue mode (the objects carry catalogue evidence) the badge states the worst verdict, so it
+        is never green while anything on the surface is not OK: any NOK ('NOK · 2 of 5', level 'fail'), else
+        any Unspecified ('Not judged · 1', 'warn'), else any Warning ('Foreign object · 3', 'warn'), else
+        every object OK ('All OK · 2', 'ok'). The word carries the state as well as the colour.
+
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects.
         (2) threshold [float]: The confidence below which the verdict is degraded.
 
     Returns:
         (1) parameter [Tuple<string> 1x2]: The (wording, level) pair, where level
-                                           is 'ok' | 'warn' | 'idle'.
+                                           is 'fail' | 'ok' | 'warn' | 'idle'.
     """
 
     if not objects:
         return 'Empty', 'idle'
+    if any(o.Catalogue is not None for o in objects):
+        count = {state: sum(o.Verdict == state for o in objects) for state in ('NOK', 'Unspecified', 'Warning')}
+        if count['NOK']:
+            return 'NOK · %d of %d' % (count['NOK'], len(objects)), 'fail'
+        if count['Unspecified']:
+            return 'Not judged · %d' % count['Unspecified'], 'warn'
+        if count['Warning']:
+            return 'Foreign object · %d' % count['Warning'], 'warn'
+        return 'All OK · %d' % len(objects), 'ok'
     scored = [o.Confidence for o in objects if o.Confidence is not None]
     if scored and min(scored) < threshold:
         return 'Low confidence', 'warn'
@@ -484,13 +498,83 @@ def Dimension_Check_Text(Dimension_Check_Str: Dimension_Check_Str) -> str:
         CONST_SIZE_DECIMALS, check.Tolerance_Mm, 'within' if check.Within else 'OUT OF TOLERANCE')
 
 
+def Dimension_Reason(Dimension_Check_Str: Dimension_Check_Str) -> str:
+    """
+    Description:
+        A failed dimension as the reason a part is NOK: 'The length is 62.04 mm, expected 60.00 ± 1.50 mm.'
+
+    Args:
+        (1) Dimension_Check_Str [Dimension_Check_Str(object)]: The check.
+
+    Returns:
+        (1) parameter [string]: The sentence.
+    """
+
+    check = Dimension_Check_Str
+    return 'The %s is %.*f mm, expected %.*f ± %.*f mm.' % (
+        check.Name, CONST_SIZE_DECIMALS, check.Measured_Mm, CONST_SIZE_DECIMALS, check.Nominal_Mm,
+        CONST_SIZE_DECIMALS, check.Tolerance_Mm)
+
+
+def Verdict_Reasons(det: Detection_Str) -> tp.List[str]:
+    """
+    Description:
+        Why a judged object is not OK, one sentence per reason: each failed dimension with its measured and
+        expected values, the part's outline without its look, an outline that could not be measured; why an
+        Unspecified object could not be judged and what to do; and that a Warning should not be there. Empty
+        for an OK part and outside a catalogue mode.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [Vector<string>]: The reasons.
+    """
+
+    result = det.Catalogue
+    if result is None or det.Verdict == 'OK':
+        return []
+    if det.Verdict == 'Warning':
+        return ['The object should not be on the surface.']
+    if det.Verdict == 'Unspecified':
+        return ["Its area is %.2f times the part's, probably several parts together, so it cannot be judged. "
+                'Separate them and scan again.' % result.Area_Ratio]
+    reasons = [Dimension_Reason(check) for check in det.Dimension_Checks if not check.Within]
+    if result.Similarity < result.Identify_Similarity:
+        reasons.append("It has the part's outline but does not look like the part.")
+    if not det.Dimension_Checks:
+        reasons.append('Its outline could not be measured.')
+    return reasons
+
+
+def Size_Note(det: Detection_Str) -> str:
+    """
+    Description:
+        The note a part judged on its size carries when it lies beyond the radius the size checks were
+        verified to: its distance and the radius. The verdict stands; the note explains it.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [string]: The note, or '' when it needs none.
+    """
+
+    result = det.Catalogue
+    if (result is None or det.Verdict not in ('OK', 'NOK') or not det.Dimension_Checks
+            or result.Center_Distance_Mm <= result.Verified_Radius_Mm):
+        return ''
+    return ('The size check is not verified here: %.0f mm from the frame centre, verified to %.0f mm.'
+            % (result.Center_Distance_Mm, result.Verified_Radius_Mm))
+
+
 def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
     """
     Description:
-        A catalogue mode's verdict on one object, as the sentences Screen Understanding and the Log show:
-        the state first, with the evidence it rests on, then one line per reason it is not OK, and a note
-        when its size was checked where the size checks are not verified. Every NOK says what was measured
-        and what was expected; an Unspecified object says what to do. Empty outside a catalogue mode.
+        A catalogue mode's verdict on one object as Scene Understanding shows it: 'State: <state>.', then one
+        'Reason:' line per reason it is not OK (Verdict_Reasons), then the size note when it applies. No
+        similarity and no side here: the similarity is in the log only (Verdict_Log_Line), and the side is in
+        the description (Side_Sentence). Empty outside a catalogue mode.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -499,27 +583,11 @@ def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
         (1) parameter [Vector<string>]: The lines, the state first; [] outside a catalogue mode.
     """
 
-    result = det.Catalogue
-    if result is None:
+    if det.Catalogue is None:
         return []
-    similarity = 'similarity %.2f' % result.Similarity
-    if det.Verdict == 'Unspecified':
-        return ['Unspecified — %.2f times the part\'s area: probably several parts together. Separate them and '
-                'scan again.' % result.Area_Ratio]
-    if det.Verdict == 'Warning':
-        return ['Warning — not the part (%s): it should not be on the surface.' % similarity]
-    lines = ['%s — the part, %s up (%s).' % (det.Verdict, result.Side, similarity)]
-    if det.Verdict == 'NOK':
-        if result.Similarity < result.Identify_Similarity:
-            lines.append('It has the part\'s outline but does not look like the part (%s; the part is identified '
-                         'from %.2f).' % (similarity, result.Identify_Similarity))
-        if not det.Dimension_Checks:
-            lines.append('Its outline could not be measured.')
-        lines += [Dimension_Check_Text(check) for check in det.Dimension_Checks if not check.Within]
-    if det.Dimension_Checks and result.Center_Distance_Mm > result.Verified_Radius_Mm:
-        lines.append('The size check is not verified here: %.0f mm from the frame centre, verified to %.0f mm.'
-                     % (result.Center_Distance_Mm, result.Verified_Radius_Mm))
-    return lines
+    note = Size_Note(det)
+    return (['State: %s.' % det.Verdict] + ['Reason: %s' % reason for reason in Verdict_Reasons(det)]
+            + (['Note: %s' % note] if note else []))
 
 
 def Side_Sentence(det: Detection_Str) -> str:
@@ -545,9 +613,11 @@ def Side_Sentence(det: Detection_Str) -> str:
 def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
     """
     Description:
-        An object's verdict as one log line, 'Object N: <its verdict lines>', and the level it is logged at:
-        WARNING for an object that should not be there or could not be judged (Warning, Unspecified), INFO
-        otherwise — a NOK is a result the station reports, not a fault of the application.
+        An object's verdict as one log line, with what Scene Understanding leaves out: 'Object N: <state>,
+        <side> up, similarity 0.91. Reason: … Note: …' — the side for a judged part, the similarity always —
+        and the level it is logged at: WARNING for an object that should not be there or could not be judged
+        (Warning, Unspecified), INFO otherwise — a NOK is a result the station reports, not a fault of the
+        application.
 
     Args:
         (1) index [int]: The object's 0-based position in the list.
@@ -557,8 +627,14 @@ def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
         (1) parameter [Tuple<string> 1x2]: (level 'INFO' or 'WARNING', the line).
     """
 
+    result = det.Catalogue
     level = 'WARNING' if det.Verdict in ('Warning', 'Unspecified') else 'INFO'
-    return level, '%s: %s' % (Object_Label(index), ' '.join(Verdict_Lines(det)))
+    evidence = [det.Verdict] + (['%s up' % result.Side] if det.Verdict in ('OK', 'NOK') else [])
+    evidence.append('similarity %.2f' % result.Similarity)
+    note = Size_Note(det)
+    words = (['%s.' % ', '.join(evidence)] + ['Reason: %s' % reason for reason in Verdict_Reasons(det)]
+             + (['Note: %s' % note] if note else []))
+    return level, '%s: %s' % (Object_Label(index), ' '.join(words))
 
 
 def Object_Label_Full(index: int, det: Detection_Str) -> str:
