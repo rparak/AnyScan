@@ -78,7 +78,7 @@ def test_objects_accumulate_per_image() -> None:
 def test_ok_nok_split_accumulates_with_the_total() -> None:
     """
     Description:
-        The OK and NOK series accumulate beside the total, and always sum to it.
+        The OK and NOK series accumulate beside the total, and sum to it when every object is OK or NOK.
     """
 
     acc = Trends_Accumulator_Cls()
@@ -261,3 +261,16 @@ def test_x_labels_thin_onto_round_numbers_without_overlap() -> None:
         assert all(n % step == 0 for n in numbers[1:-1]), (count, fit, numbers)
         # No two labels closer than half a step — the kept last image never collides.
         assert all(b - a >= step / 2.0 for a, b in zip(numbers, numbers[1:])), numbers
+
+
+def test_a_warning_or_unspecified_object_is_counted_but_neither_ok_nor_nok() -> None:
+    """
+    Description:
+        A catalogue mode's Warning (not the part) and Unspecified (not judged) objects count in the total
+        but in neither the OK nor the NOK series: an object that is not the part did not pass.
+    """
+
+    acc = Trends_Accumulator_Cls()
+    acc.Add_Analysis([_Det(0.9, 'OK'), _Det(0.9, 'Warning'), _Det(0.9, 'Unspecified'), _Det(0.9, 'NOK')])
+    last = acc.Images()[-1]
+    assert (last.Cumulative_Total, last.Cumulative_Ok, last.Cumulative_Nok) == (4, 1, 1)

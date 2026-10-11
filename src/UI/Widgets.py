@@ -43,7 +43,7 @@ from UI.Utilities.Style import Font, Hairline, Load_Logo
 from Parameters.Vision import Confidence_Thresholds_Str, Heatmap_Str
 # Custom Lib.: AnyScan domain — the shared Scene-Understanding formatter
 #   ../Reporting/Core
-from Reporting.Core import Object_Label, Object_Confidence, Object_Size, CONST_LABEL_SEPARATOR
+from Reporting.Core import Object_Label, Object_Confidence, Object_Size, Verdict_Lines, CONST_LABEL_SEPARATOR
 
 """
 Description:
@@ -1062,6 +1062,17 @@ class Object_List_Cls(QWidget):
         column.setSpacing(3)                             # tight label -> description
 
         column.addWidget(self.__Label_Line(index, det))
+
+        # A catalogue mode's verdict, between the label and the description: the state word leads its
+        # line, so the verdict reads in words, not only in the frame's colours (Reporting.Verdict_Lines).
+        lines = Verdict_Lines(det)
+        if lines:
+            verdict = QLabel('\n'.join(lines))
+            verdict.setTextFormat(Qt.PlainText)
+            verdict.setFont(Font(self.__body_size, QFont.DemiBold))
+            verdict.setWordWrap(True)
+            verdict.setStyleSheet('color: %s; background: transparent;' % Style.CONST_INK)
+            column.addWidget(verdict)
 
         description = QLabel(det.Sentence)
         description.setFont(Font(self.__body_size))

@@ -57,6 +57,25 @@ class Catalogue_Outline_Str:
 
 
 @dataclass
+class Catalogue_Reference_Str:
+    """
+    Description:
+        One reference image of the catalogue part: one side, photographed lying on the table, in its
+        OK state, with the part's bounding box (Data/Catalogue/<item>/reference_image/<side>.png and
+        <side>.txt, a YOLO line). The catalogue mode compares every object with these (Vision.Identifier).
+    """
+
+    # The side: 'front' or 'back'.
+    #   Unit [string]
+    Side: str = ''
+    # The image (absolute) and the part's box in it as YOLO gives it: centre x, centre y, width and
+    # height, each a fraction of the image's size.
+    #   Unit [string] / [Vector<float> 1x4]
+    Image_Path: str = ''
+    Box: tp.Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
+
+
+@dataclass
 class Catalogue_Item_Str:
     """
     Description:
@@ -78,6 +97,9 @@ class Catalogue_Item_Str:
     Tolerance_Mm: float = 0.0
     # The outline check.
     Outline: Catalogue_Outline_Str = field(default_factory=Catalogue_Outline_Str)
+    # The reference images, front then back (reference_image/ beside the file).
+    #   Unit [Vector<Catalogue_Reference_Str(object)>]
+    References: tp.List[Catalogue_Reference_Str] = field(default_factory=list)
     # What the loader has to say about this file, as (level, message): each optional field that fell
     # back to its default, each key it did not recognise. They join the configuration's Notes.
     #   Unit [Vector<Tuple<string> 1x2>]

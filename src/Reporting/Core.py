@@ -484,6 +484,63 @@ def Dimension_Check_Text(Dimension_Check_Str: Dimension_Check_Str) -> str:
         CONST_SIZE_DECIMALS, check.Tolerance_Mm, 'within' if check.Within else 'OUT OF TOLERANCE')
 
 
+def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
+    """
+    Description:
+        A catalogue mode's verdict on one object, as the sentences Screen Understanding and the Log show:
+        the state first, with the evidence it rests on, then one line per reason it is not OK, and a note
+        when its size was checked where the size checks are not verified. Every NOK says what was measured
+        and what was expected; an Unspecified object says what to do. Empty outside a catalogue mode.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [Vector<string>]: The lines, the state first; [] outside a catalogue mode.
+    """
+
+    result = det.Catalogue
+    if result is None:
+        return []
+    similarity = 'similarity %.2f' % result.Similarity
+    if det.Verdict == 'Unspecified':
+        return ['Unspecified — %.2f times the part\'s area: probably several parts together. Separate them and '
+                'scan again.' % result.Area_Ratio]
+    if det.Verdict == 'Warning':
+        return ['Warning — not the part (%s): it should not be on the surface.' % similarity]
+    lines = ['%s — the part, %s up (%s).' % (det.Verdict, result.Side, similarity)]
+    if det.Verdict == 'NOK':
+        if result.Similarity < result.Identify_Similarity:
+            lines.append('It has the part\'s outline but does not look like the part (%s; the part is identified '
+                         'from %.2f).' % (similarity, result.Identify_Similarity))
+        if not det.Dimension_Checks:
+            lines.append('Its outline could not be measured.')
+        lines += [Dimension_Check_Text(check) for check in det.Dimension_Checks if not check.Within]
+    if det.Dimension_Checks and result.Center_Distance_Mm > result.Verified_Radius_Mm:
+        lines.append('The size check is not verified here: %.0f mm from the frame centre, verified to %.0f mm.'
+                     % (result.Center_Distance_Mm, result.Verified_Radius_Mm))
+    return lines
+
+
+def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
+    """
+    Description:
+        An object's verdict as one log line, 'Object N: <its verdict lines>', and the level it is logged at:
+        WARNING for an object that should not be there or could not be judged (Warning, Unspecified), INFO
+        otherwise — a NOK is a result the station reports, not a fault of the application.
+
+    Args:
+        (1) index [int]: The object's 0-based position in the list.
+        (2) det [Detection_Str(object)]: The object, judged.
+
+    Returns:
+        (1) parameter [Tuple<string> 1x2]: (level 'INFO' or 'WARNING', the line).
+    """
+
+    level = 'WARNING' if det.Verdict in ('Warning', 'Unspecified') else 'INFO'
+    return level, '%s: %s' % (Object_Label(index), ' '.join(Verdict_Lines(det)))
+
+
 def Object_Label_Full(index: int, det: Detection_Str) -> str:
     """
     Description:
@@ -516,7 +573,8 @@ def Object_Line(index: int, det: Detection_Str) -> str:
         descriptions file — the full label from Object_Label_Full joined to the
         description, so the file keeps its one-line form while the panel renders the same
         label and description on two levels. The sentence is det.Sentence (written by
-        Compose).
+        Compose). In a catalogue mode the object's verdict lines (Verdict_Lines) follow it,
+        indented, so the file says what the panel says.
 
     Args:
         (1) index [int]: The object's 0-based position in the list.
@@ -526,7 +584,8 @@ def Object_Line(index: int, det: Detection_Str) -> str:
         (1) parameter [string]: The numbered line.
     """
 
-    return '%s - %s' % (Object_Label_Full(index, det), det.Sentence)
+    return '\n'.join(['%s - %s' % (Object_Label_Full(index, det), det.Sentence)]
+                     + ['    ' + line for line in Verdict_Lines(det)])
 
 
 def Yolo_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int]) -> tp.List[str]:

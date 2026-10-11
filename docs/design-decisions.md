@@ -329,6 +329,13 @@ Commit `61bb651`; tests `test/Vision/Utilities/test_annotate.py::test_seg_keeps_
 
 ## Classification is a per-configuration switch that exposes the verdict UI, not one that creates it
 
+*Corrected 2026-10-11: the switch is removed. A configuration classifies exactly when it is a catalogue
+mode (`Configuration_Str.Classifies`), so the dormant "on, but every object OK" state below cannot occur
+any more; a file that still holds `General.Classification` loads with a warning that it is no longer
+read. What this entry says about the verdict UI (the filter absent when not classifying, the neutral
+colour, History following each set's recorded flag) still holds, with the catalogue mode as the switch.
+See [*A catalogue mode identifies by similarity…*](#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok).*
+
 `General.Classification.Enabled` in the configuration file says whether a configuration performs
 OK/NOK classification or only detects objects. It defaults to **false**, because nothing
 classifies today — no code assigns NOK; `Detection_Str.Verdict` defaults to OK and nothing sets
@@ -448,6 +455,8 @@ rendering mode chosen on the caller's behalf; with none, a caller that has not d
 the call site, and the keyword makes a bare `True`/`False` impossible to pass without naming it.
 Both harnesses now read `General.Classification.Enabled` through the application's own
 `Read_Classification_Enabled` and default config (`analyze.py --config` overrides it), because
+*(corrected 2026-10-11: the switch is removed; `analyze.py` reads `Configuration_Str.Classifies`, true in a
+catalogue mode, from the same loaded configuration the application uses)*
 `analyze.py` validates the logic the app uses — a harness rendering in another mode would make a
 harness artefact look like a real difference. **Do not reintroduce a default.**
 Tests `test/UI/test_harness_parity.py` (the harness mask equals the mask the window writes, for
@@ -2816,8 +2825,8 @@ check. The rest is the agreed design, recorded here so the later phases build to
   without is Segment Anything, unchanged. One mode file per item
   (`Config_<Hardware>_Mode_Mounting_Plate.yaml`, `..._Mode_Labyrinth.yaml`). The request coupled the mode
   to `General.Classification.Enabled`; that switch already exposes the verdict UI with nothing behind it,
-  so the owner chose to let the block select the mode and to remove the switch. The removal lands with
-  the states (phase B): until then nothing is judged, and both catalogue modes ship it `false`.
+  so the owner chose to let the block select the mode and to remove the switch. Removed with the states in
+  phase B (2026-10-11).
 - **The configuration picks checks and sets their parameters; it never describes an algorithm.** Each
   block under `Checks` selects one ready-made check module (today `Outline`; later holes, surface stain,
   logo) with the parameters it reads. No OpenCV call sequence, and **no order**: the checks are
@@ -2891,3 +2900,82 @@ Tests `test/Configuration/test_core.py::test_the_scale_at_a_height_follows_the_p
 `test/Vision/Utilities/test_dimensions.py`,
 `test/Vision/test_core.py::test_a_catalogue_mode_checks_each_measured_object_and_segment_anything_does_not`,
 `test/integration/test_pipeline.py::test_the_outline_passes_exactly_the_catalogue_parts` (slow, 82 cases).
+
+
+## A catalogue mode identifies by similarity, and an object of the part's shape that does not look like it is NOK
+
+Decided 2026-10-11 (catalogue phase B), on the owner's rulings. Every object FastSAM and the fusion find is
+compared with the catalogue item's two reference images by DINOv2 base and judged by
+`Vision.Utilities.Classify.Classify`, in this order:
+
+1. **Unspecified** — its area is at least `Catalogue.Unspecified_Area_Ratio` (1.7) times the part's nominal
+   area: probably several parts together. Not judged; it says to separate them.
+2. **The part, by its look** — similarity at least `Catalogue.Identify_Similarity` (0.75), whatever its size:
+   **OK** when its outline is within tolerance, **NOK** when not. A wrong-sized part is therefore NOK, not a
+   Warning.
+3. **The part, by its shape** — below 0.75, but its outline within the part's tolerance: **NOK**, "it has
+   the part's outline but does not look like the part".
+4. **Warning** — anything else: not the part, found and described, not supposed to be there.
+
+**Why 0.75.** Measured on the 41 frames (fallback describer, the class token's cosine, the best of four
+quarter turns and both sides): every mounting plate 0.79–1.00, the fingerprint-stained fronts lowest; every
+labyrinth 0.80–0.96 (the worn logo 0.82); every other object at most 0.66 (the red block against the plate's
+back). 0.75 sits in that gap. The side is the reference that scored highest: right on all 59 instances, the
+smallest margin 0.08.
+
+**Why step 3 has no lower bound.** The blank 50 × 50 plate (the owner's ruling: a labyrinth back with no
+logo, NOK) scores 0.54–0.65 against the labyrinth, and the other objects reach 0.49. A floor between them
+would have had 0.05 of margin. The owner chose none: an object of the part's size that does not look like it
+reads NOK rather than Warning, **the safer error in quality control** (a foreign plate the size of the part
+is flagged as a failed part, never passed or ignored), and the thin threshold is gone.
+
+- **Compared whole and upright.** Each object's measured rectangle is warped upright (long side vertical, as
+  the references show the parts) and compared in four quarter turns; a round object by its box. The image is
+  resized whole to 224 × 224, not centre-cropped as the model card's processor does — a centre crop of a 2:3
+  plate cuts its holes off. The normalisation is the processor's own.
+- **The size checks' verified zone.** Every catalogue part on the test set lies within 74.24 mm of the frame
+  centre (measured the way the check measures). Beyond `CONST_VERIFIED_RADIUS_MM` (74.3) an OK or NOK judged on
+  its size carries the note "the size check is not verified here", with its distance. The verdict stands: a
+  NOK stays NOK, the note explains it (the owner's ruling). The request said 75 mm; that was the same parts at
+  the boards' scale.
+- **Where the verdict shows.** The frame and the mask (Warning in the status amber — the one place amber marks
+  an object, `Parameters/Theme.py` — Unspecified in the neutral colour, with the mask's darker neutral
+  outline), the Scene Understanding panel and file (`Reporting.Verdict_Lines`: the state, its evidence, each
+  reason it is not OK with measured and expected values), and the log (one line per object, Warning and
+  Unspecified at WARNING). Trends counts only OK as OK: a Warning did not pass. The status badge and History's
+  filter still speak OK/NOK only (KNOWN_ISSUES).
+- **What it does not judge yet.** The stain, the holes and the logo. The five stained-plate frames read OK
+  until the stain check (phase D); their expected NOK is a strict xfail naming it.
+- **Confidence stays a mask score.** The similarity is shown as "similarity", never as Confidence
+  ([*`Verdict`'s confidence branch stays dormant…*](#verdicts-confidence-branch-stays-dormant-a-mask-score-is-not-a-confidence)).
+
+**Revisit if** a new item or a new lighting puts an item below 0.75 or another object above it (re-measure
+with the harness, which reports the states per frame), a part is placed farther than 74.3 mm from the centre
+on purpose (measure there, then move the radius), or a real foreign part of the item's size turns up and
+should be a Warning (then a floor needs data, not a guess).
+Tests `test/Vision/Utilities/test_classify.py` (each branch, no floor, the crop upright, the best match),
+`test/Reporting/test_core.py` (the lines, the note, the log levels),
+`test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (slow, 82 cases, five strict
+xfails), `test/Vision/test_core.py` (the identifier loaded, kept and released; the rule applied to every
+object), `test/Parameters/test_theme.py::test_every_catalogue_state_has_its_colour`,
+`test/UI/test_timing_log.py::test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time`,
+`test/UI/test_reading_view.py::test_a_judged_object_shows_its_verdict_between_label_and_description`.
+
+## DINOv2 base is the catalogue identifier, pinned and verified by the installer
+
+Decided 2026-10-11. `facebook/dinov2-base` at revision `f9e44c8` (Apache 2.0, unchanged on the Hub since
+2024-01-17), in `models/dinov2-base`: the weights as safetensors (346 MB, not the duplicate
+`pytorch_model.bin`), its configuration, image processor and model card. `install.sh` downloads and verifies
+it like Gemma — the same step, `Ensure_Hub_Model`: the LFS SHA-256 of the weights and the git blob SHA-1 of
+each small file, a mismatched file fetched again with `--force-download` — and checks that every catalogue
+mode's `Catalogue.Identifier` points at it. It loads with `local_files_only`, so nothing touches the network at
+run time, on `Segmentation.Device` (one device setting for the two torch models), and is released when a
+configuration without a catalogue is loaded.
+
+**Why base.** The owner's choice; the measurements above were made with it, so the thresholds are its.
+
+**Revisit if** the identifier is swapped (re-measure the 0.75 and the side margins on the same frames and
+crops) or the Hub revision stops serving a pinned file (the installer says so and stops).
+Tests `test/Install/test_install.py` (the DINOv2 download at its revision, the skip when verified, a failed
+verification, the plan line, the configuration check), `test/Vision/test_identifier.py` (no heavy import, the
+missing-weights sentence; slow: unit rows, repeatable, the two sides apart).

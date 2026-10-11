@@ -44,6 +44,7 @@ from Configuration.Core import (Load_Configuration, Configuration_Error_Cls, Wri
                                 Hardware_And_Mode, Describe_Configuration, Hardware_Record,
                                 Discover_Configurations, Load_Catalogue, Scale_At_Height, Config_Sources_Log_Line,
                                 CONST_DEFAULT_CONFIG_FILE, CONST_FIELDS, CONST_CATALOGUE_FIELDS,
+                                CONST_CATALOGUE_BLOCK_FIELDS,
                                 CONST_REQUIRED_CUSTOM_CFG_KEYS, CONST_COEFFICIENT_KEYS, CONST_PROJECT_ROOT,
                                 CONST_CONFIG_DIR)
 #   ../Parameters/Configuration
@@ -156,7 +157,7 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
     config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
     assert isinstance(config, Configuration_Str)
     assert (config.Hardware, config.Mode) == (CONST_HARDWARE, 'Seg_Anything')
-    assert config.Classification_Enabled is False                     # detect-only, as shipped
+    assert config.Classifies is False and config.Catalogue is None    # detect-only, as shipped
     assert (config.Identity.Display_Name, config.Identity.Model_Set, config.Identity.Task) == \
         ('Cfg. Segment Anything', 'JIC_AnyScan_All_v1', 'part inspection')
     assert (config.Camera.Model, config.Camera.Lens, config.Camera.Lighting) == \
@@ -422,7 +423,6 @@ def test_every_documented_default_in_the_shipped_mode_file_is_the_code_default(m
 
 
 @pytest.mark.parametrize('path, value', [
-    (('General', 'Classification', 'Enabled'), 'yes'),
     (('Segmentation', 'Confidence'), 1.5),
     (('Segmentation', 'Image_Size'), 0),
     (('Segmentation', 'Device'), 'gpu'),
@@ -1032,10 +1032,14 @@ def _Item(name: str) -> tp.Dict[str, tp.Any]:
 
 
 def _Write_Item(directory: tp.Any, data: tp.Dict[str, tp.Any], name: str = 'test_part',
-                file_name: tp.Optional[str] = None) -> str:
-    """Write a catalogue item file into <directory>/<name>/<file_name or name>.yaml."""
+                file_name: tp.Optional[str] = None, references: str = 'mounting_plate') -> str:
+    """Write a catalogue item file into <directory>/<name>/<file_name or name>.yaml, with a shipped item's
+    reference images beside it (none when references is '')."""
     folder = os.path.join(str(directory), name)
     os.makedirs(folder, exist_ok=True)
+    if references and not os.path.isdir(os.path.join(folder, 'reference_image')):
+        shutil.copytree(os.path.join(CONST_PROJECT_ROOT, 'Data', 'Catalogue', references, 'reference_image'),
+                        os.path.join(folder, 'reference_image'))
     path = os.path.join(folder, (file_name or name) + '.yaml')
     with open(path, 'w', encoding='utf-8') as f:
         yaml.safe_dump(data, f, sort_keys=False)
@@ -1268,3 +1272,150 @@ def test_the_sources_line_names_the_catalogue_item() -> None:
         'Data/Catalogue/mounting_plate/mounting_plate.yaml.')
     assert Config_Sources_Log_Line(Load_Configuration(CONST_DEFAULT_CONFIG_FILE)).endswith(
         'and background reference Data/Images/Background/Image_Background_001.png.')
+
+
+def test_a_catalogue_mode_needs_its_identifier() -> None:
+    """
+    Description:
+        The DINOv2 directory is REQUIRED in a Catalogue block: without it the mode fails to load naming
+        Catalogue.Identifier, and the path is resolved against the repository root like every model.
+    """
+
+    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, CONST_CATALOGUE_MODES[0][0]))
+    assert config.Identification.Model_Path == os.path.join(CONST_PROJECT_ROOT, 'models', 'dinov2-base')
+
+
+def test_a_catalogue_block_without_its_identifier_fails(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Removing Catalogue.Identifier fails the load, naming it: there is no default model.
+    """
+
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    del mode['Catalogue']['Identifier']
+    with pytest.raises(Configuration_Error_Cls, match='Catalogue.Identifier is required but missing'):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+
+
+@pytest.mark.parametrize('key, value, words', [
+    ('Identify_Similarity', 1.5, 'Catalogue.Identify_Similarity must be a number from 0 to 1'),
+    ('Unspecified_Area_Ratio', 1.0, 'Catalogue.Unspecified_Area_Ratio must be above 1'),
+    ('Unspecified_Area_Ratio', -2, 'Catalogue.Unspecified_Area_Ratio must be a number above 0'),
+])
+def test_an_invalid_identification_threshold_fails(tmp_path: tp.Any, key: str, value: tp.Any, words: str) -> None:
+    """
+    Description:
+        The thresholds are validated: a similarity outside 0..1 fails, and an Unspecified ratio of 1 or
+        less fails too — at 1 the part itself would be Unspecified.
+    """
+
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    mode['Catalogue'][key] = value
+    with pytest.raises(Configuration_Error_Cls, match=words):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+
+
+def test_the_identification_thresholds_default_to_the_measured_values(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Left out, the similarity takes 0.75 and the ratio 1.7, and the load says so for each.
+    """
+
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    del mode['Catalogue']['Identify_Similarity'], mode['Catalogue']['Unspecified_Area_Ratio']
+    config = Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert (config.Identification.Identify_Similarity, config.Identification.Unspecified_Area_Ratio) == (0.75, 1.7)
+    notes = [message for _level, message in config.Notes]
+    assert any('Catalogue.Identify_Similarity not set; using the default 0.75' in m for m in notes)
+    assert any('Catalogue.Unspecified_Area_Ratio not set; using the default 1.7' in m for m in notes)
+
+
+@pytest.mark.parametrize('name, item', [(n, i) for n, i, _t, _o in CONST_CATALOGUE_MODES], ids=lambda x: str(x))
+def test_the_catalogue_blocks_document_their_defaults(name: str, item: str) -> None:
+    """
+    Description:
+        The Catalogue block's fields follow the mode file's rule: Identifier says REQUIRED, and each
+        optional threshold's comment states the default the code applies.
+    """
+
+    comments = _Field_Comments(os.path.join(CONST_CONFIG_DIR, name))
+    code = Configuration_Str()
+    for path, attribute, _kind, required in CONST_CATALOGUE_BLOCK_FIELDS:
+        text, position = comments[path]
+        if required:
+            assert 'REQUIRED' in text, path
+            continue
+        expected = code
+        for part in attribute:
+            expected = getattr(expected, part)
+        assert _Documented_Default(text, position) == expected, path
+
+
+def test_the_item_carries_its_reference_images() -> None:
+    """
+    Description:
+        A catalogue item's reference images are read with it, front then back, each with the part's YOLO
+        box from its .txt — the shipped files' boxes.
+    """
+
+    item = Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')
+    assert [(r.Side, os.path.basename(r.Image_Path)) for r in item.References] == [('front', 'front.png'),
+                                                                                    ('back', 'back.png')]
+    assert item.References[0].Box == (0.472917, 0.460417, 0.203125, 0.4925)
+
+
+@pytest.mark.parametrize('damage, words', [
+    ('missing image', 'the back reference needs reference_image/back.png and reference_image/back.txt'),
+    ('two lines', 'reference_image/back.txt must hold one YOLO line'),
+    ('out of range', 'reference_image/back.txt must hold one YOLO line'),
+], ids=lambda x: x if ' ' in str(x) else None)
+def test_a_damaged_reference_fails_the_item(tmp_path: tp.Any, damage: str, words: str) -> None:
+    """
+    Description:
+        A reference the identifier could not use fails the item, naming the side and what is wrong: a
+        missing image, a box file that is not one YOLO line, or a box outside the image.
+    """
+
+    path = _Write_Item(tmp_path, _Item('mounting_plate'))
+    folder = os.path.join(os.path.dirname(path), 'reference_image')
+    if damage == 'missing image':
+        os.remove(os.path.join(folder, 'back.png'))
+    else:
+        with open(os.path.join(folder, 'back.txt'), 'w', encoding='utf-8') as handle:
+            handle.write('0 0.5 0.5 0.2 0.4\n0 0.5 0.5 0.2 0.4\n' if damage == 'two lines' else '0 0.5 0.5 1.2 0.4\n')
+    with pytest.raises(Configuration_Error_Cls, match=words):
+        Load_Catalogue(path)
+
+
+def test_a_reference_of_another_window_fails_the_mode(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A reference image must be a frame of the camera's window, since the part's box is in its pixels and
+        the reference is cropped as a frame is: one of another size fails the mode's load, naming both.
+    """
+
+    import cv2
+    path = _Write_Item(tmp_path, _Item('mounting_plate'))
+    front = os.path.join(os.path.dirname(path), 'reference_image', 'front.png')
+    cv2.imwrite(front, cv2.resize(cv2.imread(front), (960, 600)))
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    mode['Catalogue']['Item'] = path
+    with pytest.raises(Configuration_Error_Cls, match='reference_image/front.png is 960 × 600, but Camera.Resolution '
+                                                      'is 1920 × 1200'):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+
+
+def test_the_removed_classification_switch_is_named_when_a_file_still_has_it(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        General.Classification is no longer read: a configuration classifies when it has a Catalogue block.
+        A file that still holds the switch loads, with a WARNING that says so — not the generic 'misspelt?'
+        — and it decides nothing: Segment Anything with it set true still does not classify.
+    """
+
+    mode, calibration = _Shipped()
+    mode['General']['Classification'] = {'Enabled': True}
+    config = Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert config.Classifies is False
+    assert ('WARNING', "Configuration '%s': General.Classification is no longer read and is ignored: a configuration "
+                       'classifies when it has a Catalogue block.' % CONST_COPY_NAME) in config.Notes

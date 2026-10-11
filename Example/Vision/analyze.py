@@ -54,9 +54,9 @@ from Vision.Segmenter import Segmenter_Error_Cls
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Render_Views
 #   ../Reporting/Core
-from Reporting.Core import Screen_Understanding, Object_Size, Dimension_Check_Text
+from Reporting.Core import Screen_Understanding, Object_Size, Dimension_Check_Text, Verdict_Lines
 #   ../Parameters/Vision
-from Parameters.Vision import Analysis_Str
+from Parameters.Vision import Analysis_Str, CONST_VERDICTS
 # Custom Lib.: AnyScan — the ONE configuration layer the application loads its configuration
 # through, so the harness runs exactly the stages, mode and scale the app runs
 #   ../Configuration/Core
@@ -508,7 +508,7 @@ def _Print_Run_Header(configuration: Configuration_Str, scenes: tp.List[str], in
     print('[INFO] Scenes   : %d frame(s) in %s' % (len(scenes), os.path.abspath(input_dir)))
     print('[INFO] Describer: %s' % Vision_Core.CONST_DESCRIBER)
     print('[INFO] Config   : %s' % configuration.Name)
-    print('[INFO] Classify : %s' % ('enabled' if configuration.Classification_Enabled else 'disabled'))
+    print('[INFO] Classify : %s' % ('enabled' if configuration.Classifies else 'disabled'))
     if configuration.Catalogue is not None:
         print('[INFO] Catalogue: %s (%s)' % (configuration.Catalogue.Name, configuration.Catalogue.Path))
     print('[INFO] Run stamp: %s\n' % run_stamp)
@@ -550,6 +550,8 @@ def _Report_Frame(stem: str, result: Analysis_Str) -> tp.Tuple[str, int, int, tp
         print('[INFO]     Obj. %d [%s]%s - %s' % (i, det.Cue, ' (%s)' % size if size else '', det.Sentence))
         for check in det.Dimension_Checks:
             print('[INFO]         %s' % Dimension_Check_Text(check))
+        for line in Verdict_Lines(det):
+            print('[INFO]         %s' % line)
     for level, message in result.Audit:
         print('[%s]     %s' % (level.upper(), message))
     return stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms
@@ -578,12 +580,12 @@ def Reference_Frames(Configuration_Str: Configuration_Str, scenes: tp.List[str])
     return {path for path in scenes if _Fingerprint(path) in references}
 
 
-def _Report_Outlines(results: tp.List[tp.Tuple[str, Analysis_Str]], references: tp.Set[str]) -> None:
+def _Report_Verdicts(results: tp.List[tp.Tuple[str, Analysis_Str]], references: tp.Set[str]) -> None:
     """
     Description:
-        A catalogue run's outline summary: how many objects had an outline within the item's
-        tolerance, on the test frames and, apart, on the item's reference frames. Which object is the
-        item is not decided yet, so these are objects the size of the item, not objects known to be it.
+        A catalogue run's summary: how many objects took each state, and how many outlines were within the
+        item's tolerance, on the test frames and, apart, on the item's reference frames (judging the item
+        on the frames it was defined from is circular).
 
     Args:
         (1) results [Vector<Tuple<string, Analysis_Str(object)>>]: Each scene's path and analysis.
@@ -592,11 +594,14 @@ def _Report_Outlines(results: tp.List[tp.Tuple[str, Analysis_Str]], references: 
 
     for title, chosen in (('test frames', [r for r in results if r[0] not in references]),
                           ('reference frames', [r for r in results if r[0] in references])):
-        within = [det for _path, result in chosen for det in result.Objects
+        objects = [det for _path, result in chosen for det in result.Objects]
+        within = [det for det in objects
                   if det.Dimension_Checks and all(check.Within for check in det.Dimension_Checks)]
+        states = ', '.join('%s %d' % (state, sum(det.Verdict == state for det in objects)) for state in CONST_VERDICTS)
         names = ', '.join(os.path.splitext(os.path.basename(path))[0] for path, _result in chosen)
-        print('[INFO] Outline within tolerance on the %d %s: %d object(s)%s'
-              % (len(chosen), title, len(within), ' (%s)' % names if title == 'reference frames' and names else ''))
+        print('[INFO] On the %d %s: %s; outline within tolerance: %d object(s)%s'
+              % (len(chosen), title, states, len(within),
+                 ' (%s)' % names if title == 'reference frames' and names else ''))
 
 
 def main() -> int:
@@ -635,7 +640,7 @@ def main() -> int:
     rows, results = [], []
     for scene_path in scenes:
         result = _Analyze_Frame(backend, scene_path, args.output_dir, not args.no_describe, args.montage,
-                                run_stamp, reference_hash, configuration.Classification_Enabled)
+                                run_stamp, reference_hash, configuration.Classifies)
         if result is None:
             return 1
         rows.append(_Report_Frame(os.path.splitext(os.path.basename(scene_path))[0], result))
@@ -646,7 +651,7 @@ def main() -> int:
         print('[INFO] %-14s %8d %12d   %s' % (stem, count, raw, cues))
     print('[INFO] %-14s %8d' % ('TOTAL', sum(count for _stem, count, _raw, _cues, _latency in rows)))
     if configuration.Catalogue is not None:
-        _Report_Outlines(results, Reference_Frames(configuration, scenes))
+        _Report_Verdicts(results, Reference_Frames(configuration, scenes))
     print('[INFO] Artefacts written to: %s' % os.path.abspath(args.output_dir))
     return 0
 

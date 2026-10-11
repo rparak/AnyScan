@@ -23,6 +23,8 @@
 
 # System (Default)
 import os
+# Typing (Support for type hints)
+import typing as tp
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # Custom Lib.: AnyScan domain — the vision backend
@@ -167,6 +169,41 @@ class _Fake_Describer_Cls(object):
         return self.caption
 
 
+class _Fake_Identifier_Cls(object):
+    """A stand-in DINOv2: records Load / Release, and embeds an image as one of two unit vectors by its size —
+    a crop with a side of at least 200 px (the references, a plate-sized part) as one, anything smaller as
+    the other — so a plate-sized part matches the references exactly and a small one not at all."""
+    events = _Fake_Segmenter_Cls.events
+
+    def __init__(self, model_path, device) -> None:
+        self.key, self.model = (model_path, device), None
+
+    @property
+    def Loaded(self) -> bool:
+        return self.model is not None
+
+    @property
+    def Model_Key(self):
+        return self.key
+
+    def Load(self, stage_cb=None) -> None:
+        if self.model is None:
+            if 'broken' in self.key[0]:
+                raise Vision_Identifier_Error('The DINOv2 weights at "%s" could not be loaded.' % self.key[0])
+            self.events.append(('load identifier', self.key[0]))
+            self.model = object()
+
+    def Embed(self, images, cv2, np):
+        self.Load()
+        return np.array([[1.0, 0.0] if max(image.shape[:2]) >= 200 else [0.0, 1.0] for image in images])
+
+    def Release(self) -> None:
+        if self.model is not None:
+            self.events.append(('release identifier', self.key[0]))
+        self.model = None
+
+
+from Vision.Identifier import Identifier_Error_Cls as Vision_Identifier_Error    # noqa: E402
 from Vision.Segmenter import Segmenter_Error_Cls as Vision_Segmenter_Error      # noqa: E402
 from Vision.Describers import Describer_Error_Cls as Vision_Describer_Error      # noqa: E402
 
@@ -178,6 +215,7 @@ def fake_models(monkeypatch):
     _Fake_Segmenter_Cls.events.clear()
     monkeypatch.setattr(Vision_Core, 'Fast_Sam_Cls', _Fake_Segmenter_Cls)
     monkeypatch.setattr(Vision_Core, 'Gemma_Describer_Cls', _Fake_Describer_Cls)
+    monkeypatch.setattr(Vision_Core, 'Dino_Identifier_Cls', _Fake_Identifier_Cls)
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'gemma')
     config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
 
@@ -505,3 +543,88 @@ def test_a_catalogue_mode_checks_each_measured_object_and_segment_anything_does_
 
     (plain,) = Vision_Pipeline_Cls(Configuration_Str=config).Analyze(frame).Objects
     assert plain.Measurement is not None and plain.Dimension_Checks == []
+
+
+def _Catalogue_Mode(mode: str = 'Mounting_Plate') -> tp.Any:
+    """A shipped catalogue mode, loaded."""
+    return Load_Configuration(os.path.join(os.path.dirname(CONST_DEFAULT_CONFIG_FILE),
+                                           'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_%s.yaml' % mode))
+
+
+def test_a_catalogue_mode_loads_releases_and_keeps_its_identifier(fake_models) -> None:
+    """
+    Description:
+        The identifier is a model like the others: a catalogue mode loads it with the segmenter and the
+        describer (and Load_Timing names it); a second catalogue mode on the same weights keeps it; Segment
+        Anything releases it, so it is never held where nothing uses it; and a mode whose identifier
+        cannot load leaves the previous configuration in force, its identifier loaded again.
+    """
+
+    import dataclasses
+    events, config, _Variant = fake_models
+    pipeline = Vision_Pipeline_Cls(Configuration_Str=_Catalogue_Mode())
+    pipeline.Load_Models()
+    assert ('load identifier', _Catalogue_Mode().Identification.Model_Path) in events
+    assert [model.Name for model in pipeline.Load_Timing.Models] == ['FastSAM-x.pt', 'dinov2-base', 'gemma-4-e4b-it-4bit']
+
+    events.clear()
+    pipeline.Configure(_Catalogue_Mode('Labyrinth'))
+    assert not [event for event in events if 'identifier' in event[0]] and pipeline.Models_Loaded
+
+    pipeline.Configure(config)
+    assert [event for event in events if 'identifier' in event[0]] == [('release identifier',
+                                                                       config.Identification.Model_Path or
+                                                                       _Catalogue_Mode().Identification.Model_Path)]
+    assert pipeline.Models_Loaded
+
+    pipeline.Configure(_Catalogue_Mode())
+    broken = _Catalogue_Mode('Labyrinth')
+    broken = dataclasses.replace(broken, Identification=dataclasses.replace(broken.Identification,
+                                                                             Model_Path='/x/broken-dinov2'))
+    with pytest.raises(Vision_Core.Vision_Error_Cls, match='could not be loaded'):
+        pipeline.Configure(broken)
+    assert pipeline.Models_Loaded
+
+
+def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference_background,
+                                                          make_synthetic_frame) -> None:
+    """
+    Description:
+        Through a real Analyze (stand-in models, the real stages around them, the stand-in identifier
+        matching by colour): a part of the plate's size and look is OK, its side the reference it matched;
+        a small part is a Warning; and the identification time is carried beside the measurement's. The
+        rule's every branch is pinned in test_classify; this pins that Analyze applies it to every object.
+    """
+
+    import cv2
+    frame_bgr = make_synthetic_frame(reference_background, [(300, 300, 900, 700), (1300, 300, 1400, 360)])
+    config = _Catalogue_Mode()
+    pipeline = Vision_Pipeline_Cls(Configuration_Str=config)
+    result = pipeline.Analyze(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+
+    plate, small = result.Objects
+    assert plate.Catalogue is not None and small.Catalogue is not None
+    assert plate.Catalogue.Identify_Similarity == 0.75 and plate.Catalogue.Unspecified_Area_Ratio == 1.7
+    assert plate.Catalogue.Side in ('front', 'back')
+    assert small.Verdict == 'Warning'
+    assert plate.Catalogue.Similarity == 1.0 and small.Catalogue.Similarity == 0.0
+    assert plate.Verdict == 'OK' and [c.Within for c in plate.Dimension_Checks] == [True, True]
+    assert result.Timing.Identification_Ms is not None
+
+
+def test_segment_anything_judges_nothing(fake_models, reference_background, make_synthetic_frame) -> None:
+    """
+    Description:
+        Segment Anything has no identifier: nothing is loaded for it, no object carries catalogue
+        evidence, every object keeps the default verdict, and no identification time is reported.
+    """
+
+    import cv2
+    events, config, _Variant = fake_models
+    pipeline = Vision_Pipeline_Cls(Configuration_Str=config)
+    pipeline.Load_Models()
+    result = pipeline.Analyze(cv2.cvtColor(make_synthetic_frame(reference_background, [(300, 300, 900, 700)]),
+                                           cv2.COLOR_BGR2RGB))
+    assert not [event for event in events if 'identifier' in event[0]]
+    assert [(det.Catalogue, det.Verdict) for det in result.Objects] == [(None, 'OK')]
+    assert result.Timing.Identification_Ms is None

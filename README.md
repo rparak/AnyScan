@@ -96,6 +96,13 @@ Upstream: <https://docs.ultralytics.com/models/fast-sam/>. `ultralytics` is in
 `requirements.txt`; like the describer, the window and the tests run without the
 weights and report an actionable message when a missing one is first used.
 
+The catalogue modes also load **DINOv2 base** from `models/dinov2-base/` (346 MB, Apache 2.0), not
+tracked in git; `./install.sh` downloads and verifies it. By hand, at the pinned revision:
+
+```bash
+hf download facebook/dinov2-base README.md config.json preprocessor_config.json model.safetensors --revision f9e44c814b77203eaa57a6bdbbd535f21ede1415 --local-dir models/dinov2-base
+```
+
 ## Run
 
 ```bash
@@ -253,8 +260,8 @@ one. Treat surface condition in the text as a hint that may be absent, never as 
   caution, not less.
 - **Why:** a stain is a texture on a surface, not an object with a boundary, and describing a part is
   not detecting a defect on it. The route for defects is anomaly detection inside the part's mask,
-  feeding the classification switch (`General.Classification.Enabled`) that is already wired and has
-  no rule yet. It is not built in this version.
+  feeding a catalogue mode's verdict, which today judges identity and the outline only. It is not built
+  in this version.
 
 ## Captures on the rig
 
@@ -532,6 +539,9 @@ it, and the configuration's `Description.Model` names its directory.
   already names this model.
 - **Provenance:** its model card gives its source, `google/gemma-4-E4B-it` at revision `fee6332`,
   where the licence was checked (Apache 2.0; see [Licence note](#licence-note)).
+- **The catalogue modes' identifier** is a second model, DINOv2 base (`facebook/dinov2-base` at revision
+  `f9e44c8`, 346 MB, PyTorch on the segmenter's device), named by `Catalogue.Identifier`. It only compares
+  each object with the item's reference images; it describes nothing.
 - **Scoring it:** `python Example/Vision/evaluate_describer.py` runs it through the application's
   path and scores its descriptions against the test set's answer key. The current set has none yet;
   the previous set's (`Data/Images/Test/All/answer_key.json`) is recoverable from `1061966`.
@@ -554,8 +564,8 @@ Both hardware-facing parts sit behind an interface, so a replacement touches one
   number drawn on the frame *and* at the start of its sentence, in the same
   hue. Never reorder `objects` after `Compose()`.
 - **Colour means something.** Green, red and amber are pass, fail and degraded,
-  which is why they are absent from the object palette. Magenta marks a
-  failed (NOK) object. The primary button is black, so the strongest control reads
+  which is why green and red are absent from the object palette. Magenta marks a
+  failed (NOK) object; amber marks a Warning object, one that should not be there. The primary button is black, so the strongest control reads
   as structural.
 - **One voice.** Every sentence the operator reads is written by the report
   composer (`src/Reporting/Core.py`), so swapping the model never changes how
@@ -578,6 +588,11 @@ Gemma 4 licence, which is the Apache 2.0 text, and `google/gemma-4-E4B-it` is ta
 `license: gemma` tag on `mlx-community/gemma-4-e4b-it-4bit` disagrees; it looks like
 converter boilerplate carried over from earlier Gemma conversions, not the upstream licence.
 Checked 2026-09-24.
+
+The catalogue modes' identifier, Meta's DINOv2 base (`facebook/dinov2-base`), is licensed under the
+**Apache License 2.0** as its model card states (tag `apache-2.0` at the pinned revision `f9e44c8`, checked
+2026-10-11) — likewise not MIT, not redistributed with this repository, and shipped by anyone under Apache
+2.0's conditions.
 
 The bundled fonts in `App/assets/fonts/`, Inter and JetBrains Mono, are under the **SIL Open Font
 License 1.1**, not MIT; each family's licence text ships beside its files (`Inter-OFL.txt`,

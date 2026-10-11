@@ -28,11 +28,9 @@
 #   configuration file. Qt-free and dependency-free, so both the configuration layer and the UI
 #   read these from ONE place — no literal default duplicated across modules.
 
-# Whether a configuration performs OK/NOK classification, or only detects objects. This is the
-# SINGLE default: the configuration reader falls back to it when the 'General.Classification'
-# block is absent, and the UI defaults to it when no flag is passed. It is False because nothing
-# classifies today — no code assigns NOK — so a configuration that does not say otherwise shows
-# detected objects only, with no verdict state anywhere in the UI. Enabling it exposes the
-# verdict UI; it does NOT create classification (see docs/design-decisions.md).
+# Whether the verdict UI is shown when a view is built without being told: no. A configuration
+# classifies exactly when it is a catalogue mode (Configuration_Str.Classifies); the window passes
+# that to each view, and this is only the views' default before it does. The configuration switch
+# that once set it, General.Classification.Enabled, is removed (docs/design-decisions.md).
 #   Unit [bool]
 CONST_CLASSIFICATION_ENABLED_DEFAULT = False

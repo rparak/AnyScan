@@ -21,6 +21,10 @@
 # File Name: ../test/Reporting/test_core.py
 ## =========================================================================== ##
 
+# Typing (Support for type hints)
+import typing as tp
+# Pytest (Testing framework) [pip3 install pytest]
+import pytest
 # Custom Lib.: AnyScan domain — data structures and report composer
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
@@ -357,3 +361,91 @@ def test_the_frame_confidence_is_the_mean_of_the_scored_objects_only() -> None:
     assert Reporting.Frame_Confidence([_Scored(0.91), _Scored(0.844), _Scored(None)]) == (88, 2)
     assert Reporting.Frame_Confidence([_Scored(None), _Scored(None)]) == (None, 0)
     assert Reporting.Frame_Confidence([]) == (None, 0)
+
+
+def _Judged(verdict: str, similarity: float = 0.94, distance: float = 30.0,
+            checks: tp.Optional[tp.List[tp.Any]] = None, area: float = 1.0) -> Detection_Str:
+    """An object as a catalogue mode leaves it: a verdict, its evidence and its dimension checks."""
+    from Parameters.Vision import Catalogue_Result_Str
+    from Vision.Utilities.Dimensions import Check_Dimension
+    return Detection_Str(Label='plate', Bbox=(0, 0, 1, 1), Verdict=verdict, Sentence='A plate.',
+                         Dimension_Checks=checks if checks is not None else [Check_Dimension('length', 60.2, 60.0, 1.5),
+                                                                             Check_Dimension('width', 40.1, 40.0, 1.5)],
+                         Catalogue=Catalogue_Result_Str(Similarity=similarity, Side='front', Identify_Similarity=0.75,
+                                                        Area_Ratio=area, Unspecified_Area_Ratio=1.7,
+                                                        Center_Distance_Mm=distance, Verified_Radius_Mm=74.3))
+
+
+def test_each_verdict_says_what_it_rests_on() -> None:
+    """
+    Description:
+        The verdict lines lead with the state and give its evidence: OK names the side and the similarity;
+        a Warning says the object is not the part and should not be there; an Unspecified one gives its
+        area against the part's and says what to do — the request's message, in English.
+    """
+
+    from Reporting.Core import Verdict_Lines
+    assert Verdict_Lines(_Judged('OK')) == ['OK — the part, front up (similarity 0.94).']
+    assert Verdict_Lines(_Judged('Warning', similarity=0.31)) == [
+        'Warning — not the part (similarity 0.31): it should not be on the surface.']
+    assert Verdict_Lines(_Judged('Unspecified', area=2.04)) == [
+        "Unspecified — 2.04 times the part's area: probably several parts together. Separate them and scan again."]
+
+
+def test_a_nok_says_what_was_measured_and_what_was_expected() -> None:
+    """
+    Description:
+        Every reason a part is NOK has its own line: a dimension out of tolerance with its measured value,
+        nominal and tolerance; a part that has the outline but not the look, with its similarity and the
+        threshold; a part whose outline could not be measured. A passing dimension is not listed.
+    """
+
+    from Reporting.Core import Verdict_Lines
+    from Vision.Utilities.Dimensions import Check_Dimension
+    long = [Check_Dimension('length', 62.04, 60.0, 1.5), Check_Dimension('width', 40.1, 40.0, 1.5)]
+    assert Verdict_Lines(_Judged('NOK', checks=long)) == [
+        'NOK — the part, front up (similarity 0.94).',
+        'length 62.04 mm, expected 60.00 ± 1.50 mm: OUT OF TOLERANCE']
+    assert Verdict_Lines(_Judged('NOK', similarity=0.58)) == [
+        'NOK — the part, front up (similarity 0.58).',
+        "It has the part's outline but does not look like the part (similarity 0.58; the part is identified from 0.75)."]
+    assert Verdict_Lines(_Judged('NOK', checks=[]))[1:] == ['Its outline could not be measured.']
+
+
+@pytest.mark.parametrize('verdict', ['OK', 'NOK'])
+def test_a_size_checked_outside_the_verified_zone_says_so(verdict: str) -> None:
+    """
+    Description:
+        A part judged on its size beyond the radius the size checks were verified to carries a note giving
+        its distance and the radius — the verdict stands (a NOK stays NOK), the note explains it. Inside the
+        radius, and on an object not judged by size, there is no note.
+    """
+
+    from Reporting.Core import Verdict_Lines
+    note = 'The size check is not verified here: 82 mm from the frame centre, verified to 74 mm.'
+    assert Verdict_Lines(_Judged(verdict, distance=82.2))[-1] == note
+    assert Verdict_Lines(_Judged(verdict, distance=82.2))[0].startswith(verdict + ' — ')
+    unverified = 'The size check is not verified here'
+    assert not [line for line in Verdict_Lines(_Judged(verdict, distance=74.3)) if line.startswith(unverified)]
+    assert not [line for line in Verdict_Lines(_Judged('Warning', distance=82.2)) if line.startswith(unverified)]
+
+
+def test_the_verdict_reaches_the_file_and_the_log() -> None:
+    """
+    Description:
+        The Screen Understanding file's object line carries the verdict lines, indented, under the object;
+        the log carries them on one line, at WARNING for a Warning or an Unspecified object and at INFO for
+        OK and NOK. Outside a catalogue mode the object line is exactly what it was.
+    """
+
+    from Reporting.Core import Object_Line, Verdict_Log_Line
+    line = Object_Line(0, _Judged('NOK', similarity=0.58))
+    assert line.split('\n')[1:] == ['    NOK — the part, front up (similarity 0.58).',
+                                    "    It has the part's outline but does not look like the part (similarity 0.58; "
+                                    'the part is identified from 0.75).']
+    plain = Detection_Str(Label='plate', Bbox=(0, 0, 1, 1), Sentence='A plate.')
+    assert Object_Line(0, plain) == 'Object 1 · Confidence — - A plate.'
+    assert Verdict_Log_Line(1, _Judged('Warning', similarity=0.31)) == (
+        'WARNING', 'Object 2: Warning — not the part (similarity 0.31): it should not be on the surface.')
+    assert Verdict_Log_Line(0, _Judged('Unspecified', area=2.0))[0] == 'WARNING'
+    assert [Verdict_Log_Line(0, _Judged(verdict))[0] for verdict in ('OK', 'NOK')] == ['INFO', 'INFO']

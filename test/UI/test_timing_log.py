@@ -482,3 +482,51 @@ def test_the_inference_time_readers_see_what_they_saw_before(qt_app, tmp_path, m
     with open(os.path.join(root, 'session1', 'set3_objects.json'), 'r', encoding='utf-8') as handle:
         assert json.load(handle)['inference_ms'] == result.Latency_Ms
     assert {cap.Set_Id: cap.Inference_Ms for cap in Discover_Capture_Sets(root)}['set3'] == result.Latency_Ms
+
+
+def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_app, tmp_path, received,
+                                                                            reference_background,
+                                                                            make_synthetic_frame) -> None:
+    """
+    Description:
+        In a catalogue mode the window logs each object's verdict on the line after its detection, as
+        Reporting writes it — a Warning and an Unspecified object at WARNING, OK and NOK at INFO, the size
+        note included — and the timing line says how long identification took, outside the inference time.
+        Segment Anything's timing line is unchanged (test_the_logged_numbers_add_up_to_the_logged_total).
+    """
+
+    from Configuration.Core import CONST_CONFIG_DIR
+    from Parameters.Vision import Detection_Str, Catalogue_Result_Str, Timing_Str, Object_Timing_Str
+    from Vision.Utilities.Dimensions import Check_Dimension
+    import os
+    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_'
+                                                               'Mounting_Plate.yaml'))
+    window = _Window(tmp_path, config)
+
+    def _Judged(verdict: str, similarity: float, distance: float) -> Detection_Str:
+        return Detection_Str(Label='plate', Bbox=(10, 10, 20, 20), Verdict=verdict, Sentence='A plate.',
+                             Dimension_Checks=[Check_Dimension('length', 62.0, 60.0, 1.5),
+                                               Check_Dimension('width', 40.0, 40.0, 1.5)],
+                             Catalogue=Catalogue_Result_Str(Similarity=similarity, Side='front', Identify_Similarity=0.75,
+                                                            Area_Ratio=1.0, Unspecified_Area_Ratio=1.7,
+                                                            Center_Distance_Mm=distance, Verified_Radius_Mm=74.3))
+
+    objects = [_Judged('NOK', 0.9, 80.0), _Judged('Warning', 0.3, 10.0)]
+    timing = Timing_Str(Total_Ms=100, Stages=[('segmentation', 100)], Other_Ms=0, Measurement_Ms=3,
+                        Identification_Ms=41, Objects=[Object_Timing_Str(), Object_Timing_Str()])
+    result = Analysis_Str(Objects=objects, Latency_Ms=100, Verdict='2 found', Verdict_Level='ok', Task='part inspection',
+                          Background='A surface.', Timing=timing)
+    start = len(received)
+    _Finish(window, result, _Frame(reference_background, make_synthetic_frame), 1)
+    lines = received[start:]
+
+    verdicts = [line for line in lines if re.match(r'Object \d+: ', _Message(line))]
+    assert [line.split('] ', 1)[0].split('[')[-1].strip() for line in verdicts] == ['INFO', 'WARNING']
+    assert _Message(verdicts[0]) == ('Object 1: NOK — the part, front up (similarity 0.90). length 62.00 mm, expected '
+                                     '60.00 ± 1.50 mm: OUT OF TOLERANCE The size check is not verified here: 80 mm '
+                                     'from the frame centre, verified to 74 mm.')
+    detected = [i for i, line in enumerate(lines) if _Message(line).startswith('Object detected:')]
+    assert [lines.index(line) for line in verdicts] == [i + 1 for i in detected]
+    timing_line = [_Message(line) for line in lines if re.match(r'Analysis \d+ timing', _Message(line))][0]
+    assert timing_line.endswith('Measurement 3 ms (not in the inference time). Identification 41 ms (not in the '
+                                'inference time).')

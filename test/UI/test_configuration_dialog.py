@@ -419,7 +419,9 @@ def test_a_loaded_configuration_is_applied_and_logged(qt_app, tmp_path, configur
     """
 
     def _Edit(data):
-        data['General']['Classification']['Enabled'] = True
+        # A catalogue mode classifies.
+        data['Catalogue'] = {'Item': 'Data/Catalogue/mounting_plate/mounting_plate.yaml',
+                             'Identifier': 'models/dinov2-base'}
         data['Identity'].update(Display_Name='Cfg. Strict', Model_Set='JIC_AnyScan_Strict_v1')
         data['Identity'].pop('Task')
 
@@ -433,8 +435,9 @@ def test_a_loaded_configuration_is_applied_and_logged(qt_app, tmp_path, configur
     logger.Close()
     log = _Log_Text(logger)
     assert "Loaded configuration '%s' ('Cfg. Strict'" % config.Name in log
-    assert 'reads calibration ' in log and 'Calibration_%s.yaml and background reference' % CONST_HARDWARE in log
-    assert 'background reference Data/Images/Background/Image_Background_001.png' in log
+    assert 'reads calibration ' in log and 'Calibration_%s.yaml, background reference' % CONST_HARDWARE in log
+    assert ('background reference Data/Images/Background/Image_Background_001.png and catalogue item '
+            'Data/Catalogue/mounting_plate/mounting_plate.yaml' in log)
     assert "Models loaded for '%s' (JIC_AnyScan_Strict_v1, task 'part inspection')" % config.Name in log
     assert 'Identity.Task not set; using the default' in log
     assert 'Run reset' not in log

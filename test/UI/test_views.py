@@ -307,12 +307,14 @@ def test_config_loaded_log_line_carries_the_state() -> None:
     """
 
     from Configuration.Core import Config_Loaded_Log_Line
-    on = Config_Loaded_Log_Line(dataclasses.replace(CONST_CONFIGURATION, Classification_Enabled=True))
+    from Configuration.Core import Load_Catalogue
+    on = Config_Loaded_Log_Line(dataclasses.replace(
+        CONST_CONFIGURATION, Catalogue=Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')))
     off = Config_Loaded_Log_Line(CONST_CONFIGURATION)
     for line in (on, off):
         assert CONST_CONFIGURATION.Name in line and 'a2A1920_51gcPRO_Computar_M1228_MPW3' in line
         assert 'Seg_Anything' in line
-    assert 'enabled' in on and 'OK/NOK' in on
+    assert 'enabled' in on and 'catalogue item mounting_plate' in on and 'OK, NOK, Unspecified or Warning' in on
     assert 'disabled' in off and 'detected objects only' in off
 
 

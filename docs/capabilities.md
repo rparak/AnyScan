@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `4f33f52` (2026-10-11).
+Last reviewed against the code at commit `70c12c1` (2026-10-11).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -42,7 +42,7 @@ file is not the generator's output, so regenerate it, never edit it.
 | `Parameters` | The data structures (`*_Str`) and tokens every other package exchanges: detections, analyses, the loaded configuration, the catalogue item, camera and calibration records, the theme. | No |
 | `Configuration` | Reads and validates the mode, calibration and catalogue item files (`Load_Configuration`, `Load_Catalogue`), writes calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*.yaml` and `Data/Catalogue/*/*.yaml`. | No |
 | `Camera` | The camera backends (`Basler_Camera_Cls`, `File_Camera_Cls` for `--frame`): connect, set and read back the sensor window, grab, undistort, detect a lost connection. | No |
-| `Vision` | The pipeline (`Vision_Pipeline_Cls`): background subtraction, FastSAM, fusion, Gemma description, measurement, the annotated image and label mask, the heatmap. | No |
+| `Vision` | The pipeline (`Vision_Pipeline_Cls`): background subtraction, FastSAM, fusion, Gemma description, measurement, the annotated image and label mask, the heatmap; in a catalogue mode the dimension checks, DINOv2 identification (`Vision.Identifier`) and the verdicts (`Vision.Utilities.Classify`). | No |
 | `Reporting` | The report composer, the one voice of every sentence the operator reads, and the Trends accumulator and chart maths. | No |
 | `Logger` | The session log, the run-summary CSV and cycle accounting (`Logger.Core`), and the daily station event export (`Logger.Station_Events`). | No |
 | `UI` | The window, its four views, the Configuration dialog, the worker threads, and the capture-set writer and reader (`UI/Capture.py`, Qt-free). | Yes |
@@ -100,9 +100,15 @@ then composes and measures. The numbers are the ones the README and the mode fil
   for round parts, `A/F` for hexagonal ones. Skipped when there is no calibration.
 - **Catalogue check** (catalogue modes only). Every object is measured at the catalogue part's top
   face, and each one with sides has its outline checked against the item: the longer side against the
-  length, the shorter against the width, each within the tolerance. The results are on each object
-  (`Dimension_Checks`) and printed by `analyze.py`. Nothing on screen shows them yet, and nothing decides
-  which object is the item.
+  length, the shorter against the width, each within the tolerance.
+- **Identification and verdict** (catalogue modes only). Each object's crop, turned upright, is compared
+  with the item's front and back reference images by DINOv2 base: the best similarity and the side. Then
+  the rule: Unspecified when its area is 1.7× the part's or more; the part when the similarity is 0.75 or
+  more (OK if its outline is within tolerance, else NOK); the part and NOK when only its outline matches;
+  otherwise Warning. A size checked more than 74.3 mm from the frame centre carries a note that it is not
+  verified there
+  ([*A catalogue mode identifies by similarity…*](design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok)).
+  The verdict colours the frame and the mask, and its reasons are in Scene Understanding and the log.
 
 ## Modes
 
@@ -113,18 +119,21 @@ piece of hardware. The modes shipped today:
 | Mode | File | What it does |
 |---|---|---|
 | Seg_Anything | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml` | Finds every part on the surface (no class list), describes and measures it. Classification off. |
-| Mounting_Plate | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml` | Catalogue mode for `Data/Catalogue/mounting_plate`: as Seg_Anything, measured at the plate's top face (8 mm), each outline checked against 60 × 40 ± 1.5 mm. Classification off. |
-| Labyrinth | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Labyrinth.yaml` | Catalogue mode for `Data/Catalogue/labyrinth`: as Seg_Anything, measured at the plate's top face (6 mm), each outline checked against 50 × 50 ± 1.0 mm. Classification off. |
+| Mounting_Plate | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml` | Catalogue mode for `Data/Catalogue/mounting_plate`: as Seg_Anything, measured at the plate's top face (8 mm), each outline checked against 60 × 40 ± 1.5 mm, each object identified and judged. Classifies. |
+| Labyrinth | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Labyrinth.yaml` | Catalogue mode for `Data/Catalogue/labyrinth`: as Seg_Anything, measured at the plate's top face (6 mm), each outline checked against 50 × 50 ± 1.0 mm, each object identified and judged. Classifies. |
 
 - The configuration is picked in the **CONFIGURATION** dialog and is fixed after the first CONNECT.
   Changing it means restarting the application. Another camera means restarting with `--config`.
-- **Classification** (`General.Classification.Enabled`) exposes the OK/NOK verdict UI. Nothing
-  classifies yet, so with it on every object is OK
-  ([*Classification is a per-configuration switch…*](design-decisions.md#classification-is-a-per-configuration-switch-that-exposes-the-verdict-ui-not-one-that-creates-it)).
+- **Classification**: a configuration classifies exactly when it is a catalogue mode, and only then shows
+  verdicts (colours, the History filter, the words). The switch that once said so, the
+  `General` block's `Classification`, is removed
+  ([*Classification is a per-configuration switch…*](design-decisions.md#classification-is-a-per-configuration-switch-that-exposes-the-verdict-ui-not-one-that-creates-it),
+  corrected). The status badge and History's filter still speak OK/NOK only
+  ([KNOWN_ISSUES](../KNOWN_ISSUES.md#the-status-badge-and-historys-filter-do-not-know-warning-or-unspecified)).
 - **A catalogue mode** is a mode file with a `Catalogue` block naming one item,
   `Data/Catalogue/<item>/<item>.yaml`: the part's thickness, tolerance and checks, with its reference
-  images beside it. Today it checks the outline only. Identifying the item and its side, holes, stains,
-  the logo and the OK / NOK / Unspecified / Warning states are designed, not built
+  images beside it. It checks the outline and identifies the item and its side, and gives every object
+  one of four states. The holes, the stain and the logo are designed, not built
   ([*A catalogue mode is a Catalogue block…*](design-decisions.md#a-catalogue-mode-is-a-catalogue-block-naming-an-item-folder-and-the-configuration-picks-checks-never-their-order)).
   Within tolerance means consistent with nominal: the parts were not calipered
   ([README > Limitations](../README.md#measurements-are-repeatable-not-absolute)).
@@ -193,9 +202,8 @@ unit. This table says what each section controls.
 |---|---|---|
 | `Hardware` | The hardware this mode runs on. Must equal the hardware part of the file's name, and keys the calibration and the run-summary CSV. | Yes |
 | `General` | Settings that are neither hardware nor a pipeline stage. | — |
-| `General.Classification` | Whether the verdict UI (OK/NOK filter, verdict colours) is shown. Default off. | No |
 | `General.Station_Events` | The directory of the daily station event files. It must exist and be writable at load, and is fixed for the run. | Yes |
-| `Catalogue` | A catalogue mode's item (`Item`, its file under `Data/Catalogue/`), read and validated with the mode file. Its presence makes the mode a catalogue mode, which needs a calibration with a factor and a board height. | No (`Item` required within it) |
+| `Catalogue` | A catalogue mode's item (`Item`, its file under `Data/Catalogue/`, with its reference images), the DINOv2 directory (`Identifier`) and the verdict rule's two thresholds. Its presence makes the mode a catalogue mode, which classifies and needs a calibration with a factor and a board height. | No (`Item`, `Identifier` required within it) |
 | `Identity` | What the UI calls the configuration (`Display_Name`, in the dialog) and its models (`Model_Set`, in the header pill), and the `Task` a reading is labelled with. | Yes (`Task` optional) |
 | `Confidence` | The warning and error thresholds [%] below which a confidence is shown and logged as such. | No |
 | `Segmentation` | Stages 1–3: the FastSAM weights and inference settings. | Yes (`Model`) |
@@ -295,8 +303,8 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
 - `Camera/generate_checkerboard.py` — write the printed calibration board's PDF.
 - `Camera/calibration_tilt_study.py` — the synthetic study behind the calibration's tilt warning.
 - `Vision/analyze.py` — run the pipeline over `Evaluation.Frames` and save every output. In a catalogue
-  mode (`--config`) it also prints each object's outline checks, and counts the outlines within tolerance
-  with the item's reference frames (found by content) apart.
+  mode (`--config`) it also prints each object's outline checks and verdict, and counts the states and the
+  outlines within tolerance with the item's reference frames (found by content) apart.
 - `Vision/evaluate_describer.py` — score the descriptions against the test set's answer key. The current set
   (`Data/Images/Test`) has none yet, so it cannot run until one is written.
 - `UI/architecture_diagram.py`, `UI/build_logo.py`, `UI/build_fonts.py` — rebuild the README diagram,
@@ -335,6 +343,7 @@ Each row names its evidence. A row with none is not verified.
 | Lost-connection detection (cable pull) | **Not verified** | capture-checklist item 4 |
 | Parts session: defects, low-contrast parts, harsh shadow | Not recorded | capture-checklist item 3 |
 | Daily station event export on the station | Not recorded | — |
+| Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled in both modes, but the five stained plates (stain check not built) | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
 | Defect detection | **Not built** | README > Limitations |
 
 ## Keeping this file true

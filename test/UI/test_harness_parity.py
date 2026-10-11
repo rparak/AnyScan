@@ -25,6 +25,8 @@
 import os
 import glob
 import time
+# Typing (Support for type hints)
+import typing as tp
 # Qt must render headless; set the platform before any QApplication is constructed.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
@@ -104,12 +106,17 @@ class _Loaded_Vision_Cls(object):
     Name, Models_Loaded, Model_Names = 'JIC-AnyScan-v1', True, ('FastSAM-x.pt', 'gemma')
 
 
+def _Catalogue() -> tp.Any:
+    """The shipped mounting-plate item: a configuration holding it classifies (Configuration_Str.Classifies)."""
+    return Configuration.Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')
+
+
 def _Ui_Written_Mask(reference_background_path: str, log_dir: str,
                      classification_enabled: bool) -> np.ndarray:
     """The label mask the WINDOW writes to its capture set for one analysis (BGR, as on disk)."""
     app = QApplication.instance()
     logger = Session_Logger_Cls(config_path=None, log_dir=log_dir, install_handlers=False)
-    configuration = dataclasses.replace(CONST_CONFIGURATION, Classification_Enabled=classification_enabled)
+    configuration = dataclasses.replace(CONST_CONFIGURATION, Catalogue=_Catalogue() if classification_enabled else None)
     window = AnyScan_Window_Cls(Configuration_Str=configuration, camera=File_Camera_Cls(reference_background_path),
                                 logger=logger)
     private = lambda name: getattr(window, CONST_MANGLE + name)
@@ -147,7 +154,10 @@ def _Harness_Written_Mask(monkeypatch, tmp_path, reference_background_path: str,
     hardware = CONST_CONFIGURATION.Hardware
     with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as handle:
         data = yaml.safe_load(handle)
-    data['General']['Classification']['Enabled'] = classification_enabled
+    if classification_enabled:
+        # A catalogue mode classifies.
+        data['Catalogue'] = {'Item': 'Data/Catalogue/mounting_plate/mounting_plate.yaml',
+                             'Identifier': 'models/dinov2-base'}
     config_dir = tmp_path / 'Configuration'
     config_dir.mkdir()
     config_path = config_dir / os.path.basename(CONST_DEFAULT_CONFIG_FILE)

@@ -30,8 +30,6 @@ from dataclasses import dataclass, field
 from Parameters.Camera import Camera_Configuration_Str
 #   ../Parameters/Vision
 from Parameters.Vision import Scale_Str, Confidence_Thresholds_Str
-#   ../Parameters/General
-from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Item_Str
 
@@ -135,6 +133,30 @@ class Description_Parameters_Str:
 
 
 @dataclass
+class Identification_Parameters_Str:
+    """
+    Description:
+        A catalogue mode's identification: the DINOv2 model that tells the catalogue part and its side
+        from other objects, and the two thresholds of the verdict rule (Vision.Utilities.Classify). Read
+        from the mode file's 'Catalogue' block; unused outside a catalogue mode.
+    """
+
+    # The DINOv2 weights directory, absolute once loaded. REQUIRED in a Catalogue block (no default).
+    #   Unit [string]
+    Model_Path: str = ''
+    # The similarity at and above which an object is identified as the part, whatever its size. Measured
+    # on the 41 frames of Data/Images/Test (2026-10-11): every mounting plate 0.79-1.00 (the stained
+    # fronts lowest), every labyrinth 0.80-0.96, every other object at most 0.66 (the red block against
+    # the plate's back). docs/design-decisions.md has the rule.
+    #   Unit [float]
+    Identify_Similarity: float = 0.75
+    # The area, as a multiple of the part's nominal area, from which an object is Unspecified (probably
+    # several parts together) and not judged. The request's value.
+    #   Unit [float]
+    Unspecified_Area_Ratio: float = 1.7
+
+
+@dataclass
 class Identity_Str:
     """
     Description:
@@ -190,9 +212,6 @@ class Configuration_Str:
     #   Unit [string]
     Hardware: str = ''
     Mode: str = ''
-    # Whether this configuration classifies (OK/NOK) or only detects.
-    #   Unit [bool]
-    Classification_Enabled: bool = CONST_CLASSIFICATION_ENABLED_DEFAULT
     # The directory the daily station event files are exported to (absolute; it exists and is writable,
     # checked at load). Fixed for the run by the startup configuration: a later mode naming another is
     # refused (Logger.Station_Events).
@@ -210,6 +229,8 @@ class Configuration_Str:
     # The catalogue item this mode inspects (the 'Catalogue' block), or None: a mode without one
     # finds and describes every object and checks none against a catalogue (Segment Anything).
     Catalogue: tp.Optional[Catalogue_Item_Str] = None
+    # A catalogue mode's identification (the same block); its defaults stand outside one.
+    Identification: Identification_Parameters_Str = field(default_factory=Identification_Parameters_Str)
     # The calibration file the camera block's Calibration came from (absolute).
     #   Unit [string]
     Calibration_Path: str = ''
@@ -221,3 +242,17 @@ class Configuration_Str:
     # fell back to its default, each key it did not recognise. The caller logs them.
     #   Unit [Vector<Tuple<string> 1x2>]
     Notes: tp.List[tp.Tuple[str, str]] = field(default_factory=list)
+
+    @property
+    def Classifies(self) -> bool:
+        """
+        Description:
+            Whether this configuration judges objects (OK / NOK / Unspecified / Warning) and shows the
+            verdict UI: exactly when it is a catalogue mode. The switch that once said so,
+            General.Classification.Enabled, is removed (docs/design-decisions.md).
+
+        Returns:
+            (1) parameter [bool]: True in a catalogue mode.
+        """
+
+        return self.Catalogue is not None

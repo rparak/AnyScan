@@ -865,6 +865,59 @@ def test_gemma_download_that_does_not_verify_fails(sandbox):
     assert 'After downloading, Gemma file' in _Levels(process, 'ERROR')[0]
 
 
+def _Dinov2_Snippet(sandbox: Sandbox_Cls) -> str:
+    """
+    Description:
+        Point the DINOv2 manifest at the same fixture files the Gemma tests use, in a scratch root.
+
+    Args:
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
+
+    Returns:
+        (1) parameter [string]: The bash assignments.
+    """
+
+    return _Gemma_Snippet(sandbox).replace('CONST_GEMMA_FILES=', 'CONST_DINOV2_FILES=')
+
+
+def test_dinov2_missing_is_fetched_at_its_pinned_revision_and_verified(sandbox):
+    """
+    Description:
+        DINOv2 goes through the same verified download as Gemma: every listed file is fetched from
+        facebook/dinov2-base at the pinned revision into models/dinov2-base, then verified.
+    """
+
+    record = _Stub_Hf(sandbox)
+    process = sandbox.Run(_Dinov2_Snippet(sandbox) + 'Ensure_Dinov2')
+
+    assert process.returncode == 0
+    call = open(record).read().split()
+    assert call[:2] == ['download', 'facebook/dinov2-base']
+    assert call[call.index('--revision') + 1] == 'f9e44c814b77203eaa57a6bdbbd535f21ede1415'
+    assert call[call.index('--local-dir') + 1] == os.path.join(sandbox.Root, 'models', 'dinov2-base')
+    assert all(name in call for name in CONST_GEMMA_FIXTURE)
+    assert any(m.startswith('DINOv2 base downloaded and every file verified') for m in _Levels(process, 'INFO'))
+
+
+def test_dinov2_present_and_correct_is_not_downloaded(sandbox):
+    for name, content in CONST_GEMMA_FIXTURE.items():
+        _Write(os.path.join(sandbox.Root, 'models', 'dinov2-base', name), content)
+    record = _Stub_Hf(sandbox)
+    process = sandbox.Run(_Dinov2_Snippet(sandbox) + 'Ensure_Dinov2')
+
+    assert process.returncode == 0 and not os.path.exists(record)
+    assert any('DINOv2 base is already present and every file matches the published hashes' in m
+               for m in _Levels(process, 'INFO'))
+
+
+def test_dinov2_download_that_does_not_verify_fails(sandbox):
+    _Stub_Hf(sandbox, correct=False)
+    process = sandbox.Run(_Dinov2_Snippet(sandbox) + 'Ensure_Dinov2')
+
+    assert process.returncode == 1
+    assert 'After downloading, DINOv2 file' in _Levels(process, 'ERROR')[0]
+
+
 @pytest.mark.parametrize('arguments, cpu', [('', '0'), ('--cpu', '1')])
 def test_arguments_set_the_cpu_opt_in(sandbox, arguments, cpu):
     process = sandbox.Run(f'Parse_Arguments {arguments}; Show CPU_OPT_IN')
@@ -889,6 +942,8 @@ def test_the_plan_names_e4b_and_warns_of_nothing(sandbox):
     process = sandbox.Run('PYTHON_VERSION=3.10.14; MLX_BACKEND=metal; Report_Plan')
 
     assert any('Gemma 4 E4B, mlx-community/gemma-4-e4b-it-4bit@475b908 -> models/gemma-4-e4b-it-4bit (5.2 GB)' in m
+               for m in _Levels(process, 'INFO'))
+    assert any('DINOv2 base, facebook/dinov2-base@f9e44c8 -> models/dinov2-base (346 MB)' in m
                for m in _Levels(process, 'INFO'))
     assert not _Levels(process, 'WARNING')
 
@@ -957,3 +1012,46 @@ def test_detect_only_on_stubbed_linux_changes_nothing(sandbox):
     infos = _Levels(process, 'INFO')
     assert any('requirements/linux-cuda12.txt' in m and 'whl/cu126' in m for m in infos)
     assert infos[-1] == 'Detection only (--detect-only): nothing was changed.'
+
+
+@pytest.mark.parametrize('identifier, expected_level', [('models/dinov2-base', 'INFO'), ('models/other-identifier', 'WARNING')])
+def test_a_catalogue_configuration_identifier_pointing_elsewhere_names_the_field(sandbox, identifier, expected_level):
+    """
+    Description:
+        A catalogue mode also names the DINOv2 directory (Catalogue.Identifier); the check covers it as it
+        covers the other two models, and leaves it out of a mode without a Catalogue block.
+    """
+
+    pytest.importorskip('yaml')
+    _Write(os.path.join(sandbox.Root, 'Configuration', 'Config_Test.yaml'),
+           ('Segmentation:\n  Model: models/FastSAM/FastSAM-x.pt\nDescription:\n  Model: models/gemma-4-e4b-it-4bit\n'
+            'Catalogue:\n  Identifier: %s\n' % identifier).encode())
+    _Write(os.path.join(sandbox.Root, 'Configuration', 'Config_Plain.yaml'),
+           b'Segmentation:\n  Model: models/FastSAM/FastSAM-x.pt\nDescription:\n  Model: models/gemma-4-e4b-it-4bit\n')
+    os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
+    os.symlink(sys.executable, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))
+    process = sandbox.Run(f'CONST_ROOT="{sandbox.Root}"; CONST_VENV_DIR="{sandbox.Root}/venv"; Check_Configurations')
+
+    assert process.returncode == 0
+    lines = [m for m in _Levels(process, expected_level) if 'Catalogue.Identifier' in m]
+    assert len(lines) == 1 and lines[0].startswith('Configuration Config_Test.yaml')
+    if expected_level == 'WARNING':
+        assert 'Change Catalogue.Identifier to models/dinov2-base' in lines[0]
+
+
+def test_a_full_run_installs_every_model_after_the_environment(sandbox):
+    """
+    Description:
+        Main runs the steps in order, and the model downloads — FastSAM, Gemma, DINOv2 — come after the
+        environment they need (the hf CLI) and before the configuration check that names them. Each step is
+        stood in by one that records its name, so this checks the sequence, not the steps.
+    """
+
+    steps = ('Select_Python', 'Detect_Platform', 'Check_Python_Architecture', 'Report_Plan', 'Ensure_Venv',
+             'Install_Dependencies', 'Verify_Imports', 'Ensure_Fastsam', 'Ensure_Gemma', 'Ensure_Dinov2',
+             'Check_Configurations', 'Report_Unused_Cpu_Flag')
+    stubs = ' '.join('%s() { echo "STEP %s"; };' % (step, step) for step in steps)
+    process = sandbox.Run(f'CONST_ROOT="{sandbox.Root}"; PLATFORM_OS=macos; {stubs} Main')
+
+    assert process.returncode == 0, process.stdout
+    assert [line.split()[1] for line in process.stdout.splitlines() if line.startswith('STEP ')] == list(steps)

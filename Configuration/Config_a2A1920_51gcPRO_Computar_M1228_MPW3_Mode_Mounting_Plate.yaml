@@ -20,10 +20,10 @@
 #
 #   Catalogue mode:
 #     This mode inspects one catalogue item, the mounting plate (the Catalogue block below).
-#     Today it finds and describes every object like Segment Anything, measures them at
-#     the item's top face, and checks each object's outline against the item. Which
-#     object is the item, its side, its holes and defects, and the OK / NOK / Unspecified /
-#     Warning states are not yet built.
+#     Every object is found and described as in Segment Anything, measured at the item's
+#     top face, compared with the item's reference images (DINOv2) and judged: OK, NOK,
+#     Unspecified or Warning (docs/design-decisions.md). The item's holes, surface and
+#     logo are not checked yet.
 #
 #   Hardware setup:
 #     - Camera : Basler a2A1920-51gcPRO
@@ -36,15 +36,6 @@ Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
 
 # General (non-hardware) settings for this configuration.
 General:
-  # Does this configuration perform OK/NOK classification, or only detect objects?
-  #   true  - the UI shows verdict state (the Captures OK/NOK filter, verdict colours on
-  #           annotations, the verdict per object). No classifier exists yet, so every object is
-  #           OK and the NOK filter stays empty until one does.
-  #   false - none of that appears: objects are annotated in a single neutral colour and the UI
-  #           speaks only of detected objects.
-  # Default: false. Enabling it exposes the verdict UI; it does not create classification.
-  Classification:
-    Enabled: false
   # The daily station event files, for the external system that tracks the station's uptime.
   # One file per LOCAL date, 'YYYY-MM-DD.csv': UTF-8, the header 'station_id,event_type,ts', rows
   # appended. station_id is always SF4 (the installation's identity in that contract; a second
@@ -90,7 +81,7 @@ Identity:
   # REQUIRED. The configuration's name in the Configuration dialog's list.
   Display_Name: Cfg. Mounting Plate
   # REQUIRED. The model set's name in the header pill.
-  Model_Set: JIC_AnyScan_All_v1
+  Model_Set: JIC_AnyScan_Catalogue_v1
   # The Scene Understanding Task row and each capture set's 'task'. Default: part inspection
   Task: part inspection
 
@@ -102,6 +93,19 @@ Catalogue:
   # REQUIRED. The item file, Data/Catalogue/<item>/<item>.yaml, relative to the repository root
   # (or absolute). It must exist and be valid: its problems fail this configuration's load.
   Item: Data/Catalogue/mounting_plate/mounting_plate.yaml
+  # REQUIRED. The DINOv2 weights directory (DINOv2 base, pinned by install.sh), relative to the
+  # repository root (or absolute). It compares each object with the item's reference images: how
+  # much it looks like the item, and which side is up. It runs on Segmentation.Device.
+  Identifier: models/dinov2-base
+  # The similarity (0..1) at and above which an object IS the item, whatever its size. Below it, an
+  # object whose outline is within the item's tolerance is still the item, but NOK: it is the item's
+  # shape and does not look like it (the blank 50 x 50 plate scores 0.54-0.65). Anything else is a
+  # Warning. Measured on the 41 test frames: every item 0.79-1.00, every other object at most 0.66.
+  # Default: 0.75
+  Identify_Similarity: 0.75
+  # The area, as a multiple of the item's nominal area, from which an object is Unspecified:
+  # probably several parts together, not judged. Must be above 1. Default: 1.7
+  Unspecified_Area_Ratio: 1.7
 
 # Confidence severity thresholds [%]: below Warn_Below a confidence shows (and logs) as a
 # warning, below Error_Below as an error. Must be 0 <= Error_Below < Warn_Below <= 100.

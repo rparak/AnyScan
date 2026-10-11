@@ -68,3 +68,32 @@ Let ultralytics resolve and download the correct release, then move it into plac
 The pipeline resolves this path from Vision/Segmenter.py the same way the
 describer's path is resolved (CONST_SEGMENTER_WEIGHTS); override it per run with
 Example/Vision/analyze.py --weights.
+
+
+DINOv2 identifier weights — not tracked in git
+==============================================
+
+The catalogue modes' identifier (Vision.Identifier) loads DINOv2 base from:
+
+    models/dinov2-base/
+
+Expected contents: README.md, config.json, preprocessor_config.json and
+model.safetensors (346 MB). PyTorch, on the segmenter's device.
+
+Upstream source
+---------------
+Meta's DINOv2, base size (ViT-B/14), at the revision the application was measured
+with (2026-10-11):
+
+    https://huggingface.co/facebook/dinov2-base
+
+LICENCE: Apache License 2.0 (the model card's tag at that revision) — not the MIT licence
+of this repository's code.
+
+How to fetch
+------------
+./install.sh downloads and verifies it. By hand:
+
+    hf download facebook/dinov2-base README.md config.json preprocessor_config.json \
+        model.safetensors --revision f9e44c814b77203eaa57a6bdbbd535f21ede1415 \
+        --local-dir models/dinov2-base

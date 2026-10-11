@@ -1,0 +1,197 @@
+## =========================================================================== ##
+# MIT License
+# Copyright (c) 2026 JIC Smart Factory
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+## =========================================================================== ##
+# Author   : JIC Smart Factory
+# File Name: ../test/Vision/Utilities/test_classify.py
+## =========================================================================== ##
+
+# Typing (Support for type hints)
+import typing as tp
+# OpenCV library for computer vision tasks [pip3 install opencv-python]
+import cv2
+# Numpy (Array computing) [pip3 install numpy]
+import numpy as np
+# Pytest (Testing framework) [pip3 install pytest]
+import pytest
+# Custom Lib.: AnyScan — the catalogue verdict rule and the structures it reads
+#   ../Vision/Utilities/Classify
+from Vision.Utilities.Classify import (Classify, Object_Crop, Reference_Crop, Rotations, Best_Match, Object_Area_Mm2,
+                                       Center_Distance_Mm, CONST_VERIFIED_RADIUS_MM)
+#   ../Vision/Utilities/Measure
+from Vision.Utilities.Measure import Measure_Mask
+#   ../Vision/Utilities/Dimensions
+from Vision.Utilities.Dimensions import Check_Outline
+#   ../Parameters/Vision
+from Parameters.Vision import Detection_Str, Scale_Str
+#   ../Parameters/Catalogue
+from Parameters.Catalogue import Catalogue_Item_Str, Catalogue_Outline_Str
+#   ../Parameters/Configuration
+from Parameters.Configuration import Identification_Parameters_Str
+
+"""
+Description:
+    The catalogue mode's verdict rule, one branch per test — Unspecified by area, identified by
+    similarity (OK, or NOK on a dimension), identified by outline below the similarity (NOK, with no
+    lower bound), Warning — and the geometry it rests on: the crop turned upright, the reference cut out
+    by its box, the best match and its side, the area and the distance from the frame centre. Synthetic
+    masks at a round 0.1 mm/px, drawn analytically, so every size is exact.
+"""
+
+# A round-number scale (0.1 mm/px), the frame (w, h), the mounting plate's outline and the shipped thresholds.
+CONST_SCALE = Scale_Str(Mm_Per_Px_X=0.1, Mm_Per_Px_Y=0.1)
+CONST_FRAME = (1920, 1200)
+CONST_ITEM = Catalogue_Item_Str(Name='mounting_plate', Thickness_Mm=8.0, Tolerance_Mm=1.5,
+                                Outline=Catalogue_Outline_Str(Length_Mm=60.0, Width_Mm=40.0, Tolerance_Mm=1.5))
+CONST_THRESHOLDS = Identification_Parameters_Str(Model_Path='/x', Identify_Similarity=0.75, Unspecified_Area_Ratio=1.7)
+
+
+def _Part(rects: tp.List[tp.Tuple[int, int, int, int]]) -> Detection_Str:
+    """One object made of filled rectangles (x0, y0, x1, y1, exclusive), measured and outline-checked."""
+    mask = np.zeros((CONST_FRAME[1], CONST_FRAME[0]), dtype=bool)
+    for x0, y0, x1, y1 in rects:
+        mask[y0:y1, x0:x1] = True
+    ys, xs = np.nonzero(mask)
+    det = Detection_Str(Label='part', Bbox=(int(xs.min()), int(ys.min()), int(xs.max() - xs.min() + 1),
+                                            int(ys.max() - ys.min() + 1)), Mask=mask)
+    det.Measurement = Measure_Mask(mask, CONST_SCALE, cv2, np)
+    det.Dimension_Checks = Check_Outline(det.Measurement, CONST_ITEM.Outline)
+    return det
+
+
+@pytest.mark.parametrize('rects, similarity, verdict', [
+    ([(660, 400, 1260, 800)], 0.95, 'OK'),                          # 60 x 40 mm, looks like it
+    ([(660, 400, 1260, 800)], 0.75, 'OK'),                          # ...at the threshold itself
+    ([(660, 400, 1300, 800)], 0.95, 'NOK'),                         # 64 x 40 mm: identified, too long
+    ([(660, 400, 1260, 800)], 0.74, 'NOK'),                         # its outline, not its look
+    ([(660, 400, 1260, 800)], 0.0, 'NOK'),                          # ...with no lower bound on the look
+    ([(660, 400, 1060, 500)], 0.40, 'Warning'),                     # 40 x 10 mm, does not look like it
+    ([(660, 400, 1300, 800)], 0.74, 'Warning'),                     # neither its look nor its outline
+    ([(200, 200, 800, 600), (800, 200, 1400, 600)], 0.95, 'Unspecified'),   # two plates side by side, 2.0x
+    ([(200, 200, 800, 600), (800, 200, 1400, 600)], 0.10, 'Unspecified'),   # area decides first
+], ids=['ok', 'ok-at-threshold', 'nok-size', 'nok-look', 'nok-no-floor', 'warning', 'warning-wrong-size', 'unspecified',
+        'unspecified-first'])
+def test_the_verdict_follows_the_rule(rects: tp.List[tp.Tuple[int, int, int, int]], similarity: float,
+                                      verdict: str) -> None:
+    """
+    Description:
+        Each branch, in order: an area of 1.7 x the part's or more is Unspecified whatever it looks like;
+        a similarity of 0.75 or more is the part, OK when its outline is within tolerance and NOK when not;
+        below 0.75 an object with the part's outline is still the part, and NOK — at any similarity, even
+        0, the owner's ruling (a same-sized foreign object reads NOK, the safer error); anything else is a
+        Warning.
+    """
+
+    det = _Part(rects)
+    Classify(det, similarity, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    assert det.Verdict == verdict
+    assert (det.Catalogue.Similarity, det.Catalogue.Side) == (similarity, 'front')
+
+
+def test_the_evidence_is_kept_with_the_thresholds_it_was_judged_by() -> None:
+    """
+    Description:
+        The verdict's evidence carries what explains it: the area as a multiple of the part's, the centre's
+        distance from the frame centre, and the thresholds and verified radius in force — so the report can
+        say why without being handed the configuration.
+    """
+
+    det = _Part([(660, 400, 1260, 800)])                           # 60 x 40 mm, centred at (960, 600)
+    Classify(det, 0.9, 'back', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    result = det.Catalogue
+    assert result.Area_Ratio == pytest.approx(1.0)
+    assert result.Center_Distance_Mm == pytest.approx(np.hypot(0.05, 0.05))     # pixel centres: 959.5, 599.5
+    assert (result.Identify_Similarity, result.Unspecified_Area_Ratio, result.Verified_Radius_Mm) == \
+        (0.75, 1.7, CONST_VERIFIED_RADIUS_MM)
+
+
+def test_area_and_distance_are_in_mm_at_the_scale() -> None:
+    """
+    Description:
+        The area is the mask's pixels times both factors; the distance runs from the frame centre to the
+        centre of the measured rectangle, each axis through its own factor.
+    """
+
+    det = _Part([(1760, 1000, 1860, 1100)])                        # 10 x 10 mm; pixel centres 1760..1859 -> 1809.5
+    assert Object_Area_Mm2(det, CONST_SCALE) == pytest.approx(100.0)
+    assert Center_Distance_Mm(det, CONST_FRAME, Scale_Str(Mm_Per_Px_X=0.1, Mm_Per_Px_Y=0.2)) == \
+        pytest.approx(np.hypot(84.95, 89.9))
+
+
+def test_the_crop_is_turned_upright_whatever_the_part_lies() -> None:
+    """
+    Description:
+        The identifier compares crops the way the references show the parts: long side vertical. A plate
+        lying flat (wide) and one rotated by 30° both come out as a 40 x 60 mm upright crop of the part
+        alone, so a match does not depend on how the part lies.
+    """
+
+    frame = np.zeros((CONST_FRAME[1], CONST_FRAME[0], 3), dtype=np.uint8)
+    flat = _Part([(660, 400, 1260, 800)])
+    frame[flat.Mask] = 200
+    crop = Object_Crop(frame, flat, cv2, np)
+    assert crop.shape[:2] == (600, 400) and crop.mean() > 195
+
+    rotated_frame = np.zeros_like(frame)
+    corners = cv2.boxPoints(((960.0, 600.0), (600.0, 400.0), 30.0)).astype(np.int32)
+    cv2.fillConvexPoly(rotated_frame, corners, (200, 200, 200))
+    rotated = Detection_Str(Label='part', Bbox=tuple(int(v) for v in cv2.boundingRect(corners)),
+                            Mask=rotated_frame[:, :, 0] > 0)
+    rotated.Measurement = Measure_Mask(rotated.Mask, CONST_SCALE, cv2, np)
+    crop = Object_Crop(rotated_frame, rotated, cv2, np)
+    assert crop.shape[0] > crop.shape[1] and abs(crop.shape[0] - 600) <= 3 and abs(crop.shape[1] - 400) <= 3
+    assert crop[5:-5, 5:-5].mean() > 195
+
+
+def test_a_round_object_is_cropped_by_its_box() -> None:
+    """
+    Description:
+        A round object has no rectangle worth turning (its orientation is noise): it is cut out by its box.
+    """
+
+    frame = np.zeros((CONST_FRAME[1], CONST_FRAME[0], 3), dtype=np.uint8)
+    disc = np.zeros(frame.shape[:2], dtype=np.uint8)
+    cv2.circle(disc, (500, 500), 80, 1, -1)
+    det = Detection_Str(Label='washer', Bbox=(420, 420, 161, 161), Mask=disc.astype(bool))
+    det.Measurement = Measure_Mask(det.Mask, CONST_SCALE, cv2, np)
+    assert det.Measurement.Symmetric
+    assert Object_Crop(frame, det, cv2, np).shape[:2] == (161, 161)
+
+
+def test_the_reference_is_cut_out_by_its_yolo_box() -> None:
+    """
+    Description:
+        A YOLO box is centre x, centre y, width and height as fractions of the image: (0.5, 0.5, 0.25, 0.5)
+        on 1920 x 1200 is the 480 x 600 px block around the centre.
+    """
+
+    image = np.zeros((1200, 1920, 3), dtype=np.uint8)
+    assert Reference_Crop(image, (0.5, 0.5, 0.25, 0.5)).shape[:2] == (600, 480)
+
+
+def test_the_best_match_is_the_highest_over_turns_and_sides() -> None:
+    """
+    Description:
+        An object's similarity is its highest cosine over its four turns and both references, and its side
+        is that reference's — here the back, matched by the third turn.
+    """
+
+    references = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    turns = np.array([[0.0, 0.0, 1.0], [0.6, 0.0, 0.8], [0.0, 0.9, 0.43588989], [0.0, 0.0, 1.0]])
+    assert Best_Match(turns, references, ['front', 'back']) == (pytest.approx(0.9), 'back')
+    assert len(Rotations(np.zeros((6, 4, 3), dtype=np.uint8), cv2)) == 4

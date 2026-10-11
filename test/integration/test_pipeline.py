@@ -178,6 +178,13 @@ CONST_EXPECTED_VERDICTS = {
     'Image_094.png': (_Warnings(4), ('NOK',) + ('OK',) * 3),
     'Image_095.png': (_Warnings(4), ('OK',) * 4),
 }
+# The frames whose expected verdict needs a check not built yet: the fingerprint-stained mounting plate
+# (front) is NOK by the stain check of phase D, and until then reads OK. Strict xfails: they fail the run
+# the day the stain check makes them pass, so the mark is lifted with it.
+#   Unit [Dict<Tuple<string, string>, string>]
+CONST_PENDING_VERDICTS = {(name, 'Mounting_Plate'): 'the stain check (catalogue phase D)'
+                          for name in ('Image_059.png', 'Image_072.png', 'Image_074.png', 'Image_076.png',
+                                       'Image_080.png')}
 # The frames that ARE the catalogue items' reference images (Data/Catalogue/<item>/reference_image/, byte
 # for byte), per mode. Judging an item on them is circular, so results on them are reported apart:
 # analyze.py finds them by content (test_analyze_harness pins which they are), and the verdict tests of
@@ -502,3 +509,36 @@ def test_the_outline_passes_exactly_the_catalogue_parts(name: str, mode: str, re
     within = [det for det in objects if det.Dimension_Checks and all(check.Within for check in det.Dimension_Checks)]
     states = collections.Counter(CONST_EXPECTED_VERDICTS[name][CONST_CATALOGUE_MODES.index(mode)])
     assert len(within) == states['OK'] + states['NOK']
+
+
+def _Verdict_Cases() -> tp.List[tp.Any]:
+    """Every (frame, mode) of the labels, a pending one marked as a strict expected failure naming its phase."""
+    cases = []
+    for name in sorted(CONST_EXPECTED_VERDICTS):
+        for mode in CONST_CATALOGUE_MODES:
+            reason = CONST_PENDING_VERDICTS.get((name, mode))
+            marks = [pytest.mark.xfail(strict=True, raises=AssertionError, reason='needs ' + reason)] if reason else []
+            cases.append(pytest.param(name, mode, marks=marks, id='%s-%s' % (name[:-4], mode)))
+    return cases
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize('name, mode', _Verdict_Cases())
+def test_each_frame_gets_its_expected_verdicts(name: str, mode: str, require_weights, monkeypatch) -> None:
+    """
+    Description:
+        Through the application's pipeline (FastSAM and DINOv2 on the CPU, the model-free describer) in each
+        catalogue mode, every frame's objects take exactly the labelled states — OK, NOK, Unspecified,
+        Warning, counted, since the labels are in no particular order. The stained plates' NOK waits for
+        the stain check (CONST_PENDING_VERDICTS). The reference frames are in the run like any other; the
+        harness reports them apart. Slow because it runs both models; missing weights fail it under --runslow.
+    """
+
+    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_%s.yaml'
+                                             % mode))
+    config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
+    require_weights([config.Segmentation.Model_Path, config.Identification.Model_Path])
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
+    objects = _Analyze_Frame(config, name)
+    expected = collections.Counter(CONST_EXPECTED_VERDICTS[name][CONST_CATALOGUE_MODES.index(mode)])
+    assert collections.Counter(det.Verdict for det in objects) == expected

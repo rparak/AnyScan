@@ -27,8 +27,8 @@ import math
 import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
-from Parameters.Theme import (Verdict_Color, Detection_Color, Detection_Mask_Outline, Hex_To_Bgr,
-                              CONST_CARD, CONST_INK)
+from Parameters.Theme import (Verdict_Color, Detection_Color, Detection_Mask_Outline, Mask_Outline_Color,
+                              Hex_To_Bgr, CONST_CARD, CONST_INK)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -271,7 +271,7 @@ def __Draw_Dashed_Line(image: tp.Any, start: tp.Tuple[float, float], end: tp.Tup
 
 def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
                  cv2: tp.Any, verdict_colored: bool, neutral_hex: str,
-                 draw_rotated: bool = False) -> None:
+                 draw_rotated: bool = False, on_mask: bool = False) -> None:
     """
     Description:
         Draw each object's bounding box and index chip on the image given — the same boxes and
@@ -290,6 +290,8 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
         (7) draw_rotated [bool]: Also draw each measured, non-symmetric object's rotated rectangle
                                  (solid), demoting its axis-aligned box to a thin dashed line. The
                                  Camera View's annotated frame does; the label mask does not.
+        (8) on_mask [bool]: The image is the label mask: a verdict drawn in the neutral colour
+                            (Unspecified) takes the mask's darker neutral outline (Mask_Outline_Color).
     """
 
     box_w = max(1, int(round(CONST_ANNOTATE_BOX_W * scale)))
@@ -298,7 +300,8 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
     neutral_bgr = Hex_To_Bgr(neutral_hex)
     for i, det in enumerate(objects):
         x, y, w, h = det.Bbox
-        color_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[0]) if verdict_colored else neutral_bgr
+        outline = Mask_Outline_Color(det.Verdict) if on_mask else Verdict_Color(det.Verdict)[0]
+        color_bgr = Hex_To_Bgr(outline) if verdict_colored else neutral_bgr
         measurement = det.Measurement
         if draw_rotated and measurement is not None and not measurement.Symmetric \
                 and measurement.Box_Points:
@@ -368,7 +371,7 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
     # Then the same boxes and index chips as the annotated view, in the verdict colour — or, when
     # classification is off, in the mask's own darker neutral outline, which stays clear of the
     # light neutral fill (the frame's lighter box would all but vanish on it).
-    __Draw_Boxes(mask_image, objects, scale, cv2, verdict_colored, Detection_Mask_Outline())
+    __Draw_Boxes(mask_image, objects, scale, cv2, verdict_colored, Detection_Mask_Outline(), on_mask=True)
     return mask_image
 
 
@@ -386,7 +389,7 @@ def Render_Views(scene_bgr: tp.Any, objects: tp.List[Detection_Str], cv2: tp.Any
         (2) objects [Vector<Detection_Str(object)>]: The located objects, in order.
         (3) cv2 [module]: The OpenCV module, injected by the caller.
         (4) np [module]: The NumPy module, injected by the caller.
-        (5) verdict_colored [bool]: REQUIRED, keyword-only: General.Classification.Enabled of the
+        (5) verdict_colored [bool]: REQUIRED, keyword-only: Configuration_Str.Classifies of the
             configuration in force — verdict colours when True, the neutral detection colour when
             False. No default, so a caller that never read the configuration fails at the call.
 

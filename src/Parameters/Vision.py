@@ -33,6 +33,13 @@ from dataclasses import dataclass, field
 # number can always be traced to the scale and direction that produced it.
 #   Unit [string]
 CONST_SCALE_UNITS = 'mm/px'
+# The four states an object takes in a catalogue mode (Vision.Utilities.Classify): OK — the catalogue part,
+# every check passed; NOK — the catalogue part, a check failed; Unspecified — an area of at least the mode's
+# Unspecified_Area_Ratio times the part's, probably several parts together, not judged; Warning — not the
+# catalogue part, found and described but not supposed to be there. A mode without a catalogue judges
+# nothing and every object keeps the default, OK, drawn in the neutral colour.
+#   Unit [Tuple<string>]
+CONST_VERDICTS = ('OK', 'NOK', 'Unspecified', 'Warning')
 
 
 @dataclass
@@ -75,6 +82,34 @@ class Dimension_Check_Str(object):
     # Whether the measured value lies within the tolerance (bounds included).
     #   Unit [bool]
     Within: bool = False
+
+
+@dataclass
+class Catalogue_Result_Str(object):
+    """
+    Description:
+        What the catalogue mode found out about one object beyond its dimension checks: how much it
+        looks like the catalogue part and which side, its area against the part's, and where it lies —
+        the evidence its verdict rests on, kept so the verdict can be explained.
+    """
+
+    # The object's highest DINOv2 similarity to the part's reference images (cosine of the class
+    # tokens, over both sides and four rotations), the side that scored it ('front' or 'back'), and
+    # the similarity at and above which an object is identified as the part (the mode's).
+    #   Unit [float] / [string] / [float]
+    Similarity: float = 0.0
+    Side: str = ''
+    Identify_Similarity: float = 0.0
+    # The object's mask area over the part's nominal area (Length_Mm x Width_Mm), both in mm at the
+    # part's top face, and the ratio from which an object is Unspecified (the mode's).
+    #   Unit [float] / [float]
+    Area_Ratio: float = 0.0
+    Unspecified_Area_Ratio: float = 0.0
+    # The object's centre's distance from the frame centre, and the distance up to which the size
+    # checks were verified on real frames (Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM).
+    #   Unit [float] (mm)
+    Center_Distance_Mm: float = 0.0
+    Verified_Radius_Mm: float = 0.0
 
 
 @dataclass
@@ -187,11 +222,10 @@ class Detection_Str(object):
     # it is what the validation harness reports per-cue and never affects the reading.
     #   Unit [string]
     Cue: str = ''
-    # The per-object verdict — 'OK' (pass) or 'NOK' (fail) — that drives this object's
-    # render colour in BOTH views (Parameters.Theme.Verdict_Color). Defaults to 'OK':
-    # classification is not in use yet, so every object is OK and renders in the OK
-    # colour. When classification lands it sets this field — a data change, not a
-    # rendering change.
+    # The per-object verdict, one of CONST_VERDICTS, that drives this object's render colour in
+    # BOTH views (Parameters.Theme.Verdict_Color) when the configuration classifies. Defaults to
+    # 'OK': a mode without a catalogue judges nothing, and its objects are drawn in the neutral
+    # colour whatever this holds. A catalogue mode sets it (Vision.Utilities.Classify).
     #   Unit [string]
     Verdict: str = 'OK'
     # The alpha/beta-stretched padded crop that was fed to the describer (BGR), kept
@@ -208,6 +242,9 @@ class Detection_Str(object):
     # an object that is not measured or is round (a round object has no outline to check).
     #   Unit [Vector<Dimension_Check_Str(object)>]
     Dimension_Checks: tp.List[Dimension_Check_Str] = field(default_factory=list)
+    # The catalogue mode's evidence for this object's verdict, or None outside a catalogue mode.
+    #   Unit [Catalogue_Result_Str(object)]
+    Catalogue: tp.Optional[Catalogue_Result_Str] = None
 
 # The timed stages of one analysis, in the order they run. Their names are what the timing log line
 # prints. Everything between the analysis's start and stop that is not one of them (the model check,
@@ -275,6 +312,10 @@ class Timing_Str(object):
     # The measurement's time, which is outside Total_Ms (it runs after the latency stops).
     #   Unit [int] (ms)
     Measurement_Ms: int = 0
+    # A catalogue mode's identification and verdicts (DINOv2 on every object, then the rule), also
+    # outside Total_Ms; None outside a catalogue mode.
+    #   Unit [int] (ms)
+    Identification_Ms: tp.Optional[int] = None
     # Whether this is the first analysis to finish after the models were put in force — see
     # Vision_Pipeline_Cls.Analyze for the exact rule. The warm-up is meant to make it no slower
     # than the next; the flag lets the log show whether it was.
@@ -307,7 +348,8 @@ class Load_Timing_Str(object):
         failure (Warm_Up_Error), or there is no describer to write the background sentence.
     """
 
-    # The segmenter, then the describer (none for the model-free fallback).
+    # The segmenter, the identifier (a catalogue mode only), then the describer (none for the model-free
+    # fallback).
     #   Unit [Vector<Model_Load_Str(object)>]
     Models: tp.List[Model_Load_Str] = field(default_factory=list)
     # The warm-up: reading the reference, FastSAM's first pass on it, and the background sentence.
@@ -315,6 +357,9 @@ class Load_Timing_Str(object):
     Reference_S: tp.Optional[float] = None
     First_Segmentation_S: tp.Optional[float] = None
     Background_Sentence_S: tp.Optional[float] = None
+    # A catalogue mode's warm-up also embeds the item's reference images (DINOv2's first pass).
+    #   Unit [float] (s)
+    Reference_Images_S: tp.Optional[float] = None
     # Why the warm-up stopped, or None when it completed.
     #   Unit [string]
     Warm_Up_Error: tp.Optional[str] = None

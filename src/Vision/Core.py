@@ -57,6 +57,10 @@ from Vision.Describers import (Gemma_Describer_Cls, CONST_PURPOSE_OBJECT, CONST_
 from Vision.Utilities.Measure import Measure_Objects
 #   ../Vision/Utilities/Dimensions
 from Vision.Utilities.Dimensions import Check_Objects
+#   ../Vision/Identifier
+from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
+#   ../Vision/Utilities/Classify
+from Vision.Utilities.Classify import Object_Crop, Reference_Crop, Rotations, Best_Match, Classify
 #   ../Vision/Utilities/Timing
 from Vision.Utilities.Timing import Build_Timing
 
@@ -316,6 +320,12 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         # The stage-2 segmenter. Constructing it is cheap — ultralytics loads lazily
         # (Load_Models or the first Segment), so this keeps the window and the tests light.
         self.__segmenter = Fast_Sam_Cls(Configuration_Str.Segmentation)
+        # A catalogue mode's identifier (None in any other mode), as cheap to construct, and the catalogue
+        # item's reference images as unit rows with their sides — embedded once per configuration
+        # (__Reference_Rows), cleared by Configure.
+        self.__identifier = self.__New_Identifier(Configuration_Str)
+        self.__reference_rows = None
+        self.__reference_sides = []
         # Where the last Load_Models (and the warm-up after it) spent its time, and whether the next
         # analysis is the first since the models were put in force (see Analyze).
         self.__load_timing = None
@@ -360,7 +370,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         describer_ready = (CONST_DESCRIBER == 'fallback'
                            or (CONST_DESCRIBER == self.__describer_name
                                and self.__describer is not None and self.__describer.Loaded))
-        return self.__segmenter.Loaded and describer_ready
+        identifier_ready = self.__identifier is None or self.__identifier.Loaded
+        return self.__segmenter.Loaded and describer_ready and identifier_ready
 
     @property
     def Load_Timing(self) -> tp.Optional[Load_Timing_Str]:
@@ -400,6 +411,15 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             raise Vision_Error_Cls(str(exc)) from exc
         timing = Load_Timing_Str(Models=[Model_Load_Str(
             Name=segmenter_name, Seconds=None if segmenter_kept else time.perf_counter() - started)])
+        if self.__identifier is not None:
+            identifier_kept = self.__identifier.Loaded
+            started = time.perf_counter()
+            try:
+                self.__identifier.Load(stage_cb)
+            except Identifier_Error_Cls as exc:
+                raise Vision_Error_Cls(str(exc)) from exc
+            timing.Models.append(Model_Load_Str(Name=os.path.basename(self.__config.Identification.Model_Path),
+                                                Seconds=None if identifier_kept else time.perf_counter() - started))
         describer_s = self.__Ensure_Loaded(stage_cb)
         if self.__describer is not None:
             timing.Models.append(Model_Load_Str(Name=describer_name, Seconds=describer_s))
@@ -434,6 +454,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         previous = (self.__config, self.__segmenter, self.__describer, self.__describer_name)
         previous_loaded = self.Models_Loaded
         old_config, old_segmenter, old_describer, _old_name = previous
+        old_identifier = self.__identifier
 
         # 1\ Keep a model whose identity is unchanged; release one that changes BEFORE loading.
         if old_segmenter.Model_Key == (new.Segmentation.Model_Path, new.Segmentation.Device):
@@ -448,7 +469,15 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         elif describer is not None:
             describer.Release()
             describer = None
+        identifier = old_identifier
+        new_identifier = self.__New_Identifier(new)
+        if identifier is not None and (new_identifier is None or identifier.Model_Key != new_identifier.Model_Key):
+            identifier.Release()
+            identifier = None
+        if identifier is None:
+            identifier = new_identifier
         self.__config, self.__segmenter, self.__describer = new, segmenter, describer
+        self.__identifier = identifier
         if describer is None:
             self.__describer_name = None
 
@@ -460,7 +489,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                 self.__segmenter.Release()
             if self.__describer is not None and self.__describer is not old_describer:
                 self.__describer.Release()
+            if self.__identifier is not None and self.__identifier is not old_identifier:
+                self.__identifier.Release()
             self.__config, self.__segmenter, self.__describer, self.__describer_name = previous
+            # A released identifier reloads with the previous configuration's models, like the others.
+            self.__identifier = old_identifier
             old_segmenter.Set_Parameters(old_config.Segmentation)
             if old_describer is not None:
                 old_describer.Set_Parameters(old_config.Description)
@@ -490,6 +523,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         self.__background = None
         self.__background_sentence = None
         self.__background_audit = []
+        self.__reference_rows = None
+        self.__reference_sides = []
 
         # 4\ Then pay here, under the load's progress, what the first analysis would otherwise pay.
         self.__Warm_Up(stage_cb)
@@ -535,6 +570,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                 started = time.perf_counter()
                 self.__Compute_Background_Sentence(bg_bgr)
                 timing.Background_Sentence_S = time.perf_counter() - started
+            if self.__identifier is not None:
+                started = time.perf_counter()
+                self.__Reference_Rows(self.__cv2, self.__np)
+                timing.Reference_Images_S = time.perf_counter() - started
         except Exception as exc:                          # noqa: BLE001
             # Swallowed on purpose: the configuration is already in force, so this is not a failed
             # load. Nothing half-done is kept; the first analysis meets the failure and reports it.
@@ -826,8 +865,95 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         if self.__config.Catalogue is not None:
             Check_Objects(result.Objects, self.__config.Catalogue)
         result.Timing.Measurement_Ms = int((time.perf_counter() - started) * 1000)
+        # A catalogue mode then identifies and judges each object (also outside the total).
+        if self.__config.Catalogue is not None:
+            started = time.perf_counter()
+            self.__Classify_Objects(result.Objects, frame_bgr, cv2, np)
+            result.Timing.Identification_Ms = int((time.perf_counter() - started) * 1000)
         self.__first_after_load = False
         return result
+
+    @staticmethod
+    def __New_Identifier(Configuration_Str: Configuration_Str) -> tp.Optional[Dino_Identifier_Cls]:
+        """
+        Description:
+            The identifier a configuration needs: DINOv2 on the segmenter's device in a catalogue mode,
+            none otherwise. Not loaded: constructing it is cheap.
+
+        Args:
+            (1) Configuration_Str [Configuration_Str(object)]: The configuration.
+
+        Returns:
+            (1) parameter [Dino_Identifier_Cls(object) or None]: The identifier, or None.
+        """
+
+        if Configuration_Str.Catalogue is None:
+            return None
+        return Dino_Identifier_Cls(Configuration_Str.Identification.Model_Path, Configuration_Str.Segmentation.Device)
+
+    def __Reference_Rows(self, cv2: tp.Any, np: tp.Any) -> tp.Any:
+        """
+        Description:
+            The catalogue item's reference images as unit rows (one per side, cut out by their boxes),
+            embedded once per configuration and kept.
+
+        Args:
+            (1) cv2 [module]: The OpenCV module.
+            (2) np [module]: The NumPy module.
+
+        Returns:
+            (1) parameter [Matrix<float> SxD]: One row per side, in the item's side order.
+
+        Raises:
+            Vision_Error_Cls: A reference image cannot be read, or the identifier cannot run.
+        """
+
+        if self.__reference_rows is None:
+            crops = []
+            for reference in self.__config.Catalogue.References:
+                image = cv2.imread(reference.Image_Path)
+                if image is None:
+                    raise Vision_Error_Cls('The %s reference image "%s" could not be read; restore the catalogue '
+                                           'item\'s reference_image folder.' % (reference.Side, reference.Image_Path))
+                crops.append(Reference_Crop(image, reference.Box))
+            try:
+                self.__reference_rows = self.__identifier.Embed(crops, cv2, np)
+            except Identifier_Error_Cls as exc:
+                raise Vision_Error_Cls(str(exc)) from exc
+            self.__reference_sides = [reference.Side for reference in self.__config.Catalogue.References]
+        return self.__reference_rows
+
+    def __Classify_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.Any, cv2: tp.Any, np: tp.Any) -> None:
+        """
+        Description:
+            A catalogue mode's last step: every object's crop, turned upright, in four quarter turns,
+            through DINOv2 in one pass, its best match to the item's references, and its verdict
+            (Vision.Utilities.Classify).
+
+        Args:
+            (1) objects [Vector<Detection_Str(object)>]: The measured, checked objects (mutated).
+            (2) frame_bgr [Matrix<uint8> HxWx3]: The frame.
+            (3) cv2 [module]: The OpenCV module.
+            (4) np [module]: The NumPy module.
+
+        Raises:
+            Vision_Error_Cls: The identifier cannot run.
+        """
+
+        if not objects:
+            return
+        references = self.__Reference_Rows(cv2, np)
+        crops = [turn for det in objects for turn in Rotations(Object_Crop(frame_bgr, det, cv2, np), cv2)]
+        try:
+            rows = self.__identifier.Embed(crops, cv2, np)
+        except Identifier_Error_Cls as exc:
+            raise Vision_Error_Cls(str(exc)) from exc
+        turns = len(crops) // len(objects)
+        frame_size = (frame_bgr.shape[1], frame_bgr.shape[0])
+        for index, det in enumerate(objects):
+            similarity, side = Best_Match(rows[index * turns:(index + 1) * turns], references, self.__reference_sides)
+            Classify(det, similarity, side, self.__config.Catalogue, self.__config.Identification,
+                     self.__config.Scale, frame_size)
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            bg_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],

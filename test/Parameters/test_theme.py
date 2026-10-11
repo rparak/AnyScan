@@ -137,7 +137,9 @@ def test_label_mask_fill_is_a_visible_tint_of_its_box() -> None:
     # The pair that actually meets on the mask: a verdict box over its fill, and for detect-only
     # the mask's own darker neutral outline over the neutral fill (the frame's box never sits on it).
     triples = {'OK': Theme.CONST_VERDICT_COLORS['OK'], 'NOK': Theme.CONST_VERDICT_COLORS['NOK'],
-               'neutral': (Theme.Detection_Mask_Outline(), None, Theme.Detection_Color()[2])}
+               'Warning': Theme.CONST_VERDICT_COLORS['Warning'],
+               'neutral': (Theme.Detection_Mask_Outline(), None, Theme.Detection_Color()[2]),
+               'Unspecified': (Theme.Mask_Outline_Color('Unspecified'), None, Theme.Verdict_Color('Unspecified')[2])}
     for name, (box, _ink, fill) in triples.items():
         assert Theme.Delta_E(box, fill) >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E, \
             '%s: outline %s barely separates from fill %s (ΔE=%.1f)' % (name, box, fill,
@@ -148,7 +150,7 @@ def test_label_mask_fill_is_a_visible_tint_of_its_box() -> None:
             '%s: fill %s does not read as light on black (%.1f:1)' % (name, fill,
                                                                    Theme.Ground_Contrast(fill))
 
-    for name in ('OK', 'NOK'):
+    for name in ('OK', 'NOK', 'Warning'):
         box, _ink, fill = triples[name]
         _Lb, box_chroma, box_hue = Theme.Lch_Of(box)
         _Lf, fill_chroma, fill_hue = Theme.Lch_Of(fill)
@@ -270,3 +272,24 @@ def test_the_heatmap_colours_stay_clear_of_the_verdict_status_and_log_colours() 
                    Theme.CONST_LOG_ERROR, Theme.CONST_ERROR_ON_DARK])
     closest = min((Theme.Delta_E(color, mark), color, mark) for color in Theme.Heatmap_Colors() for mark in reserved)
     assert closest[0] >= CONST_ANNOTATE_MIN_DELTA_E, closest
+
+
+def test_every_catalogue_state_has_its_colour() -> None:
+    """
+    Description:
+        Each of the four states a catalogue mode gives has a colour triple: OK and NOK unchanged; Warning the
+        status amber with its text twin (the one place amber marks an object); Unspecified the neutral
+        detection colour, since it is not judged — and on the label mask the neutral's darker outline, as for
+        a detect-only object, while the judged states keep their box. The four boxes stay ΔE >= 12 apart.
+    """
+
+    from Parameters.Vision import CONST_VERDICTS
+    from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
+    assert set(Theme.CONST_VERDICT_COLORS) == set(CONST_VERDICTS)
+    assert Theme.Verdict_Color('Warning')[:2] == (Theme.CONST_WARN, Theme.CONST_WARN_INK)
+    assert Theme.Verdict_Color('Unspecified') == Theme.Detection_Color()
+    assert Theme.Mask_Outline_Color('Unspecified') == Theme.Detection_Mask_Outline()
+    assert [Theme.Mask_Outline_Color(v) for v in ('OK', 'NOK', 'Warning')] == \
+        [Theme.Verdict_Color(v)[0] for v in ('OK', 'NOK', 'Warning')]
+    boxes = [Theme.Verdict_Color(v)[0] for v in CONST_VERDICTS]
+    assert min(Theme.Delta_E(a, b) for i, a in enumerate(boxes) for b in boxes[i + 1:]) >= CONST_ANNOTATE_MIN_DELTA_E

@@ -265,3 +265,33 @@ def test_zero_objects_reads_sensibly(qt_app, reference_background_path) -> None:
     assert lead.text() == 'A plain surface. No objects were detected on it.'
     assert '0 object' not in lead.text()
     assert _Line_Texts(window) == []
+
+
+def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        In a catalogue mode each object block shows its verdict lines (Reporting.Verdict_Lines) — the state
+        word first, then the reasons and the size note — between the label line and the description, as
+        plain text in the ink, weighted above the description. An object with no verdict (Segment
+        Anything) keeps its two-level block.
+    """
+
+    from Parameters.Vision import Catalogue_Result_Str
+    from Vision.Utilities.Dimensions import Check_Dimension
+    from Reporting.Core import Verdict_Lines
+    judged = Detection_Str(Label='plate', Bbox=(0, 0, 8, 8), Sentence='A machined plate.', Cue='both', Verdict='NOK',
+                           Dimension_Checks=[Check_Dimension('length', 62.0, 60.0, 1.5)],
+                           Catalogue=Catalogue_Result_Str(Similarity=0.91, Side='front', Identify_Similarity=0.75,
+                                                          Area_Ratio=1.0, Unspecified_Area_Ratio=1.7,
+                                                          Center_Distance_Mm=80.0, Verified_Radius_Mm=74.3))
+    window = _Window_With(reference_background_path,
+                          Analysis_Str(Objects=[judged, _Object('A washer.')], Background='A surface.',
+                                       Verdict='2 found', Verdict_Level='ok', Task='caption'))
+    layout = _Private(window, '__object_list').box
+    first, second = layout.itemAt(0).widget().layout(), layout.itemAt(1).widget().layout()
+    assert first.count() == 3 and second.count() == 2
+    verdict = first.itemAt(1).widget()
+    assert verdict.text() == '\n'.join(Verdict_Lines(judged))
+    assert verdict.text().startswith('NOK — the part, front up (similarity 0.91).')
+    assert verdict.textFormat() == Qt.PlainText and verdict.font().weight() > first.itemAt(2).widget().font().weight()
+    assert first.itemAt(2).widget().text() == 'A machined plate.'

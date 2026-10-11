@@ -115,8 +115,10 @@ CONST_LOGO_INK      = CONST_INK        # deep indigo: "Any", and the mark's fram
 CONST_LOGO_MAGENTA  = '#d6006e'        # magenta: "Scan", and the mark's box and description
 CONST_LOGO_TAGLINE  = CONST_INK_SOFT   # mid violet: the tagline
 
-# The verdict colours. Green, red and amber are RESERVED here: they mean pass,
-# degraded and fail on the badge, so they must never appear as an object colour.
+# The status colours. Green and red are RESERVED here: they mean pass and fail on the badge, so they
+# never appear as an object colour (an OK object is indigo, a NOK one magenta). Amber is the one
+# exception, decided 2026-10-11: a Warning object (not the catalogue part, not supposed to be there)
+# takes CONST_WARN as its box, the same meaning — something to look at — on the frame as on the badge.
 CONST_OK            = '#16a34a'   # connected, pass
 CONST_OK_INK        = '#15803d'
 CONST_OK_SOFT       = '#f2faf5'
@@ -202,9 +204,18 @@ CONST_MASK_FILL_WINDOW_MARGIN = 0.5
 #   index numeral never sits on the fill (it is drawn on its chip, in the box colour), so the
 #   fill does not have to be pale.
 #   Unit [Dict<string, Tuple<string> 1x3>] (box, ink, fill)
+#
+#   A catalogue mode adds two (2026-10-11). WARNING (not the part) is the status amber, its text twin and
+#   a fill built the same way as the others: L* 72 at half the box's chroma, hue held —
+#       Warning  #DFA475  ΔE(box, fill) 38.7  ΔE(fill, white) 46.2  9.7:1 on black, hue shift 0.2°.
+#   UNSPECIFIED (probably several parts, not judged) is the neutral detection colour, assembled at the end
+#   of this module (CONST_DETECTION_COLORS): not judged reads like detected, not judged. On the label mask
+#   its outline is the mask's own darker neutral (Mask_Outline_Color), as for a detect-only run.
+#   Unit [Dict<string, Tuple<string> 1x3>] (box, ink, fill)
 CONST_VERDICT_COLORS = {
     'OK':  ('#6C63B5', '#4a4180', '#B4AADB'),   # pass
     'NOK': ('#ff005c', '#d1004a', '#FC929C'),   # fail — the brand magenta, now correctly the fail marker
+    'Warning': (CONST_WARN, CONST_WARN_INK, '#DFA475'),   # not the catalogue part — amber, see above
 }
 # The verdict a detection carries until classification sets one; every object is OK today.
 #   Unit [string]
@@ -617,13 +628,31 @@ def Verdict_Color(verdict: str) -> tp.Tuple[str, str, str]:
         no verdict still renders. The fill is the light label-mask tint of the box.
 
     Args:
-        (1) verdict [string]: The verdict key ('OK' or 'NOK').
+        (1) verdict [string]: The verdict key ('OK', 'NOK', 'Unspecified' or 'Warning').
 
     Returns:
         (1) parameter [Tuple<string> 1x3]: The (box, ink, fill) hex colours.
     """
 
     return CONST_VERDICT_COLORS.get(verdict, CONST_VERDICT_COLORS[CONST_VERDICT_DEFAULT])
+
+
+def Mask_Outline_Color(verdict: str) -> str:
+    """
+    Description:
+        The outline a judged object takes on the LABEL MASK: its verdict box, except for a verdict drawn
+        in the neutral colour (Unspecified), which takes the mask's own darker neutral outline — the
+        neutral box would all but vanish on the neutral fill (Detection_Mask_Outline).
+
+    Args:
+        (1) verdict [string]: The verdict.
+
+    Returns:
+        (1) parameter [string]: The outline colour as '#rrggbb'.
+    """
+
+    box = Verdict_Color(verdict)[0]
+    return Detection_Mask_Outline() if box == CONST_DETECTION_BOX else box
 
 
 def Detection_Color() -> tp.Tuple[str, str, str]:
@@ -664,6 +693,8 @@ def Detection_Mask_Outline() -> str:
 #   Unit [string] (hex colour) / [Tuple<string> 1x3] (box, ink, fill)
 CONST_DETECTION_MASK_OUTLINE, CONST_DETECTION_MASK_FILL = Neutral_Mask_Colors(CONST_DETECTION_BOX)
 CONST_DETECTION_COLORS = (CONST_DETECTION_BOX, CONST_DETECTION_INK, CONST_DETECTION_MASK_FILL)
+# Unspecified is not judged, so it takes the neutral colour (see CONST_VERDICT_COLORS).
+CONST_VERDICT_COLORS['Unspecified'] = CONST_DETECTION_COLORS
 # The Camera View's heatmap colours: cividis (Nuñez, Anderton & Renslow, 2018), 17 anchors taken from
 # matplotlib's map at equal steps and expanded to 256 colours in L*a*b* (Heatmap_Colors). Cividis, not
 # viridis: viridis passes ΔE 4.2 from the OK verdict's ink and 12.0 from CONST_OK's green; cividis has no

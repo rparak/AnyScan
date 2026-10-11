@@ -65,7 +65,7 @@ from Vision.Utilities.Annotate import Render_Views, Seg_Lines
 #   ../Vision/Utilities/Heatmap
 from Vision.Utilities.Heatmap import Render_Heatmap
 #   ../Reporting/Core
-from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines, Frame_Confidence
+from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines, Frame_Confidence, Verdict_Log_Line
 #   ../Reporting/Trends
 from Reporting.Trends import Trends_Accumulator_Cls
 #   ../Parameters/Vision
@@ -189,11 +189,12 @@ class AnyScan_Window_Cls(QMainWindow):
         # Whether the camera has connected in this run: from then on configuration is fixed, and
         # it stays fixed through DISCONNECT — changing it means restarting the application.
         self.__has_connected = False
-        # Whether it classifies (OK/NOK) or only detects: it governs what LIVE produces — the
+        # Whether it classifies (a catalogue mode: OK / NOK / Unspecified / Warning) or only detects: it
+        # governs what LIVE produces — the
         # annotation colours (verdict vs one neutral colour) and the flag recorded on each new
         # capture set. It does NOT govern how History renders a set, which reads how each set was
         # written from its own metadata (a set written under a different flag keeps its colours).
-        self.__classification_enabled = Configuration_Str.Classification_Enabled
+        self.__classification_enabled = Configuration_Str.Classifies
         # A unique id for THIS application run, generated once at startup and stable across every
         # camera connection in the run. It is written into each set's metadata; History lists only
         # the current run's sets by matching it — not by comparing timestamps, which a clock
@@ -1319,6 +1320,10 @@ class AnyScan_Window_Cls(QMainWindow):
                                                       describe_ms=times.Describe_Ms, tokens=tokens)
                 else:
                     self.__logger.Log_Object_Detected(det.Label, confidence, det.Bbox)
+                # A catalogue mode's verdict on it, with its reasons: Warning and Unspecified at WARNING.
+                if det.Catalogue is not None:
+                    level, line = Verdict_Log_Line(index, det)
+                    (self.__logger.Log_Warning if level == 'WARNING' else self.__logger.Log_Info)(line)
             # The pipeline's audit records: today only the background sentence's, a warning when
             # the neutral fallback sentence stood in for the model's. Replacing what the model
             # would have said is recorded, never silent.
@@ -1335,7 +1340,7 @@ class AnyScan_Window_Cls(QMainWindow):
             if timing is not None:
                 self.__logger.Log_Analysis_Timing(self.__session_analyses, timing.Total_Ms, timing.Stages,
                                                   timing.Other_Ms, timing.Measurement_Ms,
-                                                  timing.First_After_Load)
+                                                  timing.First_After_Load, timing.Identification_Ms)
             self.__Write_Capture(set_id, result, frame_bgr, annotated_bgr, mask_bgr)
         self.__Sync_Controls()
         self.__Close_If_Requested()
@@ -1933,7 +1938,8 @@ class AnyScan_Window_Cls(QMainWindow):
                 self.__logger.Log_Info('Model %s loaded in %.2f s.' % (model.Name, model.Seconds))
         parts = [(label, value) for label, value in (('reference', Load_Timing_Str.Reference_S),
                                                      ('first FastSAM pass', Load_Timing_Str.First_Segmentation_S),
-                                                     ('background sentence', Load_Timing_Str.Background_Sentence_S))
+                                                     ('background sentence', Load_Timing_Str.Background_Sentence_S),
+                                                     ('reference images', Load_Timing_Str.Reference_Images_S))
                  if value is not None]
         line = 'Warm-up took %.2f s: %s.' % (sum(value for _label, value in parts),
                                            ', '.join('%s %.2f s' % part for part in parts) or 'nothing ran')
@@ -1953,14 +1959,14 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         self.__config = Configuration_Str
-        self.__classification_enabled = Configuration_Str.Classification_Enabled
+        self.__classification_enabled = Configuration_Str.Classifies
         self.__scale = Configuration_Str.Scale
         self.__camera.Set_Configuration(Configuration_Str.Camera, Configuration_Str.Name,
                                         os.path.basename(Configuration_Str.Calibration_Path))
         self.__object_list.Set_Thresholds(Configuration_Str.Confidence)
-        self.__trends_view.Set_Configuration(Configuration_Str.Classification_Enabled,
+        self.__trends_view.Set_Configuration(Configuration_Str.Classifies,
                                              Configuration_Str.Confidence)
-        self.__history_view.Set_Configuration(Configuration_Str.Classification_Enabled,
+        self.__history_view.Set_Configuration(Configuration_Str.Classifies,
                                               Configuration_Str.Confidence)
         if self.__logger is not None:
             self.__logger.Log_Info(Config_Loaded_Log_Line(Configuration_Str))

@@ -63,7 +63,7 @@ class Trend_Object_Str:
     # The confidence percentage (0..100). Always present — an unscored object is not a point.
     #   Unit [int]
     Confidence: int = 0
-    # The object's verdict ('OK' | 'NOK'), for the dot colour when classification is enabled.
+    # The object's verdict (Parameters.Vision.CONST_VERDICTS), for the dot colour when the run classifies.
     #   Unit [string]
     Verdict: str = 'OK'
 
@@ -151,7 +151,7 @@ class Trends_Accumulator_Cls(object):
         index = len(self.__images) + 1
         row = Trend_Image_Str(Index=index, Total=len(objects))
         for det in objects:
-            row.Ok += 1 if det.Verdict != 'NOK' else 0
+            row.Ok += 1 if det.Verdict == 'OK' else 0
             row.Nok += 1 if det.Verdict == 'NOK' else 0
             if det.Segmenter_Score is None:
                 row.Unscored += 1

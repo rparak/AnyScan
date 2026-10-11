@@ -25,7 +25,7 @@
 # Description:
 #   Set up AnyScan on macOS (Apple silicon) or Linux (x86_64): create the project's
 #   virtual environment, install the dependencies that match the hardware, and download
-#   and verify the FastSAM and Gemma weights into models/.
+#   and verify the FastSAM, Gemma and DINOv2 weights into models/.
 #
 #   Order is cheapest-failure-first: the Python version, then the platform, then the
 #   environment, the packages, and only then the ~5.3 GB of weights. Every step first
@@ -126,6 +126,17 @@ model.safetensors.index.json 240961 blob c03ce5f7086b735345038501f731634de064493
 processor_config.json 1316 blob a086fb7e04b477c291a120b0a004abb78b11c6d2
 tokenizer.json 32169626 sha256 cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f
 tokenizer_config.json 2740 blob cf6235aee46a24bf71f251c0a4e7a0379948f7d2'
+# DINOv2 base, the catalogue modes' identifier, at the revision the application was measured with
+# (2026-10-11). Apache 2.0. Only the files the application loads: the weights as safetensors (not the
+# duplicate pytorch_model.bin), the configuration, the image processor and the model card (its licence).
+#   Unit [string]
+CONST_DINOV2_REPO='facebook/dinov2-base'
+CONST_DINOV2_REVISION='f9e44c814b77203eaa57a6bdbbd535f21ede1415'
+CONST_DINOV2_REL='models/dinov2-base'
+CONST_DINOV2_FILES='README.md 3047 blob d3184b255c704e4613cd9bbb11ea4127b810e264
+config.json 548 blob 5df0129f878aa42d71fa74d27a50f382d13ed71e
+model.safetensors 346345912 sha256 d73036b56966966d07975d696bde331762f37297e2f095de8cea0040c3aa0841
+preprocessor_config.json 436 blob ff5b47c2edcd1d3556d63c01a65d93b58b9efce1'
 # Files at least this large get a "hashing, this takes a while" line and their own elapsed
 # time, so a pause on the 5.1 GB file is not mistaken for a hang.
 #   Unit [int]
@@ -706,7 +717,7 @@ Report_Plan() {
     fi
     Log INFO "Plan: virtual environment .venv (Python ${PYTHON_VERSION}); ${mlx_line}; ${torch_line}; the rest of requirements.txt."
     Selected_Model
-    Log INFO "Plan: FastSAM-x -> ${CONST_FASTSAM_REL} ($(Format_Size "${CONST_FASTSAM_SIZE}")); ${MODEL_NAME}, ${MODEL_REPO}@${MODEL_REVISION:0:7} -> ${MODEL_REL} ($(Format_Size "$(Manifest_Bytes "${MODEL_FILES}")")). Each is skipped if already present and verified."
+    Log INFO "Plan: FastSAM-x -> ${CONST_FASTSAM_REL} ($(Format_Size "${CONST_FASTSAM_SIZE}")); ${MODEL_NAME}, ${MODEL_REPO}@${MODEL_REVISION:0:7} -> ${MODEL_REL} ($(Format_Size "$(Manifest_Bytes "${MODEL_FILES}")")); DINOv2 base, ${CONST_DINOV2_REPO}@${CONST_DINOV2_REVISION:0:7} -> ${CONST_DINOV2_REL} ($(Format_Size "$(Manifest_Bytes "${CONST_DINOV2_FILES}")")). Each is skipped if already present and verified."
 }
 
 # ---- 3: virtual environment ------------------------------------------------
@@ -927,17 +938,41 @@ Ensure_Fastsam() {
 
 Ensure_Gemma() {
     # Description:
-    #   Gemma: verify every published file of the pinned revision; skip entirely when all
-    #   match. Otherwise fetch only the missing or mismatched files with the Hugging Face
-    #   CLI (--force-download, so a corrupt local file is not kept by hf's own cache check),
-    #   then verify them again. Reports the elapsed time, since hashing 5.1 GB takes a while.
+    #   The describer: Gemma at its pinned revision (Ensure_Hub_Model).
 
+    Selected_Model
+    Ensure_Hub_Model 'Gemma' "${MODEL_NAME}" "${MODEL_REPO}" "${MODEL_REVISION}" "${MODEL_REL}" "${MODEL_FILES}"
+}
+
+Ensure_Dinov2() {
+    # Description:
+    #   The catalogue modes' identifier: DINOv2 base at its pinned revision (Ensure_Hub_Model).
+
+    Ensure_Hub_Model 'DINOv2' 'DINOv2 base' "${CONST_DINOV2_REPO}" "${CONST_DINOV2_REVISION}" "${CONST_DINOV2_REL}" \
+        "${CONST_DINOV2_FILES}"
+}
+
+Ensure_Hub_Model() {
+    # Description:
+    #   A Hugging Face model at a pinned revision: verify every listed file; skip entirely when all
+    #   match. Otherwise fetch only the missing or mismatched files with the Hugging Face CLI
+    #   (--force-download, so a corrupt local file is not kept by hf's own cache check), then verify
+    #   them again. Reports the elapsed time, since hashing 5.1 GB takes a while.
+    #
+    # Args:
+    #   (1) short [string]: The model's short name in messages ('Gemma').
+    #   (2) name [string]: Its full name ('Gemma 4 E4B').
+    #   (3) repo [string]: The Hugging Face repository.
+    #   (4) revision [string]: The pinned commit.
+    #   (5) rel [string]: The directory, relative to the repository root.
+    #   (6) files [string]: The manifest, one 'name size kind hash' per line.
+
+    local short="$1" model="$2" repo="$3" revision="$4" rel="$5" files="$6"
     local directory name size kind hash status
     local failing='' failing_bytes=0 start total_start quiet
     local -a failing_files
-    Selected_Model
-    directory="${CONST_ROOT}/${MODEL_REL}"
-    Log INFO "Checking ${MODEL_NAME} at ${MODEL_REL} against ${MODEL_REPO}@${MODEL_REVISION:0:7} ($(printf '%s\n' "${MODEL_FILES}" | grep -c .) files)."
+    directory="${CONST_ROOT}/${rel}"
+    Log INFO "Checking ${model} at ${rel} against ${repo}@${revision:0:7} ($(printf '%s\n' "${files}" | grep -c .) files)."
     total_start="${SECONDS}"
     while read -r name size kind hash; do
         [ -n "${name}" ] || continue
@@ -945,19 +980,19 @@ Ensure_Gemma() {
         Verify_File "${directory}/${name}" "${size}" "${kind}" "${hash}" || status=$?
         if [ "${status}" -ne 0 ]; then
             if [ "${status}" -ne 1 ]; then
-                Log WARNING "Gemma file ${name} is $(Describe_Verify_Status "${status}")."
+                Log WARNING "${short} file ${name} is $(Describe_Verify_Status "${status}")."
             fi
             failing="${failing} ${name}"
             failing_bytes=$(( failing_bytes + size ))
         fi
-    done <<< "${MODEL_FILES}"
+    done <<< "${files}"
     if [ -z "${failing}" ]; then
-        Log INFO "${MODEL_NAME} is already present and every file matches the published hashes (checked in $(( SECONDS - total_start )) s); not downloading."
+        Log INFO "${model} is already present and every file matches the published hashes (checked in $(( SECONDS - total_start )) s); not downloading."
         return 0
     fi
 
     read -r -a failing_files <<< "${failing}"
-    Log INFO "Downloading ${#failing_files[@]} ${MODEL_NAME} file(s) ($(Format_Size "${failing_bytes}")):${failing}."
+    Log INFO "Downloading ${#failing_files[@]} ${model} file(s) ($(Format_Size "${failing_bytes}")):${failing}."
     [ -x "${CONST_VENV_DIR}/bin/hf" ] || \
         Die 'The Hugging Face CLI (hf) is missing from .venv; it comes from huggingface_hub in requirements.txt.' 'Re-run ./install.sh so the requirements install completes.'
     mkdir -p "${directory}"
@@ -968,10 +1003,10 @@ Ensure_Gemma() {
     # word rather than an array: bash 3.2 (macOS) under nounset rejects an empty array expansion.
     quiet='HF_HUB_DISABLE_PROGRESS_BARS=1'
     [ -t 1 ] && quiet=''
-    env ${quiet} "${CONST_VENV_DIR}/bin/hf" download "${MODEL_REPO}" "${failing_files[@]}" \
-        --revision "${MODEL_REVISION}" --local-dir "${directory}" --force-download >/dev/null || status=$?
+    env ${quiet} "${CONST_VENV_DIR}/bin/hf" download "${repo}" "${failing_files[@]}" \
+        --revision "${revision}" --local-dir "${directory}" --force-download >/dev/null || status=$?
     if [ "${status}" -ne 0 ]; then
-        Die "Downloading Gemma from ${MODEL_REPO} failed (hf's message is above)." \
+        Die "Downloading ${short} from ${repo} failed (hf's message is above)." \
             'Check the network connection and re-run ./install.sh; files already verified are kept.'
     fi
     Log INFO "Downloaded in $(( SECONDS - start )) s; verifying."
@@ -980,11 +1015,11 @@ Ensure_Gemma() {
         status=0
         Verify_File "${directory}/${name}" "${size}" "${kind}" "${hash}" || status=$?
         if [ "${status}" -ne 0 ]; then
-            Die "After downloading, Gemma file ${name} is $(Describe_Verify_Status "${status}")." \
-                "Re-run ./install.sh. If it fails again, the revision no longer serves the published file: compare ${MODEL_REPO}@${MODEL_REVISION} with MODEL_FILES in install.sh."
+            Die "After downloading, ${short} file ${name} is $(Describe_Verify_Status "${status}")." \
+                "Re-run ./install.sh. If it fails again, the revision no longer serves the published file: compare ${repo}@${revision} with the manifest in install.sh."
         fi
-    done <<< "${MODEL_FILES}"
-    Log INFO "${MODEL_NAME} downloaded and every file verified ($(( SECONDS - total_start )) s in total)."
+    done <<< "${files}"
+    Log INFO "${model} downloaded and every file verified ($(( SECONDS - total_start )) s in total)."
 }
 
 # ---- 6: configurations -----------------------------------------------------
@@ -998,19 +1033,22 @@ Check_Configurations() {
 
     local file field value verdict expected report
     Selected_Model
-    report="$("${CONST_VENV_DIR}/bin/python" - "${CONST_ROOT}" "${CONST_FASTSAM_REL}" "${MODEL_REL}" 2>&1 <<'PY'
+    report="$("${CONST_VENV_DIR}/bin/python" - "${CONST_ROOT}" "${CONST_FASTSAM_REL}" "${MODEL_REL}" "${CONST_DINOV2_REL}" 2>&1 <<'PY'
 import glob, os, sys
 import yaml
-root, fastsam, gemma = sys.argv[1:4]
+root, fastsam, gemma, dinov2 = sys.argv[1:5]
 for path in sorted(glob.glob(os.path.join(root, 'Configuration', 'Config_*.yaml'))):
     with open(path) as handle:
         data = yaml.safe_load(handle) or {}
-    for section, expected in (('Segmentation', fastsam), ('Description', gemma)):
-        value = (data.get(section) or {}).get('Model')
+    fields = [('Segmentation', 'Model', fastsam), ('Description', 'Model', gemma)]
+    if 'Catalogue' in data:
+        fields.append(('Catalogue', 'Identifier', dinov2))
+    for section, key, expected in fields:
+        value = (data.get(section) or {}).get(key)
         resolved = value if value is None or os.path.isabs(str(value)) else os.path.join(root, str(value))
         same = value is not None and os.path.realpath(resolved) == os.path.realpath(os.path.join(root, expected))
         verdict = 'ok' if same else ('elsewhere' if value is not None and os.path.exists(resolved) else 'missing')
-        print('\t'.join([os.path.basename(path), section + '.Model', str(value), verdict]))
+        print('\t'.join([os.path.basename(path), section + '.' + key, str(value), verdict]))
 PY
 )" || Die 'Reading the configurations in Configuration/ failed:' "$(printf '%s\n' "${report}" | tail -n 1)" \
           'Fix the YAML file it names (the application would fail to load it too), then re-run ./install.sh.'
@@ -1024,8 +1062,9 @@ PY
             Log INFO "Configuration ${file}: ${field} points at the installed model (${value})."
         else
             case "${field}" in
-                Segmentation.Model) expected="${CONST_FASTSAM_REL}" ;;
-                *)                  expected="${MODEL_REL}" ;;
+                Segmentation.Model)   expected="${CONST_FASTSAM_REL}" ;;
+                Catalogue.Identifier) expected="${CONST_DINOV2_REL}" ;;
+                *)                    expected="${MODEL_REL}" ;;
             esac
             if [ "${verdict}" = 'elsewhere' ]; then
                 # Another model that is on disk (a directory the configuration was edited to name):
@@ -1102,6 +1141,7 @@ Main() {
     Verify_Imports
     Ensure_Fastsam
     Ensure_Gemma
+    Ensure_Dinov2
     Check_Configurations
 
     Log INFO "Setup complete in $(( SECONDS - start )) s: ${PLATFORM_SUMMARY}."

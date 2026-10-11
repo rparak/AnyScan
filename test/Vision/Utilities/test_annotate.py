@@ -354,3 +354,26 @@ def test_neutral_detection_colour_is_a_distinct_token_from_the_verdicts() -> Non
     assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['OK']
     assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['NOK']
     assert Theme.Detection_Color() == Theme.CONST_DETECTION_COLORS
+
+
+def test_the_catalogue_states_render_in_their_colours_on_both_images() -> None:
+    """
+    Description:
+        A Warning object is drawn in the amber box on the frame and on the mask, filled with the amber
+        tint; an Unspecified one in the neutral box on the frame, and on the mask filled with the neutral
+        fill and outlined in the mask's darker neutral — the neutral box would vanish on that fill.
+    """
+
+    scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)
+    objects = [__Object(40, 40, verdict='Warning'), __Object(200, 300, verdict='Unspecified')]
+    annotated = Annotate.Draw_Annotated(scene, objects, cv2, np, verdict_colored=True)
+    mask = Annotate.Draw_Label_Mask(objects, scene.shape, cv2, np, verdict_colored=True)
+    warn_box, _, warn_fill = Theme.Verdict_Color('Warning')
+    neutral_box, _, neutral_fill = Theme.Verdict_Color('Unspecified')
+
+    assert __Has_Bgr(annotated, Theme.Hex_To_Bgr(warn_box)) and __Has_Bgr(mask, Theme.Hex_To_Bgr(warn_box))
+    assert tuple(int(c) for c in mask[70, 70]) == Theme.Hex_To_Bgr(warn_fill)
+    assert __Has_Bgr(annotated, Theme.Hex_To_Bgr(neutral_box))
+    assert tuple(int(c) for c in mask[240, 340]) == Theme.Hex_To_Bgr(neutral_fill)
+    assert __Has_Bgr(mask, Theme.Hex_To_Bgr(Theme.Detection_Mask_Outline()))
+    assert not __Has_Bgr(mask, Theme.Hex_To_Bgr(neutral_box))

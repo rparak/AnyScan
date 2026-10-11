@@ -1128,7 +1128,8 @@ class Session_Logger_Cls(object):
             self.__Write_Line('%s %s' % (line, CONST_MARKER_ANALYSIS_END), self.__clock())
 
     def Log_Analysis_Timing(self, index: int, total_ms: int, stages: tp.List[tp.Tuple[str, int]],
-                            other_ms: int, measurement_ms: int, first_after_load: bool) -> None:
+                            other_ms: int, measurement_ms: int, first_after_load: bool,
+                            identification_ms: tp.Optional[int] = None) -> None:
         """
         Description:
             Log where a finished analysis's time went, as one sentence after its 'finished in' line:
@@ -1147,6 +1148,8 @@ class Session_Logger_Cls(object):
             (4) other_ms [int]: The total minus the stages.
             (5) measurement_ms [int]: The measurement's milliseconds (outside the total).
             (6) first_after_load [bool]: Whether this is the first analysis after a load.
+            (7) identification_ms [int]: A catalogue mode's identification and verdicts (outside the
+                                         total), or None outside one: the line then says nothing of it.
         """
 
         with self.__lock:
@@ -1154,6 +1157,8 @@ class Session_Logger_Cls(object):
             line = ('Analysis %d timing%s: %d ms = %s + other %d. Measurement %d ms (not in the inference time).'
                     % (index, ' (first after load)' if first_after_load else '', total_ms, terms,
                        other_ms, measurement_ms))
+            if identification_ms is not None:
+                line += ' Identification %d ms (not in the inference time).' % identification_ms
             self.__Write_Line(line, self.__clock())
             if other_ms < 0:
                 self.__Write_Line('Analysis %d timing does not add up: its stages sum to %d ms, %d ms more than '

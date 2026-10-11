@@ -29,15 +29,6 @@ Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
 
 # General (non-hardware) settings for this configuration.
 General:
-  # Does this configuration perform OK/NOK classification, or only detect objects?
-  #   true  - the UI shows verdict state (the Captures OK/NOK filter, verdict colours on
-  #           annotations, the verdict per object). No classifier exists yet, so every object is
-  #           OK and the NOK filter stays empty until one does.
-  #   false - none of that appears: objects are annotated in a single neutral colour and the UI
-  #           speaks only of detected objects.
-  # Default: false. Enabling it exposes the verdict UI; it does not create classification.
-  Classification:
-    Enabled: false
   # The daily station event files, for the external system that tracks the station's uptime.
   # One file per LOCAL date, 'YYYY-MM-DD.csv': UTF-8, the header 'station_id,event_type,ts', rows
   # appended. station_id is always SF4 (the installation's identity in that contract; a second

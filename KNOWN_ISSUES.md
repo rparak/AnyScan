@@ -458,3 +458,18 @@ dump), as had about 20 full runs and a 30-run stress loop of `test/UI` earlier t
   exit cleanly has its record kept by the next run as `crash_record_<time>.txt` (the newest ten), so
   running the suite again never deletes one (`test/integration/test_crash_record.py`). A crash in the
   interpreter's own finalisation, after the record's last line is written, is not kept.
+
+## The status badge and History's filter do not know Warning or Unspecified
+
+A catalogue mode judges each object OK, NOK, Unspecified or Warning, and the frame, the mask, the Scene
+Understanding panel and the log say which. Two places still speak only OK and NOK. The status badge above
+the panel says how many objects were found (green "2 found") whatever their verdicts, so it stays green with a
+NOK on screen. History's filter puts a set with any NOK under NOK and every other set under OK, so a set whose
+only problem is a Warning or an Unspecified object is listed as OK, and its thumbnail outline is the OK colour.
+Seen on `Image_086` in the labyrinth mode (2026-10-11): the blank plate NOK, the badge green.
+
+- **Impact:** an operator reading only the badge or the filter misses a NOK on the frame, or a Warning in a set.
+  The verdicts themselves, and every record, are right.
+- **Not fixed here:** phase B gave the objects their states; the badge, the History filter and the capture set's
+  record of the evidence are the catalogue's UI phase (E).
+- **Pinned by:** nothing yet: the phase that fixes it pins it.

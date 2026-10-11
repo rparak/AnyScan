@@ -46,7 +46,7 @@ from Parameters.Camera import Camera_Calibration_Parameters_Str
 #   ../Parameters/Vision
 from Parameters.Vision import Scale_Str, CONST_SCALE_UNITS
 #   ../Parameters/Catalogue
-from Parameters.Catalogue import Catalogue_Item_Str
+from Parameters.Catalogue import Catalogue_Item_Str, Catalogue_Reference_Str
 
 """
 Description:
@@ -267,7 +267,6 @@ def __Check(kind: str, value: tp.Any) -> tp.Tuple[bool, tp.Any, str]:
 # field default of its structure (Parameters/Configuration).
 #   Unit [Vector<Tuple>]
 CONST_FIELDS = (
-    (('General', 'Classification', 'Enabled'), ('Classification_Enabled',), 'bool', False),
     (('General', 'Station_Events', 'Directory'), ('Station_Events_Directory',), 'path', True),
     (('Identity', 'Display_Name'), ('Identity', 'Display_Name'), 'text', True),
     (('Identity', 'Model_Set'), ('Identity', 'Model_Set'), 'text', True),
@@ -318,6 +317,21 @@ CONST_CATALOGUE_FIELDS = (
     (('Checks', 'Outline', 'Length_Mm'), ('Outline', 'Length_Mm'), 'positive', True),
     (('Checks', 'Outline', 'Width_Mm'), ('Outline', 'Width_Mm'), 'positive', True),
 )
+# The mode file's Catalogue block beside its Item, in the same form (attributes of Configuration_Str),
+# read only when the block is there.
+#   Unit [Vector<Tuple>]
+CONST_CATALOGUE_BLOCK_FIELDS = (
+    (('Catalogue', 'Identifier'), ('Identification', 'Model_Path'), 'path', True),
+    (('Catalogue', 'Identify_Similarity'), ('Identification', 'Identify_Similarity'), 'unit', False),
+    (('Catalogue', 'Unspecified_Area_Ratio'), ('Identification', 'Unspecified_Area_Ratio'), 'positive', False),
+)
+# The block that once switched the verdict UI on. It is no longer read: a configuration classifies when
+# it has a Catalogue block. A file that still holds it is told so, not just warned of a misspelling.
+#   Unit [Tuple<string>]
+CONST_REMOVED_CLASSIFICATION_PATH = ('General', 'Classification')
+# The sides a catalogue item has reference images of, in order, under <item>/reference_image/.
+#   Unit [Tuple<string>]
+CONST_CATALOGUE_SIDES = ('front', 'back')
 # The catalogue's outline tolerance override.
 #   Unit [Tuple<string>]
 CONST_OUTLINE_TOLERANCE_PATH = ('Checks', 'Outline', 'Tolerance_Mm')
@@ -368,7 +382,8 @@ def __Mode_File_Known_Paths() -> tp.Set[tp.Tuple[str, ...]]:
         (1) parameter [Set<Tuple<string>>]: The known key paths.
     """
 
-    known = __Known_Paths([('Hardware',), CONST_CATALOGUE_ITEM_PATH] + [path for path, _a, _k, _r in CONST_FIELDS])
+    known = __Known_Paths([('Hardware',), CONST_CATALOGUE_ITEM_PATH]
+                          + [path for path, _a, _k, _r in CONST_FIELDS + CONST_CATALOGUE_BLOCK_FIELDS])
     custom = ('Camera', 'Custom_Cfg')
     known.update({custom[:1], custom} | {custom + (key,) for key in CONST_REQUIRED_CUSTOM_CFG_KEYS}
                  | {custom + ('Balance_Ratios', channel) for channel in CONST_BALANCE_CHANNELS})
@@ -856,10 +871,50 @@ def __Read_Catalogue(path: str, problems: tp.List[str],
     if item.Outline.Length_Mm < item.Outline.Width_Mm:
         problems.append('%sChecks.Outline.Length_Mm (%r) must be at least Checks.Outline.Width_Mm (%r): the '
                         'length is the longer side' % (prefix, item.Outline.Length_Mm, item.Outline.Width_Mm))
+    item.References = __Read_References(os.path.dirname(path), file_name, problems)
     known = __Known_Paths([CONST_OUTLINE_TOLERANCE_PATH] + [path for path, _a, _k, _r in CONST_CATALOGUE_FIELDS])
     for key in __Unknown_Keys(data, known):
         notes.append(('WARNING', '%sunrecognised key %s is ignored (misspelt?).' % (prefix, key)))
     return item
+
+
+def __Read_References(folder: str, file_name: str, problems: tp.List[str]) -> tp.List[Catalogue_Reference_Str]:
+    """
+    Description:
+        The item's reference images, one per side (CONST_CATALOGUE_SIDES), from reference_image/ beside the
+        item file: <side>.png, and <side>.txt holding the part's box as one YOLO line ('class cx cy w h',
+        each of the four a fraction of the image above 0 and at most 1). Each must exist and be valid; the
+        images' size is checked against the camera's window by Load_Configuration, which knows it.
+
+    Args:
+        (1) folder [string]: The item's folder.
+        (2) file_name [string]: The item file's name, for the messages.
+        (3) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Vector<Catalogue_Reference_Str(object)>]: The valid references, in side order.
+    """
+
+    references = []
+    for side in CONST_CATALOGUE_SIDES:
+        image = os.path.join(folder, 'reference_image', side + '.png')
+        box_file = os.path.splitext(image)[0] + '.txt'
+        if not os.path.isfile(image) or not os.path.isfile(box_file):
+            problems.append('%s: the %s reference needs reference_image/%s.png and reference_image/%s.txt beside it'
+                            % (file_name, side, side, side))
+            continue
+        try:
+            with open(box_file, 'r', encoding='utf-8') as handle:
+                lines = [line.split() for line in handle.read().splitlines() if line.strip()]
+            assert len(lines) == 1 and len(lines[0]) == 5
+            box = tuple(float(value) for value in lines[0][1:])
+            assert all(math.isfinite(v) and 0.0 < v <= 1.0 for v in box)
+        except (OSError, ValueError, AssertionError):
+            problems.append('%s: reference_image/%s.txt must hold one YOLO line, class and centre x, centre y, width, '
+                            'height, each above 0 and at most 1' % (file_name, side))
+            continue
+        references.append(Catalogue_Reference_Str(Side=side, Image_Path=image, Box=box))
+    return references
 
 
 def Load_Catalogue(path: str) -> Catalogue_Item_Str:
@@ -917,6 +972,39 @@ def __Read_Catalogue_Block(block: tp.Any, problems: tp.List[str],
         problems.append('%s must be %s (found %r)' % (dotted, expected, value))
         return None
     return __Read_Catalogue(__Resolve_Model_Path(value), problems, notes)
+
+
+def __Check_Identification(Configuration_Str: Configuration_Str, resolution: tp.Optional[tp.Tuple[int, int]],
+                           problems: tp.List[str]) -> None:
+    """
+    Description:
+        A catalogue mode's identification, against the rest of the configuration: the DINOv2 path resolved
+        (the model itself is checked when it loads, like the others); an Unspecified ratio above 1, since at
+        1 or below the part itself would be Unspecified; and each reference image the camera window's size,
+        since the part's box in it is in that window's pixels and the reference is cropped from it as a
+        frame is.
+
+    Args:
+        (1) Configuration_Str [Configuration_Str(object)]: The configuration being filled.
+        (2) resolution [Vector<int> 1x2 or None]: The camera's window size (None when invalid).
+        (3) problems [Vector<string>]: Collects what is wrong.
+    """
+
+    identification = Configuration_Str.Identification
+    if identification.Model_Path:
+        identification.Model_Path = __Resolve_Model_Path(identification.Model_Path)
+    if identification.Unspecified_Area_Ratio <= 1.0:
+        problems.append('Catalogue.Unspecified_Area_Ratio must be above 1, or the part itself would be Unspecified '
+                        '(found %r)' % identification.Unspecified_Area_Ratio)
+    if Configuration_Str.Catalogue is None or resolution is None:
+        return
+    for reference in Configuration_Str.Catalogue.References:
+        size = __Image_Size(reference.Image_Path)
+        if size != tuple(resolution):
+            problems.append('%s: reference_image/%s.png is %s, but Camera.Resolution is %d × %d: a reference must be '
+                            'a frame of this camera window (a capture set\'s _raw.png)'
+                            % (os.path.basename(Configuration_Str.Catalogue.Path), reference.Side,
+                               '%d × %d' % size if size else 'not a readable image', resolution[0], resolution[1]))
 
 
 def __Catalogue_Scale(Configuration_Str: Configuration_Str, board_height: tp.Optional[float],
@@ -1010,6 +1098,8 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     present, block = __Lookup(data, CONST_CATALOGUE_ITEM_PATH[:1])
     if present:
         Configuration_Str_i.Catalogue = __Read_Catalogue_Block(block, problems, notes)
+        __Read_Fields(data, Configuration_Str_i, CONST_CATALOGUE_BLOCK_FIELDS, problems, notes)
+        __Check_Identification(Configuration_Str_i, resolution, problems)
         if Configuration_Str_i.Catalogue is not None and hardware:
             Configuration_Str_i.Scale = __Catalogue_Scale(Configuration_Str_i, board_height, problems)
 
@@ -1020,7 +1110,11 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
 
     # 7\ Keys nothing reads — usually a misspelt optional field.
     for key in __Unknown_Keys(data, __Mode_File_Known_Paths()):
-        notes.append(('WARNING', 'unrecognised key %s is ignored (misspelt?).' % key))
+        if tuple(key.split('.')) == CONST_REMOVED_CLASSIFICATION_PATH:
+            notes.append(('WARNING', '%s is no longer read and is ignored: a configuration classifies when it has a '
+                                     'Catalogue block.' % key))
+        else:
+            notes.append(('WARNING', 'unrecognised key %s is ignored (misspelt?).' % key))
 
     if problems:
         raise Configuration_Error_Cls("Configuration '%s' cannot be used: %s."
@@ -1445,11 +1539,11 @@ def Config_Loaded_Log_Line(Configuration_Str: Configuration_Str) -> str:
         (1) parameter [string]: The log line.
     """
 
-    if Configuration_Str.Classification_Enabled:
-        state = ('enabled — the UI shows OK/NOK verdicts (no classifier assigns NOK yet, so '
-                 'every object is OK)')
+    if Configuration_Str.Classifies:
+        state = ('enabled — catalogue item %s: each object is OK, NOK, Unspecified or Warning'
+                 % Configuration_Str.Catalogue.Name)
     else:
-        state = 'disabled — the UI shows detected objects only, no OK/NOK verdicts'
+        state = 'disabled — the UI shows detected objects only, no verdicts'
     return ("Loaded configuration '%s' ('%s': hardware %s, mode %s, model set %s). Classification is %s."
             % (Configuration_Str.Name, Configuration_Str.Identity.Display_Name, Configuration_Str.Hardware,
                Configuration_Str.Mode, Configuration_Str.Identity.Model_Set, state))
