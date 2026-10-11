@@ -547,14 +547,3 @@ without one, so with neither found, neither is marked. The labyrinth's four corn
   missing.") and its log lines still say so.
 - **Not fixed here:** guessing an edge would draw a mark that may be wrong; no frame of the test set shows it.
 - **Pinned by:** `test/Vision/Utilities/test_holes.py::test_a_plates_missing_holes_are_placed_on_the_side_its_holes_are`.
-
-## The outline-letter plate's word boxes sit a few pixels off its words
-
-The logo's word boxes come from the matched reference's letter boxes. Those of `back_outline` (Image_092's left
-plate) were set by hand on a tilted, faint engraving, so on that plate SMART's and FACTORY's boxes sit a few
-pixels up and left of the text, still over it. The letter check reads the same boxes and still finds every
-letter (least 0.77).
-
-- **Impact:** a slightly offset mark on the frame; no verdict changes.
-- **Not fixed here:** redrawing the boxes needs a sharper capture of an outline-letter plate.
-- **Pinned by:** nothing: seen on the render of Image_092 (2026-10-11).

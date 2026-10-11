@@ -3208,7 +3208,19 @@ is its edges along the reference's strokes against the part's own plate.
   turned 5.6°, boxes carried over from `back`) for the dark, inverted-contrast appearance, as the outline
   variant got its references. It reads complete (least letter 0.93); the 165 erasures are all still caught, the
   highest unchanged (0.59, 0.58, 0.47); the blanks still register with at most 12 matches; 65–105 ms per back.
-  The appearance has no independent test plate (KNOWN_ISSUES). The synthetic eraser now takes the strokes of either polarity
+  The appearance has no independent test plate (KNOWN_ISSUES).
+  *Corrected 2026-10-11 (phase E review), found by the owner on a render:* the two outline-letter references
+  were not level in their crops (−9.3°): `back_outline` had no rotation, and `back_outline_2` had been levelled
+  to match it. Their letter boxes, drawn level in the crop, lay around tilted letters, each taking in pieces of its
+  neighbours, and their word boxes came out at the frame's angle on Image_092's left plate instead of the plate's.
+  The comparison stayed consistent — the same boxes over the reference and the registered part — so complete
+  letters matched and every erasure was still caught. Both are now levelled (`Rotation_Deg` −9.3 and 15.0) and
+  their boxes redrawn on the levelled crops (the small letters by hand, then carried to `back_outline_2` through
+  the registration); every reference's plate lies within 0.3° of level in its crop. Re-measured: the 16 backs as
+  labelled, the outline plates' least letter 0.78 / 0.91 / 0.88; the 180 erasures all caught, at most 0.30 (was
+  0.34); the dark-only eraser's 165 all caught, the outline S at 0.51 (was 0.47). A test now tilts each
+  reference's plate on the frame and checks its word boxes lie along the plate's edges.
+  The synthetic eraser now takes the strokes of either polarity
   (pixels off their surroundings by more than 8 grey levels): the dark-only one left the dark plate's lighter
   letters in place. With it the 12 complete logos' 180 letters are all caught, the highest at 0.34; the J seams
   above were the dark-only eraser's.
@@ -3315,8 +3327,9 @@ additive field (owner's ruling): an older set loads with none, the CSVs are unch
 - **Rendered and looked at** (2026-10-11): Image_059 (the two fingerprints as two tinted boxes, the holes
   indigo), Image_084 (three corner holes indigo, the fourth dashed and numbered), Image_087 and Image_092 (all four
   corner positions dashed on the hole-less fronts; the logo words indigo on the outline and the dark plates). The
-  corner holes, about 3 mm (30 px), read clearly at full resolution. The outline plate's word boxes sit a few
-  pixels off (KNOWN_ISSUES).
+  corner holes, about 3 mm (30 px), read clearly at full resolution. The outline plate's word boxes looked a few
+  pixels off; they were tilted with their reference (*The logo is read letter by letter…*, corrected) and now
+  follow the plate.
 
 **Revisit if** a mark is misread on the rig's screen, or a feature kind is added.
 Tests `test/Vision/Utilities/test_annotate.py::test_a_judged_parts_features_are_marked_in_the_pass_and_the_fail_colour`,

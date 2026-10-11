@@ -297,3 +297,45 @@ def test_each_word_is_boxed_on_the_part_where_its_letters_are() -> None:
     txs = [x for x, _ in turned.Words[0][1]]
     # A clockwise quarter turn sends y to x' = height - y: JIC's top edge becomes its right edge.
     assert abs(max(txs) - (height - min(ys))) < 3
+
+
+@pytest.mark.parametrize('index', range(len(CONST_LOGO.References)),
+                         ids=[reference.Name for reference in CONST_LOGO.References])
+def test_a_tilted_plates_word_boxes_follow_its_rotation(index: int) -> None:
+    """
+    Description:
+        For every logo reference: its plate, tilted a further 17 degrees on the frame, is cut out upright the way
+        the pipeline cuts a part (its outline's rotated rectangle), checked, and its word boxes taken back to the
+        frame lie along the plate's edges — within 1.5 degrees of its outline's angle. A reference whose own crop
+        is not level would draw its boxes at the frame's angle instead (Image_092's outline-letter plate drew
+        them 9.3 degrees off until 2026-10-11).
+    """
+
+    from Parameters.Vision import Scale_Str
+    from Vision.Utilities.Measure import Measure_Mask
+    from Vision.Utilities.Classify import Object_Crop, Crop_To_Frame
+    reference = CONST_LOGO.References[index]
+    frame = cv2.imread(reference.Image_Path)
+    height, width = frame.shape[:2]
+    centre = (reference.Box[0] * width, reference.Box[1] * height)
+    frame = cv2.warpAffine(frame, cv2.getRotationMatrix2D(centre, 17.0, 1.0), (width, height), borderMode=cv2.BORDER_REPLICATE)
+    # The plate: what is not the table's green, the component at the box's centre.
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    plate = (~((hsv[..., 0] > 60) & (hsv[..., 0] < 100) & (hsv[..., 1] > 60))).astype(np.uint8)
+    plate = cv2.morphologyEx(plate, cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
+    _count, labels = cv2.connectedComponents(plate)
+    mask = labels == labels[int(centre[1]), int(centre[0])]
+    det = Detection_Str(Label='plate', Bbox=cv2.boundingRect(mask.astype(np.uint8)), Mask=mask)
+    det.Measurement = Measure_Mask(mask, Scale_Str(Mm_Per_Px_X=0.1, Mm_Per_Px_Y=0.1), cv2, np)
+    prepared = [Prepare_Reference(Reference_Logo_Crop(cv2.imread(r.Image_Path), r, cv2, np), cv2, np)
+                for r in CONST_LOGO.References]
+    result = Check_Logo(Object_Crop(frame, det, cv2, np), CONST_LOGO, prepared, cv2, np)
+    assert result.Reference == reference.Name and result.Words
+
+    def Angle(a: tp.Tuple[float, float], b: tp.Tuple[float, float]) -> float:
+        return (np.degrees(np.arctan2(b[1] - a[1], b[0] - a[0])) + 45.0) % 90.0 - 45.0
+
+    plate_angle = Angle(*det.Measurement.Box_Points[:2])
+    for word, corners in result.Words:
+        on_frame = Crop_To_Frame(det, corners, cv2, np)
+        assert abs(Angle(on_frame[0], on_frame[1]) - plate_angle) < 1.5, word

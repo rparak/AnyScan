@@ -167,48 +167,51 @@ Checks:
             - [O, 190, 349, 41, 45]
             - [R, 231, 349, 36, 45]
             - [Y, 267, 349, 32, 45]
-        # Outline letters, a valid variant (owner's ruling, 2026-10-11): Image_092's left plate. JIC
-        # from the tool; the small letters set by hand (too faint for its threshold), checked drawn.
+        # Outline letters, a valid variant (owner's ruling, 2026-10-11): Image_092's left plate, its frame
+        # turned -9.3 degrees to level it (it lay 9.3 degrees off; until 2026-10-11 it was not levelled, so its
+        # boxes were drawn level around tilted letters). JIC from the tool; the small letters set by hand on the
+        # levelled crop (too faint for its threshold), checked drawn.
         - Image: back_outline
-          Rotation_Deg: 0
+          Rotation_Deg: -9.3
           Letters:
-            - [J, 77, 155, 123, 133]
-            - [I, 242, 141, 47, 122]
-            - [C, 333, 112, 138, 137]
-            - [S, 86, 340, 36, 43]
-            - [M, 122, 332, 36, 46]
-            - [A, 157, 327, 43, 43]
-            - [R, 200, 322, 35, 46]
-            - [T, 235, 317, 35, 46]
-            - [F, 100, 395, 38, 45]
-            - [A, 132, 392, 43, 41]
-            - [C, 168, 385, 40, 45]
-            - [T, 200, 380, 35, 45]
-            - [O, 232, 375, 33, 45]
-            - [R, 265, 370, 35, 43]
-            - [Y, 297, 365, 33, 43]
-        # The same variant on Image_069's plate (index 3), its frame turned 24.3 degrees to level it.
-        # One outline reference is not enough: each plate's light falls off on another side, so
-        # 092's dim S, F, A and C fail 069 and 095 (0.19-0.20), and 069's fail 092 (0.09). Boxes
-        # carried over from back_outline by the SIFT registration between the two, checked drawn.
+            - [J, 81, 139, 121, 123]
+            - [I, 263, 141, 31, 121]
+            - [C, 354, 140, 125, 124]
+            - [S, 80, 312, 35, 42]
+            - [M, 115, 312, 43, 42]
+            - [A, 158, 312, 42, 42]
+            - [R, 200, 312, 33, 42]
+            - [T, 233, 312, 28, 42]
+            - [F, 82, 370, 31, 42]
+            - [A, 113, 370, 42, 42]
+            - [C, 155, 370, 35, 42]
+            - [T, 190, 370, 28, 42]
+            - [O, 218, 370, 35, 42]
+            - [R, 253, 370, 27, 42]
+            - [Y, 280, 370, 29, 42]
+        # The same variant on Image_069's plate (index 3), its frame turned 15.0 degrees to level it.
+        # One outline reference is not enough: each plate's light leaves different letters dim (092's
+        # alone failed 069 and 095, 069's alone failed 092). Boxes carried over from back_outline by
+        # the SIFT registration between the two levelled crops (107 matches, residual 0.2 degrees),
+        # checked drawn.
         - Image: back_outline_2
-          Rotation_Deg: 24.3
+          Rotation_Deg: 15.0
           Letters:
-            - [J, 95, 171, 124, 134]
-            - [I, 261, 157, 47, 122]
-            - [C, 352, 128, 138, 137]
-            - [S, 104, 357, 37, 43]
-            - [M, 140, 349, 37, 46]
-            - [A, 176, 344, 43, 43]
-            - [R, 219, 339, 35, 46]
-            - [T, 254, 333, 35, 47]
-            - [F, 118, 412, 39, 45]
-            - [A, 151, 409, 43, 41]
-            - [C, 187, 402, 40, 45]
-            - [T, 219, 397, 35, 45]
-            - [O, 251, 392, 33, 45]
-            - [R, 284, 387, 35, 43]
-            - [Y, 316, 382, 33, 43]
+            - [J, 99, 156, 121, 124]
+            - [I, 281, 158, 32, 121]
+            - [C, 372, 156, 126, 125]
+            - [S, 98, 330, 35, 42]
+            - [M, 133, 330, 44, 42]
+            - [A, 176, 330, 43, 42]
+            - [R, 219, 329, 33, 43]
+            - [T, 252, 329, 28, 42]
+            - [F, 100, 388, 32, 42]
+            - [A, 131, 388, 43, 42]
+            - [C, 174, 388, 35, 42]
+            - [T, 209, 388, 28, 42]
+            - [O, 237, 387, 35, 43]
+            - [R, 272, 387, 27, 43]
+            - [Y, 299, 387, 29, 42]
         # The filled letters on a dark, scratched, glare-lit plate, the engraving lighter than the plate
         # (Image_092's right plate, index 2), its frame turned 5.6 degrees to level it: a reference for that
         # appearance, which scored 0.19 against the others (owner's ruling, 2026-10-11). Boxes carried over
