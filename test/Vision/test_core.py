@@ -730,9 +730,9 @@ def test_a_judged_parts_features_and_similarity_are_on_the_frame(fake_models, re
     """
     Description:
         Through a real Analyze (stand-in models): the judged plate's holes become its features, numbered as its
-        parts (1.1, 1.2, …) and boxed on the frame inside its outline, followed by its measured sides (no part
-        number); the Warning has none. The similarity map covers the plate's pixels only (NaN elsewhere), and the
-        stand-in's patches matching the reference everywhere read 0.
+        parts (1.1, 1.2, …) and boxed on the frame inside its outline; the Warning has none. The similarity map
+        covers the plate's pixels only (NaN elsewhere), and the stand-in's patches matching the reference
+        everywhere read 0.
     """
 
     import cv2
@@ -747,8 +747,6 @@ def test_a_judged_parts_features_and_similarity_are_on_the_frame(fake_models, re
     assert all(f.Found and f.Passed for f in holes)
     for feature in holes:
         assert all(300 <= x <= 900 and 300 <= y <= 700 for x, y in feature.Corners)
-    assert [(f.Kind, f.Name, f.Part) for f in plate.Features if f.Kind == 'side'] == [('side', 'length', ''),
-                                                                                      ('side', 'width', '')]
     assert small.Features == []
     values = result.Similarity.Values
     assert np.isfinite(values[plate.Mask.astype(bool)]).all() and np.isnan(values[~plate.Mask.astype(bool)]).all()

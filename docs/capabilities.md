@@ -194,8 +194,8 @@ Two cards:
 
 - **Camera View** — the frame, then the analysis, in one of four renders: **Annotated** (numbered
   outlines; in a catalogue mode also each judged part's features — holes, stain regions with their pixels
-  tinted, logo words, the measured sides tagged L and W — in the pass or the fail colour, a hole expected and
-  not found dashed, each failing part numbered as the log lists it), **Mask** (the label mask: black ground,
+  tinted, logo words — in the pass or the fail colour, a hole expected and not found dashed; no part numbers on
+  the frame, the log numbers the parts), **Mask** (the label mask: black ground,
   tinted fill, verdict contour; no feature marks), **Heatmap** (the background difference on a fixed 0–128
   scale, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,

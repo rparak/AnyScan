@@ -127,12 +127,12 @@ class Feature_Str(object):
     """
     Description:
         One feature of a judged part, marked on the frame and listed as a Part in the log (Reporting.Part_Lines):
-        a hole (found, or expected and not found), a stain region, a word of the logo, or a measured side of the
-        outline. Its box is in frame pixels; what it was checked against is kept for the log.
+        a hole (found, or expected and not found), a stain region, or a word of the logo. Its box is in frame
+        pixels; what it was checked against is kept for the log.
     """
 
-    # Its part number ('2.3': object 2, its third part; '' for an outline side, which is the object's own) and
-    # its kind ('hole', 'stain', 'word', 'side'), and its name ('corner hole', 'SMART', 'length').
+    # Its part number ('2.3': object 2, its third part), its kind ('hole', 'stain', 'word') and its name
+    # ('corner hole', 'SMART').
     #   Unit [string]
     Part: str = ''
     Kind: str = ''
@@ -141,11 +141,11 @@ class Feature_Str(object):
     #   Unit [bool]
     Passed: bool = True
     Found: bool = True
-    # Its rotated box (four corners; two end points for a side), and a stain's outlines, in frame pixels.
+    # Its rotated box (four corners), and a stain's outlines, in frame pixels.
     #   Unit [Vector<Tuple<float> 1x2>] (px) / [Vector<Vector<Tuple<float> 1x2>>] (px)
     Corners: tp.List[tp.Tuple[float, float]] = field(default_factory=list)
     Outlines: tp.List[tp.List[tp.Tuple[float, float]]] = field(default_factory=list)
-    # Its checks (a hole's diameter and edge distances, a side's length), a stain's area, a word's expected and
+    # Its checks (a hole's diameter, edge distances and pitch), a stain's area, a word's expected and
     # read text ('_' for a missing letter), and the check's own score (a hole's mask score, a word's least
     # letter similarity), never called a confidence.
     #   Unit [Vector<Dimension_Check_Str(object)>] / [float] (mm²) / [string] / [float]

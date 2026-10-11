@@ -3311,14 +3311,16 @@ Tests `test/Reporting/test_core.py` (`::test_a_nok_has_one_reason_sentence_for_i
 Decided 2026-10-11 (catalogue phase E), as the request asks and the owner approved. Each judged part's features
 (`Parameters.Vision.Feature_Str`) are built where its checks run — each hole found and each hole expected and not
 found (`Vision.Utilities.Holes.Hole_Features`), each stain region (`Check_Stain`), each logo word (`Check_Logo`'s
-word boxes, the best-matched reference's letters through the registration), and the measured sides — on the
+word boxes, the best-matched reference's letters through the registration) — on the
 upright crop, then taken to the frame through the inverse of the crop's warp (`Classify.Crop_To_Frame`) and
 numbered as the object's parts. `Annotate.Draw_Annotated` draws them on the annotated frame (Live, the saved
 `_annotated.png`, the harness): a rotated box in the pass colour (the OK verdict's indigo) or the fail colour (the
 NOK verdict's magenta) — the colours that already mark the objects, so a feature's colour means what an object's
-does; a hole expected and not found dashed; a stain's pixels under a 35 % tint of the fail colour; the sides
-tagged L and W; each mark on a 2 px light halo; only failing parts numbered (owner's ruling). The label mask has
-none of it: it shows the segmentation. The parts are saved in `_objects.json` as each object's `parts`, an
+does; a hole expected and not found dashed; a stain's pixels under a 35 % tint of the fail colour; each mark on a
+2 px light halo. The frame carries the object's number only: the parts' numbers are in the log. *Corrected
+2026-10-11 (phase E review), the owner's ruling:* failing parts were numbered on the frame, then every part, and
+the outline's measured sides were tagged L and W; both cluttered the frame and were removed, with the code that
+placed the numbers and the side features. The label mask has none of it: it shows the segmentation. The parts are saved in `_objects.json` as each object's `parts`, an
 additive field (owner's ruling): an older set loads with none, the CSVs are unchanged.
 
 - **Where a missing hole goes.** At its catalogue position: all four corners for the labyrinth; for the plate's

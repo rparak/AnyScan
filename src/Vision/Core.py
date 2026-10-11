@@ -1072,7 +1072,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                 feature.Corners = Crop_To_Frame(det, [(x * scale, y * scale) for x, y in feature.Corners], cv2, np)
                 feature.Outlines = [Crop_To_Frame(det, [(x * scale, y * scale) for x, y in outline], cv2, np)
                                     for outline in feature.Outlines]
-            det.Features = features + self.__Side_Features(det)
+            det.Features = features
         return unlike
 
     @staticmethod
@@ -1127,31 +1127,6 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                         Read_Text=''.join(letter.Letter if letter.Present else '_' for letter in letters),
                                         Score=min(letter.Similarity for letter in letters)))
         return features
-
-    @staticmethod
-    def __Side_Features(det: Detection_Str) -> tp.List[Feature_Str]:
-        """
-        Description:
-            Where a judged part's outline was measured: its rotated rectangle's longer side for the length check
-            and its shorter side for the width check, as two end points each, passed or failed with the check.
-
-        Args:
-            (1) det [Detection_Str(object)]: The part, measured and its outline checked.
-
-        Returns:
-            (1) parameter [Vector<Feature_Str(object)>]: The sides; none for an unmeasured or round part.
-        """
-
-        measurement = det.Measurement
-        if measurement is None or measurement.Symmetric or not measurement.Box_Points or len(det.Dimension_Checks) != 2:
-            return []
-        p0, p1, p2 = measurement.Box_Points[:3]
-        first = ((p0[0] - p1[0]) ** 2 + (p0[1] - p1[1]) ** 2, [p0, p1])
-        second = ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2, [p1, p2])
-        longer, shorter = (first, second) if first[0] >= second[0] else (second, first)
-        return [Feature_Str(Kind='side', Name=check.Name, Corners=[tuple(map(float, p)) for p in ends[1]],
-                            Passed=check.Within, Checks=[check])
-                for check, ends in zip(det.Dimension_Checks, (longer, shorter))]
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            bg_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],

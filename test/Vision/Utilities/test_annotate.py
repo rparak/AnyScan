@@ -384,9 +384,9 @@ def test_a_judged_parts_features_are_marked_in_the_pass_and_the_fail_colour() ->
     Description:
         On the annotated frame (rendered pixels, at the camera's 1920 x 1200): a passing hole is boxed in the pass
         colour (the OK verdict's), a hole expected and not found in the fail colour (the NOK verdict's) and
-        dashed — its edge has gaps — and carries its part number on a chip, which a passing part does not; a
-        stain's pixels are tinted with the fail colour; the marks stand on a light halo. The label mask carries
-        none of it.
+        dashed — its edge has gaps; a stain's pixels are tinted with the fail colour; the marks stand on a light
+        halo. No part number or tag is drawn (the owner's ruling: the frame keeps the object's number only), and
+        the label mask carries none of it.
     """
 
     from Parameters.Vision import Feature_Str
@@ -411,8 +411,9 @@ def test_a_judged_parts_features_are_marked_in_the_pass_and_the_fail_colour() ->
     assert has(annotated[240:260, 195:206], passed) and not has(annotated[240:260, 195:206], failed)
     rows = [has(annotated[y:y + 1, 445:456], failed) for y in range(205, 296)]
     assert any(rows) and not all(rows)                                           # dashed: colour and gaps
-    assert not np.array_equal(annotated[160:198, 450:540], bare[160:198, 450:540])   # the failing part's chip
-    assert np.array_equal(annotated[160:195, 205:290], bare[160:195, 205:290])       # none on the passing one
+    # No number anywhere off the marks: above each hole (where one went), beside them, between them.
+    for x0, y0, x1, y1 in ((190, 140, 310, 194), (440, 140, 560, 194), (120, 120, 190, 640), (306, 200, 444, 300)):
+        assert np.array_equal(annotated[y0:y1, x0:x1], bare[y0:y1, x0:x1]), (x0, y0)
     tinted = annotated[520, 300].astype(int)
     assert tinted[2] > 120 and tinted[1] < 80                                    # magenta over the grey
     assert has(annotated[240:260, 190:210], Theme.Hex_To_Bgr(Theme.CONST_CARD))  # the halo beside the line
