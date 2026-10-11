@@ -263,6 +263,21 @@ def Calibration_Files(project_root: str) -> tp.List[str]:
     return sorted(glob.glob(os.path.join(project_root, 'Configuration', 'Calibration_*.yaml')))
 
 
+def Station_Files(project_root: str) -> tp.List[str]:
+    """
+    Description:
+        The shipped station files, Configuration/Station_<Hardware>.yaml.
+
+    Args:
+        (1) project_root [string]: The repository root.
+
+    Returns:
+        (1) parameter [Vector<string>]: Their paths, sorted.
+    """
+
+    return sorted(glob.glob(os.path.join(project_root, 'Configuration', 'Station_*.yaml')))
+
+
 def Load_Yaml(path: str) -> tp.Dict[str, tp.Any]:
     """
     Description:
@@ -360,21 +375,41 @@ def test_the_calibration_table_names_every_section_of_the_calibration_file(proje
                                     % (sorted(in_files - documented), sorted(documented - in_files)))
 
 
+def test_the_station_table_names_every_section_of_the_station_file(project_root) -> None:
+    """
+    Description:
+        The Station table's Section column is exactly the sections of the shipped station file(s), in
+        both directions: the camera and the reference moved there from the mode files, and a section
+        added to the station file without a row fails here.
+    """
+
+    doc = Read_Text(os.path.join(project_root, CONST_CAPABILITIES_DOC))
+    documented = set(Table_First_Column(Section(doc, '## Station'), 'Section'))
+    in_files = set()
+    for path in Station_Files(project_root):
+        in_files |= Sections_Of(Load_Yaml(path))
+
+    assert in_files, 'No station file found under Configuration/.'
+    assert documented == in_files, ('Station table out of step with the station file. Missing from the document: '
+                                    '%s. Not in the file: %s.' % (sorted(in_files - documented),
+                                                                  sorted(documented - in_files)))
+
+
 def test_every_key_path_the_document_names_exists_in_a_configuration_file(project_root) -> None:
     """
     Description:
         A dotted key path anywhere in the document ('General.Classification.Enabled',
         'Calibration.Solved'), whose first segment is a section the document's tables name, is a key
-        of a shipped mode or calibration file. A key removed or renamed in the files, and still
+        of a shipped mode, station or calibration file. A key removed or renamed in the files, and still
         written in the prose, fails here.
     """
 
     doc = Read_Text(os.path.join(project_root, CONST_CAPABILITIES_DOC))
     roots = {name.split('.')[0]
-             for heading in ('## Configuration', '## Calibration')
+             for heading in ('## Configuration', '## Station', '## Calibration')
              for name in Table_First_Column(Section(doc, heading), 'Section')}
     keys = set()
-    for path in Mode_Files(project_root) + Calibration_Files(project_root):
+    for path in Mode_Files(project_root) + Station_Files(project_root) + Calibration_Files(project_root):
         keys |= Key_Paths(Load_Yaml(path))
 
     named = {match for span in CONST_CODE_SPAN.findall(doc) for match in CONST_KEY_PATH.findall(span)

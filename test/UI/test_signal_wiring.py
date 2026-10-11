@@ -64,7 +64,7 @@ from Parameters.Vision import Analysis_Str, Detection_Str, Confidence_Thresholds
 #   ../Logger/Core
 from Logger.Core import CONST_LEVEL_INFO, CONST_LEVEL_WARNING
 #   ../Configuration/Core
-from Configuration.Core import Load_Configuration, Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE
+from Configuration.Core import Load_Configuration, Calibration_Path_For, Station_Path_For, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -318,6 +318,12 @@ def _Mode_File(directory: str, mode: str) -> str:
     path = os.path.join(directory, 'Config_%s_Mode_%s.yaml' % (CONST_HARDWARE, mode))
     with open(path, 'w', encoding='utf-8') as f:
         yaml.safe_dump(data, f, sort_keys=False)
+    station = Station_Path_For(path, CONST_HARDWARE)
+    if not os.path.exists(station):
+        with open(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
+            station_text = f.read().replace(CONST_HARDWARE, CONST_HARDWARE)
+        with open(station, 'w', encoding='utf-8') as f:
+            f.write(station_text)
     calibration = Calibration_Path_For(path, CONST_HARDWARE)
     if not os.path.exists(calibration):
         with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:

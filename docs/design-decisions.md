@@ -1253,6 +1253,11 @@ don't.
 
 ## One configuration file per mode, one calibration per camera, decided before the first CONNECT
 
+*Corrected 2026-10-11: the camera block and the background reference are no longer in the mode file. They
+are the station's, in `Station_<Hardware>.yaml` beside it, shared by every mode and never overridden by one
+([*The station file holds the camera and the reference…*](#the-station-file-holds-the-camera-and-the-reference-and-a-mode-file-never-overrides-it)).
+The rest of this entry stands.*
+
 **The layout.** A configuration is one file per mode on one camera:
 `Config_<Hardware>_Mode_<Mode>.yaml`. The hardware comes first so camera-specific data still
 separates by camera, and the mode comes after so it stays visible. It holds everything a user
@@ -2979,3 +2984,35 @@ crops) or the Hub revision stops serving a pinned file (the installer says so an
 Tests `test/Install/test_install.py` (the DINOv2 download at its revision, the skip when verified, a failed
 verification, the plan line, the configuration check), `test/Vision/test_identifier.py` (no heavy import, the
 missing-weights sentence; slow: unit rows, repeatable, the two sides apart).
+
+
+## The station file holds the camera and the reference, and a mode file never overrides it
+
+Decided 2026-10-11 (catalogue phase B.1), on the owner's rulings. What belongs to the camera, the light and
+the table moved out of the mode files into one station file per hardware,
+`Configuration/Station_<Hardware>.yaml`: the camera, lens and lighting as a person names them, the
+acquisition settings (`Camera.Custom_Cfg`), the sensor window, and the empty-surface reference
+(`Background.Reference`, until now `Segmentation.Background.Reference` in each mode). `Load_Configuration`
+finds it by the mode file's `Hardware`, as it finds `Calibration_<Hardware>.yaml` — no second name to keep in
+step — and checks that the station file names the same hardware. It is REQUIRED.
+
+- **No overrides.** A mode file that holds `Camera` or a background reference fails to load and names the
+  station file, even when the value equals the station's. The window, the calibration and the reference's
+  provenance are all checked against the camera settings; with one source they cannot disagree, and two
+  modes on one camera cannot shoot at different exposures against one reference without anyone noticing.
+  The alternative — overrides merged over the station — would have made every one of those checks read
+  the merged value, and a per-mode exposure would have made the shared reference wrong for that mode.
+- **The reference is the station's** because it was shot from this camera, under this light, on this
+  table, and every mode differences against it. The mode keeps the difference's parameters (Otsu floor,
+  opening, dilation): those are processing, not the scene.
+- **Machine-specific values stay out of the repository.** The station file is committed, so it holds
+  nothing true of one machine only; the station-event directory stays in the local copy of the mode file
+  (README > Configuration), which now keeps the station file beside it as it keeps the calibration.
+
+**Revisit if** a second camera arrives (its own `Station_<Hardware>.yaml`, nothing else changes), a mode
+genuinely needs other acquisition settings (that is another station, or a measured case for overrides,
+not a quiet exception), or a second table or light shares the camera (then the reference may need to be
+per table, and the station split).
+Tests `test/Configuration/test_core.py` (`test_a_mode_file_never_overrides_the_station`, the missing and
+mismatched station file, its unknown keys, every mode reading the one station, its documented defaults),
+`test/integration/test_capabilities_doc.py::test_the_station_table_names_every_section_of_the_station_file`.

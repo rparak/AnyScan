@@ -42,7 +42,7 @@ import Calibration.Core as Calibration_Core
 from Calibration.Core import (Detect_Board, Next_Capture_Name, Record_Capture, Calibrate,
                               Report_Lines, Calibration_Error_Cls, Calibration_Parameters)
 #   ../Configuration/Core — the configuration layer the calibration is written and read through
-from Configuration.Core import (Load_Configuration, Write_Calibration, Calibration_Path_For,
+from Configuration.Core import (Load_Configuration, Write_Calibration, Calibration_Path_For, Station_Path_For,
                                 Hardware_Record, Build_Reference_Sidecar, Reference_Sidecar_Path,
                                 CONST_DEFAULT_CONFIG_FILE)
 
@@ -383,10 +383,11 @@ def _Make_Reference_Sidecar(mode: str) -> None:
     """
 
     import yaml
-    with open(mode, 'r', encoding='utf-8') as handle:
+    with open(Station_Path_For(mode, 'a2A1920_51gcPRO_Computar_M1228_MPW3'), 'r', encoding='utf-8') as handle:
         data = yaml.safe_load(handle)
     camera = data['Camera']
-    reference = data['Segmentation']['Background']['Reference']
+    reference = data['Background']['Reference']
+    reference = reference if os.path.isabs(reference) else os.path.join(CONST_PROJECT_ROOT, reference)
     calibration = Calibration_Path_For(mode, 'a2A1920_51gcPRO_Computar_M1228_MPW3')
     undistortion = None
     if os.path.isfile(calibration):
@@ -408,24 +409,26 @@ def _Make_Reference_Sidecar(mode: str) -> None:
 
 def _Configuration_Copy(directory: tp.Any, window: tp.Optional[tp.Tuple[int, int]] = None) -> tp.Tuple[str, str]:
     """
-    A copy of the shipped mode file and its hardware's calibration in a directory: (mode, calibration).
-    With a window (width, height), the copy sets the camera — and the copied calibration's recorded
-    window — to it at offset (0, 0), with a grey background reference of that size and its sidecar —
-    the configuration the rendered 960 x 600 boards belong to.
+    A copy of the shipped mode file, its hardware's station file and calibration in a directory: (mode,
+    calibration). With a window (width, height), the station sets the camera — and the copied calibration's
+    recorded window — to it at offset (0, 0), with a grey background reference of that size and its sidecar
+    — the configuration the rendered 960 x 600 boards belong to.
     """
     import yaml
     hardware = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
     mode = os.path.join(str(directory), 'Config_%s_Mode_Test.yaml' % hardware)
     shutil.copy(CONST_DEFAULT_CONFIG_FILE, mode)
+    station = Station_Path_For(mode, hardware)
+    shutil.copy(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware), station)
     if window is not None:
-        with open(mode, 'r', encoding='utf-8') as handle:
+        with open(station, 'r', encoding='utf-8') as handle:
             data = yaml.safe_load(handle)
         reference = os.path.join(str(directory), 'Background_%dx%d.png' % window)
         cv2.imwrite(reference, np.full((window[1], window[0], 3), 90, np.uint8))
         data['Camera']['Resolution'] = {'x': window[0], 'y': window[1]}
         data['Camera']['Offset'] = {'x': 0, 'y': 0}
-        data['Segmentation']['Background']['Reference'] = reference
-        with open(mode, 'w', encoding='utf-8') as handle:
+        data['Background']['Reference'] = reference
+        with open(station, 'w', encoding='utf-8') as handle:
             yaml.safe_dump(data, handle, sort_keys=False)
     calibration = Calibration_Path_For(mode, hardware)
     shutil.copy(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware), calibration)
@@ -502,6 +505,7 @@ def test_images_harness_writes_a_new_calibration_and_says_adoption_is_separate(t
     assert len(written) == 1
     assert sorted(os.listdir(tmp_path)) == sorted([os.path.basename(mode), os.path.basename(in_force),
                                                    'Background_960x600.png', 'Background_960x600.json',
+                                                   'Station_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml',
                                                    'images'] + written)
 
     for name in os.listdir(images):

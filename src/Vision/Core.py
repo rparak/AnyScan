@@ -99,7 +99,7 @@ Description:
         OpenCV are imported when the models load (Load_Models / Configure), so importing
         this module (as App/run.py does at load time) pulls no heavy runtime.
 """
-# The empty-surface reference is configuration (Segmentation.Background.Reference): it must come
+# The empty-surface reference is the station's (Background.Reference in Station_<Hardware>.yaml): it must come
 # from the SAME fixed camera and match the frame's pixel dimensions exactly.
 
 # The reading panel's Task row (and the capture set's 'task') when the model-free fallback
@@ -674,7 +674,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                 raise Vision_Error_Cls(
                     'The background reference at "%s" could not be read. It is the '
                     'empty-surface photo the analysis subtracts from the frame; shoot '
-                    'one from this camera and set Segmentation.Background.Reference to it.' % reference
+                    'one from this camera and set Background.Reference in the station file to it.' % reference
                 )
             self.__background = bg
         return self.__background

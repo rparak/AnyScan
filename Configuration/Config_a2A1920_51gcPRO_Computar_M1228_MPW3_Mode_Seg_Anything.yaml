@@ -18,6 +18,11 @@
 #     (the value in the comment) is used and the log says so. An unrecognised key is
 #     logged as a warning, so a misspelt optional field does not pass silently.
 #
+#   The station:
+#     The camera, its acquisition settings and sensor window, and the empty-surface
+#     reference are not here: they are the station's, in Station_<Hardware>.yaml beside
+#     this file, shared by every mode on the hardware and never overridden by a mode.
+#
 #   Hardware setup:
 #     - Camera : Basler a2A1920-51gcPRO
 #     - Lens   : Computar M1228-MPW3
@@ -97,12 +102,8 @@ Segmentation:
   IoU: 0.9
   # FastSAM inference size [px]. Default: 1024
   Image_Size: 1024
-  # Stage 1, the background difference.
+  # Stage 1, the background difference. Its reference is the station's (Station_<Hardware>.yaml).
   Background:
-    # REQUIRED, and the file must exist. The empty-surface reference every frame is differenced
-    # against, relative to the repository root (or absolute). It decides every background-
-    # subtraction result, so it is stated here rather than discovered; shoot it from this camera.
-    Reference: Data/Images/Background/Image_Background_001.png
     # The floor under the Otsu threshold [grey level 0..255], so a near-empty frame cannot
     # promote the shadow halo and sensor noise to foreground. Default: 28
     Otsu_Floor: 28
@@ -180,45 +181,6 @@ Description:
       This photograph shows an empty work surface with nothing on it. Describe the surface
       in one short sentence of no more than twelve words: begin with 'A', and name its
       colour and finish. Do not mention objects, lighting or the camera.
-
-# The camera: identity, resolution and acquisition settings. Its calibration is NOT here — it
-# lives in Calibration_<Hardware>.yaml, shared by every mode on this hardware.
-Camera:
-  # The camera, lens and lighting as a person names them: named in the Configuration dialog's
-  # confirmation and recorded in every capture set. The lighting matters as much as the optics:
-  # the colour readings, the background subtraction and the surface-condition descriptions all
-  # depend on it. Each is left out when not set. Defaults: empty.
-  Model: Basler a2A1920-51gcPRO
-  Lens: Computar M1228-MPW3
-  Lighting: Effilux EFFI-FD-200-200-000
-
-  # REQUIRED. The sensor window the camera is SET to on connect [px]: its size and its offset on
-  # the sensor. Without it the camera runs at whatever it last remembered - after a power cycle,
-  # its factory default of the full 1936 x 1216 sensor. 1920 x 1200 is the camera's nominal size;
-  # the offset (8, 8) centres it on the sensor, trimming the border evenly. Everything that
-  # depends on the window is checked against it when the configuration loads: the background
-  # reference must be this size, and the calibration must have been solved at this window.
-  Resolution:
-    x: 1920
-    y: 1200
-  Offset:
-    x: 8
-    y: 8
-
-  # REQUIRED: Exposure_Time, Gain, Balance_Ratios, Pixel_Format. Vendor / API specific. These are the only
-  # settings the camera reads, each typed at load; any other key here is reported as unrecognised.
-  Custom_Cfg:
-    # How long the sensor is exposed to light during acquisition [us].
-    Exposure_Time: 10000
-    # Increases the brightness of the images output by the camera.
-    Gain: 10
-    # Manual white-balance correction so white objects appear white.
-    Balance_Ratios:
-      Red: 0.95
-      Green: 0.9
-      Blue: 1.2
-    # Sensor pixel format.
-    Pixel_Format: BayerRG8
 
 # Harness-only settings: read by Example/Vision/analyze.py, never by the application, so the loader
 # only resolves them — a missing directory never stops the application from loading.

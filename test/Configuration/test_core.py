@@ -26,6 +26,7 @@ import os
 import re
 import sys
 import json
+import copy
 import glob
 import shutil
 import subprocess
@@ -44,7 +45,7 @@ from Configuration.Core import (Load_Configuration, Configuration_Error_Cls, Wri
                                 Hardware_And_Mode, Describe_Configuration, Hardware_Record,
                                 Discover_Configurations, Load_Catalogue, Scale_At_Height, Config_Sources_Log_Line,
                                 CONST_DEFAULT_CONFIG_FILE, CONST_FIELDS, CONST_CATALOGUE_FIELDS,
-                                CONST_CATALOGUE_BLOCK_FIELDS,
+                                CONST_CATALOGUE_BLOCK_FIELDS, CONST_STATION_FIELDS, Station_Path_For,
                                 CONST_REQUIRED_CUSTOM_CFG_KEYS, CONST_COEFFICIENT_KEYS, CONST_PROJECT_ROOT,
                                 CONST_CONFIG_DIR)
 #   ../Parameters/Configuration
@@ -83,10 +84,23 @@ CONST_RECORD = {'date': '2026-09-24T10:00:00', 'images': '/tmp/calib',
                 'square_mm': 15.0, 'board_height_mm': 3.0}
 
 
+def _Merged(mode: tp.Dict[str, tp.Any]) -> tp.Dict[str, tp.Any]:
+    """
+    A mode file with the shipped station's camera and reference merged in, where a mode file held them
+    before the station file (Camera, Segmentation.Background.Reference) — one mapping a test edits; _Write
+    splits it back into the mode file and the station file.
+    """
+    with open(Configuration.Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
+        station = yaml.safe_load(f)
+    mode['Camera'] = station['Camera']
+    mode['Segmentation']['Background']['Reference'] = station['Background']['Reference']
+    return mode
+
+
 def _Shipped() -> tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, tp.Any]]:
-    """The shipped mode file and calibration, parsed."""
+    """The shipped mode file, merged with its station (_Merged), and the calibration, parsed."""
     with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as f:
-        mode = yaml.safe_load(f)
+        mode = _Merged(yaml.safe_load(f))
     with open(Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r',
               encoding='utf-8') as f:
         calibration = yaml.safe_load(f)
@@ -94,9 +108,23 @@ def _Shipped() -> tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, tp.Any]]:
 
 
 def _Write(directory: tp.Any, mode: tp.Dict[str, tp.Any], calibration: tp.Optional[tp.Dict[str, tp.Any]],
-           name: str = CONST_COPY_NAME) -> str:
-    """Write a mode file (and, unless None, the hardware's calibration) into a directory."""
+           name: str = CONST_COPY_NAME, split: bool = True) -> str:
+    """
+    Write a mode file (and, unless None, the hardware's calibration) into a directory, splitting a merged
+    mapping (_Merged) into the mode file and the station file beside it. With split False the mapping is
+    written as it is, so a mode file can hold what is the station's.
+    """
     path = os.path.join(str(directory), name)
+    mode = copy.deepcopy(mode)
+    if split:
+        station = {'Hardware': CONST_HARDWARE}
+        if 'Camera' in mode:
+            station['Camera'] = mode.pop('Camera')
+        background = (mode.get('Segmentation') or {}).get('Background') or {}
+        if 'Reference' in background:
+            station['Background'] = {'Reference': background.pop('Reference')}
+        with open(os.path.join(str(directory), 'Station_%s.yaml' % CONST_HARDWARE), 'w', encoding='utf-8') as f:
+            yaml.safe_dump(station, f, sort_keys=False)
     with open(path, 'w', encoding='utf-8') as f:
         yaml.safe_dump(mode, f, sort_keys=False)
     if calibration is not None:
@@ -192,7 +220,8 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
 
 
 @pytest.mark.parametrize('path', [path for path, _a, _k, required in CONST_FIELDS if required]
-                         + [('Hardware',), ('Camera', 'Custom_Cfg'), ('Camera', 'Resolution'), ('Camera', 'Offset')]
+                         + [('Hardware',), ('Camera', 'Custom_Cfg'), ('Camera', 'Resolution'), ('Camera', 'Offset'),
+                            ('Segmentation', 'Background', 'Reference')]
                          + [('Camera', 'Custom_Cfg', key) for key in CONST_REQUIRED_CUSTOM_CFG_KEYS],
                          ids=lambda path: '.'.join(path))
 def test_a_missing_required_field_fails_the_load_naming_it(tmp_path: tp.Any, path: tp.Tuple[str, ...]) -> None:
@@ -208,6 +237,7 @@ def test_a_missing_required_field_fails_the_load_naming_it(tmp_path: tp.Any, pat
     with pytest.raises(Configuration_Error_Cls) as error:
         Load_Configuration(_Write(tmp_path, mode, calibration))
     named = path[-1] if path[:2] == ('Camera', 'Custom_Cfg') and len(path) == 3 else '.'.join(path)
+    named = {'Segmentation.Background.Reference': 'Background.Reference'}.get(named, named)  # the station's key
     assert named in str(error.value)
 
 
@@ -611,7 +641,7 @@ def test_a_reference_of_another_size_fails_the_load_naming_both_sizes(tmp_path: 
     with pytest.raises(Configuration_Error_Cls) as error:
         Load_Configuration(_Write(tmp_path, mode, calibration))
     message = str(error.value)
-    assert ('Segmentation.Background.Reference is 1920 × 1200 but Camera.Resolution is 1936 × 1216' in message
+    assert ('Background.Reference is 1920 × 1200 but Camera.Resolution is 1936 × 1216' in message
             and "reference does not match its camera resolution" in message)
 
 
@@ -807,7 +837,7 @@ def test_the_background_reference_must_exist(tmp_path: tp.Any) -> None:
 
     mode, calibration = _Shipped()
     mode['Segmentation']['Background']['Reference'] = 'Data/Images/Background/Image_Background_999.png'
-    with pytest.raises(Configuration_Error_Cls, match='Segmentation.Background.Reference'):
+    with pytest.raises(Configuration_Error_Cls, match='Background.Reference: the file'):
         Load_Configuration(_Write(tmp_path, mode, calibration))
 
 
@@ -1021,7 +1051,7 @@ def test_writing_a_calibration_twice_over_the_same_file_gives_the_same_file(tmp_
 def _Catalogue_Mode(name: str) -> tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, tp.Any]]:
     """A shipped catalogue mode file and the calibration, parsed."""
     with open(os.path.join(CONST_CONFIG_DIR, name), 'r', encoding='utf-8') as f:
-        mode = yaml.safe_load(f)
+        mode = _Merged(yaml.safe_load(f))
     return mode, _Shipped()[1]
 
 
@@ -1419,3 +1449,111 @@ def test_the_removed_classification_switch_is_named_when_a_file_still_has_it(tmp
     assert config.Classifies is False
     assert ('WARNING', "Configuration '%s': General.Classification is no longer read and is ignored: a configuration "
                        'classifies when it has a Catalogue block.' % CONST_COPY_NAME) in config.Notes
+
+
+@pytest.mark.parametrize('path', [('Camera',), ('Segmentation', 'Background', 'Reference')], ids=lambda p: '.'.join(p))
+def test_a_mode_file_never_overrides_the_station(tmp_path: tp.Any, path: tp.Tuple[str, ...]) -> None:
+    """
+    Description:
+        The camera and the reference are the station's: a mode file that still holds the Camera block or a
+        background reference fails to load, naming the key and the station file to set it in — even when
+        its value equals the station's, since a second copy is a second source.
+    """
+
+    mode, calibration = _Shipped()
+    _Write(tmp_path, mode, calibration)                    # the station file, from the merged mapping
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(_Write(tmp_path, mode, None, split=False))
+    assert ("%s is the station's, not the mode's: remove it from this file and set it in Station_%s.yaml"
+            % ('.'.join(path), CONST_HARDWARE)) in str(error.value)
+
+
+def test_a_mode_without_its_station_file_fails(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The station file is REQUIRED — without it there is no camera to configure: a mode whose hardware has
+        none beside it fails to load, naming the file it looked for.
+    """
+
+    mode, calibration = _Shipped()
+    path = _Write(tmp_path, mode, calibration)
+    os.remove(Station_Path_For(path, CONST_HARDWARE))
+    with pytest.raises(Configuration_Error_Cls, match=r'the station file ".*Station_%s\.yaml" does not exist'
+                       % CONST_HARDWARE):
+        Load_Configuration(path)
+
+
+def test_the_station_file_must_be_the_modes_hardware(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The station file repeats its hardware, and it must be the mode's: a copied file that still names
+        another camera is refused.
+    """
+
+    mode, calibration = _Shipped()
+    path = _Write(tmp_path, mode, calibration)
+    station = Station_Path_For(path, CONST_HARDWARE)
+    with open(station, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+    data['Hardware'] = 'Other_Camera'
+    with open(station, 'w', encoding='utf-8') as f:
+        yaml.safe_dump(data, f)
+    with pytest.raises(Configuration_Error_Cls, match="Station_%s.yaml: Hardware is 'Other_Camera'" % CONST_HARDWARE):
+        Load_Configuration(path)
+
+
+def test_an_unrecognised_station_key_is_a_warning_naming_the_station_file(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A key the station file does not hold is reported like the mode file's, naming the station file.
+    """
+
+    mode, calibration = _Shipped()
+    mode['Camera']['Gamma_Correction'] = 1.2
+    config = Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert any(level == 'WARNING' and 'Station_%s.yaml: unrecognised key Camera.Gamma_Correction' % CONST_HARDWARE
+               in message for level, message in config.Notes)
+
+
+def test_every_mode_reads_the_one_station() -> None:
+    """
+    Description:
+        The shipped modes share one station: each loads the same camera, window, acquisition settings and
+        reference, from the same file.
+    """
+
+    configs = [Load_Configuration(path) for path in CONST_SHIPPED_MODE_FILES]
+    assert len({config.Station_Path for config in configs}) == 1
+    assert configs[0].Station_Path == os.path.join(CONST_CONFIG_DIR, 'Station_%s.yaml' % CONST_HARDWARE)
+    first = configs[0]
+    for config in configs[1:]:
+        for name in ('Model', 'Lens', 'Lighting', 'Resolution', 'Offset', 'Custom_Cfg'):
+            assert getattr(config.Camera, name) == getattr(first.Camera, name), name
+        assert config.Segmentation.Background_Reference == first.Segmentation.Background_Reference
+
+
+def test_every_station_field_says_required_or_its_default() -> None:
+    """
+    Description:
+        The shipped station file follows the mode file's rule: each required field's comment says REQUIRED
+        (the reference, the acquisition settings, the window), each optional one states the default the code
+        applies (the camera, lens and lighting: empty).
+    """
+
+    comments = _Field_Comments(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE))
+    code = Configuration_Str()
+    for path, attribute, _kind, required in CONST_STATION_FIELDS:
+        text, position = comments[path]
+        if required:
+            said = [comments.get(path[:i], ('', 0))[0] for i in range(1, len(path))] + [text]
+            assert any('REQUIRED' in comment for comment in said), path
+            continue
+        expected = code
+        for part in attribute:
+            expected = getattr(expected, part)
+        assert _Documented_Default(text, position) == expected, path
+    for path in (('Hardware',), ('Camera', 'Resolution'), ('Camera', 'Custom_Cfg')):
+        said = [comments.get(path[:i], ('', 0))[0] for i in range(1, len(path) + 1)]
+        assert any('REQUIRED' in comment for comment in said), path
+    # The window's two halves share one comment, above Resolution, which says both are required.
+    assert 'its size and its offset' in comments[('Camera', 'Resolution')][0]

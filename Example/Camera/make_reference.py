@@ -230,8 +230,8 @@ def main():
             python make_reference.py --from logger/captures/<connection>/<set>_raw.png
 
         writes Data/Images/Background/Image_Background_<next>.png and its provenance sidecar (.json). The
-        configuration is not edited: set Segmentation.Background.Reference to the new file and
-        restart, as a deliberate step.
+        configuration is not edited: set Background.Reference in the station file (Station_<Hardware>.yaml)
+        to the new file and restart, as a deliberate step.
     """
 
     parser = argparse.ArgumentParser(description='Make a background reference from a capture set of the empty table.')
@@ -260,7 +260,7 @@ def main():
           % (sidecar['shot'], window['resolution'][0], window['resolution'][1], window['offset'][0],
              window['offset'][1], 'uncalibrated' if sidecar['calibration'] is None
              else 'undistorted with %s' % sidecar['calibration']['file'], sidecar['hardware'].get('lighting') or 'not named'))
-    print('[INFO] To use it: set Segmentation.Background.Reference to %s and restart the application.'
+    print('[INFO] To use it: set Background.Reference in the station file to %s and restart the application.'
           % Display_Path(output))
     return 0
 

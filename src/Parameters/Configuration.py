@@ -231,6 +231,9 @@ class Configuration_Str:
     Catalogue: tp.Optional[Catalogue_Item_Str] = None
     # A catalogue mode's identification (the same block); its defaults stand outside one.
     Identification: Identification_Parameters_Str = field(default_factory=Identification_Parameters_Str)
+    # The station file the camera block and the background reference came from (absolute).
+    #   Unit [string]
+    Station_Path: str = ''
     # The calibration file the camera block's Calibration came from (absolute).
     #   Unit [string]
     Calibration_Path: str = ''

@@ -62,7 +62,7 @@ from UI.Capture import Discover_Capture_Sets
 from Parameters.Vision import Analysis_Str
 # Custom Lib.: AnyScan — the configuration layer
 #   ../Configuration/Core
-from Configuration.Core import Load_Configuration, Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE
+from Configuration.Core import Load_Configuration, Calibration_Path_For, Station_Path_For, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -146,7 +146,7 @@ def _Pump_Until(condition: tp.Callable[[], bool], timeout: float = 10.0) -> None
 
 def _Mode_File(directory: tp.Any, mode: str, hardware: str = CONST_HARDWARE,
                edit: tp.Optional[tp.Callable[[tp.Dict], None]] = None) -> str:
-    """A mode file (from the shipped one, optionally edited) and its hardware's calibration."""
+    """A mode file (from the shipped one, optionally edited), its hardware's station file and calibration."""
     with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
     data['Hardware'] = hardware
@@ -155,6 +155,12 @@ def _Mode_File(directory: tp.Any, mode: str, hardware: str = CONST_HARDWARE,
     path = os.path.join(str(directory), 'Config_%s_Mode_%s.yaml' % (hardware, mode))
     with open(path, 'w', encoding='utf-8') as f:
         yaml.safe_dump(data, f, sort_keys=False)
+    station = Station_Path_For(path, hardware)
+    if not os.path.exists(station):
+        with open(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
+            station_text = f.read().replace(CONST_HARDWARE, hardware)
+        with open(station, 'w', encoding='utf-8') as f:
+            f.write(station_text)
     calibration = Calibration_Path_For(path, hardware)
     if not os.path.exists(calibration):
         with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
@@ -435,7 +441,8 @@ def test_a_loaded_configuration_is_applied_and_logged(qt_app, tmp_path, configur
     logger.Close()
     log = _Log_Text(logger)
     assert "Loaded configuration '%s' ('Cfg. Strict'" % config.Name in log
-    assert 'reads calibration ' in log and 'Calibration_%s.yaml, background reference' % CONST_HARDWARE in log
+    assert 'reads station ' in log and 'Station_%s.yaml, calibration ' % CONST_HARDWARE in log
+    assert 'Calibration_%s.yaml, background reference' % CONST_HARDWARE in log
     assert ('background reference Data/Images/Background/Image_Background_001.png and catalogue item '
             'Data/Catalogue/mounting_plate/mounting_plate.yaml' in log)
     assert "Models loaded for '%s' (JIC_AnyScan_Strict_v1, task 'part inspection')" % config.Name in log

@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `70c12c1` (2026-10-11).
+Last reviewed against the code at commit `621bc80` (2026-10-11).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -40,7 +40,7 @@ file is not the generator's output, so regenerate it, never edit it.
 | Package | What it does | Qt |
 |---|---|---|
 | `Parameters` | The data structures (`*_Str`) and tokens every other package exchanges: detections, analyses, the loaded configuration, the catalogue item, camera and calibration records, the theme. | No |
-| `Configuration` | Reads and validates the mode, calibration and catalogue item files (`Load_Configuration`, `Load_Catalogue`), writes calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*.yaml` and `Data/Catalogue/*/*.yaml`. | No |
+| `Configuration` | Reads and validates the mode, station, calibration and catalogue item files (`Load_Configuration`, `Load_Catalogue`), writes calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*.yaml` and `Data/Catalogue/*/*.yaml`. | No |
 | `Camera` | The camera backends (`Basler_Camera_Cls`, `File_Camera_Cls` for `--frame`): connect, set and read back the sensor window, grab, undistort, detect a lost connection. | No |
 | `Vision` | The pipeline (`Vision_Pipeline_Cls`): background subtraction, FastSAM, fusion, Gemma description, measurement, the annotated image and label mask, the heatmap; in a catalogue mode the dimension checks, DINOv2 identification (`Vision.Identifier`) and the verdicts (`Vision.Utilities.Classify`). | No |
 | `Reporting` | The report composer, the one voice of every sentence the operator reads, and the Trends accumulator and chart maths. | No |
@@ -57,8 +57,8 @@ are in the style skill's
 
 ### From a frame to the records
 
-1. **Load.** `Configuration.Core.Load_Configuration` turns the mode file (and the calibration beside it)
-   into one `Configuration_Str`. That object is what configures the camera, the pipeline
+1. **Load.** `Configuration.Core.Load_Configuration` turns the mode file (and the station file and the
+   calibration beside it) into one `Configuration_Str`. That object is what configures the camera, the pipeline
    (`Vision_Pipeline_Cls.Configure`, run in `Model_Load_Worker_Cls`) and the logger. No other module
    reads the YAML.
 2. **Capture.** `Camera_Backend_Cls.Capture` returns an RGB NumPy array, undistorted when calibrated.
@@ -207,14 +207,26 @@ unit. This table says what each section controls.
 | `Identity` | What the UI calls the configuration (`Display_Name`, in the dialog) and its models (`Model_Set`, in the header pill), and the `Task` a reading is labelled with. | Yes (`Task` optional) |
 | `Confidence` | The warning and error thresholds [%] below which a confidence is shown and logged as such. | No |
 | `Segmentation` | Stages 1–3: the FastSAM weights and inference settings. | Yes (`Model`) |
-| `Segmentation.Background` | Stage 1: the empty-surface reference (checked against its provenance sidecar, which it must have) and the difference's threshold floor, opening and dilation. | Yes (`Reference`) |
+| `Segmentation.Background` | Stage 1: the difference's threshold floor, opening and dilation. Its reference is the station's. | No |
 | `Segmentation.Fusion` | Stage 3: the closing, the speck filter, and when a FastSAM mask counts as the table itself. | No |
 | `Description` | Stage 4: the Gemma weights, generation settings, the reference crop margin, the object crop padding and the background sentence's limits. | Yes (`Model`) |
 | `Description.Prompts` | The two prompts sent to Gemma: `Object` per crop, `Background` once per configuration. Data, iterated here and never in code. | Yes |
+| `Evaluation` | Harness-only: the test frames `Example/Vision/analyze.py` runs on. The application never reads it. | No |
+
+## Station
+
+One station file per camera, `Configuration/Station_<Hardware>.yaml`, shared by every mode on that
+hardware and found by the mode file's `Hardware`: what belongs to the camera, the light and the table. A
+mode file never overrides it: one that holds `Camera` or a background reference fails to load and names
+this file. It is committed, so it holds nothing true of one machine only.
+
+| Section | Holds | Required |
+|---|---|---|
+| `Hardware` | The hardware the station is; must equal the mode file's. | Yes |
 | `Camera` | The camera, lens and lighting as a person names them, recorded in every capture set. | No |
 | `Camera.Resolution`, `Camera.Offset` | The sensor window set on every CONNECT and read back. The reference and the calibration are checked against it. | Yes |
 | `Camera.Custom_Cfg` | The acquisition settings the camera reads: exposure, gain, white balance, pixel format. | Yes |
-| `Evaluation` | Harness-only: the test frames `Example/Vision/analyze.py` runs on. The application never reads it. | No |
+| `Background` | The empty-surface reference every mode differences against, checked against its provenance sidecar, which it must have. | Yes |
 
 ## Calibration
 
@@ -354,8 +366,8 @@ A capability document that is wrong is worse than none.
 - **Architecture**: the *Package* table names exactly the packages under `src/`.
 - **Configuration**: the *Section* column equals every section of every mode file in `Configuration/`
   (the top-level keys and the mappings one level below them), and every key path written in the
-  Configuration section exists in a mode file. The same check runs for the calibration table
-  against the calibration file.
+  Configuration section exists in a mode file. The same check runs for the station table against the
+  station file, and for the calibration table against the calibration file.
 - **Modes**: the Modes table names exactly the mode files in `Configuration/`.
 - **Views**: the `###` headings under *UI views* are exactly the central-view switch's labels, and
   the Camera View renders and Live card titles named in the code appear under *Live*.

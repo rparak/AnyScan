@@ -143,12 +143,20 @@ file's own comments give every field's default and unit.
 
 **A station sets its own station-event directory in a local copy of the mode file, never in the
 shipped one.** The shipped file keeps `logger/Station_Events`. A station copies the mode file to a
-directory outside the repository, keeping its name, and symlinks `Calibration_<Hardware>.yaml` beside
-it. The loader looks for the calibration next to the mode file, and the symlink follows any
-recalibration. The copy sets `General.Station_Events.Directory` to the station's path, and the station
+directory outside the repository, keeping its name, and symlinks `Calibration_<Hardware>.yaml` and
+`Station_<Hardware>.yaml` beside it. The loader looks for both next to the mode file, and the symlinks
+follow any recalibration or station change. The copy sets `General.Station_Events.Directory` to the station's path, and the station
 starts with `--config <that copy>`. The Configuration dialog lists only `Configuration/`, whose modes
 name `logger/Station_Events`, so on such a station the dialog refuses them: another mode needs its own
 local copy too.
+
+The camera is not in the mode file either. Its settings — the camera, lens and lighting as a person
+names them, the acquisition settings, the sensor window — and the empty-surface reference live once per
+station in `Configuration/Station_<Hardware>.yaml`: they belong to the camera, the light and the table, so
+every mode on that hardware shares them. A mode file never overrides them: one that still holds `Camera`
+or a background reference fails to load and names the station file. The station file is committed, so it
+holds nothing true of one machine only; the station-event directory stays in the local copy of the mode
+file.
 
 The calibration is not in the mode file. It lives once per camera in
 `Configuration/Calibration_<Hardware>.yaml`, and every mode on that hardware shares it, as it
@@ -159,9 +167,9 @@ loads, with a warning: frames are not undistorted and sizes are not reported unt
 `Configuration.Core.Load_Configuration` is the only code that reads these files. It checks the whole
 file before anything is applied:
 
-- A missing **required** field (the hardware, the station-event directory, a model path, the
-  background reference, a prompt, the display name or model set, the camera's acquisition settings or
-  sensor window) fails the load and names it.
+- A missing **required** field (the hardware, the station-event directory, a model path, a prompt, the
+  display name or model set; in the station file, the background reference and the camera's acquisition
+  settings and sensor window) fails the load and names it, with the file it belongs in.
 - What depends on the sensor window is checked against it: a background reference of another size
   fails the load, naming both sizes, and so does a calibration solved at another window. The
   camera never takes its size from the reference. A calibration that does not record its window

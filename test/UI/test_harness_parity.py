@@ -165,6 +165,9 @@ def _Harness_Written_Mask(monkeypatch, tmp_path, reference_background_path: str,
     calibration = Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware)
     with open(calibration, 'r', encoding='utf-8') as handle:
         (config_dir / os.path.basename(calibration)).write_text(handle.read(), encoding='utf-8')
+    station = Configuration.Station_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware)
+    with open(station, 'r', encoding='utf-8') as handle:
+        (config_dir / os.path.basename(station)).write_text(handle.read(), encoding='utf-8')
     frames = tmp_path / 'frames'
     frames.mkdir()
     scene = cv2.imread(reference_background_path)

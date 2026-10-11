@@ -162,8 +162,8 @@ that set's own records, not from a person.
    described above: run it again with `--accept-objects`, and the sidecar records what was accepted.
    One large box, or one near the centre (for example *1 object, 40 000 px, centre*), means something
    is on the table: clear it and shoot again.
-4. Set `Segmentation.Background.Reference: Data/Images/Background/Image_Background_002.png` and restart the
-   application: the load checks the reference against its sidecar (a reference without one fails the
+4. Set `Background.Reference: Data/Images/Background/Image_Background_002.png` in the station file
+   (`Configuration/Station_<Hardware>.yaml`) and restart the application: the load checks the reference against its sidecar (a reference without one fails the
    load).
 
 ---
@@ -224,10 +224,11 @@ case is pinned only on a synthetic scene, by the strict xfail
 shadow replaces the synthetic evidence either way.
 
 **Conditions.** Add one low-angle side light so the parts cast hard shadows. Work in a **copy of the
-configuration** whose `Camera.Lighting` names the side light — the reference's sidecar records the
+configuration** — a mode file with the station file and calibration beside it — whose station names the
+side light in `Camera.Lighting` — the reference's sidecar records the
 lighting the configuration names, and the load refuses a reference shot under other lighting. **First
 shoot an empty table under that light** with the copy loaded, make the reference from that set with
-`make_reference.py` (as in item 2), and set it as the copy's `Segmentation.Background.Reference`. The
+`make_reference.py` (as in item 2), and set it as the copy's station `Background.Reference`. The
 subtraction is only meaningful against a reference lit the same way.
 
 | Frames | What |

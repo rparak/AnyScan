@@ -59,10 +59,14 @@ Description:
     structure; none opens the YAML for itself. Qt-free.
 
     The rules:
-        - A REQUIRED field (the hardware, both model paths, the background reference — which must
-          exist — the station-event directory — which must exist and be writable — both prompts, the
-          identity's display name and model set, the camera's acquisition settings and its sensor
-          window) has no default: its absence fails the load, naming the field.
+        - A REQUIRED field (the hardware, both model paths, the station-event directory — which must
+          exist and be writable — both prompts, the identity's display name and model set; and in the
+          station file, the background reference — which must exist — the camera's acquisition settings
+          and its sensor window) has no default: its absence fails the load, naming the field.
+        - The STATION file (Station_<Hardware>.yaml beside the mode file) holds the camera and the
+          reference, shared by every mode on the hardware. It is required, it must name the mode's
+          hardware, and a mode file never overrides it: one holding Camera or a background reference
+          fails the load, naming the station file.
         - The SENSOR WINDOW (Camera.Resolution, Camera.Offset) is set on the camera on connect, and
           what depends on it is checked against it here, at load: a background reference of another
           size fails the load, naming both sizes, and so does a calibration solved at another window.
@@ -105,6 +109,11 @@ CONST_DEFAULT_CONFIG_FILE = os.path.join(CONST_CONFIG_DIR,
 CONST_CONFIG_PREFIX = 'Config_'
 CONST_MODE_SEPARATOR = '_Mode_'
 CONST_CALIBRATION_TEMPLATE = 'Calibration_{hardware}.yaml'
+# The station file of <Hardware>, beside the mode file: the camera, its acquisition settings and sensor
+# window, and the empty-surface reference — what belongs to the camera, the light and the table, shared
+# by every mode on that hardware. A mode file never overrides it.
+#   Unit [string]
+CONST_STATION_TEMPLATE = 'Station_{hardware}.yaml'
 # The acquisition settings the Basler camera cannot start without; each is REQUIRED in
 # Camera.Custom_Cfg so a file missing one fails at load and not deep inside the Basler SDK.
 # They are the ONLY keys it reads (Basler_Cls.__Configure), so Custom_Cfg is a schema like every
@@ -199,6 +208,23 @@ def Calibration_Path_For(config_path: str, hardware: str) -> str:
                         CONST_CALIBRATION_TEMPLATE.format(hardware=hardware))
 
 
+def Station_Path_For(config_path: str, hardware: str) -> str:
+    """
+    Description:
+        The station file of a hardware id: 'Station_<Hardware>.yaml' beside the mode file.
+
+    Args:
+        (1) config_path [string]: The mode file path.
+        (2) hardware [string]: The hardware id.
+
+    Returns:
+        (1) parameter [string]: The station file path (absolute).
+    """
+
+    return os.path.join(os.path.dirname(os.path.abspath(config_path)),
+                        CONST_STATION_TEMPLATE.format(hardware=hardware))
+
+
 def __Resolve_Model_Path(path: str) -> str:
     """
     Description:
@@ -278,7 +304,6 @@ CONST_FIELDS = (
     (('Segmentation', 'Confidence'), ('Segmentation', 'Confidence'), 'unit', False),
     (('Segmentation', 'IoU'), ('Segmentation', 'IoU'), 'unit', False),
     (('Segmentation', 'Image_Size'), ('Segmentation', 'Image_Size'), 'size', False),
-    (('Segmentation', 'Background', 'Reference'), ('Segmentation', 'Background_Reference'), 'path', True),
     (('Segmentation', 'Background', 'Otsu_Floor'), ('Segmentation', 'Otsu_Floor'), 'grey', False),
     (('Segmentation', 'Background', 'Open_Kernel'), ('Segmentation', 'Open_Kernel'), 'kernel', False),
     (('Segmentation', 'Background', 'Dilate'), ('Segmentation', 'Dilate'), 'kernel', False),
@@ -302,11 +327,21 @@ CONST_FIELDS = (
      'size', False),
     (('Description', 'Prompts', 'Object'), ('Description', 'Prompt_Object'), 'text', True),
     (('Description', 'Prompts', 'Background'), ('Description', 'Prompt_Background'), 'text', True),
+    (('Evaluation', 'Frames'), ('Evaluation', 'Frames'), 'path', False),
+)
+# Every setting a station file holds beside its acquisition settings and sensor window (read by their own
+# readers), in the same form (attributes of Configuration_Str).
+#   Unit [Vector<Tuple>]
+CONST_STATION_FIELDS = (
     (('Camera', 'Model'), ('Camera', 'Model'), 'text', False),
     (('Camera', 'Lens'), ('Camera', 'Lens'), 'text', False),
     (('Camera', 'Lighting'), ('Camera', 'Lighting'), 'text', False),
-    (('Evaluation', 'Frames'), ('Evaluation', 'Frames'), 'path', False),
+    (('Background', 'Reference'), ('Segmentation', 'Background_Reference'), 'path', True),
 )
+# What a mode file may not hold because the station file holds it: the whole Camera block, and the
+# reference (Segmentation.Background.Reference before 2026-10-11).
+#   Unit [Tuple<Tuple<string>>]
+CONST_STATION_ONLY_PATHS = (('Camera',), ('Segmentation', 'Background', 'Reference'))
 # Every setting a catalogue item file holds, in the same form (attributes of Catalogue_Item_Str).
 # Checks.Outline.Tolerance_Mm is optional and not listed: its default is the item's Tolerance_Mm, not
 # a constant (__Read_Catalogue).
@@ -375,15 +410,28 @@ def __Known_Paths(paths: tp.Iterable[tp.Tuple[str, ...]]) -> tp.Set[tp.Tuple[str
 def __Mode_File_Known_Paths() -> tp.Set[tp.Tuple[str, ...]]:
     """
     Description:
-        Every key path a mode file may hold: the field table, the camera's acquisition settings and
-        sensor window, and the catalogue block.
+        Every key path a mode file may hold: the field table and the catalogue block. The camera is the
+        station file's (__Station_File_Known_Paths).
 
     Returns:
         (1) parameter [Set<Tuple<string>>]: The known key paths.
     """
 
-    known = __Known_Paths([('Hardware',), CONST_CATALOGUE_ITEM_PATH]
-                          + [path for path, _a, _k, _r in CONST_FIELDS + CONST_CATALOGUE_BLOCK_FIELDS])
+    return __Known_Paths([('Hardware',), CONST_CATALOGUE_ITEM_PATH]
+                         + [path for path, _a, _k, _r in CONST_FIELDS + CONST_CATALOGUE_BLOCK_FIELDS])
+
+
+def __Station_File_Known_Paths() -> tp.Set[tp.Tuple[str, ...]]:
+    """
+    Description:
+        Every key path a station file may hold: the hardware, the station field table, the camera's
+        acquisition settings and its sensor window.
+
+    Returns:
+        (1) parameter [Set<Tuple<string>>]: The known key paths.
+    """
+
+    known = __Known_Paths([('Hardware',)] + [path for path, _a, _k, _r in CONST_STATION_FIELDS])
     custom = ('Camera', 'Custom_Cfg')
     known.update({custom[:1], custom} | {custom + (key,) for key in CONST_REQUIRED_CUSTOM_CFG_KEYS}
                  | {custom + ('Balance_Ratios', channel) for channel in CONST_BALANCE_CHANNELS})
@@ -1074,15 +1122,20 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     # 2\ Every setting in the field table.
     __Read_Fields(data, Configuration_Str_i, CONST_FIELDS, problems, notes)
 
-    # 3\ The cross-field rules, and the paths resolved against the repository.
-    reference = __Resolve_And_Cross_Check(Configuration_Str_i, problems)
+    # 3\ The hardware's station file: the camera and the reference, shared by every mode on it. A mode
+    #    file never overrides it, so what it may hold of the station's is refused, naming the file.
+    resolution, offset = None, None
+    if hardware:
+        Configuration_Str_i.Station_Path = Station_Path_For(config_path, hardware)
+        station_name = os.path.basename(Configuration_Str_i.Station_Path)
+        for path in CONST_STATION_ONLY_PATHS:
+            if __Lookup(data, path)[0]:
+                problems.append('%s is the station\'s, not the mode\'s: remove it from this file and set it in %s '
+                                '(a mode file never overrides the station)' % ('.'.join(path), station_name))
+        resolution, offset = __Read_Station(Configuration_Str_i, hardware, problems, notes)
 
-    # 4\ The camera: the acquisition settings Basler_Cls cannot start without, and the sensor window
-    #    it is set to on connect — against which the reference is checked.
-    Configuration_Str_i.Camera.Custom_Cfg = __Read_Custom_Cfg(data, problems)
-    resolution, offset = __Read_Camera_Window(data, problems)
-    Configuration_Str_i.Camera.Resolution = resolution or (0, 0)
-    Configuration_Str_i.Camera.Offset = offset or (0, 0)
+    # 4\ The cross-field rules, and the paths resolved against the repository.
+    reference = __Resolve_And_Cross_Check(Configuration_Str_i, problems)
     if reference and resolution:
         __Check_Reference_Size(reference, resolution, problems)
 
@@ -1225,7 +1278,7 @@ def __Resolve_And_Cross_Check(Configuration_Str: Configuration_Str, problems: tp
     if reference:
         reference = Configuration_Str.Segmentation.Background_Reference = __Resolve_Model_Path(reference)
         if not os.path.isfile(reference):
-            problems.append('Segmentation.Background.Reference: the file "%s" does not exist' % reference)
+            problems.append('Background.Reference: the file "%s" does not exist' % reference)
             reference = ''
     return reference
 
@@ -1254,7 +1307,45 @@ def __Check_Writable_Directory(directory: str, dotted: str, problems: tp.List[st
         problems.append('%s: the directory "%s" is not writable (%s)' % (dotted, directory, error.strerror or error))
 
 
-def __Read_Custom_Cfg(data: tp.Dict[str, tp.Any], problems: tp.List[str]) -> tp.Dict[str, tp.Any]:
+def __Read_Station(Configuration_Str: Configuration_Str, hardware: str, problems: tp.List[str],
+                   notes: tp.List[tp.Tuple[str, str]]) -> tp.Tuple[tp.Optional[tp.Tuple[int, int]],
+                                                                    tp.Optional[tp.Tuple[int, int]]]:
+    """
+    Description:
+        Read and validate the station file into the configuration: its Hardware must be the mode's; the
+        camera as a person names it and the reference (CONST_STATION_FIELDS); the acquisition settings
+        Basler_Cls cannot start without; and the sensor window the camera is set to on connect, against
+        which the reference and the calibration are checked. Its messages name the file. It is REQUIRED:
+        without it there is no camera to configure.
+
+    Args:
+        (1) Configuration_Str [Configuration_Str(object)]: The configuration being filled (Station_Path set).
+        (2) hardware [string]: The hardware id the mode file names.
+        (3) problems [Vector<string>]: Collects what is wrong.
+        (4) notes [Vector<Tuple<string> 1x2>]: Collects the (level, message) notes to log.
+
+    Returns:
+        (1) parameter [Vector<int> 1x2 or None]: The window's size, or None when invalid.
+        (2) parameter [Vector<int> 1x2 or None]: The window's offset, or None when invalid.
+    """
+
+    data = __Read_Yaml(Configuration_Str.Station_Path, 'station file', problems)
+    if data is None:
+        return None, None
+    prefix = '%s: ' % os.path.basename(Configuration_Str.Station_Path)
+    if data.get('Hardware') != hardware:
+        problems.append('%sHardware is %r but the configuration names %r' % (prefix, data.get('Hardware'), hardware))
+    __Read_Fields(data, Configuration_Str, CONST_STATION_FIELDS, problems, notes, prefix)
+    Configuration_Str.Camera.Custom_Cfg = __Read_Custom_Cfg(data, problems, prefix)
+    resolution, offset = __Read_Camera_Window(data, problems, prefix)
+    Configuration_Str.Camera.Resolution = resolution or (0, 0)
+    Configuration_Str.Camera.Offset = offset or (0, 0)
+    for key in __Unknown_Keys(data, __Station_File_Known_Paths()):
+        notes.append(('WARNING', '%sunrecognised key %s is ignored (misspelt?).' % (prefix, key)))
+    return resolution, offset
+
+
+def __Read_Custom_Cfg(data: tp.Dict[str, tp.Any], problems: tp.List[str], prefix: str) -> tp.Dict[str, tp.Any]:
     """
     Description:
         Camera.Custom_Cfg, the acquisition settings Basler_Cls cannot start without: each of the
@@ -1263,8 +1354,9 @@ def __Read_Custom_Cfg(data: tp.Dict[str, tp.Any], problems: tp.List[str]) -> tp.
         not read is handed to it.
 
     Args:
-        (1) data [Dict]: The parsed mode file.
+        (1) data [Dict]: The parsed station file.
         (2) problems [Vector<string>]: Collects what is wrong.
+        (3) prefix [string]: Put before each message: the station file's name and ': '.
 
     Returns:
         (1) parameter [Dict]: The validated settings.
@@ -1272,14 +1364,14 @@ def __Read_Custom_Cfg(data: tp.Dict[str, tp.Any], problems: tp.List[str]) -> tp.
 
     custom = __Lookup(data, ('Camera', 'Custom_Cfg'))[1]
     if not isinstance(custom, dict):
-        problems.append('Camera.Custom_Cfg is required but missing')
+        problems.append('%sCamera.Custom_Cfg is required but missing' % prefix)
         custom = {}
     missing = [key for key in CONST_REQUIRED_CUSTOM_CFG_KEYS if key not in custom]
     if missing and custom:
-        problems.append('Camera.Custom_Cfg is missing the required %s' % ', '.join(missing))
+        problems.append('%sCamera.Custom_Cfg is missing the required %s' % (prefix, ', '.join(missing)))
     settings = {}
     for key in (key for key in CONST_REQUIRED_CUSTOM_CFG_KEYS if key in custom):
-        dotted = 'Camera.Custom_Cfg.%s' % key
+        dotted = '%sCamera.Custom_Cfg.%s' % (prefix, key)
         if key == 'Balance_Ratios':
             ratios = __Read_Balance_Ratios(custom[key], dotted, problems)
             if ratios is not None:
@@ -1325,16 +1417,16 @@ def __Read_Balance_Ratios(ratios: tp.Any, dotted: str, problems: tp.List[str]) -
     return checked
 
 
-def __Read_Camera_Window(data: tp.Dict[str, tp.Any],
-                         problems: tp.List[str]) -> tp.Tuple[tp.Optional[tp.Tuple[int, int]],
-                                                            tp.Optional[tp.Tuple[int, int]]]:
+def __Read_Camera_Window(data: tp.Dict[str, tp.Any], problems: tp.List[str],
+                         prefix: str) -> tp.Tuple[tp.Optional[tp.Tuple[int, int]], tp.Optional[tp.Tuple[int, int]]]:
     """
     Description:
         The sensor window the camera is set to on connect: Camera.Resolution and Camera.Offset.
 
     Args:
-        (1) data [Dict]: The parsed mode file.
+        (1) data [Dict]: The parsed station file.
         (2) problems [Vector<string>]: Collects what is wrong.
+        (3) prefix [string]: Put before each message: the station file's name and ': '.
 
     Returns:
         (1) parameter [Vector<int> 1x2 or None]: The resolution, or None when invalid.
@@ -1343,7 +1435,7 @@ def __Read_Camera_Window(data: tp.Dict[str, tp.Any],
 
     window = {}
     for path, minimum in CONST_WINDOW_FIELDS:
-        window[path[-1]] = __Read_Window(__Lookup(data, path)[1], '.'.join(path), minimum, problems)
+        window[path[-1]] = __Read_Window(__Lookup(data, path)[1], prefix + '.'.join(path), minimum, problems)
     return window['Resolution'], window['Offset']
 
 
@@ -1363,13 +1455,11 @@ def __Check_Reference_Size(reference: str, resolution: tp.Tuple[int, int], probl
 
     size = __Image_Size(reference)
     if size is None:
-        problems.append('Segmentation.Background.Reference: the file "%s" could not be read as an image'
-                        % reference)
+        problems.append('Background.Reference: the file "%s" could not be read as an image' % reference)
     elif size != resolution:
-        problems.append("Segmentation.Background.Reference is %d × %d but Camera.Resolution is %d × %d: this "
-                        "configuration's reference does not match its camera resolution. Re-shoot the "
-                        'empty-surface reference at %d × %d, or correct Camera.Resolution'
-                        % (size + resolution + resolution))
+        problems.append("Background.Reference is %d × %d but Camera.Resolution is %d × %d: the station's "
+                        'reference does not match its camera resolution. Re-shoot the empty-surface reference at '
+                        '%d × %d, or correct Camera.Resolution' % (size + resolution + resolution))
 
 
 def Discover_Configurations(directory: str) -> tp.List[tp.Tuple[str, tp.Optional[Configuration_Str], str]]:
@@ -1424,8 +1514,9 @@ def Display_Path(path: str) -> str:
 def Config_Sources_Log_Line(Configuration_Str: Configuration_Str) -> str:
     """
     Description:
-        What a configuration reads beside itself: the calibration, the background reference and, in a
-        catalogue mode, the catalogue item, logged together on load so a run can be traced to each.
+        What a configuration reads beside itself: the station file, the calibration, the background
+        reference and, in a catalogue mode, the catalogue item, logged together on load so a run can be
+        traced to each.
 
     Args:
         (1) Configuration_Str [Configuration_Str(object)]: The loaded configuration.
@@ -1436,11 +1527,13 @@ def Config_Sources_Log_Line(Configuration_Str: Configuration_Str) -> str:
 
     calibration = (Display_Path(Configuration_Str.Calibration_Path)
                    if Configuration_Str.Camera.Calibration is not None else 'none (no calibration file)')
-    sources = 'calibration %s and background reference %s' % (
-        calibration, Display_Path(Configuration_Str.Segmentation.Background_Reference))
+    sources = 'station %s, calibration %s and background reference %s' % (
+        Display_Path(Configuration_Str.Station_Path), calibration,
+        Display_Path(Configuration_Str.Segmentation.Background_Reference))
     if Configuration_Str.Catalogue is not None:
-        sources = 'calibration %s, background reference %s and catalogue item %s' % (
-            calibration, Display_Path(Configuration_Str.Segmentation.Background_Reference),
+        sources = 'station %s, calibration %s, background reference %s and catalogue item %s' % (
+            Display_Path(Configuration_Str.Station_Path), calibration,
+            Display_Path(Configuration_Str.Segmentation.Background_Reference),
             Display_Path(Configuration_Str.Catalogue.Path))
     return "Configuration '%s' reads %s." % (Configuration_Str.Name, sources)
 

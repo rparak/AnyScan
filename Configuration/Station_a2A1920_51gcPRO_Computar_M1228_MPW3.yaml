@@ -1,0 +1,81 @@
+## =========================================================================== ##
+#   Description:
+#     One STATION: the camera, its acquisition settings and sensor window, and the
+#     empty-surface reference — what belongs to the camera, the light and the table,
+#     shared by every mode on this hardware. Read, validated as a whole and applied by
+#     Configuration.Core.Load_Configuration with each mode file; no other module reads
+#     this file.
+#
+#   File name:
+#     Station_<Hardware>.yaml, beside the mode files (Config_<Hardware>_Mode_<Mode>.yaml),
+#     which find it by their Hardware, as they find Calibration_<Hardware>.yaml. A mode file
+#     never overrides it: a mode file holding Camera, or a background reference, fails to
+#     load and names this file.
+#
+#   Required and optional:
+#     A field marked REQUIRED has no default: a file without it fails to load, naming the
+#     field. An optional field states its default; when it is absent the default is used and
+#     the log says so. An unrecognised key is logged as a warning.
+#
+#   Machine-specific values:
+#     Everything here is true of the rig, so it is committed. A value true on one machine
+#     only (the station-event directory) stays in that machine's local copy of the mode
+#     file; a station starting from a local copy keeps this file beside it (README >
+#     Configuration).
+#
+#   Hardware setup:
+#     - Camera : Basler a2A1920-51gcPRO
+#     - Lens   : Computar M1228-MPW3
+#     - Light  : Effilux EFFI-FD-200-200-000
+## =========================================================================== ##
+
+# REQUIRED. The hardware this station is; must equal the hardware part of this file's name and
+# the Hardware of every mode file that reads it.
+Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
+
+# The camera: identity, resolution and acquisition settings. Its calibration is NOT here — it
+# lives in Calibration_<Hardware>.yaml beside this file.
+Camera:
+  # The camera, lens and lighting as a person names them: named in the Configuration dialog's
+  # confirmation and recorded in every capture set. The lighting matters as much as the optics:
+  # the colour readings, the background subtraction and the surface-condition descriptions all
+  # depend on it. Each is left out when not set. Defaults: empty.
+  Model: Basler a2A1920-51gcPRO
+  Lens: Computar M1228-MPW3
+  Lighting: Effilux EFFI-FD-200-200-000
+
+  # REQUIRED. The sensor window the camera is SET to on connect [px]: its size and its offset on
+  # the sensor. Without it the camera runs at whatever it last remembered - after a power cycle,
+  # its factory default of the full 1936 x 1216 sensor. 1920 x 1200 is the camera's nominal size;
+  # the offset (8, 8) centres it on the sensor, trimming the border evenly. Everything that
+  # depends on the window is checked against it when the configuration loads: the background
+  # reference must be this size, and the calibration must have been solved at this window.
+  Resolution:
+    x: 1920
+    y: 1200
+  Offset:
+    x: 8
+    y: 8
+
+  # REQUIRED: Exposure_Time, Gain, Balance_Ratios, Pixel_Format. Vendor / API specific. These are the only
+  # settings the camera reads, each typed at load; any other key here is reported as unrecognised.
+  Custom_Cfg:
+    # How long the sensor is exposed to light during acquisition [us].
+    Exposure_Time: 10000
+    # Increases the brightness of the images output by the camera.
+    Gain: 10
+    # Manual white-balance correction so white objects appear white.
+    Balance_Ratios:
+      Red: 0.95
+      Green: 0.9
+      Blue: 1.2
+    # Sensor pixel format.
+    Pixel_Format: BayerRG8
+
+# The empty-surface reference every frame is differenced against (stage 1 of every mode).
+Background:
+  # REQUIRED, and the file must exist. Relative to the repository root (or absolute). It decides
+  # every background-subtraction result, so it is stated here rather than discovered; shoot it
+  # from this camera, under this light, on this table (Example/Camera/make_reference.py), which is
+  # why it is the station's and not a mode's.
+  Reference: Data/Images/Background/Image_Background_001.png

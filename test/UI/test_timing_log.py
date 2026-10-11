@@ -64,7 +64,7 @@ from Parameters.Vision import (Analysis_Str, CONST_TIMING_STAGES, CONST_STAGE_BA
 from Logger.Core import Session_Logger_Cls
 # Custom Lib.: AnyScan — the configuration layer
 #   ../Configuration/Core
-from Configuration.Core import Load_Configuration, Calibration_Path_For, CONST_DEFAULT_CONFIG_FILE
+from Configuration.Core import Load_Configuration, Calibration_Path_For, Station_Path_For, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -334,6 +334,12 @@ def _Mode_File(directory: str, mode: str, runtime) -> str:
     path = os.path.join(directory, 'Config_%s_Mode_%s.yaml' % (CONST_HARDWARE, mode))
     with open(path, 'w', encoding='utf-8') as handle:
         yaml.safe_dump(data, handle, sort_keys=False)
+    station = Station_Path_For(path, CONST_HARDWARE)
+    if not os.path.exists(station):
+        with open(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
+            station_text = f.read().replace(CONST_HARDWARE, CONST_HARDWARE)
+        with open(station, 'w', encoding='utf-8') as f:
+            f.write(station_text)
     calibration = Calibration_Path_For(path, CONST_HARDWARE)
     if not os.path.exists(calibration):
         with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as handle:
