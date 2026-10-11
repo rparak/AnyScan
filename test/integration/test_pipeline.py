@@ -105,13 +105,13 @@ CONST_INVENTORY = {
     'Image_053.png': 4,     # blank, two maze, SMART FACTORY plate in a 2x2 grid
     'Image_054.png': 4,     # two maze, two SMART FACTORY plates in a 2x2 grid
 }
-# The reference the frames below are pending against: shot 2026-09-28, before the lighting or exposure
-# changed for the 2026-10-09 session. On these frames the pipeline returns every part plus ONE extra
-# object in the bottom-right corner (x 1780-1802, y 1007-1024, to the frame's edge), where the reference's
-# undistortion border does not line up with the frames'. Strict xfail while this reference is in force;
-# once Segmentation.Background.Reference names another (Image_Background_002), the mark lifts and each
-# must pass on its count or fail visibly. See KNOWN_ISSUES.md, "Nine frames count one extra object
-# against the old reference".
+# The reference the frames below are pending against. On these frames the pipeline returns every part plus
+# ONE extra object in the bottom-right corner (x 1780-1802, y 1007-1024, to the frame's edge), where the
+# reference's undistortion border is thickest: the 2026-10-09 frames carry no such border, as they did not
+# go through the application's undistortion (the calibration in force matches the reference's sidecar).
+# Strict xfail while this reference is in force; once Segmentation.Background.Reference names another, the
+# mark lifts and each must pass on its count or fail visibly. A new reference alone is not expected to fix
+# them: see KNOWN_ISSUES.md, "Nine frames count one extra object against the old reference".
 #   Unit [string]
 CONST_PENDING_REFERENCE = 'Image_Background_001.png'
 #   Unit [Set<string>]
@@ -228,8 +228,9 @@ def _Reference_Is_Pending() -> bool:
 @pytest.mark.slow
 @pytest.mark.parametrize('name', [
     pytest.param(name, marks=pytest.mark.xfail('_Reference_Is_Pending()', strict=True, raises=AssertionError,
-                                               reason='one extra object in the bottom-right corner against '
-                                                      'Image_Background_001; see KNOWN_ISSUES.md'))
+                                               reason='one extra object in the bottom-right corner, where '
+                                                      'Image_Background_001 has an undistortion border the frames '
+                                                      'lack; see KNOWN_ISSUES.md'))
     if name in CONST_PENDING_FRAMES else name for name in sorted(CONST_INVENTORY)])
 def test_counts_match_the_inventory(name: str, require_weights, monkeypatch) -> None:
     """

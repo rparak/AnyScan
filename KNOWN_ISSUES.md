@@ -90,15 +90,37 @@ corner**, at x 1780–1802, y 1007–1024, running to the frame's edge (118–14
 2026-10-11 through the count test's path: the shipped configuration, FastSAM on the CPU, the fallback
 describer). The other 32 frames match their counts.
 
-The frames were shot on 2026-10-09; the reference in force, `Image_Background_001`, on 2026-09-28. The
-empty table in the frames' corners differs from the reference by 3.7–11.8 grey levels (median of four
-80 px corners, worst channel), against 0.3–1.9 for the previous set's eight frames. In the bottom-right
-corner the reference carries a dark undistortion border along its right and bottom edges that the new
-frames' border does not line up with; the difference image shows that misaligned edge on each frame
-looked at (`Image_014`, which matches, and `Image_015` and `024`, which do not).
-All nine contain the dark rusted plate, but not every dark plate frame is among them (`Image_021`
-matches), so what tips these nine and not the others is **not established** — the mean colour of that
-corner alone does not separate them (1.1–1.3 levels on the nine, 0.6–23.7 on the rest).
+**The frames were not undistorted the way the application undistorts** (checked 2026-10-11). The
+application's undistortion (`getOptimalNewCameraMatrix` at alpha 1, then `cv2.remap`) leaves a dark border
+along the frame's edges, thickest at the bottom and the right. The reference has it, and so did the
+previous set's eight frames: in the outer 40 px ring the reference has 5,271 dark pixels, and the old
+set's common border differs from it by 224 px. The border common to all 41 new frames is 151 px, and
+no shift of the reference's border lines it up (best integer shift leaves 4,341 px of 4,357).
+Undistorting a new frame once more with the calibration in force gives back the reference's border
+(190–207 px apart, as close as the old set). The extra object sits where that border is thickest: the
+background difference sees the reference's dark edge against the frames' lit table.
+
+- **The calibration itself agrees.** The fingerprint of the calibration in force,
+  `Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml`, equals the one in `Image_Background_001`'s
+  sidecar (`0b7b5457…`), with the same window (1920 × 1200 at 8, 8).
+- **The frames' own calibration is unknown.** The 2026-10-09 session left no `_distorted.json` records
+  (none exists for it on the machine it was copied to), so its fingerprint cannot be compared. Whether
+  the frames are the camera's raw frames or were undistorted with another calibration or a cropping
+  alpha cannot be told from the pixels: this lens bends a straight edge near the top of the frame by
+  0.29 px, too little to measure on a plate.
+- **So a new reference is not the fix.** One made through the application carries the same border, so
+  `Image_Background_002` alone would leave the nine where they are. The fix is frames that went through
+  the application's capture path (or the session's distorted originals with their records, undistorted
+  with the calibration in force), added under new names with their counts, as any replacement is.
+- **What else it touches:** sizes measured on these frames are in a pixel space the scale was not
+  calibrated for. The distortion is small here (the 0.29 px bow above), so the slow measurement tests on
+  `Image_018` and `029` pass, but the frames do not meet `Data/Images/Test/.gitkeep`'s contract.
+
+The empty table in the frames' corners also differs from the reference by 3.7–11.8 grey levels (median
+of four 80 px corners, worst channel), against 0.3–1.9 for the previous set's eight frames, so the
+lighting or exposure changed as well. All nine contain the dark rusted plate, but not every dark plate
+frame is among them (`Image_021` matches), so what tips these nine and not the others is **not
+established**.
 
 - **Impact:** an object counted that is not there, always in the same corner. A real part is never lost on
   these frames.
@@ -106,12 +128,11 @@ corner alone does not separate them (1.1–1.3 levels on the nine, 0.6–23.7 on
   counts. The nine are `CONST_PENDING_FRAMES`, strict xfails (`raises=AssertionError`) while
   `Segmentation.Background.Reference` names `Image_Background_001.png`: one that starts passing fails
   the suite. A missing frame fails through `pytest.fail`, which the xfail does not accept, and the
-  inventory guard names every frame.
-- **Not fixed here:** a reference shot under the session's own lighting comes first. Once
-  `Image_Background_002` is made with `Example/Camera/make_reference.py` and the configuration names it,
-  the marks lift by themselves and each of the nine must pass on its count or fail visibly: re-check
-  them then, and re-measure the corner difference. Only a mismatch that survives the new reference is a
-  detection problem.
+  inventory guard names every frame. When another reference is named the marks lift, and on these
+  frames the nine are expected to fail visibly, for the reason above.
+- **Not fixed here:** the frames are replaced first, through the application's capture path; a reference
+  under the new light follows if the corners still differ. Re-measure the border and the corner
+  difference then.
 
 ## Touching parts merge before the closing
 

@@ -11,3 +11,7 @@ by frame name. A frame's name is only meaningful inside that set — renumbering
 adding or moving frames changes what the pins test, so update them in the same change.
 A name once used is never given to another image: 001-013 belonged to the previous
 set (All/, recoverable from git commit 1061966), so this set starts at 014.
+
+NOT MET by the current frames (Image_014-054): they carry no undistortion border, so they
+did not go through the application's undistortion with the calibration in force. See
+KNOWN_ISSUES.md, "Nine frames count one extra object against the old reference".
