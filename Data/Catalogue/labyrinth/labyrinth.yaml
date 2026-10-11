@@ -19,10 +19,33 @@
 #     field. An optional field states its default; when it is absent the default is used
 #     and the log says so. An unrecognised key is logged as a warning.
 #
+#   Description, Sides, Defects:
+#     What the part looks like, on each side, and what is a defect and what is not — the
+#     single tracked source for the part, from the catalogue-mode request. Each side's Name
+#     is read now (the side sentence of a judged object's description). The longer texts
+#     are validated at load and read by nothing yet: the describer reads them from phase D
+#     of the catalogue mode, a dated exception to the rule that a field must be read
+#     (docs/design-decisions.md, 2026-10-11).
+#
 #   Checks:
 #     Each block under Checks is one check, run with the parameters it sets. Only the
-#     outline is checked today; the holes, the logo and the side are not yet built.
+#     outline is checked today; the holes, the surface and the logo are not yet built.
 ## =========================================================================== ##
+
+# REQUIRED. The item as a person names it.
+Name: Labyrinth plate
+
+# The part as a whole: shape, size, material, features. Default: empty.
+Description: >-
+  A square metal plate, 50 x 50 x 6 mm (length x width x thickness). On the front, a
+  milled maze and four blind corner holes of 2.459 mm, placed symmetrically. On the back,
+  the engraved JIC Smart Factory logo.
+
+# How a dimension is read on this part, beyond its nominal value. Default: empty.
+Measurement_Rules: >-
+  The part is square and its corner holes symmetric, so turned by 90 degrees their layout
+  looks the same. Each corner hole is checked against its two nearest edges, 4 mm from
+  each, whatever the orientation; neighbouring holes are 42 mm apart (50 - 2 x 4).
 
 # REQUIRED. The part's thickness [mm]. NOT measured: the camera looks from above. It is
 # USED: the scale is corrected from the calibration board's plane to the part's top face
@@ -34,6 +57,42 @@ Thickness_Mm: 6
 # [mm]: a dimension passes within nominal ± this, bounds included.
 Tolerance_Mm: 1.0
 
+# REQUIRED. The part's two sides, one per reference image (reference_image/<side>.png): each
+# side's Name (REQUIRED: the side sentence, 'It lies with its <Name> up.') and Description
+# (default: empty). The side is DINOv2's, never the describer's.
+Sides:
+  front:
+    Name: maze side
+    Description: >-
+      Matte grey metal with fine grinding marks. A milled maze whose channels have a flat,
+      bright floor, clearly lighter than the surface around them; the maze is not measured.
+      Four blind holes of 2.459 mm in the corners, centres 4 mm from both adjacent edges,
+      each with the drill's point visible in the middle. At the ends of two channels
+      (bottom right on the reference image) two small round features of about the corner
+      holes' size, with a rounded triangular shape: the maze's start and finish. They are
+      not holes and not defects.
+  back:
+    Name: logo side
+    Description: >-
+      No holes: the corner holes are blind and do not show from the back. The engraved JIC
+      Smart Factory logo: a large "JIC" and below it a smaller "Smart Factory".
+
+# What is NOK on this part, and what looks like it but is not: one entry per defect, with the
+# side it is looked for on. Default: none (a part whose defects are not described yet).
+Defects:
+  - Name: corner hole count
+    Side: front
+    Looks_Like: >-
+      Not exactly four corner holes. Each missing or extra hole is its own part of the
+      report. The maze's start and finish are not counted.
+  - Name: incomplete logo
+    Side: back
+    Looks_Like: >-
+      The "JIC" or the "Smart Factory" inscription missing, any letter of either missing,
+      or no inscription at all. Each missing element is its own part of the report. The
+      text read is compared letter by letter with "JIC" and "Smart Factory".
+
+# The checks the code runs on the part. Phase C adds Holes, phase D Stain and Logo.
 Checks:
   # The outline seen from above. The longer measured side is checked against Length_Mm,
   # the shorter against Width_Mm, so the part's rotation does not matter.

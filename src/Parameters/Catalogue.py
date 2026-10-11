@@ -76,6 +76,43 @@ class Catalogue_Reference_Str:
 
 
 @dataclass
+class Catalogue_Side_Str:
+    """
+    Description:
+        One side of the catalogue part as a person describes it: what it is called and what it looks
+        like. Its Name is read now (the side sentence of a judged object's description); its Description
+        is validated and waits for the describer (phase D of the catalogue mode).
+    """
+
+    # The side: 'front' or 'back', as its reference image is named.
+    #   Unit [string]
+    Side: str = ''
+    # What the side is called ('machined front'), and what it looks like ('' when not described).
+    #   Unit [string]
+    Name: str = ''
+    Description: str = ''
+
+
+@dataclass
+class Catalogue_Defect_Str:
+    """
+    Description:
+        One defect the catalogue part can have, as a person describes it: what it is called, the side it is
+        looked for on, what it looks like, and what looks like it but is not. Validated, and read by nothing
+        yet: the stain, hole and logo checks and the describer use it from phases C and D.
+    """
+
+    # The defect's name, and the side it is looked for on ('front' or 'back').
+    #   Unit [string]
+    Name: str = ''
+    Side: str = ''
+    # What it looks like, and what looks like it but is not a defect ('' when not described).
+    #   Unit [string]
+    Looks_Like: str = ''
+    Not_A_Defect: str = ''
+
+
+@dataclass
 class Catalogue_Item_Str:
     """
     Description:
@@ -88,6 +125,14 @@ class Catalogue_Item_Str:
     #   Unit [string]
     Path: str = ''
     Name: str = ''
+    # The item as a person names it ('Mounting plate'): the configuration-loaded line names it.
+    #   Unit [string]
+    Display_Name: str = ''
+    # The part as a whole, and how a dimension is read on it beyond its nominal value ('' when not
+    # described). Validated, read by the describer from phase D.
+    #   Unit [string]
+    Description: str = ''
+    Measurement_Rules: str = ''
     # The part's thickness. The camera looks from above and does not measure it; the scale is
     # corrected to the part's top face with it (Configuration.Core.Scale_At_Height).
     #   Unit [float] (mm)
@@ -100,6 +145,10 @@ class Catalogue_Item_Str:
     # The reference images, front then back (reference_image/ beside the file).
     #   Unit [Vector<Catalogue_Reference_Str(object)>]
     References: tp.List[Catalogue_Reference_Str] = field(default_factory=list)
+    # The two sides as a person describes them, front then back, and the defects (none when not described).
+    #   Unit [Vector<Catalogue_Side_Str(object)>] / [Vector<Catalogue_Defect_Str(object)>]
+    Sides: tp.List[Catalogue_Side_Str] = field(default_factory=list)
+    Defects: tp.List[Catalogue_Defect_Str] = field(default_factory=list)
     # What the loader has to say about this file, as (level, message): each optional field that fell
     # back to its default, each key it did not recognise. They join the configuration's Notes.
     #   Unit [Vector<Tuple<string> 1x2>]

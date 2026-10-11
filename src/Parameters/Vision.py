@@ -100,6 +100,9 @@ class Catalogue_Result_Str(object):
     Similarity: float = 0.0
     Side: str = ''
     Identify_Similarity: float = 0.0
+    # What the catalogue calls that side ('machined front'): the side sentence's words.
+    #   Unit [string]
+    Side_Name: str = ''
     # The object's mask area over the part's nominal area (Length_Mm x Width_Mm), both in mm at the
     # part's top face, and the ratio from which an object is Unspecified (the mode's).
     #   Unit [float] / [float]

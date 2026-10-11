@@ -449,3 +449,23 @@ def test_the_verdict_reaches_the_file_and_the_log() -> None:
         'WARNING', 'Object 2: Warning — not the part (similarity 0.31): it should not be on the surface.')
     assert Verdict_Log_Line(0, _Judged('Unspecified', area=2.0))[0] == 'WARNING'
     assert [Verdict_Log_Line(0, _Judged(verdict))[0] for verdict in ('OK', 'NOK')] == ['INFO', 'INFO']
+
+
+def test_a_judged_part_says_which_side_is_up_in_the_catalogues_words() -> None:
+    """
+    Description:
+        An OK or NOK part's description gains one sentence naming the side DINOv2 matched, in the catalogue's
+        words for it; a Warning (not the part) and an Unspecified object (several) gain none, and neither does
+        an object outside a catalogue mode.
+    """
+
+    from Reporting.Core import Side_Sentence
+    for verdict in ('OK', 'NOK'):
+        det = _Judged(verdict)
+        det.Catalogue.Side_Name = 'machined front'
+        assert Side_Sentence(det) == 'It lies with its machined front up.'
+    for verdict in ('Warning', 'Unspecified'):
+        det = _Judged(verdict)
+        det.Catalogue.Side_Name = 'machined front'
+        assert Side_Sentence(det) == ''
+    assert Side_Sentence(Detection_Str(Label='plate', Bbox=(0, 0, 1, 1))) == ''

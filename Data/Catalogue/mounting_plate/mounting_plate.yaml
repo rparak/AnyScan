@@ -19,10 +19,35 @@
 #     field. An optional field states its default; when it is absent the default is used
 #     and the log says so. An unrecognised key is logged as a warning.
 #
+#   Description, Sides, Defects:
+#     What the part looks like, on each side, and what is a defect and what is not — the
+#     single tracked source for the part, from the catalogue-mode request. Each side's Name
+#     is read now (the side sentence of a judged object's description). The longer texts
+#     are validated at load and read by nothing yet: the describer reads them from phase D
+#     of the catalogue mode, a dated exception to the rule that a field must be read
+#     (docs/design-decisions.md, 2026-10-11).
+#
 #   Checks:
 #     Each block under Checks is one check, run with the parameters it sets. Only the
-#     outline is checked today; the holes, the surface and the side are not yet built.
+#     outline is checked today; the holes, the surface and the logo are not yet built.
 ## =========================================================================== ##
+
+# REQUIRED. The item as a person names it.
+Name: Mounting plate
+
+# The part as a whole: shape, size, material, features. Default: empty.
+Description: >-
+  A metal mounting plate, rectangular, 60 x 40 x 8 mm (length x width x thickness). Two
+  stepped holes one above the other, their centres 25 mm apart, on an axis 15 mm from one
+  long edge (5 mm off the part's long axis) and 17.5 mm from the short edges. From the
+  front each hole is a 12 mm countersink around a 6 mm through-hole.
+
+# How a dimension is read on this part, beyond its nominal value. Default: empty.
+Measurement_Rules: >-
+  The part is symmetric lengthwise: turned by 180 degrees it looks the same, so the holes
+  have no top and bottom. Each hole is checked against its nearer short edge, 17.5 mm
+  either way. The countersink (10.5-13.5 mm) and through-hole (4.5-7.5 mm) ranges do not
+  overlap, so the two diameters cannot be confused.
 
 # REQUIRED. The part's thickness [mm]. NOT measured: the camera looks from above. It is
 # USED: the scale is corrected from the calibration board's plane to the part's top face
@@ -34,6 +59,43 @@ Thickness_Mm: 8
 # [mm]: a dimension passes within nominal ± this, bounds included.
 Tolerance_Mm: 1.5
 
+# REQUIRED. The part's two sides, one per reference image (reference_image/<side>.png): each
+# side's Name (REQUIRED: the side sentence, 'It lies with its <Name> up.') and Description
+# (default: empty). The side is DINOv2's, never the describer's.
+Sides:
+  front:
+    Name: machined front
+    Description: >-
+      Milled, shiny metal with regular circular to arc-shaped tool marks. About halfway up
+      two milled faces meet and the direction of the marks changes; the marks and the
+      transition come from machining and are not defects. Two stepped holes off the long
+      axis towards one long edge, so four circular outlines show: two of 12 mm, two of 6 mm.
+      Straight, clean edges with a slight chamfer.
+  back:
+    Name: unmachined back
+    Description: >-
+      Not milled, no tool marks: dark grey to brown-black, matte and slightly rough, like
+      raw rolled stock with mill scale or oxide. Short dark hairline scratches run mostly
+      across the part, square to the long edge. Along both long edges, irregular whitish to
+      silver spots where the surface layer is scuffed, a little more near the edge closer to
+      the holes; they are not defects and do not tell the orientation. Two smooth 6 mm
+      through-holes without countersink, so two circular outlines show. Straight edges, in
+      places a narrow chamfer.
+
+# What is NOK on this part, and what looks like it but is not: one entry per defect, with the
+# side it is looked for on. Default: none (a part whose defects are not described yet).
+Defects:
+  - Name: fingerprint
+    Side: front
+    Looks_Like: >-
+      One or more yellow-brown to brown stains of irregular shape, papillary lines may
+      show; clearly unlike the shiny milled metal. Any size; each stain is its own part of
+      the report, and one is enough for NOK.
+    Not_A_Defect: >-
+      Small dark dots, scratches or marks with no papillary lines and no continuous
+      yellow-brown area.
+
+# The checks the code runs on the part. Phase C adds Holes, phase D Stain and Logo.
 Checks:
   # The outline seen from above. The longer measured side is checked against Length_Mm,
   # the shorter against Width_Mm, so the part's rotation does not matter.

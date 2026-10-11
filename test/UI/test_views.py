@@ -314,7 +314,7 @@ def test_config_loaded_log_line_carries_the_state() -> None:
     for line in (on, off):
         assert CONST_CONFIGURATION.Name in line and 'a2A1920_51gcPRO_Computar_M1228_MPW3' in line
         assert 'Seg_Anything' in line
-    assert 'enabled' in on and 'catalogue item mounting_plate' in on and 'OK, NOK, Unspecified or Warning' in on
+    assert 'enabled' in on and 'catalogue item Mounting plate (mounting_plate)' in on and 'OK, NOK, Unspecified or Warning' in on
     assert 'disabled' in off and 'detected objects only' in off
 
 

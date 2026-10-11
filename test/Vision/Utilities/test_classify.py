@@ -195,3 +195,17 @@ def test_the_best_match_is_the_highest_over_turns_and_sides() -> None:
     turns = np.array([[0.0, 0.0, 1.0], [0.6, 0.0, 0.8], [0.0, 0.9, 0.43588989], [0.0, 0.0, 1.0]])
     assert Best_Match(turns, references, ['front', 'back']) == (pytest.approx(0.9), 'back')
     assert len(Rotations(np.zeros((6, 4, 3), dtype=np.uint8), cv2)) == 4
+
+
+def test_the_side_is_named_in_the_catalogues_words() -> None:
+    """
+    Description:
+        The evidence keeps the side DINOv2 matched and the catalogue's name for it, which the side sentence
+        uses: 'back' is the mounting plate's 'unmachined back'.
+    """
+
+    from Configuration.Core import Load_Catalogue
+    item = Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')
+    det = _Part([(660, 400, 1260, 800)])
+    Classify(det, 0.9, 'back', item, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    assert (det.Catalogue.Side, det.Catalogue.Side_Name) == ('back', 'unmachined back')

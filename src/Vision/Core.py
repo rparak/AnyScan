@@ -35,7 +35,7 @@ from Parameters.Vision import (Detection_Str, Analysis_Str, Heatmap_Str, Load_Ti
 #   ../Parameters/Configuration
 from Parameters.Configuration import Configuration_Str
 #   ../Reporting/Core
-from Reporting.Core import (Compose, Verdict, Background_Sentence,
+from Reporting.Core import (Compose, Verdict, Background_Sentence, Side_Sentence,
                             CONST_EMPTY_SCENE_EXPLANATION, CONST_BACKGROUND_FALLBACK)
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import Background_Difference, Foreground_Mask, CONST_DIFFERENCE_SCALE_MAX
@@ -954,6 +954,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             similarity, side = Best_Match(rows[index * turns:(index + 1) * turns], references, self.__reference_sides)
             Classify(det, similarity, side, self.__config.Catalogue, self.__config.Identification,
                      self.__config.Scale, frame_size)
+            # The judged part's description says which side is up, from DINOv2's side, in the catalogue's
+            # words; the describer was neither asked nor told.
+            side_sentence = Side_Sentence(det)
+            if side_sentence:
+                det.Sentence = ('%s %s' % (det.Sentence, side_sentence)).strip()
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            bg_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],

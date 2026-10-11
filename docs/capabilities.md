@@ -108,7 +108,8 @@ then composes and measures. The numbers are the ones the README and the mode fil
   otherwise Warning. A size checked more than 74.3 mm from the frame centre carries a note that it is not
   verified there
   ([*A catalogue mode identifies by similarity…*](design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok)).
-  The verdict colours the frame and the mask, and its reasons are in Scene Understanding and the log.
+  The verdict colours the frame and the mask, and its reasons are in Scene Understanding and the log. An
+  OK or NOK part's description gains the side that is up, in the catalogue's words, from DINOv2.
 
 ## Modes
 
@@ -131,8 +132,10 @@ piece of hardware. The modes shipped today:
   corrected). The status badge and History's filter still speak OK/NOK only
   ([KNOWN_ISSUES](../KNOWN_ISSUES.md#the-status-badge-and-historys-filter-do-not-know-warning-or-unspecified)).
 - **A catalogue mode** is a mode file with a `Catalogue` block naming one item,
-  `Data/Catalogue/<item>/<item>.yaml`: the part's thickness, tolerance and checks, with its reference
-  images beside it. It checks the outline and identifies the item and its side, and gives every object
+  `Data/Catalogue/<item>/<item>.yaml`: the part's name and description, each side's name and description,
+  its known defects, its thickness, tolerance and checks, with its reference images beside it. The
+  descriptions are validated now and read by the describer from phase D
+  ([*A catalogue item is the single tracked source…*](design-decisions.md#a-catalogue-item-is-the-single-tracked-source-for-its-part-and-its-descriptions-wait-for-the-describer)). It checks the outline and identifies the item and its side, and gives every object
   one of four states. The holes, the stain and the logo are designed, not built
   ([*A catalogue mode is a Catalogue block…*](design-decisions.md#a-catalogue-mode-is-a-catalogue-block-naming-an-item-folder-and-the-configuration-picks-checks-never-their-order)).
   Within tolerance means consistent with nominal: the parts were not calipered

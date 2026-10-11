@@ -46,7 +46,8 @@ from Parameters.Camera import Camera_Calibration_Parameters_Str
 #   ../Parameters/Vision
 from Parameters.Vision import Scale_Str, CONST_SCALE_UNITS
 #   ../Parameters/Catalogue
-from Parameters.Catalogue import Catalogue_Item_Str, Catalogue_Reference_Str
+from Parameters.Catalogue import (Catalogue_Item_Str, Catalogue_Reference_Str, Catalogue_Side_Str,
+                                  Catalogue_Defect_Str)
 
 """
 Description:
@@ -347,6 +348,9 @@ CONST_STATION_ONLY_PATHS = (('Camera',), ('Segmentation', 'Background', 'Referen
 # a constant (__Read_Catalogue).
 #   Unit [Vector<Tuple>]
 CONST_CATALOGUE_FIELDS = (
+    (('Name',), ('Display_Name',), 'text', True),
+    (('Description',), ('Description',), 'text', False),
+    (('Measurement_Rules',), ('Measurement_Rules',), 'text', False),
     (('Thickness_Mm',), ('Thickness_Mm',), 'positive', True),
     (('Tolerance_Mm',), ('Tolerance_Mm',), 'positive', True),
     (('Checks', 'Outline', 'Length_Mm'), ('Outline', 'Length_Mm'), 'positive', True),
@@ -367,6 +371,12 @@ CONST_REMOVED_CLASSIFICATION_PATH = ('General', 'Classification')
 # The sides a catalogue item has reference images of, in order, under <item>/reference_image/.
 #   Unit [Tuple<string>]
 CONST_CATALOGUE_SIDES = ('front', 'back')
+# A catalogue item's side and defect entries: the keys each may hold, (key, kind, required). A side's Name is
+# read now; the rest waits for the describer (phase D), validated meanwhile.
+#   Unit [Tuple<Tuple>]
+CONST_SIDE_KEYS = (('Name', 'text', True), ('Description', 'text', False))
+CONST_DEFECT_KEYS = (('Name', 'text', True), ('Side', 'text', True), ('Looks_Like', 'text', True),
+                     ('Not_A_Defect', 'text', False))
 # The catalogue's outline tolerance override.
 #   Unit [Tuple<string>]
 CONST_OUTLINE_TOLERANCE_PATH = ('Checks', 'Outline', 'Tolerance_Mm')
@@ -920,10 +930,111 @@ def __Read_Catalogue(path: str, problems: tp.List[str],
         problems.append('%sChecks.Outline.Length_Mm (%r) must be at least Checks.Outline.Width_Mm (%r): the '
                         'length is the longer side' % (prefix, item.Outline.Length_Mm, item.Outline.Width_Mm))
     item.References = __Read_References(os.path.dirname(path), file_name, problems)
-    known = __Known_Paths([CONST_OUTLINE_TOLERANCE_PATH] + [path for path, _a, _k, _r in CONST_CATALOGUE_FIELDS])
+    item.Sides = __Read_Sides(data.get('Sides'), prefix, problems)
+    item.Defects = __Read_Defects(data.get('Defects'), prefix, problems)
+    known = __Known_Paths([CONST_OUTLINE_TOLERANCE_PATH, ('Defects',)]
+                          + [('Sides', side, key) for side in CONST_CATALOGUE_SIDES for key, _k, _r in CONST_SIDE_KEYS]
+                          + [path for path, _a, _k, _r in CONST_CATALOGUE_FIELDS])
     for key in __Unknown_Keys(data, known):
         notes.append(('WARNING', '%sunrecognised key %s is ignored (misspelt?).' % (prefix, key)))
     return item
+
+
+def __Read_Entry(entry: tp.Any, keys: tp.Tuple[tp.Tuple[str, str, bool], ...], dotted: str,
+                 problems: tp.List[str]) -> tp.Dict[str, str]:
+    """
+    Description:
+        One mapping of a catalogue item (a side, a defect) against its keys: each required key present, each
+        present value valid, any other key a problem — an entry is short enough that a misspelling is wrong,
+        not a warning.
+
+    Args:
+        (1) entry [Any]: The mapping as read.
+        (2) keys [Tuple<Tuple>]: (key, kind, required) for each key it may hold.
+        (3) dotted [string]: Its place in the file, for the messages ('mounting_plate.yaml: Sides.front').
+        (4) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Dict<string, string>]: The valid values, '' for an absent optional one.
+    """
+
+    values = {key: '' for key, _kind, _required in keys}
+    if not isinstance(entry, dict):
+        problems.append('%s must be a mapping of %s' % (dotted, ', '.join(key for key, _k, _r in keys)))
+        return values
+    for key in entry:
+        if key not in values:
+            problems.append('%s.%s is not a key it may hold (%s)' % (dotted, key, ', '.join(values)))
+    for key, kind, required in keys:
+        if key not in entry or entry[key] is None:
+            if required:
+                problems.append('%s.%s is required but missing' % (dotted, key))
+            continue
+        valid, value, expected = __Check(kind, entry[key])
+        if valid:
+            values[key] = value
+        else:
+            problems.append('%s.%s must be %s (found %r)' % (dotted, key, expected, entry[key]))
+    return values
+
+
+def __Read_Sides(block: tp.Any, prefix: str, problems: tp.List[str]) -> tp.List[Catalogue_Side_Str]:
+    """
+    Description:
+        The item's Sides: exactly CONST_CATALOGUE_SIDES, each a Name (REQUIRED, the side sentence's) and an
+        optional Description — the sides the reference images are of, so a side without a description, or a
+        description of a side without a reference, is refused.
+
+    Args:
+        (1) block [Any]: The Sides block as read.
+        (2) prefix [string]: The item file's name and ': '.
+        (3) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Vector<Catalogue_Side_Str(object)>]: The sides, in CONST_CATALOGUE_SIDES order.
+    """
+
+    if not isinstance(block, dict) or sorted(block) != sorted(CONST_CATALOGUE_SIDES):
+        problems.append('%sSides is required and must hold exactly %s (found %s)'
+                        % (prefix, ' and '.join(CONST_CATALOGUE_SIDES),
+                           ', '.join(sorted(map(str, block))) if isinstance(block, dict) else repr(block)))
+        return []
+    sides = []
+    for side in CONST_CATALOGUE_SIDES:
+        values = __Read_Entry(block[side], CONST_SIDE_KEYS, '%sSides.%s' % (prefix, side), problems)
+        sides.append(Catalogue_Side_Str(Side=side, Name=values['Name'], Description=values['Description']))
+    return sides
+
+
+def __Read_Defects(block: tp.Any, prefix: str, problems: tp.List[str]) -> tp.List[Catalogue_Defect_Str]:
+    """
+    Description:
+        The item's Defects: a list, each entry a Name, the Side it is looked for on (one of
+        CONST_CATALOGUE_SIDES), what it Looks_Like and optionally what is Not_A_Defect. Absent means none
+        described yet — a part whose defective examples may not exist.
+
+    Args:
+        (1) block [Any]: The Defects block as read (None when absent).
+        (2) prefix [string]: The item file's name and ': '.
+        (3) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Vector<Catalogue_Defect_Str(object)>]: The defects, in file order.
+    """
+
+    if block is None:
+        return []
+    if not isinstance(block, list):
+        problems.append('%sDefects must be a list of defects (found %r)' % (prefix, block))
+        return []
+    defects = []
+    for index, entry in enumerate(block, 1):
+        dotted = '%sDefects[%d]' % (prefix, index)
+        values = __Read_Entry(entry, CONST_DEFECT_KEYS, dotted, problems)
+        if values['Side'] and values['Side'] not in CONST_CATALOGUE_SIDES:
+            problems.append('%s.Side must be %s (found %r)' % (dotted, ' or '.join(CONST_CATALOGUE_SIDES), values['Side']))
+        defects.append(Catalogue_Defect_Str(**values))
+    return defects
 
 
 def __Read_References(folder: str, file_name: str, problems: tp.List[str]) -> tp.List[Catalogue_Reference_Str]:
@@ -1633,8 +1744,8 @@ def Config_Loaded_Log_Line(Configuration_Str: Configuration_Str) -> str:
     """
 
     if Configuration_Str.Classifies:
-        state = ('enabled — catalogue item %s: each object is OK, NOK, Unspecified or Warning'
-                 % Configuration_Str.Catalogue.Name)
+        state = ('enabled — catalogue item %s (%s): each object is OK, NOK, Unspecified or Warning'
+                 % (Configuration_Str.Catalogue.Display_Name, Configuration_Str.Catalogue.Name))
     else:
         state = 'disabled — the UI shows detected objects only, no verdicts'
     return ("Loaded configuration '%s' ('%s': hardware %s, mode %s, model set %s). Classification is %s."

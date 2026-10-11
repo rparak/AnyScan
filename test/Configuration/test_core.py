@@ -1201,7 +1201,8 @@ def test_an_invalid_catalogue_item_fails_its_mode(tmp_path: tp.Any) -> None:
         Load_Configuration(_Write(tmp_path, mode, calibration))
 
 
-@pytest.mark.parametrize('path', [path for path, _a, _k, _r in CONST_CATALOGUE_FIELDS], ids=lambda p: '.'.join(p))
+@pytest.mark.parametrize('path', [path for path, _a, _k, required in CONST_CATALOGUE_FIELDS if required],
+                         ids=lambda p: '.'.join(p))
 def test_a_catalogue_item_missing_a_required_field_fails_naming_it(tmp_path: tp.Any, path: tp.Tuple[str, ...]) -> None:
     """
     Description:
@@ -1274,16 +1275,23 @@ def test_an_unrecognised_catalogue_key_is_a_warning(tmp_path: tp.Any) -> None:
 def test_every_field_of_a_shipped_catalogue_item_says_required_or_its_default(item: str) -> None:
     """
     Description:
-        The catalogue files follow the mode file's rule: each required field's comment says REQUIRED,
-        and the optional outline tolerance, which is commented out because its default is the item's
-        own tolerance, says so — a value written there would stay put when the item's changed.
+        The catalogue files follow the mode file's rule: each required field's comment says REQUIRED, each
+        optional one its default (the descriptions: empty); Sides says REQUIRED and Defects that none is the
+        default; and the optional outline tolerance, which is commented out because its default is the
+        item's own tolerance, says so — a value written there would stay put when the item's changed.
     """
 
+    from Parameters.Catalogue import Catalogue_Item_Str
     path = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Catalogue', item, item + '.yaml')
     comments = _Field_Comments(path)
-    for field_path, _attribute, _kind, _required in CONST_CATALOGUE_FIELDS:
+    for field_path, attribute, _kind, required in CONST_CATALOGUE_FIELDS:
         said = [comments.get(field_path[:i], ('', 0))[0] for i in range(1, len(field_path) + 1)]
-        assert any('REQUIRED' in comment for comment in said), '.'.join(field_path)
+        if required:
+            assert any('REQUIRED' in comment for comment in said), '.'.join(field_path)
+        else:
+            text, position = comments[field_path]
+            assert _Documented_Default(text, position) == getattr(Catalogue_Item_Str(), attribute[-1]), field_path
+    assert 'REQUIRED' in comments[('Sides',)][0] and 'Default: none' in comments[('Defects',)][0]
     with open(path, 'r', encoding='utf-8') as handle:
         text = handle.read()
     assert "Default: the item's Tolerance_Mm." in text and '\n    Tolerance_Mm:' not in text
@@ -1557,3 +1565,59 @@ def test_every_station_field_says_required_or_its_default() -> None:
         assert any('REQUIRED' in comment for comment in said), path
     # The window's two halves share one comment, above Resolution, which says both are required.
     assert 'its size and its offset' in comments[('Camera', 'Resolution')][0]
+
+
+def test_the_item_carries_its_description_sides_and_defects() -> None:
+    """
+    Description:
+        Each shipped item is the single tracked source for its part: its name, its description and
+        measurement rules, both sides with their names and descriptions, and its defects, each on a side —
+        the request's text, loaded and validated.
+    """
+
+    plate = Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')
+    assert plate.Display_Name == 'Mounting plate' and plate.Description.startswith('A metal mounting plate')
+    assert 'symmetric lengthwise' in plate.Measurement_Rules
+    assert [(side.Side, side.Name) for side in plate.Sides] == [('front', 'machined front'), ('back', 'unmachined back')]
+    assert 'tool marks' in plate.Sides[0].Description and 'whitish to silver' in plate.Sides[1].Description
+    assert [(d.Name, d.Side) for d in plate.Defects] == [('fingerprint', 'front')]
+    assert 'papillary lines' in plate.Defects[0].Looks_Like and plate.Defects[0].Not_A_Defect
+    labyrinth = Load_Catalogue('Data/Catalogue/labyrinth/labyrinth.yaml')
+    assert [(side.Side, side.Name) for side in labyrinth.Sides] == [('front', 'maze side'), ('back', 'logo side')]
+    assert [(d.Name, d.Side) for d in labyrinth.Defects] == [('corner hole count', 'front'), ('incomplete logo', 'back')]
+
+
+@pytest.mark.parametrize('change, words', [
+    (lambda d: d.pop('Sides'), 'Sides is required and must hold exactly front and back'),
+    (lambda d: d['Sides'].pop('back'), 'Sides is required and must hold exactly front and back'),
+    (lambda d: d['Sides']['front'].pop('Name'), 'Sides.front.Name is required but missing'),
+    (lambda d: d['Sides']['back'].update(Colour='dark'), 'Sides.back.Colour is not a key it may hold'),
+    (lambda d: d['Defects'][0].update(Side='left'), r'Defects\[1\]\.Side must be front or back'),
+    (lambda d: d['Defects'][0].pop('Looks_Like'), r'Defects\[1\]\.Looks_Like is required but missing'),
+    (lambda d: d.update(Defects='fingerprint'), 'Defects must be a list of defects'),
+], ids=['no sides', 'one side', 'side without name', 'unknown side key', 'defect side', 'defect look', 'defects not a list'])
+def test_an_invalid_description_fails_the_item(tmp_path: tp.Any, change: tp.Callable, words: str) -> None:
+    """
+    Description:
+        The descriptive fields are validated now though the describer reads them only from phase D: both sides,
+        each named; each defect named, on a side, with what it looks like; a key a side or defect may not hold.
+        A mistake here fails the item instead of waiting to mislead the describer.
+    """
+
+    data = _Item('mounting_plate')
+    change(data)
+    with pytest.raises(Configuration_Error_Cls, match=words):
+        Load_Catalogue(_Write_Item(tmp_path, data))
+
+
+def test_an_item_with_no_defects_described_loads() -> None:
+    """
+    Description:
+        Defects are optional: an item whose defective parts do not exist yet describes none, and loads.
+    """
+
+    import tempfile
+    data = _Item('labyrinth')
+    del data['Defects']
+    with tempfile.TemporaryDirectory() as directory:
+        assert Load_Catalogue(_Write_Item(directory, data, references='labyrinth')).Defects == []

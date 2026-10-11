@@ -522,6 +522,26 @@ def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
     return lines
 
 
+def Side_Sentence(det: Detection_Str) -> str:
+    """
+    Description:
+        The sentence a judged part's description gains: which side is up, in the catalogue's words for it
+        ('It lies with its machined front up.'). Only for an object judged the part (OK, NOK): a Warning is
+        not the part, and an Unspecified object is several. The side is DINOv2's (Catalogue_Result_Str.Side),
+        never the describer's, which is not asked and not told.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object, judged.
+
+    Returns:
+        (1) parameter [string]: The sentence, or '' when it has none.
+    """
+
+    if det.Catalogue is None or det.Verdict not in ('OK', 'NOK') or not det.Catalogue.Side_Name:
+        return ''
+    return 'It lies with its %s up.' % det.Catalogue.Side_Name
+
+
 def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
     """
     Description:

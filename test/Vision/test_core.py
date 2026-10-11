@@ -609,6 +609,11 @@ def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference
     assert small.Verdict == 'Warning'
     assert plate.Catalogue.Similarity == 1.0 and small.Catalogue.Similarity == 0.0
     assert plate.Verdict == 'OK' and [c.Within for c in plate.Dimension_Checks] == [True, True]
+    # The judged part's description says which side is up — DINOv2's side, the catalogue's words; the
+    # Warning's does not.
+    assert plate.Sentence.endswith(' It lies with its %s up.' % plate.Catalogue.Side_Name)
+    assert plate.Catalogue.Side_Name in ('machined front', 'unmachined back')
+    assert 'It lies with its' not in small.Sentence
     assert result.Timing.Identification_Ms is not None
 
 

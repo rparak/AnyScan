@@ -3016,3 +3016,35 @@ per table, and the station split).
 Tests `test/Configuration/test_core.py` (`test_a_mode_file_never_overrides_the_station`, the missing and
 mismatched station file, its unknown keys, every mode reading the one station, its documented defaults),
 `test/integration/test_capabilities_doc.py::test_the_station_table_names_every_section_of_the_station_file`.
+
+
+## A catalogue item is the single tracked source for its part, and its descriptions wait for the describer
+
+Decided 2026-10-11 (catalogue phase B.1), on the owner's rulings. Each item file holds what the request
+said about the part, in a schema phases C and D extend rather than reshape:
+
+- `Name` (REQUIRED) — the item as a person names it; the configuration-loaded line names it.
+- `Description`, `Measurement_Rules` (optional, default empty) — the part as a whole, and how a dimension
+  is read on it beyond its nominal value (the plate's symmetry, the labyrinth's square).
+- `Sides` (REQUIRED: exactly `front` and `back`, the reference images' names) — each a `Name` (REQUIRED)
+  and a `Description`. The `Name` is read now: a judged part's description gains "It lies with its <Name>
+  up.", from DINOv2's side, never the describer's.
+- `Defects` (optional, default none: a part whose defective examples may not exist yet) — each a `Name`,
+  the `Side` it is looked for on, what it `Looks_Like` and what is `Not_A_Defect`.
+- `Checks` — what the code measures (`Outline` today; `Holes` in phase C, `Stain` and `Logo` in D), kept
+  apart from what a person or the describer looks for.
+
+**A dated exception to "a field must be read".** `Description`, `Measurement_Rules`, each side's
+`Description` and `Defects` are loaded and validated now (a wrong side, a missing name, an unknown key in a
+side or a defect fails the item) and read by nothing until the describer uses them in phase D. The owner
+chose this over keeping them as comments: validated fields cannot drift unnoticed, comments would have had
+to become fields anyway, and the item file is then the one place the part is described. The exception ends
+when phase D reads them; until then the item files' headers say so.
+
+**Revisit if** phase D does not read a field (remove it, the rule applies again), or a part has a side
+without a reference image (then `Sides` follows the references, not a fixed pair).
+Tests `test/Configuration/test_core.py` (`test_the_item_carries_its_description_sides_and_defects`,
+`test_an_invalid_description_fails_the_item`, `test_an_item_with_no_defects_described_loads`, the documented
+defaults), `test/Reporting/test_core.py::test_a_judged_part_says_which_side_is_up_in_the_catalogues_words`,
+`test/Vision/Utilities/test_classify.py::test_the_side_is_named_in_the_catalogues_words`,
+`test/Vision/test_core.py::test_a_catalogue_mode_judges_every_object_by_the_rule`.

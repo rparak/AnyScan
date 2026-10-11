@@ -226,7 +226,8 @@ def Classify(det: Detection_Str, similarity: float, side: str, Catalogue_Item_St
     outline = Catalogue_Item_Str.Outline
     thresholds = Identification_Parameters_Str
     area_ratio = Object_Area_Mm2(det, scale) / (outline.Length_Mm * outline.Width_Mm)
-    det.Catalogue = Catalogue_Result_Str(Similarity=similarity, Side=side,
+    names = {entry.Side: entry.Name for entry in Catalogue_Item_Str.Sides}
+    det.Catalogue = Catalogue_Result_Str(Similarity=similarity, Side=side, Side_Name=names.get(side, side),
                                          Identify_Similarity=thresholds.Identify_Similarity,
                                          Area_Ratio=area_ratio, Unspecified_Area_Ratio=thresholds.Unspecified_Area_Ratio,
                                          Center_Distance_Mm=Center_Distance_Mm(det, frame_size, scale),
