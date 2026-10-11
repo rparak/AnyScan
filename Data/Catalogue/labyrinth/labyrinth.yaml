@@ -139,7 +139,8 @@ Checks:
   # 0.77 and contrast at least 3.24. Each of their 165 letters erased in turn (synthetic, inpainted):
   # similarity at most 0.47, except two J at 0.58-0.59 whose inpainted seam keeps the J's shape at
   # contrast 0.18-0.19; every one caught. Thresholds midway (0.62) and at the plate's own texture (1.0).
-  # Image_092's right plate (dark, scratched, glare) scores 0.19: a known false NOK (KNOWN_ISSUES).
+  # Image_092's right plate (dark, scratched, glare) scored 0.19 against the first three references; it is
+  # the fourth (back_dark) since 2026-10-11, and the 165 erasures are still caught with it.
   Logo:
     back:
       Expected_Text: [JIC, SMART, FACTORY]
@@ -208,6 +209,28 @@ Checks:
             - [O, 251, 392, 33, 45]
             - [R, 284, 387, 35, 43]
             - [Y, 316, 382, 33, 43]
+        # The filled letters on a dark, scratched, glare-lit plate, the engraving lighter than the plate
+        # (Image_092's right plate, index 2), its frame turned 5.6 degrees to level it: a reference for that
+        # appearance, which scored 0.19 against the others (owner's ruling, 2026-10-11). Boxes carried over
+        # from back by the SIFT registration between the two, checked drawn.
+        - Image: back_dark
+          Rotation_Deg: 5.6
+          Letters:
+            - [J, 65, 123, 128, 128]
+            - [I, 253, 127, 29, 122]
+            - [C, 343, 125, 121, 128]
+            - [S, 69, 299, 32, 46]
+            - [M, 101, 299, 46, 46]
+            - [A, 147, 299, 37, 46]
+            - [R, 184, 299, 37, 46]
+            - [T, 221, 299, 31, 46]
+            - [F, 71, 357, 24, 45]
+            - [A, 95, 357, 33, 45]
+            - [C, 128, 357, 42, 45]
+            - [T, 170, 357, 23, 45]
+            - [O, 193, 357, 41, 45]
+            - [R, 234, 357, 36, 45]
+            - [Y, 270, 357, 32, 45]
 
 # The describer's prompt for a judged part (OK or NOK), filled per part: {side} (the side's Name,
 # from DINOv2), {side_description}, {defects} (that side's Defects) and {findings} (what the checks

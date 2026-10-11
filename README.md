@@ -289,8 +289,8 @@ What a catalogue mode does not check, it cannot fail:
   1 mm² or more on the mounting plate's front. A stain of another colour, or this colour under another light,
   is not verified.
 - **A missing letter is verified on synthetic erasures only.** No plate of the test set has one; each letter
-  of the 11 complete real logos was erased in turn and caught. One complete logo, on a dark, scratched,
-  glare-lit plate (Image_092's right), reads NOK (KNOWN_ISSUES).
+  of the 12 complete real logos was erased in turn and caught. The outline-letter and the dark, glare-lit
+  appearances rest on their reference plates, with one and no independent test plate (KNOWN_ISSUES).
 - **The describer's words are guarded, not trusted.** In a catalogue mode it is told what the checks found
   and given no number; a sentence with a number or contradicting a check is dropped and logged, by word
   patterns (KNOWN_ISSUES). The verdict and its reasons never come from it.

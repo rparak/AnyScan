@@ -202,10 +202,11 @@ def test_a_judged_parts_logo_decides_ok_or_nok(logo: Logo_Result_Str, before: st
 
 # The complete logos of the test set's labyrinth backs, by frame: their places among the frame's backs from the
 # left (labelled by eye, 2026-10-11): the filled letters, and the outline letters on 069, 092's left and 095's left.
-# Image_092's right plate is complete too but a known false NOK (KNOWN_ISSUES), so it is not erased from.
+# Image_092's right plate (back_dark) is complete too and erased from as well: it is a reference, so it shows that
+# an erasure is caught against the plate's own letters, not that the dark appearance is verified (KNOWN_ISSUES).
 #   Unit [Dict<string, Tuple<int>>]
 CONST_COMPLETE_BACKS = {'Image_058.png': (0,), 'Image_061.png': (0,), 'Image_067.png': (0,), 'Image_069.png': (0,),
-                        'Image_084.png': (0,), 'Image_086.png': (1,), 'Image_090.png': (0,), 'Image_092.png': (0,),
+                        'Image_084.png': (0,), 'Image_086.png': (1,), 'Image_090.png': (0,), 'Image_092.png': (0, 1),
                         'Image_094.png': (1,), 'Image_095.png': (0, 1)}
 
 
@@ -236,9 +237,10 @@ def test_every_letter_erased_from_a_real_logo_is_caught(name: str, require_weigh
     Description:
         Each complete logo of the test set's backs (cut out by the application's pipeline in the labyrinth mode)
         reads complete; then each of its 15 letters is erased in turn (SYNTHETIC: its strokes inpainted, on the
-        part registered onto its best reference) and that letter is missing. 165 erasures over the 11 logos;
-        the inpainted seam of a J keeps the letter's shape (similarity 0.58-0.59, just under 0.62) at contrast
-        0.18-0.19, far under 1.0. Slow because it runs FastSAM and DINOv2; missing weights fail it under
+        part registered onto its best reference) and that letter is missing. 180 erasures over the 12 logos,
+        at most 0.34. (An eraser of the dark strokes only left the dark plate's lighter letters in place, and on
+        two J left a seam of the letter's shape, 0.58-0.59 at contrast 0.18-0.19, which the contrast condition
+        catches.) Slow because it runs FastSAM and DINOv2; missing weights fail it under
         --runslow.
     """
 
@@ -265,8 +267,10 @@ def test_every_letter_erased_from_a_real_logo_is_caught(name: str, require_weigh
         for index, (_letter, x, y, w, h) in enumerate(reference.Letters):
             box = np.zeros(aligned.shape[:2], np.uint8)
             box[max(0, y - 2):y + h + 2, max(0, x - 2):x + w + 2] = 255
-            gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY)
-            strokes = (cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 31, 8) > 0) & (box > 0)
+            # The strokes are the pixels off their surroundings either way: the dark plate's engraving is lighter
+            # than the plate, and a dark-only eraser left its letters in place.
+            gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY).astype(int)
+            strokes = (np.abs(gray - cv2.blur(gray.astype(np.uint8), (31, 31)).astype(int)) > 8) & (box > 0)
             erased = cv2.inpaint(aligned, cv2.dilate(strokes.astype(np.uint8) * 255, np.ones((5, 5), np.uint8)), 5,
                                  cv2.INPAINT_TELEA)
             result = Check_Logo(erased, logo, prepared, cv2, np)

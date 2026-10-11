@@ -1702,8 +1702,8 @@ def test_the_items_carry_their_stain_logo_and_describer_prompt() -> None:
     Description:
         The shipped items' phase D checks: the mounting plate's front has the stain band (hue 5-30, saturation
         and value from 50 and 40, 1 mm², a 1 mm edge band) and its back none; the labyrinth's back has the logo
-        (JIC, SMART, FACTORY; 30 matches, 0.62 similarity, contrast 1.0) with three references — the filled
-        letters, and the outline letters on two plates — each spelling the text; both carry a describer prompt.
+        (JIC, SMART, FACTORY; 30 matches, 0.62 similarity, contrast 1.0) with four references — the filled
+        letters, the outline letters on two plates, the filled letters on a dark plate — each spelling the text; both carry a describer prompt.
     """
 
     plate = Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')
@@ -1717,7 +1717,7 @@ def test_the_items_carry_their_stain_logo_and_describer_prompt() -> None:
     assert (logo.Expected_Text, logo.Min_Matches, logo.Letter_Min_Similarity, logo.Letter_Min_Contrast) == \
         (['JIC', 'SMART', 'FACTORY'], 30, 0.62, 1.0)
     assert [(r.Name, r.Rotation_Deg, len(r.Letters)) for r in logo.References] == \
-        [('back', 0.0, 15), ('back_outline', 0.0, 15), ('back_outline_2', 24.3, 15)]
+        [('back', 0.0, 15), ('back_outline', 0.0, 15), ('back_outline_2', 24.3, 15), ('back_dark', 5.6, 15)]
     assert all(''.join(letter[0] for letter in r.Letters) == 'JICSMARTFACTORY' for r in logo.References)
     assert all(os.path.isfile(r.Image_Path) for r in logo.References)
     assert '{findings}' in plate.Describer_Prompt and '{findings}' in labyrinth.Describer_Prompt

@@ -182,12 +182,11 @@ CONST_EXPECTED_VERDICTS = {
     'Image_094.png': (_Warnings(4), ('NOK', 'NOK', 'NOK', 'OK')),
     'Image_095.png': (_Warnings(4), ('NOK', 'NOK', 'OK', 'OK')),
 }
-# The frames whose expected verdict the checks are known to miss: Image_092's right labyrinth back (dark,
-# scratched, glare-lit) is complete but its letters score 0.19 against the references, a known false NOK of
-# the logo check (KNOWN_ISSUES; the owner's ruling, 2026-10-11: no letter erased may pass to make it OK).
-# Strict xfails: they fail the run the day the frame reads as labelled, so the mark is lifted with it.
+# The frames whose expected verdict the checks are known to miss, each a strict xfail naming its cause: it fails
+# the run the day the frame reads as labelled, so the mark is lifted with it. None today: Image_092's right
+# labyrinth back, a false NOK until 2026-10-11, is the logo's fourth reference (back_dark) since.
 #   Unit [Dict<Tuple<string, string>, string>]
-CONST_PENDING_VERDICTS = {('Image_092.png', 'Labyrinth'): "the right plate's logo, a known false NOK (KNOWN_ISSUES)"}
+CONST_PENDING_VERDICTS = {}
 # The corner holes on each labyrinth front of a frame, counted by eye on the enlarged corners (2026-10-11), in no
 # particular order: four on the reference plate's kind, three on one kind (a corner blank), none on the plates with
 # the other maze layout. The hole check must find exactly these.

@@ -515,22 +515,6 @@ means "this object should not be on the surface". Seen on 2026-10-11, in the lab
   Warning dots take another token, decided with the other verdict views.
 - **Pinned by:** nothing yet: the phase that fixes it pins it.
 
-## A dark, scratched, glare-lit logo plate reads NOK with its logo complete
-
-Image_092's right labyrinth back (dark, scratched, glare across it, the engraving lighter than the plate where
-the others are darker) registers to the filled-letter reference (54 matches) but its letters score at most 0.19
-against every reference, so seven read missing and the plate is NOK. Every equalisation tried before the letter
-comparison (CLAHE clips 1–4, an equalised histogram, an absolute high-pass, a top-hat) lifted erased letters
-past it too; the owner's condition (2026-10-11) is that no erased letter may pass, so it stays a known false NOK.
-1 of the 12 logo plates of the test set.
-
-- **Impact:** a complete logo on a plate like this one reads NOK, each "missing" letter named. The error is the
-  safe one (a part rejected, none passed).
-- **Not fixed here:** a reference of such a plate would let it register to a plate of its own kind; one more frame
-  of that kind is needed to measure it on, without reading it on itself.
-- **Pinned by:** `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts[Image_092-Labyrinth]`,
-  a strict xfail: it fails the run the day the plate reads OK.
-
 ## The stain check's colour band is this light's
 
 The band (hue 5–30, saturation from 50, value from 40) was measured on the test set's fronts under the rig's
@@ -561,7 +545,7 @@ corner" on fronts missing holes) and dropped no right sentence in the final run;
 - **Pinned by:** `test/Reporting/test_core.py::test_the_guard_drops_numbers_and_what_contradicts_a_check`
   (Gemma's own sentences).
 
-## The outline-letter logo is verified on one independent plate, and uneven light dims different letters
+## Two logo appearances rest on their reference plates, and uneven light dims different letters
 
 The test set has three plates with the outline-letter logo (Image_069's, Image_092's left, Image_095's left).
 Two of them are the variant's references (`back_outline`, `back_outline_2`), so reading them complete proves
@@ -570,7 +554,12 @@ On these plates the light falls off unevenly, and each plate has its own dim let
 only reference, 069's and 095's read S, F, A and C missing (0.19-0.20), and with 069's plate, 092's read missing
 (0.09). Two references lit from different sides make up for it, measured on one plate.
 
-- **Impact:** an outline-letter plate lit in a way neither reference covers can read letters missing (a false
+The dark, scratched, glare-lit appearance (Image_092's right plate, the engraving lighter than the plate) read
+NOK with its logo complete (0.19) until it became the fourth reference, `back_dark` (owner's ruling,
+2026-10-11). It is the only plate of that appearance in the test set, so its reading complete is measured on
+itself: the appearance has no independent test plate.
+
+- **Impact:** an outline-letter or dark plate lit in a way no reference covers can read letters missing (a false
   NOK). The erasure test covers the outline plates too, so a missing letter is still caught.
 - **Not fixed here:** more outline-letter plates under the rig's light, and the side-light session, are needed to
   measure it (capture checklist).

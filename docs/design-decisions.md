@@ -3192,14 +3192,22 @@ is its edges along the reference's strokes against the part's own plate.
   (KNOWN_ISSUES), kept because every equalisation that lifted it (CLAHE clips 1–4, equalised histograms,
   absolute high-pass, top-hat) lifted erased letters past it — the owner's condition. 50–75 ms per back on
   the CPU, the references prepared once per configuration.
+  *Corrected 2026-10-11 (phase E), on the owner's ruling:* that plate is the fourth reference (`back_dark`,
+  turned 5.6°, boxes carried over from `back`) for the dark, inverted-contrast appearance, as the outline
+  variant got its references. It reads complete (least letter 0.93); the 165 erasures are all still caught, the
+  highest unchanged (0.59, 0.58, 0.47); the blanks still register with at most 12 matches; 65–105 ms per back.
+  The appearance has no independent test plate (KNOWN_ISSUES). The synthetic eraser now takes the strokes of either polarity
+  (pixels off their surroundings by more than 8 grey levels): the dark-only one left the dark plate's lighter
+  letters in place. With it the 12 complete logos' 180 letters are all caught, the highest at 0.34; the J seams
+  above were the dark-only eraser's.
 - **Measured and dropped:** a ±4 px search around each letter (no score moved by 0.01); one reference per
   variant (above); CLAHE off or at clip 1 or 4 (off: shape alone cannot separate the J seams, 0.73 against
   0.74; clip 1 brings the blanks to 23 matches; clip 4 the complete letters to 0.60). Correlation alignment
   without features failed on the reference frame itself; OCR cannot read the stylised JIC.
 
 **Revisit if** a logo plate under another light or another engraving appears (measure, add a reference), a
-real plate with a missing letter is captured (the erasures are synthetic), or Image_092's right plate's kind of
-surface becomes common.
+real plate with a missing letter is captured (the erasures are synthetic), or a second dark or outline-letter
+plate is captured (the first independent test of those appearances).
 Tests `test/Vision/Utilities/test_logo.py` (synthetic: the rotation, a complete logo turned and smaller, an
 erased letter named with its word, a plate without the logo, both thresholds, the best reference per letter,
 the rule; slow: `::test_every_letter_erased_from_a_real_logo_is_caught`),

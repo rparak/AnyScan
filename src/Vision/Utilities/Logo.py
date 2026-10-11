@@ -42,13 +42,13 @@ Description:
     correlation of their edge images (CLAHE first), the best kept — and is there at Letter_Min_Similarity and
     Letter_Min_Contrast (its edges against the part's own plate). Qt-free, OpenCV and NumPy injected.
 
-    Measured on the test set's 16 labyrinth backs (2026-10-11), three references (filled letters; outline letters
-    on two plates, since each plate's light leaves other letters dim): the 4 blank plates register with at most 12
-    matches, every logo with at least 54; the 11 complete logos' least letter 0.77 (contrast 3.24); each of their
+    Measured on the test set's 16 labyrinth backs (2026-10-11), four references (filled letters; outline letters
+    on two plates, since each plate's light leaves other letters dim; filled letters on a dark, glare-lit plate):
+    the 4 blank plates register with at most 12 matches, every logo with at least 54; the 12 complete logos read
+    complete, the 11 that are not that dark plate with least letter 0.77 (contrast 3.24); each of those 11 logos'
     165 letters erased in turn (synthetic, inpainted) at most 0.47, except two J at 0.58-0.59 whose inpainted seam
-    keeps the J's shape at contrast 0.18-0.19. The darker, scratched, glare-lit plate of Image_092 (the right one)
-    registers but scores 0.19: a known false NOK (KNOWN_ISSUES). About 50-75 ms per back on the CPU (M-series),
-    the references prepared once per configuration. Correlation alignment without features failed even on the
+    keeps the J's shape at contrast 0.18-0.19. About 65-105 ms per back on the CPU (M-series), the references
+    prepared once per configuration. Correlation alignment without features failed even on the
     reference frame; OCR cannot read the stylised JIC.
 """
 
