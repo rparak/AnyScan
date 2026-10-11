@@ -51,10 +51,12 @@ objects.
 Unlike the old gate, these have run on real captures, with every frame's count pinned against a
 by-eye inventory (`test/integration/test_pipeline.py::test_counts_match_the_inventory`). The pinned
 test set is now the 41 frames of the 2026-10-09 session (`Evaluation.Frames`, `Data/Images/Test`,
-`Image_014`–`054`, counted by eye and confirmed by the owner 2026-10-11). Against the shipped reference
-(`Image_Background_001`, shot 2026-09-28) 32 of them match; the other nine find every part and one
-extra object besides (see *Nine frames count one extra object against the old reference*). The three
-2×2 grids of plates set close together (`Image_052`–`054`) come back as four objects each.
+`Image_055`–`095`, the capture sets' `_raw.png` frames, counted by eye and confirmed by the owner
+2026-10-11). Against the shipped reference (`Image_Background_001`, shot 2026-09-28) all 41 match. The
+three 2×2 grids of plates set close together (`Image_093`–`095`) come back as four objects each. (The same
+scenes' `_distorted.png` files were briefly the set, `Image_014`–`054`, recoverable from `1580e92`: on
+nine of them the reference's undistortion border, which those frames lacked, added one object in the
+bottom-right corner — see design-decisions, *A replaced image never keeps its name*, case 6.)
 
 Before it, the set was eight frames (`Data/Images/Test/All`, shot under the calibration and reference
 then in force; no longer in the repository, recoverable from `1061966`), and all eight matched. Five
@@ -66,9 +68,9 @@ under one light, is still a narrow base.
 
 - **Seen since:** parts that touch or nearly touch, and a dark rusted plate the background cue barely
   sees (2 % of it), carried by FastSAM alone — both on frames no longer in the set (`All/Image_009`–`013`,
-  recoverable from `b5ca788^`). And an extra object in the bottom-right corner, where the old
-  reference's border does not line up with the frames' (nine frames of the current set; see the entry
-  below).
+  recoverable from `b5ca788^`). And an extra object in the bottom-right corner on frames that skipped
+  the undistortion the reference went through (the `_distorted.png` frames `Image_014`–`054`, no longer
+  in the repository, recoverable from `1580e92`).
 - **Not yet seen on real data:** parts close to the table's colour, and any other lighting.
 - **The failure signatures to watch:**
   - a real part missing from the count (a cue failed and the other did not carry it)
@@ -82,58 +84,6 @@ under one light, is still a narrow base.
   When a failure signature appears, look at which stage causes it before changing a parameter: the
   touching-plate merge looked like a closing-kernel problem and three of five were not.
 
-## Nine frames count one extra object against the old reference
-
-On nine frames of the pinned test set — `Image_015`, `024`, `032`, `034`, `035`, `037`, `038`, `040`
-and `041` — the pipeline returns every part counted by eye plus **one extra object in the bottom-right
-corner**, at x 1780–1802, y 1007–1024, running to the frame's edge (118–141 × 176–193 px; measured
-2026-10-11 through the count test's path: the shipped configuration, FastSAM on the CPU, the fallback
-describer). The other 32 frames match their counts.
-
-**The frames were not undistorted the way the application undistorts** (checked 2026-10-11). The
-application's undistortion (`getOptimalNewCameraMatrix` at alpha 1, then `cv2.remap`) leaves a dark border
-along the frame's edges, thickest at the bottom and the right. The reference has it, and so did the
-previous set's eight frames: in the outer 40 px ring the reference has 5,271 dark pixels, and the old
-set's common border differs from it by 224 px. The border common to all 41 new frames is 151 px, and
-no shift of the reference's border lines it up (best integer shift leaves 4,341 px of 4,357).
-Undistorting a new frame once more with the calibration in force gives back the reference's border
-(190–207 px apart, as close as the old set). The extra object sits where that border is thickest: the
-background difference sees the reference's dark edge against the frames' lit table.
-
-- **The calibration itself agrees.** The fingerprint of the calibration in force,
-  `Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml`, equals the one in `Image_Background_001`'s
-  sidecar (`0b7b5457…`), with the same window (1920 × 1200 at 8, 8).
-- **The frames' own calibration is unknown.** The 2026-10-09 session left no `_distorted.json` records
-  (none exists for it on the machine it was copied to), so its fingerprint cannot be compared. Whether
-  the frames are the camera's raw frames or were undistorted with another calibration or a cropping
-  alpha cannot be told from the pixels: this lens bends a straight edge near the top of the frame by
-  0.29 px, too little to measure on a plate.
-- **So a new reference is not the fix.** One made through the application carries the same border, so
-  `Image_Background_002` alone would leave the nine where they are. The fix is frames that went through
-  the application's capture path (or the session's distorted originals with their records, undistorted
-  with the calibration in force), added under new names with their counts, as any replacement is.
-- **What else it touches:** sizes measured on these frames are in a pixel space the scale was not
-  calibrated for. The distortion is small here (the 0.29 px bow above), so the slow measurement tests on
-  `Image_018` and `029` pass, but the frames do not meet `Data/Images/Test/.gitkeep`'s contract.
-
-The empty table in the frames' corners also differs from the reference by 3.7–11.8 grey levels (median
-of four 80 px corners, worst channel), against 0.3–1.9 for the previous set's eight frames, so the
-lighting or exposure changed as well. All nine contain the dark rusted plate, but not every dark plate
-frame is among them (`Image_021` matches), so what tips these nine and not the others is **not
-established**.
-
-- **Impact:** an object counted that is not there, always in the same corner. A real part is never lost on
-  these frames.
-- **Pinned by:** `test/integration/test_pipeline.py::test_counts_match_the_inventory`, with the true
-  counts. The nine are `CONST_PENDING_FRAMES`, strict xfails (`raises=AssertionError`) while
-  `Segmentation.Background.Reference` names `Image_Background_001.png`: one that starts passing fails
-  the suite. A missing frame fails through `pytest.fail`, which the xfail does not accept, and the
-  inventory guard names every frame. When another reference is named the marks lift, and on these
-  frames the nine are expected to fail visibly, for the reason above.
-- **Not fixed here:** the frames are replaced first, through the application's capture path; a reference
-  under the new light follows if the corners still differ. Re-measure the border and the corner
-  difference then.
-
 ## Touching parts merge before the closing
 
 *Evidence from frames no longer in the test set* — `All/Image_009`–`013`, the five two-plate frames,
@@ -141,7 +91,7 @@ were removed in `b5ca788` and are recoverable from `b5ca788^`. Every number in t
 on them (and, where stated, on the previous set's seven frames, `eb00508^`). The eight frames that
 followed in `All/` (no longer in the repository, recoverable from `1061966`) held no touching parts;
 route 2 below was re-measured where those eight could answer it. The current set (`Data/Images/Test`)
-has plates set close together in its 2×2 grids (`Image_052`–`054`), but none touching by eye, and all
+has plates set close together in its 2×2 grids (`Image_093`–`095`), but none touching by eye, and all
 three come back as four objects, so it does not re-measure this entry either. The reasoning stands;
 the frames are gone.
 
@@ -381,8 +331,8 @@ one object), but the silhouette is no longer tight, and the enhanced crop fed to
 describer would then contain a strip of table.
 
 - **Fixed case, pinned by:** `test/integration/test_pipeline.py::test_plates_come_back_as_compact_silhouettes_on_a_real_capture`
-  (slow; `Image_031` → six objects, the machined plate's and the red block's rectangularity ≥ 0.80,
-  measured 0.963 and 0.944 on 2026-10-11; it was `All/Image_003`, no longer in the repository,
+  (slow; `Image_072` → six objects, the machined plate's and the red block's rectangularity ≥ 0.80,
+  measured 0.968 and 0.949 on 2026-10-11; it was `All/Image_003`, no longer in the repository,
   recoverable from `1061966`) and, for every frame's count, `::test_counts_match_the_inventory`. The
   single shadowed plate of the set before (`Image_004`, `eb00508^`) is not pinned as such.
 - **Open case, pinned by:** `test/integration/test_pipeline.py::test_synthetic_harsh_shadow_not_absorbed_xfail`

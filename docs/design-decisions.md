@@ -185,7 +185,7 @@ bridge it needs is evidence-specific (e.g. both pieces inside one FastSAM mask),
 Tests `test/Vision/Utilities/test_fusion.py::test_the_closing_never_joins_components_that_were_separate`,
 `::test_the_closing_still_fills_a_gap_inside_one_component`,
 `test/integration/test_pipeline.py::test_counts_match_the_inventory` (slow; the 41 frames of
-`Data/Images/Test`, whose nearest parts are the plates of the 2×2 grids `Image_052`–`054`, set close
+`Data/Images/Test`, whose nearest parts are the plates of the 2×2 grids `Image_093`–`095`, set close
 together but not touching, each counted four).
 
 ## The annotated view is the exported render, not live Qt painting
@@ -578,6 +578,18 @@ changed; it goes on citing, asserting or loading whatever now carries the name.
    by pixels. The names `Image_001`–`013` were still cited for the previous set's evidence, so the new
    frames were numbered `Image_014`–`054`, the inventory was recounted by eye and confirmed by the owner,
    and every citation of `All/` says in place that its frame is gone (recoverable from `1061966`).
+6. **Those 41 were the wrong file of each capture set, and their replacements took new names too.** They
+   were the sets' `_distorted.png` files, the frame before undistortion, not `_raw.png`, the frame the
+   application analyses. Against the reference, which went through the undistortion, nine of them
+   counted one object too many, in the bottom-right corner where the undistortion leaves a dark border
+   the frames lacked (the reference's border has 5,271 px in the outer 40 px ring; the 41 frames had 151
+   in common). The same scenes' `_raw.png` files are different images, so they are `Image_055`–`095`, not
+   014–054. Each was paired with the frame it replaces by content — it equals, pixel for pixel, the
+   application's undistortion of that frame with the calibration in force (the set ids of the
+   `_distorted.png` files were not kept) — and took its confirmed count. All 41 match their counts, so
+   the strict xfails on the nine were removed with their KNOWN_ISSUES entry. **A test frame is a capture
+   set's `_raw.png`**: the name says unannotated, not unprocessed; `.gitkeep`, the README and the capture
+   checklist say so.
 
 **What held.** The reference's sidecar records the image's SHA-256 and the fingerprint of the lens
 model that undistorted it, and `Load_Configuration` checks both: a reference swapped under an old

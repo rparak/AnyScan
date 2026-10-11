@@ -12,7 +12,10 @@ here: the sizes are repeatable, not absolute, and the describer is not a defect 
 - Capture **through the application** (CONFIGURATION → Load, then CONNECT, then SCAN → ANALYZE per
   frame). Each ANALYZE writes a capture set under `logger/captures/<connection>/`: the undistorted
   frame (`<set>_raw.png`), the frame before undistortion (`<set>_distorted.png` + `.json`), and the
-  metadata. The metadata records the configuration, the background reference, and the camera, lens
+  metadata. **`_raw.png` is the frame to keep**: "raw" means unannotated, not unprocessed. It is the
+  frame the application analysed, and the only one that is comparable with the background reference;
+  a test frame (`Data/Images/Test/`) or a reference is made from it, never from `_distorted.png`, which
+  is kept only so a later calibration can undistort the frame again. The metadata records the configuration, the background reference, and the camera, lens
   and lighting, so each frame can be re-measured under any later calibration.
 - Do not move the camera, the lens or the light between CONNECT and the last frame of an item. If
   anything moves, note it and start the item again.

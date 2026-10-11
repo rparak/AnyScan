@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `1061966` (2026-10-11).
+Last reviewed against the code at commit `1580e92` (2026-10-11).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -234,7 +234,7 @@ across all connections, and the oldest are evicted first. A failed analysis writ
 
 | File | Holds |
 |---|---|
-| `_raw.png` | The frame as analysed, undistorted when calibrated, unannotated. |
+| `_raw.png` | The frame as analysed, undistorted when calibrated, unannotated. "Raw" means unannotated, not unprocessed: this is the file a test frame or a background reference is made from. |
 | `_distorted.png` | The same frame before undistortion, so a later calibration can re-undistort it. |
 | `_distorted.json` | Its sidecar: marks it distorted and records the undistortion that produced `_raw.png`. |
 | `_annotated.png` | The annotated image, as the Camera View shows it. |
@@ -294,7 +294,6 @@ This section only links. The entries themselves are the record.
 - Open behaviours, in [KNOWN_ISSUES.md](../KNOWN_ISSUES.md):
   - [*Touching parts merge before the closing*](../KNOWN_ISSUES.md#touching-parts-merge-before-the-closing)
   - [*The fusion's parameters are validated on one table under one light*](../KNOWN_ISSUES.md#the-fusions-parameters-are-validated-on-one-table-under-one-light)
-  - [*Nine frames count one extra object against the old reference*](../KNOWN_ISSUES.md#nine-frames-count-one-extra-object-against-the-old-reference)
   - [*A very harsh cast shadow can be absorbed into a part's component*](../KNOWN_ISSUES.md#a-very-harsh-cast-shadow-can-be-absorbed-into-a-parts-component)
   - [*The confidence status metric is partial — only the FastSAM cue is scored*](../KNOWN_ISSUES.md#the-confidence-status-metric-is-partial--only-the-fastsam-cue-is-scored)
   - [*A killed run never gets its run-summary CSV row*](../KNOWN_ISSUES.md#a-killed-run-never-gets-its-run-summary-csv-row)

@@ -58,65 +58,56 @@ CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 # The pinned test set's inventory (Evaluation.Frames = Data/Images/Test): how many parts are on each
 # frame, counted by looking at the frame — NOT what the pipeline reports, so a wrong count fails.
 # Proposed by eye and confirmed by the owner (2026-10-11). The frames are the 2026-10-09 capture
-# session, numbered from 014: the names 001-013 belonged to the previous set (All/, recoverable from
-# 1061966) and are still cited for its evidence, so they are never reused. The blue double triangle,
-# a terminal strip with its screws, the flanged bushing and the slit lattice bracket are one part each.
+# session's _raw.png files (the application's undistorted frames), numbered from 055: 001-013 belonged
+# to the set before (All/, recoverable from 1061966) and 014-054 to the same scenes' _distorted.png files
+# (recoverable from 1580e92), which are other images, so no name is reused. Each count was carried
+# across from its _distorted scene, paired by content: the frame here equals, pixel for pixel, the
+# application's undistortion of the frame it replaces. The blue double triangle, a terminal strip with
+# its screws, the flanged bushing and the slit lattice bracket are one part each.
 #   Unit [Dict<string, int>]
 CONST_INVENTORY = {
-    'Image_014.png': 1,     # machined aluminium plate
-    'Image_015.png': 1,     # dark rusted plate
-    'Image_016.png': 1,     # maze plate
-    'Image_017.png': 1,     # SMART FACTORY plate
-    'Image_018.png': 6,     # flanged bushing, rust-stained plate, cap screw, washer, terminal strip, hex nut
-    'Image_019.png': 7,     # bushing, maze plate, cap screw, washer, terminal strip, triangle, hex nut
-    'Image_020.png': 7,     # the same, with the SMART FACTORY plate
-    'Image_021.png': 7,     # the same, with the dark rusted plate
-    'Image_022.png': 8,     # red block, aluminium plate, cap screw, terminal strip, triangle, hex nut, washer, lattice bracket
-    'Image_023.png': 8,     # the same eight, nudged
-    'Image_024.png': 8,     # the same, with the dark rusted plate
-    'Image_025.png': 7,     # red block, triangle, maze plate, upright cap screw, terminal strip, hex nut, washer
-    'Image_026.png': 8,     # red block, large washer, triangle, SMART FACTORY plate, cap screw, terminal strip, hex nut, washer
-    'Image_027.png': 8,     # the same, with the maze plate
-    'Image_028.png': 8,     # the same, with a worn SMART FACTORY plate
-    'Image_029.png': 6,     # red block, large washer, triangle, blank square plate, hex nut, washer
-    'Image_030.png': 6,     # the same, with the maze plate
-    'Image_031.png': 6,     # the same, with the rust-stained plate
-    'Image_032.png': 6,     # the same, with the dark rusted plate
-    'Image_033.png': 2,     # rust-stained plate, aluminium plate
-    'Image_034.png': 2,     # dark rusted plate, aluminium plate
-    'Image_035.png': 2,     # rust-stained plate, dark rusted plate
-    'Image_036.png': 1,     # aluminium plate
-    'Image_037.png': 1,     # dark rusted plate
-    'Image_038.png': 1,     # dark rusted plate, moved
-    'Image_039.png': 1,     # rust-stained plate
-    'Image_040.png': 1,     # dark rusted plate
-    'Image_041.png': 1,     # dark rusted plate, moved slightly
-    'Image_042.png': 1,     # aluminium plate
-    'Image_043.png': 2,     # maze plate, SMART FACTORY plate
-    'Image_044.png': 2,     # two maze plates
-    'Image_045.png': 2,     # blank plate, SMART FACTORY plate
-    'Image_046.png': 2,     # blank plate, maze plate
-    'Image_047.png': 1,     # maze plate
-    'Image_048.png': 1,     # maze plate
-    'Image_049.png': 1,     # SMART FACTORY plate
-    'Image_050.png': 1,     # maze plate
-    'Image_051.png': 3,     # maze plate, two SMART FACTORY plates
-    'Image_052.png': 4,     # four maze plates in a 2x2 grid, set close together
-    'Image_053.png': 4,     # blank, two maze, SMART FACTORY plate in a 2x2 grid
-    'Image_054.png': 4,     # two maze, two SMART FACTORY plates in a 2x2 grid
+    'Image_055.png': 1,     # machined aluminium plate
+    'Image_056.png': 1,     # dark rusted plate
+    'Image_057.png': 1,     # maze plate
+    'Image_058.png': 1,     # SMART FACTORY plate
+    'Image_059.png': 6,     # flanged bushing, rust-stained plate, cap screw, washer, terminal strip, hex nut
+    'Image_060.png': 7,     # bushing, maze plate, cap screw, washer, terminal strip, triangle, hex nut
+    'Image_061.png': 7,     # the same, with the SMART FACTORY plate
+    'Image_062.png': 7,     # the same, with the dark rusted plate
+    'Image_063.png': 8,     # red block, aluminium plate, cap screw, terminal strip, triangle, hex nut, washer, lattice bracket
+    'Image_064.png': 8,     # the same eight, nudged
+    'Image_065.png': 8,     # the same, with the dark rusted plate
+    'Image_066.png': 7,     # red block, triangle, maze plate, upright cap screw, terminal strip, hex nut, washer
+    'Image_067.png': 8,     # red block, large washer, triangle, SMART FACTORY plate, cap screw, terminal strip, hex nut, washer
+    'Image_068.png': 8,     # the same, with the maze plate
+    'Image_069.png': 8,     # the same, with a worn SMART FACTORY plate
+    'Image_070.png': 6,     # red block, large washer, triangle, blank square plate, hex nut, washer
+    'Image_071.png': 6,     # the same, with the maze plate
+    'Image_072.png': 6,     # the same, with the rust-stained plate
+    'Image_073.png': 6,     # the same, with the dark rusted plate
+    'Image_074.png': 2,     # rust-stained plate, aluminium plate
+    'Image_075.png': 2,     # dark rusted plate, aluminium plate
+    'Image_076.png': 2,     # rust-stained plate, dark rusted plate
+    'Image_077.png': 1,     # aluminium plate
+    'Image_078.png': 1,     # dark rusted plate
+    'Image_079.png': 1,     # dark rusted plate, moved
+    'Image_080.png': 1,     # rust-stained plate
+    'Image_081.png': 1,     # dark rusted plate
+    'Image_082.png': 1,     # dark rusted plate, moved slightly
+    'Image_083.png': 1,     # aluminium plate
+    'Image_084.png': 2,     # maze plate, SMART FACTORY plate
+    'Image_085.png': 2,     # two maze plates
+    'Image_086.png': 2,     # blank plate, SMART FACTORY plate
+    'Image_087.png': 2,     # blank plate, maze plate
+    'Image_088.png': 1,     # maze plate
+    'Image_089.png': 1,     # maze plate
+    'Image_090.png': 1,     # SMART FACTORY plate
+    'Image_091.png': 1,     # maze plate
+    'Image_092.png': 3,     # maze plate, two SMART FACTORY plates
+    'Image_093.png': 4,     # four maze plates in a 2x2 grid, set close together
+    'Image_094.png': 4,     # blank, two maze, SMART FACTORY plate in a 2x2 grid
+    'Image_095.png': 4,     # two maze, two SMART FACTORY plates in a 2x2 grid
 }
-# The reference the frames below are pending against. On these frames the pipeline returns every part plus
-# ONE extra object in the bottom-right corner (x 1780-1802, y 1007-1024, to the frame's edge), where the
-# reference's undistortion border is thickest: the 2026-10-09 frames carry no such border, as they did not
-# go through the application's undistortion (the calibration in force matches the reference's sidecar).
-# Strict xfail while this reference is in force; once Segmentation.Background.Reference names another, the
-# mark lifts and each must pass on its count or fail visibly. A new reference alone is not expected to fix
-# them: see KNOWN_ISSUES.md, "Nine frames count one extra object against the old reference".
-#   Unit [string]
-CONST_PENDING_REFERENCE = 'Image_Background_001.png'
-#   Unit [Set<string>]
-CONST_PENDING_FRAMES = {'Image_015.png', 'Image_024.png', 'Image_032.png', 'Image_034.png', 'Image_035.png',
-                        'Image_037.png', 'Image_038.png', 'Image_040.png', 'Image_041.png'}
 
 
 
@@ -216,30 +207,15 @@ def test_pipeline_real_describer_smoke(require_weights, reference_background, ma
     assert result.Latency_Ms >= 0
 
 
-def _Reference_Is_Pending() -> bool:
-    """
-    The shipped configuration still names the reference CONST_PENDING_FRAMES are pending against.
-    Called from the xfail condition below when each test is set up, not at import, so a configuration
-    that fails to load fails those tests instead of stopping the collection.
-    """
-    return os.path.basename(_Configuration().Segmentation.Background_Reference) == CONST_PENDING_REFERENCE
-
-
 @pytest.mark.slow
-@pytest.mark.parametrize('name', [
-    pytest.param(name, marks=pytest.mark.xfail('_Reference_Is_Pending()', strict=True, raises=AssertionError,
-                                               reason='one extra object in the bottom-right corner, where '
-                                                      'Image_Background_001 has an undistortion border the frames '
-                                                      'lack; see KNOWN_ISSUES.md'))
-    if name in CONST_PENDING_FRAMES else name for name in sorted(CONST_INVENTORY)])
+@pytest.mark.parametrize('name', sorted(CONST_INVENTORY))
 def test_counts_match_the_inventory(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
         Every frame of the pinned test set comes back with the number of parts counted on it by eye
         (CONST_INVENTORY) — a merge lowers the count, a split raises it. A frame missing from the set
         fails (pytest.fail, which no xfail(raises=AssertionError) accepts). Slow because it runs FastSAM;
-        missing weights fail it under --runslow. The CONST_PENDING_FRAMES are strict xfails while the
-        reference they are pending against is in force: one that starts passing fails the suite.
+        missing weights fail it under --runslow.
     """
 
     config = _Configuration()
@@ -261,30 +237,28 @@ def test_the_inventory_names_every_frame_of_the_test_set() -> None:
     frames = sorted(os.path.basename(path) for path in glob.glob(os.path.join(config.Evaluation.Frames,
                                                                              'Image_[0-9]*.png')))
     assert frames == sorted(CONST_INVENTORY)
-    # A pending frame that is not in the inventory would mark nothing and hide nothing.
-    assert CONST_PENDING_FRAMES <= set(CONST_INVENTORY)
 
 
 @pytest.mark.slow
 def test_plates_come_back_as_compact_silhouettes_on_a_real_capture(require_weights, monkeypatch) -> None:
     """
     Description:
-        On a real capture (Image_031: the machined rust-stained plate and the red block, both thick and
+        On a real capture (Image_072: the machined rust-stained plate and the red block, both thick and
         casting a shadow, beside a large washer, a triangle, a hex nut and a washer) the plate and the
         block each come back as ONE compact silhouette — no shadow or neighbour absorbed into the
         component. Tightness is rectangularity (mask area / bbox area): a clean near-axis-aligned part is
-        well above 0.80 (measured 0.963 and 0.944, 2026-10-11); a shadow tail or a bridge to a neighbour
+        well above 0.80 (measured 0.968 and 0.949, 2026-10-11); a shadow tail or a bridge to a neighbour
         would extend the box and drop it below. They are the two largest boxes. (It replaces the previous
         set's All/Image_003, no longer in the set, recoverable from 1061966: a tilted plate is not a
-        candidate, as its tilt alone lowers the ratio — Image_033's measured 0.70.)
+        candidate, as its tilt alone lowers the ratio — Image_074's measured 0.71.)
     """
 
     config = _Configuration()
     require_weights([config.Segmentation.Model_Path])
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
     import numpy as np
-    objects = _Analyze_Frame(config, 'Image_031.png')
-    assert len(objects) == CONST_INVENTORY['Image_031.png']
+    objects = _Analyze_Frame(config, 'Image_072.png')
+    assert len(objects) == CONST_INVENTORY['Image_072.png']
     by_area = sorted(objects, key=lambda det: det.Bbox[2] * det.Bbox[3])
     for part in (by_area[-1], by_area[-2]):
         x, y, w, h = part.Bbox
@@ -357,11 +331,11 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(require_weights, 
     """
     Description:
         The symmetric decision on real captures, through the application's own pipeline and the
-        shipped scale: in Image_018 (in index order: flanged bushing, rust-stained plate, cap screw,
+        shipped scale: in Image_059 (in index order: flanged bushing, rust-stained plate, cap screw,
         terminal strip, washer, hex nut) the bushing, the washer and the nut (1, 5, 6) are measured as
         diameters with no angle, the plate, the screw and the strip (2, 3, 4) as A x B with an angle;
         the nut reports across flats, the round parts a round diameter. The square blank plate in
-        Image_029 (object 4: large washer, red block, triangle, blank plate, hex nut, washer) is NOT
+        Image_070 (object 4: large washer, red block, triangle, blank plate, hex nut, washer) is NOT
         reported as a diameter (it is un-elongated, but its extent marks it square). (It replaces the
         previous set's All/Image_005 and 008, no longer in the set, recoverable from 1061966.) Slow
         because it runs FastSAM; missing weights fail it (it only runs under --runslow, which asks for them).
@@ -371,8 +345,8 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(require_weights, 
     require_weights([config.Segmentation.Model_Path])
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')   # masks only, no VLM
 
-    objects = _Analyze_Frame(config, 'Image_018.png')
-    assert len(objects) == CONST_INVENTORY['Image_018.png']
+    objects = _Analyze_Frame(config, 'Image_059.png')
+    assert len(objects) == CONST_INVENTORY['Image_059.png']
     symmetric = [i + 1 for i, det in enumerate(objects) if det.Measurement.Symmetric]
     assert symmetric == [1, 5, 6]
     across_flats = [i + 1 for i, det in enumerate(objects) if det.Measurement.Across_Flats]
@@ -384,7 +358,7 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(require_weights, 
         else:
             assert m.Width_Mm >= m.Height_Mm and m.Angle_Deg is not None
 
-    objects = _Analyze_Frame(config, 'Image_029.png')
-    assert len(objects) == CONST_INVENTORY['Image_029.png']
+    objects = _Analyze_Frame(config, 'Image_070.png')
+    assert len(objects) == CONST_INVENTORY['Image_070.png']
     square = objects[3].Measurement                                    # the blank square plate
     assert not square.Symmetric and square.Angle_Deg is not None and square.Angle_Deg < 90.0

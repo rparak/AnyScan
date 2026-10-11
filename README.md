@@ -377,7 +377,8 @@ src/                      Qt-free domain modules + the UI (see "Source layout")
 Example/                  runnable scripts (scan, calibrate, calibration_tilt_study, generate_checkerboard,
                           make_reference, analyze, evaluate_describer, architecture_diagram, build_logo,
                           build_fonts)
-Data/Images/Test/         the 41 frames analyze.py runs on (Image_014-054), and the tests' pinned set —
+Data/Images/Test/         the 41 frames analyze.py runs on (Image_055-095, each a capture set's
+                          _raw.png, the undistorted frame — never its _distorted.png), and the tests' pinned set —
                           committed. No answer key yet: the previous set's named objects on frames
                           that are gone, and is kept as the scoring tests' data
                           (test/Vision/Utilities/data/answer_key_1061966.json)
