@@ -275,3 +275,25 @@ def test_every_letter_erased_from_a_real_logo_is_caught(name: str, require_weigh
                                  cv2.INPAINT_TELEA)
             result = Check_Logo(erased, logo, prepared, cv2, np)
             assert result.Letters and not result.Letters[index].Present, (place, index, result.Letters[index])
+
+
+def test_each_word_is_boxed_on_the_part_where_its_letters_are() -> None:
+    """
+    Description:
+        The frame marks the logo word by word: each expected word's box on the checked crop is the box around
+        its letters in the matched reference, taken back through the registration — on the reference's own part
+        turned a quarter clockwise, JIC's box turns with it.
+    """
+
+    letters = CONST_REFERENCE.Letters
+    prepared = [Prepare_Reference(_Crop(), cv2, np)]
+    upright = Check_Logo(_Crop(), _One(), prepared, cv2, np)
+    assert [word for word, _corners in upright.Words] == ['JIC', 'SMART', 'FACTORY']
+    xs, ys = [x for x, _ in upright.Words[0][1]], [y for _, y in upright.Words[0][1]]
+    assert abs(min(xs) - letters[0][1]) < 2 and abs(max(xs) - (letters[2][1] + letters[2][3])) < 2
+    assert abs(min(ys) - min(l[2] for l in letters[:3])) < 2
+    height = _Crop().shape[0]
+    turned = Check_Logo(np.ascontiguousarray(np.rot90(_Crop(), -1)), _One(), prepared, cv2, np)
+    txs = [x for x, _ in turned.Words[0][1]]
+    # A clockwise quarter turn sends y to x' = height - y: JIC's top edge becomes its right edge.
+    assert abs(max(txs) - (height - min(ys))) < 3

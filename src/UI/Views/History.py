@@ -92,14 +92,20 @@ CONST_REMOVED_NOTE = ('This capture set fell outside the retention window and wa
 
 # The filter segments, in order as (key, label).
 #   Unit [Vector<Tuple<string> 1x2>]
-CONST_FILTER_SEGMENTS = (('all', 'All'), ('ok', 'OK'), ('nok', 'NOK'))
+CONST_FILTER_SEGMENTS = (('all', 'All'), ('ok', 'OK'), ('nok', 'NOK'), ('warning', 'Warning'),
+                         ('unspecified', 'Unspecified'))
+# Each state filter's verdict.
+#   Unit [Dict<string, string>]
+CONST_FILTER_STATES = {'ok': 'OK', 'nok': 'NOK', 'warning': 'Warning', 'unspecified': 'Unspecified'}
 
 # The empty-grid messages, per filter — the NOK one names why it is expected to be empty today.
 #   Unit [Dict<string, string>]
 CONST_EMPTY_MESSAGES = {
     'all': 'No captures in this run yet. Analyse an image to begin.',
-    'ok': 'No OK results in the current history.',
-    'nok': 'No NOK results — no classifier is running yet, so no object has been judged.'}
+    'ok': 'No OK part in this run.',
+    'nok': 'No NOK part in this run.',
+    'warning': 'No object that should not be on the surface in this run.',
+    'unspecified': 'No object that could not be judged in this run.'}
 
 
 class History_Image_Cls(QWidget):
@@ -413,8 +419,15 @@ class History_View_Cls(QWidget):
         head = Card_Head_Cls('reading', 'Captures')
         self.__filter = Segmented_Control_Cls(CONST_FILTER_SEGMENTS)
         self.__filter.Segment_Selected.connect(lambda _key: self.__Rebuild_List())
-        head.box.addWidget(self.__filter)
         card.box.addWidget(head)
+        # The filter on its own row under the title, and each state's count on a line under it: five states do
+        # not fit beside the title, and with their counts not in one row (the head clipped 'Warning' and
+        # 'Unspecified', seen on renders, 2026-10-11).
+        card.box.addWidget(self.__filter)
+        self.__counts = QLabel('')
+        self.__counts.setFont(Font(8.5))
+        self.__counts.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
+        card.box.addWidget(self.__counts)
 
         note = QLabel(CONST_RETENTION_NOTE)
         note.setFont(Font(8.5))
@@ -720,6 +733,11 @@ class History_View_Cls(QWidget):
                 widget.deleteLater()
         self.__cards = []
 
+        # How many of the run's judged sets hold each state, under the filter.
+        self.__counts.setText('  ·  '.join(
+            '%s %d' % (label, sum(1 for cap in self.__sets if cap.Classification and CONST_FILTER_STATES[key] in cap.States()))
+            for key, label in CONST_FILTER_SEGMENTS if key in CONST_FILTER_STATES))
+        self.__counts.setVisible(self.__classification_enabled)
         matching = [cap for cap in self.__sets if self.__Filter_Matches(cap)]
         if not matching:
             self.__list_box.addWidget(self.__Empty_Message())
@@ -834,11 +852,11 @@ class History_View_Cls(QWidget):
     def __Filter_Matches(self, cap: tp.Any) -> bool:
         """
         Description:
-            Whether a set passes the active filter. 'all' matches everything. 'ok' and 'nok' mean
-            a JUDGEMENT — 'classified and passed' / 'classified and failed' — so they match only a
-            set written WITH classification: a detect-only set was never judged and is neither OK
-            nor NOK, so it appears only under All. Filtering it under OK would assert a judgement
-            nobody made. (A partial set was never classified either, so it too is All-only.)
+            Whether a set passes the active filter. 'all' matches everything. A state filter (OK, NOK,
+            Warning, Unspecified) matches a set in which any object took that state, so a set is listed
+            under every state its objects took. They are JUDGEMENTS, so they match only a set written
+            WITH classification: a detect-only set was never judged and appears only under All. (A partial
+            set was never classified either, so it too is All-only.)
 
         Args:
             (1) cap [Capture_Set_Str(object)]: The set.
@@ -852,7 +870,7 @@ class History_View_Cls(QWidget):
             return True
         if not cap.Classification:
             return False                                 # never judged -> only under All
-        return cap.Is_Nok() if key == 'nok' else not cap.Is_Nok()
+        return CONST_FILTER_STATES[key] in cap.States()
 
     def __Load_Visible(self) -> None:
         """
@@ -1196,7 +1214,7 @@ class History_View_Cls(QWidget):
         if cap.Partial:
             return Style.CONST_INK_MUTE
         if cap.Classification:
-            return Verdict_Color('NOK' if cap.Is_Nok() else 'OK')[0]
+            return Verdict_Color(cap.Worst_State())[0]
         return Detection_Color()[0]
 
     # << QT OVERRIDE >> #

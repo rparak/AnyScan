@@ -291,6 +291,9 @@ What a catalogue mode does not check, it cannot fail:
 - **A missing letter is verified on synthetic erasures only.** No plate of the test set has one; each letter
   of the 12 complete real logos was erased in turn and caught. The outline-letter and the dark, glare-lit
   appearances rest on their reference plates, with one and no independent test plate (KNOWN_ISSUES).
+- **The Similarity tab is not a defect map.** It shows where a judged part looks unlike its reference to
+  DINOv2: the fingerprints show, but so do glare and another engraving, and missing holes and letters do not.
+  No verdict reads it.
 - **The describer's words are guarded, not trusted.** In a catalogue mode it is told what the checks found
   and given no number; a sentence with a number or contradicting a check is dropped and logged, by word
   patterns (KNOWN_ISSUES). The verdict and its reasons never come from it.

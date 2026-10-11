@@ -396,22 +396,25 @@ def test_each_state_reads_as_the_owner_specified() -> None:
         assert not [line for line in Verdict_Lines(_Judged(verdict)) if 'similarity' in line.lower()], verdict
 
 
-def test_a_nok_gives_each_reason_with_measured_and_expected_values() -> None:
+def test_a_nok_has_one_reason_sentence_for_its_outline_and_look() -> None:
     """
     Description:
-        Every reason a part is NOK has its own 'Reason:' line: a dimension out of tolerance with its measured
-        value, nominal and tolerance; the part's outline without its look; an outline that could not be
-        measured. A passing dimension is not listed.
+        A NOK part has exactly one 'Reason:' line, one sentence summing up its findings, without values (they
+        are in the log): a side out of tolerance, both, the look, an outline that could not be measured, and
+        two kinds of finding joined. A passing dimension is not named.
     """
 
     from Reporting.Core import Verdict_Lines
     from Vision.Utilities.Dimensions import Check_Dimension
     long = [Check_Dimension('length', 62.04, 60.0, 1.5), Check_Dimension('width', 40.1, 40.0, 1.5)]
-    assert Verdict_Lines(_Judged('NOK', checks=long)) == [
-        'State: NOK.', 'Reason: The length is 62.04 mm, expected 60.00 ± 1.50 mm.']
+    both = [Check_Dimension('length', 62.04, 60.0, 1.5), Check_Dimension('width', 37.9, 40.0, 1.5)]
+    assert Verdict_Lines(_Judged('NOK', checks=long)) == ['State: NOK.', 'Reason: Its length is out of tolerance.']
+    assert Verdict_Lines(_Judged('NOK', checks=both))[1:] == ['Reason: Its length and width are out of tolerance.']
     assert Verdict_Lines(_Judged('NOK', similarity=0.58)) == [
         'State: NOK.', "Reason: It has the part's outline but does not look like the part."]
     assert Verdict_Lines(_Judged('NOK', checks=[]))[1:] == ['Reason: Its outline could not be measured.']
+    assert Verdict_Lines(_Judged('NOK', checks=long, similarity=0.58))[1:] == [
+        "Reason: Its length is out of tolerance, and it has the part's outline but does not look like the part."]
 
 
 @pytest.mark.parametrize('verdict', ['OK', 'NOK'])
@@ -495,27 +498,39 @@ def test_a_judged_part_says_which_side_is_up_in_the_catalogues_words() -> None:
     assert Side_Sentence(Detection_Str(Label='plate', Bbox=(0, 0, 1, 1))) == ''
 
 
-def test_a_nok_names_its_missing_extra_and_wrong_holes() -> None:
+def _Holes(det: Detection_Str, *groups: tp.Tuple[str, int, int, int]) -> Detection_Str:
+    """A judged part's hole groups as (name, found, expected, out of tolerance among the found)."""
+    from Parameters.Vision import Hole_Count_Str, Feature_Str
+    from Vision.Utilities.Dimensions import Check_Dimension
+    det.Hole_Counts = [Hole_Count_Str(Name=name, Found=found, Expected=expected) for name, found, expected, _out in groups]
+    det.Features = [Feature_Str(Kind='hole', Name=name, Checks=[Check_Dimension('%s Ø' % name, 9.0 if i < out else 6.0,
+                                                                                6.0, 1.5)])
+                    for name, found, _expected, out in groups for i in range(found)]
+    return det
+
+
+@pytest.mark.parametrize('groups, reason', [
+    ((('corner hole', 2, 4, 1),), 'Two of four corner holes are missing and one is out of tolerance.'),
+    ((('corner hole', 3, 4, 0),), 'One of four corner holes is missing.'),
+    ((('corner hole', 0, 4, 0),), 'All four corner holes are missing.'),
+    ((('through-hole', 0, 2, 0),), 'Both through-holes are missing.'),
+    ((('corner hole', 4, 4, 2),), 'Two corner holes are out of tolerance.'),
+    ((('through-hole', 3, 2, 0),), 'There is one through-hole too many.'),
+    ((('countersink', 1, 2, 0), ('through-hole', 2, 2, 1)),
+     'One of two countersinks is missing, and one through-hole is out of tolerance.'),
+], ids=['missing and out', 'one missing', 'all missing', 'both missing', 'two out', 'one extra', 'two groups'])
+def test_a_nok_names_its_holes_in_one_sentence(groups: tp.Tuple, reason: str) -> None:
     """
     Description:
-        A part NOK for its holes says so, one 'Reason:' per finding: each group short of its count ('3 of 4
-        corner holes found.') or over it ('3 through-holes found, expected 2.'), and each hole out of tolerance
-        with its measured and expected values; the log line carries the same reasons.
+        The holes in the one reason, per group: how many of how many are missing (all of them said so), one too
+        many, how many are out of tolerance (a diameter, edge distance or pitch), joined with 'and' within a
+        group and as a list across groups; counts in words up to ten.
     """
 
     from Reporting.Core import Verdict_Lines, Verdict_Log_Line
-    from Parameters.Vision import Hole_Count_Str
-    from Vision.Utilities.Dimensions import Check_Dimension
-    det = _Judged('NOK')
-    det.Hole_Counts = [Hole_Count_Str(Name='corner hole', Found=3, Expected=4),
-                       Hole_Count_Str(Name='through-hole', Found=3, Expected=2),
-                       Hole_Count_Str(Name='countersink', Found=2, Expected=2)]
-    det.Hole_Checks = [Check_Dimension('corner hole Ø', 4.1, 2.459, 1.0), Check_Dimension('corner hole Ø', 2.8, 2.459, 1.0)]
-    assert Verdict_Lines(det) == ['State: NOK.', 'Reason: 3 of 4 corner holes found.',
-                                  'Reason: 3 through-holes found, expected 2.',
-                                  'Reason: The corner hole Ø is 4.10 mm, expected 2.46 ± 1.00 mm.']
-    assert Verdict_Log_Line(0, det)[1].endswith('Reason: 3 of 4 corner holes found. Reason: 3 through-holes found, '
-                                                'expected 2. Reason: The corner hole Ø is 4.10 mm, expected 2.46 ± 1.00 mm.')
+    det = _Holes(_Judged('NOK'), *groups)
+    assert Verdict_Lines(det) == ['State: NOK.', 'Reason: ' + reason]
+    assert Verdict_Log_Line(0, det)[1].endswith('Reason: ' + reason)
 
 
 def _Logo(missing: tp.Tuple[int, ...] = (), registered: bool = True) -> tp.Any:
@@ -529,30 +544,71 @@ def _Logo(missing: tp.Tuple[int, ...] = (), registered: bool = True) -> tp.Any:
                         Present=i not in missing) for i, (word, letter) in enumerate(zip(words, 'JICSMARTFACTORY'))])
 
 
-def test_a_nok_names_its_stains_and_its_missing_letters() -> None:
+def test_a_nok_names_its_stains_and_its_missing_letters_in_one_sentence() -> None:
     """
     Description:
-        A part NOK for a stain says how big, on which side: one stain by its area, several by their count, the
-        largest and the total. A part NOK for its inscription names each missing letter with its word, or says
-        no inscription was found on the side.
+        Stains in the one reason by their count, in words up to ten and digits above, on the side up; the
+        inscription by what is missing, word by word — letters with their word, a whole word by its name, across
+        words in one list — or that none was found.
     """
 
-    from Reporting.Core import Verdict_Reasons
+    from Reporting.Core import Reason_Sentence
     from Parameters.Vision import Stain_Str
     det = _Judged('NOK')
     det.Catalogue.Side_Name = 'machined front'
-    det.Stains = [Stain_Str(Area_Mm2=152.224)]
-    assert Verdict_Reasons(det) == ['A stain of 152.22 mm² on the machined front.']
-    det.Stains = [Stain_Str(Area_Mm2=152.224), Stain_Str(Area_Mm2=30.0), Stain_Str(Area_Mm2=1.3)]
-    assert Verdict_Reasons(det) == ['3 stains on the machined front, the largest 152.22 mm², 183.52 mm² in all.']
+    for count, words in ((1, 'There is a stain'), (2, 'There are two stains'), (12, 'There are 12 stains')):
+        det.Stains = [Stain_Str(Area_Mm2=5.0)] * count
+        assert Reason_Sentence(det) == '%s on the machined front.' % words
     det = _Judged('NOK')
     det.Catalogue.Side_Name = 'logo side'
-    det.Logo = _Logo(missing=(1, 13))
-    assert Verdict_Reasons(det) == ['The letter I of JIC is missing.', 'The letter R of FACTORY is missing.']
+    for missing, reason in (((13,), 'Letter R of FACTORY is missing.'), ((3, 4), 'Letters S and M of SMART are missing.'),
+                            ((1, 2, 11, 12, 13, 14), 'Letters I and C of JIC and letters T, O, R and Y of FACTORY are '
+                                                     'missing.'),
+                            ((3, 4, 5, 6, 7), 'SMART is missing.')):
+        det.Logo = _Logo(missing=missing)
+        assert Reason_Sentence(det) == reason, missing
     det.Logo = _Logo(registered=False)
-    assert Verdict_Reasons(det) == ['No inscription found on the logo side.']
+    assert Reason_Sentence(det) == 'There is no inscription on the logo side.'
     det.Logo = _Logo()
-    assert Verdict_Reasons(det) == []
+    assert Reason_Sentence(det) == ''
+
+
+def test_the_log_lists_each_part_with_its_measured_and_expected_values() -> None:
+    """
+    Description:
+        Below a judged part's verdict line, the log gives its evidence: the outline's checks, each hole group's
+        count, the logo's expected and read text, and one line per part, numbered as the frame numbers its
+        failing parts — a hole's checks with its mask score, a hole expected and not found, a stain's area, a
+        word's expected and read text. A Warning has none.
+    """
+
+    from Reporting.Core import Part_Lines
+    from Parameters.Vision import Hole_Count_Str, Feature_Str
+    from Vision.Utilities.Dimensions import Check_Dimension
+    det = _Judged('NOK')
+    det.Hole_Counts = [Hole_Count_Str(Name='corner hole', Found=1, Expected=2)]
+    det.Logo = _Logo(missing=(1,))
+    det.Features = [Feature_Str(Part='1.1', Kind='hole', Name='corner hole', Checks=[Check_Dimension('corner hole Ø', 2.95,
+                                                                                                   2.459, 1.0)], Score=0.93),
+                    Feature_Str(Part='1.2', Kind='hole', Name='corner hole', Passed=False, Found=False),
+                    Feature_Str(Part='1.3', Kind='stain', Name='stain', Passed=False, Area_Mm2=156.714),
+                    Feature_Str(Part='1.4', Kind='word', Name='JIC', Passed=False, Expected_Text='JIC', Read_Text='J_C',
+                                Score=0.19),
+                    Feature_Str(Part='1.5', Kind='word', Name='SMART', Expected_Text='SMART', Read_Text='SMART', Score=0.9),
+                    Feature_Str(Part='1.6', Kind='word', Name='FACTORY', Expected_Text='FACTORY', Read_Text='FACTORY',
+                                Score=0.9)]
+    assert Part_Lines(0, det) == [
+        'Object 1 · outline: length 60.20 mm, expected 60.00 ± 1.50 mm: within; width 40.10 mm, expected 40.00 ± 1.50 '
+        'mm: within.',
+        'Object 1 · corner holes: 1 of 2 found.',
+        'Object 1 · logo: expected JIC SMART FACTORY, read J_C SMART FACTORY (reference back, 150 matched features).',
+        'Part 1.1 · corner hole Ø 2.95 mm, expected 2.46 ± 1.00 mm: within (mask score 0.93).',
+        'Part 1.2 · corner hole: not found at its expected position.',
+        'Part 1.3 · stain: 156.71 mm².',
+        'Part 1.4 · JIC: expected JIC, read J_C (least letter similarity 0.19): LETTERS MISSING.',
+        'Part 1.5 · SMART: expected SMART, read SMART (least letter similarity 0.90): complete.',
+        'Part 1.6 · FACTORY: expected FACTORY, read FACTORY (least letter similarity 0.90): complete.']
+    assert Part_Lines(1, _Judged('Warning')) == []
 
 
 def test_the_findings_say_what_the_checks_found_in_words_without_numbers() -> None:

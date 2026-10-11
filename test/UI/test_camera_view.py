@@ -349,3 +349,32 @@ def test_without_a_heatmap_its_segment_is_unavailable_and_the_choice_waits(qt_ap
     finished(_Result())
     _Private(window, '__On_View_Toggle')('annotated')
     assert np.array_equal(shown, _Grab(viewport))                   # what was shown was the annotated view
+
+
+def test_the_similarity_view_overlays_the_frame_and_needs_a_catalogue_reading(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        A catalogue reading's similarity map is its own view: Similarity paints the frame with the map's colours
+        over the covered half only (the other half is the frame), under its own legend; a reading without one
+        leaves its segment disabled and shows the annotated view, keeping the choice for the next.
+    """
+
+    window = _Scanned_Window(reference_background_path)
+    viewport, toggle = _Private(window, '__viewport'), _Private(window, '__view_toggle')
+    finished = _Private(window, '__On_Analysis_Finished')
+    height, width = _Private(window, '__frame').shape[:2]
+    values = np.full((height, width), np.nan, dtype=np.float32)
+    values[:, width // 2:] = 0.5
+    reading = _Result()
+    reading.Similarity = Heatmap_Str(Values=values, Low=0.0, High=0.5, Title='Unlike the reference — not a defect map',
+                                     Unit='1 − cosine')
+    finished(_Result())
+    _Private(window, '__On_View_Toggle')('similarity')
+    without = (_Grab(viewport), _Grab(toggle))
+    finished(reading)
+    _Private(window, '__On_View_Toggle')('similarity')
+    grab = _Grab(viewport)
+    assert not np.array_equal(_Grab(toggle), without[1])                 # the segment became available
+    assert _Painted(viewport, grab, 0.25, 0.3) == _Painted(viewport, without[0], 0.25, 0.3)   # the frame itself
+    assert _Painted(viewport, grab, 0.75, 0.3) != _Painted(viewport, without[0], 0.75, 0.3)   # the overlay
+    assert not np.array_equal(_Legend(grab, viewport), _Legend(without[0], viewport))         # its legend

@@ -163,24 +163,28 @@ class Dino_Identifier_Cls(object):
         self.__std = np.array(processor.image_std, dtype=np.float32)
         self.__torch, self.__model, self.__device = torch, model, device
 
-    def Embed(self, images_bgr: tp.List[tp.Any], cv2: tp.Any, np: tp.Any) -> tp.Any:
+    def Embed(self, images_bgr: tp.List[tp.Any], cv2: tp.Any, np: tp.Any, patches: bool = False) -> tp.Any:
         """
         Description:
             Each image (BGR) as one unit vector: resized whole to the input size, converted to RGB,
             normalised by the model's processor, and its last layer's class token normalised to length 1.
+            With patches, also each image's patch tokens from the same pass, each normalised to length 1
+            (16 x 16 at the 224 px input): the similarity overlay's input, at no extra model time.
 
         Args:
             (1) images_bgr [Vector<Matrix<uint8> hxwx3>]: The images.
             (2) cv2 [module]: The OpenCV module, injected by the caller.
             (3) np [module]: The NumPy module, injected by the caller.
+            (4) patches [bool]: Also return the patch tokens.
 
         Returns:
-            (1) parameter [Matrix<float> NxD]: One unit row per image, in order.
+            (1) parameter [Matrix<float> NxD, or Tuple<Matrix<float> NxD, Array<float> NxPxD>]: One unit row per
+                image, in order; with patches, (rows, each image's unit patch rows).
         """
 
         self.Load()
         torch, size = self.__torch, CONST_IDENTIFIER_INPUT_PX
-        rows = []
+        rows, patch_rows = [], []
         for start in range(0, len(images_bgr), CONST_IDENTIFIER_BATCH):
             batch = []
             for image in images_bgr[start:start + CONST_IDENTIFIER_BATCH]:
@@ -188,9 +192,14 @@ class Dino_Identifier_Cls(object):
                 batch.append(((rgb.astype(np.float32) / 255.0 - self.__mean) / self.__std).transpose(2, 0, 1))
             with torch.no_grad():
                 pixels = torch.from_numpy(np.stack(batch)).to(self.__device)
-                tokens = self.__model(pixel_values=pixels).last_hidden_state[:, 0]
-                rows.append(torch.nn.functional.normalize(tokens, dim=-1).cpu().numpy())
-        return np.concatenate(rows) if rows else np.zeros((0, 0), dtype=np.float32)
+                hidden = self.__model(pixel_values=pixels).last_hidden_state
+                rows.append(torch.nn.functional.normalize(hidden[:, 0], dim=-1).cpu().numpy())
+                if patches:
+                    patch_rows.append(torch.nn.functional.normalize(hidden[:, 1:], dim=-1).cpu().numpy())
+        embedded = np.concatenate(rows) if rows else np.zeros((0, 0), dtype=np.float32)
+        if not patches:
+            return embedded
+        return embedded, (np.concatenate(patch_rows) if patch_rows else np.zeros((0, 0, 0), dtype=np.float32))
 
     def Release(self) -> None:
         """

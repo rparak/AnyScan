@@ -597,10 +597,13 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
             (2) rect [QRectF]: The plot rectangle.
         """
 
-        # The dashed reference lines at the warn / error thresholds (§5), behind everything.
+        # The dashed reference lines at the warn / error thresholds (§5), behind everything. The warning line is
+        # the neutral mid ink, not the amber: in a catalogue mode a Warning object's dot is amber, and an amber dot
+        # on an amber line read as 'below the threshold' (2026-10-11). The error line keeps its deep red, which no
+        # verdict uses.
         thresholds = self.__thresholds
         references = (() if thresholds is None else
-                      ((thresholds.Warn_Below, Style.CONST_LOG_WARNING),
+                      ((thresholds.Warn_Below, Style.CONST_INK_SOFT),
                        (thresholds.Error_Below, Style.CONST_LOG_ERROR)))
         for value, color in references:
             y = self._Px_Y(value, rect)

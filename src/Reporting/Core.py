@@ -27,7 +27,7 @@ import re
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Dimension_Check_Str, Hole_Count_Str
+from Parameters.Vision import Detection_Str, Dimension_Check_Str
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Item_Str
 #   ../Parameters/Configuration
@@ -139,6 +139,9 @@ CONST_BACKGROUND_FALLBACK = 'The background is a plain surface.'
 # such, and do not revert them to a scale-derived count (docs/design-decisions.md).
 #   Unit [int]
 CONST_SIZE_DECIMALS = 2
+# Counts in a reason are words up to ten, digits above (Count_Word).
+#   Unit [Tuple<string>]
+CONST_COUNT_WORDS = ('no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten')
 
 
 # The describer guard's claims (Guard_Description), per check: a pattern claiming its defect, and one claiming
@@ -524,126 +527,228 @@ def Dimension_Check_Text(Dimension_Check_Str: Dimension_Check_Str) -> str:
         CONST_SIZE_DECIMALS, check.Tolerance_Mm, 'within' if check.Within else 'OUT OF TOLERANCE')
 
 
-def Dimension_Reason(Dimension_Check_Str: Dimension_Check_Str) -> str:
+def Count_Word(count: int) -> str:
     """
     Description:
-        A failed dimension as the reason a part is NOK: 'The length is 62.04 mm, expected 60.00 ± 1.50 mm.'
+        A count as the panel writes it: in words up to ten ('two'), in digits above (the owner's rule, 2026-10-11,
+        for every count in a reason).
 
     Args:
-        (1) Dimension_Check_Str [Dimension_Check_Str(object)]: The check.
+        (1) count [int]: The count.
 
     Returns:
-        (1) parameter [string]: The sentence.
+        (1) parameter [string]: The word or the digits.
     """
 
-    check = Dimension_Check_Str
-    return 'The %s is %.*f mm, expected %.*f ± %.*f mm.' % (
-        check.Name, CONST_SIZE_DECIMALS, check.Measured_Mm, CONST_SIZE_DECIMALS, check.Nominal_Mm,
-        CONST_SIZE_DECIMALS, check.Tolerance_Mm)
+    return CONST_COUNT_WORDS[count] if 0 <= count < len(CONST_COUNT_WORDS) else str(count)
 
 
-def Hole_Count_Reason(Hole_Count_Str: Hole_Count_Str) -> str:
+def __Plural(count: int, noun: str) -> str:
     """
     Description:
-        A group's count as the reason a part is NOK: '3 of 4 corner holes found.' when holes are missing,
-        '5 corner holes found, expected 4.' when there are more.
+        A noun for a count: 'corner hole' for one, 'corner holes' for any other.
 
     Args:
-        (1) Hole_Count_Str [Hole_Count_Str(object)]: The count.
+        (1) count [int]: The count.
+        (2) noun [string]: The noun, singular.
 
     Returns:
-        (1) parameter [string]: The sentence.
+        (1) parameter [string]: The noun.
     """
 
-    count = Hole_Count_Str
-    if count.Found < count.Expected:
-        return '%d of %d %ss found.' % (count.Found, count.Expected, count.Name)
-    return '%d %ss found, expected %d.' % (count.Found, count.Name, count.Expected)
+    return noun if count == 1 else noun + 's'
 
 
-def Verdict_Reasons(det: Detection_Str) -> tp.List[str]:
+def __Join(items: tp.List[str]) -> str:
     """
     Description:
-        Why a judged object is not OK, one sentence per reason: each failed dimension with its measured and
-        expected values, each hole group short or over its count, each hole out of tolerance, the stains, the
-        inscription missing or each letter missing from it, the part's outline without its look, an outline that could not be measured; why an
-        Unspecified object could not be judged and what to do; and that a Warning should not be there. Empty
-        for an OK part and outside a catalogue mode.
+        Items as a list in a sentence: 'a', 'a and b', 'a, b and c'.
+
+    Args:
+        (1) items [Vector<string>]: The items.
+
+    Returns:
+        (1) parameter [string]: The list.
+    """
+
+    return items[0] if len(items) == 1 else '%s and %s' % (', '.join(items[:-1]), items[-1])
+
+
+def __Hole_Clauses(det: Detection_Str) -> tp.List[str]:
+    """
+    Description:
+        Each hole group's finding as a clause: missing ('two of four corner holes are missing', 'all four … are
+        missing', 'both … are missing' for a pair, 'the … is missing' for a group of one), over ('there is one corner hole too many'), out of
+        tolerance ('one corner hole is out of tolerance': its diameter, edge distance or pitch), the first two
+        joined with the third ('… are missing and one is out of tolerance').
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, its holes checked.
+
+    Returns:
+        (1) parameter [Vector<string>]: The clauses, in group order.
+    """
+
+    clauses = []
+    for count in det.Hole_Counts:
+        out = sum(1 for feature in det.Features if feature.Kind == 'hole' and feature.Name == count.Name
+                  and feature.Found and not all(check.Within for check in feature.Checks))
+        parts = []
+        missing = count.Expected - count.Found
+        if missing > 0:
+            if count.Found == 0:
+                parts.append('the %s is missing' % count.Name if count.Expected == 1 else
+                             'both %ss are missing' % count.Name if count.Expected == 2 else
+                             'all %s %ss are missing' % (Count_Word(count.Expected), count.Name))
+            else:
+                parts.append('%s of %s %ss %s missing' % (Count_Word(missing), Count_Word(count.Expected), count.Name,
+                                                         'is' if missing == 1 else 'are'))
+        elif missing < 0:
+            parts.append('there %s %s %s too many' % ('is' if missing == -1 else 'are', Count_Word(-missing),
+                                                     __Plural(-missing, count.Name)))
+        if out:
+            parts.append(('%s %s out of tolerance' % (Count_Word(out), 'is' if out == 1 else 'are')) if parts else
+                         '%s %s %s out of tolerance' % (Count_Word(out), __Plural(out, count.Name),
+                                                        'is' if out == 1 else 'are'))
+        if parts:
+            clauses.append(' and '.join(parts))
+    return clauses
+
+
+def __Logo_Clause(det: Detection_Str) -> str:
+    """
+    Description:
+        The inscription's finding as a clause: 'there is no inscription on the logo side', or what is missing,
+        word by word — a whole word by its name ('SMART'), else its letters ('letters S and M of SMART') —
+        followed by 'is' or 'are missing'.
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, its logo checked.
+
+    Returns:
+        (1) parameter [string]: The clause; '' when it was not checked or is complete.
+    """
+
+    logo = det.Logo
+    if logo is None:
+        return ''
+    if not logo.Reference:
+        side = det.Catalogue.Side_Name if det.Catalogue is not None else ''
+        return 'there is no inscription%s' % (' on the %s' % side if side else '')
+    items, singular = [], True
+    for word in dict.fromkeys(letter.Word for letter in logo.Letters):
+        own = [letter for letter in logo.Letters if letter.Word == word]
+        missing = [letter.Letter for letter in own if not letter.Present]
+        if not missing:
+            continue
+        whole = len(missing) == len(own)
+        singular = whole or len(missing) == 1
+        items.append(word if whole else '%s %s of %s' % (__Plural(len(missing), 'letter'), __Join(missing), word))
+    if not items:
+        return ''
+    return '%s %s missing' % (__Join(items), 'is' if len(items) == 1 and singular else 'are')
+
+
+def Reason_Sentence(det: Detection_Str) -> str:
+    """
+    Description:
+        Why a judged object is not OK, as the one sentence Scene Understanding shows (the owner's rule,
+        2026-10-11): each kind of finding a clause — the outline's size ('its length is out of tolerance'), its
+        look, the holes (__Hole_Clauses), the stains ('there are two stains on the machined front'), the
+        inscription (__Logo_Clause) — in that order, joined ('A, b and c.'). Counts in words up to ten. The
+        measured and expected values are in the log (Part_Lines). A Warning should not be there; an Unspecified
+        object could not be judged, and what to do. Empty for an OK part and outside a catalogue mode.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
 
     Returns:
-        (1) parameter [Vector<string>]: The reasons.
+        (1) parameter [string]: The sentence, or ''.
     """
 
     result = det.Catalogue
     if result is None or det.Verdict == 'OK':
-        return []
-    if det.Verdict == 'Warning':
-        return ['The object should not be on the surface.']
-    if det.Verdict == 'Unspecified':
-        return ["Its area is %.2f times the part's, probably several parts together, so it cannot be judged. "
-                'Separate them and scan again.' % result.Area_Ratio]
-    reasons = [Dimension_Reason(check) for check in det.Dimension_Checks if not check.Within]
-    reasons += [Hole_Count_Reason(count) for count in det.Hole_Counts if count.Found != count.Expected]
-    reasons += [Dimension_Reason(check) for check in det.Hole_Checks if not check.Within]
-    if det.Stains:
-        reasons.append(Stain_Reason(det))
-    reasons += Logo_Reasons(det)
-    if result.Similarity < result.Identify_Similarity:
-        reasons.append("It has the part's outline but does not look like the part.")
-    if not det.Dimension_Checks:
-        reasons.append('Its outline could not be measured.')
-    return reasons
-
-
-def Stain_Reason(det: Detection_Str) -> str:
-    """
-    Description:
-        A part's stains as one reason, on the side up: 'A stain of 152.22 mm² on the machined front.', or for
-        several their count, the largest and their total area.
-
-    Args:
-        (1) det [Detection_Str(object)]: The part, with its stains (largest first).
-
-    Returns:
-        (1) parameter [string]: The sentence; '' when it has none.
-    """
-
-    stains = det.Stains or []
-    side = det.Catalogue.Side_Name if det.Catalogue is not None else ''
-    where = ' on the %s' % side if side else ''
-    if not stains:
         return ''
-    if len(stains) == 1:
-        return 'A stain of %.*f mm²%s.' % (CONST_SIZE_DECIMALS, stains[0].Area_Mm2, where)
-    return '%d stains%s, the largest %.*f mm², %.*f mm² in all.' % (
-        len(stains), where, CONST_SIZE_DECIMALS, stains[0].Area_Mm2, CONST_SIZE_DECIMALS,
-        sum(stain.Area_Mm2 for stain in stains))
+    if det.Verdict == 'Warning':
+        return 'The object should not be on the surface.'
+    if det.Verdict == 'Unspecified':
+        return ("Its area is %.2f times the part's, probably several parts together, so it cannot be judged. "
+                'Separate them and scan again.' % result.Area_Ratio)
+    clauses = []
+    failed = [check.Name for check in det.Dimension_Checks if not check.Within]
+    if not det.Dimension_Checks:
+        clauses.append('its outline could not be measured')
+    elif failed:
+        clauses.append('its %s %s out of tolerance' % (__Join(failed), 'is' if len(failed) == 1 else 'are'))
+    if result.Similarity < result.Identify_Similarity:
+        clauses.append("it has the part's outline but does not look like the part")
+    clauses += __Hole_Clauses(det)
+    if det.Stains:
+        side = ' on the %s' % result.Side_Name if result.Side_Name else ''
+        clauses.append('there is a stain%s' % side if len(det.Stains) == 1 else
+                       'there are %s stains%s' % (Count_Word(len(det.Stains)), side))
+    logo = __Logo_Clause(det)
+    if logo:
+        clauses.append(logo)
+    if not clauses:
+        return ''
+    sentence = clauses[0] if len(clauses) == 1 else '%s, and %s' % (', '.join(clauses[:-1]), clauses[-1])
+    return sentence[0].upper() + sentence[1:] + '.'
 
 
-def Logo_Reasons(det: Detection_Str) -> tp.List[str]:
+def Part_Lines(index: int, det: Detection_Str) -> tp.List[str]:
     """
     Description:
-        A part's inscription as reasons: 'No inscription found on the logo side.' when it registered to no
-        reference, else one sentence per missing letter, with its word ('The letter R of FACTORY is missing.').
+        A judged part's evidence for the log, below its verdict line (the request's explainability: each part's
+        measured value, expected value and tolerance; the logo's expected and read text): its outline's checks,
+        each hole group's count, its logo's text, then one line per part ('Part 2.3 · corner hole: …'), numbered
+        as the frame numbers its failing parts.
 
     Args:
-        (1) det [Detection_Str(object)]: The part, with its logo result.
+        (1) index [int]: The object's 0-based position.
+        (2) det [Detection_Str(object)]: The object, judged.
 
     Returns:
-        (1) parameter [Vector<string>]: The reasons; [] when it was not checked or is complete.
+        (1) parameter [Vector<string>]: The lines; [] for an object not judged the part.
     """
 
-    logo = det.Logo
-    if logo is None:
+    if det.Catalogue is None or det.Verdict not in ('OK', 'NOK'):
         return []
-    if not logo.Reference:
-        side = det.Catalogue.Side_Name if det.Catalogue is not None else ''
-        return ['No inscription found%s.' % (' on the %s' % side if side else '')]
-    return ['The letter %s of %s is missing.' % (letter.Letter, letter.Word) for letter in logo.Letters
-            if not letter.Present]
+    label = Object_Label(index)
+    lines = []
+    if det.Dimension_Checks:
+        lines.append('%s · outline: %s.' % (label, '; '.join(Dimension_Check_Text(check) for check in det.Dimension_Checks)))
+    lines += ['%s · %ss: %d of %d found%s.' % (label, count.Name, count.Found, count.Expected,
+                                               '' if count.Found <= count.Expected else ', too many')
+              for count in det.Hole_Counts]
+    if det.Logo is not None:
+        if not det.Logo.Reference:
+            lines.append('%s · logo: no inscription found (%d matched features, too few for any reference).'
+                         % (label, det.Logo.Matches))
+        else:
+            expected = ' '.join(dict.fromkeys(letter.Word for letter in det.Logo.Letters))
+            read = ' '.join(feature.Read_Text for feature in det.Features if feature.Kind == 'word')
+            lines.append('%s · logo: expected %s, read %s (reference %s, %d matched features).'
+                         % (label, expected, read, det.Logo.Reference, det.Logo.Matches))
+    for feature in det.Features:
+        if not feature.Part:
+            continue
+        head = 'Part %s · %s: ' % (feature.Part, feature.Name)
+        if feature.Kind == 'hole' and not feature.Found:
+            lines.append(head + 'not found at its expected position.')
+        elif feature.Kind == 'hole':
+            score = '' if feature.Score is None else ' (mask score %.2f)' % feature.Score
+            over = ('' if feature.Passed or not all(check.Within for check in feature.Checks)
+                    else '; its group has more holes than the part')
+            lines.append('Part %s · %s' % (feature.Part, '; '.join(Dimension_Check_Text(check) for check in feature.Checks))
+                         + over + score + '.')
+        elif feature.Kind == 'stain':
+            lines.append(head + '%.*f mm².' % (CONST_SIZE_DECIMALS, feature.Area_Mm2))
+        elif feature.Kind == 'word':
+            lines.append(head + 'expected %s, read %s (least letter similarity %.2f): %s.'
+                         % (feature.Expected_Text, feature.Read_Text, feature.Score,
+                            'complete' if feature.Passed else 'LETTERS MISSING'))
+    return lines
 
 
 def Size_Note(det: Detection_Str) -> str:
@@ -670,8 +775,8 @@ def Size_Note(det: Detection_Str) -> str:
 def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
     """
     Description:
-        A catalogue mode's verdict on one object as Scene Understanding shows it: 'State: <state>.', then one
-        'Reason:' line per reason it is not OK (Verdict_Reasons), then the size note when it applies. No
+        A catalogue mode's verdict on one object as Scene Understanding shows it: 'State: <state>.', then, when it
+        is not OK, its one 'Reason:' sentence (Reason_Sentence), then the size note when it applies. No
         similarity and no side here: the similarity is in the log only (Verdict_Log_Line), and the side is in
         the description (Side_Sentence). Empty outside a catalogue mode.
 
@@ -684,8 +789,8 @@ def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
 
     if det.Catalogue is None:
         return []
-    note = Size_Note(det)
-    return (['State: %s.' % det.Verdict] + ['Reason: %s' % reason for reason in Verdict_Reasons(det)]
+    note, reason = Size_Note(det), Reason_Sentence(det)
+    return (['State: %s.' % det.Verdict] + (['Reason: %s' % reason] if reason else [])
             + (['Note: %s' % note] if note else []))
 
 
@@ -854,7 +959,8 @@ def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
     evidence = [det.Verdict] + (['%s up' % result.Side] if det.Verdict in ('OK', 'NOK') else [])
     evidence.append('similarity %.2f' % result.Similarity)
     note = Size_Note(det)
-    words = (['%s.' % ', '.join(evidence)] + ['Reason: %s' % reason for reason in Verdict_Reasons(det)]
+    reason = Reason_Sentence(det)
+    words = (['%s.' % ', '.join(evidence)] + (['Reason: %s' % reason] if reason else [])
              + (['Note: %s' % note] if note else []))
     return level, '%s: %s' % (Object_Label(index), ' '.join(words))
 

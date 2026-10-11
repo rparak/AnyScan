@@ -23,11 +23,12 @@
 
 # System (Default)
 import math
+import itertools
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — the hole, count and dimension-check structures, and the catalogue's groups
 #   ../Parameters/Vision
-from Parameters.Vision import Hole_Str, Hole_Count_Str, Dimension_Check_Str
+from Parameters.Vision import Hole_Str, Hole_Count_Str, Dimension_Check_Str, Feature_Str
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Hole_Group_Str
 #   ../Vision/Utilities/Dimensions
@@ -74,9 +75,13 @@ CONST_HOLE_POSITION_MARGIN_MM = 0.5
 # Two candidates with centres this close and diameters this close are one hole found twice.
 #   Unit [float] (mm)
 CONST_HOLE_DUPLICATE_MM = 1.0
+# How much wider than its circle a hole's mark is, each way, so the mark sits beside the hole's edge, not on it.
+#   Unit [float] (mm)
+CONST_HOLE_MARK_MARGIN_MM = 0.5
 
 
-def Hole_Candidates(masks: tp.List[tp.Any], mm_per_px: float, cv2: tp.Any, np: tp.Any) -> tp.List[Hole_Str]:
+def Hole_Candidates(masks: tp.List[tp.Any], mm_per_px: float, cv2: tp.Any, np: tp.Any,
+                    scores: tp.Optional[tp.List[float]] = None) -> tp.List[Hole_Str]:
     """
     Description:
         The holes among a crop's masks: each mask's largest outer contour, kept when it is round
@@ -88,13 +93,14 @@ def Hole_Candidates(masks: tp.List[tp.Any], mm_per_px: float, cv2: tp.Any, np: t
         (2) mm_per_px [float]: The crop's scale.
         (3) cv2 [module]: The OpenCV module, injected by the caller.
         (4) np [module]: The NumPy module, injected by the caller.
+        (5) scores [Vector<float>]: FastSAM's score for each mask, kept on its hole (None: not given).
 
     Returns:
         (1) parameter [Vector<Hole_Str(object)>]: The candidates.
     """
 
     found = []
-    for mask in masks:
+    for index, mask in enumerate(masks):
         h, w = mask.shape[:2]
         contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         if not contours:
@@ -107,7 +113,8 @@ def Hole_Candidates(masks: tp.List[tp.Any], mm_per_px: float, cv2: tp.Any, np: t
         if (cx - radius < CONST_HOLE_BORDER_PX or cy - radius < CONST_HOLE_BORDER_PX
                 or cx + radius > w - CONST_HOLE_BORDER_PX or cy + radius > h - CONST_HOLE_BORDER_PX):
             continue
-        hole = Hole_Str(Diameter_Mm=2.0 * math.sqrt(area / math.pi) * mm_per_px, X_Mm=cx * mm_per_px, Y_Mm=cy * mm_per_px)
+        hole = Hole_Str(Diameter_Mm=2.0 * math.sqrt(area / math.pi) * mm_per_px, X_Mm=cx * mm_per_px, Y_Mm=cy * mm_per_px,
+                        Score=float(scores[index]) if scores is not None else None)
         if not any(math.hypot(hole.X_Mm - other.X_Mm, hole.Y_Mm - other.Y_Mm) < CONST_HOLE_DUPLICATE_MM
                    and abs(hole.Diameter_Mm - other.Diameter_Mm) < CONST_HOLE_DUPLICATE_MM for other in found):
             found.append(hole)
@@ -130,6 +137,35 @@ def __Edge_Distances(hole: Hole_Str, width_mm: float, height_mm: float) -> tp.Tu
     """
 
     return min(hole.X_Mm, width_mm - hole.X_Mm), min(hole.Y_Mm, height_mm - hole.Y_Mm)
+
+
+def __Members(candidates: tp.List[Hole_Str], group: Catalogue_Hole_Group_Str, width_mm: float,
+              height_mm: float) -> tp.List[Hole_Str]:
+    """
+    Description:
+        A group's holes among the candidates: of its diameter within CONST_HOLE_CAPTURE_TOLERANCES tolerances and,
+        for a positioned group, near one of its positions (mirrored to all four corners), top to bottom.
+
+    Args:
+        (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
+        (2) group [Catalogue_Hole_Group_Str(object)]: The group.
+        (3) width_mm [float]: The crop's width (the part's short side).
+        (4) height_mm [float]: The crop's height (the part's long side).
+
+    Returns:
+        (1) parameter [Vector<Hole_Str(object)>]: Its holes.
+    """
+
+    tolerance = group.Tolerance_Mm
+    members = [hole for hole in candidates
+               if abs(hole.Diameter_Mm - group.Diameter_Mm) < CONST_HOLE_CAPTURE_TOLERANCES * tolerance]
+    if group.From_Long_Edge_Mm:
+        gate = math.sqrt(2.0) * tolerance + CONST_HOLE_POSITION_MARGIN_MM
+        members = [hole for hole in members
+                   if math.hypot(*(measured - nominal for measured, nominal in zip(
+                       __Edge_Distances(hole, width_mm, height_mm),
+                       (group.From_Long_Edge_Mm, group.From_Short_Edge_Mm)))) <= gate]
+    return sorted(members, key=lambda hole: (round(hole.Y_Mm), hole.X_Mm))
 
 
 def Check_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str], width_mm: float,
@@ -155,15 +191,7 @@ def Check_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Gr
     counts, checks = [], []
     for group in groups:
         tolerance = group.Tolerance_Mm
-        members = [hole for hole in candidates
-                   if abs(hole.Diameter_Mm - group.Diameter_Mm) < CONST_HOLE_CAPTURE_TOLERANCES * tolerance]
-        if group.From_Long_Edge_Mm:
-            gate = math.sqrt(2.0) * tolerance + CONST_HOLE_POSITION_MARGIN_MM
-            members = [hole for hole in members
-                       if math.hypot(*(measured - nominal for measured, nominal in zip(
-                           __Edge_Distances(hole, width_mm, height_mm),
-                           (group.From_Long_Edge_Mm, group.From_Short_Edge_Mm)))) <= gate]
-        members.sort(key=lambda hole: (round(hole.Y_Mm), hole.X_Mm))
+        members = __Members(candidates, group, width_mm, height_mm)
         counts.append(Hole_Count_Str(Name=group.Name, Found=len(members), Expected=group.Count))
         for hole in members:
             checks.append(Check_Dimension('%s Ø' % group.Name, hole.Diameter_Mm, group.Diameter_Mm, tolerance))
@@ -180,3 +208,114 @@ def Check_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Gr
                     if abs(pitch - group.Pitch_Mm) < CONST_HOLE_CAPTURE_TOLERANCES * tolerance:
                         checks.append(Check_Dimension('%s pitch' % group.Name, pitch, group.Pitch_Mm, tolerance))
     return counts, checks
+
+
+def __Positions(group: Catalogue_Hole_Group_Str, width_mm: float, height_mm: float) -> tp.List[tp.Tuple[float, float]]:
+    """
+    Description:
+        A positioned group's expected centres on the upright crop: its edge distances mirrored to the four
+        corners, each once (a centred hole's mirror images coincide).
+
+    Args:
+        (1) group [Catalogue_Hole_Group_Str(object)]: The group (with positions).
+        (2) width_mm [float]: The crop's width.
+        (3) height_mm [float]: The crop's height.
+
+    Returns:
+        (1) parameter [Vector<Tuple<float> 1x2>]: The centres (x, y) in mm.
+    """
+
+    positions = []
+    for x in (group.From_Long_Edge_Mm, width_mm - group.From_Long_Edge_Mm):
+        for y in (group.From_Short_Edge_Mm, height_mm - group.From_Short_Edge_Mm):
+            if not any(math.hypot(x - px, y - py) < CONST_HOLE_DUPLICATE_MM for px, py in positions):
+                positions.append((x, y))
+    return positions
+
+
+def __Square(x_mm: float, y_mm: float, diameter_mm: float) -> tp.List[tp.Tuple[float, float]]:
+    """
+    Description:
+        The box a hole is marked with: a square around its circle, CONST_HOLE_MARK_MARGIN_MM wider each way.
+
+    Args:
+        (1) x_mm, y_mm [float]: The centre.
+        (2) diameter_mm [float]: The diameter.
+
+    Returns:
+        (1) parameter [Vector<Tuple<float> 1x2>]: The four corners, in mm.
+    """
+
+    r = diameter_mm / 2.0 + CONST_HOLE_MARK_MARGIN_MM
+    return [(x_mm - r, y_mm - r), (x_mm + r, y_mm - r), (x_mm + r, y_mm + r), (x_mm - r, y_mm + r)]
+
+
+def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str], width_mm: float,
+                  height_mm: float) -> tp.List[Feature_Str]:
+    """
+    Description:
+        The holes as the frame marks them, on the upright crop (mm): each counted hole with its checks (diameter;
+        edge distances for a positioned group; the pitch to a neighbour, on both holes), failed when one fails or
+        when its group holds more holes than the part has; and each hole expected but not found, at its position.
+        A positioned group's expected positions are all its mirrored positions when it has as many holes, else
+        the set of its size that holds the holes found and best fits its pitch (none placed when it found none).
+        An unpositioned group's missing holes are placed at the centres of other groups' holes it would surround
+        (a countersink at its through-hole), the first ones without one of its own.
+
+    Args:
+        (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
+        (2) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
+        (3) width_mm [float]: The crop's width (the part's short side).
+        (4) height_mm [float]: The crop's height (the part's long side).
+
+    Returns:
+        (1) parameter [Vector<Feature_Str(object)>]: The holes, group by group, the found before the missing.
+    """
+
+    members = [__Members(candidates, group, width_mm, height_mm) for group in groups]
+    features = []
+    for group, holes in zip(groups, members):
+        tolerance = group.Tolerance_Mm
+        own = []
+        for hole in holes:
+            checks = [Check_Dimension('%s Ø' % group.Name, hole.Diameter_Mm, group.Diameter_Mm, tolerance)]
+            if group.From_Long_Edge_Mm:
+                long_edge, short_edge = __Edge_Distances(hole, width_mm, height_mm)
+                checks += [Check_Dimension("%s's distance from the long edge" % group.Name, long_edge,
+                                           group.From_Long_Edge_Mm, tolerance),
+                           Check_Dimension("%s's distance from the short edge" % group.Name, short_edge,
+                                           group.From_Short_Edge_Mm, tolerance)]
+            if group.Pitch_Mm:
+                for other in holes:
+                    pitch = math.hypot(hole.X_Mm - other.X_Mm, hole.Y_Mm - other.Y_Mm)
+                    if other is not hole and abs(pitch - group.Pitch_Mm) < CONST_HOLE_CAPTURE_TOLERANCES * tolerance:
+                        checks.append(Check_Dimension('%s pitch' % group.Name, pitch, group.Pitch_Mm, tolerance))
+            own.append(Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(hole.X_Mm, hole.Y_Mm, hole.Diameter_Mm),
+                                   Passed=len(holes) <= group.Count and all(check.Within for check in checks),
+                                   Checks=checks, Score=hole.Score))
+        missing = max(0, group.Count - len(holes))
+        places = []
+        if missing and group.From_Long_Edge_Mm:
+            positions = __Positions(group, width_mm, height_mm)
+            gate = math.sqrt(2.0) * tolerance + CONST_HOLE_POSITION_MARGIN_MM
+            taken = [any(math.hypot(hole.X_Mm - x, hole.Y_Mm - y) <= gate for hole in holes) for x, y in positions]
+            if len(positions) == group.Count:
+                places = [position for position, held in zip(positions, taken) if not held]
+            elif holes:
+                fits = [subset for subset in itertools.combinations(range(len(positions)), group.Count)
+                        if all(i in subset for i, held in enumerate(taken) if held)]
+                if fits:
+                    best = min(fits, key=lambda subset: sum(
+                        abs(math.dist(positions[i], positions[j]) - (group.Pitch_Mm or 0.0))
+                        for i, j in itertools.combinations(subset, 2)))
+                    places = [positions[i] for i in best if not taken[i]]
+        elif missing:
+            centres = [(hole.X_Mm, hole.Y_Mm) for other, found in zip(groups, members) if other is not group
+                       for hole in found]
+            places = [centre for centre in centres
+                      if not any(math.hypot(hole.X_Mm - centre[0], hole.Y_Mm - centre[1]) < group.Diameter_Mm / 2.0
+                                 for hole in holes)][:missing]
+        own += [Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(x, y, group.Diameter_Mm), Passed=False,
+                            Found=False) for x, y in places]
+        features += own
+    return features

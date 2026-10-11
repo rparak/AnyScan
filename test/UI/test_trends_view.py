@@ -191,3 +191,31 @@ def test_a_catalogue_run_charts_ok_nok_warning_and_unspecified(qt_app, tmp_path)
     assert any(image.pixelColor(x, y).name() == amber for x in range(image.width()) for y in range(image.height()))
     chart.Set_Data(acc.Images(), False)
     assert [label for label, _color in chart._legend] == ['Total']
+
+
+def test_the_warning_threshold_line_is_not_the_warning_verdicts_amber(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        The confidence chart's dashed warning-threshold line is painted in the neutral mid ink, not the amber a
+        catalogue mode's Warning dots take, so an amber dot is never read as part of the line (the clash recorded
+        in KNOWN_ISSUES until 2026-10-11): rendered, the chart holds the ink and no amber.
+    """
+
+    import Parameters.Theme as Theme
+    window = _Window(reference_background_path)
+    for scores in ([0.91, 0.72], [0.88, 0.95]):
+        _Private(window, '__On_Analysis_Finished')(_Result(scores))
+    view = _Private(window, '__trends_view')
+    chart = _Private(view, '__confidence_chart', '_Trends_View_Cls')
+    chart.resize(600, 320)
+    image = chart.grab().toImage().convertToFormat(4)
+    pointer = image.constBits()
+    pointer.setsize(image.byteCount())
+    pixels = np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)[:, :, :3]
+    # By hue, not exact colour: the one-pixel dashed lines are antialiased. Amber (and its blends with the card)
+    # is red well over green well over blue; the error line's deep red has green and blue alike.
+    b, g, r = (pixels.reshape(-1, 3).astype(int)[:, k] for k in range(3))
+    amber = int(((r - g > 40) & (g - b > 30)).sum())
+    ink = int((np.abs(pixels.reshape(-1, 3).astype(int) - np.array(Theme.Hex_To_Bgr(Theme.CONST_INK_SOFT))).max(axis=1)
+               <= 40).sum())
+    assert ink > 0 and amber == 0

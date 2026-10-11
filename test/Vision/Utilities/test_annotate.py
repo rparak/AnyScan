@@ -377,3 +377,44 @@ def test_the_catalogue_states_render_in_their_colours_on_both_images() -> None:
     assert tuple(int(c) for c in mask[240, 340]) == Theme.Hex_To_Bgr(neutral_fill)
     assert __Has_Bgr(mask, Theme.Hex_To_Bgr(Theme.Detection_Mask_Outline()))
     assert not __Has_Bgr(mask, Theme.Hex_To_Bgr(neutral_box))
+
+
+def test_a_judged_parts_features_are_marked_in_the_pass_and_the_fail_colour() -> None:
+    """
+    Description:
+        On the annotated frame (rendered pixels, at the camera's 1920 x 1200): a passing hole is boxed in the pass
+        colour (the OK verdict's), a hole expected and not found in the fail colour (the NOK verdict's) and
+        dashed — its edge has gaps — and carries its part number on a chip, which a passing part does not; a
+        stain's pixels are tinted with the fail colour; the marks stand on a light halo. The label mask carries
+        none of it.
+    """
+
+    from Parameters.Vision import Feature_Str
+    passed, failed = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0]), Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
+    scene = np.full((1200, 1920, 3), 90, np.uint8)
+
+    def Part(features: tp.List[Feature_Str]) -> Detection_Str:
+        mask = np.zeros((1200, 1920), dtype=bool)
+        mask[100:700, 100:700] = True
+        return Detection_Str(Label='plate', Bbox=(100, 100, 600, 600), Mask=mask, Verdict='NOK', Features=features)
+
+    features = [Feature_Str(Part='1.1', Kind='hole', Name='corner hole',
+                            Corners=[(200, 200), (300, 200), (300, 300), (200, 300)]),
+                Feature_Str(Part='1.2', Kind='hole', Name='corner hole', Passed=False, Found=False,
+                            Corners=[(450, 200), (550, 200), (550, 300), (450, 300)]),
+                Feature_Str(Part='1.3', Kind='stain', Name='stain', Passed=False,
+                            Corners=[(200, 450), (400, 450), (400, 600), (200, 600)],
+                            Outlines=[[(250, 480), (350, 480), (350, 560), (250, 560)]])]
+    annotated = Annotate.Draw_Annotated(scene, [Part(features)], cv2, np, verdict_colored=True)
+    bare = Annotate.Draw_Annotated(scene, [Part([])], cv2, np, verdict_colored=True)
+    has = lambda region, bgr: bool((region.reshape(-1, 3) == np.array(bgr, np.uint8)).all(axis=1).any())
+    assert has(annotated[240:260, 195:206], passed) and not has(annotated[240:260, 195:206], failed)
+    rows = [has(annotated[y:y + 1, 445:456], failed) for y in range(205, 296)]
+    assert any(rows) and not all(rows)                                           # dashed: colour and gaps
+    assert not np.array_equal(annotated[160:198, 450:540], bare[160:198, 450:540])   # the failing part's chip
+    assert np.array_equal(annotated[160:195, 205:290], bare[160:195, 205:290])       # none on the passing one
+    tinted = annotated[520, 300].astype(int)
+    assert tinted[2] > 120 and tinted[1] < 80                                    # magenta over the grey
+    assert has(annotated[240:260, 190:210], Theme.Hex_To_Bgr(Theme.CONST_CARD))  # the halo beside the line
+    mask = Annotate.Draw_Label_Mask([Part(features)], scene.shape, cv2, np, verdict_colored=True)
+    assert np.array_equal(mask, Annotate.Draw_Label_Mask([Part([])], scene.shape, cv2, np, verdict_colored=True))

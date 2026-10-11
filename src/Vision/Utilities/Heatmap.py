@@ -21,6 +21,8 @@
 # File Name: ../Vision/Utilities/Heatmap.py
 ## =========================================================================== ##
 
+# Dataclasses (a heatmap over other values)
+import dataclasses
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — the heatmap colours and the heatmap structure
@@ -41,6 +43,10 @@ Description:
 # The heatmap colours as BGR triples, low to high, built once from the theme.
 #   Unit [Vector<Tuple<int> 1x3>]
 CONST_HEATMAP_BGR = tuple(Hex_To_Bgr(color) for color in Heatmap_Colors())
+# How opaque an overlay's colours are over the frame (Render_Overlay): enough to read the map, little enough to
+# see the part under it.
+#   Unit [float] (0-1)
+CONST_OVERLAY_OPACITY = 0.55
 
 
 def Heatmap_Index(Heatmap_Str: Heatmap_Str, np: tp.Any) -> tp.List[tp.List[int]]:
@@ -80,3 +86,31 @@ def Render_Heatmap(Heatmap_Str: Heatmap_Str, cv2: tp.Any, np: tp.Any) -> tp.List
     """
 
     return np.asarray(CONST_HEATMAP_BGR, dtype=np.uint8)[Heatmap_Index(Heatmap_Str, np)]
+
+
+def Render_Overlay(Heatmap_Str: Heatmap_Str, frame_bgr: tp.Any, cv2: tp.Any, np: tp.Any) -> tp.List[tp.List[int]]:
+    """
+    Description:
+        A heatmap that covers only some pixels (the rest NaN: the similarity overlay, on the judged parts) drawn
+        over the frame: each covered pixel its value's colour, blended CONST_OVERLAY_OPACITY over the frame, so the
+        part stays recognisable under it; every other pixel the frame itself.
+
+    Args:
+        (1) Heatmap_Str [Heatmap_Str(object)]: The heatmap, the frame's size, NaN where it says nothing.
+        (2) frame_bgr [Matrix<uint8> HxWx3]: The frame.
+        (3) cv2 [module]: The OpenCV module, injected by the caller.
+        (4) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [Matrix<uint8> HxWx3]: The frame with the overlay (BGR).
+    """
+
+    values = np.asarray(Heatmap_Str.Values, dtype=np.float32)
+    covered = np.isfinite(values)
+    filled = dataclasses.replace(Heatmap_Str, Values=np.where(covered, values, Heatmap_Str.Low))
+    colours = Render_Heatmap(filled, cv2, np)
+    blended = cv2.addWeighted(colours, CONST_OVERLAY_OPACITY, frame_bgr, 1.0 - CONST_OVERLAY_OPACITY, 0.0)
+    out = frame_bgr.copy()
+    out[covered] = blended[covered]
+    return out
+

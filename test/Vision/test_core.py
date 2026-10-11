@@ -209,9 +209,12 @@ class _Fake_Identifier_Cls(object):
             self.events.append(('load identifier', self.key[0]))
             self.model = object()
 
-    def Embed(self, images, cv2, np):
+    def Embed(self, images, cv2, np, patches=False):
         self.Load()
-        return np.array([[1.0, 0.0] if max(image.shape[:2]) >= 200 else [0.0, 1.0] for image in images])
+        rows = np.array([[1.0, 0.0] if max(image.shape[:2]) >= 200 else [0.0, 1.0] for image in images])
+        # The patch tokens: a 2 x 2 grid, each patch its image's row (so a part matching its reference is
+        # alike everywhere).
+        return (rows, np.repeat(rows[:, None, :], 4, axis=1)) if patches else rows
 
     def Release(self) -> None:
         if self.model is not None:
@@ -720,3 +723,34 @@ def test_a_judged_part_is_described_with_its_findings_and_guarded(fake_models, r
         'Object 1: the describer\'s sentence "It is 60 mm long." was left out: it states a number. Its full text: '
         '"A metal plate with a shiny face. It is 60 mm long."']
     assert [level for level, message in result.Audit if 'describer' in message] == ['warning']
+
+
+def test_a_judged_parts_features_and_similarity_are_on_the_frame(fake_models, reference_background,
+                                                                 make_synthetic_frame) -> None:
+    """
+    Description:
+        Through a real Analyze (stand-in models): the judged plate's holes become its features, numbered as its
+        parts (1.1, 1.2, …) and boxed on the frame inside its outline, followed by its measured sides (no part
+        number); the Warning has none. The similarity map covers the plate's pixels only (NaN elsewhere), and the
+        stand-in's patches matching the reference everywhere read 0.
+    """
+
+    import cv2
+    import numpy as np
+    _events, _config, _Variant = fake_models
+    _Fake_Segmenter_Cls.crop_holes = [(15.0, 17.5, 6.0), (15.0, 43.1, 6.0), (15.0, 17.5, 12.0), (15.0, 43.1, 12.0)]
+    frame_bgr = make_synthetic_frame(reference_background, [(300, 300, 900, 700), (1300, 300, 1400, 360)])
+    result = Vision_Pipeline_Cls(Configuration_Str=_Catalogue_Mode()).Analyze(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+    plate, small = result.Objects
+    holes = [f for f in plate.Features if f.Kind == 'hole']
+    assert [f.Part for f in holes] == ['1.%d' % i for i in range(1, len(holes) + 1)] and len(holes) == 4
+    assert all(f.Found and f.Passed for f in holes)
+    for feature in holes:
+        assert all(300 <= x <= 900 and 300 <= y <= 700 for x, y in feature.Corners)
+    assert [(f.Kind, f.Name, f.Part) for f in plate.Features if f.Kind == 'side'] == [('side', 'length', ''),
+                                                                                      ('side', 'width', '')]
+    assert small.Features == []
+    values = result.Similarity.Values
+    assert np.isfinite(values[plate.Mask.astype(bool)]).all() and np.isnan(values[~plate.Mask.astype(bool)]).all()
+    assert np.allclose(values[plate.Mask.astype(bool)], 0.0)
+    assert 'not a defect map' in result.Similarity.Title

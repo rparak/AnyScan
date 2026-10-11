@@ -307,9 +307,12 @@ class Viewport_Cls(QWidget):
         self.__mask = None
         self.__view = 'annotated'
         # The third view, the heatmap (Vision.Utilities.Heatmap), and its Heatmap_Str for the legend
-        # painted over it; both None when the analysis brought none.
+        # painted over it; both None when the analysis brought none. Likewise the fourth, a catalogue mode's
+        # similarity overlay (Vision.Utilities.Heatmap.Render_Overlay) and its legend.
         self.__heatmap = None
         self.__legend = None
+        self.__similarity = None
+        self.__similarity_legend = None
         # Busy overlay. __busy shows the scrim and step text; __animated adds the
         # turning arc, driven by __timer, which runs ONLY while the analysis worker
         # is busy — a timer left running repaints a static screen forever.
@@ -344,10 +347,13 @@ class Viewport_Cls(QWidget):
         self.__mask = None
         self.__heatmap = None
         self.__legend = None
+        self.__similarity = None
+        self.__similarity_legend = None
         self.update()
 
     def Show_Views(self, annotated: QImage, mask: QImage, view: str, *, heatmap: tp.Optional[QImage],
-                   legend: tp.Optional[Heatmap_Str]) -> None:
+                   legend: tp.Optional[Heatmap_Str], similarity: tp.Optional[QImage] = None,
+                   similarity_legend: tp.Optional[Heatmap_Str] = None) -> None:
         """
         Description:
             Hold the analysis renders from the completed result and paint the selected
@@ -357,17 +363,21 @@ class Viewport_Cls(QWidget):
         Args:
             (1) annotated [QImage(object)]: The annotated image.
             (2) mask [QImage(object)]: The label mask image.
-            (3) view [string]: The view to show now ('annotated', 'mask' or 'heatmap').
+            (3) view [string]: The view to show now ('annotated', 'mask', 'heatmap' or 'similarity').
             (4) heatmap [QImage(object) or None]: REQUIRED, keyword-only: the heatmap image, or None
                 when the analysis brought none.
             (5) legend [Heatmap_Str(object) or None]: REQUIRED, keyword-only: the heatmap's scale, title
                 and marks, painted as its legend; None with no heatmap.
+            (6) similarity [QImage(object) or None]: The similarity overlay (a catalogue mode's), or None.
+            (7) similarity_legend [Heatmap_Str(object) or None]: Its scale and title; None with no overlay.
         """
 
         self.__annotated = annotated
         self.__mask = mask
         self.__heatmap = heatmap
         self.__legend = legend
+        self.__similarity = similarity
+        self.__similarity_legend = similarity_legend
         self.__view = view
         self.update()
 
@@ -411,6 +421,8 @@ class Viewport_Cls(QWidget):
         if self.__annotated is not None:
             if self.__view == 'heatmap' and self.__heatmap is not None:
                 return self.__heatmap
+            if self.__view == 'similarity' and self.__similarity is not None:
+                return self.__similarity
             return self.__mask if self.__view == 'mask' else self.__annotated
         return self.__image
 
@@ -426,6 +438,8 @@ class Viewport_Cls(QWidget):
         self.__mask = None
         self.__heatmap = None
         self.__legend = None
+        self.__similarity = None
+        self.__similarity_legend = None
         self.update()
 
     def Clear(self) -> None:
@@ -566,6 +580,8 @@ class Viewport_Cls(QWidget):
             p.drawImage(self.__Draw_Rect(), displayed)
             if displayed is self.__heatmap and self.__legend is not None:
                 self.__Paint_Legend(p, self.__legend)
+            elif displayed is self.__similarity and self.__similarity_legend is not None:
+                self.__Paint_Legend(p, self.__similarity_legend)
 
         if self.__busy:
             self.__Paint_Busy(p)
@@ -856,9 +872,10 @@ class Segmented_Control_Cls(QWidget):
 class View_Toggle_Cls(Segmented_Control_Cls):
     """
     Description:
-        The Camera View's annotated/mask/heatmap selector (§2b) — a Segmented_Control_Cls fixed
-        to three segments, so it shares the console's one segmented-control look. The heatmap
-        segment is disabled while the held analysis brought no heatmap. It re-exposes
+        The Camera View's annotated/mask/heatmap/similarity selector (§2b) — a Segmented_Control_Cls
+        fixed to four segments, so it shares the console's one segmented-control look. The heatmap
+        segment is disabled while the held analysis brought no heatmap, and the similarity segment
+        outside a catalogue mode (a diagnostic overlay, not a defect map). It re-exposes
         the control under its domain names: View_Changed (a user click) and Set_View
         (restore a remembered choice without re-emitting). The window hides it until an
         analysis has completed — there is nothing to toggle before then.
@@ -868,7 +885,7 @@ class View_Toggle_Cls(Segmented_Control_Cls):
     View_Changed = pyqtSignal(str)
 
     # The segments, in order, as (key, label).
-    CONST_SEGMENTS = (('annotated', 'Annotated'), ('mask', 'Mask'), ('heatmap', 'Heatmap'))
+    CONST_SEGMENTS = (('annotated', 'Annotated'), ('mask', 'Mask'), ('heatmap', 'Heatmap'), ('similarity', 'Similarity'))
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(self.CONST_SEGMENTS, parent=parent)

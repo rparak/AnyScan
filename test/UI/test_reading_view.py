@@ -292,7 +292,7 @@ def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app,
     assert first.count() == 3 and second.count() == 2
     verdict = first.itemAt(1).widget()
     assert verdict.text() == '\n'.join(Verdict_Lines(judged))
-    assert verdict.text() == ('State: NOK.\nReason: The length is 62.00 mm, expected 60.00 ± 1.50 mm.\n'
+    assert verdict.text() == ('State: NOK.\nReason: Its length is out of tolerance.\n'
                               'Note: The size check is not verified here: 80 mm from the frame centre, verified to 74 mm.')
     assert verdict.textFormat() == Qt.PlainText and verdict.font().weight() > first.itemAt(2).widget().font().weight()
     assert first.itemAt(2).widget().text() == 'A machined plate.'

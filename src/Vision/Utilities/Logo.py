@@ -234,7 +234,7 @@ def Check_Logo(crop_bgr: tp.Any, Catalogue_Logo_Str: Catalogue_Logo_Str, prepare
     sift, matcher = cv2.SIFT_create(), cv2.BFMatcher()
     words = [word for word in logo.Expected_Text for _letter in word.replace(' ', '')]
     scores = [(-1.0, 0.0)] * len(words)
-    best = ('', 0)
+    best, warps = ('', 0), {}
     for reference, features in zip(logo.References, prepared):
         image = cv2.resize(crop_bgr, features['size'], interpolation=cv2.INTER_AREA)
         keypoints, descriptors = sift.detectAndCompute(__Gray(image, cv2), None)
@@ -253,6 +253,7 @@ def Check_Logo(crop_bgr: tp.Any, Catalogue_Logo_Str: Catalogue_Logo_Str, prepare
             continue
         if matches > best[1]:
             best = (reference.Name, matches)
+        warps[reference.Name] = (reference, features['size'], warp)
         if matches < logo.Min_Matches:
             continue
         edges = __Edges(__Gray(cv2.warpAffine(image, warp, features['size']), cv2), cv2, np)
@@ -269,4 +270,40 @@ def Check_Logo(crop_bgr: tp.Any, Catalogue_Logo_Str: Catalogue_Logo_Str, prepare
     letters = [Logo_Letter_Str(Word=word, Letter=letter, Similarity=score, Contrast=contrast,
                                Present=score >= logo.Letter_Min_Similarity and contrast >= logo.Letter_Min_Contrast)
                for word, letter, (score, contrast) in zip(words, ''.join(logo.Expected_Text).replace(' ', ''), scores)]
-    return Logo_Result_Str(Reference=best[0], Matches=best[1], Letters=letters)
+    return Logo_Result_Str(Reference=best[0], Matches=best[1], Letters=letters,
+                           Words=__Word_Boxes(logo, *warps[best[0]], crop_bgr.shape, cv2, np))
+
+
+def __Word_Boxes(logo: Catalogue_Logo_Str, reference: Catalogue_Logo_Reference_Str, size: tp.Tuple[int, int],
+                 warp: tp.Any, shape: tp.Tuple[int, ...], cv2: tp.Any, np: tp.Any
+                 ) -> tp.List[tp.Tuple[str, tp.List[tp.Tuple[float, float]]]]:
+    """
+    Description:
+        Each expected word's box on the checked crop: the box around its letters in the reference, taken back
+        through the registration (the crop resized to the reference's size, then warped onto it) to the crop's
+        own pixels.
+
+    Args:
+        (1) logo [Catalogue_Logo_Str(object)]: The side's logo check.
+        (2) reference [Catalogue_Logo_Reference_Str(object)]: The best-matched reference.
+        (3) size [Tuple<int> 1x2]: The reference's (width, height).
+        (4) warp [Matrix<float> 2x3]: The crop's registration onto it.
+        (5) shape [Tuple<int>]: The crop's shape.
+        (6) cv2 [module]: The OpenCV module.
+        (7) np [module]: The NumPy module.
+
+    Returns:
+        (1) parameter [Vector<Tuple<string, Vector<Tuple<float> 1x2>>>]: (word, its four corners) in reading order.
+    """
+
+    back = cv2.invertAffineTransform(warp)
+    scale_x, scale_y = shape[1] / float(size[0]), shape[0] / float(size[1])
+    boxes, start = [], 0
+    for word in logo.Expected_Text:
+        letters = reference.Letters[start:start + len(word.replace(' ', ''))]
+        start += len(letters)
+        x0, y0 = min(b[1] for b in letters), min(b[2] for b in letters)
+        x1, y1 = max(b[1] + b[3] for b in letters), max(b[2] + b[4] for b in letters)
+        corners = cv2.transform(np.float32([[[x0, y0]], [[x1, y0]], [[x1, y1]], [[x0, y1]]]), back).reshape(-1, 2)
+        boxes.append((word, [(float(x) * scale_x, float(y) * scale_y) for x, y in corners]))
+    return boxes

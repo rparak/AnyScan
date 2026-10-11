@@ -104,6 +104,9 @@ class Catalogue_Stain_Str:
     #   Unit [float] (mm²) / [float] (mm)
     Min_Area_Mm2: float = 0.0
     Edge_Margin_Mm: float = 0.0
+    # Fragments of the band this close are one stain region (a fingerprint's ridges break it up).
+    #   Unit [float] (mm)
+    Merge_Mm: float = 0.0
 
 
 @dataclass

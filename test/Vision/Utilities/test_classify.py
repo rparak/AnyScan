@@ -209,3 +209,46 @@ def test_the_side_is_named_in_the_catalogues_words() -> None:
     det = _Part([(660, 400, 1260, 800)])
     Classify(det, 0.9, 'back', item, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
     assert (det.Catalogue.Side, det.Catalogue.Side_Name) == ('back', 'unmachined back')
+
+
+def test_a_point_on_the_upright_crop_goes_back_to_where_it_is_on_the_frame() -> None:
+    """
+    Description:
+        The frame marks a part's features at their places on the frame: a mark on the upright crop of a part
+        lying at 30° goes back, through the inverse of the crop's warp, onto the same pixel of the frame; a part
+        cropped by its box (round) by the box's offset.
+    """
+
+    from Vision.Utilities.Classify import Crop_To_Frame
+    frame = np.zeros((CONST_FRAME[1], CONST_FRAME[0], 3), dtype=np.uint8)
+    corners = cv2.boxPoints(((960.0, 600.0), (600.0, 400.0), 30.0)).astype(np.int32)
+    cv2.fillConvexPoly(frame, corners, (200, 200, 200))
+    cv2.circle(frame, (1000, 640), 6, (0, 0, 255), -1)
+    det = Detection_Str(Label='part', Bbox=tuple(int(v) for v in cv2.boundingRect(corners)), Mask=frame[:, :, 1] > 0)
+    det.Measurement = Measure_Mask(det.Mask, CONST_SCALE, cv2, np)
+    crop = Object_Crop(frame, det, cv2, np)
+    ys, xs = np.nonzero((crop[:, :, 2] > 128) & (crop[:, :, 1] < 64))
+    (x, y), = Crop_To_Frame(det, [(float(xs.mean()), float(ys.mean()))], cv2, np)
+    assert abs(x - 1000) < 1.5 and abs(y - 640) < 1.5
+    round_part = Detection_Str(Label='washer', Bbox=(100, 200, 50, 50))
+    assert Crop_To_Frame(round_part, [(10.0, 20.0)], cv2, np) == [(110.0, 220.0)]
+
+
+def test_the_similarity_grid_is_the_best_turn_turned_back_upright() -> None:
+    """
+    Description:
+        The overlay's grid: the rotation that matched the judged side best (Best_Turn), each patch's unlikeness
+        (1 - its highest cosine to the reference's patches), turned back to the upright crop; a patch alike to
+        the reference is 0, one orthogonal to all of it 1.
+    """
+
+    from Vision.Utilities.Classify import Best_Turn, Similarity_Grid
+    rows = np.array([[1.0, 0.0], [0.0, 1.0], [0.6, 0.8], [0.0, -1.0]])
+    references = np.array([[0.0, 1.0], [1.0, 0.0]])
+    assert Best_Turn(rows, references, ['front', 'back'], 'front') == 1
+    assert Best_Turn(rows, references, ['front', 'back'], 'back') == 0
+    reference = np.array([[1.0, 0.0]] * 4)
+    patches = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 0.0]])       # the top-right patch unlike it
+    assert np.allclose(Similarity_Grid(patches, reference, 0, np), [[0.0, 1.0], [0.0, 0.0]])
+    # Turned once clockwise for the match, so turned back counter-clockwise: top-right moves to top-left.
+    assert np.allclose(Similarity_Grid(patches, reference, 1, np), [[1.0, 0.0], [0.0, 0.0]])

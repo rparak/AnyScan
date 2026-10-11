@@ -139,8 +139,7 @@ piece of hardware. The modes shipped today:
   verdicts (colours, the History filter, the words). The switch that once said so, the
   `General` block's `Classification`, is removed
   ([*Classification is a per-configuration switch…*](design-decisions.md#classification-is-a-per-configuration-switch-that-exposes-the-verdict-ui-not-one-that-creates-it),
-  corrected). History's filter still speaks OK/NOK only
-  ([KNOWN_ISSUES](../KNOWN_ISSUES.md#historys-filter-does-not-know-warning-or-unspecified)).
+  corrected).
 - **A catalogue mode** is a mode file with a `Catalogue` block naming one item,
   `Data/Catalogue/<item>/<item>.yaml`: the part's name and description, each side's name and description,
   its known defects, its thickness, tolerance and checks, with its reference images beside it. Each side's
@@ -193,21 +192,28 @@ median) and Confidence (run mean).
 
 Two cards:
 
-- **Camera View** — the frame, then the analysis, in one of three renders: **Annotated** (numbered
-  outlines), **Mask** (the label mask: black ground, tinted fill, verdict contour) and **Heatmap**
-  (the background difference on a fixed 0–128 scale, on screen only, never saved).
+- **Camera View** — the frame, then the analysis, in one of four renders: **Annotated** (numbered
+  outlines; in a catalogue mode also each judged part's features — holes, stain regions with their pixels
+  tinted, logo words, the measured sides tagged L and W — in the pass or the fail colour, a hole expected and
+  not found dashed, each failing part numbered as the log lists it), **Mask** (the label mask: black ground,
+  tinted fill, verdict contour; no feature marks), **Heatmap** (the background difference on a fixed 0–128
+  scale, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
+  reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
+  never a verdict, on screen only).
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
-  each object adds `State: …`, a `Reason: …` line per reason it is not OK (measured and expected values for
-  a dimension), and a note when its size was checked outside the verified zone; the similarity is in the log
-  only. The badge states the worst verdict: `NOK · n of m` (magenta), `Not judged · n` and
+  each object adds `State: …`, one `Reason: …` sentence summing up why it is not OK (counts in words up to
+  ten: "Two of four corner holes are missing and one is out of tolerance."), and a note when its size was
+  checked outside the verified zone. The measured and expected values, part by part (Part 2.3 · …), the
+  logo's expected and read text, and the similarity are in the log. The badge states the worst verdict: `NOK · n of m` (magenta), `Not judged · n` and
   `Foreign object · n` (amber), `All OK · n` (green); outside a catalogue mode, `n found`.
 
 ### Trends
 
 Two charts of the current run: **Detected objects** (cumulative; in a catalogue mode also per verdict —
 OK, NOK, Warning and Unspecified, which add up to the total) and **Confidence** (per-object scores, the
-frame mean and the running run mean). Both read one accumulator, so the last point and
+frame mean and the running run mean; the warning threshold's dashed line in the neutral mid ink, so a
+Warning object's amber dot is not read as part of it). Both read one accumulator, so the last point and
 the status strip agree.
 
 ### History
@@ -215,7 +221,9 @@ the status strip agree.
 A browser of the current run's capture sets: thumbnails grouped by connection, then the chosen
 set's Annotated and Mask side by side, its record, and an **Info** panel holding the reading as it
 stood at analysis time. A failed analysis shows its raw frame under a failure banner. Earlier runs'
-sets stay on disk but are not listed.
+sets stay on disk but are not listed. In a catalogue run a filter lists the sets by state — All, OK, NOK,
+Warning, Unspecified, each with its count — a set under every state its objects took, and each card is
+outlined in its worst state's colour.
 
 ### Log
 
@@ -309,7 +317,7 @@ across all connections, and the oldest are evicted first. A failed analysis writ
 | `_understanding.txt` | The Scene Understanding text, for people. Nothing parses it. |
 | `.txt` | YOLO box records, one line per object. The ids are per-frame indices, not classes. |
 | `_seg.txt` | YOLO segmentation polygons (outer contour only). |
-| `_objects.json` | The machine-readable record: per object and per set, with the configuration, reference, camera, lens and lighting. |
+| `_objects.json` | The machine-readable record: per object and per set, with the configuration, reference, camera, lens and lighting; a judged part's features as its `parts` (number, kind, pass, box, checks, area, text, score), an additive field older sets load without. |
 
 **Run-summary CSV** — `logger/log_<Hardware>.csv`, one row per application run, shared by every mode
 on that hardware. A file of an older format is renamed aside, never appended to.
@@ -389,9 +397,10 @@ Each row names its evidence. A row with none is not verified.
 | Parts session: defects, low-contrast parts, harsh shadow | Not recorded | capture-checklist item 3 |
 | Daily station event export on the station | Not recorded | — |
 | Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled in both modes, the five stained plates NOK | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
-| Catalogue stain check on the test set | Off-hardware: the five fingerprinted fronts caught (largest stain 144–157 mm²), every clean front clean | the same test; `test/Vision/Utilities/test_stain.py` |
+| Catalogue stain check on the test set | Off-hardware: the five fingerprinted fronts caught, each as its two fingerprints (two regions, largest 149–158 mm²), every clean front clean | the same test; `test/Vision/Utilities/test_stain.py` |
 | Catalogue logo check on the test set | Off-hardware: every complete logo read complete, the four blank plates no inscription; a missing letter verified on synthetic erasures only (180 of 180 caught); three of the four references' appearances have no independent plate | `test/Vision/Utilities/test_logo.py::test_every_letter_erased_from_a_real_logo_is_caught` |
 | Describer told the findings, guarded | Off-hardware, Gemma 4 E4B on 24 judged parts: every contradiction it wrote dropped and logged, no digit | [design-decisions](design-decisions.md#the-describer-is-told-what-the-checks-found-never-a-number-and-its-contradictions-are-dropped-and-logged) |
+| Feature marks on the frame | Off-hardware: rendered and looked at on real NOK frames of both modes (Image_059, 084, 087, 092); every labyrinth front marks its four corner positions, found or expected | `test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate`, `::test_each_stained_front_shows_its_two_fingerprints_as_two_stains` |
 | Catalogue hole check on the test set | Off-hardware: every mounting-plate hole within tolerance; every labyrinth front's corner holes as counted by eye, but one in shadow (Image_071) | `test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate`, `::test_every_mounting_plate_shows_all_its_holes_within_tolerance` |
 | Defect detection | **Not built** | README > Limitations |
 

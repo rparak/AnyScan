@@ -1710,8 +1710,8 @@ def test_the_items_carry_their_stain_logo_and_describer_prompt() -> None:
     labyrinth = Load_Catalogue('Data/Catalogue/labyrinth/labyrinth.yaml')
     assert list(plate.Stain) == ['front'] and plate.Logo == {} and labyrinth.Stain == {}
     band = plate.Stain['front']
-    assert (band.Hue_Min, band.Hue_Max, band.Saturation_Min, band.Value_Min, band.Min_Area_Mm2, band.Edge_Margin_Mm) == \
-        (5, 30, 50, 40, 1.0, 1.0)
+    assert (band.Hue_Min, band.Hue_Max, band.Saturation_Min, band.Value_Min, band.Min_Area_Mm2, band.Edge_Margin_Mm,
+            band.Merge_Mm) == (5, 30, 50, 40, 1.0, 1.0, 3.0)
     logo = labyrinth.Logo['back']
     assert list(labyrinth.Logo) == ['back']
     assert (logo.Expected_Text, logo.Min_Matches, logo.Letter_Min_Similarity, logo.Letter_Min_Contrast) == \
@@ -1729,7 +1729,8 @@ def test_the_items_carry_their_stain_logo_and_describer_prompt() -> None:
     (lambda c: c['Stain']['front'].update(Hue_Min=40), r'Hue_Min \(40\) must not be above Hue_Max \(30\)'),
     (lambda c: c['Stain'].update(top=c['Stain']['front']), 'Checks.Stain must map front and/or back'),
     (lambda c: c['Stain']['front'].update(Saturation_Min=300), 'Saturation_Min must be a whole number from 0 to 255'),
-], ids=['no least area', 'hue past 179', 'hue band reversed', 'unknown side', 'saturation past 255'])
+    (lambda c: c['Stain']['front'].pop('Merge_Mm'), 'Checks.Stain.front.Merge_Mm is required but missing'),
+], ids=['no least area', 'hue past 179', 'hue band reversed', 'unknown side', 'saturation past 255', 'no merge distance'])
 def test_an_invalid_stain_check_fails_the_item(tmp_path: tp.Any, change: tp.Callable, words: str) -> None:
     """
     Description:

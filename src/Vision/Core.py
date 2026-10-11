@@ -28,7 +28,7 @@ import time
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures, composer, and vision utilities
 #   ../Parameters/Vision
-from Parameters.Vision import (Detection_Str, Analysis_Str, Heatmap_Str, Load_Timing_Str, Model_Load_Str,
+from Parameters.Vision import (Detection_Str, Analysis_Str, Heatmap_Str, Load_Timing_Str, Model_Load_Str, Feature_Str,
                                CONST_STAGE_BACKGROUND, CONST_STAGE_SEGMENTATION, CONST_STAGE_SEGMENTATION_POST,
                                CONST_STAGE_FUSION, CONST_STAGE_CROPS, CONST_STAGE_DESCRIPTIONS,
                                CONST_STAGE_BACKGROUND_SENTENCE, CONST_STAGE_COMPOSE)
@@ -60,10 +60,10 @@ from Vision.Utilities.Dimensions import Check_Objects
 #   ../Vision/Identifier
 from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
 #   ../Vision/Utilities/Classify
-from Vision.Utilities.Classify import (Object_Crop, Reference_Crop, Rotations, Best_Match, Classify, Apply_Holes,
-                                       Apply_Stain, Apply_Logo)
+from Vision.Utilities.Classify import (Object_Crop, Reference_Crop, Rotations, Best_Match, Best_Turn, Similarity_Grid,
+                                       Classify, Apply_Holes, Apply_Stain, Apply_Logo, Crop_To_Frame)
 #   ../Vision/Utilities/Holes
-from Vision.Utilities.Holes import Hole_Candidates, Check_Holes
+from Vision.Utilities.Holes import Hole_Candidates, Check_Holes, Hole_Features
 #   ../Vision/Utilities/Stain
 from Vision.Utilities.Stain import Check_Stain
 #   ../Vision/Utilities/Logo
@@ -120,6 +120,11 @@ CONST_FALLBACK_TASK_LABEL = 'model-free description'
 # loading a model. A code constant, deliberately not configuration: one describer ships. The
 # harness (analyze.py --no-describe) and the weight-free tests set it; the application never does.
 CONST_DESCRIBER = 'gemma'
+# The similarity overlay's colour scale, unlikeness (1 - cosine) from 0 to this. Measured at the 224 px input
+# (2026-10-11, the stained 059 and the labyrinth parts of 084 and 092): a part's patches' mean 0.13-0.23, the
+# fingerprints' up to 0.61; 0.5 keeps them apart without saturating.
+#   Unit [float]
+CONST_SIMILARITY_SCALE_MAX = 0.5
 
 # What the models are presented as to the operator is configuration (Identity.Model_Set). The describer's
 # weights carry their own licence, which is NOT the repository's MIT licence: Gemma 4 is under the
@@ -333,6 +338,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         # (__Logo_References).
         self.__identifier = self.__New_Identifier(Configuration_Str)
         self.__reference_rows = None
+        self.__reference_patches = None
         self.__reference_sides = []
         self.__logo_references = None
         # Where the last Load_Models (and the warm-up after it) spent its time, and whether the next
@@ -533,6 +539,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         self.__background_sentence = None
         self.__background_audit = []
         self.__reference_rows = None
+        self.__reference_patches = None
         self.__reference_sides = []
         self.__logo_references = None
 
@@ -862,7 +869,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             Check_Objects(objects, catalogue)
             measurement_s = time.perf_counter() - started
             started = time.perf_counter()
-            self.__Classify_Objects(objects, frame_bgr, cv2, np)
+            unlike = self.__Classify_Objects(objects, frame_bgr, cv2, np)
             identification_s = time.perf_counter() - started
             t0 += measurement_s + identification_s
 
@@ -886,6 +893,9 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                      Title='Difference from the reference', Unit='grey level',
                                      Marks=[(threshold, ('Otsu %d' if otsu >= threshold else 'floor %d') % threshold)])
         if catalogue is not None:
+            result.Similarity = Heatmap_Str(Values=unlike, Low=0.0, High=CONST_SIMILARITY_SCALE_MAX,
+                                            Title='Unlike the reference (DINOv2 patches) — not a defect map',
+                                            Unit='1 − cosine')
             result.Timing.Measurement_Ms = int(measurement_s * 1000)
             result.Timing.Identification_Ms = int(identification_s * 1000)
             # A judged part's description says which side is up, from DINOv2's side, in the catalogue's words.
@@ -946,7 +956,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                            'item\'s reference_image folder.' % (reference.Side, reference.Image_Path))
                 crops.append(Reference_Crop(image, reference.Box))
             try:
-                self.__reference_rows = self.__identifier.Embed(crops, cv2, np)
+                self.__reference_rows, self.__reference_patches = self.__identifier.Embed(crops, cv2, np, patches=True)
             except Identifier_Error_Cls as exc:
                 raise Vision_Error_Cls(str(exc)) from exc
             self.__reference_sides = [reference.Side for reference in self.__config.Catalogue.References]
@@ -982,7 +992,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             self.__logo_references = prepared
         return self.__logo_references
 
-    def __Classify_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.Any, cv2: tp.Any, np: tp.Any) -> None:
+    def __Classify_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.Any, cv2: tp.Any, np: tp.Any) -> tp.Any:
         """
         Description:
             A catalogue mode's judgement, before the objects are described: every object's crop, turned
@@ -990,7 +1000,9 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             references, and its verdict (Vision.Utilities.Classify); then each judged part's checks on the
             side up, on its upright crop: its holes (FastSAM again, Vision.Utilities.Holes), its stains
             (Vision.Utilities.Stain) and its inscription (Vision.Utilities.Logo), each found defect making it
-            NOK. The crop's scale is the mean of the two factors (they differ by 0.17 %).
+            NOK. The crop's scale is the mean of the two factors (they differ by 0.17 %). Each judged part's
+            features are taken to the frame and numbered as its parts, and its patches' unlikeness to its matched
+            reference is laid on the frame's similarity map.
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The measured, checked objects (mutated).
@@ -998,44 +1010,148 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             (3) cv2 [module]: The OpenCV module.
             (4) np [module]: The NumPy module.
 
+        Returns:
+            (1) parameter [Matrix<float32> HxW]: The similarity map: each judged part's pixels its patch's
+                                                 unlikeness (1 - cosine), NaN elsewhere.
+
         Raises:
             Vision_Error_Cls: The identifier cannot run.
         """
 
         if not objects:
-            return
+            return np.full(frame_bgr.shape[:2], np.nan, dtype=np.float32)
         references = self.__Reference_Rows(cv2, np)
         uprights = [Object_Crop(frame_bgr, det, cv2, np) for det in objects]
         crops = [turn for upright in uprights for turn in Rotations(upright, cv2)]
         try:
-            rows = self.__identifier.Embed(crops, cv2, np)
+            rows, patches = self.__identifier.Embed(crops, cv2, np, patches=True)
         except Identifier_Error_Cls as exc:
             raise Vision_Error_Cls(str(exc)) from exc
         turns = len(crops) // len(objects)
         frame_size = (frame_bgr.shape[1], frame_bgr.shape[0])
+        unlike = np.full(frame_bgr.shape[:2], np.nan, dtype=np.float32)
         for index, det in enumerate(objects):
-            similarity, side = Best_Match(rows[index * turns:(index + 1) * turns], references, self.__reference_sides)
+            own = rows[index * turns:(index + 1) * turns]
+            similarity, side = Best_Match(own, references, self.__reference_sides)
             Classify(det, similarity, side, self.__config.Catalogue, self.__config.Identification,
                      self.__config.Scale, frame_size)
             if det.Verdict not in ('OK', 'NOK'):
                 continue
+            # The similarity overlay (a diagnostic, never a verdict): each patch's unlikeness to the matched
+            # reference, from the identification's own pass, laid on the part's pixels.
+            turn = Best_Turn(own, references, self.__reference_sides, side)
+            grid = Similarity_Grid(patches[index * turns + turn],
+                                   self.__reference_patches[self.__reference_sides.index(side)], turn, np)
+            self.__Lay_Grid(unlike, grid, det, uprights[index].shape, cv2, np)
             item, upright = self.__config.Catalogue, uprights[index]
             mm_per_px = (self.__config.Scale.Mm_Per_Px_X + self.__config.Scale.Mm_Per_Px_Y) / 2.0
             # A judged part's holes, on the side up: FastSAM again, on its upright crop. The stain check
             # leaves the holes it finds out, so they run for either.
             groups, stain = item.Holes.get(side), item.Stain.get(side)
-            holes = []
+            holes, features = [], []
             if groups or stain is not None:
-                masks, _scores = self.__segmenter.Segment(upright)
-                holes = Hole_Candidates(masks, mm_per_px, cv2, np)
+                masks, scores = self.__segmenter.Segment(upright)
+                holes = Hole_Candidates(masks, mm_per_px, cv2, np, scores=scores)
             if groups:
                 height_px, width_px = upright.shape[:2]
                 Apply_Holes(det, *Check_Holes(holes, groups, width_px * mm_per_px, height_px * mm_per_px))
+                features += Hole_Features(holes, groups, width_px * mm_per_px, height_px * mm_per_px)
             # Its stains and its inscription, on the side up.
             if stain is not None:
                 Apply_Stain(det, Check_Stain(upright, holes, stain, mm_per_px, cv2, np))
+                features += [Feature_Str(Kind='stain', Name='stain', Passed=False, Corners=found.Corners,
+                                         Outlines=found.Outlines, Area_Mm2=found.Area_Mm2) for found in det.Stains]
             if side in item.Logo:
                 Apply_Logo(det, Check_Logo(upright, item.Logo[side], self.__Logo_References(cv2, np)[side], cv2, np))
+                features += self.__Word_Features(det)
+            # Each feature to the frame (holes and stains are in mm on the crop, words in its pixels), numbered as
+            # the object's parts; then the outline's measured sides, the object's own.
+            for number, feature in enumerate(features, 1):
+                scale = 1.0 if feature.Kind == 'word' else 1.0 / mm_per_px
+                feature.Part = '%d.%d' % (index + 1, number)
+                feature.Corners = Crop_To_Frame(det, [(x * scale, y * scale) for x, y in feature.Corners], cv2, np)
+                feature.Outlines = [Crop_To_Frame(det, [(x * scale, y * scale) for x, y in outline], cv2, np)
+                                    for outline in feature.Outlines]
+            det.Features = features + self.__Side_Features(det)
+        return unlike
+
+    @staticmethod
+    def __Lay_Grid(unlike: tp.Any, grid: tp.Any, det: Detection_Str, crop_shape: tp.Tuple[int, ...], cv2: tp.Any,
+                   np: tp.Any) -> None:
+        """
+        Description:
+            A judged part's patch grid laid on the frame's map: each patch over its share of the upright crop, taken
+            back to the frame through the crop's corners, and kept only on the part's own pixels.
+
+        Args:
+            (1) unlike [Matrix<float32> HxW]: The frame's map, NaN where nothing is laid (mutated).
+            (2) grid [Matrix<float> nxn]: The part's dissimilarity per patch, upright.
+            (3) det [Detection_Str(object)]: The part.
+            (4) crop_shape [Tuple<int>]: Its upright crop's shape.
+            (5) cv2 [module]: The OpenCV module.
+            (6) np [module]: The NumPy module.
+        """
+
+        height, width = crop_shape[:2]
+        corners = Crop_To_Frame(det, [(0.0, 0.0), (float(width), 0.0), (float(width), float(height)),
+                                      (0.0, float(height))], cv2, np)
+        warp = cv2.getPerspectiveTransform(np.float32([[0, 0], [width, 0], [width, height], [0, height]]),
+                                           np.float32(corners))
+        cells = cv2.resize(np.ascontiguousarray(grid, dtype=np.float32), (width, height), interpolation=cv2.INTER_NEAREST)
+        laid = cv2.warpPerspective(cells, warp, (unlike.shape[1], unlike.shape[0]), flags=cv2.INTER_NEAREST,
+                                   borderMode=cv2.BORDER_CONSTANT, borderValue=float('nan'))
+        own = det.Mask.astype(bool) & np.isfinite(laid)
+        unlike[own] = laid[own]
+
+    @staticmethod
+    def __Word_Features(det: Detection_Str) -> tp.List[Feature_Str]:
+        """
+        Description:
+            A judged part's logo words as features, on its crop (pixels): one per expected word, failed when a
+            letter of it is missing, with its expected and read text ('_' for each missing letter) and its least
+            letter similarity. None when the logo registered to no reference (no inscription: nowhere to mark).
+
+        Args:
+            (1) det [Detection_Str(object)]: The part, its logo checked.
+
+        Returns:
+            (1) parameter [Vector<Feature_Str(object)>]: The words, in reading order.
+        """
+
+        logo, features, start = det.Logo, [], 0
+        for word, corners in logo.Words:
+            letters = logo.Letters[start:start + len(word.replace(' ', ''))]
+            start += len(letters)
+            features.append(Feature_Str(Kind='word', Name=word, Corners=corners,
+                                        Passed=all(letter.Present for letter in letters), Expected_Text=word,
+                                        Read_Text=''.join(letter.Letter if letter.Present else '_' for letter in letters),
+                                        Score=min(letter.Similarity for letter in letters)))
+        return features
+
+    @staticmethod
+    def __Side_Features(det: Detection_Str) -> tp.List[Feature_Str]:
+        """
+        Description:
+            Where a judged part's outline was measured: its rotated rectangle's longer side for the length check
+            and its shorter side for the width check, as two end points each, passed or failed with the check.
+
+        Args:
+            (1) det [Detection_Str(object)]: The part, measured and its outline checked.
+
+        Returns:
+            (1) parameter [Vector<Feature_Str(object)>]: The sides; none for an unmeasured or round part.
+        """
+
+        measurement = det.Measurement
+        if measurement is None or measurement.Symmetric or not measurement.Box_Points or len(det.Dimension_Checks) != 2:
+            return []
+        p0, p1, p2 = measurement.Box_Points[:3]
+        first = ((p0[0] - p1[0]) ** 2 + (p0[1] - p1[1]) ** 2, [p0, p1])
+        second = ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2, [p1, p2])
+        longer, shorter = (first, second) if first[0] >= second[0] else (second, first)
+        return [Feature_Str(Kind='side', Name=check.Name, Corners=[tuple(map(float, p)) for p in ends[1]],
+                            Passed=check.Within, Checks=[check])
+                for check, ends in zip(det.Dimension_Checks, (longer, shorter))]
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            bg_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],

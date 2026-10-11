@@ -396,7 +396,8 @@ CONST_HOLE_KEYS = (('Name', 'text', True), ('Diameter_Mm', 'positive', True), ('
 # A stain check's keys (Checks.Stain.<side>), every one REQUIRED: the colour band and the two sizes.
 #   Unit [Tuple<Tuple>]
 CONST_STAIN_KEYS = (('Hue_Min', 'hue', True), ('Hue_Max', 'hue', True), ('Saturation_Min', 'grey', True),
-                    ('Value_Min', 'grey', True), ('Min_Area_Mm2', 'positive', True), ('Edge_Margin_Mm', 'nonnegative', True))
+                    ('Value_Min', 'grey', True), ('Min_Area_Mm2', 'positive', True), ('Edge_Margin_Mm', 'nonnegative', True),
+                    ('Merge_Mm', 'nonnegative', True))
 # A logo check's scalar keys (Checks.Logo.<side>), and a logo reference's (its References[i]); the lists
 # (Expected_Text, References, Letters) are read by __Read_Logo.
 #   Unit [Tuple<Tuple>]

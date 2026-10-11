@@ -191,3 +191,37 @@ def test_discovery_of_a_missing_root_is_empty_not_an_error(tmp_path) -> None:
     """
 
     assert Discover_Capture_Sets(str(tmp_path / 'does_not_exist')) == []
+
+
+def test_a_judged_parts_parts_round_trip_and_an_older_record_has_none(tmp_path) -> None:
+    """
+    Description:
+        A judged part's features are saved as its 'parts' (an additive field) and read back the same — part
+        number, kind, name, pass and found, box, checks, area, text and score; a set written before parts were
+        recorded (no 'parts' key) still loads, its objects with none; a malformed part is skipped, not made up.
+    """
+
+    import json
+    from Parameters.Vision import Feature_Str
+    from Vision.Utilities.Dimensions import Check_Dimension
+    objects = _Detections()
+    objects[0].Verdict = 'NOK'
+    objects[0].Features = [
+        Feature_Str(Part='1.1', Kind='hole', Name='corner hole', Corners=[(1.0, 2.0), (3.0, 2.0), (3.0, 4.0), (1.0, 4.0)],
+                    Checks=[Check_Dimension('corner hole Ø', 2.95, 2.459, 1.0)], Score=0.93),
+        Feature_Str(Part='1.2', Kind='hole', Name='corner hole', Passed=False, Found=False),
+        Feature_Str(Part='1.3', Kind='stain', Name='stain', Passed=False, Area_Mm2=156.71),
+        Feature_Str(Part='1.4', Kind='word', Name='JIC', Passed=False, Expected_Text='JIC', Read_Text='J_C', Score=0.19)]
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Set(writer, 'sessionA', 'set1', objects, classification=True)
+    cap = Read_Capture_Set(str(tmp_path / 'sessionA'), 'sessionA', 'set1')
+    assert cap.Objects[0].Parts == objects[0].Features and cap.Objects[1].Parts == []
+
+    path = tmp_path / 'sessionA' / 'set1_objects.json'
+    data = json.loads(path.read_text(encoding='utf-8'))
+    for record in data['objects']:
+        record.pop('parts')
+    data['objects'][1]['parts'] = [{'part': '2.1'}]                # malformed: skipped
+    path.write_text(json.dumps(data), encoding='utf-8')
+    older = Read_Capture_Set(str(tmp_path / 'sessionA'), 'sessionA', 'set1')
+    assert not older.Partial and [obj.Parts for obj in older.Objects] == [[], []]

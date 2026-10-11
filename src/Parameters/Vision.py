@@ -97,21 +97,63 @@ class Hole_Str(object):
     Diameter_Mm: float = 0.0
     X_Mm: float = 0.0
     Y_Mm: float = 0.0
+    # FastSAM's score for the hole's mask, or None when it was not given.
+    #   Unit [float] (0-1)
+    Score: tp.Optional[float] = None
 
 
 @dataclass
 class Stain_Str(object):
     """
     Description:
-        One stain found on a judged part's side (Vision.Utilities.Stain): its area and its centre, in mm from
+        One stain region found on a judged part's side (Vision.Utilities.Stain): its fragments joined within the
+        check's merge distance, its area (the fragments'), its centre, its rotated box and its outline, in mm from
         the upright crop's top-left corner.
     """
 
-    # The stain's area, and its centre.
+    # The region's area (its fragments' pixels), and its centre.
     #   Unit [float] (mm²) / [float] (mm)
     Area_Mm2: float = 0.0
     X_Mm: float = 0.0
     Y_Mm: float = 0.0
+    # The rotated rectangle around its fragments (four corners), and each fragment's outline.
+    #   Unit [Vector<Tuple<float> 1x2>] (mm) / [Vector<Vector<Tuple<float> 1x2>>] (mm)
+    Corners: tp.List[tp.Tuple[float, float]] = field(default_factory=list)
+    Outlines: tp.List[tp.List[tp.Tuple[float, float]]] = field(default_factory=list)
+
+
+@dataclass
+class Feature_Str(object):
+    """
+    Description:
+        One feature of a judged part, marked on the frame and listed as a Part in the log (Reporting.Part_Lines):
+        a hole (found, or expected and not found), a stain region, a word of the logo, or a measured side of the
+        outline. Its box is in frame pixels; what it was checked against is kept for the log.
+    """
+
+    # Its part number ('2.3': object 2, its third part; '' for an outline side, which is the object's own) and
+    # its kind ('hole', 'stain', 'word', 'side'), and its name ('corner hole', 'SMART', 'length').
+    #   Unit [string]
+    Part: str = ''
+    Kind: str = ''
+    Name: str = ''
+    # Whether it passes its checks, and whether it was found (False: expected there and not found).
+    #   Unit [bool]
+    Passed: bool = True
+    Found: bool = True
+    # Its rotated box (four corners; two end points for a side), and a stain's outlines, in frame pixels.
+    #   Unit [Vector<Tuple<float> 1x2>] (px) / [Vector<Vector<Tuple<float> 1x2>>] (px)
+    Corners: tp.List[tp.Tuple[float, float]] = field(default_factory=list)
+    Outlines: tp.List[tp.List[tp.Tuple[float, float]]] = field(default_factory=list)
+    # Its checks (a hole's diameter and edge distances, a side's length), a stain's area, a word's expected and
+    # read text ('_' for a missing letter), and the check's own score (a hole's mask score, a word's least
+    # letter similarity), never called a confidence.
+    #   Unit [Vector<Dimension_Check_Str(object)>] / [float] (mm²) / [string] / [float]
+    Checks: tp.List[Dimension_Check_Str] = field(default_factory=list)
+    Area_Mm2: float = 0.0
+    Expected_Text: str = ''
+    Read_Text: str = ''
+    Score: tp.Optional[float] = None
 
 
 @dataclass
@@ -147,6 +189,10 @@ class Logo_Result_Str(object):
     # Each letter, in reading order; empty when no reference registered.
     #   Unit [Vector<Logo_Letter_Str(object)>]
     Letters: tp.List[Logo_Letter_Str] = field(default_factory=list)
+    # Each expected word's box on the checked crop (four corners, in its pixels), from the best-matched
+    # reference's letters through the registration; empty when no reference registered.
+    #   Unit [Vector<Tuple<string, Vector<Tuple<float> 1x2>>>]
+    Words: tp.List[tp.Tuple[str, tp.List[tp.Tuple[float, float]]]] = field(default_factory=list)
 
 
 @dataclass
@@ -335,6 +381,9 @@ class Detection_Str(object):
     #   Unit [Vector<Stain_Str(object)>] / [Logo_Result_Str(object)]
     Stains: tp.Optional[tp.List[Stain_Str]] = None
     Logo: tp.Optional[Logo_Result_Str] = None
+    # A judged part's features, marked on the frame and listed as its Parts (empty for any other object).
+    #   Unit [Vector<Feature_Str(object)>]
+    Features: tp.List[Feature_Str] = field(default_factory=list)
     # The catalogue mode's evidence for this object's verdict, or None outside a catalogue mode.
     #   Unit [Catalogue_Result_Str(object)]
     Catalogue: tp.Optional[Catalogue_Result_Str] = None
@@ -562,6 +611,11 @@ class Analysis_Str(object):
     # The Camera View's heatmap (Heatmap_Str), or None when the backend computes none.
     #   Unit [Heatmap_Str(object)]
     Heatmap: tp.Optional[Heatmap_Str] = None
+    # A catalogue mode's similarity overlay: how unlike its matched reference each patch of a judged part looks
+    # (NaN off the judged parts), shown over the frame in its own Camera View tab; a diagnostic, never a
+    # verdict and not a defect map. None outside a catalogue mode.
+    #   Unit [Heatmap_Str(object)]
+    Similarity: tp.Optional[Heatmap_Str] = None
 
 
 # The hysteresis margin, in percent, for the status-bar session-mean LOG crossings only: after

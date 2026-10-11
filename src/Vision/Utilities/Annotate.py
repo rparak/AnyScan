@@ -69,6 +69,17 @@ CONST_ANNOTATE_BOX_W = 2          # bounding-box stroke
 CONST_ANNOTATE_DASH = 10
 CONST_ANNOTATE_DASH_GAP = 7
 CONST_ANNOTATE_DASHED_W_FRACTION = 0.5
+# A judged part's feature marks (holes, stains, logo words): their line weight and the dash of a hole expected and
+# not found, at the reference dimension; the tint laid over a stain's pixels; the part-number and L/W tags' font,
+# a fraction of the index chip's.
+#   Unit [float] (px) / [float] (px) / [float] (0-1) / [float]
+CONST_ANNOTATE_FEATURE_W = 1.5
+CONST_ANNOTATE_FEATURE_DASH = 4
+CONST_ANNOTATE_STAIN_TINT = 0.35
+CONST_ANNOTATE_PART_FONT = 0.7
+# The light halo each side of a feature mark, so it holds on a dark plate (Image_092's right one) as on a light one.
+#   Unit [int] (px)
+CONST_ANNOTATE_HALO_PX = 2
 
 # The index chip's numeral. Its font scales only gently with resolution and is capped
 # (CONST_ANNOTATE_CHIP_FONT_MIN/MAX), so the chip stays a small tab — legible at 100%
@@ -183,15 +194,32 @@ def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: 
         (6) cv2 [module]: The OpenCV module, injected by the caller.
     """
 
-    label = str(index + 1)
+    __Draw_Chip(image, bbox[0], bbox[1], str(index + 1), chip_bgr, __Chip_Font_Scale(scale), cv2)
+
+
+def __Draw_Chip(image: tp.Any, x: int, y: int, label: str, chip_bgr: tp.Tuple[int, int, int], font_scale: float,
+                cv2: tp.Any) -> None:
+    """
+    Description:
+        A label chip seated on a point as a tab: its bottom-left corner at (x, y), flipped below the point when
+        it would leave the frame's top; the label in the theme foreground that reads on the chip's colour.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
+        (2) x, y [int]: The point (the box's top-left corner).
+        (3) label [string]: The text.
+        (4) chip_bgr [Vector<int> 1x3]: The chip colour.
+        (5) font_scale [float]: The text's cv2 font scale.
+        (6) cv2 [module]: The OpenCV module, injected by the caller.
+    """
+
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = __Chip_Font_Scale(scale)
     thickness = max(1, int(round(CONST_ANNOTATE_CHIP_FONT_W * font_scale)))
     pad = max(2, int(round(CONST_ANNOTATE_CHIP_PAD * font_scale)))
     (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
     chip_w, chip_h = tw + 2 * pad, th + baseline + 2 * pad
 
-    x, y, _, _ = bbox
+    x = min(max(0, x), image.shape[1] - chip_w)
     top = y - chip_h                     # a tab whose bottom sits on the box's top edge
     if top < 0:                          # box near the top: flip the tab inside the box
         top = y
@@ -236,7 +264,62 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
     annotated = scene_bgr.copy()
     __Draw_Boxes(annotated, objects, scale, cv2, verdict_colored, Detection_Color()[0],
                  draw_rotated=True)
+    __Draw_Features(annotated, objects, scale, cv2, np)
     return annotated
+
+
+def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float, cv2: tp.Any, np: tp.Any) -> None:
+    """
+    Description:
+        A judged part's features on the annotated frame (Detection_Str.Features): each hole, stain region and logo
+        word as its rotated box, in the pass colour (the OK verdict's) or the fail colour (the NOK verdict's) — the
+        same two colours that mark the objects, so a feature's colour means what an object's does; a hole expected
+        and not found as a dashed box at its position; each stain's pixels under a tint of the fail colour, so its
+        shape shows; each measured side as an 'L' or 'W' tag at its middle. Every mark is drawn over a light halo
+        (the theme's card colour), so it holds on a dark plate as on a light one. Only a failing part carries its
+        number ('2.3', as the log lists it).
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The annotated frame (mutated).
+        (2) objects [Vector<Detection_Str(object)>]: The objects, in order.
+        (3) scale [float]: The drawing scale.
+        (4) cv2 [module]: The OpenCV module, injected by the caller.
+        (5) np [module]: The NumPy module, injected by the caller.
+    """
+
+    passed, failed = Hex_To_Bgr(Verdict_Color('OK')[0]), Hex_To_Bgr(Verdict_Color('NOK')[0])
+    halo = Hex_To_Bgr(CONST_CARD)
+    weight = max(1, int(round(CONST_ANNOTATE_FEATURE_W * scale)))
+    dash, gap = CONST_ANNOTATE_FEATURE_DASH * scale, CONST_ANNOTATE_FEATURE_DASH * scale
+    outlines = [np.int32(np.round(outline)) for det in objects for feature in det.Features if feature.Kind == 'stain'
+                for outline in feature.Outlines]
+    if outlines:
+        tint = image.copy()
+        cv2.fillPoly(tint, outlines, failed)
+        cv2.addWeighted(tint, CONST_ANNOTATE_STAIN_TINT, image, 1.0 - CONST_ANNOTATE_STAIN_TINT, 0.0, dst=image)
+    font = __Chip_Font_Scale(scale) * CONST_ANNOTATE_PART_FONT
+    for det in objects:
+        for feature in det.Features:
+            color = passed if feature.Passed else failed
+            corners = [(float(x), float(y)) for x, y in feature.Corners]
+            if feature.Kind == 'side' and len(corners) == 2:
+                (x0, y0), (x1, y1) = corners
+                __Draw_Chip(image, int(round((x0 + x1) / 2.0)), int(round((y0 + y1) / 2.0)),
+                            'L' if feature.Name == 'length' else 'W', color, font, cv2)
+                continue
+            if len(corners) < 3:
+                continue
+            edges = list(zip(corners, corners[1:] + corners[:1]))
+            for line_w, line_color in ((weight + 2 * CONST_ANNOTATE_HALO_PX, halo), (weight, color)):
+                for start, end in edges:
+                    if feature.Found:
+                        cv2.line(image, (int(round(start[0])), int(round(start[1]))),
+                                 (int(round(end[0])), int(round(end[1]))), line_color, line_w, cv2.LINE_AA)
+                    else:
+                        __Draw_Dashed_Line(image, start, end, line_color, line_w, dash, gap, cv2)
+            if not feature.Passed and feature.Part:
+                __Draw_Chip(image, int(round(min(x for x, _ in corners))), int(round(min(y for _, y in corners))),
+                            feature.Part, failed, font, cv2)
 
 
 def __Draw_Dashed_Line(image: tp.Any, start: tp.Tuple[float, float], end: tp.Tuple[float, float],

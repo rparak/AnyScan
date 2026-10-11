@@ -2956,7 +2956,9 @@ is flagged as a failed part, never passed or ignored), and the thin threshold is
   it stays in the log, with the side. An OK or NOK part's description says which side is up. The badge states
   the worst verdict (NOK in the NOK ink on its tint, the 'fail' level; Unspecified, then Warning, in amber;
   all OK in green), and Trends charts OK, NOK, Warning and Unspecified. Only History's filter is left
-  (KNOWN_ISSUES).
+  (KNOWN_ISSUES). *Corrected 2026-10-11 (phase E):* a NOK has one `Reason:` sentence and its values are in the
+  log (*A NOK reads as one sentence…*); History filters by the four states (*History filters by the four
+  states…*).
 - **What it does not judge yet.** The stain, the holes and the logo. The five stained-plate frames read OK
   until the stain check (phase D); their expected NOK is a strict xfail naming it. *Corrected 2026-10-11:* the
   holes are judged since phase C, the stain and the logo since phase D (*A judged part's stains are a colour
@@ -3073,7 +3075,8 @@ on the side DINOv2 found up (`Vision.Utilities.Holes`): FastSAM runs again, thro
 part's upright crop; a round mask inside the crop is a hole candidate; each catalogue group (`Checks.Holes.<side>`)
 counts the candidates of its diameter and, when it has positions, near one; each counted hole's diameter, edge
 distances and pitch are checked against the tolerance. A hole missing, extra or out of tolerance makes the part
-NOK, one `Reason:` per finding.
+NOK, one `Reason:` per finding. (*Corrected 2026-10-11, phase E:* one sentence for all findings, the values in
+the log.)
 
 **Why FastSAM on the crop.** Measured on the 59 identified parts of the 41 frames: every mounting-plate hole
 (12 fronts, 2 countersinks and 2 through-holes each; 10 backs, 2 through-holes each), and 41 of the 42 labyrinth
@@ -3156,6 +3159,14 @@ at any size. No false acceptance, no false rejection; the threshold sits over 10
 stain found. The papillary lines are not used (about 5 px apart at this scale): colour alone separates them
 here.
 
+*Corrected 2026-10-11 (phase E), on the owner's instruction:* a fingerprint's ridges broke it into fragments, so
+Image_059's two fingerprints read as seven stains. Fragments within `Merge_Mm` (3 mm) are now one stain region,
+counted, boxed and reported as one; a region is a stain only when it holds a fragment of 1 mm² or more, so what
+makes a part NOK is unchanged. Measured on the five fingerprinted fronts (two fingerprints each by eye): 2–4 mm
+gives exactly two regions on every one, 1 mm three or four, 5 mm joins the two across the hole on 074 and 076;
+3 mm is the middle. The regions' largest 149–158 mm². The reason now reads "There are two stains on the
+machined front." (*A NOK reads as one sentence…*).
+
 **Why colour, not the describer.** A describer is not a detector (README > Limitations), and the stain is a
 texture with no boundary FastSAM would give.
 
@@ -3163,7 +3174,8 @@ texture with no boundary FastSAM would give.
 a stain of another colour must be caught, or a clean part shows band pixels.
 Tests `test/Vision/Utilities/test_stain.py` (synthetic: the least area, the edge band and the holes left out,
 hairlines, colours outside the band, the order, the rule), `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`
-(the five stained plates NOK, the clean ones OK), `test/Configuration/test_core.py::test_an_invalid_stain_check_fails_the_item`.
+(the five stained plates NOK, the clean ones OK), `::test_each_stained_front_shows_its_two_fingerprints_as_two_stains`,
+`test/Configuration/test_core.py::test_an_invalid_stain_check_fails_the_item`.
 
 ## The logo is read letter by letter against every reference it registers to, by shape and by contrast
 
@@ -3258,3 +3270,92 @@ Gemma's own sentences; `::test_the_findings_say_what_the_checks_found_in_words_w
 `test/Vision/test_core.py::test_a_judged_part_is_described_with_its_findings_and_guarded`,
 `test/Vision/test_describers.py::test_gemma_sends_a_given_prompt_instead_of_the_purposes`,
 `test/Configuration/test_core.py::test_what_the_describer_is_given_holds_no_number`.
+
+## A NOK reads as one sentence, and its values go to the log part by part
+
+Decided 2026-10-11 (catalogue phase E), on the owner's instruction. Scene Understanding gives a NOK exactly one
+`Reason:` line (`Reporting.Reason_Sentence`): each kind of finding a clause, in a fixed order — the outline's size,
+its look, the holes per group, the stains, the inscription — joined into one sentence, counts in words up to ten
+and digits above ("Two of four corner holes are missing and one is out of tolerance."; "There are two stains on
+the machined front."; "Letters S and M of SMART are missing."; "SMART is missing."; "There is no inscription on
+the logo side."). The measured and expected values move to the log (`Reporting.Part_Lines`), below the object's
+verdict line: the outline's checks, each hole group's count, the logo's expected and read text, and one line per
+part, numbered as the frame numbers its failing parts ("Part 2.4 · corner hole: not found at its expected
+position."; "Part 1.4 · JIC: expected JIC, read J_C …"). The request's explainability — measured value, expected
+value and tolerance for each NOK part; expected and read text for the logo — is met in the log.
+
+**Why one sentence.** The panel lists every object of a frame; a NOK with seven letter lines or eight hole checks
+pushed the others out of sight (seen on Image_092 in phase D). The sentence says what is wrong; the log says by how
+much.
+
+**Revisit if** a check is added (its clause joins the order), or an operator needs a value on screen.
+Tests `test/Reporting/test_core.py` (`::test_a_nok_has_one_reason_sentence_for_its_outline_and_look`,
+`::test_a_nok_names_its_holes_in_one_sentence`, `::test_a_nok_names_its_stains_and_its_missing_letters_in_one_sentence`,
+`::test_the_log_lists_each_part_with_its_measured_and_expected_values`),
+`test/UI/test_timing_log.py::test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time`.
+
+## A judged part's features are marked on the frame, pass or fail, and saved as its parts
+
+Decided 2026-10-11 (catalogue phase E), as the request asks and the owner approved. Each judged part's features
+(`Parameters.Vision.Feature_Str`) are built where its checks run — each hole found and each hole expected and not
+found (`Vision.Utilities.Holes.Hole_Features`), each stain region (`Check_Stain`), each logo word (`Check_Logo`'s
+word boxes, the best-matched reference's letters through the registration), and the measured sides — on the
+upright crop, then taken to the frame through the inverse of the crop's warp (`Classify.Crop_To_Frame`) and
+numbered as the object's parts. `Annotate.Draw_Annotated` draws them on the annotated frame (Live, the saved
+`_annotated.png`, the harness): a rotated box in the pass colour (the OK verdict's indigo) or the fail colour (the
+NOK verdict's magenta) — the colours that already mark the objects, so a feature's colour means what an object's
+does; a hole expected and not found dashed; a stain's pixels under a 35 % tint of the fail colour; the sides
+tagged L and W; each mark on a 2 px light halo; only failing parts numbered (owner's ruling). The label mask has
+none of it: it shows the segmentation. The parts are saved in `_objects.json` as each object's `parts`, an
+additive field (owner's ruling): an older set loads with none, the CSVs are unchanged.
+
+- **Where a missing hole goes.** At its catalogue position: all four corners for the labyrinth; for the plate's
+  through-holes, mirrored either way, the pair that holds the holes found and best fits the pitch (none placed with
+  none found); a countersink around a through-hole without one (KNOWN_ISSUES).
+- **Rendered and looked at** (2026-10-11): Image_059 (the two fingerprints as two tinted boxes, the holes
+  indigo), Image_084 (three corner holes indigo, the fourth dashed and numbered), Image_087 and Image_092 (all four
+  corner positions dashed on the hole-less fronts; the logo words indigo on the outline and the dark plates). The
+  corner holes, about 3 mm (30 px), read clearly at full resolution. The outline plate's word boxes sit a few
+  pixels off (KNOWN_ISSUES).
+
+**Revisit if** a mark is misread on the rig's screen, or a feature kind is added.
+Tests `test/Vision/Utilities/test_annotate.py::test_a_judged_parts_features_are_marked_in_the_pass_and_the_fail_colour`,
+`test/Vision/Utilities/test_holes.py` (the missing-hole placements), `test/Vision/Utilities/test_classify.py::test_a_point_on_the_upright_crop_goes_back_to_where_it_is_on_the_frame`,
+`test/Vision/Utilities/test_logo.py::test_each_word_is_boxed_on_the_part_where_its_letters_are`,
+`test/Vision/test_core.py::test_a_judged_parts_features_and_similarity_are_on_the_frame`,
+`test/UI/test_history_data.py::test_a_judged_parts_parts_round_trip_and_an_older_record_has_none`, and the slow
+`test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate`.
+
+## The similarity overlay shows where a part looks unlike its reference, and decides nothing
+
+Decided 2026-10-11 (catalogue phase E): the request's DINOv2 similarity heatmap, as a separate diagnostic tab
+(owner's ruling). For each judged part, each patch of its best-matched rotation's crop is compared with every patch
+of the matched reference; 1 minus the highest cosine is laid on the part's pixels (`Classify.Similarity_Grid`,
+`Vision.Core`), and the Camera View's **Similarity** segment (catalogue modes only, on screen only) shows it over
+the frame (`Heatmap.Render_Overlay`, 55 % opaque) under the legend "Unlike the reference (DINOv2 patches) — not a
+defect map", on a fixed 0–0.5 scale. The patch tokens come from the identification's own pass at 224 px (16 × 16
+patches), so it costs no model time.
+
+**Measured** (2026-10-11, at 448 px then 224 px, on Image_059, 084 and 092): the fingerprints on 059 stand out at
+both (patches up to 0.61 unlike, the part's mean 0.13–0.23), so 224 px was kept (owner's condition). Missing
+corner holes and letters do not show; glare and the outline lettering show as unlike. It is therefore not a defect
+map, and no verdict reads it.
+
+**Revisit if** a defect is seen only in it (then it is a check to build, not a reading of the overlay).
+Tests `test/Vision/Utilities/test_classify.py::test_the_similarity_grid_is_the_best_turn_turned_back_upright`,
+`test/Vision/Utilities/test_heatmap.py::test_an_overlay_colours_only_the_pixels_it_covers`,
+`test/UI/test_camera_view.py::test_the_similarity_view_overlays_the_frame_and_needs_a_catalogue_reading`,
+`test/Vision/test_core.py::test_a_judged_parts_features_and_similarity_are_on_the_frame`.
+
+## History filters by the four states, and the Trends threshold line is neutral
+
+Decided 2026-10-11 (catalogue phase E), resolving the two KNOWN_ISSUES entries left for it. History's filter has a
+segment per state — All, OK, NOK, Warning, Unspecified, each with its count — and lists a set under every state
+its objects took; a card is outlined in its worst state's colour (the status badge's order: NOK, Unspecified,
+Warning, OK). The confidence chart's warning-threshold line is drawn in the neutral mid ink instead of the amber
+a Warning object's dot takes; the error line keeps its deep red, which no verdict uses.
+
+**Revisit if** a fifth state is added, or the threshold lines need telling apart by more than their dash.
+Tests `test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
+`::test_a_set_is_outlined_in_its_worst_state`,
+`test/UI/test_trends_view.py::test_the_warning_threshold_line_is_not_the_warning_verdicts_amber`.

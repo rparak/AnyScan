@@ -37,7 +37,7 @@ import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QKeyEvent, QTextDocument
-from PyQt5.QtWidgets import QApplication, QLabel
+from PyQt5.QtWidgets import QApplication, QLabel, QPushButton
 # Custom Lib.: AnyScan UI — the History view; the writer/metadata; the detection structure
 #   ../UI/Views/History
 from UI.Views.History import History_View_Cls
@@ -132,36 +132,35 @@ def _Settle(app, milliseconds: int = 300) -> None:
         time.sleep(0.01)
 
 
-def test_filter_including_the_always_empty_nok_case(qt_app, tmp_path) -> None:
+def test_each_state_filter_lists_every_set_holding_that_state(qt_app, tmp_path) -> None:
     """
     Description:
-        For sets written WITH classification the filter is shown and narrows the grid by verdict.
-        No classifier assigns NOK, so every set is OK: 'All' and 'OK' show the sets, and 'NOK'
-        shows none — with an explicit message that blames the missing classifier (not the config),
-        not a blank panel that reads as broken.
+        For sets written WITH classification the filter is shown, one segment per state and each state's count
+        under it, and a set is listed under every state its objects took: OK, NOK, Warning and Unspecified each show exactly the
+        sets holding one. A state no set holds shows a message saying so, not a blank panel.
     """
 
     writer = Capture_Writer_Cls(str(tmp_path))
-    _Write_Full(writer, 'sessionA', 'set1', classification=True)
-    _Write_Full(writer, 'sessionA', 'set2', classification=True)
+    _Write_Full(writer, 'sessionA', 'set_ok', classification=True)
+    _Write_Full(writer, 'sessionA', 'set_nok', classification=True, verdicts=('OK', 'NOK'))
+    _Write_Full(writer, 'sessionA', 'set_warning', classification=True, verdicts=('Warning', 'Warning'))
 
     view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
+    shown = lambda: sorted(card.Cap().Set_Id for card in _Private(view, '__cards'))
     assert _Private(view, '__filter').isVisibleTo(view)   # a classified run -> filter present
-    assert len(_Private(view, '__cards')) == 2            # All
-
-    _Set_Filter(view, 'ok')
-    assert len(_Private(view, '__cards')) == 2            # every set is OK
-
-    _Set_Filter(view, 'nok')
-    assert len(_Private(view, '__cards')) == 0            # the always-empty case
-    body = _Private(view, '__list_box')
-    message = body.itemAt(0).widget()
-    assert isinstance(message, QLabel)
-    assert 'no classifier is running yet' in message.text()
-
+    assert shown() == ['set_nok', 'set_ok', 'set_warning']
+    labels = [button.text() for button in _Private(view, '__filter').findChildren(QPushButton)]
+    assert labels == ['All', 'OK', 'NOK', 'Warning', 'Unspecified']
+    assert _Private(view, '__counts').text() == 'OK 2  ·  NOK 1  ·  Warning 1  ·  Unspecified 0'
+    for key, expected in (('ok', ['set_nok', 'set_ok']), ('nok', ['set_nok']), ('warning', ['set_warning'])):
+        _Set_Filter(view, key)
+        assert shown() == expected, key
+    _Set_Filter(view, 'unspecified')
+    assert shown() == []
+    assert _Private(view, '__list_box').itemAt(0).widget().text() == 'No object that could not be judged in this run.'
     _Set_Filter(view, 'all')
-    assert len(_Private(view, '__cards')) == 2            # restored
+    assert len(_Private(view, '__cards')) == 3            # restored
 
 
 def test_selecting_a_full_set_renders_the_object_list(qt_app, tmp_path) -> None:
@@ -248,31 +247,21 @@ def test_classified_sets_get_the_filter_and_a_verdict_outline(qt_app, tmp_path) 
     view.close()
 
 
-def test_a_nok_set_is_what_the_filters_split_and_is_outlined_nok(qt_app, tmp_path) -> None:
+def test_a_set_is_outlined_in_its_worst_state(qt_app, tmp_path) -> None:
     """
     Description:
-        Nothing assigns NOK today, so the other filter tests cannot tell 'OK' from no filter at all.
-        With a set written the way a classifier will write one — an object judged NOK — 'OK' and
-        'NOK' each show exactly their own set, and the NOK set is outlined in the NOK colour.
+        A classified set's card is outlined in its worst verdict's colour, in the status badge's order: a NOK
+        beside an OK is NOK, an Unspecified object beside an OK is the neutral colour, a Warning the amber.
     """
 
     from Parameters.Theme import Verdict_Color
-
-    writer = Capture_Writer_Cls(str(tmp_path))
-    _Write_Full(writer, 'sessionA', 'set_ok', classification=True)
-    _Write_Full(writer, 'sessionA', 'set_nok', classification=True, verdicts=('OK', 'NOK'))
-
-    view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
-    view.Refresh()
-    shown = lambda: sorted(card.Cap().Set_Id for card in _Private(view, '__cards'))
-    assert shown() == ['set_nok', 'set_ok']
-
-    _Set_Filter(view, 'ok')
-    assert shown() == ['set_ok']
-    _Set_Filter(view, 'nok')
-    assert shown() == ['set_nok']
-    assert _Outline_Rgb(view) == _Rgb(Verdict_Color('NOK')[0])
-    view.close()
+    for verdicts, worst in ((('OK', 'NOK'), 'NOK'), (('OK', 'Unspecified'), 'Unspecified'), (('OK', 'Warning'), 'Warning')):
+        root = tmp_path / worst
+        _Write_Full(Capture_Writer_Cls(str(root)), 'sessionA', 'set', classification=True, verdicts=verdicts)
+        view = History_View_Cls(str(root), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
+        view.Refresh()
+        assert _Outline_Rgb(view) == _Rgb(Verdict_Color(worst)[0]), worst
+        view.close()
 
 
 def test_history_lists_only_the_current_run(qt_app, tmp_path) -> None:
@@ -317,7 +306,7 @@ def test_the_two_empty_nok_states_are_distinguishable(qt_app, tmp_path) -> None:
     Description:
         The two reasons a NOK list can be empty must read differently. Detect-only sets: the filter
         is not there at all (you cannot reach an empty NOK — its absence is the answer). Classified
-        sets with no NOK: the filter IS there and says why it is empty (no classifier yet). The two
+        sets with no NOK: the filter IS there and says there is no NOK part in this run. The two
         cannot be confused.
     """
 
@@ -334,7 +323,7 @@ def test_the_two_empty_nok_states_are_distinguishable(qt_app, tmp_path) -> None:
     assert _Private(on, '__filter').isVisibleTo(on)          # filter present
     _Set_Filter(on, 'nok')
     message = _Private(on, '__list_box').itemAt(0).widget().text()
-    assert 'no classifier is running yet' in message         # says WHY, not that the config is off
+    assert message == 'No NOK part in this run.'              # says what, not that the config is off
 
 
 def test_the_browser_panel_is_labelled_captures(qt_app, tmp_path) -> None:

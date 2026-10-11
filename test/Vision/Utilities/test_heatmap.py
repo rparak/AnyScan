@@ -84,3 +84,20 @@ def test_module_is_qt_free(top_level_imports) -> None:
     """
 
     assert not top_level_imports(Heatmap.__file__) & {'PyQt5', 'cv2', 'numpy'}
+
+
+def test_an_overlay_colours_only_the_pixels_it_covers() -> None:
+    """
+    Description:
+        The similarity overlay over the frame: a covered pixel is its value's colour blended over the frame (the
+        part stays visible under it), an uncovered one (NaN) is the frame itself, byte for byte.
+    """
+
+    frame = np.full((20, 30, 3), 100, np.uint8)
+    values = np.full((20, 30), np.nan, np.float32)
+    values[5:10, 5:10] = 0.5
+    overlay = Heatmap.Render_Overlay(Heatmap_Str(Values=values, Low=0.0, High=0.5), frame, cv2, np)
+    assert np.array_equal(overlay[12:, :], frame[12:, :]) and np.array_equal(overlay[:, 12:], frame[:, 12:])
+    top = np.array(Heatmap.CONST_HEATMAP_BGR[-1], np.float32)
+    expected = np.round(top * Heatmap.CONST_OVERLAY_OPACITY + 100 * (1 - Heatmap.CONST_OVERLAY_OPACITY))
+    assert np.abs(overlay[7, 7].astype(np.float32) - expected).max() <= 1.0

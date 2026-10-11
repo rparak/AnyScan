@@ -459,21 +459,6 @@ dump), as had about 20 full runs and a 30-run stress loop of `test/UI` earlier t
   running the suite again never deletes one (`test/integration/test_crash_record.py`). A crash in the
   interpreter's own finalisation, after the record's last line is written, is not kept.
 
-## History's filter does not know Warning or Unspecified
-
-A catalogue mode judges each object OK, NOK, Unspecified or Warning, and the frame, the mask, Scene
-Understanding, the badge, Trends and the log say which. History's filter still speaks only OK and NOK: it puts
-a set with any NOK under NOK and every other set under OK, so a set whose only problem is a Warning or an
-Unspecified object is listed as OK, and its thumbnail outline is the OK colour. (Until 2026-10-11 the status
-badge had the same gap — green "2 found" with a NOK on screen, seen on `Image_086`; it now states the worst
-verdict.)
-
-- **Impact:** a reviewer filtering History for problems misses a set with only a Warning or an Unspecified
-  object. The verdicts themselves, and every record, are right.
-- **Not fixed here:** the History filter, and the capture set's record of the evidence, are the catalogue's
-  UI phase (E), by the owner's ruling.
-- **Pinned by:** nothing yet: the phase that fixes it pins it.
-
 ## A hole drilled where the catalogue puts none is not reported
 
 The hole check counts a positioned group's holes only near the positions the catalogue gives (within √2 ×
@@ -499,21 +484,6 @@ read NOK wrongly. 1 miss in the 42 corner holes of the test set.
   capture session will show how often.
 - **Pinned by:** `test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate[Image_071]`,
   a strict xfail: it fails the run the day the hole is found.
-
-## On the Trends confidence chart, a Warning object's dot is the colour of the warning threshold
-
-The confidence chart colours each object's dot by its verdict when the run classifies, so in a catalogue mode
-a Warning object's dot is the status amber (`CONST_WARN`, the Warning verdict's box). The chart's dashed
-warning-threshold line (80 %, `Confidence.Warn_Below`) is drawn in the same amber. A dot near or on the line
-reads as part of it, and an amber dot can be taken for "this score is below the warning threshold" when it
-means "this object should not be on the surface". Seen on 2026-10-11, in the labyrinth mode after Image_060
-(six Warning objects at 80–98 %).
-
-- **Impact:** a reader of the confidence chart can misread what an amber dot means. The scores, the verdicts
-  and every record are right; the objects chart's Warning series is unaffected.
-- **Not fixed here:** the catalogue's UI phase (E), with History's filter: either the threshold line or the
-  Warning dots take another token, decided with the other verdict views.
-- **Pinned by:** nothing yet: the phase that fixes it pins it.
 
 ## The stain check's colour band is this light's
 
@@ -565,3 +535,26 @@ itself: the appearance has no independent test plate.
   measure it (capture checklist).
 - **Pinned by:** `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts[Image_095-Labyrinth]`
   (the independent plate), `test/Vision/Utilities/test_logo.py::test_every_letter_erased_from_a_real_logo_is_caught`.
+
+## A missing hole is not marked when the part shows nothing to place it by
+
+A hole expected and not found is marked dashed at its position. Where that position depends on the holes
+found, it cannot always be placed. The mounting plate's through-holes sit by one long edge, mirrored either way:
+with none found, either edge could be meant, so none is marked. A countersink is placed around a through-hole
+without one, so with neither found, neither is marked. The labyrinth's four corner positions are always marked.
+
+- **Impact:** a plate missing all its holes shows no hole marks; its reason ("Both through-holes are
+  missing.") and its log lines still say so.
+- **Not fixed here:** guessing an edge would draw a mark that may be wrong; no frame of the test set shows it.
+- **Pinned by:** `test/Vision/Utilities/test_holes.py::test_a_plates_missing_holes_are_placed_on_the_side_its_holes_are`.
+
+## The outline-letter plate's word boxes sit a few pixels off its words
+
+The logo's word boxes come from the matched reference's letter boxes. Those of `back_outline` (Image_092's left
+plate) were set by hand on a tilted, faint engraving, so on that plate SMART's and FACTORY's boxes sit a few
+pixels up and left of the text, still over it. The letter check reads the same boxes and still finds every
+letter (least 0.77).
+
+- **Impact:** a slightly offset mark on the frame; no verdict changes.
+- **Not fixed here:** redrawing the boxes needs a sharper capture of an outline-letter plate.
+- **Pinned by:** nothing: seen on the render of Image_092 (2026-10-11).

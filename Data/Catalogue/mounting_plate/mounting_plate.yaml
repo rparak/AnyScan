@@ -139,10 +139,11 @@ Checks:
   # Stains, per side (Vision.Utilities.Stain): the pixels of the part's upright crop inside its outline,
   # Edge_Margin_Mm in from it and off its holes, whose colour falls in the band (OpenCV HSV: hue
   # Hue_Min-Hue_Max of 0-179, saturation and value at least Saturation_Min and Value_Min of 255),
-  # opened; each area of Min_Area_Mm2 [mm^2] or more is a stain (NOK). All REQUIRED.
+  # opened; fragments within Merge_Mm [mm] of each other are one stain region (a fingerprint's ridges break
+  # it up); a region holding a fragment of Min_Area_Mm2 [mm^2] or more is a stain (NOK). All REQUIRED.
   # Measured on the test set's fronts (2026-10-11, this table and light): the five fingerprinted
-  # plates' stains 145-1240 mm^2, every clean front at most 0.0 mm^2 in the band after the opening, so
-  # the 1 mm^2 threshold (owner's ruling) has the clean side's margin and catches far smaller stains.
+  # plates' largest fragment 144-157 mm^2, every clean front no band pixel left after the opening, so the
+  # 1 mm^2 threshold (owner's ruling) has the clean side's margin and catches far smaller stains.
   # The band is the light's: a new light or camera setting is measured again (KNOWN_ISSUES).
   Stain:
     front:
@@ -152,6 +153,9 @@ Checks:
       Value_Min: 40
       Min_Area_Mm2: 1.0
       Edge_Margin_Mm: 1.0
+      # Measured on the five fingerprinted fronts (two fingerprints each, by eye): 2-4 mm gives two regions on
+      # every one, 1 mm three or four, 5 mm joins the two across the hole on two plates.
+      Merge_Mm: 3.0
 
 # The describer's prompt for a judged part (OK or NOK), filled per part: {side} (the side's Name,
 # from DINOv2), {side_description}, {defects} (that side's Defects) and {findings} (what the checks

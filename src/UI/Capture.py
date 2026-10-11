@@ -30,7 +30,7 @@ import typing as tp
 from dataclasses import dataclass, field
 # Custom Lib.: AnyScan domain — the detection structure the metadata is built from
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Scale_Str, Measurement_Str, CONST_SCALE_UNITS
+from Parameters.Vision import Detection_Str, Scale_Str, Measurement_Str, Feature_Str, Dimension_Check_Str, CONST_SCALE_UNITS
 
 """
 Description:
@@ -149,6 +149,9 @@ class Capture_Object_Str:
     Description: str = ''
     # The stored measurement (sizes in mm, angle), or None when the object was not measured.
     Measurement: tp.Optional[Measurement_Str] = None
+    # A judged part's features (holes, stains, logo words, measured sides), its Parts; empty for any other
+    # object and for a set written before 2026-10-11, which has none.
+    Parts: tp.List[Feature_Str] = field(default_factory=list)
 
 
 @dataclass
@@ -217,14 +220,37 @@ class Capture_Set_Str:
         """
         Description:
             Whether the set is NOK — any object in it is NOK. A partial set has no objects and
-            is not NOK. (Nothing assigns NOK yet, so this is always False today; the History
-            NOK filter is built for the day classification lands.)
+            is not NOK.
 
         Returns:
             (1) parameter [bool]: True when any object's verdict is 'NOK'.
         """
 
         return any(obj.Verdict == 'NOK' for obj in self.Objects)
+
+    def States(self) -> tp.Set[str]:
+        """
+        Description:
+            The verdicts its objects took ('OK', 'NOK', 'Warning', 'Unspecified'); empty for a partial set.
+
+        Returns:
+            (1) parameter [Set<string>]: The states.
+        """
+
+        return {obj.Verdict for obj in self.Objects}
+
+    def Worst_State(self) -> str:
+        """
+        Description:
+            The worst verdict among its objects, in the status badge's order: NOK, then Unspecified, then Warning,
+            then OK (also for a set with no objects).
+
+        Returns:
+            (1) parameter [string]: The verdict.
+        """
+
+        states = self.States()
+        return next((state for state in ('NOK', 'Unspecified', 'Warning') if state in states), 'OK')
 
 
 def Set_Id_From_Name(name: str) -> tp.Optional[str]:
@@ -352,6 +378,60 @@ def __Read_Measurement(record: tp.Any) -> tp.Optional[Measurement_Str]:
     return measurement if complete else None
 
 
+def Part_Record(Feature_Str: Feature_Str) -> tp.Dict[str, tp.Any]:
+    """
+    Description:
+        One feature of a judged part as its '_objects.json' record (the object's 'parts', an additive field since
+        2026-10-11): its part number, kind, name, whether it passed and was found, its box in frame pixels, its
+        checks in millimetres, a stain's area, a word's expected and read text, and its check's score.
+
+    Args:
+        (1) Feature_Str [Feature_Str(object)]: The feature.
+
+    Returns:
+        (1) parameter [Dict]: The record.
+    """
+
+    feature = Feature_Str
+    return {'part': feature.Part, 'kind': feature.Kind, 'name': feature.Name, 'passed': bool(feature.Passed),
+            'found': bool(feature.Found), 'corners': [[round(float(x), 2), round(float(y), 2)] for x, y in feature.Corners],
+            'checks': [{'name': check.Name, 'measured_mm': check.Measured_Mm, 'nominal_mm': check.Nominal_Mm,
+                        'tolerance_mm': check.Tolerance_Mm, 'within': bool(check.Within)} for check in feature.Checks],
+            'area_mm2': feature.Area_Mm2, 'expected_text': feature.Expected_Text, 'read_text': feature.Read_Text,
+            'score': feature.Score}
+
+
+def __Read_Parts(records: tp.Any) -> tp.List[Feature_Str]:
+    """
+    Description:
+        An object's stored parts read back defensively: absent (a set written before parts were recorded) or
+        malformed reads as none, a malformed part is skipped, and nothing is made up.
+
+    Args:
+        (1) records [Vector<Dict> or None]: The 'parts' records.
+
+    Returns:
+        (1) parameter [Vector<Feature_Str(object)>]: The parts.
+    """
+
+    parts = []
+    for record in records if isinstance(records, list) else []:
+        try:
+            parts.append(Feature_Str(
+                Part=str(record['part']), Kind=str(record['kind']), Name=str(record['name']),
+                Passed=bool(record['passed']), Found=bool(record.get('found', True)),
+                Corners=[(float(x), float(y)) for x, y in record.get('corners', [])],
+                Checks=[Dimension_Check_Str(Name=str(c['name']), Measured_Mm=float(c['measured_mm']),
+                                            Nominal_Mm=float(c['nominal_mm']), Tolerance_Mm=float(c['tolerance_mm']),
+                                            Within=bool(c['within'])) for c in record.get('checks', [])],
+                Area_Mm2=float(record.get('area_mm2') or 0.0), Expected_Text=str(record.get('expected_text', '')),
+                Read_Text=str(record.get('read_text', '')),
+                Score=None if record.get('score') is None else float(record['score'])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return parts
+
+
 def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                        objects: tp.List[Detection_Str], size: tp.Tuple[int, int], task: str,
                        inference_ms: int, frame_mean_confidence: tp.Optional[int],
@@ -422,7 +502,8 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
         records.append({'index': index, 'bbox': [int(v) for v in det.Bbox],
                         'confidence': confidence, 'cue': det.Cue, 'verdict': det.Verdict,
                         'description': det.Sentence,
-                        'measurement': Measurement_Record(det.Measurement)})
+                        'measurement': Measurement_Record(det.Measurement),
+                        'parts': [Part_Record(feature) for feature in det.Features]})
     return {'session_id': session_id, 'run_id': run_id, 'set_id': set_id, 'timestamp': timestamp,
             'frame_width': int(size[0]), 'frame_height': int(size[1]), 'task': task,
             'inference_ms': int(inference_ms), 'frame_mean_confidence': frame_mean_confidence,
@@ -573,7 +654,8 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
                         else None),
             Cue=str(record.get('cue', '')), Verdict=str(record.get('verdict', 'OK')),
             Description=str(record.get('description', '')),
-            Measurement=__Read_Measurement(record.get('measurement')))
+            Measurement=__Read_Measurement(record.get('measurement')),
+            Parts=__Read_Parts(record.get('parts')))
             for i, record in enumerate(data.get('objects', []))]
         factor = data.get('conversion_factor')
         if isinstance(factor, dict) and factor.get('units') == CONST_SCALE_UNITS:

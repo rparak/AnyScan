@@ -173,3 +173,60 @@ def test_a_judged_parts_holes_decide_ok_or_nok(found: int, within: bool, before:
     checks = [Dimension_Check_Str(Name='through-hole Ø', Measured_Mm=6.1, Nominal_Mm=6.0, Tolerance_Mm=1.5, Within=within)]
     Apply_Holes(det, counts, checks)
     assert det.Verdict == after and det.Hole_Counts == counts and det.Hole_Checks == checks
+
+
+def _Centres(features: tp.List[tp.Any]) -> tp.List[tp.Tuple[float, float, bool]]:
+    """Each feature's box centre (mm, one decimal) and whether it was found."""
+    return [(round(sum(x for x, _ in f.Corners) / 4, 1), round(sum(y for _, y in f.Corners) / 4, 1), f.Found)
+            for f in features]
+
+
+def test_a_missing_corner_hole_is_marked_where_the_catalogue_puts_it() -> None:
+    """
+    Description:
+        The corner holes as the frame marks them: the three found, each with its checks and its mask score, and
+        the fourth expected at its corner (4 mm from both edges) and not found, failed.
+    """
+
+    from Vision.Utilities.Holes import Hole_Features
+    holes = [Hole_Str(Diameter_Mm=2.9, X_Mm=4.0, Y_Mm=4.0, Score=0.95), Hole_Str(Diameter_Mm=2.9, X_Mm=46.0, Y_Mm=4.0),
+             Hole_Str(Diameter_Mm=2.9, X_Mm=4.0, Y_Mm=46.0)]
+    features = Hole_Features(holes, CONST_CORNERS, 50.0, 50.0)
+    assert _Centres(features) == [(4.0, 4.0, True), (46.0, 4.0, True), (4.0, 46.0, True), (46.0, 46.0, False)]
+    assert [f.Passed for f in features] == [True, True, True, False]
+    assert features[0].Score == 0.95 and [c.Name for c in features[0].Checks][:3] == [
+        'corner hole Ø', "corner hole's distance from the long edge", "corner hole's distance from the short edge"]
+    assert any(c.Name == 'corner hole pitch' for c in features[0].Checks)
+
+
+def test_a_plates_missing_holes_are_placed_on_the_side_its_holes_are() -> None:
+    """
+    Description:
+        The mounting plate's through-holes sit by one long edge, mirrored either way: with one found, the missing
+        one is placed at the pitch from it on the same side, not across the plate; its countersink missing too is
+        placed around the through-hole found; with none found nothing is placed, since either side could be meant.
+    """
+
+    from Vision.Utilities.Holes import Hole_Features
+    found = [Hole_Str(Diameter_Mm=6.1, X_Mm=15.0, Y_Mm=17.5)]
+    features = Hole_Features(found, CONST_PLATE_FRONT, 40.0, 60.0)
+    assert _Centres(features) == [(15.0, 17.5, False), (15.0, 17.5, True), (15.0, 42.5, False)]
+    assert [f.Name for f in features] == ['countersink', 'through-hole', 'through-hole']
+    # By the other long edge (the plate lies the other way round), the missing one is placed there too.
+    other = Hole_Features([Hole_Str(Diameter_Mm=6.1, X_Mm=25.0, Y_Mm=17.5)], CONST_PLATE_FRONT[1:], 40.0, 60.0)
+    assert _Centres(other) == [(25.0, 17.5, True), (25.0, 42.5, False)]
+    assert _Centres(Hole_Features([], CONST_PLATE_FRONT[1:], 40.0, 60.0)) == []
+
+
+def test_a_hole_too_many_fails_its_group() -> None:
+    """
+    Description:
+        A group with more holes than the part has marks each of them failed, whatever its own checks, so the
+        extra one is among the marked.
+    """
+
+    from Vision.Utilities.Holes import Hole_Features
+    found = [Hole_Str(Diameter_Mm=6.1, X_Mm=15.0, Y_Mm=17.5), Hole_Str(Diameter_Mm=6.1, X_Mm=15.0, Y_Mm=42.5),
+             Hole_Str(Diameter_Mm=6.1, X_Mm=25.0, Y_Mm=17.5)]
+    features = Hole_Features(found, CONST_PLATE_FRONT[1:], 40.0, 60.0)
+    assert len(features) == 3 and not any(f.Passed for f in features)

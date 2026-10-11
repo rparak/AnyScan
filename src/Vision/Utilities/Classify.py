@@ -93,7 +93,26 @@ def Object_Crop(frame_bgr: tp.Any, det: Detection_Str, cv2: tp.Any, np: tp.Any) 
     if measurement is None or measurement.Symmetric or not measurement.Box_Points:
         x, y, w, h = det.Bbox
         return frame_bgr[y:y + h, x:x + w]
-    corners = np.array(measurement.Box_Points, dtype=np.float32)
+    warp, (width, height) = __Upright(det, cv2, np)
+    return cv2.warpPerspective(frame_bgr, warp, (max(1, int(round(width))), max(1, int(round(height)))))
+
+
+def __Upright(det: Detection_Str, cv2: tp.Any, np: tp.Any) -> tp.Tuple[tp.Any, tp.Tuple[float, float]]:
+    """
+    Description:
+        The warp from the frame to a measured object's upright crop (its rotated rectangle, long side vertical),
+        and the crop's size.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object, measured and not symmetric.
+        (2) cv2 [module]: The OpenCV module.
+        (3) np [module]: The NumPy module.
+
+    Returns:
+        (1) parameter [Tuple<Matrix<float> 3x3, Tuple<float> 1x2>]: (the warp, (width, height) in pixels).
+    """
+
+    corners = np.array(det.Measurement.Box_Points, dtype=np.float32)
     side_a = float(np.linalg.norm(corners[1] - corners[0]))
     side_b = float(np.linalg.norm(corners[2] - corners[1]))
     if side_a >= side_b:
@@ -103,8 +122,34 @@ def Object_Crop(frame_bgr: tp.Any, det: Detection_Str, cv2: tp.Any, np: tp.Any) 
     else:
         width, height = side_a, side_b
         target = np.array([[0, 0], [width, 0], [width, height], [0, height]], dtype=np.float32)
-    warp = cv2.getPerspectiveTransform(corners, target)
-    return cv2.warpPerspective(frame_bgr, warp, (max(1, int(round(width))), max(1, int(round(height)))))
+    return cv2.getPerspectiveTransform(corners, target), (width, height)
+
+
+def Crop_To_Frame(det: Detection_Str, points: tp.List[tp.Tuple[float, float]], cv2: tp.Any,
+                  np: tp.Any) -> tp.List[tp.Tuple[float, float]]:
+    """
+    Description:
+        Points on an object's crop (Object_Crop's pixels) taken back to the frame: through the inverse of the
+        upright warp for a measured object, by the box's offset for one cropped by its box.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+        (2) points [Vector<Tuple<float> 1x2>]: The points on its crop, in pixels.
+        (3) cv2 [module]: The OpenCV module.
+        (4) np [module]: The NumPy module.
+
+    Returns:
+        (1) parameter [Vector<Tuple<float> 1x2>]: The points in frame pixels.
+    """
+
+    if not points:
+        return []
+    measurement = det.Measurement
+    if measurement is None or measurement.Symmetric or not measurement.Box_Points:
+        return [(float(x) + det.Bbox[0], float(y) + det.Bbox[1]) for x, y in points]
+    warp, _size = __Upright(det, cv2, np)
+    back = cv2.perspectiveTransform(np.float32(points).reshape(-1, 1, 2), np.linalg.inv(warp)).reshape(-1, 2)
+    return [(float(x), float(y)) for x, y in back]
 
 
 def Reference_Crop(image_bgr: tp.Any, box: tp.Tuple[float, float, float, float]) -> tp.Any:
@@ -164,6 +209,48 @@ def Best_Match(object_rows: tp.Any, reference_rows: tp.Any, sides: tp.List[str])
     best = scores.max(axis=0)
     index = int(best.argmax())
     return float(best[index]), sides[index]
+
+
+def Best_Turn(object_rows: tp.Any, reference_rows: tp.Any, sides: tp.List[str], side: str) -> int:
+    """
+    Description:
+        Which of an object's rotations (Rotations' order) matched the reference of the side it was judged on best.
+
+    Args:
+        (1) object_rows [Matrix<float> RxD]: The object's rotations, as unit rows.
+        (2) reference_rows [Matrix<float> SxD]: The references, as unit rows, one per side.
+        (3) sides [Vector<string>]: The references' sides, in row order.
+        (4) side [string]: The side it was judged on.
+
+    Returns:
+        (1) parameter [int]: The rotation's index.
+    """
+
+    return int((object_rows @ reference_rows[sides.index(side)]).argmax())
+
+
+def Similarity_Grid(object_patches: tp.Any, reference_patches: tp.Any, turn: int, np: tp.Any) -> tp.Any:
+    """
+    Description:
+        How unlike its reference each patch of a judged part looks, for the similarity overlay: per patch of the
+        part's best-matched rotation, 1 minus its highest cosine to any patch of the reference, laid out on the
+        patch grid and turned back to the upright crop (Rotations turns clockwise; np.rot90 turns back). A
+        diagnostic only: it shows where the part looks unlike the reference — a stain, but also glare or another
+        engraving — and decides nothing.
+
+    Args:
+        (1) object_patches [Matrix<float> PxD]: The rotation's unit patch rows.
+        (2) reference_patches [Matrix<float> PxD]: The reference's unit patch rows.
+        (3) turn [int]: The rotation's index.
+        (4) np [module]: The NumPy module.
+
+    Returns:
+        (1) parameter [Matrix<float> nxn]: The dissimilarity, 0 to 2, per patch of the upright crop.
+    """
+
+    side = int(round(math.sqrt(object_patches.shape[0])))
+    grid = 1.0 - (object_patches @ reference_patches.T).max(axis=1).reshape(side, side)
+    return np.rot90(grid, turn)
 
 
 def Object_Area_Mm2(det: Detection_Str, scale: Scale_Str) -> float:

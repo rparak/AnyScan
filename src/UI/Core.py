@@ -63,9 +63,9 @@ from Vision.Core import Vision_Pipeline_Cls
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Render_Views, Seg_Lines
 #   ../Vision/Utilities/Heatmap
-from Vision.Utilities.Heatmap import Render_Heatmap
+from Vision.Utilities.Heatmap import Render_Heatmap, Render_Overlay
 #   ../Reporting/Core
-from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines, Frame_Confidence, Verdict_Log_Line
+from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines, Frame_Confidence, Verdict_Log_Line, Part_Lines
 #   ../Reporting/Trends
 from Reporting.Trends import Trends_Accumulator_Cls
 #   ../Parameters/Vision
@@ -1320,10 +1320,13 @@ class AnyScan_Window_Cls(QMainWindow):
                                                       describe_ms=times.Describe_Ms, tokens=tokens)
                 else:
                     self.__logger.Log_Object_Detected(det.Label, confidence, det.Bbox)
-                # A catalogue mode's verdict on it, with its reasons: Warning and Unspecified at WARNING.
+                # A catalogue mode's verdict on it, with its reason: Warning and Unspecified at WARNING; then a judged
+                # part's evidence, part by part, each measured value with what was expected.
                 if det.Catalogue is not None:
                     level, line = Verdict_Log_Line(index, det)
                     (self.__logger.Log_Warning if level == 'WARNING' else self.__logger.Log_Info)(line)
+                    for part_line in Part_Lines(index, det):
+                        self.__logger.Log_Info(part_line)
             # The pipeline's audit records: today only the background sentence's, a warning when
             # the neutral fallback sentence stood in for the model's. Replacing what the model
             # would have said is recorded, never silent.
@@ -1609,10 +1612,17 @@ class AnyScan_Window_Cls(QMainWindow):
         # brought one (a heatmap choice falls back to the annotated view meanwhile, still remembered).
         heatmap = (Bgr_To_Qimage(Render_Heatmap(result.Heatmap, cv2, np)) if result.Heatmap is not None
                    else None)
-        view = self.__view_choice if heatmap is not None or self.__view_choice != 'heatmap' else 'annotated'
+        # A catalogue mode's similarity overlay, over the analysed frame: a diagnostic tab, never a verdict.
+        similarity = (Bgr_To_Qimage(Render_Overlay(result.Similarity, cv2.cvtColor(self.__frame, cv2.COLOR_RGB2BGR),
+                                                   cv2, np))
+                      if result.Similarity is not None and self.__frame is not None else None)
+        available = {'heatmap': heatmap is not None, 'similarity': similarity is not None}
+        view = self.__view_choice if available.get(self.__view_choice, True) else 'annotated'
         self.__viewport.Show_Views(Bgr_To_Qimage(annotated_bgr), Bgr_To_Qimage(mask_bgr), view,
-                                   heatmap=heatmap, legend=result.Heatmap)
+                                   heatmap=heatmap, legend=result.Heatmap, similarity=similarity,
+                                   similarity_legend=result.Similarity)
         self.__view_toggle.Set_Segment_Enabled('heatmap', heatmap is not None)
+        self.__view_toggle.Set_Segment_Enabled('similarity', similarity is not None)
         self.__view_toggle.Set_View(view)
         self.__stage_badge.Set_State(result.Verdict, result.Verdict_Level)
 
@@ -1731,12 +1741,13 @@ class AnyScan_Window_Cls(QMainWindow):
     def __On_View_Toggle(self, view: str) -> None:
         """
         Description:
-            Switch the Camera View between the annotated image, the mask and the heatmap. This
+            Switch the Camera View between the annotated image, the mask, the heatmap and the similarity
+            overlay. This
             only swaps the held render in place — it never re-runs analysis and never reads
             from disk — and remembers the choice for the next analysis.
 
         Args:
-            (1) view [string]: 'annotated', 'mask' or 'heatmap'.
+            (1) view [string]: 'annotated', 'mask', 'heatmap' or 'similarity'.
         """
 
         self.__view_choice = view

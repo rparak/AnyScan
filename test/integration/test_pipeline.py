@@ -596,7 +596,35 @@ def test_the_corner_holes_found_are_the_ones_on_the_plate(name: str, require_wei
 
     objects = _Catalogue_Objects('Labyrinth', name, require_weights, monkeypatch)
     found = [count.Found for det in objects for count in det.Hole_Counts if count.Name == 'corner hole']
+    # The frame marks every corner position of each front: the holes found as found, the rest expected there.
+    for det in (det for det in objects if det.Hole_Counts):
+        marks = [feature for feature in det.Features if feature.Kind == 'hole']
+        assert len(marks) == 4 and sum(feature.Found for feature in marks) == det.Hole_Counts[0].Found
     assert sorted(found) == sorted(CONST_CORNER_HOLES[name])
+
+
+# The mounting plates with fingerprints on the front, each showing two by eye (2026-10-11), either side of a hole.
+#   Unit [Tuple<string>]
+CONST_STAINED_FRONTS = ('Image_059.png', 'Image_072.png', 'Image_074.png', 'Image_076.png', 'Image_080.png')
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize('name', CONST_STAINED_FRONTS)
+def test_each_stained_front_shows_its_two_fingerprints_as_two_stains(name: str, require_weights, monkeypatch) -> None:
+    """
+    Description:
+        In the mounting-plate mode, the fingerprinted front of each frame is NOK with exactly two stain regions —
+        the two fingerprints seen by eye, their fragments joined within Merge_Mm — each a failed feature on the
+        frame and named in the one reason ('There are two stains on the machined front.'). Slow because it runs
+        FastSAM and DINOv2; missing weights fail it under --runslow.
+    """
+
+    from Reporting.Core import Reason_Sentence
+    objects = _Catalogue_Objects('Mounting_Plate', name, require_weights, monkeypatch)
+    (stained,) = [det for det in objects if det.Stains]
+    assert len(stained.Stains) == 2 and stained.Verdict == 'NOK'
+    assert sum(1 for feature in stained.Features if feature.Kind == 'stain' and not feature.Passed) == 2
+    assert Reason_Sentence(stained) == 'There are two stains on the machined front.'
 
 
 @pytest.mark.slow

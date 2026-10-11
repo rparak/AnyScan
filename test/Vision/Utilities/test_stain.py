@@ -49,7 +49,7 @@ Description:
 
 # The mounting plate front's band, as the shipped item gives it; the crop's scale.
 CONST_BAND = Catalogue_Stain_Str(Hue_Min=5, Hue_Max=30, Saturation_Min=50, Value_Min=40, Min_Area_Mm2=1.0,
-                                 Edge_Margin_Mm=1.0)
+                                 Edge_Margin_Mm=1.0, Merge_Mm=3.0)
 CONST_MM_PER_PX = 0.1
 
 
@@ -130,6 +130,34 @@ def test_stains_come_largest_first() -> None:
 
     crop = _Plate((50, 50, 12, CONST_BROWN), (200, 200, 30, CONST_BROWN), (400, 100, 20, CONST_BROWN))
     assert [round(s.Area_Mm2, 2) for s in Check_Stain(crop, [], CONST_BAND, CONST_MM_PER_PX, cv2, np)] == [9.0, 4.0, 1.44]
+
+
+def test_fragments_within_the_merge_distance_are_one_stain_region() -> None:
+    """
+    Description:
+        A fingerprint breaks into fragments: fragments 2 mm apart (under Merge_Mm, 3 mm) are one region, its area
+        theirs, its box around both and its outlines each fragment's; fragments 6 mm apart are two regions.
+    """
+
+    close = Check_Stain(_Plate((100, 100, 20, CONST_BROWN), (140, 100, 20, CONST_BROWN)), [], CONST_BAND, CONST_MM_PER_PX,
+                        cv2, np)
+    assert len(close) == 1 and close[0].Area_Mm2 == pytest.approx(8.0) and len(close[0].Outlines) == 2
+    xs = [x for x, _y in close[0].Corners]
+    assert min(xs) == pytest.approx(10.0, abs=0.15) and max(xs) == pytest.approx(15.9, abs=0.15)
+    apart = Check_Stain(_Plate((100, 100, 20, CONST_BROWN), (180, 100, 20, CONST_BROWN)), [], CONST_BAND, CONST_MM_PER_PX,
+                        cv2, np)
+    assert [round(stain.Area_Mm2, 2) for stain in apart] == [4.0, 4.0]
+
+
+def test_a_region_of_small_fragments_is_not_a_stain() -> None:
+    """
+    Description:
+        Joining decides how stains are counted, never whether a part is stained: a region of fragments each under
+        Min_Area_Mm2 is not a stain, though together they cover more than it.
+    """
+
+    crop = _Plate(*[(100 + 12 * i, 100, 8, CONST_BROWN) for i in range(4)])
+    assert Check_Stain(crop, [], CONST_BAND, CONST_MM_PER_PX, cv2, np) == []
 
 
 @pytest.mark.parametrize('stains, before, after', [
