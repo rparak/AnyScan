@@ -27,7 +27,7 @@ import math
 import typing as tp
 # Custom Lib.: AnyScan domain — the detection, scale, catalogue and identification structures
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Scale_Str, Catalogue_Result_Str
+from Parameters.Vision import Detection_Str, Scale_Str, Catalogue_Result_Str, Hole_Count_Str, Dimension_Check_Str
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Item_Str
 #   ../Parameters/Configuration
@@ -47,6 +47,9 @@ Description:
                                                                   check passes, else NOK
         (3) outline within the part's tolerance (below (2))    -> the part, NOK: its shape, not its look
         (4) anything else                                      -> Warning (not the part)
+
+    Then a part judged OK or NOK has its holes checked on the side up (Vision.Utilities.Holes, Apply_Holes):
+    a missing or extra hole, or a hole out of tolerance, makes it NOK.
 
     (3) has no lower similarity bound, on purpose: an object of the part's size that does not look like
     it reads NOK, not Warning — in quality control the safer error — and a floor between the blank plate
@@ -241,3 +244,22 @@ def Classify(det: Detection_Str, similarity: float, side: str, Catalogue_Item_St
         det.Verdict = 'NOK'
     else:
         det.Verdict = 'Warning'
+
+
+def Apply_Holes(det: Detection_Str, counts: tp.List[Hole_Count_Str], checks: tp.List[Dimension_Check_Str]) -> None:
+    """
+    Description:
+        A judged part's hole checks (Vision.Utilities.Holes.Check_Holes), in place: they are kept on the object
+        (det.Hole_Counts, det.Hole_Checks), and an OK part with a hole missing or extra, or a hole out of
+        tolerance, becomes NOK. A NOK part stays NOK; an object that is not the part is never hole-checked.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object, judged OK or NOK (mutated).
+        (2) counts [Vector<Hole_Count_Str(object)>]: Each group's count.
+        (3) checks [Vector<Dimension_Check_Str(object)>]: Each hole's checks.
+    """
+
+    det.Hole_Counts, det.Hole_Checks = counts, checks
+    failed = any(count.Found != count.Expected for count in counts) or not all(check.Within for check in checks)
+    if det.Verdict == 'OK' and failed:
+        det.Verdict = 'NOK'

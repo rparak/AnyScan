@@ -121,10 +121,25 @@ class _Fake_Segmenter_Cls(object):
             self.events.append(('release segmenter', self.params.Model_Path))
         self.model = None
 
+    # The holes it draws on a catalogue part's crop, as (x, y, diameter) in mm from the crop's top-left
+    # corner; none by default. A test sets them to stand in for FastSAM finding a part's holes.
+    crop_holes = []
+
     def Segment(self, image, stage_cb=None):
-        # No FastSAM masks: the objects come from the background cue alone.
+        # No FastSAM masks on a frame: the objects come from the background cue alone. On a smaller image (a
+        # catalogue part's upright crop) the class's crop_holes, as disc masks at the crop's scale (0.1009 mm/px,
+        # the mounting plate's top face).
         self.segmented = getattr(self, 'segmented', []) + [image.shape]
-        return [], []
+        if image.shape[0] >= 1200 or not self.crop_holes:
+            return [], []
+        import numpy as np
+        import cv2
+        masks = []
+        for x, y, diameter in self.crop_holes:
+            mask = np.zeros(image.shape[:2], dtype=np.uint8)
+            cv2.circle(mask, (int(round(x / 0.1009)), int(round(y / 0.1009))), int(round(diameter / 2 / 0.1009)), 1, -1)
+            masks.append(mask.astype(bool))
+        return masks, [0.9] * len(masks)
 
 
 class _Fake_Describer_Cls(object):
@@ -213,6 +228,7 @@ def fake_models(monkeypatch):
     """The pipeline wired to the stand-in models, and the shipped configuration to start from."""
     import dataclasses
     _Fake_Segmenter_Cls.events.clear()
+    _Fake_Segmenter_Cls.crop_holes = []
     monkeypatch.setattr(Vision_Core, 'Fast_Sam_Cls', _Fake_Segmenter_Cls)
     monkeypatch.setattr(Vision_Core, 'Gemma_Describer_Cls', _Fake_Describer_Cls)
     monkeypatch.setattr(Vision_Core, 'Dino_Identifier_Cls', _Fake_Identifier_Cls)
@@ -591,12 +607,18 @@ def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference
     """
     Description:
         Through a real Analyze (stand-in models, the real stages around them, the stand-in identifier
-        matching by colour): a part of the plate's size and look is OK, its side the reference it matched;
-        a small part is a Warning; and the identification time is carried beside the measurement's. The
-        rule's every branch is pinned in test_classify; this pins that Analyze applies it to every object.
+        matching by size, the stand-in segmenter drawing the plate's front holes on its crop): a part of the
+        plate's size and look, its holes where the catalogue puts them, is OK, its side the reference it
+        matched; a small part is a Warning and is not hole-checked; and the catalogue checks' time is carried
+        beside the measurement's. The rule's every branch is pinned in test_classify and test_holes; this pins
+        that Analyze applies them to every object.
     """
 
     import cv2
+    _events, _config, _Variant = fake_models
+    # The front's holes on a 60.6 x 40.4 mm crop: through-holes 15 mm from a long edge and 17.5 from each
+    # short edge, a countersink around each.
+    _Fake_Segmenter_Cls.crop_holes = [(15.0, 17.5, 6.0), (15.0, 43.1, 6.0), (15.0, 17.5, 12.0), (15.0, 43.1, 12.0)]
     frame_bgr = make_synthetic_frame(reference_background, [(300, 300, 900, 700), (1300, 300, 1400, 360)])
     config = _Catalogue_Mode()
     pipeline = Vision_Pipeline_Cls(Configuration_Str=config)
@@ -609,6 +631,9 @@ def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference
     assert small.Verdict == 'Warning'
     assert plate.Catalogue.Similarity == 1.0 and small.Catalogue.Similarity == 0.0
     assert plate.Verdict == 'OK' and [c.Within for c in plate.Dimension_Checks] == [True, True]
+    assert [(c.Name, c.Found, c.Expected) for c in plate.Hole_Counts] == [('countersink', 2, 2), ('through-hole', 2, 2)]
+    assert plate.Hole_Checks and all(c.Within for c in plate.Hole_Checks)
+    assert small.Hole_Counts == [] and small.Hole_Checks == []
     # The judged part's description says which side is up — DINOv2's side, the catalogue's words; the
     # Warning's does not.
     assert plate.Sentence.endswith(' It lies with its %s up.' % plate.Catalogue.Side_Name)
@@ -635,3 +660,29 @@ def test_segment_anything_judges_nothing(fake_models, reference_background, make
     assert not [event for event in events if 'identifier' in event[0]]
     assert [(det.Catalogue, det.Verdict) for det in result.Objects] == [(None, 'OK')]
     assert result.Timing.Identification_Ms is None
+
+
+def test_a_judged_part_without_its_holes_is_nok(fake_models, reference_background, make_synthetic_frame) -> None:
+    """
+    Description:
+        Through a real Analyze, a part of the plate's size and look whose crop shows no holes (the stand-in
+        segmenter finds none) is NOK, its holes counted missing; and FastSAM ran on its upright crop once, beside
+        the frame's pass — a Warning's crop is never segmented.
+    """
+
+    import cv2
+    _events, _config, _Variant = fake_models
+    _Fake_Segmenter_Cls.crop_holes = []
+    frame_bgr = make_synthetic_frame(reference_background, [(300, 300, 900, 700), (1300, 300, 1400, 360)])
+    pipeline = Vision_Pipeline_Cls(Configuration_Str=_Catalogue_Mode())
+    plate, small = pipeline.Analyze(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)).Objects
+    assert plate.Verdict == 'NOK' and small.Verdict == 'Warning'
+    assert [(c.Name, c.Found, c.Expected) for c in plate.Hole_Counts] == [('countersink', 0, 2), ('through-hole', 0, 2)]
+    segmenter = _Private_Segmenter(pipeline)
+    crops = [shape for shape in segmenter.segmented if shape[0] < 1200]
+    assert len(crops) == 1 and abs(crops[0][0] - 601) <= 3 and abs(crops[0][1] - 401) <= 3   # the plate, upright
+
+
+def _Private_Segmenter(pipeline: Vision_Pipeline_Cls) -> tp.Any:
+    """The pipeline's (stand-in) segmenter."""
+    return getattr(pipeline, '_Vision_Pipeline_Cls__segmenter')

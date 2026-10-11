@@ -85,6 +85,36 @@ class Dimension_Check_Str(object):
 
 
 @dataclass
+class Hole_Str(object):
+    """
+    Description:
+        One hole found on a catalogue part's upright crop (Vision.Utilities.Holes.Hole_Candidates): its
+        diameter and its centre, in mm from the crop's top-left corner, the part's outline.
+    """
+
+    # The diameter of a circle of the mask's area, and the centre.
+    #   Unit [float] (mm)
+    Diameter_Mm: float = 0.0
+    X_Mm: float = 0.0
+    Y_Mm: float = 0.0
+
+
+@dataclass
+class Hole_Count_Str(object):
+    """
+    Description:
+        How many holes of one catalogue group were found against how many the part has, so a missing or an
+        extra hole can be named.
+    """
+
+    # The group's name ('corner hole'), the holes found and the holes the catalogue gives.
+    #   Unit [string] / [int] / [int]
+    Name: str = ''
+    Found: int = 0
+    Expected: int = 0
+
+
+@dataclass
 class Catalogue_Result_Str(object):
     """
     Description:
@@ -245,6 +275,11 @@ class Detection_Str(object):
     # an object that is not measured or is round (a round object has no outline to check).
     #   Unit [Vector<Dimension_Check_Str(object)>]
     Dimension_Checks: tp.List[Dimension_Check_Str] = field(default_factory=list)
+    # A judged part's hole checks on the side up (catalogue Checks.Holes): each group's count, and each hole's
+    # diameter, edge distances and pitch; empty when the side has no holes to check, or the object is not the part.
+    #   Unit [Vector<Hole_Count_Str(object)>] / [Vector<Dimension_Check_Str(object)>]
+    Hole_Counts: tp.List[Hole_Count_Str] = field(default_factory=list)
+    Hole_Checks: tp.List[Dimension_Check_Str] = field(default_factory=list)
     # The catalogue mode's evidence for this object's verdict, or None outside a catalogue mode.
     #   Unit [Catalogue_Result_Str(object)]
     Catalogue: tp.Optional[Catalogue_Result_Str] = None
@@ -315,8 +350,8 @@ class Timing_Str(object):
     # The measurement's time, which is outside Total_Ms (it runs after the latency stops).
     #   Unit [int] (ms)
     Measurement_Ms: int = 0
-    # A catalogue mode's identification and verdicts (DINOv2 on every object, then the rule), also
-    # outside Total_Ms; None outside a catalogue mode.
+    # A catalogue mode's identification, verdicts and hole checks (DINOv2 on every object, the rule, FastSAM
+    # on each judged part's crop), also outside Total_Ms; None outside a catalogue mode.
     #   Unit [int] (ms)
     Identification_Ms: tp.Optional[int] = None
     # Whether this is the first analysis to finish after the models were put in force — see

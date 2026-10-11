@@ -1621,3 +1621,57 @@ def test_an_item_with_no_defects_described_loads() -> None:
     del data['Defects']
     with tempfile.TemporaryDirectory() as directory:
         assert Load_Catalogue(_Write_Item(directory, data, references='labyrinth')).Defects == []
+
+
+def test_the_items_carry_their_hole_groups() -> None:
+    """
+    Description:
+        The shipped items' holes, per side: the mounting plate's front, two countersinks and two positioned
+        through-holes at a 25 mm pitch, and its back's two through-holes; the labyrinth's four corner holes on the
+        front and no hole check on its back (blind holes). Each group takes the item's tolerance.
+    """
+
+    plate = Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')
+    assert sorted(plate.Holes) == ['back', 'front']
+    assert [(g.Name, g.Diameter_Mm, g.Count, g.From_Long_Edge_Mm, g.From_Short_Edge_Mm, g.Pitch_Mm, g.Tolerance_Mm)
+            for g in plate.Holes['front']] == [('countersink', 12.0, 2, 0.0, 0.0, 0.0, 1.5),
+                                               ('through-hole', 6.0, 2, 15.0, 17.5, 25.0, 1.5)]
+    assert [(g.Name, g.Count) for g in plate.Holes['back']] == [('through-hole', 2)]
+    labyrinth = Load_Catalogue('Data/Catalogue/labyrinth/labyrinth.yaml')
+    assert list(labyrinth.Holes) == ['front']
+    assert [(g.Name, g.Diameter_Mm, g.Count, g.From_Long_Edge_Mm, g.Pitch_Mm, g.Tolerance_Mm)
+            for g in labyrinth.Holes['front']] == [('corner hole', 2.459, 4, 4.0, 42.0, 1.0)]
+
+
+@pytest.mark.parametrize('change, words', [
+    (lambda h: h.update(left=[{'Name': 'x', 'Diameter_Mm': 6, 'Count': 2}]), 'Checks.Holes must map front and/or back'),
+    (lambda h: h.update(back=[]), 'Checks.Holes.back must be a non-empty list'),
+    (lambda h: h['front'][1].pop('Count'), r'Checks.Holes.front\[2\].Count is required but missing'),
+    (lambda h: h['front'][1].update(Count=0), r'Checks.Holes.front\[2\].Count must be a whole number of at least 1'),
+    (lambda h: h['front'][1].pop('From_Short_Edge_Mm'), r'front\[2\] sets one edge distance without the other'),
+    (lambda h: h['front'][0].update(Diameter_Mm=8), 'through-hole and countersink capture the same diameters'),
+    (lambda h: h['front'][0].update(Depth_Mm=3), r'Checks.Holes.front\[1\].Depth_Mm is not a key it may hold'),
+], ids=['unknown side', 'empty side', 'no count', 'zero count', 'one edge distance', 'overlapping groups', 'unknown key'])
+def test_an_invalid_hole_group_fails_the_item(tmp_path: tp.Any, change: tp.Callable, words: str) -> None:
+    """
+    Description:
+        The hole groups are validated at load: a side the part does not have, an empty side, a group without
+        its count or with none, a position with one edge distance, a key a group may not hold, and two groups of
+        one side capturing the same diameters (a hole would count in both).
+    """
+
+    data = _Item('mounting_plate')
+    change(data['Checks']['Holes'])
+    with pytest.raises(Configuration_Error_Cls, match=words):
+        Load_Catalogue(_Write_Item(tmp_path, data))
+
+
+def test_an_item_without_holes_has_no_hole_check(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Checks.Holes is optional: an item without it loads with no hole check on either side.
+    """
+
+    data = _Item('mounting_plate')
+    del data['Checks']['Holes']
+    assert Load_Catalogue(_Write_Item(tmp_path, data)).Holes == {}

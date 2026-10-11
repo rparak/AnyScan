@@ -271,6 +271,24 @@ one. Treat surface condition in the text as a hint that may be absent, never as 
   feeding a catalogue mode's verdict, which today judges identity and the outline only. It is not built
   in this version.
 
+### A catalogue mode checks only what its item lists
+
+**An OK means the part passed the checks its catalogue item lists — not that nothing else is wrong.**
+What a catalogue mode does not check, it cannot fail:
+
+- **The labyrinth's maze layout is not checked.** DINOv2 decides an object is the labyrinth; the corner
+  holes decide OK or NOK. The test set holds plates of another maze layout (nine fronts, all without corner
+  holes, so all NOK); a plate of another layout *with* four correct corner holes would read OK.
+- **A labyrinth lying back up is not judged on its holes.** The corner holes are blind: from the back there
+  is nothing to see, so the back has no hole check, and a back-up plate missing a corner hole reads OK on
+  its holes (the logo check, phase D, covers the back).
+- **A hole drilled where the catalogue puts none is not reported** (KNOWN_ISSUES): holes are counted near
+  their expected positions only.
+- **The stain on the mounting plate's front is not yet checked** (phase D): the five stained plates of the
+  test set read OK.
+
+Verified on the 41 test frames only (2026-10-11), with every hole within tolerance.
+
 ## Captures on the rig
 
 The rig's captures, in order. The first two were made on 2026-09-28 and are in force:

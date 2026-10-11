@@ -29,7 +29,7 @@
 #
 #   Checks:
 #     Each block under Checks is one check, run with the parameters it sets. Only the
-#     outline is checked today; the holes, the surface and the logo are not yet built.
+#     outline and the holes are checked today; the surface is not yet built.
 ## =========================================================================== ##
 
 # REQUIRED. The item as a person names it.
@@ -105,3 +105,34 @@ Checks:
     Width_Mm: 40
     # The outline's own tolerance [mm]. Default: the item's Tolerance_Mm.
     # Tolerance_Mm: 1.5
+  # The holes, per side: a list of groups, each holes of one kind. A side without groups has no hole
+  # check. Per group: Name, Diameter_Mm [mm] and Count, REQUIRED; From_Long_Edge_Mm and
+  # From_Short_Edge_Mm [mm], each centre's distance from its nearer long and short edge (both or
+  # neither: a group with them counts only holes near those positions, mirrored to all four corners);
+  # Pitch_Mm [mm], neighbouring centres (default: not checked); Tolerance_Mm [mm] (default: the item's).
+  # A hole counts in a group when its diameter is within twice the tolerance of the group's, so a
+  # hole of the wrong size is reported as the wrong size; two groups of one side may not overlap so.
+  # FastSAM finds them on the part's upright crop, the side DINOv2 found up (Vision.Utilities.Holes).
+  # Measured on the test set (22 plates, 2026-10-11): countersinks 12.07-12.33, through-holes
+  # 6.14-6.25 on the front and 6.46-6.73 on the back (the back's openings are wider than the bore,
+  # which reads 6.05-6.26 through them: a chamfer, by the look), pitch 24.38-24.92, from the long
+  # edge 14.81-16.08, from the short edge 17.45-18.54 mm. The countersink's centering on its
+  # through-hole is not checked (0.12-1.05 mm apart in the image, the bore seen at an angle).
+  Holes:
+    front:
+      - Name: countersink
+        Diameter_Mm: 12
+        Count: 2
+      - Name: through-hole
+        Diameter_Mm: 6
+        Count: 2
+        From_Long_Edge_Mm: 15
+        From_Short_Edge_Mm: 17.5
+        Pitch_Mm: 25
+    back:
+      - Name: through-hole
+        Diameter_Mm: 6
+        Count: 2
+        From_Long_Edge_Mm: 15
+        From_Short_Edge_Mm: 17.5
+        Pitch_Mm: 25

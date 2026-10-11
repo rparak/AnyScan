@@ -1148,8 +1148,8 @@ class Session_Logger_Cls(object):
             (4) other_ms [int]: The total minus the stages.
             (5) measurement_ms [int]: The measurement's milliseconds (outside the total).
             (6) first_after_load [bool]: Whether this is the first analysis after a load.
-            (7) identification_ms [int]: A catalogue mode's identification and verdicts (outside the
-                                         total), or None outside one: the line then says nothing of it.
+            (7) identification_ms [int]: A catalogue mode's identification, verdicts and hole checks (outside
+                                         the total), or None outside one: the line then says nothing of it.
         """
 
         with self.__lock:
@@ -1158,7 +1158,7 @@ class Session_Logger_Cls(object):
                     % (index, ' (first after load)' if first_after_load else '', total_ms, terms,
                        other_ms, measurement_ms))
             if identification_ms is not None:
-                line += ' Identification %d ms (not in the inference time).' % identification_ms
+                line += ' Catalogue checks %d ms (not in the inference time).' % identification_ms
             self.__Write_Line(line, self.__clock())
             if other_ms < 0:
                 self.__Write_Line('Analysis %d timing does not add up: its stages sum to %d ms, %d ms more than '

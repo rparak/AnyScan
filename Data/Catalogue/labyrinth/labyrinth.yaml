@@ -29,7 +29,7 @@
 #
 #   Checks:
 #     Each block under Checks is one check, run with the parameters it sets. Only the
-#     outline is checked today; the holes, the surface and the logo are not yet built.
+#     outline and the corner holes are checked today; the logo is not yet built.
 ## =========================================================================== ##
 
 # REQUIRED. The item as a person names it.
@@ -102,3 +102,25 @@ Checks:
     Width_Mm: 50
     # The outline's own tolerance [mm]. Default: the item's Tolerance_Mm.
     # Tolerance_Mm: 1.0
+  # The holes, per side: a list of groups, each holes of one kind. A side without groups has no hole
+  # check. Per group: Name, Diameter_Mm [mm] and Count, REQUIRED; From_Long_Edge_Mm and
+  # From_Short_Edge_Mm [mm], each centre's distance from its nearer long and short edge (both or
+  # neither: a group with them counts only holes near those positions, mirrored to all four corners);
+  # Pitch_Mm [mm], neighbouring centres (default: not checked); Tolerance_Mm [mm] (default: the item's).
+  # A hole counts in a group when its diameter is within twice the tolerance of the group's, so a
+  # hole of the wrong size is reported as the wrong size; two groups of one side may not overlap so.
+  # FastSAM finds them on the part's upright crop, the side DINOv2 found up (Vision.Utilities.Holes).
+  # The corner holes are blind: the back has none, so a plate lying back up is not judged on its
+  # holes (README > Limitations). The maze's start and finish marks, round and of the holes' size,
+  # lie at least 4.9 mm from every corner position, so they are not counted. Measured on the test set
+  # (the 12 fronts that have corner holes, 2026-10-11): diameters 2.74-3.12 (the openings are larger
+  # than the 2.459 drill, by the look a chamfer; the mask follows the visible edge), from each edge
+  # 3.63-4.41, neighbouring pitch 41.54-41.99 mm.
+  Holes:
+    front:
+      - Name: corner hole
+        Diameter_Mm: 2.459
+        Count: 4
+        From_Long_Edge_Mm: 4
+        From_Short_Edge_Mm: 4
+        Pitch_Mm: 42

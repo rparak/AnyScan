@@ -3056,3 +3056,51 @@ Tests `test/Configuration/test_core.py` (`test_the_item_carries_its_description_
 defaults), `test/Reporting/test_core.py::test_a_judged_part_says_which_side_is_up_in_the_catalogues_words`,
 `test/Vision/Utilities/test_classify.py::test_the_side_is_named_in_the_catalogues_words`,
 `test/Vision/test_core.py::test_a_catalogue_mode_judges_every_object_by_the_rule`.
+
+
+## A judged part's holes are counted where the catalogue puts them, by FastSAM on its upright crop
+
+Decided 2026-10-11 (catalogue phase C), on the owner's rulings. Each part judged OK or NOK has its holes checked
+on the side DINOv2 found up (`Vision.Utilities.Holes`): FastSAM runs again, through the loaded segmenter, on the
+part's upright crop; a round mask inside the crop is a hole candidate; each catalogue group (`Checks.Holes.<side>`)
+counts the candidates of its diameter and, when it has positions, near one; each counted hole's diameter, edge
+distances and pitch are checked against the tolerance. A hole missing, extra or out of tolerance makes the part
+NOK, one `Reason:` per finding.
+
+**Why FastSAM on the crop.** Measured on the 59 identified parts of the 41 frames: every mounting-plate hole
+(12 fronts, 2 countersinks and 2 through-holes each; 10 backs, 2 through-holes each), and 41 of the 42 labyrinth
+corner holes that exist, with no false corner hole on the plates that have none. About 134 ms per judged part
+on Apple silicon (Metal), 739 ms on the CPU. A classical detector was not needed at these scores.
+
+- **The labyrinth fronts are three kinds.** Six have four corner holes, six three (a corner blank), nine none
+  and another maze layout. The owner's ruling: DINOv2 decides it is the labyrinth, the holes decide OK or NOK, so
+  the 15 fronts without four holes are NOK (relabelled in `CONST_EXPECTED_VERDICTS`). The maze layout itself is
+  not checked (README > Limitations).
+- **Counting.** A hole counts in a group when its diameter is within twice the tolerance of the group's — wider
+  than the check, so a hole of the wrong size is reported as the wrong size, not as missing; the load refuses two
+  groups of one side that would capture the same diameter. A positioned group counts a hole within √2 × tolerance
+  + 0.5 mm of an expected position, mirrored to all four corners since the part lies either way round: the maze's
+  start and finish marks, round and of the corner holes' size, lie at least 4.9 mm from every corner position, out
+  of the labyrinth's 1.91 mm. A hole anywhere else is not counted and not reported (KNOWN_ISSUES).
+- **Roundness 0.83.** Every real hole's mask is 0.875-0.926 round; a square is π/4 = 0.785. The corner hole
+  missed on Image_071 (the plate in shadow) was never segmented at any roundness (KNOWN_ISSUES).
+- **The diameters read large, and it is the hole, not the mask.** Countersinks 12.07-12.33, through-holes
+  6.14-6.25 on the front and 6.46-6.73 on the back, corner holes 2.74-3.12. The mask follows the visible edge
+  (within 0.1-0.4 mm of the strongest radial change); through a mounting-plate hole the table shows 5.67-5.99 mm
+  from the front and 6.05-6.26 from the back, so the back's opening is wider than its bore — by the look a chamfer
+  or deburring, as are the labyrinth's openings over the 2.459 drill. Not measured with a pin gauge. The
+  catalogue's tolerances are unchanged (the owner's ruling): every hole is within them, the narrowest margin
+  0.34 mm (the corner holes' diameter).
+- **Not checked:** the countersink's centering on its through-hole (0.12-1.05 mm apart in the image, the bore seen
+  at an angle; the catalogue gives no tolerance); the labyrinth's back (its corner holes are blind — README >
+  Limitations); the mounting plate's per-hole Part x.y report lines (phase E).
+
+**Revisit if** a part with a hole in the wrong place turns up (then report candidates outside every position), a
+plate's holes are measured with a pin gauge (then the bias has its number), the lighting changes (re-measure the
+roundness and the shadow miss), or the crop pass's 134 ms per part matters (then one FastSAM pass could serve
+both).
+Tests `test/Vision/Utilities/test_holes.py`, `test/Configuration/test_core.py` (the groups, their validation),
+`test/Reporting/test_core.py::test_a_nok_names_its_missing_extra_and_wrong_holes`,
+`test/Vision/test_core.py` (the crop segmented once per judged part, a part without its holes NOK),
+`test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate` (slow, one strict xfail)
+and `::test_every_mounting_plate_shows_all_its_holes_within_tolerance` (slow).

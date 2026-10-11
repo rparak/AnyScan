@@ -474,6 +474,32 @@ verdict.)
   UI phase (E), by the owner's ruling.
 - **Pinned by:** nothing yet: the phase that fixes it pins it.
 
+## A hole drilled where the catalogue puts none is not reported
+
+The hole check counts a positioned group's holes only near the positions the catalogue gives (within √2 ×
+tolerance + 0.5 mm, mirrored to all four corners), which is what keeps the labyrinth's maze start and finish
+marks, round and of the corner holes' size, out of the count. A hole of the right size anywhere else on the part
+is not counted, and nothing says it is there. Accepted by the owner, 2026-10-11, for phase C.
+
+- **Impact:** a part with its catalogue holes right and one more in an unexpected place reads OK.
+- **Not fixed here:** reporting candidates outside every position needs the maze marks told apart by something
+  other than position; no part with a misplaced hole is in the test set to measure it on.
+- **Pinned by:** `test/Vision/Utilities/test_holes.py::test_corner_holes_are_counted_at_the_corners_and_the_maze_marks_are_not`
+  (a mark 5 mm along an edge is not counted).
+
+## A corner hole in shadow can go unseen, and the count says one fewer
+
+On Image_071 the labyrinth plate lies partly in shadow and FastSAM never segments one of its three corner holes —
+no mask near that corner at any roundness — so the hole check counts two. The plate is NOK either way (it has
+three of four); its reason says "2 of 4 corner holes found". On a plate with all four holes the same miss would
+read NOK wrongly. 1 miss in the 42 corner holes of the test set.
+
+- **Impact:** a shadowed hole can be reported missing; the verdict can be a false NOK.
+- **Not fixed here:** the lighting is the cause (*The fusion's parameters are validated on one table under one light*, above); the side-light
+  capture session will show how often.
+- **Pinned by:** `test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate[Image_071]`,
+  a strict xfail: it fails the run the day the hole is found.
+
 ## On the Trends confidence chart, a Warning object's dot is the colour of the warning threshold
 
 The confidence chart colours each object's dot by its verdict when the run classifies, so in a catalogue mode

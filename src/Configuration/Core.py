@@ -47,7 +47,7 @@ from Parameters.Camera import Camera_Calibration_Parameters_Str
 from Parameters.Vision import Scale_Str, CONST_SCALE_UNITS
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import (Catalogue_Item_Str, Catalogue_Reference_Str, Catalogue_Side_Str,
-                                  Catalogue_Defect_Str)
+                                  Catalogue_Defect_Str, Catalogue_Hole_Group_Str)
 
 """
 Description:
@@ -377,6 +377,11 @@ CONST_CATALOGUE_SIDES = ('front', 'back')
 CONST_SIDE_KEYS = (('Name', 'text', True), ('Description', 'text', False))
 CONST_DEFECT_KEYS = (('Name', 'text', True), ('Side', 'text', True), ('Looks_Like', 'text', True),
                      ('Not_A_Defect', 'text', False))
+# A hole group's keys (Checks.Holes.<side>[i]), in the same form as the side and defect entries.
+#   Unit [Tuple<Tuple>]
+CONST_HOLE_KEYS = (('Name', 'text', True), ('Diameter_Mm', 'positive', True), ('Count', 'size', True),
+                   ('From_Long_Edge_Mm', 'positive', False), ('From_Short_Edge_Mm', 'positive', False),
+                   ('Pitch_Mm', 'positive', False), ('Tolerance_Mm', 'positive', False))
 # The catalogue's outline tolerance override.
 #   Unit [Tuple<string>]
 CONST_OUTLINE_TOLERANCE_PATH = ('Checks', 'Outline', 'Tolerance_Mm')
@@ -931,8 +936,10 @@ def __Read_Catalogue(path: str, problems: tp.List[str],
                         'length is the longer side' % (prefix, item.Outline.Length_Mm, item.Outline.Width_Mm))
     item.References = __Read_References(os.path.dirname(path), file_name, problems)
     item.Sides = __Read_Sides(data.get('Sides'), prefix, problems)
+    item.Holes = __Read_Holes(__Lookup(data, ('Checks', 'Holes'))[1], item.Tolerance_Mm, prefix, problems)
     item.Defects = __Read_Defects(data.get('Defects'), prefix, problems)
     known = __Known_Paths([CONST_OUTLINE_TOLERANCE_PATH, ('Defects',)]
+                          + [('Checks', 'Holes', side) for side in CONST_CATALOGUE_SIDES]
                           + [('Sides', side, key) for side in CONST_CATALOGUE_SIDES for key, _k, _r in CONST_SIDE_KEYS]
                           + [path for path, _a, _k, _r in CONST_CATALOGUE_FIELDS])
     for key in __Unknown_Keys(data, known):
@@ -1004,6 +1011,56 @@ def __Read_Sides(block: tp.Any, prefix: str, problems: tp.List[str]) -> tp.List[
         values = __Read_Entry(block[side], CONST_SIDE_KEYS, '%sSides.%s' % (prefix, side), problems)
         sides.append(Catalogue_Side_Str(Side=side, Name=values['Name'], Description=values['Description']))
     return sides
+
+
+def __Read_Holes(block: tp.Any, tolerance: float, prefix: str,
+                 problems: tp.List[str]) -> tp.Dict[str, tp.List[Catalogue_Hole_Group_Str]]:
+    """
+    Description:
+        The item's hole checks, Checks.Holes: per side (one of CONST_CATALOGUE_SIDES), a list of groups, each a
+        Name, a Diameter_Mm and a Count (REQUIRED), the two edge distances (both or neither), a Pitch_Mm and its
+        own Tolerance_Mm (the item's by default). On one side no two groups may capture the same diameter
+        (nominal ± twice the tolerance, Vision.Utilities.Holes), or a hole would count in both. Absent means no
+        hole check on any side.
+
+    Args:
+        (1) block [Any]: The Holes block as read (None when absent).
+        (2) tolerance [float]: The item's Tolerance_Mm.
+        (3) prefix [string]: The item file's name and ': '.
+        (4) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Dict<string, Vector<Catalogue_Hole_Group_Str(object)>>]: The groups per side.
+    """
+
+    if block is None:
+        return {}
+    if not isinstance(block, dict) or not set(block) <= set(CONST_CATALOGUE_SIDES):
+        problems.append('%sChecks.Holes must map %s to lists of hole groups (found %r)'
+                        % (prefix, ' and/or '.join(CONST_CATALOGUE_SIDES), block))
+        return {}
+    holes = {}
+    for side in (side for side in CONST_CATALOGUE_SIDES if side in block):
+        if not isinstance(block[side], list) or not block[side]:
+            problems.append('%sChecks.Holes.%s must be a non-empty list of hole groups' % (prefix, side))
+            continue
+        groups = []
+        for index, entry in enumerate(block[side], 1):
+            dotted = '%sChecks.Holes.%s[%d]' % (prefix, side, index)
+            values = __Read_Entry(entry, CONST_HOLE_KEYS, dotted, problems)
+            if bool(values['From_Long_Edge_Mm']) != bool(values['From_Short_Edge_Mm']):
+                problems.append('%s sets one edge distance without the other: a position needs both' % dotted)
+            groups.append(Catalogue_Hole_Group_Str(
+                Name=values['Name'], Diameter_Mm=values['Diameter_Mm'] or 0.0, Count=values['Count'] or 0,
+                From_Long_Edge_Mm=values['From_Long_Edge_Mm'] or 0.0, From_Short_Edge_Mm=values['From_Short_Edge_Mm'] or 0.0,
+                Pitch_Mm=values['Pitch_Mm'] or 0.0, Tolerance_Mm=values['Tolerance_Mm'] or tolerance))
+        ranges = sorted((g.Diameter_Mm - 2 * g.Tolerance_Mm, g.Diameter_Mm + 2 * g.Tolerance_Mm, g.Name) for g in groups)
+        for (_low, high, name), (low, _high, other) in zip(ranges, ranges[1:]):
+            if low < high:
+                problems.append('%sChecks.Holes.%s: %s and %s capture the same diameters (each nominal ± twice its '
+                                'tolerance), so a hole would count in both' % (prefix, side, name, other))
+        holes[side] = groups
+    return holes
 
 
 def __Read_Defects(block: tp.Any, prefix: str, problems: tp.List[str]) -> tp.List[Catalogue_Defect_Str]:

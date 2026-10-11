@@ -57,6 +57,35 @@ class Catalogue_Outline_Str:
 
 
 @dataclass
+class Catalogue_Hole_Group_Str:
+    """
+    Description:
+        One group of like holes on one side of the part (Checks.Holes.<side>): their diameter and count and,
+        when the group has positions, each centre's distance from its nearer long and short edge and the
+        pitch between neighbouring centres. A hole is counted in the group when its diameter is within twice
+        the tolerance of the group's (Vision.Utilities.Holes) and, for a group with positions, it lies near
+        one; it then passes when each measured value is within the tolerance.
+    """
+
+    # The holes' name in the report ('through-hole'), their nominal diameter and how many there are.
+    #   Unit [string] / [float] (mm) / [int]
+    Name: str = ''
+    Diameter_Mm: float = 0.0
+    Count: int = 0
+    # Each centre's distance from its nearer long edge and its nearer short edge, both or neither; 0 when
+    # the group has no positions (its holes are counted anywhere on the part).
+    #   Unit [float] (mm)
+    From_Long_Edge_Mm: float = 0.0
+    From_Short_Edge_Mm: float = 0.0
+    # The distance between neighbouring centres; 0 when not checked.
+    #   Unit [float] (mm)
+    Pitch_Mm: float = 0.0
+    # The tolerance of every value above (nominal ± this). The item's Tolerance_Mm unless the group sets its own.
+    #   Unit [float] (mm)
+    Tolerance_Mm: float = 0.0
+
+
+@dataclass
 class Catalogue_Reference_Str:
     """
     Description:
@@ -142,6 +171,9 @@ class Catalogue_Item_Str:
     Tolerance_Mm: float = 0.0
     # The outline check.
     Outline: Catalogue_Outline_Str = field(default_factory=Catalogue_Outline_Str)
+    # The hole checks, per side ('front', 'back'): a side without groups has no hole check.
+    #   Unit [Dict<string, Vector<Catalogue_Hole_Group_Str(object)>>]
+    Holes: tp.Dict[str, tp.List[Catalogue_Hole_Group_Str]] = field(default_factory=dict)
     # The reference images, front then back (reference_image/ beside the file).
     #   Unit [Vector<Catalogue_Reference_Str(object)>]
     References: tp.List[Catalogue_Reference_Str] = field(default_factory=list)

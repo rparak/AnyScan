@@ -108,6 +108,10 @@ then composes and measures. The numbers are the ones the README and the mode fil
   otherwise Warning. A size checked more than 74.3 mm from the frame centre carries a note that it is not
   verified there
   ([*A catalogue mode identifies by similarity…*](design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok)).
+  A part judged OK or NOK then has its holes checked on the side up: FastSAM on its upright crop, each catalogue
+  group counted near its positions, each hole's diameter, edge distances and pitch within tolerance; a hole
+  missing, extra or out of tolerance makes it NOK
+  ([*A judged part's holes are counted…*](design-decisions.md#a-judged-parts-holes-are-counted-where-the-catalogue-puts-them-by-fastsam-on-its-upright-crop)).
   The verdict colours the frame and the mask and sets the badge; its state and reasons are in Scene
   Understanding, and the log adds the side and the similarity. An OK or NOK part's description gains the
   side that is up, in the catalogue's words, from DINOv2.
@@ -136,9 +140,11 @@ piece of hardware. The modes shipped today:
   `Data/Catalogue/<item>/<item>.yaml`: the part's name and description, each side's name and description,
   its known defects, its thickness, tolerance and checks, with its reference images beside it. The
   descriptions are validated now and read by the describer from phase D
-  ([*A catalogue item is the single tracked source…*](design-decisions.md#a-catalogue-item-is-the-single-tracked-source-for-its-part-and-its-descriptions-wait-for-the-describer)). It checks the outline and identifies the item and its side, and gives every object
-  one of four states. The holes, the stain and the logo are designed, not built
-  ([*A catalogue mode is a Catalogue block…*](design-decisions.md#a-catalogue-mode-is-a-catalogue-block-naming-an-item-folder-and-the-configuration-picks-checks-never-their-order)).
+  ([*A catalogue item is the single tracked source…*](design-decisions.md#a-catalogue-item-is-the-single-tracked-source-for-its-part-and-its-descriptions-wait-for-the-describer)). It checks the outline and the holes, identifies the item and its
+  side, and gives every object one of four states. What it does not check — the maze layout, a back-up
+  labyrinth's holes, and the stain and the logo, designed, not built — it cannot fail
+  ([README > Limitations](../README.md#a-catalogue-mode-checks-only-what-its-item-lists);
+  [*A catalogue mode is a Catalogue block…*](design-decisions.md#a-catalogue-mode-is-a-catalogue-block-naming-an-item-folder-and-the-configuration-picks-checks-never-their-order)).
   Within tolerance means consistent with nominal: the parts were not calipered
   ([README > Limitations](../README.md#measurements-are-repeatable-not-absolute)).
 - **Without a camera**, `python App/run.py --frame <png>` analyses a saved frame of the reference's
@@ -365,6 +371,7 @@ Each row names its evidence. A row with none is not verified.
 | Parts session: defects, low-contrast parts, harsh shadow | Not recorded | capture-checklist item 3 |
 | Daily station event export on the station | Not recorded | — |
 | Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled in both modes, but the five stained plates (stain check not built) | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
+| Catalogue hole check on the test set | Off-hardware: every mounting-plate hole within tolerance; every labyrinth front's corner holes as counted by eye, but one in shadow (Image_071) | `test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate`, `::test_every_mounting_plate_shows_all_its_holes_within_tolerance` |
 | Defect detection | **Not built** | README > Limitations |
 
 ## Keeping this file true

@@ -27,7 +27,7 @@ import re
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Dimension_Check_Str
+from Parameters.Vision import Detection_Str, Dimension_Check_Str, Hole_Count_Str
 #   ../Parameters/Configuration
 from Parameters.Configuration import Description_Parameters_Str
 
@@ -516,11 +516,31 @@ def Dimension_Reason(Dimension_Check_Str: Dimension_Check_Str) -> str:
         CONST_SIZE_DECIMALS, check.Tolerance_Mm)
 
 
+def Hole_Count_Reason(Hole_Count_Str: Hole_Count_Str) -> str:
+    """
+    Description:
+        A group's count as the reason a part is NOK: '3 of 4 corner holes found.' when holes are missing,
+        '5 corner holes found, expected 4.' when there are more.
+
+    Args:
+        (1) Hole_Count_Str [Hole_Count_Str(object)]: The count.
+
+    Returns:
+        (1) parameter [string]: The sentence.
+    """
+
+    count = Hole_Count_Str
+    if count.Found < count.Expected:
+        return '%d of %d %ss found.' % (count.Found, count.Expected, count.Name)
+    return '%d %ss found, expected %d.' % (count.Found, count.Name, count.Expected)
+
+
 def Verdict_Reasons(det: Detection_Str) -> tp.List[str]:
     """
     Description:
         Why a judged object is not OK, one sentence per reason: each failed dimension with its measured and
-        expected values, the part's outline without its look, an outline that could not be measured; why an
+        expected values, each hole group short or over its count, each hole out of tolerance, the part's outline
+        without its look, an outline that could not be measured; why an
         Unspecified object could not be judged and what to do; and that a Warning should not be there. Empty
         for an OK part and outside a catalogue mode.
 
@@ -540,6 +560,8 @@ def Verdict_Reasons(det: Detection_Str) -> tp.List[str]:
         return ["Its area is %.2f times the part's, probably several parts together, so it cannot be judged. "
                 'Separate them and scan again.' % result.Area_Ratio]
     reasons = [Dimension_Reason(check) for check in det.Dimension_Checks if not check.Within]
+    reasons += [Hole_Count_Reason(count) for count in det.Hole_Counts if count.Found != count.Expected]
+    reasons += [Dimension_Reason(check) for check in det.Hole_Checks if not check.Within]
     if result.Similarity < result.Identify_Similarity:
         reasons.append("It has the part's outline but does not look like the part.")
     if not det.Dimension_Checks:

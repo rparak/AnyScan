@@ -534,5 +534,5 @@ def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_a
     detected = [i for i, line in enumerate(lines) if _Message(line).startswith('Object detected:')]
     assert [lines.index(line) for line in verdicts] == [i + 1 for i in detected]
     timing_line = [_Message(line) for line in lines if re.match(r'Analysis \d+ timing', _Message(line))][0]
-    assert timing_line.endswith('Measurement 3 ms (not in the inference time). Identification 41 ms (not in the '
+    assert timing_line.endswith('Measurement 3 ms (not in the inference time). Catalogue checks 41 ms (not in the '
                                 'inference time).')

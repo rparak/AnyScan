@@ -126,9 +126,12 @@ CONST_STATES = ('OK', 'NOK', 'Unspecified', 'Warning')
 # the inventory's names above:
 #   - mounting plate: the 'aluminium plate' (front, clean) and the 'dark rusted plate' (back) are OK; the
 #     'rust-stained plate' (front, brown fingerprint stains) is NOK;
-#   - labyrinth: the 'maze plate' (front) and the 'SMART FACTORY plate' (back, the logo complete, the worn
-#     one of 069 too) are OK; the 'blank plate' (50 x 50, no logo, no maze) is NOK: the owner's ruling, a
-#     back with no logo;
+#   - labyrinth: the 'SMART FACTORY plate' (back, the logo complete, the worn one of 069 too) is OK; the
+#     'maze plate' (front) is OK with its four corner holes (057, 060, 066, 085's first, 089, 093's last) and
+#     NOK without them — six fronts have three, nine have none and another maze layout (068, 071, 084, 085's
+#     second, 087, 088, 091, 092, three of 093, two of 094, two of 095; the owner's ruling, 2026-10-11:
+#     DINOv2 decides it is the labyrinth, the holes decide OK or NOK, the layout is not checked); the
+#     'blank plate' (50 x 50, no logo, no maze) is NOK: the owner's ruling, a back with no logo;
 #   - each part is a Warning in the other mode, and every other object is a Warning in both.
 # No frame shows two catalogue parts touching (the 2x2 grids of 093-095 lie apart), so none is
 # Unspecified; no frame shows a hole or letter defect, and none is labelled for frames that do not exist.
@@ -149,10 +152,10 @@ CONST_EXPECTED_VERDICTS = {
     'Image_065.png': (('OK',) + _Warnings(7), _Warnings(8)),
     'Image_066.png': (_Warnings(7), ('OK',) + _Warnings(6)),
     'Image_067.png': (_Warnings(8), ('OK',) + _Warnings(7)),
-    'Image_068.png': (_Warnings(8), ('OK',) + _Warnings(7)),
+    'Image_068.png': (_Warnings(8), ('NOK',) + _Warnings(7)),
     'Image_069.png': (_Warnings(8), ('OK',) + _Warnings(7)),
     'Image_070.png': (_Warnings(6), ('NOK',) + _Warnings(5)),
-    'Image_071.png': (_Warnings(6), ('OK',) + _Warnings(5)),
+    'Image_071.png': (_Warnings(6), ('NOK',) + _Warnings(5)),
     'Image_072.png': (('NOK',) + _Warnings(5), _Warnings(6)),
     'Image_073.png': (('OK',) + _Warnings(5), _Warnings(6)),
     'Image_074.png': (('NOK', 'OK'), _Warnings(2)),
@@ -165,18 +168,18 @@ CONST_EXPECTED_VERDICTS = {
     'Image_081.png': (('OK',), _Warnings(1)),
     'Image_082.png': (('OK',), _Warnings(1)),
     'Image_083.png': (('OK',), _Warnings(1)),
-    'Image_084.png': (_Warnings(2), ('OK', 'OK')),
-    'Image_085.png': (_Warnings(2), ('OK', 'OK')),
+    'Image_084.png': (_Warnings(2), ('OK', 'NOK')),
+    'Image_085.png': (_Warnings(2), ('OK', 'NOK')),
     'Image_086.png': (_Warnings(2), ('NOK', 'OK')),
-    'Image_087.png': (_Warnings(2), ('NOK', 'OK')),
-    'Image_088.png': (_Warnings(1), ('OK',)),
+    'Image_087.png': (_Warnings(2), ('NOK', 'NOK')),
+    'Image_088.png': (_Warnings(1), ('NOK',)),
     'Image_089.png': (_Warnings(1), ('OK',)),
     'Image_090.png': (_Warnings(1), ('OK',)),
-    'Image_091.png': (_Warnings(1), ('OK',)),
-    'Image_092.png': (_Warnings(3), ('OK',) * 3),
-    'Image_093.png': (_Warnings(4), ('OK',) * 4),
-    'Image_094.png': (_Warnings(4), ('NOK',) + ('OK',) * 3),
-    'Image_095.png': (_Warnings(4), ('OK',) * 4),
+    'Image_091.png': (_Warnings(1), ('NOK',)),
+    'Image_092.png': (_Warnings(3), ('NOK', 'OK', 'OK')),
+    'Image_093.png': (_Warnings(4), ('NOK', 'NOK', 'NOK', 'OK')),
+    'Image_094.png': (_Warnings(4), ('NOK', 'NOK', 'NOK', 'OK')),
+    'Image_095.png': (_Warnings(4), ('NOK', 'NOK', 'OK', 'OK')),
 }
 # The frames whose expected verdict needs a check not built yet: the fingerprint-stained mounting plate
 # (front) is NOK by the stain check of phase D, and until then reads OK. Strict xfails: they fail the run
@@ -185,6 +188,21 @@ CONST_EXPECTED_VERDICTS = {
 CONST_PENDING_VERDICTS = {(name, 'Mounting_Plate'): 'the stain check (catalogue phase D)'
                           for name in ('Image_059.png', 'Image_072.png', 'Image_074.png', 'Image_076.png',
                                        'Image_080.png')}
+# The corner holes on each labyrinth front of a frame, counted by eye on the enlarged corners (2026-10-11), in no
+# particular order: four on the reference plate's kind, three on one kind (a corner blank), none on the plates with
+# the other maze layout. The hole check must find exactly these.
+#   Unit [Dict<string, Tuple<int>>]
+CONST_CORNER_HOLES = {
+    'Image_057.png': (4,), 'Image_060.png': (4,), 'Image_066.png': (4,), 'Image_068.png': (0,), 'Image_071.png': (3,),
+    'Image_084.png': (3,), 'Image_085.png': (4, 3), 'Image_087.png': (0,), 'Image_088.png': (3,), 'Image_089.png': (4,),
+    'Image_091.png': (0,), 'Image_092.png': (0,), 'Image_093.png': (3, 0, 0, 4), 'Image_094.png': (0, 0),
+    'Image_095.png': (3, 0),
+}
+# The hole counts the check is known to get wrong: on Image_071 the plate lies in shadow and FastSAM never segments
+# one of its three corner holes (two found). Its verdict is NOK either way; its reason says two of four. Strict:
+# it fails the run the day the hole is found, so the mark is lifted with it.
+#   Unit [Dict<string, string>]
+CONST_PENDING_HOLE_COUNTS = {'Image_071.png': 'a corner hole in shadow, never segmented (KNOWN_ISSUES)'}
 # The frames that ARE the catalogue items' reference images (Data/Catalogue/<item>/reference_image/, byte
 # for byte), per mode. Judging an item on them is circular, so results on them are reported apart:
 # analyze.py finds them by content (test_analyze_harness pins which they are), and the verdict tests of
@@ -542,3 +560,58 @@ def test_each_frame_gets_its_expected_verdicts(name: str, mode: str, require_wei
     objects = _Analyze_Frame(config, name)
     expected = collections.Counter(CONST_EXPECTED_VERDICTS[name][CONST_CATALOGUE_MODES.index(mode)])
     assert collections.Counter(det.Verdict for det in objects) == expected
+
+
+def _Hole_Cases() -> tp.List[tp.Any]:
+    """Every labyrinth front's frame, a pending one marked as a strict expected failure naming its cause."""
+    return [pytest.param(name, marks=[pytest.mark.xfail(strict=True, raises=AssertionError,
+                                                        reason=CONST_PENDING_HOLE_COUNTS[name])]
+                         if name in CONST_PENDING_HOLE_COUNTS else [], id=name[:-4])
+            for name in sorted(CONST_CORNER_HOLES)]
+
+
+def _Catalogue_Objects(mode: str, name: str, require_weights, monkeypatch) -> tp.List[tp.Any]:
+    """A frame through the application's pipeline in a catalogue mode (FastSAM and DINOv2 on the CPU)."""
+    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_%s.yaml'
+                                             % mode))
+    config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
+    require_weights([config.Segmentation.Model_Path, config.Identification.Model_Path])
+    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
+    return _Analyze_Frame(config, name)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize('name', _Hole_Cases())
+def test_the_corner_holes_found_are_the_ones_on_the_plate(name: str, require_weights, monkeypatch) -> None:
+    """
+    Description:
+        In the labyrinth mode, the corner holes the check counts on each front of a frame are exactly those
+        counted by eye (CONST_CORNER_HOLES): four, three or none, the maze's start and finish marks never among
+        them. Slow because it runs FastSAM and DINOv2; missing weights fail it under --runslow.
+    """
+
+    objects = _Catalogue_Objects('Labyrinth', name, require_weights, monkeypatch)
+    found = [count.Found for det in objects for count in det.Hole_Counts if count.Name == 'corner hole']
+    assert sorted(found) == sorted(CONST_CORNER_HOLES[name])
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize('name', sorted(name for name, (plate, _labyrinth) in CONST_EXPECTED_VERDICTS.items()
+                                        if set(plate) & {'OK', 'NOK'}))
+def test_every_mounting_plate_shows_all_its_holes_within_tolerance(name: str, require_weights, monkeypatch) -> None:
+    """
+    Description:
+        In the mounting-plate mode, every plate of the test set shows its holes as the catalogue gives them —
+        a front two countersinks and two through-holes, a back two through-holes — each diameter, edge distance
+        and the pitch within tolerance. Slow because it runs FastSAM and DINOv2.
+    """
+
+    objects = _Catalogue_Objects('Mounting_Plate', name, require_weights, monkeypatch)
+    judged = [det for det in objects if det.Verdict in ('OK', 'NOK')]
+    assert judged
+    for det in judged:
+        expected = ([('countersink', 2, 2), ('through-hole', 2, 2)] if det.Catalogue.Side == 'front'
+                    else [('through-hole', 2, 2)])
+        assert [(c.Name, c.Found, c.Expected) for c in det.Hole_Counts] == expected
+        assert det.Hole_Checks and all(check.Within for check in det.Hole_Checks), \
+            [(c.Name, round(c.Measured_Mm, 2)) for c in det.Hole_Checks if not c.Within]

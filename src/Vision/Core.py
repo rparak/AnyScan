@@ -60,7 +60,9 @@ from Vision.Utilities.Dimensions import Check_Objects
 #   ../Vision/Identifier
 from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
 #   ../Vision/Utilities/Classify
-from Vision.Utilities.Classify import Object_Crop, Reference_Crop, Rotations, Best_Match, Classify
+from Vision.Utilities.Classify import Object_Crop, Reference_Crop, Rotations, Best_Match, Classify, Apply_Holes
+#   ../Vision/Utilities/Holes
+from Vision.Utilities.Holes import Hole_Candidates, Check_Holes
 #   ../Vision/Utilities/Timing
 from Vision.Utilities.Timing import Build_Timing
 
@@ -930,7 +932,9 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         Description:
             A catalogue mode's last step: every object's crop, turned upright, in four quarter turns,
             through DINOv2 in one pass, its best match to the item's references, and its verdict
-            (Vision.Utilities.Classify).
+            (Vision.Utilities.Classify); then each judged part's holes on the side up, FastSAM on its upright
+            crop (Vision.Utilities.Holes). The crop's scale is the mean of the two factors (they differ by
+            0.17 %).
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The measured, checked objects (mutated).
@@ -945,7 +949,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         if not objects:
             return
         references = self.__Reference_Rows(cv2, np)
-        crops = [turn for det in objects for turn in Rotations(Object_Crop(frame_bgr, det, cv2, np), cv2)]
+        uprights = [Object_Crop(frame_bgr, det, cv2, np) for det in objects]
+        crops = [turn for upright in uprights for turn in Rotations(upright, cv2)]
         try:
             rows = self.__identifier.Embed(crops, cv2, np)
         except Identifier_Error_Cls as exc:
@@ -956,6 +961,14 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             similarity, side = Best_Match(rows[index * turns:(index + 1) * turns], references, self.__reference_sides)
             Classify(det, similarity, side, self.__config.Catalogue, self.__config.Identification,
                      self.__config.Scale, frame_size)
+            # A judged part's holes, on the side up: FastSAM again, on its upright crop.
+            groups = self.__config.Catalogue.Holes.get(side) if det.Verdict in ('OK', 'NOK') else None
+            if groups:
+                mm_per_px = (self.__config.Scale.Mm_Per_Px_X + self.__config.Scale.Mm_Per_Px_Y) / 2.0
+                masks, _scores = self.__segmenter.Segment(uprights[index])
+                height_px, width_px = uprights[index].shape[:2]
+                Apply_Holes(det, *Check_Holes(Hole_Candidates(masks, mm_per_px, cv2, np), groups,
+                                              width_px * mm_per_px, height_px * mm_per_px))
             # The judged part's description says which side is up, from DINOv2's side, in the catalogue's
             # words; the describer was neither asked nor told.
             side_sentence = Side_Sentence(det)

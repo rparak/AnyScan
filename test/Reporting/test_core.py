@@ -493,3 +493,26 @@ def test_a_judged_part_says_which_side_is_up_in_the_catalogues_words() -> None:
         det.Catalogue.Side_Name = 'machined front'
         assert Side_Sentence(det) == ''
     assert Side_Sentence(Detection_Str(Label='plate', Bbox=(0, 0, 1, 1))) == ''
+
+
+def test_a_nok_names_its_missing_extra_and_wrong_holes() -> None:
+    """
+    Description:
+        A part NOK for its holes says so, one 'Reason:' per finding: each group short of its count ('3 of 4
+        corner holes found.') or over it ('3 through-holes found, expected 2.'), and each hole out of tolerance
+        with its measured and expected values; the log line carries the same reasons.
+    """
+
+    from Reporting.Core import Verdict_Lines, Verdict_Log_Line
+    from Parameters.Vision import Hole_Count_Str
+    from Vision.Utilities.Dimensions import Check_Dimension
+    det = _Judged('NOK')
+    det.Hole_Counts = [Hole_Count_Str(Name='corner hole', Found=3, Expected=4),
+                       Hole_Count_Str(Name='through-hole', Found=3, Expected=2),
+                       Hole_Count_Str(Name='countersink', Found=2, Expected=2)]
+    det.Hole_Checks = [Check_Dimension('corner hole Ø', 4.1, 2.459, 1.0), Check_Dimension('corner hole Ø', 2.8, 2.459, 1.0)]
+    assert Verdict_Lines(det) == ['State: NOK.', 'Reason: 3 of 4 corner holes found.',
+                                  'Reason: 3 through-holes found, expected 2.',
+                                  'Reason: The corner hole Ø is 4.10 mm, expected 2.46 ± 1.00 mm.']
+    assert Verdict_Log_Line(0, det)[1].endswith('Reason: 3 of 4 corner holes found. Reason: 3 through-holes found, '
+                                                'expected 2. Reason: The corner hole Ø is 4.10 mm, expected 2.46 ± 1.00 mm.')

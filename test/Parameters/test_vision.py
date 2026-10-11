@@ -119,7 +119,7 @@ def test_field_names_are_pascal_snake_case() -> None:
     assert detection_field_order == ['Label', 'Bbox', 'Confidence', 'Text', 'Detail',
                                      'Sentence', 'Mask', 'Segmenter_Score',
                                      'Cue', 'Verdict', 'Enhanced_Crop', 'Measurement', 'Dimension_Checks',
-                                     'Catalogue']
+                                     'Hole_Counts', 'Hole_Checks', 'Catalogue']
     # Timing was added beside Latency_Ms (which keeps its meaning), not in place of it; Heatmap is the
     # Camera View's heatmap (2026-10-07), shown only.
     assert analysis_fields == {'Objects', 'Note', 'Latency_Ms',
