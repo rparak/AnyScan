@@ -178,8 +178,9 @@ class _Fake_Describer_Cls(object):
     # What Describe answers; a test sets it to exercise the background sentence's fallback.
     caption = 'A machined part on a plain surface.'
 
-    def Describe(self, image, purpose) -> str:
+    def Describe(self, image, purpose, prompt='') -> str:
         self.purposes = getattr(self, 'purposes', []) + [purpose]
+        self.prompts = getattr(self, 'prompts', []) + [prompt]
         self.images = getattr(self, 'images', []) + [image]
         return self.caption
 
@@ -686,3 +687,36 @@ def test_a_judged_part_without_its_holes_is_nok(fake_models, reference_backgroun
 def _Private_Segmenter(pipeline: Vision_Pipeline_Cls) -> tp.Any:
     """The pipeline's (stand-in) segmenter."""
     return getattr(pipeline, '_Vision_Pipeline_Cls__segmenter')
+
+
+def test_a_judged_part_is_described_with_its_findings_and_guarded(fake_models, reference_background,
+                                                                   make_synthetic_frame, monkeypatch) -> None:
+    """
+    Description:
+        In a catalogue mode the objects are judged before they are described: the judged part is described with
+        the item's prompt filled for it (its side, what the checks found), a Warning with the mode's own prompt;
+        the describer's sentence stating a number is left out of the part's description and logged as an audit
+        warning with the describer's full text, while the Warning's description is not guarded (it is not the
+        part, and no check ran on it).
+    """
+
+    import cv2
+    from Reporting.Core import Describer_Prompt
+    _events, _config, _Variant = fake_models
+    monkeypatch.setattr(_Fake_Describer_Cls, 'caption', 'A metal plate with a shiny face. It is 60 mm long.')
+    _Fake_Segmenter_Cls.crop_holes = [(15.0, 17.5, 6.0), (15.0, 43.1, 6.0), (15.0, 17.5, 12.0), (15.0, 43.1, 12.0)]
+    frame_bgr = make_synthetic_frame(reference_background, [(300, 300, 900, 700), (1300, 300, 1400, 360)])
+    config = _Catalogue_Mode()
+    pipeline = Vision_Pipeline_Cls(Configuration_Str=config)
+    result = pipeline.Analyze(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+    plate, small = result.Objects
+    describer = getattr(pipeline, '_Vision_Pipeline_Cls__describer')
+    prompts = [prompt for purpose, prompt in zip(describer.purposes, describer.prompts) if purpose == 'object']
+    assert prompts == [Describer_Prompt(plate, config.Catalogue), '']
+    assert 'An automatic check found' in prompts[0] and '{' not in prompts[0]
+    assert plate.Detail == 'A metal plate with a shiny face.'
+    assert small.Detail == 'A metal plate with a shiny face. It is 60 mm long.'
+    assert [message for level, message in result.Audit if 'describer' in message] == [
+        'Object 1: the describer\'s sentence "It is 60 mm long." was left out: it states a number. Its full text: '
+        '"A metal plate with a shiny face. It is 60 mm long."']
+    assert [level for level, message in result.Audit if 'describer' in message] == ['warning']

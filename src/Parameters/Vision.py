@@ -100,6 +100,56 @@ class Hole_Str(object):
 
 
 @dataclass
+class Stain_Str(object):
+    """
+    Description:
+        One stain found on a judged part's side (Vision.Utilities.Stain): its area and its centre, in mm from
+        the upright crop's top-left corner.
+    """
+
+    # The stain's area, and its centre.
+    #   Unit [float] (mm²) / [float] (mm)
+    Area_Mm2: float = 0.0
+    X_Mm: float = 0.0
+    Y_Mm: float = 0.0
+
+
+@dataclass
+class Logo_Letter_Str(object):
+    """
+    Description:
+        One letter of the logo on a judged part (Vision.Utilities.Logo): which word and letter, its best similarity
+        to that letter in the references that registered, its contrast there, and whether it is there.
+    """
+
+    # The word ('SMART'), the letter ('R'), its best similarity (-1 to 1), its edges' strength against the part's
+    # plate at that fit (1 = as strong as the plate's texture), and whether it is there.
+    #   Unit [string] / [string] / [float] / [float] / [bool]
+    Word: str = ''
+    Letter: str = ''
+    Similarity: float = 0.0
+    Contrast: float = 0.0
+    Present: bool = False
+
+
+@dataclass
+class Logo_Result_Str(object):
+    """
+    Description:
+        The logo check on a judged part: the reference with the most matched features ('' when none reached
+        Min_Matches — no inscription), its matches, and each letter.
+    """
+
+    # The best-matched reference's name, or '' when none registered, and the features matched with it.
+    #   Unit [string] / [int]
+    Reference: str = ''
+    Matches: int = 0
+    # Each letter, in reading order; empty when no reference registered.
+    #   Unit [Vector<Logo_Letter_Str(object)>]
+    Letters: tp.List[Logo_Letter_Str] = field(default_factory=list)
+
+
+@dataclass
 class Hole_Count_Str(object):
     """
     Description:
@@ -280,6 +330,11 @@ class Detection_Str(object):
     #   Unit [Vector<Hole_Count_Str(object)>] / [Vector<Dimension_Check_Str(object)>]
     Hole_Counts: tp.List[Hole_Count_Str] = field(default_factory=list)
     Hole_Checks: tp.List[Dimension_Check_Str] = field(default_factory=list)
+    # A judged part's stain and logo checks on the side up (catalogue Checks.Stain, Checks.Logo): None when the
+    # side has no such check or the object is not the part; an empty stain list is a side checked and clean.
+    #   Unit [Vector<Stain_Str(object)>] / [Logo_Result_Str(object)]
+    Stains: tp.Optional[tp.List[Stain_Str]] = None
+    Logo: tp.Optional[Logo_Result_Str] = None
     # The catalogue mode's evidence for this object's verdict, or None outside a catalogue mode.
     #   Unit [Catalogue_Result_Str(object)]
     Catalogue: tp.Optional[Catalogue_Result_Str] = None

@@ -267,9 +267,10 @@ one. Treat surface condition in the text as a hint that may be absent, never as 
   padding (0.20) happens to report it. It rests on one stain on one frame, which is a reason for more
   caution, not less.
 - **Why:** a stain is a texture on a surface, not an object with a boundary, and describing a part is
-  not detecting a defect on it. The route for defects is anomaly detection inside the part's mask,
-  feeding a catalogue mode's verdict, which today judges identity and the outline only. It is not built
-  in this version.
+  not detecting a defect on it. A catalogue mode's verdict comes from named checks instead — identity,
+  the outline, the holes, a stain by its colour, the logo letter by letter — and the describer is told
+  their findings. A defect no check names (a scratch, a dent) is detected by nothing: anomaly detection
+  inside the part's mask is not built in this version.
 
 ### A catalogue mode checks only what its item lists
 
@@ -281,11 +282,18 @@ What a catalogue mode does not check, it cannot fail:
   holes, so all NOK); a plate of another layout *with* four correct corner holes would read OK.
 - **A labyrinth lying back up is not judged on its holes.** The corner holes are blind: from the back there
   is nothing to see, so the back has no hole check, and a back-up plate missing a corner hole reads OK on
-  its holes (the logo check, phase D, covers the back).
+  its holes (the logo check covers the back).
 - **A hole drilled where the catalogue puts none is not reported** (KNOWN_ISSUES): holes are counted near
   their expected positions only.
-- **The stain on the mounting plate's front is not yet checked** (phase D): the five stained plates of the
-  test set read OK.
+- **A stain is caught by its colour, measured under this light** (KNOWN_ISSUES): a yellow-brown area of
+  1 mm² or more on the mounting plate's front. A stain of another colour, or this colour under another light,
+  is not verified.
+- **A missing letter is verified on synthetic erasures only.** No plate of the test set has one; each letter
+  of the 11 complete real logos was erased in turn and caught. One complete logo, on a dark, scratched,
+  glare-lit plate (Image_092's right), reads NOK (KNOWN_ISSUES).
+- **The describer's words are guarded, not trusted.** In a catalogue mode it is told what the checks found
+  and given no number; a sentence with a number or contradicting a check is dropped and logged, by word
+  patterns (KNOWN_ISSUES). The verdict and its reasons never come from it.
 
 Verified on the 41 test frames only (2026-10-11), with every hole within tolerance.
 

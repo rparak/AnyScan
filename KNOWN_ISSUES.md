@@ -514,3 +514,49 @@ means "this object should not be on the surface". Seen on 2026-10-11, in the lab
 - **Not fixed here:** the catalogue's UI phase (E), with History's filter: either the threshold line or the
   Warning dots take another token, decided with the other verdict views.
 - **Pinned by:** nothing yet: the phase that fixes it pins it.
+
+## A dark, scratched, glare-lit logo plate reads NOK with its logo complete
+
+Image_092's right labyrinth back (dark, scratched, glare across it, the engraving lighter than the plate where
+the others are darker) registers to the filled-letter reference (54 matches) but its letters score at most 0.19
+against every reference, so seven read missing and the plate is NOK. Every equalisation tried before the letter
+comparison (CLAHE clips 1–4, an equalised histogram, an absolute high-pass, a top-hat) lifted erased letters
+past it too; the owner's condition (2026-10-11) is that no erased letter may pass, so it stays a known false NOK.
+1 of the 12 logo plates of the test set.
+
+- **Impact:** a complete logo on a plate like this one reads NOK, each "missing" letter named. The error is the
+  safe one (a part rejected, none passed).
+- **Not fixed here:** a reference of such a plate would let it register to a plate of its own kind; one more frame
+  of that kind is needed to measure it on, without reading it on itself.
+- **Pinned by:** `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts[Image_092-Labyrinth]`,
+  a strict xfail: it fails the run the day the plate reads OK.
+
+## The stain check's colour band is this light's
+
+The band (hue 5–30, saturation from 50, value from 40) was measured on the test set's fronts under the rig's
+light and the station file's fixed exposure, gain and white balance. A warmer light, another white balance or a
+surface reflecting the table's green differently moves the plate's colours; nothing checks that the band still
+fits.
+
+- **Impact:** under another light a clean part could show band pixels (a false NOK) or a stain could fall
+  outside the band (a stain passed: the error that matters).
+- **Not fixed here:** a check of the band needs frames under another light (capture checklist); the camera's
+  settings are fixed and read back since `7dbab51`.
+- **Pinned by:** `test/Vision/Utilities/test_stain.py` (the band as shipped), the pipeline's verdicts on the
+  test set (slow).
+
+## The describer guard reads words, so a paraphrase can pass and a right sentence can go
+
+`Reporting.Guard_Description` drops a describer's sentence that holds a number or contradicts a check by matching
+patterns (a stain word with or without a negation, a hole count, "each corner", a logo word with a verb that
+shows it). It caught every contradiction Gemma wrote on the 24 judged parts measured (five, all "holes in each
+corner" on fronts missing holes) and dropped no right sentence in the final run; the first run dropped one
+("clean of any staining", fixed).
+
+- **Impact:** a contradiction worded unlike those measured can reach the panel; a right sentence using a
+  pattern's words can be dropped. Every drop is in the log with the describer's full text. The verdict, State
+  and Reasons never come from the describer.
+- **Not fixed here:** the describer is not asked to decide, so a model judging its text would be one more
+  model to trust; the patterns grow with what is measured.
+- **Pinned by:** `test/Reporting/test_core.py::test_the_guard_drops_numbers_and_what_contradicts_a_check`
+  (Gemma's own sentences).

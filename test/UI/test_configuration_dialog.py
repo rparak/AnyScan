@@ -586,7 +586,7 @@ class _Slow_Describer_Cls(object):
     def Release(self) -> None:
         self.Loaded = False
 
-    def Describe(self, image, purpose) -> str:
+    def Describe(self, image, purpose, prompt='') -> str:
         time.sleep(CONST_MODEL_STEP)
         return 'A plain surface.'
 

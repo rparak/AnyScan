@@ -121,7 +121,7 @@ class Describer_Backend_Cls(object):
 
         raise NotImplementedError
 
-    def Describe(self, crop_bgr: tp.Any, purpose: str) -> str:
+    def Describe(self, crop_bgr: tp.Any, purpose: str, prompt: str = '') -> str:
         """
         Description:
             Describe one image for a purpose.
@@ -129,6 +129,8 @@ class Describer_Backend_Cls(object):
         Args:
             (1) crop_bgr [Matrix<uint8> HxWx3]: The image (BGR).
             (2) purpose [string]: CONST_PURPOSE_OBJECT or CONST_PURPOSE_BACKGROUND.
+            (3) prompt [string]: The prompt for this image instead of the purpose's ('' for the purpose's): a
+                                 catalogue mode's filled Describer.Prompt for a judged part.
 
         Returns:
             (1) parameter [string]: The model's text, stripped.
@@ -298,22 +300,23 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
         self.__pil, self.__cv2, self.__mx = PILImage, cv2, mx
         self.__model, self.__processor = model, processor
 
-    def Describe(self, crop_bgr: tp.Any, purpose: str) -> str:
+    def Describe(self, crop_bgr: tp.Any, purpose: str, prompt: str = '') -> str:
         """
         Description:
-            One generation for the purpose's prompt on one image, at the configured
+            One generation for the purpose's prompt (or the given one) on one image, at the configured
             Description.Temperature (0, the shipped value, is greedy).
 
         Args:
             (1) crop_bgr [Matrix<uint8> HxWx3]: The image (BGR).
             (2) purpose [string]: CONST_PURPOSE_OBJECT or CONST_PURPOSE_BACKGROUND.
+            (3) prompt [string]: The prompt for this image instead of the purpose's ('' for the purpose's).
 
         Returns:
             (1) parameter [string]: The model's text, stripped.
         """
 
         params = self.__params
-        prompt = params.Prompt_Object if purpose == CONST_PURPOSE_OBJECT else params.Prompt_Background
+        prompt = prompt or (params.Prompt_Object if purpose == CONST_PURPOSE_OBJECT else params.Prompt_Background)
         image = self.__pil.fromarray(self.__cv2.cvtColor(crop_bgr, self.__cv2.COLOR_BGR2RGB))
         formatted = self.__template(self.__processor, self.__model.config, prompt, num_images=1,
                                     enable_thinking=CONST_GEMMA_THINKING)

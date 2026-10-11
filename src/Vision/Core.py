@@ -35,7 +35,7 @@ from Parameters.Vision import (Detection_Str, Analysis_Str, Heatmap_Str, Load_Ti
 #   ../Parameters/Configuration
 from Parameters.Configuration import Configuration_Str
 #   ../Reporting/Core
-from Reporting.Core import (Compose, Verdict, Background_Sentence, Side_Sentence,
+from Reporting.Core import (Compose, Verdict, Background_Sentence, Side_Sentence, Describer_Prompt, Guard_Description,
                             CONST_EMPTY_SCENE_EXPLANATION, CONST_BACKGROUND_FALLBACK)
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import Background_Difference, Foreground_Mask, CONST_DIFFERENCE_SCALE_MAX
@@ -60,9 +60,14 @@ from Vision.Utilities.Dimensions import Check_Objects
 #   ../Vision/Identifier
 from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
 #   ../Vision/Utilities/Classify
-from Vision.Utilities.Classify import Object_Crop, Reference_Crop, Rotations, Best_Match, Classify, Apply_Holes
+from Vision.Utilities.Classify import (Object_Crop, Reference_Crop, Rotations, Best_Match, Classify, Apply_Holes,
+                                       Apply_Stain, Apply_Logo)
 #   ../Vision/Utilities/Holes
 from Vision.Utilities.Holes import Hole_Candidates, Check_Holes
+#   ../Vision/Utilities/Stain
+from Vision.Utilities.Stain import Check_Stain
+#   ../Vision/Utilities/Logo
+from Vision.Utilities.Logo import Reference_Logo_Crop, Prepare_Reference, Check_Logo
 #   ../Vision/Utilities/Timing
 from Vision.Utilities.Timing import Build_Timing
 
@@ -324,10 +329,12 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         self.__segmenter = Fast_Sam_Cls(Configuration_Str.Segmentation)
         # A catalogue mode's identifier (None in any other mode), as cheap to construct, and the catalogue
         # item's reference images as unit rows with their sides — embedded once per configuration
-        # (__Reference_Rows), cleared by Configure.
+        # (__Reference_Rows), cleared by Configure; likewise its logo references' features, per side
+        # (__Logo_References).
         self.__identifier = self.__New_Identifier(Configuration_Str)
         self.__reference_rows = None
         self.__reference_sides = []
+        self.__logo_references = None
         # Where the last Load_Models (and the warm-up after it) spent its time, and whether the next
         # analysis is the first since the models were put in force (see Analyze).
         self.__load_timing = None
@@ -527,6 +534,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         self.__background_audit = []
         self.__reference_rows = None
         self.__reference_sides = []
+        self.__logo_references = None
 
         # 4\ Then pay here, under the load's progress, what the first analysis would otherwise pay.
         self.__Warm_Up(stage_cb)
@@ -575,6 +583,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             if self.__identifier is not None:
                 started = time.perf_counter()
                 self.__Reference_Rows(self.__cv2, self.__np)
+                self.__Logo_References(self.__cv2, self.__np)
                 timing.Reference_Images_S = time.perf_counter() - started
         except Exception as exc:                          # noqa: BLE001
             # Swallowed on purpose: the configuration is already in force, so this is not a failed
@@ -753,7 +762,9 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
             Latency_Ms runs from the start of this call (before the models are checked, so a
             pipeline that was never preloaded pays its load inside it) to the end of Compose and
-            Verdict; the measurement runs after it stops. Timing breaks that same interval into
+            Verdict; the measurement runs after it stops. A catalogue mode measures, checks and judges the
+            objects before it describes them (the describer is told what the checks found), and that time is
+            left out of it the same way: the start is moved on by it. Timing breaks that same interval into
             its stages (Parameters.Vision.CONST_TIMING_STAGES), each timed around completed work:
             the segmenter and the describer sync their devices before they return.
 
@@ -840,11 +851,26 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                Segmentation_Parameters_Str=self.__config.Segmentation)
         stage_s[CONST_STAGE_FUSION] = time.perf_counter() - started
 
+        # ---- A catalogue mode judges before it describes ----
+        # Measured, checked against the catalogue, identified and judged, so the describer can be told the side
+        # and what the checks found (Reporting.Describer_Prompt). Outside the latency, as the measurement is in
+        # every mode: its time is carried beside the total, and the start is moved on by it.
+        catalogue = self.__config.Catalogue
+        if catalogue is not None:
+            started = time.perf_counter()
+            Measure_Objects(objects, self.__config.Scale, cv2, np)
+            Check_Objects(objects, catalogue)
+            measurement_s = time.perf_counter() - started
+            started = time.perf_counter()
+            self.__Classify_Objects(objects, frame_bgr, cv2, np)
+            identification_s = time.perf_counter() - started
+            t0 += measurement_s + identification_s
+
         # ---- Stage 4 - description (Vision.Describers / Vision.Describe_Fallback) ----
         # One caption per object, from the alpha/beta-enhanced padded crop: neighbours
         # are masked out (filled from the reference) so the crop holds one object plus
         # table, and the stretch is estimated from the object's own pixels.
-        object_times = self.__Describe_Objects(objects, frame_bgr, bg_bgr, progress_cb, stage_cb)
+        object_times, guard_audit = self.__Describe_Objects(objects, frame_bgr, bg_bgr, progress_cb, stage_cb)
         stage_s[CONST_STAGE_CROPS] = sum(crop_s for crop_s, _describe_s, _tokens in object_times)
         stage_s[CONST_STAGE_DESCRIPTIONS] = sum(describe_s for _crop_s, describe_s, _tokens in object_times)
 
@@ -852,28 +878,27 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         started = time.perf_counter()
         background_sentence, background_audit = self.__Describe_Background(bg_bgr)
         stage_s[CONST_STAGE_BACKGROUND_SENTENCE] = time.perf_counter() - started
-        result = self.__Compose_Result(objects, t0, len(masks), background_sentence, background_audit,
+        result = self.__Compose_Result(objects, t0, len(masks), background_sentence, background_audit + guard_audit,
                                        stage_s, object_times)
         # The heatmap's source today: the background difference on its fixed scale, with the threshold
         # applied — named by what set it — marked on the legend.
         result.Heatmap = Heatmap_Str(Values=difference, Low=0.0, High=float(CONST_DIFFERENCE_SCALE_MAX),
                                      Title='Difference from the reference', Unit='grey level',
                                      Marks=[(threshold, ('Otsu %d' if otsu >= threshold else 'floor %d') % threshold)])
-        # Measure every masked object through the configured scale (none without one) and, in a
-        # catalogue mode, check each against the catalogue. It runs after Latency_Ms has stopped, so its
-        # time is carried beside the total, not in it.
-        started = time.perf_counter()
-        Measure_Objects(result.Objects, self.__config.Scale, cv2, np)
-        if self.__config.Catalogue is not None:
-            Check_Objects(result.Objects, self.__config.Catalogue)
-        result.Timing.Measurement_Ms = int((time.perf_counter() - started) * 1000)
-        # A catalogue mode then identifies and judges each object (also outside the total).
-        if self.__config.Catalogue is not None:
+        if catalogue is not None:
+            result.Timing.Measurement_Ms = int(measurement_s * 1000)
+            result.Timing.Identification_Ms = int(identification_s * 1000)
+            # A judged part's description says which side is up, from DINOv2's side, in the catalogue's words.
+            for det in result.Objects:
+                side_sentence = Side_Sentence(det)
+                if side_sentence:
+                    det.Sentence = ('%s %s' % (det.Sentence, side_sentence)).strip()
+        else:
+            # Measure every masked object through the configured scale (none without one). It runs after
+            # Latency_Ms has stopped, so its time is carried beside the total, not in it.
             started = time.perf_counter()
-            self.__Classify_Objects(result.Objects, frame_bgr, cv2, np)
-            # The badge was composed before the verdicts existed; it states the worst of them now.
-            result.Verdict, result.Verdict_Level = Verdict(result.Objects)
-            result.Timing.Identification_Ms = int((time.perf_counter() - started) * 1000)
+            Measure_Objects(result.Objects, self.__config.Scale, cv2, np)
+            result.Timing.Measurement_Ms = int((time.perf_counter() - started) * 1000)
         self.__first_after_load = False
         return result
 
@@ -927,14 +952,45 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             self.__reference_sides = [reference.Side for reference in self.__config.Catalogue.References]
         return self.__reference_rows
 
+    def __Logo_References(self, cv2: tp.Any, np: tp.Any) -> tp.Dict[str, tp.List[tp.Dict[str, tp.Any]]]:
+        """
+        Description:
+            The catalogue item's logo references, per side, each cut out and turned (Reference_Logo_Crop) and
+            its features computed (Prepare_Reference), once per configuration and kept.
+
+        Args:
+            (1) cv2 [module]: The OpenCV module.
+            (2) np [module]: The NumPy module.
+
+        Returns:
+            (1) parameter [Dict<string, Vector<Dict>>]: Per side, each reference prepared, in the check's order.
+
+        Raises:
+            Vision_Error_Cls: A reference image cannot be read.
+        """
+
+        if self.__logo_references is None:
+            prepared = {}
+            for side, logo in self.__config.Catalogue.Logo.items():
+                prepared[side] = []
+                for reference in logo.References:
+                    image = cv2.imread(reference.Image_Path)
+                    if image is None:
+                        raise Vision_Error_Cls('The logo reference image "%s" could not be read; restore the catalogue '
+                                               'item\'s reference_image folder.' % reference.Image_Path)
+                    prepared[side].append(Prepare_Reference(Reference_Logo_Crop(image, reference, cv2, np), cv2, np))
+            self.__logo_references = prepared
+        return self.__logo_references
+
     def __Classify_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.Any, cv2: tp.Any, np: tp.Any) -> None:
         """
         Description:
-            A catalogue mode's last step: every object's crop, turned upright, in four quarter turns,
-            through DINOv2 in one pass, its best match to the item's references, and its verdict
-            (Vision.Utilities.Classify); then each judged part's holes on the side up, FastSAM on its upright
-            crop (Vision.Utilities.Holes). The crop's scale is the mean of the two factors (they differ by
-            0.17 %).
+            A catalogue mode's judgement, before the objects are described: every object's crop, turned
+            upright, in four quarter turns, through DINOv2 in one pass, its best match to the item's
+            references, and its verdict (Vision.Utilities.Classify); then each judged part's checks on the
+            side up, on its upright crop: its holes (FastSAM again, Vision.Utilities.Holes), its stains
+            (Vision.Utilities.Stain) and its inscription (Vision.Utilities.Logo), each found defect making it
+            NOK. The crop's scale is the mean of the two factors (they differ by 0.17 %).
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The measured, checked objects (mutated).
@@ -961,24 +1017,31 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             similarity, side = Best_Match(rows[index * turns:(index + 1) * turns], references, self.__reference_sides)
             Classify(det, similarity, side, self.__config.Catalogue, self.__config.Identification,
                      self.__config.Scale, frame_size)
-            # A judged part's holes, on the side up: FastSAM again, on its upright crop.
-            groups = self.__config.Catalogue.Holes.get(side) if det.Verdict in ('OK', 'NOK') else None
+            if det.Verdict not in ('OK', 'NOK'):
+                continue
+            item, upright = self.__config.Catalogue, uprights[index]
+            mm_per_px = (self.__config.Scale.Mm_Per_Px_X + self.__config.Scale.Mm_Per_Px_Y) / 2.0
+            # A judged part's holes, on the side up: FastSAM again, on its upright crop. The stain check
+            # leaves the holes it finds out, so they run for either.
+            groups, stain = item.Holes.get(side), item.Stain.get(side)
+            holes = []
+            if groups or stain is not None:
+                masks, _scores = self.__segmenter.Segment(upright)
+                holes = Hole_Candidates(masks, mm_per_px, cv2, np)
             if groups:
-                mm_per_px = (self.__config.Scale.Mm_Per_Px_X + self.__config.Scale.Mm_Per_Px_Y) / 2.0
-                masks, _scores = self.__segmenter.Segment(uprights[index])
-                height_px, width_px = uprights[index].shape[:2]
-                Apply_Holes(det, *Check_Holes(Hole_Candidates(masks, mm_per_px, cv2, np), groups,
-                                              width_px * mm_per_px, height_px * mm_per_px))
-            # The judged part's description says which side is up, from DINOv2's side, in the catalogue's
-            # words; the describer was neither asked nor told.
-            side_sentence = Side_Sentence(det)
-            if side_sentence:
-                det.Sentence = ('%s %s' % (det.Sentence, side_sentence)).strip()
+                height_px, width_px = upright.shape[:2]
+                Apply_Holes(det, *Check_Holes(holes, groups, width_px * mm_per_px, height_px * mm_per_px))
+            # Its stains and its inscription, on the side up.
+            if stain is not None:
+                Apply_Stain(det, Check_Stain(upright, holes, stain, mm_per_px, cv2, np))
+            if side in item.Logo:
+                Apply_Logo(det, Check_Logo(upright, item.Logo[side], self.__Logo_References(cv2, np)[side], cv2, np))
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            bg_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],
-                           stage_cb: tp.Optional[tp.Callable]) -> tp.List[tp.Tuple[float, float,
-                                                                                  tp.Optional[tp.Tuple[int, int]]]]:
+                           stage_cb: tp.Optional[tp.Callable]) -> tp.Tuple[tp.List[tp.Tuple[float, float,
+                                                                                            tp.Optional[tp.Tuple[int, int]]]],
+                                                                           tp.List[tp.Tuple[str, str]]]:
         """
         Description:
             Stage 4: fill each object's Label and Detail from its crop. The padded crop
@@ -993,6 +1056,12 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             The objects are described one after another on this thread (no batching), so their
             times add up to the crops and descriptions stages.
 
+            In a catalogue mode a judged part (OK, NOK) is described with the item's Describer.Prompt filled
+            for it (Reporting.Describer_Prompt: its side, that side's description and defects, what the checks
+            found, no number), and the describer's text then goes through the guard
+            (Reporting.Guard_Description): a sentence with a number or contradicting a check is dropped, and
+            each drop is an audit record with the describer's full text.
+
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The stage-3 objects (mutated).
             (2) frame_bgr [Matrix<uint8> HxWx3]: The frame (BGR).
@@ -1001,11 +1070,13 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             (5) stage_cb [function]: Optional (text) phase hook.
 
         Returns:
-            (1) parameter [Vector<Tuple>]: Per object, in order: (crop seconds, description seconds,
-                                           (input tokens, output tokens) or None).
+            (1) parameter [Tuple<Vector<Tuple>, Vector<Tuple<string> 1x2>>]: Per object, in order: (crop seconds,
+                                           description seconds, (input tokens, output tokens) or None); and
+                                           the guard's audit records, (level, message).
         """
 
         cv2, np = self.__cv2, self.__np
+        audit = []
         if stage_cb and objects:
             stage_cb('Describing…')
 
@@ -1042,13 +1113,21 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                     frame_bgr, det.Mask, det.Bbox, frame_bgr.shape, cv2, np)
                 describe_s, tokens = time.perf_counter() - started, None
             else:
-                det.Detail = self.__describer.Describe(enhanced, CONST_PURPOSE_OBJECT)
+                catalogue = self.__config.Catalogue
+                prompt = Describer_Prompt(det, catalogue) if catalogue is not None else ''
+                det.Detail = self.__describer.Describe(enhanced, CONST_PURPOSE_OBJECT, prompt)
                 describe_s, tokens = time.perf_counter() - started, self.__describer.Last_Tokens
+                if catalogue is not None and det.Verdict in ('OK', 'NOK'):
+                    full = det.Detail
+                    det.Detail, dropped = Guard_Description(full, det)
+                    for sentence, why in dropped:
+                        audit.append(('warning', 'Object %d: the describer\'s sentence "%s" was left out: %s. '
+                                                 'Its full text: "%s"' % (i + 1, sentence, why, full)))
                 det.Label = Condense_Label(det.Detail)
             times.append((crop_s, describe_s, tokens))
         if progress_cb:
             progress_cb(total, total)
-        return times
+        return times, audit
 
     def __Compose_Result(self, objects: tp.List[Detection_Str],
                          t0: float, raw_mask_count: int, background_sentence: str,

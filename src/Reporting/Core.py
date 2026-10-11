@@ -28,6 +28,8 @@ import typing as tp
 # Custom Lib.: AnyScan domain — data structures
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Dimension_Check_Str, Hole_Count_Str
+#   ../Parameters/Catalogue
+from Parameters.Catalogue import Catalogue_Item_Str
 #   ../Parameters/Configuration
 from Parameters.Configuration import Description_Parameters_Str
 
@@ -137,6 +139,30 @@ CONST_BACKGROUND_FALLBACK = 'The background is a plain surface.'
 # such, and do not revert them to a scale-derived count (docs/design-decisions.md).
 #   Unit [int]
 CONST_SIZE_DECIMALS = 2
+
+
+# The describer guard's claims (Guard_Description), per check: a pattern claiming its defect, and one claiming
+# its absence outright; a sentence that also negates ('no', 'not', 'without', 'free of') claims the defect absent.
+# Words, not judgement: a sentence is dropped only when it says what a check contradicts, and every drop is logged.
+#   Unit [Dict<string, Tuple<string> 1x2>] / [string]
+CONST_GUARD_CLAIMS = {
+    'stain': (r'\b(stain\w*|fingerprint\w*|smudge\w*|smear\w*|discolou?r\w*)',
+              r'\b(spotless|unblemished|pristine|flawless|stain-free)\b'
+              r'|\bclean (surface|finish|face|front|back|side|part|plate)\b|\b(surface|finish|face|part|plate) (is|looks|appears) clean\b'),
+    'inscription': (r'\b(missing|incomplete|absent|partial\w*|illegible|worn away)\b[^.]*\b(letter|logo|inscription|text|lettering|engrav)'
+                    r'|\b(letter|logo|inscription|text|lettering|engrav)\w*\b[^.]*\b(missing|incomplete|absent|partial\w*|illegible|worn away)\b',
+                    r'\b(complete|intact|fully legible|all (of )?the letters)\b'),
+    'hole': (r'\b(missing|extra|absent)\b[^.]*\bholes?\b|\bholes?\b[^.]*\b(missing|absent)\b',
+             r'\b(one|two|three|four|five|six|seven|eight|nine|ten|both|pair|each|every|all)\b[^.]*\bholes?\b'
+             r'|\bholes?\b[^.]*\b(each|every|both|all) (of the )?corners?\b'),
+}
+CONST_GUARD_NEGATION = r"\b(no|not|without|free of|free from|clean of|none)\b|n't\b"
+# A sentence affirming an inscription — its words with a verb that shows it — on a part where none was found: the
+# describer said 'features an engraved JIC Smart Factory logo' of a blank plate the check found bare.
+#   Unit [Tuple<string> 1x2]
+CONST_GUARD_LOGO_PRESENT = (r'\b(logo|inscription|lettering|letters|JIC|SMART|FACTORY)\b',
+                            r'\b(features?|featuring|bears?|bearing|displays?|displaying|engraved|inscribed|reads?|'
+                            r'visible|present)\b')
 
 
 def Zone(bbox: tp.Tuple[int, int, int, int], size: tp.Tuple[int, int]) -> str:
@@ -539,8 +565,8 @@ def Verdict_Reasons(det: Detection_Str) -> tp.List[str]:
     """
     Description:
         Why a judged object is not OK, one sentence per reason: each failed dimension with its measured and
-        expected values, each hole group short or over its count, each hole out of tolerance, the part's outline
-        without its look, an outline that could not be measured; why an
+        expected values, each hole group short or over its count, each hole out of tolerance, the stains, the
+        inscription missing or each letter missing from it, the part's outline without its look, an outline that could not be measured; why an
         Unspecified object could not be judged and what to do; and that a Warning should not be there. Empty
         for an OK part and outside a catalogue mode.
 
@@ -562,11 +588,62 @@ def Verdict_Reasons(det: Detection_Str) -> tp.List[str]:
     reasons = [Dimension_Reason(check) for check in det.Dimension_Checks if not check.Within]
     reasons += [Hole_Count_Reason(count) for count in det.Hole_Counts if count.Found != count.Expected]
     reasons += [Dimension_Reason(check) for check in det.Hole_Checks if not check.Within]
+    if det.Stains:
+        reasons.append(Stain_Reason(det))
+    reasons += Logo_Reasons(det)
     if result.Similarity < result.Identify_Similarity:
         reasons.append("It has the part's outline but does not look like the part.")
     if not det.Dimension_Checks:
         reasons.append('Its outline could not be measured.')
     return reasons
+
+
+def Stain_Reason(det: Detection_Str) -> str:
+    """
+    Description:
+        A part's stains as one reason, on the side up: 'A stain of 152.22 mm² on the machined front.', or for
+        several their count, the largest and their total area.
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, with its stains (largest first).
+
+    Returns:
+        (1) parameter [string]: The sentence; '' when it has none.
+    """
+
+    stains = det.Stains or []
+    side = det.Catalogue.Side_Name if det.Catalogue is not None else ''
+    where = ' on the %s' % side if side else ''
+    if not stains:
+        return ''
+    if len(stains) == 1:
+        return 'A stain of %.*f mm²%s.' % (CONST_SIZE_DECIMALS, stains[0].Area_Mm2, where)
+    return '%d stains%s, the largest %.*f mm², %.*f mm² in all.' % (
+        len(stains), where, CONST_SIZE_DECIMALS, stains[0].Area_Mm2, CONST_SIZE_DECIMALS,
+        sum(stain.Area_Mm2 for stain in stains))
+
+
+def Logo_Reasons(det: Detection_Str) -> tp.List[str]:
+    """
+    Description:
+        A part's inscription as reasons: 'No inscription found on the logo side.' when it registered to no
+        reference, else one sentence per missing letter, with its word ('The letter R of FACTORY is missing.').
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, with its logo result.
+
+    Returns:
+        (1) parameter [Vector<string>]: The reasons; [] when it was not checked or is complete.
+    """
+
+    logo = det.Logo
+    if logo is None:
+        return []
+    if not logo.Reference:
+        side = det.Catalogue.Side_Name if det.Catalogue is not None else ''
+        return ['No inscription found%s.' % (' on the %s' % side if side else '')]
+    return ['The letter %s of %s is missing.' % (letter.Letter, letter.Word) for letter in logo.Letters
+            if not letter.Present]
 
 
 def Size_Note(det: Detection_Str) -> str:
@@ -618,7 +695,7 @@ def Side_Sentence(det: Detection_Str) -> str:
         The sentence a judged part's description gains: which side is up, in the catalogue's words for it
         ('It lies with its machined front up.'). Only for an object judged the part (OK, NOK): a Warning is
         not the part, and an Unspecified object is several. The side is DINOv2's (Catalogue_Result_Str.Side),
-        never the describer's, which is not asked and not told.
+        never the describer's: the describer is told it (Describer_Prompt), not asked.
 
     Args:
         (1) det [Detection_Str(object)]: The object, judged.
@@ -630,6 +707,129 @@ def Side_Sentence(det: Detection_Str) -> str:
     if det.Catalogue is None or det.Verdict not in ('OK', 'NOK') or not det.Catalogue.Side_Name:
         return ''
     return 'It lies with its %s up.' % det.Catalogue.Side_Name
+
+
+def Findings(det: Detection_Str) -> str:
+    """
+    Description:
+        What the checks found on a judged part, for the describer to locate and describe: facts in words and
+        without a number (the describer is given none), one sentence per check that ran — the stains, the
+        inscription, the holes, the outline and the look. It does not say OK or NOK: the describer describes,
+        the checks decide.
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, judged.
+
+    Returns:
+        (1) parameter [string]: The sentences; '' outside a catalogue mode or for an object not judged the part.
+    """
+
+    if det.Catalogue is None or det.Verdict not in ('OK', 'NOK'):
+        return ''
+    side = det.Catalogue.Side_Name or 'side up'
+    found = []
+    if det.Stains is not None:
+        found.append('An automatic check found yellow-brown stains on its %s; describe them and where they are.'
+                     % side if det.Stains else 'An automatic check found no stain on its %s.' % side)
+    if det.Logo is not None:
+        missing = [letter for letter in det.Logo.Letters if not letter.Present]
+        if not det.Logo.Reference:
+            found.append('An automatic check found no inscription on its %s.' % side)
+        elif missing:
+            found.append('An automatic check found the inscription incomplete: %s; describe the inscription as '
+                         'you see it.' % ', '.join('the letter %s of %s is missing' % (letter.Letter, letter.Word)
+                                                   for letter in missing))
+        else:
+            found.append('An automatic check found the inscription complete.')
+    for count in det.Hole_Counts:
+        if count.Found < count.Expected:
+            found.append('An automatic check found fewer %ss than the part has.' % count.Name)
+        elif count.Found > count.Expected:
+            found.append('An automatic check found more %ss than the part has.' % count.Name)
+    if any(not check.Within for check in det.Hole_Checks):
+        found.append('An automatic check found a hole out of tolerance.')
+    if any(not check.Within for check in det.Dimension_Checks):
+        found.append('An automatic check found its outline out of tolerance.')
+    if det.Catalogue.Similarity < det.Catalogue.Identify_Similarity:
+        found.append("An automatic check found that it has the part's outline but does not look like the part.")
+    return ' '.join(found)
+
+
+def Describer_Prompt(det: Detection_Str, Catalogue_Item_Str: Catalogue_Item_Str) -> str:
+    """
+    Description:
+        The describer's prompt for a judged part: the item's Describer.Prompt filled with the side up (its
+        Name, DINOv2's side), that side's description, that side's defects and what the checks found (Findings).
+        Nothing filled in holds a number: the loader refuses one in the texts, and Findings writes none.
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, judged.
+        (2) Catalogue_Item_Str [Catalogue_Item_Str(object)]: The item.
+
+    Returns:
+        (1) parameter [string]: The prompt; '' for an object not judged the part, or an item without a prompt
+                                (the mode's own object prompt is used then).
+    """
+
+    item = Catalogue_Item_Str
+    if not item.Describer_Prompt or det.Catalogue is None or det.Verdict not in ('OK', 'NOK'):
+        return ''
+    side = next((entry for entry in item.Sides if entry.Side == det.Catalogue.Side), None)
+    defects = ' '.join('%s: %s%s' % (defect.Name.capitalize(), defect.Looks_Like,
+                                     ' Not a defect: %s' % defect.Not_A_Defect if defect.Not_A_Defect else '')
+                       for defect in item.Defects if defect.Side == det.Catalogue.Side)
+    return ' '.join(item.Describer_Prompt.format(
+        side=side.Name if side is not None else det.Catalogue.Side_Name,
+        side_description=side.Description if side is not None else '',
+        defects=defects or 'None described.', findings=Findings(det)).split())
+
+
+def Guard_Description(text: str, det: Detection_Str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
+    """
+    Description:
+        The describer's text on a judged part, with what it may not say taken out, sentence by sentence: a
+        sentence with a number (a measurement or a count is the checks' to give; the describer was given
+        none), and a sentence contradicting a check that ran — its defect claimed when the check found none, or
+        claimed absent when it found one (CONST_GUARD_CLAIMS: stains, the inscription, the holes; a sentence
+        negating the defect, 'no stains', claims it absent; a count of holes claims them all there), or an
+        inscription affirmed where none was found (CONST_GUARD_LOGO_PRESENT). The describer confirms and
+        describes; it never decides.
+
+    Args:
+        (1) text [string]: The describer's text.
+        (2) det [Detection_Str(object)]: The part, judged, with its checks.
+
+    Returns:
+        (1) parameter [Tuple<string, Vector<Tuple<string> 1x2>>]: The text kept, and each sentence dropped with
+                                                                    why.
+    """
+
+    checks = {'stain': (det.Stains is not None, bool(det.Stains)),
+              'inscription': (det.Logo is not None,
+                              det.Logo is not None and (not det.Logo.Reference
+                                                        or not all(letter.Present for letter in det.Logo.Letters))),
+              'hole': (bool(det.Hole_Counts), any(count.Found != count.Expected for count in det.Hole_Counts))}
+    kept, dropped = [], []
+    for sentence in [part for part in re.split(r'(?<=[.!?])\s+', text.strip()) if part]:
+        why = 'it states a number' if re.search(r'\d', sentence) else ''
+        for check, (defect, absent) in CONST_GUARD_CLAIMS.items():
+            ran, found = checks[check]
+            if why or not ran:
+                continue
+            claims_defect = re.search(defect, sentence, re.IGNORECASE) is not None
+            negated = re.search(CONST_GUARD_NEGATION, sentence, re.IGNORECASE) is not None
+            if found and (re.search(absent, sentence, re.IGNORECASE) is not None or (claims_defect and negated)):
+                why = 'it says there is no %s defect, which the %s check found' % (check, check)
+            elif not found and claims_defect and not negated:
+                why = 'it claims a %s defect, which the %s check did not find' % (check, check)
+        if not why and det.Logo is not None and not det.Logo.Reference and all(
+                re.search(pattern, sentence, re.IGNORECASE) for pattern in CONST_GUARD_LOGO_PRESENT):
+            why = 'it says there is an inscription, which the inscription check did not find'
+        if why:
+            dropped.append((sentence, why))
+        else:
+            kept.append(sentence)
+    return ' '.join(kept), dropped
 
 
 def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:

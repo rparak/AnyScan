@@ -22,14 +22,15 @@
 #   Description, Sides, Defects:
 #     What the part looks like, on each side, and what is a defect and what is not — the
 #     single tracked source for the part, from the catalogue-mode request. Each side's Name
-#     is read now (the side sentence of a judged object's description). The longer texts
-#     are validated at load and read by nothing yet: the describer reads them from phase D
-#     of the catalogue mode, a dated exception to the rule that a field must be read
-#     (docs/design-decisions.md, 2026-10-11).
+#     is the side sentence of a judged object's description; the side's Description and its
+#     Defects go to the describer through Describer.Prompt. Description and
+#     Measurement_Rules are for people: validated at load, read by nothing (the dated
+#     exception in docs/design-decisions.md, 2026-10-11). What the describer is given holds
+#     no number (the loader refuses one): it is told the appearance, never a dimension.
 #
 #   Checks:
-#     Each block under Checks is one check, run with the parameters it sets. Only the
-#     outline and the corner holes are checked today; the logo is not yet built.
+#     Each block under Checks is one check, run with the parameters it sets: the outline,
+#     the corner holes on the front and the logo on the back.
 ## =========================================================================== ##
 
 # REQUIRED. The item as a person names it.
@@ -65,12 +66,11 @@ Sides:
     Name: maze side
     Description: >-
       Matte grey metal with fine grinding marks. A milled maze whose channels have a flat,
-      bright floor, clearly lighter than the surface around them; the maze is not measured.
-      Four blind holes of 2.459 mm in the corners, centres 4 mm from both adjacent edges,
-      each with the drill's point visible in the middle. At the ends of two channels
-      (bottom right on the reference image) two small round features of about the corner
-      holes' size, with a rounded triangular shape: the maze's start and finish. They are
-      not holes and not defects.
+      bright floor, clearly lighter than the surface around them. Small blind holes in the
+      corners, each with the drill's point visible in the middle. At the ends of the maze's
+      start and finish channels, small round features of about the corner holes' size, with
+      a rounded triangular shape: the maze's start and finish. They are not holes and not
+      defects.
   back:
     Name: logo side
     Description: >-
@@ -83,16 +83,15 @@ Defects:
   - Name: corner hole count
     Side: front
     Looks_Like: >-
-      Not exactly four corner holes. Each missing or extra hole is its own part of the
-      report. The maze's start and finish are not counted.
+      A corner hole missing, or an extra one. Each missing or extra hole is its own part
+      of the report. The maze's start and finish are not counted.
   - Name: incomplete logo
     Side: back
     Looks_Like: >-
       The "JIC" or the "Smart Factory" inscription missing, any letter of either missing,
-      or no inscription at all. Each missing element is its own part of the report. The
-      text read is compared letter by letter with "JIC" and "Smart Factory".
+      or no inscription at all. Each missing element is its own part of the report.
 
-# The checks the code runs on the part. Phase C adds Holes, phase D Stain and Logo.
+# The checks the code runs on the part.
 Checks:
   # The outline seen from above. The longer measured side is checked against Length_Mm,
   # the shorter against Width_Mm, so the part's rotation does not matter.
@@ -124,3 +123,102 @@ Checks:
         From_Long_Edge_Mm: 4
         From_Short_Edge_Mm: 4
         Pitch_Mm: 42
+  # The engraved logo, per side (Vision.Utilities.Logo). Expected_Text: the words, in reading order,
+  # each missing letter reported with its word. References: the logo's variants, each an Image
+  # (reference_image/<Image>.png with its YOLO .txt), the Rotation_Deg (-180 to 180, counter-
+  # clockwise) about the box's centre that makes its box crop read upright and level, and its Letters
+  # ([letter, x, y, width, height] in that crop's pixels, in reading order; they must spell
+  # Expected_Text). Example/Catalogue/logo_letters.py draws and prints them. A part's crop is
+  # registered to each reference by SIFT features; with fewer than Min_Matches on every reference it
+  # has no inscription (NOK). Each letter is compared with that letter in every reference it
+  # registered to (edge-image correlation, CLAHE first, the best kept) and is there at
+  # Letter_Min_Similarity and Letter_Min_Contrast (its edges against the part's own plate, 1 = as
+  # strong as the plate's texture) or more; else it is missing (NOK). All REQUIRED.
+  # Measured on the test set's 16 backs (2026-10-11): the 4 blank plates register with at most 12
+  # matches, every logo with at least 54. The 11 complete logos: each letter's similarity at least
+  # 0.77 and contrast at least 3.24. Each of their 165 letters erased in turn (synthetic, inpainted):
+  # similarity at most 0.47, except two J at 0.58-0.59 whose inpainted seam keeps the J's shape at
+  # contrast 0.18-0.19; every one caught. Thresholds midway (0.62) and at the plate's own texture (1.0).
+  # Image_092's right plate (dark, scratched, glare) scores 0.19: a known false NOK (KNOWN_ISSUES).
+  Logo:
+    back:
+      Expected_Text: [JIC, SMART, FACTORY]
+      Min_Matches: 30
+      Letter_Min_Similarity: 0.62
+      Letter_Min_Contrast: 1.0
+      References:
+        # Filled letters (the reference image of the back).
+        - Image: back
+          Rotation_Deg: 0
+          Letters:
+            - [J, 61, 115, 128, 128]
+            - [I, 250, 119, 29, 122]
+            - [C, 340, 117, 121, 128]
+            - [S, 66, 291, 32, 46]
+            - [M, 98, 291, 46, 46]
+            - [A, 144, 291, 37, 46]
+            - [R, 181, 291, 37, 46]
+            - [T, 218, 291, 31, 46]
+            - [F, 68, 349, 24, 45]
+            - [A, 92, 349, 33, 45]
+            - [C, 125, 349, 42, 45]
+            - [T, 167, 349, 23, 45]
+            - [O, 190, 349, 41, 45]
+            - [R, 231, 349, 36, 45]
+            - [Y, 267, 349, 32, 45]
+        # Outline letters, a valid variant (owner's ruling, 2026-10-11): Image_092's left plate. JIC
+        # from the tool; the small letters set by hand (too faint for its threshold), checked drawn.
+        - Image: back_outline
+          Rotation_Deg: 0
+          Letters:
+            - [J, 77, 155, 123, 133]
+            - [I, 242, 141, 47, 122]
+            - [C, 333, 112, 138, 137]
+            - [S, 86, 340, 36, 43]
+            - [M, 122, 332, 36, 46]
+            - [A, 157, 327, 43, 43]
+            - [R, 200, 322, 35, 46]
+            - [T, 235, 317, 35, 46]
+            - [F, 100, 395, 38, 45]
+            - [A, 132, 392, 43, 41]
+            - [C, 168, 385, 40, 45]
+            - [T, 200, 380, 35, 45]
+            - [O, 232, 375, 33, 45]
+            - [R, 265, 370, 35, 43]
+            - [Y, 297, 365, 33, 43]
+        # The same variant on Image_069's plate (index 3), its frame turned 24.3 degrees to level it.
+        # One outline reference is not enough: each plate's light falls off on another side, so
+        # 092's dim S, F, A and C fail 069 and 095 (0.19-0.20), and 069's fail 092 (0.09). Boxes
+        # carried over from back_outline by the SIFT registration between the two, checked drawn.
+        - Image: back_outline_2
+          Rotation_Deg: 24.3
+          Letters:
+            - [J, 95, 171, 124, 134]
+            - [I, 261, 157, 47, 122]
+            - [C, 352, 128, 138, 137]
+            - [S, 104, 357, 37, 43]
+            - [M, 140, 349, 37, 46]
+            - [A, 176, 344, 43, 43]
+            - [R, 219, 339, 35, 46]
+            - [T, 254, 333, 35, 47]
+            - [F, 118, 412, 39, 45]
+            - [A, 151, 409, 43, 41]
+            - [C, 187, 402, 40, 45]
+            - [T, 219, 397, 35, 45]
+            - [O, 251, 392, 33, 45]
+            - [R, 284, 387, 35, 43]
+            - [Y, 316, 382, 33, 43]
+
+# The describer's prompt for a judged part (OK or NOK), filled per part: {side} (the side's Name,
+# from DINOv2), {side_description}, {defects} (that side's Defects) and {findings} (what the checks
+# found, in words without numbers). The describer only describes: the verdict is the checks', and a
+# sentence of its answer stating a measurement or contradicting the verdict is dropped and logged.
+# No number may appear here. Default: the mode file's Description.Prompt_Object, without context.
+Describer:
+  Prompt: >-
+    The part is a labyrinth plate, lying with its {side} up. What that side looks like:
+    {side_description} What counts as a defect on this side, and what does not: {defects}
+    {findings} In one short flowing paragraph (no lists, no markdown), describe the part as
+    you see it: its shape, colour and material, the features you can see, and its surface
+    condition, naming where any marks are. Describe only the part, not the surface it lies
+    on, and give no measurement and no count.

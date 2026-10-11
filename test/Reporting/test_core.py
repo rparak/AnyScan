@@ -516,3 +516,151 @@ def test_a_nok_names_its_missing_extra_and_wrong_holes() -> None:
                                   'Reason: The corner hole Ø is 4.10 mm, expected 2.46 ± 1.00 mm.']
     assert Verdict_Log_Line(0, det)[1].endswith('Reason: 3 of 4 corner holes found. Reason: 3 through-holes found, '
                                                 'expected 2. Reason: The corner hole Ø is 4.10 mm, expected 2.46 ± 1.00 mm.')
+
+
+def _Logo(missing: tp.Tuple[int, ...] = (), registered: bool = True) -> tp.Any:
+    """A logo result on the labyrinth's back: the letters at the given places missing, or no inscription."""
+    from Parameters.Vision import Logo_Result_Str, Logo_Letter_Str
+    if not registered:
+        return Logo_Result_Str(Reference='', Matches=4)
+    words = ['JIC'] * 3 + ['SMART'] * 5 + ['FACTORY'] * 7
+    return Logo_Result_Str(Reference='back', Matches=150, Letters=[
+        Logo_Letter_Str(Word=word, Letter=letter, Similarity=0.2 if i in missing else 0.9, Contrast=5.0,
+                        Present=i not in missing) for i, (word, letter) in enumerate(zip(words, 'JICSMARTFACTORY'))])
+
+
+def test_a_nok_names_its_stains_and_its_missing_letters() -> None:
+    """
+    Description:
+        A part NOK for a stain says how big, on which side: one stain by its area, several by their count, the
+        largest and the total. A part NOK for its inscription names each missing letter with its word, or says
+        no inscription was found on the side.
+    """
+
+    from Reporting.Core import Verdict_Reasons
+    from Parameters.Vision import Stain_Str
+    det = _Judged('NOK')
+    det.Catalogue.Side_Name = 'machined front'
+    det.Stains = [Stain_Str(Area_Mm2=152.224)]
+    assert Verdict_Reasons(det) == ['A stain of 152.22 mm² on the machined front.']
+    det.Stains = [Stain_Str(Area_Mm2=152.224), Stain_Str(Area_Mm2=30.0), Stain_Str(Area_Mm2=1.3)]
+    assert Verdict_Reasons(det) == ['3 stains on the machined front, the largest 152.22 mm², 183.52 mm² in all.']
+    det = _Judged('NOK')
+    det.Catalogue.Side_Name = 'logo side'
+    det.Logo = _Logo(missing=(1, 13))
+    assert Verdict_Reasons(det) == ['The letter I of JIC is missing.', 'The letter R of FACTORY is missing.']
+    det.Logo = _Logo(registered=False)
+    assert Verdict_Reasons(det) == ['No inscription found on the logo side.']
+    det.Logo = _Logo()
+    assert Verdict_Reasons(det) == []
+
+
+def test_the_findings_say_what_the_checks_found_in_words_without_numbers() -> None:
+    """
+    Description:
+        What the describer is told of a judged part: one sentence per check that ran, in words and without a digit
+        — stains found or none, the inscription complete, incomplete with its missing letters, or absent, a hole
+        group short or over, an outline out of tolerance — and nothing for a Warning or an Unspecified object.
+    """
+
+    from Reporting.Core import Findings
+    from Parameters.Vision import Stain_Str, Hole_Count_Str
+    from Vision.Utilities.Dimensions import Check_Dimension
+    det = _Judged('NOK', checks=[Check_Dimension('length', 63.2, 60.0, 1.5)])
+    det.Catalogue.Side_Name = 'machined front'
+    det.Stains = [Stain_Str(Area_Mm2=152.2)]
+    det.Hole_Counts = [Hole_Count_Str(Name='countersink', Found=1, Expected=2),
+                       Hole_Count_Str(Name='through-hole', Found=3, Expected=2)]
+    assert Findings(det) == ('An automatic check found yellow-brown stains on its machined front; describe them and '
+                             'where they are. An automatic check found fewer countersinks than the part has. An '
+                             'automatic check found more through-holes than the part has. An automatic check found '
+                             'its outline out of tolerance.')
+    det = _Judged('OK')
+    det.Catalogue.Side_Name = 'logo side'
+    det.Stains, det.Logo = [], _Logo()
+    assert Findings(det) == ('An automatic check found no stain on its logo side. An automatic check found the '
+                             'inscription complete.')
+    det.Logo = _Logo(missing=(4,))
+    assert Findings(det).endswith('found the inscription incomplete: the letter M of SMART is missing; describe the '
+                                  'inscription as you see it.')
+    det.Logo = _Logo(registered=False)
+    assert Findings(det).endswith('An automatic check found no inscription on its logo side.')
+    assert not any(character.isdigit() for character in Findings(det))
+    for verdict in ('Warning', 'Unspecified'):
+        assert Findings(_Judged(verdict)) == ''
+
+
+def test_the_describer_prompt_is_the_items_filled_for_the_part() -> None:
+    """
+    Description:
+        A judged part's prompt is the item's Describer.Prompt with its side's name and description, that side's
+        defects only (what they look like and what is not one) and the findings; no placeholder is left and no
+        digit is in it. A Warning, an Unspecified object or an item without a prompt gets '' (the mode's prompt).
+    """
+
+    import dataclasses
+    from Reporting.Core import Describer_Prompt
+    from Parameters.Catalogue import Catalogue_Item_Str, Catalogue_Side_Str, Catalogue_Defect_Str
+    item = Catalogue_Item_Str(
+        Sides=[Catalogue_Side_Str(Side='front', Name='machined front', Description='Shiny milled metal.'),
+               Catalogue_Side_Str(Side='back', Name='unmachined back', Description='Dark matte metal.')],
+        Defects=[Catalogue_Defect_Str(Name='fingerprint', Side='front', Looks_Like='Yellow-brown stains.',
+                                      Not_A_Defect='Small dark dots.'),
+                 Catalogue_Defect_Str(Name='dent', Side='back', Looks_Like='A dent.')],
+        Describer_Prompt='Its {side} is up: {side_description} Defects: {defects} {findings} Describe it.')
+    det = _Judged('NOK')
+    det.Catalogue.Side_Name = 'machined front'
+    det.Stains = []
+    assert Describer_Prompt(det, item) == ('Its machined front is up: Shiny milled metal. Defects: Fingerprint: '
+                                           'Yellow-brown stains. Not a defect: Small dark dots. An automatic check '
+                                           'found no stain on its machined front. Describe it.')
+    for verdict in ('Warning', 'Unspecified'):
+        assert Describer_Prompt(_Judged(verdict), item) == ''
+    assert Describer_Prompt(det, dataclasses.replace(item, Describer_Prompt='')) == ''
+
+
+@pytest.mark.parametrize('sentence, stains, logo, holes, dropped', [
+    # Gemma's own sentences (E4B, prompt C, the test set, 2026-10-11), and their cases.
+    ('Two holes of 12 mm sit near one edge.', None, None, None, True),
+    ('The surface appears clean of any staining or significant marks.', [], None, None, False),
+    ('The surface appears clean of any staining or significant marks.', [1.0], None, None, True),
+    ('A noticeable yellow-brown stain is present on the lower right section.', [1.0], None, None, False),
+    ('A noticeable yellow-brown stain is present on the lower right section.', [], None, None, True),
+    ('The surface appears clean, with no visible stains or defects on the machined front.', [1.0], None, None, True),
+    ('The plate has four small blind holes in each corner.', None, None, (3, 4), True),
+    ('Four small blind holes are present, one near each corner.', None, None, (0, 4), True),
+    ('Four small blind holes are present, one near each corner.', None, None, (4, 4), False),
+    ('There are four corner holes.', None, None, (3, 4), True),
+    ('Small blind holes are present in each corner.', None, None, (0, 4), True),
+    ('Small blind holes are present in each corner.', None, None, (4, 4), False),
+    ('It features an engraved JIC Smart Factory logo on one side, though an automatic check found no inscription '
+     'on this side.', None, 'none', None, True),
+    ('The inscription is present and complete, with no missing letters or inscriptions.', None, 'complete', None, False),
+    ('The inscription is present and complete, with no missing letters or inscriptions.', None, 'one missing', None, True),
+    ('The inscription is present, though it appears to be missing several letters.', None, 'one missing', None, False),
+    ('The inscription is present, though it appears to be missing several letters.', None, 'complete', None, True),
+], ids=['a number', 'clean, none found', 'clean, a stain found', 'a stain, one found', 'a stain, none found',
+        'no stains, one found', 'four holes, three found', 'four holes, none found', 'four holes, all found',
+        'a count alone', 'each corner, none found', 'each corner, all found', 'a logo, none found', 'complete, complete',
+        'complete, a letter missing', 'letters missing, so they are', 'letters missing, none are'])
+def test_the_guard_drops_numbers_and_what_contradicts_a_check(sentence: str, stains: tp.Any, logo: tp.Any,
+                                                              holes: tp.Any, dropped: bool) -> None:
+    """
+    Description:
+        The describer only confirms and describes: a sentence with a number is dropped, and so is one
+        contradicting a check that ran — a stain claimed on a clean side or a clean side claimed when a stain was
+        found ('clean of', 'no' negate the stain), all the holes claimed by a count when the check found fewer, an
+        inscription affirmed where none was found, complete letters claimed when one is missing or missing ones
+        when all are there. A sentence agreeing with the checks is kept, word for word.
+    """
+
+    from Reporting.Core import Guard_Description
+    from Parameters.Vision import Stain_Str, Hole_Count_Str
+    det = _Judged('NOK')
+    det.Stains = [Stain_Str(Area_Mm2=area) for area in stains] if stains is not None else None
+    det.Logo = {'none': _Logo(registered=False), 'complete': _Logo(), 'one missing': _Logo(missing=(4,)),
+                None: None}[logo]
+    det.Hole_Counts = [Hole_Count_Str(Name='corner hole', Found=holes[0], Expected=holes[1])] if holes else []
+    kept, drops = Guard_Description('The part is a square metal plate. ' + sentence, det)
+    assert kept == 'The part is a square metal plate.' + ('' if dropped else ' ' + sentence)
+    assert [text for text, _why in drops] == ([sentence] if dropped else [])

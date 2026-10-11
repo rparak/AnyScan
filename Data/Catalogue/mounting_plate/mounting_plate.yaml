@@ -22,14 +22,15 @@
 #   Description, Sides, Defects:
 #     What the part looks like, on each side, and what is a defect and what is not — the
 #     single tracked source for the part, from the catalogue-mode request. Each side's Name
-#     is read now (the side sentence of a judged object's description). The longer texts
-#     are validated at load and read by nothing yet: the describer reads them from phase D
-#     of the catalogue mode, a dated exception to the rule that a field must be read
-#     (docs/design-decisions.md, 2026-10-11).
+#     is the side sentence of a judged object's description; the side's Description and its
+#     Defects go to the describer through Describer.Prompt. Description and
+#     Measurement_Rules are for people: validated at load, read by nothing (the dated
+#     exception in docs/design-decisions.md, 2026-10-11). What the describer is given holds
+#     no number (the loader refuses one): it is told the appearance, never a dimension.
 #
 #   Checks:
-#     Each block under Checks is one check, run with the parameters it sets. Only the
-#     outline and the holes are checked today; the surface is not yet built.
+#     Each block under Checks is one check, run with the parameters it sets: the outline,
+#     the holes on both sides and stains on the front.
 ## =========================================================================== ##
 
 # REQUIRED. The item as a person names it.
@@ -67,9 +68,9 @@ Sides:
     Name: machined front
     Description: >-
       Milled, shiny metal with regular circular to arc-shaped tool marks. About halfway up
-      two milled faces meet and the direction of the marks changes; the marks and the
-      transition come from machining and are not defects. Two stepped holes off the long
-      axis towards one long edge, so four circular outlines show: two of 12 mm, two of 6 mm.
+      the milled faces meet and the direction of the marks changes; the marks and the
+      transition come from machining and are not defects. Stepped holes off the long axis
+      towards one long edge, each a large countersink around a smaller through-hole.
       Straight, clean edges with a slight chamfer.
   back:
     Name: unmachined back
@@ -78,9 +79,8 @@ Sides:
       raw rolled stock with mill scale or oxide. Short dark hairline scratches run mostly
       across the part, square to the long edge. Along both long edges, irregular whitish to
       silver spots where the surface layer is scuffed, a little more near the edge closer to
-      the holes; they are not defects and do not tell the orientation. Two smooth 6 mm
-      through-holes without countersink, so two circular outlines show. Straight edges, in
-      places a narrow chamfer.
+      the holes; they are not defects and do not tell the orientation. Smooth through-holes
+      without countersink. Straight edges, in places a narrow chamfer.
 
 # What is NOK on this part, and what looks like it but is not: one entry per defect, with the
 # side it is looked for on. Default: none (a part whose defects are not described yet).
@@ -95,7 +95,7 @@ Defects:
       Small dark dots, scratches or marks with no papillary lines and no continuous
       yellow-brown area.
 
-# The checks the code runs on the part. Phase C adds Holes, phase D Stain and Logo.
+# The checks the code runs on the part.
 Checks:
   # The outline seen from above. The longer measured side is checked against Length_Mm,
   # the shorter against Width_Mm, so the part's rotation does not matter.
@@ -136,3 +136,33 @@ Checks:
         From_Long_Edge_Mm: 15
         From_Short_Edge_Mm: 17.5
         Pitch_Mm: 25
+  # Stains, per side (Vision.Utilities.Stain): the pixels of the part's upright crop inside its outline,
+  # Edge_Margin_Mm in from it and off its holes, whose colour falls in the band (OpenCV HSV: hue
+  # Hue_Min-Hue_Max of 0-179, saturation and value at least Saturation_Min and Value_Min of 255),
+  # opened; each area of Min_Area_Mm2 [mm^2] or more is a stain (NOK). All REQUIRED.
+  # Measured on the test set's fronts (2026-10-11, this table and light): the five fingerprinted
+  # plates' stains 145-1240 mm^2, every clean front at most 0.0 mm^2 in the band after the opening, so
+  # the 1 mm^2 threshold (owner's ruling) has the clean side's margin and catches far smaller stains.
+  # The band is the light's: a new light or camera setting is measured again (KNOWN_ISSUES).
+  Stain:
+    front:
+      Hue_Min: 5
+      Hue_Max: 30
+      Saturation_Min: 50
+      Value_Min: 40
+      Min_Area_Mm2: 1.0
+      Edge_Margin_Mm: 1.0
+
+# The describer's prompt for a judged part (OK or NOK), filled per part: {side} (the side's Name,
+# from DINOv2), {side_description}, {defects} (that side's Defects) and {findings} (what the checks
+# found, in words without numbers). The describer only describes: the verdict is the checks', and a
+# sentence of its answer stating a measurement or contradicting the verdict is dropped and logged.
+# No number may appear here. Default: the mode file's Description.Prompt_Object, without context.
+Describer:
+  Prompt: >-
+    The part is a mounting plate, lying with its {side} up. What that side looks like:
+    {side_description} What counts as a defect on this side, and what does not: {defects}
+    {findings} In one short flowing paragraph (no lists, no markdown), describe the part as
+    you see it: its shape, colour and material, the features you can see, and its surface
+    condition, naming where any marks are. Describe only the part, not the surface it lies
+    on, and give no measurement and no count.

@@ -2833,13 +2833,13 @@ check. The rest is the agreed design, recorded here so the later phases build to
   so the owner chose to let the block select the mode and to remove the switch. Removed with the states in
   phase B (2026-10-11).
 - **The configuration picks checks and sets their parameters; it never describes an algorithm.** Each
-  block under `Checks` selects one ready-made check module (today `Outline`; later holes, surface stain,
-  logo) with the parameters it reads. No OpenCV call sequence, and **no order**: the checks are
+  block under `Checks` selects one ready-made check module (`Outline`, `Holes`, `Stain`, `Logo`, the last
+  three built in phases C and D) with the parameters it reads. No OpenCV call sequence, and **no order**: the checks are
   independent and the verdict will require all of them, so an order field could not change a result
   (structure.md: no field that cannot take effect). A defect check is optional per item: an item may
   define none yet, and one is added later with no code change.
-- **One home per value.** The Gemma prompt for an item will live in the item file only; the request's
-  override in the mode file would give the same text two homes.
+- **One home per value.** The Gemma prompt for an item lives in the item file only (`Describer.Prompt`, phase
+  D); the request's override in the mode file would give the same text two homes.
 - **The agreed split for the later phases.** FastSAM and the fusion keep finding the objects and their
   outlines (41 of 41 frames counted correctly); DINOv2 base, run locally, will identify which object is
   the item and which side is up, since its 14 px patches cannot give an outline to measure. Deterministic
@@ -2958,7 +2958,9 @@ is flagged as a failed part, never passed or ignored), and the thin threshold is
   all OK in green), and Trends charts OK, NOK, Warning and Unspecified. Only History's filter is left
   (KNOWN_ISSUES).
 - **What it does not judge yet.** The stain, the holes and the logo. The five stained-plate frames read OK
-  until the stain check (phase D); their expected NOK is a strict xfail naming it.
+  until the stain check (phase D); their expected NOK is a strict xfail naming it. *Corrected 2026-10-11:* the
+  holes are judged since phase C, the stain and the logo since phase D (*A judged part's stains are a colour
+  band…*, *The logo is read letter by letter…*); the stained plates read NOK and their marks are lifted.
 - **Confidence stays a mask score.** The similarity is shown as "similarity", never as Confidence
   ([*`Verdict`'s confidence branch stays dormant…*](#verdicts-confidence-branch-stays-dormant-a-mask-score-is-not-a-confidence)).
 
@@ -3039,8 +3041,8 @@ said about the part, in a schema phases C and D extend rather than reshape:
   up.", from DINOv2's side, never the describer's.
 - `Defects` (optional, default none: a part whose defective examples may not exist yet) — each a `Name`,
   the `Side` it is looked for on, what it `Looks_Like` and what is `Not_A_Defect`.
-- `Checks` — what the code measures (`Outline` today; `Holes` in phase C, `Stain` and `Logo` in D), kept
-  apart from what a person or the describer looks for.
+- `Checks` — what the code measures (`Outline`, `Holes`, `Stain`, `Logo`), kept apart from what a person or
+  the describer looks for.
 
 **A dated exception to "a field must be read".** `Description`, `Measurement_Rules`, each side's
 `Description` and `Defects` are loaded and validated now (a wrong side, a missing name, an unknown key in a
@@ -3048,6 +3050,12 @@ side or a defect fails the item) and read by nothing until the describer uses th
 chose this over keeping them as comments: validated fields cannot drift unnoticed, comments would have had
 to become fields anyway, and the item file is then the one place the part is described. The exception ends
 when phase D reads them; until then the item files' headers say so.
+
+*Corrected 2026-10-11 (phase D):* each side's `Description` and the `Defects` are read: they fill the
+describer's prompt (*The describer is told what the checks found, never a number…*), and they may hold no
+number. `Description` and `Measurement_Rules` are still read by nothing: they hold the dimensions, which the
+owner ruled the describer may not get. The exception continues for those two, for people reading the file,
+until the owner decides whether they stay.
 
 **Revisit if** phase D does not read a field (remove it, the rule applies again), or a part has a side
 without a reference image (then `Sides` follows the references, not a fixed pair).
@@ -3125,3 +3133,113 @@ power-up user set. They are not automatic, but a changed user set would change t
 station file (then set gamma and the preset too).
 Tests `test/Camera/test_basler.py::test_a_camera_that_keeps_an_automatic_mode_is_refused`,
 `::test_a_factory_default_camera_is_set_to_the_configured_window`, `::test_the_camera_layer_logs_the_window_it_read_back`.
+
+## A judged part's stains are a colour band on its upright crop, from 1 mm²
+
+Decided 2026-10-11 (catalogue phase D), the threshold the owner's. `Checks.Stain.<side>` lists a colour band
+(OpenCV HSV: hue 5–30, saturation from 50, value from 40), the least area (1 mm²) and an edge band left out
+(1 mm). `Vision.Utilities.Stain` takes the judged part's upright crop, leaves out the edge band and every hole
+the hole check found (its diameter with 0.5 mm more), opens the band's pixels (3 × 3: lines and specks go), and
+each connected area of 1 mm² or more is a stain; one makes the part NOK, the reason giving the count, the
+largest and the total ("7 stains on the machined front, the largest 152.22 mm², 201.55 mm² in all.").
+
+**Measured on the 12 mounting-plate fronts of the test set** (the crops the check gets): the five
+fingerprinted plates' largest stain 144–157 mm²; every clean front has no band pixel left after the opening,
+at any size. No false acceptance, no false rejection; the threshold sits over 100 times under the smallest
+stain found. The papillary lines are not used (about 5 px apart at this scale): colour alone separates them
+here.
+
+**Why colour, not the describer.** A describer is not a detector (README > Limitations), and the stain is a
+texture with no boundary FastSAM would give.
+
+**Revisit if** the light, the camera's settings or the table change (the band is this light's: KNOWN_ISSUES),
+a stain of another colour must be caught, or a clean part shows band pixels.
+Tests `test/Vision/Utilities/test_stain.py` (synthetic: the least area, the edge band and the holes left out,
+hairlines, colours outside the band, the order, the rule), `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`
+(the five stained plates NOK, the clean ones OK), `test/Configuration/test_core.py::test_an_invalid_stain_check_fails_the_item`.
+
+## The logo is read letter by letter against every reference it registers to, by shape and by contrast
+
+Decided 2026-10-11 (catalogue phase D), the variant and the known false NOK on the owner's rulings.
+`Checks.Logo.<side>` lists the expected words (JIC, SMART, FACTORY), Min_Matches (30), Letter_Min_Similarity
+(0.62), Letter_Min_Contrast (1.0) and its references: each one plate's image, a rotation that makes it read
+upright and level, and its 15 letters' boxes (`Example/Catalogue/logo_letters.py` draws and prints them; the
+loader refuses boxes that do not spell the words). `Vision.Utilities.Logo` registers the part's upright crop to
+each reference by SIFT features and a similarity transform (RANSAC); none reaching Min_Matches is no
+inscription. Each letter is compared with that letter in every reference the part registered to — the
+correlation of the CLAHE-equalised edge images, the best kept — and is there at both thresholds: the contrast
+is its edges along the reference's strokes against the part's own plate.
+
+- **Three references.** The filled letters (`back`), and the outline letters, a valid variant (owner's
+  ruling), on two plates: Image_092's left (`back_outline`, as the owner named) and Image_069's
+  (`back_outline_2`). One outline reference was not enough: each plate's light leaves different letters dim,
+  so 092's reference failed 069 and 095 (least letter 0.19–0.20) and 069's failed 092 (0.09). Each letter
+  taking its best reference lets one plate's dim letter be read from another.
+- **Contrast beside shape.** Correlation is blind to how faint the edges are, and an inpainted letter's seam
+  keeps its shape: two erased J scored 0.58–0.59, under the complete letters' 0.77 by only 0.18 and 0.03 under
+  the threshold; their contrast is 0.18–0.19 against the complete letters' least 3.24.
+- **Measured on the test set's 16 backs:** the 4 blank plates register with at most 12 matches, every logo
+  with at least 54; the 11 complete logos' least letter 0.77 (contrast 3.24); each of their 165 letters erased
+  in turn (synthetic) at most 0.47 but the two J seams, every one caught. Image_092's right plate (dark,
+  scratched, glare, the engraving's polarity reversed) registers but scores 0.19: a known false NOK
+  (KNOWN_ISSUES), kept because every equalisation that lifted it (CLAHE clips 1–4, equalised histograms,
+  absolute high-pass, top-hat) lifted erased letters past it — the owner's condition. 50–75 ms per back on
+  the CPU, the references prepared once per configuration.
+- **Measured and dropped:** a ±4 px search around each letter (no score moved by 0.01); one reference per
+  variant (above); CLAHE off or at clip 1 or 4 (off: shape alone cannot separate the J seams, 0.73 against
+  0.74; clip 1 brings the blanks to 23 matches; clip 4 the complete letters to 0.60). Correlation alignment
+  without features failed on the reference frame itself; OCR cannot read the stylised JIC.
+
+**Revisit if** a logo plate under another light or another engraving appears (measure, add a reference), a
+real plate with a missing letter is captured (the erasures are synthetic), or Image_092's right plate's kind of
+surface becomes common.
+Tests `test/Vision/Utilities/test_logo.py` (synthetic: the rotation, a complete logo turned and smaller, an
+erased letter named with its word, a plate without the logo, both thresholds, the best reference per letter,
+the rule; slow: `::test_every_letter_erased_from_a_real_logo_is_caught`),
+`test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (Image_092 a strict xfail),
+`test/Configuration/test_core.py::test_an_invalid_logo_check_fails_the_item`.
+
+## The describer is told what the checks found, never a number, and its contradictions are dropped and logged
+
+Decided 2026-10-11 (catalogue phase D), on the owner's rulings: the describer may only confirm and describe,
+never decide or contradict the verdict, and gets the appearance and the defects as context but no dimension
+or number. In a catalogue mode the objects are now judged before they are described (the judgement's time is
+still left out of the latency). A judged part (OK, NOK) is described with the item's `Describer.Prompt`, filled
+by `Reporting.Describer_Prompt` with the side up (DINOv2's), that side's description and defects, and what the
+checks found in words (`Reporting.Findings`: "found yellow-brown stains on its machined front; describe them
+and where they are", "found fewer corner holes than the part has"). A Warning or an Unspecified object gets the
+mode's own prompt. The loader refuses a digit or a number word (two to twelve, pair, half…) in a side's
+description, a defect or the prompt. `Reporting.Guard_Description` then drops, sentence by sentence, one with
+a digit and one contradicting a check that ran (a stain claimed on a clean side or denied on a stained one; a
+count of holes, or holes "in each corner", when the hole count failed; a logo affirmed where none was found;
+complete or missing letters against the check); each drop is an audit warning in the log with the describer's
+full text. The verdict, State and Reasons come from the checks only.
+
+**Measured with Gemma 4 E4B on 24 judged parts of 15 frames** (7 mounting-plate fronts, 4 of them stained; 12
+labyrinth backs, 3 of them blank and 092's false NOK among them; 5 hole-NOK labyrinth fronts, Image_084's
+among them):
+- **First run**, the catalogue's sides still counting ("Four small blind holes…"): on all five hole-NOK fronts
+  Gemma wrote "four small blind holes in each corner", and on a blank plate "features an engraved JIC Smart
+  Factory logo …, though an automatic check found no inscription"; the first guard let both through, and
+  dropped one correct sentence ("clean of any staining").
+- **After** the number words were taken out of what it is given and the guard extended: it still wrote
+  "small blind holes in each corner" on the five hole-NOK fronts — the guard dropped all five; no other drop;
+  no contradiction left in the text shown; no digit. The stains were described and placed ("concentrated on
+  the left side"); two of the three blanks were called blank, and none was given a logo. 1.9–3.7 s per judged part on the M-series GPU.
+- **Before phase D** (the side description and defects without the findings, then with them, on the 12
+  fronts): 0 contradictions, but 11–12 of 12 recited the catalogue's sizes as seen, among them the 8 mm
+  thickness, invisible from above — why no number reaches it.
+
+**The guard is words, not understanding.** It catches the sentences measured and their kind; a paraphrase it
+has not seen can pass, and a correct sentence using a pattern's words can be dropped (logged either way:
+KNOWN_ISSUES).
+
+**Revisit if** the describer model or the prompt changes (measure again: contradictions shown, drops, false
+drops), a check is added (its claims join `CONST_GUARD_CLAIMS`), or the drops show a sentence the operator
+needed.
+Tests `test/Reporting/test_core.py` (`::test_the_guard_drops_numbers_and_what_contradicts_a_check`, with
+Gemma's own sentences; `::test_the_findings_say_what_the_checks_found_in_words_without_numbers`;
+`::test_the_describer_prompt_is_the_items_filled_for_the_part`),
+`test/Vision/test_core.py::test_a_judged_part_is_described_with_its_findings_and_guarded`,
+`test/Vision/test_describers.py::test_gemma_sends_a_given_prompt_instead_of_the_purposes`,
+`test/Configuration/test_core.py::test_what_the_describer_is_given_holds_no_number`.

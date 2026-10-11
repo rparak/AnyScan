@@ -23,7 +23,9 @@
 
 # System (Default)
 import os
+import re
 import math
+import string
 import shutil
 import tempfile
 # Hashlib (the reference image's and the calibration's fingerprints)
@@ -47,7 +49,8 @@ from Parameters.Camera import Camera_Calibration_Parameters_Str
 from Parameters.Vision import Scale_Str, CONST_SCALE_UNITS
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import (Catalogue_Item_Str, Catalogue_Reference_Str, Catalogue_Side_Str,
-                                  Catalogue_Defect_Str, Catalogue_Hole_Group_Str)
+                                  Catalogue_Defect_Str, Catalogue_Hole_Group_Str, Catalogue_Stain_Str,
+                                  Catalogue_Logo_Str, Catalogue_Logo_Reference_Str)
 
 """
 Description:
@@ -252,7 +255,8 @@ def __Check(kind: str, value: tp.Any) -> tp.Tuple[bool, tp.Any, str]:
 
     Args:
         (1) kind [string]: The kind: 'bool', 'text', 'path', 'percent', 'unit', 'fraction', 'margin',
-                           'grey', 'count', 'size', 'kernel', 'nonnegative', 'positive' or 'device'.
+                           'grey', 'count', 'size', 'kernel', 'nonnegative', 'positive', 'hue', 'angle' or
+                           'device'.
         (2) value [Any]: The value read from the file.
 
     Returns:
@@ -283,6 +287,9 @@ def __Check(kind: str, value: tp.Any) -> tp.Tuple[bool, tp.Any, str]:
                         'a number of at least 0'),
         'positive':    (finite and value > 0.0, float(value) if finite else value,
                         'a number above 0'),
+        'hue':         (is_integer and 0 <= value <= 179, value, "a whole number from 0 to 179 (OpenCV's hue)"),
+        'angle':       (finite and -180.0 <= value <= 180.0, float(value) if finite else value,
+                        'a number of degrees from -180 to 180'),
         'device':      (isinstance(value, str) and (value in CONST_DEVICES or value.startswith('cuda:')),
                         value, 'one of %s (or cuda:N)' % ', '.join(CONST_DEVICES)),
     }
@@ -382,6 +389,24 @@ CONST_DEFECT_KEYS = (('Name', 'text', True), ('Side', 'text', True), ('Looks_Lik
 CONST_HOLE_KEYS = (('Name', 'text', True), ('Diameter_Mm', 'positive', True), ('Count', 'size', True),
                    ('From_Long_Edge_Mm', 'positive', False), ('From_Short_Edge_Mm', 'positive', False),
                    ('Pitch_Mm', 'positive', False), ('Tolerance_Mm', 'positive', False))
+# A stain check's keys (Checks.Stain.<side>), every one REQUIRED: the colour band and the two sizes.
+#   Unit [Tuple<Tuple>]
+CONST_STAIN_KEYS = (('Hue_Min', 'hue', True), ('Hue_Max', 'hue', True), ('Saturation_Min', 'grey', True),
+                    ('Value_Min', 'grey', True), ('Min_Area_Mm2', 'positive', True), ('Edge_Margin_Mm', 'nonnegative', True))
+# A logo check's scalar keys (Checks.Logo.<side>), and a logo reference's (its References[i]); the lists
+# (Expected_Text, References, Letters) are read by __Read_Logo.
+#   Unit [Tuple<Tuple>]
+CONST_LOGO_KEYS = (('Min_Matches', 'size', True), ('Letter_Min_Similarity', 'unit', True),
+                   ('Letter_Min_Contrast', 'positive', True))
+CONST_LOGO_REFERENCE_KEYS = (('Image', 'text', True), ('Rotation_Deg', 'angle', True))
+# The placeholders the describer's prompt may hold, filled per judged part (Reporting.Describer_Prompt).
+#   Unit [Tuple<string>]
+CONST_DESCRIBER_PLACEHOLDERS = ('side', 'side_description', 'defects', 'findings')
+# The words that state a number, refused with the digits in what the describer is given: given a count, it
+# recited it as seen ('four small blind holes in the corners' on fronts with three or none).
+#   Unit [Tuple<string>]
+CONST_NUMBER_WORDS = ('two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+                      'dozen', 'pair', 'twice', 'double', 'half')
 # The catalogue's outline tolerance override.
 #   Unit [Tuple<string>]
 CONST_OUTLINE_TOLERANCE_PATH = ('Checks', 'Outline', 'Tolerance_Mm')
@@ -937,9 +962,17 @@ def __Read_Catalogue(path: str, problems: tp.List[str],
     item.References = __Read_References(os.path.dirname(path), file_name, problems)
     item.Sides = __Read_Sides(data.get('Sides'), prefix, problems)
     item.Holes = __Read_Holes(__Lookup(data, ('Checks', 'Holes'))[1], item.Tolerance_Mm, prefix, problems)
+    item.Stain = __Read_Stain(__Lookup(data, ('Checks', 'Stain'))[1], prefix, problems)
+    item.Logo = __Read_Logo(__Lookup(data, ('Checks', 'Logo'))[1], os.path.dirname(path), prefix, problems)
+    item.Describer_Prompt = __Read_Describer_Prompt(__Lookup(data, ('Describer', 'Prompt')), prefix, problems)
     item.Defects = __Read_Defects(data.get('Defects'), prefix, problems)
+    __Check_No_Numbers(item, prefix, problems)
     known = __Known_Paths([CONST_OUTLINE_TOLERANCE_PATH, ('Defects',)]
-                          + [('Checks', 'Holes', side) for side in CONST_CATALOGUE_SIDES]
+                          + [('Checks', check, side) for check in ('Holes', 'Stain', 'Logo') for side in CONST_CATALOGUE_SIDES]
+                          + [('Checks', 'Stain', side, key) for side in CONST_CATALOGUE_SIDES for key, _k, _r in CONST_STAIN_KEYS]
+                          + [('Checks', 'Logo', side, key) for side in CONST_CATALOGUE_SIDES
+                             for key in [k for k, _kind, _r in CONST_LOGO_KEYS] + ['Expected_Text', 'References']]
+                          + [('Describer', 'Prompt')]
                           + [('Sides', side, key) for side in CONST_CATALOGUE_SIDES for key, _k, _r in CONST_SIDE_KEYS]
                           + [path for path, _a, _k, _r in CONST_CATALOGUE_FIELDS])
     for key in __Unknown_Keys(data, known):
@@ -1061,6 +1094,202 @@ def __Read_Holes(block: tp.Any, tolerance: float, prefix: str,
                                 'tolerance), so a hole would count in both' % (prefix, side, name, other))
         holes[side] = groups
     return holes
+
+
+def Read_Yolo_Box(box_file: str) -> tp.Optional[tp.Tuple[float, float, float, float]]:
+    """
+    Description:
+        A reference image's part box: its .txt holds one YOLO line, 'class cx cy w h', the four a fraction of the
+        image above 0 and at most 1.
+
+    Args:
+        (1) box_file [string]: The .txt.
+
+    Returns:
+        (1) parameter [Tuple<float> 1x4 or None]: (cx, cy, w, h), or None when it is missing or not one such line.
+    """
+
+    try:
+        with open(box_file, 'r', encoding='utf-8') as handle:
+            lines = [line.split() for line in handle.read().splitlines() if line.strip()]
+        assert len(lines) == 1 and len(lines[0]) == 5
+        box = tuple(float(value) for value in lines[0][1:])
+        assert all(math.isfinite(v) and 0.0 < v <= 1.0 for v in box)
+        return box
+    except (OSError, ValueError, AssertionError):
+        return None
+
+
+def __Read_Side_Checks(block: tp.Any, name: str, prefix: str, problems: tp.List[str]) -> tp.Dict[str, tp.Any]:
+    """
+    Description:
+        A per-side check block (Checks.Stain, Checks.Logo): a mapping of sides the part has to each side's entry.
+
+    Args:
+        (1) block [Any]: The block as read (None when absent).
+        (2) name [string]: The check's name, for the messages.
+        (3) prefix [string]: The item file's name and ': '.
+        (4) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Dict<string, Any>]: Each side's entry as read; {} when absent or invalid.
+    """
+
+    if block is None:
+        return {}
+    if not isinstance(block, dict) or not set(block) <= set(CONST_CATALOGUE_SIDES):
+        problems.append('%sChecks.%s must map %s to its check (found %r)'
+                        % (prefix, name, ' and/or '.join(CONST_CATALOGUE_SIDES), block))
+        return {}
+    return block
+
+
+def __Read_Stain(block: tp.Any, prefix: str, problems: tp.List[str]) -> tp.Dict[str, Catalogue_Stain_Str]:
+    """
+    Description:
+        The item's stain checks, Checks.Stain: per side, the colour band (hue from and to, least saturation and
+        value, OpenCV's HSV units), the smallest stain and the edge band left out, all REQUIRED.
+
+    Args:
+        (1) block [Any]: The Stain block as read (None when absent).
+        (2) prefix [string]: The item file's name and ': '.
+        (3) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Dict<string, Catalogue_Stain_Str(object)>]: The checks per side.
+    """
+
+    stains = {}
+    for side, entry in __Read_Side_Checks(block, 'Stain', prefix, problems).items():
+        dotted = '%sChecks.Stain.%s' % (prefix, side)
+        values = __Read_Entry(entry, CONST_STAIN_KEYS, dotted, problems)
+        if isinstance(values['Hue_Min'], int) and isinstance(values['Hue_Max'], int) and values['Hue_Min'] > values['Hue_Max']:
+            problems.append('%s: Hue_Min (%d) must not be above Hue_Max (%d)' % (dotted, values['Hue_Min'], values['Hue_Max']))
+        stains[side] = Catalogue_Stain_Str(**{key: (values[key] if values[key] != '' else 0) for key in values})
+    return stains
+
+
+def __Read_Logo(block: tp.Any, folder: str, prefix: str, problems: tp.List[str]) -> tp.Dict[str, Catalogue_Logo_Str]:
+    """
+    Description:
+        The item's logo checks, Checks.Logo: per side, the Expected_Text (its words), Min_Matches,
+        Letter_Min_Similarity and Letter_Min_Contrast, and References — each an Image (reference_image/<Image>.png and its YOLO .txt), a
+        Rotation_Deg and its Letters ([letter, x, y, width, height], in reading order), whose letters must spell the
+        expected words with their spaces left out, so a box cannot name the wrong letter.
+
+    Args:
+        (1) block [Any]: The Logo block as read (None when absent).
+        (2) folder [string]: The item's folder.
+        (3) prefix [string]: The item file's name and ': '.
+        (4) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Dict<string, Catalogue_Logo_Str(object)>]: The checks per side.
+    """
+
+    logos = {}
+    for side, entry in __Read_Side_Checks(block, 'Logo', prefix, problems).items():
+        dotted = '%sChecks.Logo.%s' % (prefix, side)
+        if not isinstance(entry, dict):
+            problems.append('%s must be a mapping' % dotted)
+            continue
+        scalars = {key: entry[key] for key, _k, _r in CONST_LOGO_KEYS if key in entry}
+        values = __Read_Entry(scalars, CONST_LOGO_KEYS, dotted, problems)
+        for key in set(entry) - {key for key, _k, _r in CONST_LOGO_KEYS} - {'Expected_Text', 'References'}:
+            problems.append('%s.%s is not a key it may hold' % (dotted, key))
+        words = entry.get('Expected_Text')
+        if not (isinstance(words, list) and words and all(isinstance(w, str) and w.strip() for w in words)):
+            problems.append('%s.Expected_Text must be a list of the words, in reading order' % dotted)
+            words = []
+        spelled = ''.join(words).replace(' ', '').upper()
+        references = []
+        if not isinstance(entry.get('References'), list) or not entry['References']:
+            problems.append('%s.References must be a list of the logo\'s variants' % dotted)
+        for index, raw in enumerate(entry.get('References') or [], 1):
+            where = '%s.References[%d]' % (dotted, index)
+            ref = __Read_Entry({k: raw[k] for k in ('Image', 'Rotation_Deg') if isinstance(raw, dict) and k in raw},
+                               CONST_LOGO_REFERENCE_KEYS, where, problems)
+            letters = []
+            for item in (raw.get('Letters') or []) if isinstance(raw, dict) else []:
+                valid = (isinstance(item, list) and len(item) == 5 and isinstance(item[0], str) and len(item[0]) == 1
+                         and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in item[1:]))
+                if not valid:
+                    problems.append('%s.Letters must be [letter, x, y, width, height] entries (found %r)' % (where, item))
+                    break
+                letters.append((item[0].upper(),) + tuple(item[1:]))
+            if ''.join(letter[0] for letter in letters).upper() != spelled:
+                problems.append('%s.Letters spell %r, but Expected_Text is %r' % (where, ''.join(l[0] for l in letters), spelled))
+            image = os.path.join(folder, 'reference_image', '%s.png' % ref['Image'])
+            box = Read_Yolo_Box(os.path.splitext(image)[0] + '.txt') if os.path.isfile(image) else None
+            if box is None:
+                problems.append('%s: reference_image/%s.png and its one-line YOLO .txt are required' % (where, ref['Image']))
+                continue
+            references.append(Catalogue_Logo_Reference_Str(Name=ref['Image'], Image_Path=image, Box=box,
+                                                           Rotation_Deg=ref['Rotation_Deg'] or 0.0, Letters=letters))
+        logos[side] = Catalogue_Logo_Str(Expected_Text=[w.upper() for w in words], Min_Matches=values['Min_Matches'] or 0,
+                                         Letter_Min_Similarity=values['Letter_Min_Similarity'] or 0.0,
+                                         Letter_Min_Contrast=values['Letter_Min_Contrast'] or 0.0,
+                                         References=references)
+    return logos
+
+
+def __Read_Describer_Prompt(found: tp.Tuple[bool, tp.Any], prefix: str, problems: tp.List[str]) -> str:
+    """
+    Description:
+        The describer's prompt for a judged part (Describer.Prompt): optional, text, and holding no placeholder
+        but CONST_DESCRIBER_PLACEHOLDERS, each filled per part.
+
+    Args:
+        (1) found [Tuple<bool, Any>]: (present, value) as looked up.
+        (2) prefix [string]: The item file's name and ': '.
+        (3) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [string]: The prompt, '' when absent.
+    """
+
+    present, value = found
+    if not present or value is None:
+        return ''
+    valid, value, expected = __Check('text', value)
+    if not valid:
+        problems.append('%sDescriber.Prompt must be %s' % (prefix, expected))
+        return ''
+    try:
+        names = {name for _text, name, _spec, _conv in string.Formatter().parse(value) if name is not None}
+    except ValueError as error:
+        problems.append('%sDescriber.Prompt is not a valid template (%s)' % (prefix, error))
+        return ''
+    unknown = sorted(names - set(CONST_DESCRIBER_PLACEHOLDERS))
+    if unknown:
+        problems.append('%sDescriber.Prompt holds %s; it may hold only %s' % (
+            prefix, ', '.join('{%s}' % n for n in unknown), ', '.join('{%s}' % n for n in CONST_DESCRIBER_PLACEHOLDERS)))
+    return value
+
+
+def __Check_No_Numbers(item: Catalogue_Item_Str, prefix: str, problems: tp.List[str]) -> None:
+    """
+    Description:
+        The texts the describer is given — each side's description, the defects and the describer's prompt — hold
+        no digit and no number word (CONST_NUMBER_WORDS): the owner's ruling (2026-10-11) is that the describer
+        gets the part's appearance, never a dimension or a number, which it recited as if it had seen them when
+        it got them.
+
+    Args:
+        (1) item [Catalogue_Item_Str(object)]: The item, read.
+        (2) prefix [string]: The item file's name and ': '.
+        (3) problems [Vector<string>]: Collects what is wrong.
+    """
+
+    texts = [('Sides.%s.Description' % side.Side, side.Description) for side in item.Sides]
+    texts += [('Defects[%d].%s' % (i, key), getattr(defect, key)) for i, defect in enumerate(item.Defects, 1)
+              for key in ('Name', 'Looks_Like', 'Not_A_Defect')]
+    texts.append(('Describer.Prompt', item.Describer_Prompt))
+    for where, text in texts:
+        words = [word for word in re.findall(r'[a-z]+', text.lower()) if word in CONST_NUMBER_WORDS]
+        if any(character.isdigit() for character in text) or words:
+            problems.append('%s%s holds a number%s; the describer is given no numbers (only the appearance)'
+                            % (prefix, where, " ('%s')" % words[0] if words else ''))
 
 
 def __Read_Defects(block: tp.Any, prefix: str, problems: tp.List[str]) -> tp.List[Catalogue_Defect_Str]:

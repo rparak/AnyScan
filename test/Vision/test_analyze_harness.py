@@ -277,14 +277,14 @@ def test_a_catalogue_run_finds_the_items_reference_frames_by_content() -> None:
     Description:
         Judging an item on the frames it was defined from is circular, so a catalogue run reports them
         apart. They are found by content, not name: the test set's frames that are byte for byte the
-        item's reference images — Image_055 and 056 for the mounting plate, 057 and 058 for the
-        labyrinth — and none outside a catalogue mode.
+        item's reference images — Image_055 and 056 for the mounting plate; 057 and 058 for the
+        labyrinth, with 069 and 092 for its logo references — and none outside a catalogue mode.
     """
 
     from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
     folder = os.path.dirname(CONST_DEFAULT_CONFIG_FILE)
     for mode, expected in (('Mounting_Plate', ['Image_055.png', 'Image_056.png']),
-                           ('Labyrinth', ['Image_057.png', 'Image_058.png']),
+                           ('Labyrinth', ['Image_057.png', 'Image_058.png', 'Image_069.png', 'Image_092.png']),
                            ('Seg_Anything', [])):
         config = Load_Configuration(os.path.join(folder, 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_%s.yaml' % mode))
         scenes = analyze.Discover_Scenes(config.Evaluation.Frames)

@@ -1226,11 +1226,11 @@ def test_the_outline_tolerance_overrides_the_items(tmp_path: tp.Any) -> None:
 
     data = _Item('labyrinth')
     data['Checks']['Outline']['Tolerance_Mm'] = 0.5
-    item = Load_Catalogue(_Write_Item(tmp_path, data))
+    item = Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))
     assert (item.Tolerance_Mm, item.Outline.Tolerance_Mm, item.Notes) == (1.0, 0.5, [])
     data['Checks']['Outline']['Tolerance_Mm'] = 0
     with pytest.raises(Configuration_Error_Cls, match='Checks.Outline.Tolerance_Mm must be a number above 0'):
-        Load_Catalogue(_Write_Item(tmp_path, data))
+        Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))
 
 
 def test_a_catalogue_item_is_refused_when_its_length_is_its_shorter_side(tmp_path: tp.Any) -> None:
@@ -1675,3 +1675,112 @@ def test_an_item_without_holes_has_no_hole_check(tmp_path: tp.Any) -> None:
     data = _Item('mounting_plate')
     del data['Checks']['Holes']
     assert Load_Catalogue(_Write_Item(tmp_path, data)).Holes == {}
+
+
+def test_the_items_carry_their_stain_logo_and_describer_prompt() -> None:
+    """
+    Description:
+        The shipped items' phase D checks: the mounting plate's front has the stain band (hue 5-30, saturation
+        and value from 50 and 40, 1 mm², a 1 mm edge band) and its back none; the labyrinth's back has the logo
+        (JIC, SMART, FACTORY; 30 matches, 0.62 similarity, contrast 1.0) with three references — the filled
+        letters, and the outline letters on two plates — each spelling the text; both carry a describer prompt.
+    """
+
+    plate = Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')
+    labyrinth = Load_Catalogue('Data/Catalogue/labyrinth/labyrinth.yaml')
+    assert list(plate.Stain) == ['front'] and plate.Logo == {} and labyrinth.Stain == {}
+    band = plate.Stain['front']
+    assert (band.Hue_Min, band.Hue_Max, band.Saturation_Min, band.Value_Min, band.Min_Area_Mm2, band.Edge_Margin_Mm) == \
+        (5, 30, 50, 40, 1.0, 1.0)
+    logo = labyrinth.Logo['back']
+    assert list(labyrinth.Logo) == ['back']
+    assert (logo.Expected_Text, logo.Min_Matches, logo.Letter_Min_Similarity, logo.Letter_Min_Contrast) == \
+        (['JIC', 'SMART', 'FACTORY'], 30, 0.62, 1.0)
+    assert [(r.Name, r.Rotation_Deg, len(r.Letters)) for r in logo.References] == \
+        [('back', 0.0, 15), ('back_outline', 0.0, 15), ('back_outline_2', 24.3, 15)]
+    assert all(''.join(letter[0] for letter in r.Letters) == 'JICSMARTFACTORY' for r in logo.References)
+    assert all(os.path.isfile(r.Image_Path) for r in logo.References)
+    assert '{findings}' in plate.Describer_Prompt and '{findings}' in labyrinth.Describer_Prompt
+
+
+@pytest.mark.parametrize('change, words', [
+    (lambda c: c['Stain']['front'].pop('Min_Area_Mm2'), 'Checks.Stain.front.Min_Area_Mm2 is required but missing'),
+    (lambda c: c['Stain']['front'].update(Hue_Max=200), "Hue_Max must be a whole number from 0 to 179"),
+    (lambda c: c['Stain']['front'].update(Hue_Min=40), r'Hue_Min \(40\) must not be above Hue_Max \(30\)'),
+    (lambda c: c['Stain'].update(top=c['Stain']['front']), 'Checks.Stain must map front and/or back'),
+    (lambda c: c['Stain']['front'].update(Saturation_Min=300), 'Saturation_Min must be a whole number from 0 to 255'),
+], ids=['no least area', 'hue past 179', 'hue band reversed', 'unknown side', 'saturation past 255'])
+def test_an_invalid_stain_check_fails_the_item(tmp_path: tp.Any, change: tp.Callable, words: str) -> None:
+    """
+    Description:
+        The stain check is validated at load: every key required, the hue in OpenCV's 0-179 and not reversed,
+        saturation and value in 0-255, and only the sides the part has.
+    """
+
+    data = _Item('mounting_plate')
+    change(data['Checks'])
+    with pytest.raises(Configuration_Error_Cls, match=words):
+        Load_Catalogue(_Write_Item(tmp_path, data))
+
+
+@pytest.mark.parametrize('change, words', [
+    (lambda l: l['References'][0]['Letters'].pop(), r"References\[1\].Letters spell 'JICSMARTFACTOR', but Expected_Text is "
+                                                     r"'JICSMARTFACTORY'"),
+    (lambda l: l['References'][1]['Letters'][0].__setitem__(0, 'L'), r"References\[2\].Letters spell 'LIC"),
+    (lambda l: l['References'][0]['Letters'][0].__setitem__(1, -5), r'Letters must be \[letter, x, y, width, height\]'),
+    (lambda l: l.pop('Letter_Min_Contrast'), 'Checks.Logo.back.Letter_Min_Contrast is required but missing'),
+    (lambda l: l.update(Letter_Min_Similarity=1.5), 'Letter_Min_Similarity must be a number from 0 to 1'),
+    (lambda l: l['References'][2].update(Rotation_Deg=270), 'Rotation_Deg must be a number of degrees from -180 to 180'),
+    (lambda l: l['References'][0].update(Image='nope'), r'reference_image/nope.png and its one-line YOLO .txt are required'),
+    (lambda l: l.update(Font='Arial'), 'Checks.Logo.back.Font is not a key it may hold'),
+    (lambda l: l.update(Expected_Text='JIC'), 'Expected_Text must be a list of the words'),
+], ids=['a letter short', 'a wrong letter', 'a negative box', 'no contrast', 'similarity past 1', 'rotation past 180',
+        'no image', 'unknown key', 'text not a list'])
+def test_an_invalid_logo_check_fails_the_item(tmp_path: tp.Any, change: tp.Callable, words: str) -> None:
+    """
+    Description:
+        The logo check is validated at load: each reference's letters must spell the expected words (a box cannot
+        name the wrong letter), each box four whole numbers from 0, every threshold present and in range, the
+        rotation within a half turn either way, the image and its YOLO box present, no key it may not hold.
+    """
+
+    data = _Item('labyrinth')
+    change(data['Checks']['Logo']['back'])
+    with pytest.raises(Configuration_Error_Cls, match=words):
+        Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))
+
+
+def test_the_logo_text_is_matched_whatever_its_case(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The expected words and the letters are compared in capitals, so 'Smart' and the boxes' 'S M A R T' agree,
+        and the check reports the words in capitals.
+    """
+
+    data = _Item('labyrinth')
+    data['Checks']['Logo']['back']['Expected_Text'] = ['Jic', 'Smart', 'factory']
+    item = Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))
+    assert item.Logo['back'].Expected_Text == ['JIC', 'SMART', 'FACTORY']
+
+
+@pytest.mark.parametrize('change, words', [
+    (lambda d: d['Describer'].update(Prompt='Its {side} up; {colour}.'), r'Describer.Prompt holds \{colour\}; it may hold only'),
+    (lambda d: d['Describer'].update(Prompt='Describe it in 3 sentences.'), 'Describer.Prompt holds a number'),
+    (lambda d: d['Sides']['front'].update(Description='Four small blind holes.'), "Sides.front.Description holds a number \\('four'\\)"),
+    (lambda d: d['Sides']['back'].update(Description='A 50 mm plate.'), 'Sides.back.Description holds a number'),
+    (lambda d: d['Defects'][0].update(Looks_Like='A pair of holes missing.'), r"Defects\[1\].Looks_Like holds a number \('pair'\)"),
+    (lambda d: d['Describer'].update(Prompt='Its {side up.'), 'Describer.Prompt is not a valid template'),
+], ids=['unknown placeholder', 'a digit in the prompt', 'a count in a side', 'a size in a side', 'a pair in a defect',
+        'a broken placeholder'])
+def test_what_the_describer_is_given_holds_no_number(tmp_path: tp.Any, change: tp.Callable, words: str) -> None:
+    """
+    Description:
+        The owner's ruling (2026-10-11): the describer gets the part's appearance, never a dimension or a number —
+        given a count, it recited it as seen. A side's description, a defect or the prompt holding a digit or a
+        number word fails the item, and the prompt may hold only its four placeholders.
+    """
+
+    data = _Item('labyrinth')
+    change(data)
+    with pytest.raises(Configuration_Error_Cls, match=words):
+        Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))

@@ -142,6 +142,21 @@ def test_gemma_follows_another_configurations_prompts_without_reloading(fake_mlx
     assert fake_mlx.generated[-1][1]['max_tokens'] == 64
 
 
+def test_gemma_sends_a_given_prompt_instead_of_the_purposes(fake_mlx) -> None:
+    """
+    Description:
+        A prompt given with the crop (a catalogue mode's filled Describer.Prompt for a judged part) is sent
+        instead of the purpose's; without one, the purpose's own prompt is sent as before.
+    """
+
+    describer = Gemma_Describer_Cls(fake_mlx.params)
+    describer.Load()
+    describer.Describe(np.zeros((8, 8, 3), np.uint8), CONST_PURPOSE_OBJECT, 'The part is a labyrinth plate.')
+    describer.Describe(np.zeros((8, 8, 3), np.uint8), CONST_PURPOSE_OBJECT)
+    assert [prompt for prompt, _ in fake_mlx.templates] == ['The part is a labyrinth plate.',
+                                                            fake_mlx.params.Prompt_Object]
+
+
 def test_gemma_fails_loudly_without_mlx_or_weights(fake_mlx, monkeypatch, tmp_path) -> None:
     """
     Description:

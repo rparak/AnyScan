@@ -134,7 +134,8 @@ CONST_STATES = ('OK', 'NOK', 'Unspecified', 'Warning')
 #     'blank plate' (50 x 50, no logo, no maze) is NOK: the owner's ruling, a back with no logo;
 #   - each part is a Warning in the other mode, and every other object is a Warning in both.
 # No frame shows two catalogue parts touching (the 2x2 grids of 093-095 lie apart), so none is
-# Unspecified; no frame shows a hole or letter defect, and none is labelled for frames that do not exist.
+# Unspecified; no frame shows a letter missing from a logo (the logo check's erased letters are synthetic,
+# test/Vision/Utilities/test_logo.py), and none is labelled for frames that do not exist.
 # Every catalogue part here is nominal in size (no calipers; the owner's ruling: a part within tolerance
 # reads OK), so no NOK is a size.
 #   Unit [Dict<string, Tuple<Tuple<string>>>]
@@ -181,13 +182,12 @@ CONST_EXPECTED_VERDICTS = {
     'Image_094.png': (_Warnings(4), ('NOK', 'NOK', 'NOK', 'OK')),
     'Image_095.png': (_Warnings(4), ('NOK', 'NOK', 'OK', 'OK')),
 }
-# The frames whose expected verdict needs a check not built yet: the fingerprint-stained mounting plate
-# (front) is NOK by the stain check of phase D, and until then reads OK. Strict xfails: they fail the run
-# the day the stain check makes them pass, so the mark is lifted with it.
+# The frames whose expected verdict the checks are known to miss: Image_092's right labyrinth back (dark,
+# scratched, glare-lit) is complete but its letters score 0.19 against the references, a known false NOK of
+# the logo check (KNOWN_ISSUES; the owner's ruling, 2026-10-11: no letter erased may pass to make it OK).
+# Strict xfails: they fail the run the day the frame reads as labelled, so the mark is lifted with it.
 #   Unit [Dict<Tuple<string, string>, string>]
-CONST_PENDING_VERDICTS = {(name, 'Mounting_Plate'): 'the stain check (catalogue phase D)'
-                          for name in ('Image_059.png', 'Image_072.png', 'Image_074.png', 'Image_076.png',
-                                       'Image_080.png')}
+CONST_PENDING_VERDICTS = {('Image_092.png', 'Labyrinth'): "the right plate's logo, a known false NOK (KNOWN_ISSUES)"}
 # The corner holes on each labyrinth front of a frame, counted by eye on the enlarged corners (2026-10-11), in no
 # particular order: four on the reference plate's kind, three on one kind (a corner blank), none on the plates with
 # the other maze layout. The hole check must find exactly these.
@@ -206,10 +206,12 @@ CONST_PENDING_HOLE_COUNTS = {'Image_071.png': 'a corner hole in shadow, never se
 # The frames that ARE the catalogue items' reference images (Data/Catalogue/<item>/reference_image/, byte
 # for byte), per mode. Judging an item on them is circular, so results on them are reported apart:
 # analyze.py finds them by content (test_analyze_harness pins which they are), and the verdict tests of
-# the catalogue's later phases report them separately from these labels.
+# the catalogue's later phases report them separately from these labels. The logo references' frames are
+# apart: each holds one referenced plate among others (Image_069's plate 3, Image_092's left plate).
 #   Unit [Dict<string, Tuple<string>>]
 CONST_REFERENCE_FRAMES = {'Mounting_Plate': ('Image_055.png', 'Image_056.png'),
                           'Labyrinth': ('Image_057.png', 'Image_058.png')}
+CONST_LOGO_REFERENCE_FRAMES = {'Labyrinth': ('Image_069.png', 'Image_092.png')}
 
 
 
@@ -497,12 +499,15 @@ def test_the_reference_frames_are_labelled_ok_in_their_mode() -> None:
     """
     Description:
         A reference image shows the part in its OK state (the request), so each reference frame is one
-        OK object in its own mode.
+        OK object in its own mode, and a logo reference's frame holds an OK object (the referenced plate).
     """
 
     for mode, names in CONST_REFERENCE_FRAMES.items():
         for name in names:
             assert CONST_EXPECTED_VERDICTS[name][CONST_CATALOGUE_MODES.index(mode)] == ('OK',), name
+    for mode, names in CONST_LOGO_REFERENCE_FRAMES.items():
+        for name in names:
+            assert 'OK' in CONST_EXPECTED_VERDICTS[name][CONST_CATALOGUE_MODES.index(mode)], name
 
 
 @pytest.mark.slow
@@ -530,12 +535,12 @@ def test_the_outline_passes_exactly_the_catalogue_parts(name: str, mode: str, re
 
 
 def _Verdict_Cases() -> tp.List[tp.Any]:
-    """Every (frame, mode) of the labels, a pending one marked as a strict expected failure naming its phase."""
+    """Every (frame, mode) of the labels, a pending one marked as a strict expected failure naming its cause."""
     cases = []
     for name in sorted(CONST_EXPECTED_VERDICTS):
         for mode in CONST_CATALOGUE_MODES:
             reason = CONST_PENDING_VERDICTS.get((name, mode))
-            marks = [pytest.mark.xfail(strict=True, raises=AssertionError, reason='needs ' + reason)] if reason else []
+            marks = [pytest.mark.xfail(strict=True, raises=AssertionError, reason=reason)] if reason else []
             cases.append(pytest.param(name, mode, marks=marks, id='%s-%s' % (name[:-4], mode)))
     return cases
 
@@ -547,8 +552,8 @@ def test_each_frame_gets_its_expected_verdicts(name: str, mode: str, require_wei
     Description:
         Through the application's pipeline (FastSAM and DINOv2 on the CPU, the model-free describer) in each
         catalogue mode, every frame's objects take exactly the labelled states — OK, NOK, Unspecified,
-        Warning, counted, since the labels are in no particular order. The stained plates' NOK waits for
-        the stain check (CONST_PENDING_VERDICTS). The reference frames are in the run like any other; the
+        Warning, counted, since the labels are in no particular order; a known miss is a strict expected
+        failure (CONST_PENDING_VERDICTS). The reference frames are in the run like any other; the
         harness reports them apart. Slow because it runs both models; missing weights fail it under --runslow.
     """
 
