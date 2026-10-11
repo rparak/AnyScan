@@ -560,3 +560,19 @@ corner" on fronts missing holes) and dropped no right sentence in the final run;
   model to trust; the patterns grow with what is measured.
 - **Pinned by:** `test/Reporting/test_core.py::test_the_guard_drops_numbers_and_what_contradicts_a_check`
   (Gemma's own sentences).
+
+## The outline-letter logo is verified on one independent plate, and uneven light dims different letters
+
+The test set has three plates with the outline-letter logo (Image_069's, Image_092's left, Image_095's left).
+Two of them are the variant's references (`back_outline`, `back_outline_2`), so reading them complete proves
+little: each is compared with itself. Only Image_095's left plate is an independent test (least letter 0.88).
+On these plates the light falls off unevenly, and each plate has its own dim letters: with 092's plate as the
+only reference, 069's and 095's read S, F, A and C missing (0.19-0.20), and with 069's plate, 092's read missing
+(0.09). Two references lit from different sides make up for it, measured on one plate.
+
+- **Impact:** an outline-letter plate lit in a way neither reference covers can read letters missing (a false
+  NOK). The erasure test covers the outline plates too, so a missing letter is still caught.
+- **Not fixed here:** more outline-letter plates under the rig's light, and the side-light session, are needed to
+  measure it (capture checklist).
+- **Pinned by:** `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts[Image_095-Labyrinth]`
+  (the independent plate), `test/Vision/Utilities/test_logo.py::test_every_letter_erased_from_a_real_logo_is_caught`.
