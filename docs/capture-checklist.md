@@ -38,9 +38,12 @@ log read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor
 after any change to the camera's settings or firmware. Power-cycle the camera (it then starts from its
 factory default, the full 1936 × 1216 sensor), start the application, load the configuration and
 CONNECT. The log must read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor …
-ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off (read back from the camera)*, and the status bar
-1920 × 1200. The three automatic modes reading Off on the real camera is unverified since 2026-10-11 (only a
-stand-in device has run it): a camera that keeps one on is refused at CONNECT, naming it. Anything else: stop and report it —
+ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off, Gamma …, LightSourcePreset … (read back from the
+camera; Gamma and LightSourcePreset not pinned)*, and the status bar 1920 × 1200. The three automatic modes
+reading Off on the real camera is unverified since 2026-10-11 (only a stand-in device has run it): a camera that
+keeps one on is refused at CONNECT, naming it. **Send the Gamma and LightSourcePreset values from that line**:
+they are pinned in the station file (`Camera.Custom_Cfg.Gamma`, `Light_Source_Preset`), after which a camera
+reading otherwise is refused at CONNECT. Anything else: stop and report it —
 every item below depends on the window. Each calibration set goes in its own directory
 (`calibrate.py --capture` makes a new one each run): its `capture.json` records the window, and the
 calibration written from it carries it.

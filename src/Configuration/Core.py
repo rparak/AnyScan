@@ -130,6 +130,10 @@ CONST_REQUIRED_CUSTOM_CFG_KEYS = ('Exposure_Time', 'Gain', 'Balance_Ratios', 'Pi
 # are, so they are exactly these.
 #   Unit [Dict<string, string>] / [Tuple<string>]
 CONST_CUSTOM_CFG_KINDS = {'Exposure_Time': 'positive', 'Gain': 'nonnegative', 'Pixel_Format': 'text'}
+# The optional Custom_Cfg pins: values the camera is read for on connect, never set, and refused when it reads
+# otherwise (Camera.Basler); absent, the value is read and logged only.
+#   Unit [Dict<string, string>]
+CONST_PINNED_CUSTOM_CFG_KINDS = {'Gamma': 'positive', 'Light_Source_Preset': 'text'}
 CONST_BALANCE_CHANNELS = ('Red', 'Green', 'Blue')
 # The distortion coefficients a calibration must hold, in OpenCV's order.
 #   Unit [Tuple<string>]
@@ -474,6 +478,7 @@ def __Station_File_Known_Paths() -> tp.Set[tp.Tuple[str, ...]]:
     known = __Known_Paths([('Hardware',)] + [path for path, _a, _k, _r in CONST_STATION_FIELDS])
     custom = ('Camera', 'Custom_Cfg')
     known.update({custom[:1], custom} | {custom + (key,) for key in CONST_REQUIRED_CUSTOM_CFG_KEYS}
+                 | {custom + (key,) for key in CONST_PINNED_CUSTOM_CFG_KINDS}
                  | {custom + ('Balance_Ratios', channel) for channel in CONST_BALANCE_CHANNELS})
     for path, _minimum in CONST_WINDOW_FIELDS:
         known.update(__Known_Paths([path + ('x',), path + ('y',)]))
@@ -1747,7 +1752,8 @@ def __Read_Custom_Cfg(data: tp.Dict[str, tp.Any], problems: tp.List[str], prefix
     Description:
         Camera.Custom_Cfg, the acquisition settings Basler_Cls cannot start without: each of the
         four is required and typed (CONST_CUSTOM_CFG_KINDS), and Balance_Ratios is exactly the
-        CONST_BALANCE_CHANNELS, each above 0. Only valid values are kept, so nothing the camera does
+        CONST_BALANCE_CHANNELS, each above 0. Gamma and Light_Source_Preset are optional pins
+        (CONST_PINNED_CUSTOM_CFG_KINDS). Only valid values are kept, so nothing the camera does
         not read is handed to it.
 
     Args:
@@ -1779,6 +1785,13 @@ def __Read_Custom_Cfg(data: tp.Dict[str, tp.Any], problems: tp.List[str], prefix
             settings[key] = value
         else:
             problems.append('%s must be %s (found %r)' % (dotted, expected, custom[key]))
+    for key, kind in CONST_PINNED_CUSTOM_CFG_KINDS.items():
+        if key in custom:
+            valid, value, expected = __Check(kind, custom[key])
+            if valid:
+                settings[key] = value
+            else:
+                problems.append('%sCamera.Custom_Cfg.%s must be %s (found %r)' % (prefix, key, expected, custom[key]))
     return settings
 
 

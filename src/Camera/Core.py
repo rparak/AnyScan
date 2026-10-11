@@ -598,11 +598,16 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         applied = self.__cam.Applied_Settings
         self.__resolution = tuple(applied['resolution'])
         self.__window = {'resolution': list(applied['resolution']), 'offset': list(applied['offset'])}
+        # Gamma and the colour preset are read, never set: logged with whether the station file pins them.
+        pinned = ', '.join('%s %s' % (node, ('%g' % value) if isinstance(value, float) else value)
+                           for node, value in applied['pinned'].items())
+        unpinned = applied['unpinned']
         self._Log('INFO', 'Camera set to %d × %d at offset (%d, %d) of its %d × %d sensor, exposure %g µs, gain '
-                          '%.2f, %s, %s (read back from the camera).'
+                          '%.2f, %s, %s, %s (read back from the camera%s).'
                   % (applied['resolution'] + applied['offset'] + applied['sensor']
                      + (applied['exposure_us'], applied['gain'], applied['pixel_format'],
-                        ', '.join('%s %s' % (node, value) for node, value in applied['autos'].items()))))
+                        ', '.join('%s %s' % (node, value) for node, value in applied['autos'].items()), pinned,
+                        '; %s not pinned' % ' and '.join(unpinned) if unpinned else '')))
 
     def _Close(self) -> None:
         """

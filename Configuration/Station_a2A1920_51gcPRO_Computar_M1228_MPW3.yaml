@@ -61,7 +61,10 @@ Camera:
   # settings the camera reads, each typed at load; any other key here is reported as unrecognised. They are
   # FIXED: on connect the camera's automatic exposure, gain and white balance are switched off and read back,
   # and a camera that keeps one on is refused (Camera.Basler). Gamma and the colour preset are not set: they
-  # are the camera's power-up user set.
+  # are the camera's power-up user set, read and logged on every connect. Optional pins, Gamma (a number
+  # above 0) and Light_Source_Preset (the camera's name for it, e.g. Daylight5000K): when set, a camera that
+  # reads otherwise is refused. Default: not pinned (read and logged only) — to be pinned from the rig's
+  # logged values.
   Custom_Cfg:
     # How long the sensor is exposed to light during acquisition [us].
     Exposure_Time: 10000

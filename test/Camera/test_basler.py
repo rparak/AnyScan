@@ -108,6 +108,9 @@ class _Device_Cls(object):
         self.PixelFormat = _Node_Cls(self, 'PixelFormat', 'Mono8')
         for name in ('BalanceWhiteAuto', 'BalanceRatioSelector', 'BalanceRatio', 'ExposureAuto', 'GainAuto'):
             setattr(self, name, _Node_Cls(self, name, None))
+        # Read, never set: the power-up user set's gamma and colour preset.
+        self.Gamma = _Node_Cls(self, 'Gamma', 1.0)
+        self.LightSourcePreset = _Node_Cls(self, 'LightSourcePreset', 'Daylight5000K')
 
     def IsGrabbing(self) -> bool:
         return self.grabbing
@@ -123,7 +126,7 @@ class _Device_Cls(object):
 
 
 def _Connect(monkeypatch: tp.Any, device: _Device_Cls, resolution: tp.Tuple[int, int] = (1920, 1200),
-             offset: tp.Tuple[int, int] = (8, 8)) -> Basler_Cls:
+             offset: tp.Tuple[int, int] = (8, 8), **pins: tp.Any) -> Basler_Cls:
     """
     Description:
         Construct Basler_Cls against the stand-in device: the connection hands it the device, and the
@@ -133,6 +136,7 @@ def _Connect(monkeypatch: tp.Any, device: _Device_Cls, resolution: tp.Tuple[int,
         (1) monkeypatch [MonkeyPatch(object)]: pytest's monkeypatch.
         (2) device [_Device_Cls(object)]: The stand-in camera.
         (3 - 4) resolution, offset [Vector<int> 1x2]: The configured window.
+        (5) pins [Dict]: Custom_Cfg pins to add (Gamma, Light_Source_Preset).
 
     Returns:
         (1) parameter [Basler_Cls(object)]: The configured driver.
@@ -145,7 +149,7 @@ def _Connect(monkeypatch: tp.Any, device: _Device_Cls, resolution: tp.Tuple[int,
     monkeypatch.setattr(Basler_Cls, '_Basler_Cls__Configure_Transport', lambda self: None)
     monkeypatch.setattr(Basler.pylon, 'ImageFormatConverter', lambda: type('_Converter', (), {})())
 
-    return Basler_Cls(config=CONST_CUSTOM_CFG, resolution=resolution, offset=offset)
+    return Basler_Cls(config=dict(CONST_CUSTOM_CFG, **pins), resolution=resolution, offset=offset)
 
 
 def test_a_factory_default_camera_is_set_to_the_configured_window(monkeypatch) -> None:
@@ -247,6 +251,55 @@ def test_an_sdk_refusal_while_setting_is_a_settings_error(monkeypatch) -> None:
     assert not device.open
 
 
+def test_gamma_and_the_colour_preset_are_read_and_logged_never_set(monkeypatch) -> None:
+    """
+    Description:
+        Unpinned (the shipped station file), gamma and the colour preset are read back and kept for the log,
+        named as not pinned, and nothing is written to either node: they stay the camera's power-up user set.
+    """
+
+    device = _Device_Cls()
+    applied = _Connect(monkeypatch, device).Applied_Settings
+    assert applied['pinned'] == {'Gamma': 1.0, 'LightSourcePreset': 'Daylight5000K'}
+    assert applied['unpinned'] == ['Gamma', 'LightSourcePreset']
+    assert not [call for call in device.calls if call[0] in ('Gamma', 'LightSourcePreset')]
+
+
+@pytest.mark.parametrize('pins, words', [
+    ({'Gamma': 0.7}, 'Gamma reads 1.0, the station file pins 0.7'),
+    ({'Light_Source_Preset': 'Tungsten2800K'}, 'LightSourcePreset reads Daylight5000K, the station file pins Tungsten2800K'),
+], ids=['gamma', 'colour preset'])
+def test_a_camera_that_does_not_match_a_pin_is_refused(monkeypatch, pins: tp.Dict, words: str) -> None:
+    """
+    Description:
+        A station file that pins gamma or the colour preset refuses a camera that reads otherwise, naming both
+        values, and the device is closed; a camera that matches its pins connects with nothing left unpinned.
+    """
+
+    device = _Device_Cls()
+    with pytest.raises(Basler_Settings_Error_Cls, match='does not match the station file: %s' % words):
+        _Connect(monkeypatch, device, **pins)
+    assert not device.open
+    matching = _Connect(monkeypatch, _Device_Cls(), Gamma=1.0, Light_Source_Preset='Daylight5000K')
+    assert matching.Applied_Settings['unpinned'] == []
+
+
+def test_a_node_the_camera_lacks_is_logged_and_refuses_a_pin(monkeypatch) -> None:
+    """
+    Description:
+        A camera without a colour-preset node reads 'not available': logged when unpinned, and refused when
+        the station file pins a preset.
+    """
+
+    device = _Device_Cls()
+    del device.LightSourcePreset
+    assert _Connect(monkeypatch, device).Applied_Settings['pinned']['LightSourcePreset'] == 'not available'
+    device = _Device_Cls()
+    del device.LightSourcePreset
+    with pytest.raises(Basler_Settings_Error_Cls, match='LightSourcePreset reads not available'):
+        _Connect(monkeypatch, device, Light_Source_Preset='Daylight5000K')
+
+
 class _Fake_Basler_Cls(object):
     """A stand-in Basler_Cls for the camera layer: the read-back settings, or a settings error."""
 
@@ -258,7 +311,9 @@ class _Fake_Basler_Cls(object):
         self.camera = object()
         self.Applied_Settings = {'resolution': tuple(resolution), 'offset': tuple(offset), 'sensor': CONST_SENSOR,
                                  'exposure_us': 10000.0, 'gain': 9.999998795594486, 'pixel_format': 'BayerRG8',
-                                 'autos': {'ExposureAuto': 'Off', 'GainAuto': 'Off', 'BalanceWhiteAuto': 'Off'}}
+                                 'autos': {'ExposureAuto': 'Off', 'GainAuto': 'Off', 'BalanceWhiteAuto': 'Off'},
+                                 'pinned': {'Gamma': 1.0, 'LightSourcePreset': 'Daylight5000K'},
+                                 'unpinned': ['Gamma', 'LightSourcePreset']}
 
 
 def _Configured_Camera() -> Basler_Camera_Cls:
@@ -287,7 +342,8 @@ def test_the_camera_layer_logs_the_window_it_read_back(monkeypatch) -> None:
     camera.Connect()
     assert camera.Resolution == (1920, 1200)
     assert ('INFO', 'Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain '
-                    '10.00, BayerRG8, ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off (read back from the camera).') \
+                    '10.00, BayerRG8, ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off, Gamma 1, LightSourcePreset '
+                    'Daylight5000K (read back from the camera; Gamma and LightSourcePreset not pinned).') \
         in camera.events
 
 

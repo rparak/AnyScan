@@ -81,6 +81,14 @@ CONST_VERBOSE = False
 # station file sets them (Camera.Custom_Cfg), never adjusted by the camera.
 #   Unit [Tuple<string>]
 CONST_BASLER_AUTO_NODES = ('ExposureAuto', 'GainAuto', 'BalanceWhiteAuto')
+# The settings read on every connect and logged, never set: gamma and the colour preset come from the camera's
+# power-up user set. A station file may pin one (Camera.Custom_Cfg.<key>); a camera that reads otherwise is
+# refused. As (the station key, the camera's node).
+#   Unit [Tuple<Tuple<string> 1x2>]
+CONST_BASLER_PINNED_NODES = (('Gamma', 'Gamma'), ('Light_Source_Preset', 'LightSourcePreset'))
+# How far a read-back gamma may be from its pin (the node is a float).
+#   Unit [float]
+CONST_BASLER_GAMMA_TOLERANCE = 1e-3
 
 class Basler_Settings_Error_Cls(ValueError):
     """
@@ -438,8 +446,37 @@ class Basler_Cls:
             raise Basler_Settings_Error_Cls('The camera kept an automatic mode on after it was switched off: %s. '
                                             'Power-cycle the camera and connect again.' % ', '.join(kept))
         self.__applied['autos'] = autos
+        self.__Check_Pinned()
 
         self.__Configure_Transport()
+
+    def __Check_Pinned(self) -> None:
+        """
+        Description:
+            Read gamma and the colour preset (CONST_BASLER_PINNED_NODES), keep them for the log, and refuse a
+            camera that reads otherwise than the station file pins. A node the camera lacks reads 'not
+            available', which no pin matches.
+        """
+
+        values, wrong = {}, []
+        for key, node in CONST_BASLER_PINNED_NODES:
+            try:
+                value = getattr(self.camera, node).Value
+                values[node] = float(value) if key == 'Gamma' else str(value)
+            except Exception:                                  # noqa: BLE001 - pypylon raises its own for an absent node
+                values[node] = 'not available'
+            if key not in self.config:
+                continue
+            pinned, read = self.config[key], values[node]
+            matches = (abs(read - pinned) <= CONST_BASLER_GAMMA_TOLERANCE if key == 'Gamma' and isinstance(read, float)
+                       else read == pinned)
+            if not matches:
+                wrong.append('%s reads %s, the station file pins %s' % (node, read, pinned))
+        self.__applied['pinned'] = values
+        self.__applied['unpinned'] = [node for key, node in CONST_BASLER_PINNED_NODES if key not in self.config]
+        if wrong:
+            raise Basler_Settings_Error_Cls('The camera does not match the station file: %s. Restore the camera\'s '
+                                            'user set, or pin the values it should have.' % '; '.join(wrong))
 
     def __Configure_Transport(self) -> None:
         """

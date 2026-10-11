@@ -3127,12 +3127,19 @@ under these settings) all assume the camera does not adjust itself between frame
 
 **Not controlled:** gamma and the colour preset (`LightSourcePreset`) are not set; they come from the camera's
 power-up user set. They are not automatic, but a changed user set would change the colours without a word.
+*Corrected 2026-10-11, on the owner's instruction:* both are read and logged on every connect, and the station
+file may pin them (`Camera.Custom_Cfg.Gamma`, `Light_Source_Preset`): a camera that reads otherwise, or lacks the
+node, is refused, naming both values. They are read, never written, so the pin checks the user set rather than
+overriding it. Unpinned until the owner sends the rig's logged values.
 **Unverified on the rig** (capture checklist): only a stand-in device has run the read-back.
 
 **Revisit if** the camera's user set is changed, or a stain or colour measurement drifts with no change in the
 station file (then set gamma and the preset too).
 Tests `test/Camera/test_basler.py::test_a_camera_that_keeps_an_automatic_mode_is_refused`,
-`::test_a_factory_default_camera_is_set_to_the_configured_window`, `::test_the_camera_layer_logs_the_window_it_read_back`.
+`::test_a_factory_default_camera_is_set_to_the_configured_window`, `::test_the_camera_layer_logs_the_window_it_read_back`,
+`::test_gamma_and_the_colour_preset_are_read_and_logged_never_set`, `::test_a_camera_that_does_not_match_a_pin_is_refused`,
+`::test_a_node_the_camera_lacks_is_logged_and_refuses_a_pin`,
+`test/Configuration/test_core.py::test_gamma_and_the_colour_preset_may_be_pinned_and_are_checked`.
 
 ## A judged part's stains are a colour band on its upright crop, from 1 mm²
 

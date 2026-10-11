@@ -702,15 +702,15 @@ def test_a_misspelt_window_key_is_a_warning(tmp_path: tp.Any) -> None:
     assert any('Camera.Resolution.z' in message for level, message in config.Notes if level == 'WARNING')
 
 
-@pytest.mark.parametrize('path', [('Camera', 'Custom_Cfg', 'Gamma'),
+@pytest.mark.parametrize('path', [('Camera', 'Custom_Cfg', 'Black_Level'),
                                   ('Camera', 'Custom_Cfg', 'Balance_Ratios', 'Purple')],
                          ids=lambda path: '.'.join(path))
 def test_an_acquisition_setting_the_camera_does_not_read_is_a_warning(tmp_path: tp.Any,
                                                                       path: tp.Tuple[str, ...]) -> None:
     """
     Description:
-        Custom_Cfg is a schema like every other block: the camera reads four settings and three
-        white-balance channels, so any other key — a 'Gamma:' line, a 'Purple' channel — is
+        Custom_Cfg is a schema like every other block: the camera reads four settings, three
+        white-balance channels and two pins, so any other key — a 'Black_Level:' line, a 'Purple' channel — is
         reported as unrecognised instead of being loaded and silently doing nothing.
     """
 
@@ -758,6 +758,26 @@ def test_a_white_balance_without_every_channel_fails_the_load_naming_it(tmp_path
     with pytest.raises(Configuration_Error_Cls) as error:
         Load_Configuration(_Write(tmp_path, mode, calibration))
     assert 'Camera.Custom_Cfg.Balance_Ratios is missing the required Blue' in str(error.value)
+
+
+def test_gamma_and_the_colour_preset_may_be_pinned_and_are_checked(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The shipped station file pins neither (they are read and logged until the rig's values are known); a
+        pin of Gamma (a number above 0) and Light_Source_Preset (text) reaches the camera's settings without an
+        unrecognised-key warning, and an invalid pin fails the load naming it.
+    """
+
+    mode, calibration = _Shipped()
+    shipped = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
+    assert 'Gamma' not in shipped.Camera.Custom_Cfg and 'Light_Source_Preset' not in shipped.Camera.Custom_Cfg
+    mode['Camera']['Custom_Cfg'].update(Gamma=1.0, Light_Source_Preset='Daylight5000K')
+    config = Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert (config.Camera.Custom_Cfg['Gamma'], config.Camera.Custom_Cfg['Light_Source_Preset']) == (1.0, 'Daylight5000K')
+    assert not [note for note in config.Notes if 'Gamma' in note[1] or 'Light_Source_Preset' in note[1]]
+    mode['Camera']['Custom_Cfg']['Gamma'] = 0
+    with pytest.raises(Configuration_Error_Cls, match='Camera.Custom_Cfg.Gamma must be a number above 0'):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
 
 
 def test_the_calibration_writer_refuses_to_delete_content_it_does_not_own(tmp_path: tp.Any) -> None:
