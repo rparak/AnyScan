@@ -473,3 +473,18 @@ verdict.)
 - **Not fixed here:** the History filter, and the capture set's record of the evidence, are the catalogue's
   UI phase (E), by the owner's ruling.
 - **Pinned by:** nothing yet: the phase that fixes it pins it.
+
+## On the Trends confidence chart, a Warning object's dot is the colour of the warning threshold
+
+The confidence chart colours each object's dot by its verdict when the run classifies, so in a catalogue mode
+a Warning object's dot is the status amber (`CONST_WARN`, the Warning verdict's box). The chart's dashed
+warning-threshold line (80 %, `Confidence.Warn_Below`) is drawn in the same amber. A dot near or on the line
+reads as part of it, and an amber dot can be taken for "this score is below the warning threshold" when it
+means "this object should not be on the surface". Seen on 2026-10-11, in the labyrinth mode after Image_060
+(six Warning objects at 80–98 %).
+
+- **Impact:** a reader of the confidence chart can misread what an amber dot means. The scores, the verdicts
+  and every record are right; the objects chart's Warning series is unaffected.
+- **Not fixed here:** the catalogue's UI phase (E), with History's filter: either the threshold line or the
+  Warning dots take another token, decided with the other verdict views.
+- **Pinned by:** nothing yet: the phase that fixes it pins it.
