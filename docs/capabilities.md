@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `1580e92` (2026-10-11).
+Last reviewed against the code at commit `4f33f52` (2026-10-11).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -39,8 +39,8 @@ file is not the generator's output, so regenerate it, never edit it.
 
 | Package | What it does | Qt |
 |---|---|---|
-| `Parameters` | The data structures (`*_Str`) and tokens every other package exchanges: detections, analyses, the loaded configuration, camera and calibration records, the theme. | No |
-| `Configuration` | Reads and validates the mode and calibration files (`Load_Configuration`), writes calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*.yaml`. | No |
+| `Parameters` | The data structures (`*_Str`) and tokens every other package exchanges: detections, analyses, the loaded configuration, the catalogue item, camera and calibration records, the theme. | No |
+| `Configuration` | Reads and validates the mode, calibration and catalogue item files (`Load_Configuration`, `Load_Catalogue`), writes calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*.yaml` and `Data/Catalogue/*/*.yaml`. | No |
 | `Camera` | The camera backends (`Basler_Camera_Cls`, `File_Camera_Cls` for `--frame`): connect, set and read back the sensor window, grab, undistort, detect a lost connection. | No |
 | `Vision` | The pipeline (`Vision_Pipeline_Cls`): background subtraction, FastSAM, fusion, Gemma description, measurement, the annotated image and label mask, the heatmap. | No |
 | `Reporting` | The report composer, the one voice of every sentence the operator reads, and the Trends accumulator and chart maths. | No |
@@ -98,6 +98,11 @@ then composes and measures. The numbers are the ones the README and the mode fil
   and colour match its outline on the image.
 - **Measurement.** Size and rotation from each mask, through the calibration's mm/px: `A × B`, `Ø`
   for round parts, `A/F` for hexagonal ones. Skipped when there is no calibration.
+- **Catalogue check** (catalogue modes only). Every object is measured at the catalogue part's top
+  face, and each one with sides has its outline checked against the item: the longer side against the
+  length, the shorter against the width, each within the tolerance. The results are on each object
+  (`Dimension_Checks`) and printed by `analyze.py`. Nothing on screen shows them yet, and nothing decides
+  which object is the item.
 
 ## Modes
 
@@ -108,12 +113,21 @@ piece of hardware. The modes shipped today:
 | Mode | File | What it does |
 |---|---|---|
 | Seg_Anything | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml` | Finds every part on the surface (no class list), describes and measures it. Classification off. |
+| Mounting_Plate | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml` | Catalogue mode for `Data/Catalogue/mounting_plate`: as Seg_Anything, measured at the plate's top face (8 mm), each outline checked against 60 × 40 ± 1.5 mm. Classification off. |
+| Labyrinth | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Labyrinth.yaml` | Catalogue mode for `Data/Catalogue/labyrinth`: as Seg_Anything, measured at the plate's top face (6 mm), each outline checked against 50 × 50 ± 1.0 mm. Classification off. |
 
 - The configuration is picked in the **CONFIGURATION** dialog and is fixed after the first CONNECT.
   Changing it means restarting the application. Another camera means restarting with `--config`.
 - **Classification** (`General.Classification.Enabled`) exposes the OK/NOK verdict UI. Nothing
   classifies yet, so with it on every object is OK
   ([*Classification is a per-configuration switch…*](design-decisions.md#classification-is-a-per-configuration-switch-that-exposes-the-verdict-ui-not-one-that-creates-it)).
+- **A catalogue mode** is a mode file with a `Catalogue` block naming one item,
+  `Data/Catalogue/<item>/<item>.yaml`: the part's thickness, tolerance and checks, with its reference
+  images beside it. Today it checks the outline only. Identifying the item and its side, holes, stains,
+  the logo and the OK / NOK / Unspecified / Warning states are designed, not built
+  ([*A catalogue mode is a Catalogue block…*](design-decisions.md#a-catalogue-mode-is-a-catalogue-block-naming-an-item-folder-and-the-configuration-picks-checks-never-their-order)).
+  Within tolerance means consistent with nominal: the parts were not calipered
+  ([README > Limitations](../README.md#measurements-are-repeatable-not-absolute)).
 - **Without a camera**, `python App/run.py --frame <png>` analyses a saved frame of the reference's
   size.
 
@@ -181,6 +195,7 @@ unit. This table says what each section controls.
 | `General` | Settings that are neither hardware nor a pipeline stage. | — |
 | `General.Classification` | Whether the verdict UI (OK/NOK filter, verdict colours) is shown. Default off. | No |
 | `General.Station_Events` | The directory of the daily station event files. It must exist and be writable at load, and is fixed for the run. | Yes |
+| `Catalogue` | A catalogue mode's item (`Item`, its file under `Data/Catalogue/`), read and validated with the mode file. Its presence makes the mode a catalogue mode, which needs a calibration with a factor and a board height. | No (`Item` required within it) |
 | `Identity` | What the UI calls the configuration (`Display_Name`, in the dialog) and its models (`Model_Set`, in the header pill), and the `Task` a reading is labelled with. | Yes (`Task` optional) |
 | `Confidence` | The warning and error thresholds [%] below which a confidence is shown and logged as such. | No |
 | `Segmentation` | Stages 1–3: the FastSAM weights and inference settings. | Yes (`Model`) |
@@ -206,7 +221,7 @@ are not undistorted and sizes are not reported.
 |---|---|---|
 | `Hardware` | The hardware the calibration belongs to. | `calibrate.py` |
 | `Calibration` | The solved calibration: the intrinsic matrix `K` and the following. | `calibrate.py` |
-| `Calibration.Solved` | How it was solved: date, capture directory, view counts (flat and tilted), RMS, board square size and height. | `calibrate.py` |
+| `Calibration.Solved` | How it was solved: date, capture directory, view counts (flat and tilted), RMS, board square size and height. A catalogue mode reads the board height, to move the scale to its part's top face. | `calibrate.py` |
 | `Calibration.Resolution`, `Calibration.Offset` | The sensor window it was solved at. A configuration with another window fails to load, and so does a calibration that does not record it. | `calibrate.py` |
 | `Calibration.Coefficients` | The lens distortion, `k1 k2 p1 p2 k3`. | `calibrate.py` |
 | `Calibration.Conversion_Factor` | mm per pixel in x and y, exact in the flat boards' plane only. | `calibrate.py` |
@@ -279,7 +294,9 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
 - `Camera/make_reference.py` — make an empty-surface reference with its provenance sidecar.
 - `Camera/generate_checkerboard.py` — write the printed calibration board's PDF.
 - `Camera/calibration_tilt_study.py` — the synthetic study behind the calibration's tilt warning.
-- `Vision/analyze.py` — run the pipeline over `Evaluation.Frames` and save every output.
+- `Vision/analyze.py` — run the pipeline over `Evaluation.Frames` and save every output. In a catalogue
+  mode (`--config`) it also prints each object's outline checks, and counts the outlines within tolerance
+  with the item's reference frames (found by content) apart.
 - `Vision/evaluate_describer.py` — score the descriptions against the test set's answer key. The current set
   (`Data/Images/Test`) has none yet, so it cannot run until one is written.
 - `UI/architecture_diagram.py`, `UI/build_logo.py`, `UI/build_fonts.py` — rebuild the README diagram,

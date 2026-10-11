@@ -1,0 +1,45 @@
+## =========================================================================== ##
+#   Description:
+#     One catalogue item: the part a catalogue mode inspects, and the checks it is held
+#     to. Named by a mode file's Catalogue.Item; read, validated as a whole and applied by
+#     Configuration.Core (Load_Configuration, Load_Catalogue); no other module reads it.
+#
+#   Item:
+#     Mounting plate: a machined steel plate, 60 x 40 x 8 mm, with two stepped holes
+#     (countersink 12 mm, through-hole 6 mm) at a 25 mm pitch. Front: milled, shiny,
+#     four circular outlines. Back: unmachined, dark and matte, two circular outlines.
+#
+#   Folder:
+#     Data/Catalogue/<item>/<item>.yaml, with the item's reference images beside it in
+#     reference_image/. The file is named after its folder: a new item is a copied
+#     folder with both renamed, and a mode file naming it.
+#
+#   Required and optional:
+#     A field marked REQUIRED has no default: a file without it fails to load, naming the
+#     field. An optional field states its default; when it is absent the default is used
+#     and the log says so. An unrecognised key is logged as a warning.
+#
+#   Checks:
+#     Each block under Checks is one check, run with the parameters it sets. Only the
+#     outline is checked today; the holes, the surface and the side are not yet built.
+## =========================================================================== ##
+
+# REQUIRED. The part's thickness [mm]. NOT measured: the camera looks from above. It is
+# USED: the scale is corrected from the calibration board's plane to the part's top face
+# with it (Configuration.Core.Scale_At_Height), so a wrong value here moves every size
+# this item is checked on by about 0.28 % per millimetre.
+Thickness_Mm: 8
+
+# REQUIRED. The tolerance every dimension is checked against unless it sets its own
+# [mm]: a dimension passes within nominal ± this, bounds included.
+Tolerance_Mm: 1.5
+
+Checks:
+  # The outline seen from above. The longer measured side is checked against Length_Mm,
+  # the shorter against Width_Mm, so the part's rotation does not matter.
+  Outline:
+    # REQUIRED, both. The nominal sides [mm]; Length_Mm is the longer.
+    Length_Mm: 60
+    Width_Mm: 40
+    # The outline's own tolerance [mm]. Default: the item's Tolerance_Mm.
+    # Tolerance_Mm: 1.5

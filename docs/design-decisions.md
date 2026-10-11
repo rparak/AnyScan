@@ -2800,3 +2800,94 @@ history skips with its reason.
 a capability that matters has no name in the code for the test to read, or the review line is moved
 by habit without the review (then the record says nothing, and a per-section review would be needed).
 Tests `test/integration/test_capabilities_doc.py`.
+
+## A catalogue mode is a Catalogue block naming an item folder, and the configuration picks checks, never their order
+
+Decided 2026-10-11, from the owner's catalogue-mode request (in Czech) and the owner's answers to its
+*Before building* points. Phase A of five is built: the item, the mode files, the outline
+check. The rest is the agreed design, recorded here so the later phases build to it.
+
+- **The item is a folder.** `Data/Catalogue/<item>/<item>.yaml` holds the part's thickness, tolerance and
+  checks; its reference images will sit beside it in `reference_image/` (phase B). The file is named after
+  its folder and the load refuses one that is not, so a copied folder is never inspected under the old
+  name. `Configuration.Core` reads it (`Load_Catalogue`, and through `Load_Configuration`), by the mode
+  file's rules: REQUIRED fields, documented defaults, invalid values fail, unknown keys warn.
+- **A `Catalogue` block selects the mode.** A mode file with `Catalogue.Item` is a catalogue mode; one
+  without is Segment Anything, unchanged. One mode file per item
+  (`Config_<Hardware>_Mode_Mounting_Plate.yaml`, `..._Mode_Labyrinth.yaml`). The request coupled the mode
+  to `General.Classification.Enabled`; that switch already exposes the verdict UI with nothing behind it,
+  so the owner chose to let the block select the mode and to remove the switch. The removal lands with
+  the states (phase B): until then nothing is judged, and both catalogue modes ship it `false`.
+- **The configuration picks checks and sets their parameters; it never describes an algorithm.** Each
+  block under `Checks` selects one ready-made check module (today `Outline`; later holes, surface stain,
+  logo) with the parameters it reads. No OpenCV call sequence, and **no order**: the checks are
+  independent and the verdict will require all of them, so an order field could not change a result
+  (structure.md: no field that cannot take effect). A defect check is optional per item: an item may
+  define none yet, and one is added later with no code change.
+- **One home per value.** The Gemma prompt for an item will live in the item file only; the request's
+  override in the mode file would give the same text two homes.
+- **The agreed split for the later phases.** FastSAM and the fusion keep finding the objects and their
+  outlines (41 of 41 frames counted correctly); DINOv2 base, run locally, will identify which object is
+  the item and which side is up, since its 14 px patches cannot give an outline to measure. Deterministic
+  checks decide (dimensions, hole counts, a stain by colour, the logo by comparing glyph regions with the
+  reference); Gemma confirms, and a disagreement is logged, never decisive. The four states are OK, NOK,
+  Unspecified (area ≥ 1.7× the item's) and Warning (not the item); Warning takes the amber, Unspecified the
+  neutral detection colour.
+- **Expected verdicts are labelled for the frames that exist.** `test/integration/test_pipeline.py`
+  `CONST_EXPECTED_VERDICTS` gives each object of the 41 frames its state in both modes, on the owner's
+  rulings (the 50 × 50 blank plate is a labyrinth back with no logo, NOK). No frame shows a defect the
+  later checks look for (a missing letter, a hole out of place, two parts touching), and the owner chose
+  no placeholder tests for frames that do not exist. The four frames that are the items' reference images
+  (055–058) are reported apart: the harness finds them by content.
+
+**Why.** The request asked for configuration-only changes for new parts; a configuration that sequences
+OpenCV calls is a program without tests. Recording the split now keeps phase B from building localisation
+into DINOv2, where the request first put it.
+
+**Revisit if** a check turns out to depend on another's result (then the dependency is code, still not
+an order field), or a part needs a check no module provides (a new module, not a new YAML construct).
+Tests `test/Configuration/test_core.py` (the item's loading rules, the block, the shipped files' comments),
+`test/integration/test_pipeline.py::test_the_expected_verdicts_label_every_object_of_every_frame` and the
+two label tests beside it, `test/Vision/test_analyze_harness.py::test_a_catalogue_run_finds_the_items_reference_frames_by_content`.
+
+## A catalogue mode measures at its part's top face
+
+Decided 2026-10-11. The calibration's factor is exact in the plane of its flat boards,
+`Calibration.Solved.Board_Height_Mm` (4.22 mm above the table). A catalogue mode moves it to the item's
+top face, `Thickness_Mm` above the table: `Configuration.Core.Scale_At_Height`, per axis
+`s' = s − (t − h_board) / f`, the pinhole model with K's focal lengths. The loaded `Configuration_Str.Scale`
+is the moved one and says so (`Height_Mm`), so the pipeline, the harness and every size shown use it with
+no other change. A catalogue mode whose calibration has no factor or no board height fails its load.
+Segment Anything is unchanged: its scale stays the calibration's.
+
+**Why.** Measured before the change on the current test set (the harness's own path, the model-free
+describer, every instance of each part): the 22 mounting plates read 60.33–61.40 × 39.64–41.15 mm, a bias
+of +0.89 mm on the 60 mm side and a worst case 0.10 mm from the ±1.5 mm limit; the 37 labyrinths
+49.80–50.68 mm, worst 0.32 mm from ±1.0. The bias is the thickness: a face 3.78 mm above the boards reads
+1.06 % large (predicted +0.64 mm on 60), 1.78 mm above reads 0.50 % large (+0.25 on 50). It did not grow
+towards the frame edge on these parts (correlation with distance from the centre 0.02 for the labyrinth,
+0.25 for the plate, out to 75 mm). Corrected, the plates read −0.77 to +0.76 mm off nominal and the
+labyrinths −0.58 to +0.43: margins of 0.73 and 0.42 mm, every one of the 59 within tolerance, and no other
+object on the 41 frames the size of either item.
+
+- **K's focal lengths, not the undistorted space's.** The factor is in the pixel space
+  `getOptimalNewCameraMatrix` (alpha 1) gives, whose focal lengths differ from K's by 0.23 % (x) and
+  0.06 % (y). Using K moves the correction by that fraction of itself: 0.0015 mm on 60 mm. Computing the
+  new matrix in the loader would take OpenCV and the camera layer's alpha into the configuration layer,
+  which sits below both.
+- **Every object is measured at the item's face**, not only the item: which object is the item is not
+  decided until phase B, and a size shown must be the size checked. Other objects' sizes are off by the
+  difference between their height and the item's, about 0.28 % per millimetre.
+- **The parts are not calipered.** The owner's ruling: treat them as nominal, so a part within tolerance
+  reads within. "Within tolerance" here means consistent with nominal, not a verified size; README >
+  Limitations says what that leaves open.
+
+**Revisit if** a part's measured sizes drift with its position (the side wall: see README > Limitations),
+the parts are calipered (then compare against the true sizes, not the nominal), or the calibration is
+re-solved at another board height (the correction follows it, but re-check the margins).
+Tests `test/Configuration/test_core.py::test_the_scale_at_a_height_follows_the_pinhole_model`,
+`::test_a_catalogue_mode_measures_at_the_parts_top_face`, `::test_a_catalogue_mode_needs_a_scale_it_can_move_to_the_top_face`,
+`::test_a_mode_without_a_catalogue_block_is_not_a_catalogue_mode`,
+`test/Vision/Utilities/test_dimensions.py`,
+`test/Vision/test_core.py::test_a_catalogue_mode_checks_each_measured_object_and_segment_anything_does_not`,
+`test/integration/test_pipeline.py::test_the_outline_passes_exactly_the_catalogue_parts` (slow, 82 cases).

@@ -45,6 +45,8 @@ from Parameters.Configuration import Configuration_Str
 from Parameters.Camera import Camera_Calibration_Parameters_Str
 #   ../Parameters/Vision
 from Parameters.Vision import Scale_Str, CONST_SCALE_UNITS
+#   ../Parameters/Catalogue
+from Parameters.Catalogue import Catalogue_Item_Str
 
 """
 Description:
@@ -82,6 +84,11 @@ Description:
         - A value that is present but invalid fails the load: a wrong value is never replaced by
           a default.
         - An unrecognised key is recorded as a warning, so a misspelt optional field is visible.
+        - A CATALOGUE block (Catalogue.Item) makes the mode a catalogue mode: the item file
+          (Data/Catalogue/<item>/<item>.yaml) is read here too, by the same rules, and its problems
+          fail the configuration. A catalogue mode measures, so it needs a calibration with a
+          Conversion_Factor and the board height that factor holds at; its scale is corrected to the
+          part's top face (Scale_At_Height).
 """
 # The repository root and its Configuration/ directory. This file lives in src/Configuration/,
 # so the root is two levels up. Relative model paths in a configuration resolve against the root.
@@ -131,6 +138,14 @@ CONST_CALIBRATION_BLOCK_KEYS = ('Solved', 'Resolution', 'Offset', 'K', 'Coeffici
 # The background reference's sidecar: the same name with this suffix (Image_Background_002.json).
 #   Unit [string]
 CONST_REFERENCE_SIDECAR_SUFFIX = '.json'
+# The mode file's catalogue block: the item file a catalogue mode inspects, REQUIRED within the block.
+# A mode file without the block is not a catalogue mode.
+#   Unit [Tuple<string>]
+CONST_CATALOGUE_ITEM_PATH = ('Catalogue', 'Item')
+# The board height in the calibration file: the height above the table at which its
+# Conversion_Factor is exact, written by calibrate.py. Read only by a catalogue mode.
+#   Unit [Tuple<string>]
+CONST_BOARD_HEIGHT_PATH = ('Calibration', 'Solved', 'Board_Height_Mm')
 # The sensor window: (the key path, the smallest valid value). Each is an {x, y} pair in pixels,
 # REQUIRED in a mode file and recorded in a calibration file. The camera is set to it on connect;
 # the background reference and the calibration must match it.
@@ -293,6 +308,19 @@ CONST_FIELDS = (
     (('Camera', 'Lighting'), ('Camera', 'Lighting'), 'text', False),
     (('Evaluation', 'Frames'), ('Evaluation', 'Frames'), 'path', False),
 )
+# Every setting a catalogue item file holds, in the same form (attributes of Catalogue_Item_Str).
+# Checks.Outline.Tolerance_Mm is optional and not listed: its default is the item's Tolerance_Mm, not
+# a constant (__Read_Catalogue).
+#   Unit [Vector<Tuple>]
+CONST_CATALOGUE_FIELDS = (
+    (('Thickness_Mm',), ('Thickness_Mm',), 'positive', True),
+    (('Tolerance_Mm',), ('Tolerance_Mm',), 'positive', True),
+    (('Checks', 'Outline', 'Length_Mm'), ('Outline', 'Length_Mm'), 'positive', True),
+    (('Checks', 'Outline', 'Width_Mm'), ('Outline', 'Width_Mm'), 'positive', True),
+)
+# The catalogue's outline tolerance override.
+#   Unit [Tuple<string>]
+CONST_OUTLINE_TOLERANCE_PATH = ('Checks', 'Outline', 'Tolerance_Mm')
 
 
 def __Lookup(data: tp.Any, path: tp.Tuple[str, ...]) -> tp.Tuple[bool, tp.Any]:
@@ -315,28 +343,54 @@ def __Lookup(data: tp.Any, path: tp.Tuple[str, ...]) -> tp.Tuple[bool, tp.Any]:
     return True, data
 
 
-def __Unknown_Keys(data: tp.Dict[str, tp.Any]) -> tp.List[str]:
+def __Known_Paths(paths: tp.Iterable[tp.Tuple[str, ...]]) -> tp.Set[tp.Tuple[str, ...]]:
     """
     Description:
-        The keys in a mode file that no setting reads — usually a misspelt optional field, which
-        would otherwise fall back to its default without a word.
+        Every key path a set of settings makes known: each setting's path and every block above it.
+
+    Args:
+        (1) paths [Vector<Tuple<string>>]: The settings' key paths.
+
+    Returns:
+        (1) parameter [Set<Tuple<string>>]: The known key paths.
+    """
+
+    return {path[:i] for path in paths for i in range(1, len(path) + 1)}
+
+
+def __Mode_File_Known_Paths() -> tp.Set[tp.Tuple[str, ...]]:
+    """
+    Description:
+        Every key path a mode file may hold: the field table, the camera's acquisition settings and
+        sensor window, and the catalogue block.
+
+    Returns:
+        (1) parameter [Set<Tuple<string>>]: The known key paths.
+    """
+
+    known = __Known_Paths([('Hardware',), CONST_CATALOGUE_ITEM_PATH] + [path for path, _a, _k, _r in CONST_FIELDS])
+    custom = ('Camera', 'Custom_Cfg')
+    known.update({custom[:1], custom} | {custom + (key,) for key in CONST_REQUIRED_CUSTOM_CFG_KEYS}
+                 | {custom + ('Balance_Ratios', channel) for channel in CONST_BALANCE_CHANNELS})
+    for path, _minimum in CONST_WINDOW_FIELDS:
+        known.update(__Known_Paths([path + ('x',), path + ('y',)]))
+    return known
+
+
+def __Unknown_Keys(data: tp.Dict[str, tp.Any], known: tp.Set[tp.Tuple[str, ...]]) -> tp.List[str]:
+    """
+    Description:
+        The keys in a file that no setting reads — usually a misspelt optional field, which would
+        otherwise fall back to its default without a word.
 
     Args:
         (1) data [Dict]: The parsed document.
+        (2) known [Set<Tuple<string>>]: The key paths the file may hold.
 
     Returns:
         (1) parameter [Vector<string>]: The unknown keys as dotted paths.
     """
 
-    known = {('Hardware',)}
-    for path, _attribute, _kind, _required in CONST_FIELDS:
-        known.update(path[:i] for i in range(1, len(path) + 1))
-    custom = ('Camera', 'Custom_Cfg')
-    known.update({custom[:1], custom} | {custom + (key,) for key in CONST_REQUIRED_CUSTOM_CFG_KEYS}
-                 | {custom + ('Balance_Ratios', channel) for channel in CONST_BALANCE_CHANNELS})
-    for path, _minimum in CONST_WINDOW_FIELDS:
-        known.update(path[:i] for i in range(1, len(path) + 1))
-        known.update({path + ('x',), path + ('y',)})
     unknown = []
 
     def _Walk(node: tp.Any, prefix: tp.Tuple[str, ...]) -> None:
@@ -621,14 +675,16 @@ def Build_Reference_Sidecar(image_path: str, *, source: str, shot: str, configur
 def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tuple[int, int]],
                        offset: tp.Optional[tp.Tuple[int, int]], problems: tp.List[str],
                        notes: tp.List[tp.Tuple[str, str]]) -> tp.Tuple[tp.Optional[Camera_Calibration_Parameters_Str],
-                                                                        tp.Optional[Scale_Str]]:
+                                                                        tp.Optional[Scale_Str], tp.Optional[float]]:
     """
     Description:
         Read and validate a hardware's calibration file. The file itself is optional: without it
         there is no calibration (None) and no scale, with a warning to run calibrate.py. A file that
         exists must hold K (3 x 3) and the five distortion coefficients; its Conversion_Factor is
         optional, and its documented default is 'no scale' — objects are then not measured, never
-        measured from an invented factor.
+        measured from an invented factor. The board height its factor holds at
+        (Solved.Board_Height_Mm) is returned when the file records a valid one, and None otherwise:
+        only a catalogue mode needs it, and it says so (Load_Configuration).
 
         The sensor window it was solved at (Resolution, Offset) must equal the camera's: K's
         principal point and the factor are in that window's pixels, so a calibration of another
@@ -644,18 +700,22 @@ def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tupl
         (6) notes [Vector<Tuple<string> 1x2>]: The (level, message) notes, appended to.
 
     Returns:
-        (1) parameter [Tuple]: (the calibration parameters or None, the scale or None).
+        (1) parameter [Tuple]: (the calibration parameters or None, the scale or None, the board
+                               height in mm or None).
     """
 
     if not os.path.exists(path):
         notes.append(('WARNING', 'no calibration file %s: frames will not be undistorted and objects '
                                  'will not be measured. Run Example/Camera/calibrate.py to create it.'
                                  % os.path.basename(path)))
-        return None, None
+        return None, None, None
     calibration = Camera_Calibration_Parameters_Str()
     data = __Read_Yaml(path, 'calibration file', problems)
     if data is None:
-        return calibration, None
+        return calibration, None, None
+    _present, board_height = __Lookup(data, CONST_BOARD_HEIGHT_PATH)
+    valid, board_height, _expected = __Check('nonnegative', board_height)
+    board_height = board_height if valid else None
     name = os.path.basename(path)
     if data.get('Hardware') != hardware:
         problems.append('%s: Hardware is %r but the configuration names %r'
@@ -663,7 +723,7 @@ def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tupl
     block = data.get('Calibration')
     if not isinstance(block, dict):
         problems.append('%s: Calibration is required but missing' % name)
-        return calibration, None
+        return calibration, None, None
 
     # The window the calibration was solved at, against the camera's.
     if 'Resolution' not in block and 'Offset' not in block:
@@ -708,16 +768,187 @@ def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tupl
     if factor is None:
         notes.append(('WARNING', '%s has no Calibration.Conversion_Factor; objects will not be '
                                  'measured.' % name))
-        return calibration, None
+        return calibration, None, None
     try:
         x, y = float(factor['x']), float(factor['y'])
         assert all(math.isfinite(v) and v > 0.0 for v in (x, y))
     except (TypeError, KeyError, ValueError, AssertionError):
         problems.append('%s: Calibration.Conversion_Factor must hold a positive x and y [%s]'
                         % (name, CONST_SCALE_UNITS))
-        return calibration, None
+        return calibration, None, None
     calibration.Conversion_Factor = {'x': x, 'y': y}
-    return calibration, Scale_Str(Mm_Per_Px_X=x, Mm_Per_Px_Y=y)
+    return calibration, Scale_Str(Mm_Per_Px_X=x, Mm_Per_Px_Y=y), board_height
+
+
+def Scale_At_Height(scale: Scale_Str, K: tp.Any, plane_mm: float, height_mm: float) -> Scale_Str:
+    """
+    Description:
+        The scale moved from the plane the calibration's factor holds in to another height above the
+        table. Under the pinhole model a factor is the camera's distance over its focal length
+        (s = Z / f), so a plane dh closer to the camera has s' = s - dh / f, per axis: a part's top
+        face 3.78 mm above the boards reads 1.06 % too large at the boards' factor (the 8 mm mounting
+        plate, measured +0.89 mm on its 60 mm side over 22 instances of the test set before this
+        correction).
+
+        The focal lengths are K's, not those of the undistorted pixel space the factor is in
+        (getOptimalNewCameraMatrix, Camera.Core): on the shipped calibration they differ by 0.23 % (x)
+        and 0.06 % (y), which moves the correction by that fraction of itself, 0.0015 mm on 60 mm.
+        Computing the undistorted matrix here would take OpenCV and the camera layer's alpha into the
+        configuration layer, which sits below both.
+
+    Args:
+        (1) scale [Scale_Str(object)]: The calibration's scale, exact at plane_mm.
+        (2) K [Matrix<float> 3x3]: The camera matrix.
+        (3) plane_mm [float]: The height above the table the scale holds at (the board height).
+        (4) height_mm [float]: The height to move it to (the part's top face).
+
+    Returns:
+        (1) parameter [Scale_Str(object)]: The scale at height_mm, its Height_Mm set.
+    """
+
+    dh = float(height_mm) - float(plane_mm)
+    return Scale_Str(Mm_Per_Px_X=scale.Mm_Per_Px_X - dh / float(K[0][0]),
+                     Mm_Per_Px_Y=scale.Mm_Per_Px_Y - dh / float(K[1][1]), Height_Mm=float(height_mm))
+
+
+def __Read_Catalogue(path: str, problems: tp.List[str],
+                     notes: tp.List[tp.Tuple[str, str]]) -> tp.Optional[Catalogue_Item_Str]:
+    """
+    Description:
+        Read and validate one catalogue item file, by the mode file's rules: required fields present,
+        present values valid, the outline's tolerance falling back to the item's and saying so, unknown
+        keys reported. The file is named after its folder ('mounting_plate/mounting_plate.yaml'), so a
+        copied folder whose file was not renamed is refused rather than inspected under the old name.
+
+    Args:
+        (1) path [string]: The item file (absolute).
+        (2) problems [Vector<string>]: Collects what is wrong.
+        (3) notes [Vector<Tuple<string> 1x2>]: Collects the (level, message) notes to log.
+
+    Returns:
+        (1) parameter [Catalogue_Item_Str(object) or None]: The item, or None when the file could not
+                                                            be read.
+    """
+
+    data = __Read_Yaml(path, 'catalogue item', problems)
+    if data is None:
+        return None
+    file_name = os.path.basename(path)
+    name = os.path.splitext(file_name)[0]
+    folder = os.path.basename(os.path.dirname(path))
+    if name != folder:
+        problems.append('%s: a catalogue item is named after its folder, so this file must be %s.yaml '
+                        '(it is in %s/)' % (file_name, folder, folder))
+    item = Catalogue_Item_Str(Path=path, Name=folder)
+    prefix = '%s: ' % file_name
+    __Read_Fields(data, item, CONST_CATALOGUE_FIELDS, problems, notes, prefix)
+    present, tolerance = __Lookup(data, CONST_OUTLINE_TOLERANCE_PATH)
+    dotted = prefix + '.'.join(CONST_OUTLINE_TOLERANCE_PATH)
+    if not present or tolerance is None:
+        item.Outline.Tolerance_Mm = item.Tolerance_Mm
+        notes.append(('INFO', "%s not set; using the item's Tolerance_Mm %r." % (dotted, item.Tolerance_Mm)))
+    else:
+        valid, tolerance, expected = __Check('positive', tolerance)
+        if valid:
+            item.Outline.Tolerance_Mm = tolerance
+        else:
+            problems.append('%s must be %s (found %r)' % (dotted, expected, tolerance))
+    if item.Outline.Length_Mm < item.Outline.Width_Mm:
+        problems.append('%sChecks.Outline.Length_Mm (%r) must be at least Checks.Outline.Width_Mm (%r): the '
+                        'length is the longer side' % (prefix, item.Outline.Length_Mm, item.Outline.Width_Mm))
+    known = __Known_Paths([CONST_OUTLINE_TOLERANCE_PATH] + [path for path, _a, _k, _r in CONST_CATALOGUE_FIELDS])
+    for key in __Unknown_Keys(data, known):
+        notes.append(('WARNING', '%sunrecognised key %s is ignored (misspelt?).' % (prefix, key)))
+    return item
+
+
+def Load_Catalogue(path: str) -> Catalogue_Item_Str:
+    """
+    Description:
+        Read one catalogue item file on its own, validated as a whole — what a mode file's
+        Catalogue.Item names. Load_Configuration reads the item through the same code.
+
+    Args:
+        (1) path [string]: The item file, Data/Catalogue/<item>/<item>.yaml (relative to the repository
+                           root, or absolute).
+
+    Returns:
+        (1) parameter [Catalogue_Item_Str(object)]: The item. Its Notes hold the defaulted fields and
+                                                    unknown keys, to be logged.
+
+    Raises:
+        Configuration_Error_Cls: The file is missing, unreadable or invalid; the message names each
+                                 problem.
+    """
+
+    path = __Resolve_Model_Path(path)
+    problems, notes = [], []
+    item = __Read_Catalogue(path, problems, notes)
+    if problems or item is None:
+        raise Configuration_Error_Cls("Catalogue item '%s' cannot be used: %s."
+                                      % (os.path.basename(path), '; '.join(problems)))
+    item.Notes = notes
+    return item
+
+
+def __Read_Catalogue_Block(block: tp.Any, problems: tp.List[str],
+                           notes: tp.List[tp.Tuple[str, str]]) -> tp.Optional[Catalogue_Item_Str]:
+    """
+    Description:
+        A mode file's Catalogue block: Item is REQUIRED within it, and the item it names is read and
+        validated here, its problems joining the configuration's.
+
+    Args:
+        (1) block [Any]: The Catalogue block as read.
+        (2) problems [Vector<string>]: Collects what is wrong.
+        (3) notes [Vector<Tuple<string> 1x2>]: Collects the (level, message) notes to log.
+
+    Returns:
+        (1) parameter [Catalogue_Item_Str(object) or None]: The item, or None when it cannot be read.
+    """
+
+    dotted = '.'.join(CONST_CATALOGUE_ITEM_PATH)
+    present, value = __Lookup({CONST_CATALOGUE_ITEM_PATH[0]: block}, CONST_CATALOGUE_ITEM_PATH)
+    if not present or value is None:
+        problems.append('%s is required in a Catalogue block but missing' % dotted)
+        return None
+    valid, value, expected = __Check('path', value)
+    if not valid:
+        problems.append('%s must be %s (found %r)' % (dotted, expected, value))
+        return None
+    return __Read_Catalogue(__Resolve_Model_Path(value), problems, notes)
+
+
+def __Catalogue_Scale(Configuration_Str: Configuration_Str, board_height: tp.Optional[float],
+                      problems: tp.List[str]) -> tp.Optional[Scale_Str]:
+    """
+    Description:
+        A catalogue mode's scale: the calibration's, moved to the catalogue part's top face
+        (Scale_At_Height). A catalogue mode checks dimensions in millimetres, so a calibration without
+        a factor, or without the board height that factor holds at, fails the load here — it would
+        otherwise check every part against a scale the part does not lie in.
+
+    Args:
+        (1) Configuration_Str [Configuration_Str(object)]: The configuration, its calibration and item read.
+        (2) board_height [float or None]: The calibration's board height, or None when it records none.
+        (3) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [Scale_Str(object) or None]: The corrected scale, or None when it cannot be made.
+    """
+
+    calibration = os.path.basename(Configuration_Str.Calibration_Path)
+    if Configuration_Str.Scale is None:
+        problems.append('a catalogue mode checks dimensions in mm, so it needs %s with a '
+                        'Calibration.Conversion_Factor. Run Example/Camera/calibrate.py' % calibration)
+        return None
+    if board_height is None:
+        problems.append('a catalogue mode corrects the scale to the part\'s top face, so it needs the height '
+                        'the calibration\'s factor holds at, %s, which %s does not record. Recalibrate with '
+                        'Example/Camera/calibrate.py, which records it' % ('.'.join(CONST_BOARD_HEIGHT_PATH), calibration))
+        return None
+    return Scale_At_Height(Configuration_Str.Scale, Configuration_Str.Camera.Calibration.K, board_height,
+                           Configuration_Str.Catalogue.Thickness_Mm)
 
 
 def Load_Configuration(config_path: str) -> Configuration_Str:
@@ -753,7 +984,7 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     Configuration_Str_i.Hardware, Configuration_Str_i.Mode = hardware, mode
 
     # 2\ Every setting in the field table.
-    __Read_Fields(data, Configuration_Str_i, problems, notes)
+    __Read_Fields(data, Configuration_Str_i, CONST_FIELDS, problems, notes)
 
     # 3\ The cross-field rules, and the paths resolved against the repository.
     reference = __Resolve_And_Cross_Check(Configuration_Str_i, problems)
@@ -768,10 +999,19 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
         __Check_Reference_Size(reference, resolution, problems)
 
     # 5\ The hardware's calibration, shared by every mode on it, checked against the sensor window.
+    board_height = None
     if hardware:
         Configuration_Str_i.Calibration_Path = Calibration_Path_For(config_path, hardware)
-        Configuration_Str_i.Camera.Calibration, Configuration_Str_i.Scale = __Read_Calibration(
+        Configuration_Str_i.Camera.Calibration, Configuration_Str_i.Scale, board_height = __Read_Calibration(
             Configuration_Str_i.Calibration_Path, hardware, resolution, offset, problems, notes)
+
+    # 5b\ A catalogue mode: its item, and the scale corrected to the item's top face — after the
+    #     calibration, whose factor and board height the correction starts from.
+    present, block = __Lookup(data, CONST_CATALOGUE_ITEM_PATH[:1])
+    if present:
+        Configuration_Str_i.Catalogue = __Read_Catalogue_Block(block, problems, notes)
+        if Configuration_Str_i.Catalogue is not None and hardware:
+            Configuration_Str_i.Scale = __Catalogue_Scale(Configuration_Str_i, board_height, problems)
 
     # 6\ The reference's provenance, against the window, the calibration and the lighting — after
     #    the calibration is read, since the reference must have been undistorted with it.
@@ -779,7 +1019,7 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
         __Check_Reference_Sidecar(reference, Configuration_Str_i.Camera, problems)
 
     # 7\ Keys nothing reads — usually a misspelt optional field.
-    for key in __Unknown_Keys(data):
+    for key in __Unknown_Keys(data, __Mode_File_Known_Paths()):
         notes.append(('WARNING', 'unrecognised key %s is ignored (misspelt?).' % key))
 
     if problems:
@@ -819,24 +1059,27 @@ def __Read_Hardware(data: tp.Dict[str, tp.Any], config_path: str,
     return hardware, mode
 
 
-def __Read_Fields(data: tp.Dict[str, tp.Any], Configuration_Str: Configuration_Str,
-                  problems: tp.List[str], notes: tp.List[tp.Tuple[str, str]]) -> None:
+def __Read_Fields(data: tp.Dict[str, tp.Any], structure: tp.Any, fields: tp.Tuple[tp.Tuple, ...],
+                  problems: tp.List[str], notes: tp.List[tp.Tuple[str, str]], prefix: str = '') -> None:
     """
     Description:
-        Every setting in CONST_FIELDS into the configuration: a required one must be present, an
-        optional one falls back to its default and says so, and a present value must be valid
-        either way.
+        Every setting in a field table (CONST_FIELDS, CONST_CATALOGUE_FIELDS) into its structure: a
+        required one must be present, an optional one falls back to its default and says so, and a
+        present value must be valid either way.
 
     Args:
-        (1) data [Dict]: The parsed mode file.
-        (2) Configuration_Str [Configuration_Str(object)]: The configuration being filled.
-        (3) problems [Vector<string>]: Collects what is wrong.
-        (4) notes [Vector<Tuple<string> 1x2>]: Collects the (level, message) notes to log.
+        (1) data [Dict]: The parsed file.
+        (2) structure [Any]: The structure being filled (Configuration_Str, Catalogue_Item_Str).
+        (3) fields [Vector<Tuple>]: The field table.
+        (4) problems [Vector<string>]: Collects what is wrong.
+        (5) notes [Vector<Tuple<string> 1x2>]: Collects the (level, message) notes to log.
+        (6) prefix [string]: Put before each message: the file's name and ': ' when it is not the
+                             mode file.
     """
 
-    for path, attribute, kind, required in CONST_FIELDS:
-        dotted = '.'.join(path)
-        target = Configuration_Str
+    for path, attribute, kind, required in fields:
+        dotted = prefix + '.'.join(path)
+        target = structure
         for part in attribute[:-1]:
             target = getattr(target, part)
         present, value = __Lookup(data, path)
@@ -1087,8 +1330,8 @@ def Display_Path(path: str) -> str:
 def Config_Sources_Log_Line(Configuration_Str: Configuration_Str) -> str:
     """
     Description:
-        What a configuration reads beside itself: the calibration and the background reference,
-        logged together on load so a run can be traced to both.
+        What a configuration reads beside itself: the calibration, the background reference and, in a
+        catalogue mode, the catalogue item, logged together on load so a run can be traced to each.
 
     Args:
         (1) Configuration_Str [Configuration_Str(object)]: The loaded configuration.
@@ -1099,9 +1342,13 @@ def Config_Sources_Log_Line(Configuration_Str: Configuration_Str) -> str:
 
     calibration = (Display_Path(Configuration_Str.Calibration_Path)
                    if Configuration_Str.Camera.Calibration is not None else 'none (no calibration file)')
-    return ("Configuration '%s' reads calibration %s and background reference %s."
-            % (Configuration_Str.Name, calibration,
-               Display_Path(Configuration_Str.Segmentation.Background_Reference)))
+    sources = 'calibration %s and background reference %s' % (
+        calibration, Display_Path(Configuration_Str.Segmentation.Background_Reference))
+    if Configuration_Str.Catalogue is not None:
+        sources = 'calibration %s, background reference %s and catalogue item %s' % (
+            calibration, Display_Path(Configuration_Str.Segmentation.Background_Reference),
+            Display_Path(Configuration_Str.Catalogue.Path))
+    return "Configuration '%s' reads %s." % (Configuration_Str.Name, sources)
 
 
 def __Article(noun: str) -> str:

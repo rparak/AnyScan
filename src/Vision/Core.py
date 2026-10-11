@@ -55,6 +55,8 @@ from Vision.Describers import (Gemma_Describer_Cls, CONST_PURPOSE_OBJECT, CONST_
                                Describer_Error_Cls)
 #   ../Vision/Utilities/Measure
 from Vision.Utilities.Measure import Measure_Objects
+#   ../Vision/Utilities/Dimensions
+from Vision.Utilities.Dimensions import Check_Objects
 #   ../Vision/Utilities/Timing
 from Vision.Utilities.Timing import Build_Timing
 
@@ -816,10 +818,13 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         result.Heatmap = Heatmap_Str(Values=difference, Low=0.0, High=float(CONST_DIFFERENCE_SCALE_MAX),
                                      Title='Difference from the reference', Unit='grey level',
                                      Marks=[(threshold, ('Otsu %d' if otsu >= threshold else 'floor %d') % threshold)])
-        # Measure every masked object through the configured scale (none without one). It runs
-        # after Latency_Ms has stopped, so its time is carried beside the total, not in it.
+        # Measure every masked object through the configured scale (none without one) and, in a
+        # catalogue mode, check each against the catalogue. It runs after Latency_Ms has stopped, so its
+        # time is carried beside the total, not in it.
         started = time.perf_counter()
         Measure_Objects(result.Objects, self.__config.Scale, cv2, np)
+        if self.__config.Catalogue is not None:
+            Check_Objects(result.Objects, self.__config.Catalogue)
         result.Timing.Measurement_Ms = int((time.perf_counter() - started) * 1000)
         self.__first_after_load = False
         return result

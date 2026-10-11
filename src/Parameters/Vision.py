@@ -49,6 +49,32 @@ class Scale_Str(object):
     #   Unit [float] (mm/px)
     Mm_Per_Px_X: float = 0.0
     Mm_Per_Px_Y: float = 0.0
+    # The height above the table the factors were corrected to, or None when they are the
+    # calibration's own (exact in the plane of its flat boards, Calibration.Solved.Board_Height_Mm).
+    # A catalogue mode corrects them to its part's top face (Configuration.Core.Scale_At_Height).
+    #   Unit [float] (mm)
+    Height_Mm: tp.Optional[float] = None
+
+
+@dataclass
+class Dimension_Check_Str(object):
+    """
+    Description:
+        One dimension of an object checked against the catalogue: what was measured, what the
+        catalogue expects, and the tolerance — so a failed check can say all three.
+    """
+
+    # Which dimension: 'length' or 'width' of the outline.
+    #   Unit [string]
+    Name: str = ''
+    # The measured value, at full precision, the nominal value and the tolerance (nominal ± this).
+    #   Unit [float] (mm)
+    Measured_Mm: float = 0.0
+    Nominal_Mm: float = 0.0
+    Tolerance_Mm: float = 0.0
+    # Whether the measured value lies within the tolerance (bounds included).
+    #   Unit [bool]
+    Within: bool = False
 
 
 @dataclass
@@ -178,6 +204,10 @@ class Detection_Str(object):
     # mask or no scale was configured (never a size computed from a default).
     #   Unit [Measurement_Str(object)]
     Measurement: tp.Optional[Measurement_Str] = None
+    # The catalogue's dimension checks on this object, in a catalogue mode; empty otherwise, and for
+    # an object that is not measured or is round (a round object has no outline to check).
+    #   Unit [Vector<Dimension_Check_Str(object)>]
+    Dimension_Checks: tp.List[Dimension_Check_Str] = field(default_factory=list)
 
 # The timed stages of one analysis, in the order they run. Their names are what the timing log line
 # prints. Everything between the analysis's start and stop that is not one of them (the model check,

@@ -1,0 +1,257 @@
+## =========================================================================== ##
+#   Description:
+#     One AnyScan configuration: a MODE (how the scene is segmented and described,
+#     what the UI calls itself, the confidence thresholds) on one piece of HARDWARE.
+#     Read, validated as a whole and applied by Configuration.Core.Load_Configuration;
+#     no other module reads this file.
+#
+#   File name:
+#     Config_<Hardware>_Mode_<Mode>.yaml. The hardware part keys everything that
+#     belongs to the camera rather than the mode: the calibration (read from
+#     Calibration_<Hardware>.yaml beside this file) and the run-summary CSV
+#     (log_<Hardware>.csv), so two modes on one camera share both.
+#
+#   Required and optional:
+#     A field marked REQUIRED has no default: a file without it fails to load, naming
+#     the field. The calibration file is optional: without it the configuration loads
+#     with a warning, frames are not undistorted and objects are not measured. Every other field is optional: when it is absent the documented default
+#     (the value in the comment) is used and the log says so. An unrecognised key is
+#     logged as a warning, so a misspelt optional field does not pass silently.
+#
+#   Catalogue mode:
+#     This mode inspects one catalogue item, the mounting plate (the Catalogue block below).
+#     Today it finds and describes every object like Segment Anything, measures them at
+#     the item's top face, and checks each object's outline against the item. Which
+#     object is the item, its side, its holes and defects, and the OK / NOK / Unspecified /
+#     Warning states are not yet built.
+#
+#   Hardware setup:
+#     - Camera : Basler a2A1920-51gcPRO
+#     - Lens   : Computar M1228-MPW3
+#     - Light  : Effilux EFFI-FD-200-200-000
+## =========================================================================== ##
+
+# REQUIRED. The hardware this mode runs on; must equal the hardware part of this file's name.
+Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
+
+# General (non-hardware) settings for this configuration.
+General:
+  # Does this configuration perform OK/NOK classification, or only detect objects?
+  #   true  - the UI shows verdict state (the Captures OK/NOK filter, verdict colours on
+  #           annotations, the verdict per object). No classifier exists yet, so every object is
+  #           OK and the NOK filter stays empty until one does.
+  #   false - none of that appears: objects are annotated in a single neutral colour and the UI
+  #           speaks only of detected objects.
+  # Default: false. Enabling it exposes the verdict UI; it does not create classification.
+  Classification:
+    Enabled: false
+  # The daily station event files, for the external system that tracks the station's uptime.
+  # One file per LOCAL date, 'YYYY-MM-DD.csv': UTF-8, the header 'station_id,event_type,ts', rows
+  # appended. station_id is always SF4 (the installation's identity in that contract; a second
+  # station would make it a field here). event_type: STATION_ON (application start), STATION_OFF
+  # (application stop), CYCLE_START and CYCLE_DONE (one cycle of work). ts is UTC to the second,
+  # '2026-09-25T05:33:45Z'.
+  #
+  # A cycle, from 2026-10-07: CYCLE_START is a SCAN starting OR a re-analysis starting (the same frame
+  # analysed again, with no scan of its own). CYCLE_DONE is the end of that analysis, whether it
+  # finished or failed. A scan that is never analysed is done at the end of its capture, a failed
+  # capture at the failure, and closing during an analysis at the close (before STATION_OFF). A camera
+  # connection is no cycle, and a lost connection does not end one. The cycles sum to the run-summary
+  # CSV's total_session_time (logger/log_<hardware>.csv): one definition, both files.
+  # UNTIL 2026-10-07 a cycle was a camera connection (CONNECT to its end). Files are never rewritten,
+  # so rows before that date bracket connections, and the file for 2026-10-07 may hold both kinds.
+  #
+  # The files are exported from the session log (logger/log_*.txt) when the application closes; a
+  # run that crashed, or whose export failed, is exported at the next start (the ledger
+  # logger/station_events_exported.txt names every exported log). So a file is current up to the
+  # last closed run, not live.
+  #
+  # Reading the files:
+  #   - Each row goes to the file of its own local date: a run or a cycle crossing midnight starts in
+  #     one file and ends in the next. An unpaired row at the START or END of a file is normal. An
+  #     unpaired STATION_ON or CYCLE_START with no match in a LATER file means an abnormal exit (the
+  #     application was killed or lost power): nothing could record the end.
+  #   - The name is the local date but ts is UTC, as the contract specifies, so they disagree near
+  #     midnight: an event at 00:30 local in summer has ts 22:30Z of the PREVIOUS date. Find an event
+  #     by the file's local date, not by ts's date. (Naming by the UTC date would keep each file's ts
+  #     on one date; the contract is the external system's — see docs/design-decisions.md.)
+  #   - The log records local time without a zone. In the hour that repeats when summer time ends
+  #     (02:00-03:00 twice), a time is read as its first, summer-time occurrence: an event in the
+  #     second pass gets a ts one hour early.
+  # REQUIRED. The directory must exist and be writable, checked at load (it is never created). It is
+  # fixed for the run by the startup configuration: loading a mode that names another is refused.
+  # Relative to the repository root, or absolute.
+  Station_Events:
+    Directory: logger/Station_Events
+
+# What the UI calls this configuration and its models, and the task a reading is labelled with.
+# Model files never appear in the UI: the header names the model set, the dialog the configuration.
+Identity:
+  # REQUIRED. The configuration's name in the Configuration dialog's list.
+  Display_Name: Cfg. Mounting Plate
+  # REQUIRED. The model set's name in the header pill.
+  Model_Set: JIC_AnyScan_All_v1
+  # The Scene Understanding Task row and each capture set's 'task'. Default: part inspection
+  Task: part inspection
+
+# The catalogue item this mode inspects. Its presence makes this a catalogue mode: the item's
+# file sets the part's dimensions, tolerances and checks (see its header), and the scale is
+# corrected to the part's top face with the item's thickness, so the calibration must record the
+# height its factor holds at (Calibration.Solved.Board_Height_Mm).
+Catalogue:
+  # REQUIRED. The item file, Data/Catalogue/<item>/<item>.yaml, relative to the repository root
+  # (or absolute). It must exist and be valid: its problems fail this configuration's load.
+  Item: Data/Catalogue/mounting_plate/mounting_plate.yaml
+
+# Confidence severity thresholds [%]: below Warn_Below a confidence shows (and logs) as a
+# warning, below Error_Below as an error. Must be 0 <= Error_Below < Warn_Below <= 100.
+Confidence:
+  # Default: 80
+  Warn_Below: 80
+  # Default: 60
+  Error_Below: 60
+
+# Stages 1-3: FastSAM instance segmentation, the background difference, and their fusion.
+Segmentation:
+  # REQUIRED. The FastSAM weights, relative to the repository root (or absolute).
+  Model: models/FastSAM/FastSAM-x.pt
+  # Compute device: auto | cpu | mps | cuda (auto picks cuda, then mps, then cpu). Default: auto
+  Device: auto
+  # FastSAM detection confidence and NMS-IoU thresholds (0..1). Defaults: 0.4 and 0.9
+  Confidence: 0.4
+  IoU: 0.9
+  # FastSAM inference size [px]. Default: 1024
+  Image_Size: 1024
+  # Stage 1, the background difference.
+  Background:
+    # REQUIRED, and the file must exist. The empty-surface reference every frame is differenced
+    # against, relative to the repository root (or absolute). It decides every background-
+    # subtraction result, so it is stated here rather than discovered; shoot it from this camera.
+    Reference: Data/Images/Background/Image_Background_001.png
+    # The floor under the Otsu threshold [grey level 0..255], so a near-empty frame cannot
+    # promote the shadow halo and sensor noise to foreground. Default: 28
+    Otsu_Floor: 28
+    # Opening kernel [px] that erases the shadow halo and speckle. Default: 5
+    Open_Kernel: 5
+    # Dilation [px] that recovers edges the opening eroded; 0 disables it. Default: 3
+    Dilate: 3
+  # Stage 3, the fusion of the FastSAM masks and the background difference.
+  Fusion:
+    # Closing kernel [px] that fills gaps and notches inside each fused component; it never joins
+    # two components that were separate before it. Default: 15
+    Close_Kernel: 15
+    # A component smaller than this fraction of the frame is a speck. Default: 0.0005
+    Min_Area_Fraction: 0.0005
+    # A FastSAM mask covering this fraction of the frame is the table outright. Default: 0.85
+    Hard_Background_Fraction: 0.85
+    # ...and one covering this fraction that touches Background_Borders of the four image
+    # borders is the background plane too. Defaults: 0.50 and 3
+    Background_Area_Fraction: 0.50
+    Background_Borders: 3
+
+# Stage 4: the Gemma describer.
+Description:
+  # REQUIRED. The Gemma weights directory, relative to the repository root (or absolute).
+  Model: models/gemma-4-e4b-it-4bit
+  # Generation. Temperature 0 is greedy decoding: the same crop gives the same text.
+  # Defaults: 0.0 and 256
+  Temperature: 0.0
+  Max_Tokens: 256
+  # The empty reference is centre-cropped inward by this fraction per side before the one
+  # background sentence is described, keeping the frame-edge vignette out. It does not affect
+  # the object crops. Default: 0.12
+  Background_Crop_Margin: 0.12
+  # Each object's crop is padded outward by this fraction of its longer side before it is
+  # described: context around the part, at the cost of pulling neighbours in (the crop is then
+  # isolated). Measured for Gemma: see docs/design-decisions.md. Default: 0.20
+  Object_Crop_Padding: 0.20
+  # The background sentence is replaced by a neutral one when it runs past these limits.
+  # Defaults: 20 and 1
+  Background_Max_Words: 20
+  Background_Max_Sentences: 1
+
+  # REQUIRED, both. The prompts sent with each image. They are DATA: iterate the wording here,
+  # never in code.
+  #
+  # How the wording was chosen (Phase 0 of the describer swap, docs/design-decisions.md):
+  #   measured on the Image_002 (rust-stained) and Image_007 (clean) plates and on four
+  #   plastic parts of Image_001, at temperature 0 — frames of the previous test set (eb00508^;
+  #   the names do not match Data/Images/Test), not re-run on the current one.
+  #   - "look carefully for ... name any you find and where they are" is kept firm: a
+  #     softer "if you can see ..." missed the rust on Image_002 entirely.
+  #   - "if there are none, say that the surface looks clean" makes a clean answer
+  #     acceptable; the clean plate did not come back with invented staining.
+  #   - "the features you can actually see" with no fixed list: naming "threads" made the
+  #     model report threads that are not there. Material is asked as "apparent", not
+  #     assumed: the plastic parts come back as plastic, with no machining marks.
+  #   - "Describe only the part" removes the table sentences at the source.
+  Prompts:
+    # Sent with each object's enhanced crop. Its answer is the object's description.
+    Object: >-
+      You are inspecting a single part photographed from above on a plain green surface.
+      In one flowing paragraph of two or three sentences (no lists, no markdown), describe
+      the part: its overall shape, colour and apparent material; the features you can
+      actually see, such as holes, slots, edges or surface texture; and its surface
+      condition. For the condition, look carefully for discolouration, stains, rust,
+      tarnish, scratches or dirt and name any you find and where they are; if there are
+      none, say that the surface looks clean. A hole may show the green surface through it;
+      that green is not part of the part. Describe only the part, not the surface it lies on.
+
+    # Sent once with the centre of the empty-surface reference. Its answer opens the reading
+    # ('<this sentence> There are N objects on it'), so it must name the surface; it is still
+    # validated (Background_Max_Sentences, Background_Max_Words) and replaced by a neutral
+    # sentence if not.
+    Background: >-
+      This photograph shows an empty work surface with nothing on it. Describe the surface
+      in one short sentence of no more than twelve words: begin with 'A', and name its
+      colour and finish. Do not mention objects, lighting or the camera.
+
+# The camera: identity, resolution and acquisition settings. Its calibration is NOT here — it
+# lives in Calibration_<Hardware>.yaml, shared by every mode on this hardware.
+Camera:
+  # The camera, lens and lighting as a person names them: named in the Configuration dialog's
+  # confirmation and recorded in every capture set. The lighting matters as much as the optics:
+  # the colour readings, the background subtraction and the surface-condition descriptions all
+  # depend on it. Each is left out when not set. Defaults: empty.
+  Model: Basler a2A1920-51gcPRO
+  Lens: Computar M1228-MPW3
+  Lighting: Effilux EFFI-FD-200-200-000
+
+  # REQUIRED. The sensor window the camera is SET to on connect [px]: its size and its offset on
+  # the sensor. Without it the camera runs at whatever it last remembered - after a power cycle,
+  # its factory default of the full 1936 x 1216 sensor. 1920 x 1200 is the camera's nominal size;
+  # the offset (8, 8) centres it on the sensor, trimming the border evenly. Everything that
+  # depends on the window is checked against it when the configuration loads: the background
+  # reference must be this size, and the calibration must have been solved at this window.
+  Resolution:
+    x: 1920
+    y: 1200
+  Offset:
+    x: 8
+    y: 8
+
+  # REQUIRED: Exposure_Time, Gain, Balance_Ratios, Pixel_Format. Vendor / API specific. These are the only
+  # settings the camera reads, each typed at load; any other key here is reported as unrecognised.
+  Custom_Cfg:
+    # How long the sensor is exposed to light during acquisition [us].
+    Exposure_Time: 10000
+    # Increases the brightness of the images output by the camera.
+    Gain: 10
+    # Manual white-balance correction so white objects appear white.
+    Balance_Ratios:
+      Red: 0.95
+      Green: 0.9
+      Blue: 1.2
+    # Sensor pixel format.
+    Pixel_Format: BayerRG8
+
+# Harness-only settings: read by Example/Vision/analyze.py, never by the application, so the loader
+# only resolves them — a missing directory never stops the application from loading.
+Evaluation:
+  # The test frames analyze.py runs on (Image_NNN.png): the pinned set the tests' expectations refer
+  # to (the 41 frames' inventory, test/integration/test_pipeline.py CONST_INVENTORY). analyze.py
+  # checks the directory, and each frame's size against Camera.Resolution. Adding, moving or
+  # renumbering a frame here changes what the pins test — a deliberate move, updated with them, never
+  # a tool's side effect. The previous set, Data/Images/Test/All, is no longer in the repository
+  # (recoverable from 1061966). Default: not set (analyze.py then needs --input-dir).
+  Frames: Data/Images/Test

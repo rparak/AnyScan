@@ -113,11 +113,12 @@ def test_field_names_are_pascal_snake_case() -> None:
     detection_field_order = [f.name for f in dataclasses.fields(Detection_Str)]
     analysis_fields = {f.name for f in dataclasses.fields(Analysis_Str)}
 
-    # The mask-pipeline fields are appended after Sentence; the original order is
-    # preserved so positional construction and the operator-visible contract hold.
+    # The mask-pipeline fields are appended after Sentence, and the catalogue's dimension checks after
+    # the measurement; the original order is preserved so positional construction and the
+    # operator-visible contract hold.
     assert detection_field_order == ['Label', 'Bbox', 'Confidence', 'Text', 'Detail',
                                      'Sentence', 'Mask', 'Segmenter_Score',
-                                     'Cue', 'Verdict', 'Enhanced_Crop', 'Measurement']
+                                     'Cue', 'Verdict', 'Enhanced_Crop', 'Measurement', 'Dimension_Checks']
     # Timing was added beside Latency_Ms (which keeps its meaning), not in place of it; Heatmap is the
     # Camera View's heatmap (2026-10-07), shown only.
     assert analysis_fields == {'Objects', 'Note', 'Latency_Ms',

@@ -32,6 +32,8 @@ from Parameters.Camera import Camera_Configuration_Str
 from Parameters.Vision import Scale_Str, Confidence_Thresholds_Str
 #   ../Parameters/General
 from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
+#   ../Parameters/Catalogue
+from Parameters.Catalogue import Catalogue_Item_Str
 
 """
 Description:
@@ -205,11 +207,15 @@ class Configuration_Str:
     Camera: Camera_Configuration_Str = field(default_factory=Camera_Configuration_Str)
     # The harness-only settings (analyze.py's test frames).
     Evaluation: Evaluation_Parameters_Str = field(default_factory=Evaluation_Parameters_Str)
+    # The catalogue item this mode inspects (the 'Catalogue' block), or None: a mode without one
+    # finds and describes every object and checks none against a catalogue (Segment Anything).
+    Catalogue: tp.Optional[Catalogue_Item_Str] = None
     # The calibration file the camera block's Calibration came from (absolute).
     #   Unit [string]
     Calibration_Path: str = ''
     # The measurement scale from that calibration, or None: no valid Conversion_Factor, so
-    # objects are not measured (the documented 'default' — never an invented number).
+    # objects are not measured (the documented 'default' — never an invented number). In a
+    # catalogue mode it is corrected to the catalogue part's top face (its Height_Mm says so).
     Scale: tp.Optional[Scale_Str] = None
     # What the loader has to say about this file, as (level, message): each optional field that
     # fell back to its default, each key it did not recognise. The caller logs them.

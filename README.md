@@ -127,7 +127,9 @@ fall back to the nearest system faces.
 
 Everything a user can change without touching code lives in one file per mode,
 `Configuration/Config_<Hardware>_Mode_<Mode>.yaml`, for example
-`Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml`. The hardware comes first so
+`Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml`. A catalogue mode's file also names
+its catalogue item, `Data/Catalogue/<item>/<item>.yaml`, which the loader reads by the same rules. The
+hardware comes first so
 camera-specific data still separates by camera; the mode comes after, so it is visible. What each
 section of the file controls is in [docs/capabilities.md](docs/capabilities.md#configuration), and the
 file's own comments give every field's default and unit.
@@ -198,12 +200,13 @@ text but decide nothing are in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ### Measurements are repeatable, not absolute
 
-**Don't build a tolerance on these numbers.** A part's size varies with its thickness and with where
-it lies in the frame: a 12 mm hex nut, 6 mm thick, reads about 0.2 mm large at the frame centre and
-about 1.5 mm large near the edge, so a fixed tolerance would pass the part in one place and reject it
-in another. Nothing in this version verifies the absolute scale either, so the overall error's
-magnitude is unknown. Comparing like parts in like positions works; deciding whether a part is within
-a stated tolerance does not.
+**Outside a catalogue mode, don't build a tolerance on these numbers. Inside one, trust its outline
+check only for its two parts, within 75 mm of the frame centre.** A part's size varies with its
+thickness and with where it lies in the frame: a 12 mm hex nut, 6 mm thick, reads about 0.2 mm large
+at the frame centre and about 1.5 mm large near the edge, so a fixed tolerance would pass the part in
+one place and reject it in another. Nothing in this version verifies the absolute scale either, so the
+overall error's magnitude is unknown. Comparing like parts in like positions works; deciding whether a
+part is within a stated tolerance does not, except where the catalogue bullet below measured it.
 
 - **Repeatable:** on the previous test set (`Data/Images/Test/All`, 2026-09-28; no longer in the repository,
   recoverable from `1061966`), the large washer in six frames
@@ -224,6 +227,14 @@ a stated tolerance does not.
   principal point sat about 800 px off centre. Nothing in this version checks the resulting scale
   against parts of known size. A good fit shows that the lens model is consistent, not that the sizes
   are right.
+- **Catalogue modes:** the owner chose to check the two catalogue parts' outlines against tolerances
+  anyway, with the scale moved to the part's top face
+  ([*A catalogue mode measures at its part's top face*](docs/design-decisions.md#a-catalogue-mode-measures-at-its-parts-top-face)).
+  On the current test set, every instance reads within: the 22 mounting plates −0.77 to +0.76 mm off
+  60 × 40 (tolerance ±1.5), the 37 labyrinths −0.58 to +0.43 mm off 50 × 50 (±1.0), with their centres
+  up to 75 mm from the frame centre. **Not verified:** the parts were not calipered, so "within" means
+  consistent with nominal, not a measured truth. **Not measured:** a part nearer a frame corner, where
+  the side-wall term above predicts up to about 1 mm more, beyond the labyrinth's 0.42 mm margin.
 - Sizes are shown to 0.01 mm as a formatting choice: one pixel is about 0.10 mm, and the error above
   is up to about 1.5 mm, so the second decimal — and the first — says nothing about accuracy.
 

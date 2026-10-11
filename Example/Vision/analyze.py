@@ -54,7 +54,7 @@ from Vision.Segmenter import Segmenter_Error_Cls
 #   ../Vision/Utilities/Annotate
 from Vision.Utilities.Annotate import Render_Views
 #   ../Reporting/Core
-from Reporting.Core import Screen_Understanding, Object_Size
+from Reporting.Core import Screen_Understanding, Object_Size, Dimension_Check_Text
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
 # Custom Lib.: AnyScan — the ONE configuration layer the application loads its configuration
@@ -509,11 +509,16 @@ def _Print_Run_Header(configuration: Configuration_Str, scenes: tp.List[str], in
     print('[INFO] Describer: %s' % Vision_Core.CONST_DESCRIBER)
     print('[INFO] Config   : %s' % configuration.Name)
     print('[INFO] Classify : %s' % ('enabled' if configuration.Classification_Enabled else 'disabled'))
+    if configuration.Catalogue is not None:
+        print('[INFO] Catalogue: %s (%s)' % (configuration.Catalogue.Name, configuration.Catalogue.Path))
     print('[INFO] Run stamp: %s\n' % run_stamp)
     scale = configuration.Scale
     if scale is None:
         print('[WARNING] %s has no calibration Conversion_Factor; objects will not be measured.'
               % configuration.Name)
+    elif scale.Height_Mm is not None:
+        print('[INFO] Scale    : %.5f x %.5f mm/px at %.2f mm above the table (the catalogue part\'s top face)'
+              % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y, scale.Height_Mm))
     else:
         print('[INFO] Scale    : %.5f x %.5f mm/px' % (scale.Mm_Per_Px_X, scale.Mm_Per_Px_Y))
 
@@ -543,9 +548,55 @@ def _Report_Frame(stem: str, result: Analysis_Str) -> tp.Tuple[str, int, int, tp
     for i, det in enumerate(result.Objects, 1):
         size = Object_Size(det)
         print('[INFO]     Obj. %d [%s]%s - %s' % (i, det.Cue, ' (%s)' % size if size else '', det.Sentence))
+        for check in det.Dimension_Checks:
+            print('[INFO]         %s' % Dimension_Check_Text(check))
     for level, message in result.Audit:
         print('[%s]     %s' % (level.upper(), message))
     return stem, len(result.Objects), result.Raw_Mask_Count, cues, result.Latency_Ms
+
+
+def Reference_Frames(Configuration_Str: Configuration_Str, scenes: tp.List[str]) -> tp.Set[str]:
+    """
+    Description:
+        The scenes that ARE the catalogue item's reference images (byte for byte, by content, not
+        name): judging the item on the frames it was defined from is circular, so a catalogue run
+        reports them apart. The reference images are the PNGs in the item's reference_image/ folder;
+        none outside a catalogue mode.
+
+    Args:
+        (1) Configuration_Str [Configuration_Str(object)]: The loaded configuration.
+        (2) scenes [Vector<string>]: The scene paths.
+
+    Returns:
+        (1) parameter [Set<string>]: The paths of the scenes that are reference images.
+    """
+
+    if Configuration_Str.Catalogue is None:
+        return set()
+    folder = os.path.join(os.path.dirname(Configuration_Str.Catalogue.Path), 'reference_image')
+    references = {_Fingerprint(path) for path in glob.glob(os.path.join(folder, '*.png'))}
+    return {path for path in scenes if _Fingerprint(path) in references}
+
+
+def _Report_Outlines(results: tp.List[tp.Tuple[str, Analysis_Str]], references: tp.Set[str]) -> None:
+    """
+    Description:
+        A catalogue run's outline summary: how many objects had an outline within the item's
+        tolerance, on the test frames and, apart, on the item's reference frames. Which object is the
+        item is not decided yet, so these are objects the size of the item, not objects known to be it.
+
+    Args:
+        (1) results [Vector<Tuple<string, Analysis_Str(object)>>]: Each scene's path and analysis.
+        (2) references [Set<string>]: The scenes that are the item's reference images.
+    """
+
+    for title, chosen in (('test frames', [r for r in results if r[0] not in references]),
+                          ('reference frames', [r for r in results if r[0] in references])):
+        within = [det for _path, result in chosen for det in result.Objects
+                  if det.Dimension_Checks and all(check.Within for check in det.Dimension_Checks)]
+        names = ', '.join(os.path.splitext(os.path.basename(path))[0] for path, _result in chosen)
+        print('[INFO] Outline within tolerance on the %d %s: %d object(s)%s'
+              % (len(chosen), title, len(within), ' (%s)' % names if title == 'reference frames' and names else ''))
 
 
 def main() -> int:
@@ -581,18 +632,21 @@ def main() -> int:
     _Print_Run_Header(configuration, scenes, args.input_dir, reference_hash, run_stamp)
 
     backend = Vision_Pipeline_Cls(Configuration_Str=configuration)
-    rows = []
+    rows, results = [], []
     for scene_path in scenes:
         result = _Analyze_Frame(backend, scene_path, args.output_dir, not args.no_describe, args.montage,
                                 run_stamp, reference_hash, configuration.Classification_Enabled)
         if result is None:
             return 1
         rows.append(_Report_Frame(os.path.splitext(os.path.basename(scene_path))[0], result))
+        results.append((scene_path, result))
 
     print('\n[INFO] %-14s %8s %12s   %s' % ('frame', 'objects', 'raw FastSAM', 'cues'))
     for stem, count, raw, cues, _latency in rows:
         print('[INFO] %-14s %8d %12d   %s' % (stem, count, raw, cues))
     print('[INFO] %-14s %8d' % ('TOTAL', sum(count for _stem, count, _raw, _cues, _latency in rows)))
+    if configuration.Catalogue is not None:
+        _Report_Outlines(results, Reference_Frames(configuration, scenes))
     print('[INFO] Artefacts written to: %s' % os.path.abspath(args.output_dir))
     return 0
 

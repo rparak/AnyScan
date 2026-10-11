@@ -27,7 +27,7 @@ import re
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str
+from Parameters.Vision import Detection_Str, Dimension_Check_Str
 #   ../Parameters/Configuration
 from Parameters.Configuration import Description_Parameters_Str
 
@@ -462,6 +462,26 @@ def Object_Size(det: Detection_Str) -> str:
                                measurement.Diameter_Mm)
     return '%.*f × %.*f mm' % (CONST_SIZE_DECIMALS, measurement.Width_Mm, CONST_SIZE_DECIMALS,
                                measurement.Height_Mm)
+
+
+def Dimension_Check_Text(Dimension_Check_Str: Dimension_Check_Str) -> str:
+    """
+    Description:
+        One catalogue dimension check as text: the dimension, what was measured, what was expected
+        with its tolerance, and the outcome — 'length 60.25 mm, expected 60.00 ± 1.50 mm: within' —
+        so a failed check says all three. Rounded to CONST_SIZE_DECIMALS, like every size shown.
+
+    Args:
+        (1) Dimension_Check_Str [Dimension_Check_Str(object)]: The check.
+
+    Returns:
+        (1) parameter [string]: The text.
+    """
+
+    check = Dimension_Check_Str
+    return '%s %.*f mm, expected %.*f ± %.*f mm: %s' % (
+        check.Name, CONST_SIZE_DECIMALS, check.Measured_Mm, CONST_SIZE_DECIMALS, check.Nominal_Mm,
+        CONST_SIZE_DECIMALS, check.Tolerance_Mm, 'within' if check.Within else 'OUT OF TOLERANCE')
 
 
 def Object_Label_Full(index: int, det: Detection_Str) -> str:

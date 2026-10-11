@@ -480,3 +480,28 @@ def test_the_heatmap_is_the_difference_the_mask_was_thresholded_from(fake_models
     assert (with_part.Heatmap.Low, with_part.Heatmap.High) == (0.0, 128.0)
     assert part_threshold > 28 and with_part.Heatmap.Marks == [(part_threshold, 'Otsu %d' % part_threshold)]
     assert empty.Heatmap.Marks == [(28.0, 'floor 28')]
+
+
+def test_a_catalogue_mode_checks_each_measured_object_and_segment_anything_does_not(fake_models, reference_background,
+                                                                                   make_synthetic_frame) -> None:
+    """
+    Description:
+        Through a real Analyze (stand-in models, the real stages around them): in the mounting-plate
+        mode a 601 x 401 px part, measured at the plate's top face (~60.6 x 40.5 mm), carries the
+        outline's length and width checks against 60 and 40 mm, both within; on the same frame Segment
+        Anything measures it and checks nothing.
+    """
+
+    import cv2
+    _events, config, _Variant = fake_models
+    frame = cv2.cvtColor(make_synthetic_frame(reference_background, [(300, 300, 900, 700)]), cv2.COLOR_BGR2RGB)
+    catalogue = Load_Configuration(os.path.join(os.path.dirname(CONST_DEFAULT_CONFIG_FILE),
+                                                'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml'))
+
+    (part,) = Vision_Pipeline_Cls(Configuration_Str=catalogue).Analyze(frame).Objects
+    assert [(c.Name, c.Nominal_Mm, c.Tolerance_Mm, c.Within) for c in part.Dimension_Checks] == [
+        ('length', 60.0, 1.5, True), ('width', 40.0, 1.5, True)]
+    assert part.Dimension_Checks[0].Measured_Mm == part.Measurement.Width_Mm
+
+    (plain,) = Vision_Pipeline_Cls(Configuration_Str=config).Analyze(frame).Objects
+    assert plain.Measurement is not None and plain.Dimension_Checks == []

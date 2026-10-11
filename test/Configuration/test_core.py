@@ -26,6 +26,7 @@ import os
 import re
 import sys
 import json
+import glob
 import shutil
 import subprocess
 # Typing (Support for type hints)
@@ -41,12 +42,16 @@ import pytest
 import Configuration.Core as Configuration
 from Configuration.Core import (Load_Configuration, Configuration_Error_Cls, Write_Calibration,
                                 Hardware_And_Mode, Describe_Configuration, Hardware_Record,
-                                Discover_Configurations, CONST_DEFAULT_CONFIG_FILE, CONST_FIELDS,
-                                CONST_REQUIRED_CUSTOM_CFG_KEYS, CONST_COEFFICIENT_KEYS, CONST_PROJECT_ROOT)
+                                Discover_Configurations, Load_Catalogue, Scale_At_Height, Config_Sources_Log_Line,
+                                CONST_DEFAULT_CONFIG_FILE, CONST_FIELDS, CONST_CATALOGUE_FIELDS,
+                                CONST_REQUIRED_CUSTOM_CFG_KEYS, CONST_COEFFICIENT_KEYS, CONST_PROJECT_ROOT,
+                                CONST_CONFIG_DIR)
 #   ../Parameters/Configuration
 from Parameters.Configuration import Configuration_Str
 #   ../Parameters/Camera
 from Parameters.Camera import Camera_Calibration_Parameters_Str
+#   ../Parameters/Vision
+from Parameters.Vision import Scale_Str
 
 """
 Description:
@@ -63,6 +68,15 @@ CONST_HARDWARE = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
 CONST_COPY_NAME = 'Config_%s_Mode_Test.yaml' % CONST_HARDWARE
 # A record of how a calibration was solved, for the writer.
 #   Unit [Dict]
+# The shipped catalogue modes: (the mode file, the item it inspects, the item's thickness and outline).
+#   Unit [Vector<Tuple>]
+CONST_CATALOGUE_MODES = (
+    ('Config_%s_Mode_Mounting_Plate.yaml' % CONST_HARDWARE, 'mounting_plate', 8.0, (60.0, 40.0, 1.5)),
+    ('Config_%s_Mode_Labyrinth.yaml' % CONST_HARDWARE, 'labyrinth', 6.0, (50.0, 50.0, 1.0)),
+)
+# Every shipped mode file.
+#   Unit [Vector<string>]
+CONST_SHIPPED_MODE_FILES = sorted(glob.glob(os.path.join(CONST_CONFIG_DIR, 'Config_*_Mode_*.yaml')))
 CONST_RECORD = {'date': '2026-09-24T10:00:00', 'images': '/tmp/calib',
                 'views': {'total': 12, 'flat': 4, 'tilted': 8}, 'rms_px': 0.21,
                 'square_mm': 15.0, 'board_height_mm': 3.0}
@@ -375,18 +389,20 @@ def _Documented_Default(text: str, position: int) -> tp.Any:
     return word
 
 
-def test_every_documented_default_in_the_shipped_mode_file_is_the_code_default() -> None:
+@pytest.mark.parametrize('mode_file', CONST_SHIPPED_MODE_FILES, ids=os.path.basename)
+def test_every_documented_default_in_the_shipped_mode_file_is_the_code_default(mode_file: str) -> None:
     """
     Description:
-        The half of the configuration rule the loader cannot see: the shipped mode file documents
+        The half of the configuration rule the loader cannot see: each shipped mode file documents
         each optional field's default in its comment, and that documented default must be the
         value the code applies when the field is left out (its Parameters/Configuration default).
         A comment that says 'Default: 80' while the code falls back to 70 is a setting that looks
         authoritative and is not. Every optional field documents one; every required field's
-        comment says REQUIRED.
+        comment says REQUIRED — in every mode file, since the catalogue modes are copies that could
+        drift from the first.
     """
 
-    comments = _Field_Comments(CONST_DEFAULT_CONFIG_FILE)
+    comments = _Field_Comments(mode_file)
     code_defaults = Configuration_Str()
     for path, attribute, _kind, required in CONST_FIELDS:
         dotted = '.'.join(path)
@@ -1000,3 +1016,255 @@ def test_writing_a_calibration_twice_over_the_same_file_gives_the_same_file(tmp_
     assert written[0] == written[1]
     assert written[1].count(Configuration.CONST_CALIBRATION_HARDWARE_COMMENT) == 1
     assert written[1].startswith('## ====') and written[1].endswith('\n')
+
+
+def _Catalogue_Mode(name: str) -> tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, tp.Any]]:
+    """A shipped catalogue mode file and the calibration, parsed."""
+    with open(os.path.join(CONST_CONFIG_DIR, name), 'r', encoding='utf-8') as f:
+        mode = yaml.safe_load(f)
+    return mode, _Shipped()[1]
+
+
+def _Item(name: str) -> tp.Dict[str, tp.Any]:
+    """A shipped catalogue item file, parsed."""
+    with open(os.path.join(CONST_PROJECT_ROOT, 'Data', 'Catalogue', name, name + '.yaml'), 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+
+def _Write_Item(directory: tp.Any, data: tp.Dict[str, tp.Any], name: str = 'test_part',
+                file_name: tp.Optional[str] = None) -> str:
+    """Write a catalogue item file into <directory>/<name>/<file_name or name>.yaml."""
+    folder = os.path.join(str(directory), name)
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, (file_name or name) + '.yaml')
+    with open(path, 'w', encoding='utf-8') as f:
+        yaml.safe_dump(data, f, sort_keys=False)
+    return path
+
+
+def test_a_mode_without_a_catalogue_block_is_not_a_catalogue_mode() -> None:
+    """
+    Description:
+        Segment Anything has no Catalogue block: no item, and the calibration's scale exactly as the
+        calibration states it, not moved to any height — the existing mode is unchanged.
+    """
+
+    config = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
+    assert config.Catalogue is None
+    assert config.Scale == Scale_Str(Mm_Per_Px_X=0.10189853878198323, Mm_Per_Px_Y=0.10207658577821295)
+
+
+@pytest.mark.parametrize('name, item, thickness, outline', CONST_CATALOGUE_MODES, ids=lambda x: str(x))
+def test_each_shipped_catalogue_mode_loads_its_item(name: str, item: str, thickness: float,
+                                                   outline: tp.Tuple[float, float, float]) -> None:
+    """
+    Description:
+        Each shipped catalogue mode loads end to end with the item it names: the item's thickness, its
+        outline and tolerance as the request states them, and nothing defaulted or unrecognised in
+        either file but the outline's tolerance, which falls back to the item's and says so.
+    """
+
+    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, name))
+    assert config.Catalogue is not None and config.Catalogue.Name == item
+    assert config.Catalogue.Thickness_Mm == thickness
+    assert (config.Catalogue.Outline.Length_Mm, config.Catalogue.Outline.Width_Mm,
+            config.Catalogue.Outline.Tolerance_Mm) == outline
+    assert [message for _level, message in config.Notes] == [
+        "Configuration '%s': %s.yaml: Checks.Outline.Tolerance_Mm not set; using the item's Tolerance_Mm %r."
+        % (name, item, outline[2])]
+
+
+@pytest.mark.parametrize('name, item, thickness, outline', CONST_CATALOGUE_MODES, ids=lambda x: str(x))
+def test_a_catalogue_mode_measures_at_the_parts_top_face(name: str, item: str, thickness: float,
+                                                         outline: tp.Tuple[float, float, float]) -> None:
+    """
+    Description:
+        A catalogue mode's scale is the calibration's moved from the board's plane to the part's top
+        face: each factor less (thickness - board height) / focal length, per axis — the pinhole model,
+        computed here from the calibration file's own numbers.
+    """
+
+    _mode, calibration = _Shipped()
+    block = calibration['Calibration']
+    dh = thickness - block['Solved']['Board_Height_Mm']
+    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, name))
+    assert config.Scale.Height_Mm == thickness
+    assert config.Scale.Mm_Per_Px_X == pytest.approx(block['Conversion_Factor']['x'] - dh / block['K'][0][0], abs=1e-15)
+    assert config.Scale.Mm_Per_Px_Y == pytest.approx(block['Conversion_Factor']['y'] - dh / block['K'][1][1], abs=1e-15)
+
+
+def test_the_scale_at_a_height_follows_the_pinhole_model() -> None:
+    """
+    Description:
+        A factor is the camera's distance over its focal length: at 0.1 mm/px and a 1000 px focal length
+        the camera is 100 mm from the plane, so 10 mm closer it is 0.09 mm/px, 10 mm further 0.11, and
+        at the plane itself unchanged. Each axis takes its own focal length.
+    """
+
+    scale, K = Scale_Str(Mm_Per_Px_X=0.1, Mm_Per_Px_Y=0.2), [[1000.0, 0, 0], [0, 500.0, 0], [0, 0, 1]]
+    closer = Scale_At_Height(scale, K, 4.0, 14.0)
+    assert (closer.Mm_Per_Px_X, closer.Mm_Per_Px_Y, closer.Height_Mm) == pytest.approx((0.09, 0.18, 14.0))
+    further = Scale_At_Height(scale, K, 4.0, -6.0)
+    assert (further.Mm_Per_Px_X, further.Mm_Per_Px_Y) == pytest.approx((0.11, 0.22))
+    same = Scale_At_Height(scale, K, 4.0, 4.0)
+    assert (same.Mm_Per_Px_X, same.Mm_Per_Px_Y) == (0.1, 0.2)
+
+
+@pytest.mark.parametrize('remove, words', [
+    (('Calibration', 'Solved', 'Board_Height_Mm'), 'Calibration.Solved.Board_Height_Mm'),
+    (('Calibration', 'Conversion_Factor'), 'Conversion_Factor'),
+], ids=['board height', 'conversion factor'])
+def test_a_catalogue_mode_needs_a_scale_it_can_move_to_the_top_face(tmp_path: tp.Any, remove: tp.Tuple[str, ...],
+                                                                    words: str) -> None:
+    """
+    Description:
+        A catalogue mode checks sizes in millimetres at the part's top face, so a calibration without a
+        factor, or without the board height the factor holds at, fails its load naming what is missing —
+        where Segment Anything on the same calibration loads (it only measures, or not at all).
+    """
+
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    _Delete(calibration, remove)
+    with pytest.raises(Configuration_Error_Cls, match='catalogue mode') as error:
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert words in str(error.value)
+    plain, _calibration = _Shipped()
+    assert Load_Configuration(_Write(tmp_path, plain, None, name='Config_%s_Mode_Plain.yaml' % CONST_HARDWARE))
+
+
+@pytest.mark.parametrize('block, words', [
+    ({}, 'Catalogue.Item is required'),
+    (None, 'Catalogue.Item is required'),
+    ({'Item': '  '}, 'Catalogue.Item must be a non-empty path'),
+    ({'Item': 'Data/Catalogue/no_such_part/no_such_part.yaml'}, 'does not exist'),
+], ids=['empty block', 'null block', 'blank item', 'missing file'])
+def test_a_catalogue_block_must_name_an_item_that_exists(tmp_path: tp.Any, block: tp.Any, words: str) -> None:
+    """
+    Description:
+        A Catalogue block makes the mode a catalogue mode, so its Item is REQUIRED and must be a file:
+        an empty block, a blank path or a missing file fails the load naming it, never falling back to
+        Segment Anything.
+    """
+
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    mode['Catalogue'] = block
+    with pytest.raises(Configuration_Error_Cls, match=words):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+
+
+def test_an_invalid_catalogue_item_fails_its_mode(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The item's problems are the configuration's: a mode naming an item with an invalid thickness
+        fails to load, naming the item file and the field.
+    """
+
+    data = _Item('mounting_plate')
+    data['Thickness_Mm'] = -8
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    mode['Catalogue']['Item'] = _Write_Item(tmp_path, data)
+    with pytest.raises(Configuration_Error_Cls, match=r'test_part\.yaml: Thickness_Mm must be a number above 0'):
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+
+
+@pytest.mark.parametrize('path', [path for path, _a, _k, _r in CONST_CATALOGUE_FIELDS], ids=lambda p: '.'.join(p))
+def test_a_catalogue_item_missing_a_required_field_fails_naming_it(tmp_path: tp.Any, path: tp.Tuple[str, ...]) -> None:
+    """
+    Description:
+        Every field of the item's table is REQUIRED (the thickness, the tolerance, the outline's two
+        sides): removing one fails Load_Catalogue, naming the file and the field.
+    """
+
+    data = _Item('mounting_plate')
+    _Delete(data, path)
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Catalogue(_Write_Item(tmp_path, data))
+    assert 'test_part.yaml: %s is required but missing' % '.'.join(path) in str(error.value)
+
+
+def test_the_outline_tolerance_overrides_the_items(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The outline takes the item's Tolerance_Mm unless it sets its own: set, the override is used and
+        nothing is noted; invalid, the load fails rather than fall back to the item's.
+    """
+
+    data = _Item('labyrinth')
+    data['Checks']['Outline']['Tolerance_Mm'] = 0.5
+    item = Load_Catalogue(_Write_Item(tmp_path, data))
+    assert (item.Tolerance_Mm, item.Outline.Tolerance_Mm, item.Notes) == (1.0, 0.5, [])
+    data['Checks']['Outline']['Tolerance_Mm'] = 0
+    with pytest.raises(Configuration_Error_Cls, match='Checks.Outline.Tolerance_Mm must be a number above 0'):
+        Load_Catalogue(_Write_Item(tmp_path, data))
+
+
+def test_a_catalogue_item_is_refused_when_its_length_is_its_shorter_side(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The check compares the longer measured side with Length_Mm, so an item that gives the shorter
+        side as its length would fail every part it describes: the load refuses it instead.
+    """
+
+    data = _Item('mounting_plate')
+    data['Checks']['Outline'].update(Length_Mm=40, Width_Mm=60)
+    with pytest.raises(Configuration_Error_Cls, match='Length_Mm .* must be at least'):
+        Load_Catalogue(_Write_Item(tmp_path, data))
+
+
+def test_a_catalogue_item_file_is_named_after_its_folder(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A new item is a copied folder: a file that kept the old name in the renamed folder is refused,
+        so it is never inspected under a name it does not have.
+    """
+
+    with pytest.raises(Configuration_Error_Cls, match='must be test_part.yaml'):
+        Load_Catalogue(_Write_Item(tmp_path, _Item('mounting_plate'), file_name='mounting_plate'))
+
+
+def test_an_unrecognised_catalogue_key_is_a_warning(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A misspelt key in the item file is reported as a WARNING naming the file and the key, as in a
+        mode file, and the field it was meant to be is still required.
+    """
+
+    data = _Item('mounting_plate')
+    data['Checks']['Outline']['Tolerence_Mm'] = 1.0
+    item = Load_Catalogue(_Write_Item(tmp_path, data))
+    assert ('WARNING', 'test_part.yaml: unrecognised key Checks.Outline.Tolerence_Mm is ignored (misspelt?).') \
+        in item.Notes
+
+
+@pytest.mark.parametrize('item', ['mounting_plate', 'labyrinth'])
+def test_every_field_of_a_shipped_catalogue_item_says_required_or_its_default(item: str) -> None:
+    """
+    Description:
+        The catalogue files follow the mode file's rule: each required field's comment says REQUIRED,
+        and the optional outline tolerance, which is commented out because its default is the item's
+        own tolerance, says so — a value written there would stay put when the item's changed.
+    """
+
+    path = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Catalogue', item, item + '.yaml')
+    comments = _Field_Comments(path)
+    for field_path, _attribute, _kind, _required in CONST_CATALOGUE_FIELDS:
+        said = [comments.get(field_path[:i], ('', 0))[0] for i in range(1, len(field_path) + 1)]
+        assert any('REQUIRED' in comment for comment in said), '.'.join(field_path)
+    with open(path, 'r', encoding='utf-8') as handle:
+        text = handle.read()
+    assert "Default: the item's Tolerance_Mm." in text and '\n    Tolerance_Mm:' not in text
+
+
+def test_the_sources_line_names_the_catalogue_item() -> None:
+    """
+    Description:
+        The configuration-loaded line that names what a configuration reads names the catalogue item in
+        a catalogue mode, so a run can be traced to the item it checked; Segment Anything's is unchanged.
+    """
+
+    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, CONST_CATALOGUE_MODES[0][0]))
+    assert Config_Sources_Log_Line(config).endswith(
+        'background reference Data/Images/Background/Image_Background_001.png and catalogue item '
+        'Data/Catalogue/mounting_plate/mounting_plate.yaml.')
+    assert Config_Sources_Log_Line(Load_Configuration(CONST_DEFAULT_CONFIG_FILE)).endswith(
+        'and background reference Data/Images/Background/Image_Background_001.png.')
