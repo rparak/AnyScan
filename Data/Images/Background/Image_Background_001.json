@@ -1,8 +1,8 @@
 {
   "note": "Provenance of this background reference, written by Example/Camera/make_reference.py from the capture set named in source. Do not edit: Load_Configuration checks the image against image_sha256 and the window, calibration and lighting against the configuration.",
-  "image_sha256": "4cd0cd4ee09d3129790f5ff27465e3f4b5f7fddb7c855772ea14540ce8d04a67",
-  "source": "logger/captures/20260928-111434_s1/20260928-111437_1_raw.png",
-  "shot": "2026-09-28T11:14:41",
+  "image_sha256": "e520f046b501b5f897e57ba2f2bb14a162cafa0e570803079c0cab4ef618334a",
+  "source": "logger/captures/20261012-170521_s1/20261012-170523_1_raw.png",
+  "shot": "2026-10-12T17:05:23",
   "configuration": "Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml",
   "window": {
     "resolution": [
@@ -23,11 +23,5 @@
     "camera": "Basler a2A1920-51gcPRO",
     "lens": "Computar M1228-MPW3",
     "lighting": "Effilux EFFI-FD-200-200-000"
-  },
-  "accepted_objects": [
-    "1374 × 7 px (0.42 % of the frame) at (142, 0), top-centre",
-    "1032 × 7 px (0.31 % of the frame) at (545, 1193), bottom-centre",
-    "6 × 854 px (0.22 % of the frame) at (0, 55), middle-left",
-    "4 × 410 px (0.07 % of the frame) at (1916, 337), middle-right"
-  ]
+  }
 }
