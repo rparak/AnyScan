@@ -159,7 +159,9 @@ piece of hardware. The modes shipped today:
 
 ## Run sequence
 
-1. **Start, then CONFIGURATION → Load.** The configuration is validated as a whole, both models are
+1. **Start, then CONFIGURATION → Load.** At start the application refuses OpenCV's GUI build
+   (`opencv-python`, or its Qt plugins in `cv2/qt/plugins`), which would make the window abort, and
+   names the two commands that leave the headless build only. The configuration is validated as a whole, both models are
    loaded, and the first analysis's one-time costs are paid ("Warming up…"). CONNECT stays
    unavailable until then. The README's *Order of a run* has the detail
    ([README > Configuration](../README.md#configuration)).
@@ -382,6 +384,7 @@ Each row names its evidence. A row with none is not verified.
 | The whole application on Linux (RTX 5070 Ti, CUDA 13) | Verified on one machine, 2026-09-29 | README > Platform; commit `3cec51a` |
 | Installer on Linux: detection and the Gemma download | Verified, 2026-09-29 | [*The installer on Linux…*](design-decisions.md#the-installer-on-linux-detection-and-the-gemma-download-ran-the-rest-did-not) |
 | Installer on Linux: the full install, the CUDA 12 path, the CPU path, every refusal | **Not run** (stubbed tests only) | Same entry |
+| Installer: OpenCV's headless build only | Its step ran for real on the development Linux machine (2026-10-13) against a scratch environment with both OpenCV 5.0.0.93 builds: the GUI build removed, the headless one reinstalled, cv2 importing without Qt plugins, a second run installing nothing. **Not run on the station**, where the abort was seen | [*Only OpenCV's headless build is installed…*](design-decisions.md#only-opencvs-headless-build-is-installed-the-installer-removes-the-gui-build-and-the-application-refuses-it) |
 | Windows | **Never tried**, not a target | README > Platform |
 | Multi-view calibration of the rig's camera | Solved on the rig, 2026-09-28: 63 views, RMS 0.45 px | `Calibration.Solved` in the calibration file; commit `eb00508` |
 | Absolute size against parts of known size | **Not verified** | [README > Limitations](../README.md#limitations) |

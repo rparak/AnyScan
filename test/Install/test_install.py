@@ -965,6 +965,185 @@ def test_cpu_with_a_usable_gpu_is_reported_again_at_the_end(sandbox):
     assert not _Levels(quiet, 'WARNING')
 
 
+# ---- OpenCV: the headless build only ----------------------------------------
+
+# A .venv/bin/python that plays pip and the two Python checks Ensure_Headless_Opencv runs, over a state
+# directory: a file per installed OpenCV build holding its version, 'plugins' when cv2/qt/plugins exists,
+# 'broken' when cv2 does not import. 'sticky' keeps the plugins through an uninstall and a reinstall,
+# 'stays_broken' keeps cv2 broken through the reinstall. Every pip call is appended to 'calls'.
+CONST_OPENCV_PYTHON_STUB = '''state="{state}"
+if [ "$1" = -m ] && [ "$2" = pip ]; then
+    echo "${{*:3}}" | sed 's/ --disable-pip-version-check --quiet//' >> "$state/calls"
+    case "$3" in
+        uninstall)
+            rm -f "$state/opencv-python"; : > "$state/broken"
+            [ -e "$state/sticky" ] || rm -f "$state/plugins" ;;
+        install)
+            pin="${{*: -3:1}}"; echo "${{pin#opencv-python-headless==}}" > "$state/opencv-python-headless"
+            [ -e "$state/stays_broken" ] || rm -f "$state/broken" ;;
+    esac
+    exit 0
+fi
+case "$2" in
+    *importlib.metadata*) cat "$state/$3" 2>/dev/null; exit 0 ;;
+    *"import cv2"*)
+        if [ -e "$state/broken" ]; then echo "import No module named 'cv2'"
+        elif [ -e "$state/plugins" ]; then echo "plugins /venv/site-packages/cv2/qt/plugins"
+        else echo ok; fi ;;
+esac'''
+
+
+def _Opencv_Venv(sandbox: Sandbox_Cls, *state: str, gui: str = '', headless: str = '5.0.0.93') -> str:
+    """
+    Description:
+        A stub .venv whose OpenCV is in the given state, and a requirements.txt pinning the headless build.
+
+    Args:
+        (1) sandbox [Sandbox_Cls(object)]: The sandbox.
+        (2) state [Vector<string>]: Flags set: 'plugins', 'broken', 'sticky', 'stays_broken'.
+        (3) gui, headless [string]: The installed versions of opencv-python and opencv-python-headless ('' none).
+
+    Returns:
+        (1) parameter [string]: The snippet that points the script at the stub .venv and the requirements.
+    """
+
+    folder = os.path.join(sandbox.Root, 'opencv')
+    os.makedirs(folder)
+    for flag in state:
+        _Write(os.path.join(folder, flag), b'')
+    for name, version in (('opencv-python', gui), ('opencv-python-headless', headless)):
+        if version:
+            _Write(os.path.join(folder, name), version.encode() + b'\n')
+    path = sandbox.Stub('venv-python', CONST_OPENCV_PYTHON_STUB.format(state=folder))
+    os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
+    os.rename(path, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))
+    _Write(os.path.join(sandbox.Root, 'requirements.txt'), b'PyQt5>=5.15\nopencv-python-headless==5.0.0.93\nnumpy>=2.2\n')
+
+    return f'CONST_VENV_DIR="{sandbox.Root}/venv"; CONST_REQUIREMENTS="{sandbox.Root}/requirements.txt"; '
+
+
+def _Pip_Calls(sandbox: Sandbox_Cls) -> tp.List[str]:
+    """The pip commands the stub .venv ran, in order."""
+    path = os.path.join(sandbox.Root, 'opencv', 'calls')
+    return open(path).read().splitlines() if os.path.exists(path) else []
+
+
+def test_the_gui_opencv_is_removed_and_the_headless_pin_reinstalled_whole(sandbox):
+    """
+    Description:
+        The station's state after a requirements install: opencv-python beside opencv-python-headless, its Qt
+        plugins in cv2's folder. It is uninstalled, which also deletes the files the two share, and the
+        headless build is reinstalled at its pin, whole and without its dependencies; then cv2 imports and
+        holds no Qt plugins, and the step says so.
+    """
+
+    setup = _Opencv_Venv(sandbox, 'plugins', gui='5.0.0.93')
+    process = sandbox.Run(setup + 'Ensure_Headless_Opencv')
+
+    assert process.returncode == 0, process.stdout
+    assert _Pip_Calls(sandbox) == ['uninstall --yes opencv-python',
+                                   'install --force-reinstall --no-deps opencv-python-headless==5.0.0.93']
+    assert _Levels(process, 'INFO')[0].startswith('Removing opencv-python 5.0.0.93')
+    assert _Levels(process, 'INFO')[-1] == ('OpenCV: opencv-python-headless 5.0.0.93 only; cv2 imports and carries '
+                                            'no Qt plugins.')
+
+
+def test_the_headless_opencv_step_is_idempotent(sandbox):
+    """
+    Description:
+        A second run finds the pinned headless build alone and cv2 intact, and installs nothing; a headless
+        build that lost its files (cv2 does not import) is reinstalled, without anything to uninstall.
+    """
+
+    setup = _Opencv_Venv(sandbox)
+    process = sandbox.Run(setup + 'Ensure_Headless_Opencv; Ensure_Headless_Opencv')
+    assert process.returncode == 0 and _Pip_Calls(sandbox) == []
+    assert len(_Levels(process, 'INFO')) == 2
+
+    _Write(os.path.join(sandbox.Root, 'opencv', 'broken'), b'')
+    process = sandbox.Run(setup + 'Ensure_Headless_Opencv')
+    assert process.returncode == 0
+    assert _Pip_Calls(sandbox) == ['install --force-reinstall --no-deps opencv-python-headless==5.0.0.93']
+
+
+@pytest.mark.parametrize('state, words', [
+    (('plugins', 'sticky'), 'cv2 still carries Qt plugins (/venv/site-packages/cv2/qt/plugins)'),
+    (('stays_broken',), "cv2 does not import after reinstalling opencv-python-headless 5.0.0.93: No module named 'cv2'"),
+], ids=['plugins left', 'cv2 broken'])
+def test_the_headless_opencv_step_stops_when_cv2_is_still_wrong(sandbox, state, words):
+    """
+    Description:
+        After the swap cv2 must import and hold no Qt plugins; otherwise the install stops with an ERROR
+        naming what is wrong and the commands that fix it inside .venv.
+    """
+
+    setup = _Opencv_Venv(sandbox, *state, gui='5.0.0.93')
+    process = sandbox.Run(setup + 'Ensure_Headless_Opencv; echo "RESULT REACHED=yes"')
+
+    assert process.returncode == 1 and 'REACHED' not in _Results(process)
+    errors = _Levels(process, 'ERROR')
+    assert errors[0].startswith(words)
+    assert 'python -m pip install --force-reinstall --no-deps opencv-python-headless==5.0.0.93' in errors[-1]
+
+
+@pytest.mark.parametrize('package, expected', [
+    ('', 'ok'),
+    ('plugins', 'plugins {site}/cv2/qt/plugins'),
+    ('raises', 'import libGL.so.1: cannot open shared object file'),
+], ids=['clean', 'qt plugins', 'import fails'])
+def test_the_cv2_check_imports_cv2_and_looks_for_its_qt_plugins(sandbox, package, expected):
+    """
+    Description:
+        Opencv_Status's own Python, run by a real interpreter against a cv2 package: one that imports and has no
+        cv2/qt/plugins is 'ok'; one with that folder names it; one whose import fails gives the error's first line.
+    """
+
+    site = os.path.join(sandbox.Root, 'site')
+    os.makedirs(os.path.join(site, 'cv2'))
+    _Write(os.path.join(site, 'cv2', '__init__.py'),
+           b"raise ImportError('libGL.so.1: cannot open shared object file')\n" if package == 'raises' else b'')
+    if package == 'plugins':
+        os.makedirs(os.path.join(site, 'cv2', 'qt', 'plugins'))
+    os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
+    os.symlink(sys.executable, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))
+    process = sandbox.Run(f'CONST_VENV_DIR="{sandbox.Root}/venv"; STATUS="$(Opencv_Status)"; Show STATUS',
+                          env={'PYTHONPATH': site})
+
+    assert _Results(process)['STATUS'] == expected.format(site=site)
+
+
+def test_requirements_without_the_headless_pin_stop_the_step(sandbox):
+    """
+    Description:
+        The pin's one home is requirements.txt; without it the step stops rather than install an unpinned build.
+    """
+
+    setup = _Opencv_Venv(sandbox, gui='5.0.0.93')
+    _Write(os.path.join(sandbox.Root, 'requirements.txt'), b'PyQt5>=5.15\nopencv-python-headless>=4.10\n')
+    process = sandbox.Run(setup + 'Ensure_Headless_Opencv')
+
+    assert process.returncode == 1 and _Pip_Calls(sandbox) == []
+    assert _Levels(process, 'ERROR')[0].startswith('requirements.txt pins no opencv-python-headless version')
+
+
+def test_the_requirements_install_is_followed_by_the_headless_opencv_step(sandbox):
+    """
+    Description:
+        Install_Dependencies runs the swap right after pip installs the requirements, before 'pip freeze'
+        compares, so a re-run in which pip brought opencv-python back and the swap removed it again reads as
+        nothing changed.
+    """
+
+    stubs = ('Ensure_Torch_Build() { :; }; Run_Pip() { echo "STEP pip $1"; }; '
+             'Ensure_Headless_Opencv() { echo "STEP opencv"; }; ')
+    os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
+    os.symlink(sys.executable, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))
+    process = sandbox.Run(f'CONST_VENV_DIR="{sandbox.Root}/venv"; PLATFORM_OS=macos; {stubs} Install_Dependencies')
+
+    assert process.returncode == 0, process.stdout
+    assert [line[5:] for line in process.stdout.splitlines() if line.startswith('STEP ')] == ['pip install', 'opencv']
+
+
 # ---- configurations ---------------------------------------------------------
 
 @pytest.mark.parametrize('gemma, expected_level', [('models/gemma-4-e4b-it-4bit', 'INFO'),

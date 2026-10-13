@@ -37,6 +37,14 @@ from PyQt5.QtWidgets import QApplication
 CONST_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 if CONST_SRC not in sys.path:
     sys.path.insert(0, CONST_SRC)
+# Custom Lib.: AnyScan — the OpenCV check, run before anything below imports cv2
+#   ../UI/Utilities/Opencv_Check
+from UI.Utilities.Opencv_Check import Opencv_Startup_Message
+# OpenCV's GUI build (opencv-python, which ultralytics and mlx-vlm require) puts Qt plugins in cv2's folder,
+# and the window then aborts with a Qt core dump. Stop first, naming the fix.
+CONST_OPENCV_MESSAGE = Opencv_Startup_Message(os.path.join(os.path.dirname(CONST_SRC), 'requirements.txt'))
+if CONST_OPENCV_MESSAGE:
+    sys.exit(CONST_OPENCV_MESSAGE)
 # Custom Lib.: AnyScan — camera backends
 #   ../Camera/Core
 from Camera.Core import File_Camera_Cls, Basler_Camera_Cls

@@ -3326,3 +3326,45 @@ are measured afresh), or mounting plates are captured farther from the centre (t
 Tests `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (slow),
 `test/Vision/Utilities/test_classify.py`,
 `test/UI/test_history.py::test_a_set_recorded_in_a_mode_that_no_longer_ships_loads_and_shows`.
+
+
+## Only OpenCV's headless build is installed: the installer removes the GUI build, and the application refuses it
+
+Decided 2026-10-13, from a fault on the station: after `install.sh`, `App/run.py` aborted with "Could not load
+the Qt platform plugin xcb in .venv/lib/python3.11/site-packages/cv2/qt/plugins". Both `opencv-python` and
+`opencv-python-headless` 5.0.0.93 were installed. They share the `cv2` folder, the GUI build adds its own Qt
+plugins there, and the window then loads OpenCV's xcb plugin. Uninstalling the GUI build alone deletes the
+files the two share ("No module named cv2").
+
+**Where it comes from.** `requirements.txt` itself asked for `opencv-python>=4.10`, and two dependencies require
+it too: `ultralytics` 8.4.163 (`opencv-python>=4.7.0,!=4.13.0.90`) and `mlx-vlm` 0.7.2
+(`opencv-python>=4.12.0.88`). The application needs the headless build only: the window is PyQt5's, and
+nothing calls OpenCV's own GUI.
+
+- **`requirements.txt` pins `opencv-python-headless==5.0.0.93`**, its one home; it no longer names the GUI build.
+  The two dependencies still pull the GUI build in on every install, since pip cannot substitute one package
+  for another.
+- **`install.sh` swaps after every requirements install** (`Ensure_Headless_Opencv`, inside `.venv`): the GUI
+  build uninstalled when present, the headless build reinstalled at its pin with `--force-reinstall --no-deps`
+  (whole, its shared files restored, nothing else touched), then cv2 must import and `cv2/qt/plugins` must not
+  exist, or the install stops naming the two commands. It runs before `pip freeze` compares, so a re-run in which
+  pip brought the GUI build back and the swap removed it reports nothing changed. With only the pinned headless
+  build and cv2 intact it installs nothing. The pip cache is used (the hand fix's `--no-cache-dir` is not needed
+  for a whole reinstall).
+- **`App/run.py` checks first** (`UI.Utilities.Opencv_Check`, before anything imports cv2): the GUI build's
+  distribution, or `cv2/qt/plugins`, stops it with exit status 1 and a message naming
+  `python -m pip uninstall -y opencv-python` and `python -m pip install --force-reinstall --no-deps
+  opencv-python-headless==<pin>` (or re-running `./install.sh`), instead of Qt's core dump.
+- **`pip check` reports** that `ultralytics` and `mlx-vlm` require `opencv-python`, which is not installed. That
+  is this decision; their imports of `cv2` are served by the headless build.
+
+**Measured** (2026-10-13, the development Linux machine, Python 3.11, a scratch environment with both builds
+installed from PyPI): `cv2/qt/plugins` present; the startup check names both; `Ensure_Headless_Opencv` removed
+the GUI build, reinstalled the headless one, and cv2 5.0.0 imported with no `qt` folder; a second run installed
+nothing; after uninstalling the GUI build alone cv2 did not import, and the step reinstalled it. Not run on the
+station, nor the whole `install.sh`.
+
+**Revisit if** ultralytics and mlx-vlm accept the headless build (then drop the swap), OpenCV's GUI build stops
+shipping Qt plugins, or the application starts using OpenCV's own windows.
+Tests `test/Install/test_install.py` (the swap, idempotence, the stops, the check's own Python, its place after
+the requirements install), `test/UI/test_opencv_check.py` (`App/run.py` stopping before cv2 and Qt).

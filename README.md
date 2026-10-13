@@ -52,7 +52,16 @@ By hand instead, create an isolated environment and install the runtime + test d
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+pip uninstall -y opencv-python
+pip install --force-reinstall --no-deps opencv-python-headless==5.0.0.93
 ```
+
+The last two lines leave OpenCV's headless build only. ultralytics and mlx-vlm require OpenCV's GUI
+build (`opencv-python`), so pip installs it beside the headless one; its Qt plugins
+(`cv2/qt/plugins`) make the window abort with "Could not load the Qt platform plugin xcb".
+Uninstalling it also deletes files the two builds share, so the headless build is reinstalled whole,
+at the version `requirements.txt` pins. `./install.sh` does this after every install, and
+`App/run.py` refuses to start, naming these two commands, while the GUI build or its plugins are there.
 
 `.venv/` is git-ignored. `pypylon` (the Basler SDK) installs a platform wheel and
 is only needed for the live camera; the tests and the `--frame` path run without
@@ -527,7 +536,7 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
   ran for real (`--detect-only`: driver 595.91.07, the CUDA 13 backend and the `cu130` PyTorch
   build, 15.9 GB on GPU 0) and so did its Gemma step, which downloaded and verified E4B. The full install was not run there: that machine's environment
   was set up by hand with `opencv-python-headless`, and the requirements install would add
-  `opencv-python` beside it. The installer's other Linux branches are still tested with stubbed
+  `opencv-python` beside it (since 2026-10-13 the installer removes it again). The installer's other Linux branches are still tested with stubbed
   commands only. Without MLX the describer stops with a message saying so.
 - **Linux measured** (2026-09-29, the machine in the table): AMD Ryzen 9 9950X3D, 29 GiB RAM,
   NVIDIA GeForce RTX 5070 Ti (16 GB, compute capability 12.0), driver 595.91.07 (CUDA 13.2),

@@ -848,6 +848,7 @@ Install_Dependencies() {
     Run_Pip install "${requirement_args[@]}" || \
         Die 'Installing the requirements failed (pip output above).' \
             'Fix the cause pip names (network, disk space, a missing system library), then re-run ./install.sh; what is already installed is kept.'
+    Ensure_Headless_Opencv
 
     "${CONST_VENV_DIR}/bin/python" -m pip freeze --disable-pip-version-check > "${after}" 2>/dev/null || true
     changed="$(diff "${before}" "${after}" | grep -c '^>' || true)"
@@ -857,6 +858,65 @@ Install_Dependencies() {
     else
         Log INFO "Installed or updated ${changed} packages in $(( SECONDS - start )) s."
     fi
+}
+
+Opencv_Status() {
+    # Description:
+    #   Whether cv2 in .venv is usable by the window: it imports, and its folder holds no Qt plugins
+    #   (cv2/qt/plugins, which only OpenCV's GUI build ships).
+    #
+    # Returns:
+    #   (1) parameter [string]: 'ok', 'plugins <path>', or 'import <the error>' on stdout.
+
+    "${CONST_VENV_DIR}/bin/python" -c 'import os
+try:
+    import cv2
+except Exception as error:
+    print("import %s" % (str(error).splitlines() or [type(error).__name__])[0])
+else:
+    plugins = os.path.join(os.path.dirname(cv2.__file__), "qt", "plugins")
+    print("plugins %s" % plugins if os.path.isdir(plugins) else "ok")' 2>/dev/null || echo 'import the check did not run'
+}
+
+Ensure_Headless_Opencv() {
+    # Description:
+    #   Leave one OpenCV in .venv: the headless build pinned in requirements.txt. ultralytics and mlx-vlm
+    #   require OpenCV's GUI build (opencv-python), so every requirements install brings it in beside the
+    #   headless one; the two share the cv2 folder, and the GUI build's Qt plugins (cv2/qt/plugins) make the
+    #   window abort ("Could not load the Qt platform plugin xcb"). Uninstalling it also deletes the files the
+    #   headless build shares with it, so the headless build is then reinstalled whole, at its pin, without
+    #   its dependencies. Then cv2 must import and hold no Qt plugins, or the install stops. Idempotent: with
+    #   only the pinned headless build in place and cv2 intact, it installs nothing.
+
+    local pin gui headless status
+    pin="$(sed -n 's/^opencv-python-headless==\([^[:space:];#]*\).*/\1/p' "${CONST_REQUIREMENTS}" | head -n 1)"
+    [ -n "${pin}" ] || Die 'requirements.txt pins no opencv-python-headless version (a line opencv-python-headless==<version>).' \
+        'Restore requirements.txt from the repository, then re-run ./install.sh.'
+    gui="$(Installed_Version opencv-python)"
+    if [ -n "${gui}" ]; then
+        Log INFO "Removing opencv-python ${gui}, which ultralytics and mlx-vlm pull in beside opencv-python-headless: its Qt plugins break the window."
+        Run_Pip uninstall --yes opencv-python || \
+            Die 'Uninstalling opencv-python failed (pip output above).' 'Re-run ./install.sh; if it fails again, remove .venv (rm -rf .venv) and re-run.'
+    fi
+    headless="$(Installed_Version opencv-python-headless)"
+    status="$(Opencv_Status)"
+    if [ -n "${gui}" ] || [ "${headless}" != "${pin}" ] || [ "${status}" != 'ok' ]; then
+        Log INFO "Reinstalling opencv-python-headless ${pin} whole (--force-reinstall --no-deps)."
+        Run_Pip install --force-reinstall --no-deps "opencv-python-headless==${pin}" || \
+            Die "Reinstalling opencv-python-headless ${pin} failed (pip output above)." \
+                'Check the network connection, then re-run ./install.sh.'
+        status="$(Opencv_Status)"
+    fi
+    case "${status}" in
+        ok)
+            Log INFO "OpenCV: opencv-python-headless ${pin} only; cv2 imports and carries no Qt plugins." ;;
+        plugins\ *)
+            Die "cv2 still carries Qt plugins (${status#plugins }), which make the window abort." \
+                "Inside .venv run: python -m pip uninstall -y opencv-python, then python -m pip install --force-reinstall --no-deps opencv-python-headless==${pin}; then re-run ./install.sh." ;;
+        *)
+            Die "cv2 does not import after reinstalling opencv-python-headless ${pin}: ${status#import }." \
+                "Inside .venv run: python -m pip install --force-reinstall --no-deps opencv-python-headless==${pin}; if it still fails, remove .venv (rm -rf .venv) and re-run ./install.sh." ;;
+    esac
 }
 
 Verify_Imports() {

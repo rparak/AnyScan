@@ -18,9 +18,15 @@
 PyQt5>=5.15
 
 # ---- capture + segmentation (BaslerCamera and the vision pipeline) ---------
-opencv-python>=4.10
+# The HEADLESS build, pinned: the window is PyQt5's, and OpenCV's GUI build (opencv-python)
+# ships Qt plugins in cv2/qt/plugins that make the window abort ("Could not load the Qt
+# platform plugin xcb"). ultralytics and mlx-vlm require opencv-python, so pip installs it
+# beside this one; the two share the cv2 folder. install.sh removes it after every install
+# and reinstalls this pin whole (Ensure_Headless_Opencv), and App/run.py refuses to start
+# with it. Installing this file by hand: do the same (README > Setup).
+opencv-python-headless==5.0.0.93
 # numpy floor is 2.2, not 1.26: ultralytics' default dependency resolution otherwise
-# drags numpy down to 1.x (and opencv-python with it), which the rest of the
+# drags numpy down to 1.x (and OpenCV with it), which the rest of the
 # environment (torch, mlx-vlm) was reconciled against at 2.x. Install
 # ultralytics WITH this pin held — `pip install -r requirements.txt` does that.
 numpy>=2.2
