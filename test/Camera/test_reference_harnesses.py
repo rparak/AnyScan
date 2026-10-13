@@ -97,6 +97,7 @@ def _Capture_Set(directory: tp.Any, window: tp.Optional[tp.Dict] = CONST_WINDOW,
     found = [Detection_Str(Label='object', Bbox=(1, 1, 5, 5), Sentence='a speck') for _ in range(objects)]
     metadata = Build_Set_Metadata('s1', '20260925-090000_1', '2026-09-25T09:00:00', found, size, 'task', 10, None,
                                   scale=None, configuration='Config_%s_Mode_Test.yaml' % CONST_HARDWARE,
+                                  station='', calibration='',
                                   background_reference='Data/Images/Background/Image_Background_001.png',
                                   hardware=CONST_HARDWARE_RECORD, window=window)
     with open(prefix + '_objects.json', 'w', encoding='utf-8') as handle:

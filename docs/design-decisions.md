@@ -3493,7 +3493,10 @@ tool names them; its content is unchanged. Each mode file gained `Station:`, the
 records are untouched and still read: a capture set records the mode file's *name*, the reference, the hardware,
 window and factor, and nothing resolves a recorded name back to a file. The reference sidecar's
 `calibration.file` (`Calibration_<Hardware>.yaml`) is history; its check compares the lens model's fingerprint,
-which the rename does not change.
+which the rename does not change. From 2026-10-13 a capture set also records the file names of its station and its
+calibration (`_objects.json` `station`, `calibration`): calibrations are switched by one line, so the conversion
+factor alone no longer says which one measured a set. A set written before reads both as empty
+(`test/UI/test_configuration_dialog.py::test_each_capture_set_records_its_station_and_calibration`).
 
 **Revisit if** two stations must share a station file with different references or lights (then the station
 splits further), a reference must point outside the repository (a station's own calibration not committed),

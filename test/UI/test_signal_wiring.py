@@ -417,6 +417,7 @@ def _Write_Set(writer: Capture_Writer_Cls, set_id: str, classification: bool = F
     metadata = Build_Set_Metadata('sessionA', set_id, '2026-09-20T10:00:00', objects, (180, 120),
                                   'caption', 1180, 91, '', classification, '', scale=None,
                                   configuration='Config_Test_Mode_A.yaml',
+                                  station='', calibration='',
                                   background_reference='Data/Images/Background/Image_Background_001.png',
                                   hardware={}, window=None)
     writer.Write('sessionA', set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],

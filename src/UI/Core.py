@@ -1385,6 +1385,8 @@ class AnyScan_Window_Cls(QMainWindow):
                                       result.Background, self.__classification_enabled,
                                       self.__run_id, scale=self.__scale,
                                       configuration=self.__config.Name,
+                                      station=os.path.basename(self.__config.Station_Path),
+                                      calibration=os.path.basename(self.__config.Calibration_Path),
                                       background_reference=Display_Path(
                                           self.__config.Segmentation.Background_Reference),
                                       hardware=Hardware_Record(self.__config),

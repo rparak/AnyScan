@@ -367,6 +367,7 @@ def _Write_Set(root: str, set_id: str, run_id: str, scores: tp.Sequence[tp.Optio
                for i, score in enumerate(scores)]
     metadata = Build_Set_Metadata('sessionA', set_id, '2026-09-20T10:00:00', objects, (60, 40), 'caption', 1180, 91, '',
                                   True, run_id, scale=None, configuration='Config_Test_Mode_A.yaml',
+                                  station='', calibration='',
                                   background_reference='Data/Images/Background/Image_Background_001.png', hardware={},
                                   window=None)
     Capture_Writer_Cls(root).Write('sessionA', set_id, np.full((40, 60, 3), 30, np.uint8), np.full((40, 60, 3), 60, np.uint8),

@@ -234,6 +234,7 @@ def test_stored_size_keeps_full_precision_while_the_displayed_text_is_rounded(tm
 
     metadata = Build_Set_Metadata('s', 'set', '2026-09-28T10:00:00', [part], (60, 40), 't', 1, 90,
                                   scale=scale, configuration='Config_Test_Mode_A.yaml',
+                                  station='', calibration='',
                                   background_reference='Data/Images/Background/Image_Background_001.png',
                                   hardware={}, window=None)
     raw = np.zeros((40, 60, 3), np.uint8)
@@ -318,6 +319,7 @@ def test_stored_set_records_the_measurements_and_the_scale_that_produced_them(tm
                                    ('without', None, [Detection_Str(Label='p', Bbox=(0, 0, 1, 1))])):
         metadata = Build_Set_Metadata('s', set_id, '2026-09-22T10:00:00', objects, (60, 40), 't', 1,
                                       90, scale=scale, configuration='Config_Test_Mode_A.yaml',
+                                  station='', calibration='',
                                   background_reference='Data/Images/Background/Image_Background_001.png', hardware={},
                                   window=None)
         writer.Write('s', set_id, raw, raw, raw, 'text', [], [], metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)

@@ -192,6 +192,10 @@ class Capture_Set_Str:
     # holding sets from several configurations says which is which. Empty for a set written
     # before configurations were recorded.
     Configuration: str = ''
+    # The station file and the calibration file the set was analysed under (their file names). Empty for a set
+    # written before 2026-10-13, when they were first recorded.
+    Station: str = ''
+    Calibration: str = ''
     # The empty-surface reference the frame was differenced against. Empty for an older set.
     Background_Reference: str = ''
     # The camera, lens and lighting the set was captured with ({} for an older set).
@@ -436,7 +440,7 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                        inference_ms: int, frame_mean_confidence: tp.Optional[int],
                        background: str = '', classification: bool = False,
                        run_id: str = '', *, scale: tp.Optional[Scale_Str],
-                       configuration: str, background_reference: str,
+                       configuration: str, station: str, calibration: str, background_reference: str,
                        hardware: tp.Dict[str, str],
                        window: tp.Optional[tp.Dict[str, tp.List[int]]]) -> tp.Dict[str, tp.Any]:
     """
@@ -478,13 +482,18 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
         (13) configuration [string]: REQUIRED, keyword-only: the name of the configuration file
                                      the set was analysed under, beside the classification flag,
                                      so sets from different configurations stay distinguishable.
-        (14) background_reference [string]: REQUIRED, keyword-only: the empty-surface reference the
+        (14 - 15) station, calibration [string]: REQUIRED, keyword-only: the file names of the station
+                                                 the configuration named and of the calibration that
+                                                 station named. Calibrations are kept side by side and
+                                                 switched by one line, so the conversion factor alone
+                                                 does not say which one measured the set.
+        (16) background_reference [string]: REQUIRED, keyword-only: the empty-surface reference the
                                             frame was differenced against (repository-relative),
                                             so a stored analysis can be traced to it.
-        (15) hardware [Dict<string, string>]: REQUIRED, keyword-only: the camera, lens and lighting
+        (17) hardware [Dict<string, string>]: REQUIRED, keyword-only: the camera, lens and lighting
                                               the configuration names (Hardware_Record) — what
                                               photographed the set and what lit it.
-        (16) window [Dict or None]: REQUIRED, keyword-only: the sensor window the camera read back
+        (18) window [Dict or None]: REQUIRED, keyword-only: the sensor window the camera read back
                                     on connect ({'resolution': [w, h], 'offset': [x, y]}, the camera's
                                     Window), or None for a frame from no camera (a saved file). The
                                     offset is not in the pixels, so without this record the window a
@@ -507,7 +516,8 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
             'frame_width': int(size[0]), 'frame_height': int(size[1]), 'task': task,
             'inference_ms': int(inference_ms), 'frame_mean_confidence': frame_mean_confidence,
             'background': background, 'classification': bool(classification),
-            'configuration': configuration, 'background_reference': background_reference,
+            'configuration': configuration, 'station': station, 'calibration': calibration,
+            'background_reference': background_reference,
             'hardware': dict(hardware),
             'window': None if window is None else {'resolution': [int(v) for v in window['resolution']],
                                                    'offset': [int(v) for v in window['offset']]},
@@ -639,6 +649,8 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
         cap.Background = str(data.get('background', ''))
         cap.Classification = bool(data.get('classification', False))
         cap.Configuration = str(data.get('configuration', ''))
+        cap.Station = str(data.get('station', ''))
+        cap.Calibration = str(data.get('calibration', ''))
         cap.Background_Reference = str(data.get('background_reference', ''))
         cap.Hardware = {str(k): str(v) for k, v in (data.get('hardware') or {}).items()}
         window = data.get('window')

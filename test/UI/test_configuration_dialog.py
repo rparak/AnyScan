@@ -533,6 +533,45 @@ def test_each_capture_set_records_its_configuration_reference_and_hardware(qt_ap
     assert cap.Hardware['lighting'] == 'Effilux EFFI-FD-200-200-000'
 
 
+def test_each_capture_set_records_its_station_and_calibration(qt_app, tmp_path, configurations) -> None:
+    """
+    Description:
+        Calibrations are kept side by side and switched by one line in the station file, so the conversion
+        factor alone does not say which one measured a set: every capture set records the file names of the
+        station and of the calibration it was analysed under, and reads them back. A set written before they
+        were recorded still loads, with both empty.
+    """
+
+    window, logger = _Window(tmp_path, configurations['seg'], _Fake_Vision_Cls(loaded=True))
+    _Private(window, '__On_Connect_Button_Clicked')()
+    _Pump_Until(lambda: _Private(window, '__camera').Connected and _Private(window, '__conn_thread') is None)
+    _Private(window, '__On_Scan_Button_Clicked')()
+    setattr(window, CONST_MANGLE + '__current_set_id', '20260924-100000_1')
+    _Private(window, '__On_Analysis_Finished')(
+        Analysis_Str(Objects=[], Background='A plain surface.', Latency_Ms=100, Verdict='Empty',
+                     Verdict_Level='ok', Task='part inspection'))
+    logger.Close()
+
+    config = Load_Configuration(configurations['seg'])
+    captures = os.path.join(str(tmp_path / 'log'), 'captures')
+    (metadata_path,) = [os.path.join(root, name) for root, _dirs, names in os.walk(captures)
+                        for name in names if name.endswith('_objects.json')]
+    with open(metadata_path, 'r', encoding='utf-8') as f:
+        metadata = json.load(f)
+    assert (metadata['station'], metadata['calibration']) == (os.path.basename(config.Station_Path),
+                                                              os.path.basename(config.Calibration_Path))
+    assert metadata['calibration'].startswith('Calibration_%s_' % CONST_HARDWARE)
+    (cap,) = Discover_Capture_Sets(captures)
+    assert (cap.Station, cap.Calibration) == (metadata['station'], metadata['calibration'])
+
+    del metadata['station'], metadata['calibration']                  # a set from before 2026-10-13
+    with open(metadata_path, 'w', encoding='utf-8') as f:
+        json.dump(metadata, f)
+    (cap,) = Discover_Capture_Sets(captures)
+    assert (cap.Station, cap.Calibration) == ('', '') and not cap.Partial     # read whole, not as malformed
+    assert cap.Configuration == metadata['configuration'] and cap.Hardware == metadata['hardware']
+
+
 class _Slow_Segmenter_Cls(object):
     """A stand-in FastSAM that takes a moment to load and to segment, and reports its load as FastSAM does."""
     Last_Inference_S = 0.0

@@ -88,6 +88,7 @@ def _Write_Full(writer, session_id, set_id, classification=False, run_id='', tas
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
                                   task, 1180, 91, '', classification, run_id, scale=None,
                                   configuration='Config_Test_Mode_A.yaml',
+                                  station='', calibration='',
                                   background_reference='Data/Images/Background/Image_Background_001.png', hardware={},
                                   window=None)
     writer.Write(session_id, set_id, raw, annotated, mask, 'text', ['0 0.5 0.5 0.1 0.1'],
@@ -415,6 +416,7 @@ def test_missing_score_note_explains_unscored_objects(qt_app, tmp_path) -> None:
     raw = np.full((40, 60, 3), 30, np.uint8)
     md = Build_Set_Metadata('sessionA', 'set1', '2026-09-20T10:00:00', [scored, unscored],
                             (60, 40), 'caption', 1000, 90, scale=None, configuration='Config_Test_Mode_A.yaml',
+                                  station='', calibration='',
                                   background_reference='Data/Images/Background/Image_Background_001.png', hardware={},
                                   window=None)
     writer.Write('sessionA', 'set1', raw, raw, np.zeros((40, 60, 3), np.uint8), 'text',
@@ -617,6 +619,7 @@ def test_info_text_matches_the_shared_formatter(qt_app, tmp_path) -> None:
     md = Build_Set_Metadata('sessionA', 'set1', '2026-09-20T10:00:00', objects, (60, 40),
                             'caption', 1180, 91, 'A green background.', scale=None,
                             configuration='Config_Test_Mode_A.yaml',
+                                  station='', calibration='',
                                   background_reference='Data/Images/Background/Image_Background_001.png', hardware={},
                                   window=None)
     raw = np.full((40, 60, 3), 30, np.uint8)

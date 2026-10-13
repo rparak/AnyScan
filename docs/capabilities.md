@@ -333,7 +333,7 @@ across all connections, and the oldest are evicted first. A failed analysis writ
 | `_understanding.txt` | The Scene Understanding text, for people. Nothing parses it. |
 | `.txt` | YOLO box records, one line per object. The ids are per-frame indices, not classes. |
 | `_seg.txt` | YOLO segmentation polygons (outer contour only). |
-| `_objects.json` | The machine-readable record: per object and per set, with the configuration, reference, camera, lens and lighting; a judged part's features as its `parts` (number, kind, pass, box, checks, area, text, score), an additive field older sets load without. |
+| `_objects.json` | The machine-readable record: per object and per set, with the configuration, the station and calibration file names (from 2026-10-13; older sets read them as empty), reference, camera, lens and lighting; a judged part's features as its `parts` (number, kind, pass, box, checks, area, text, score), an additive field older sets load without. |
 
 **Run-summary CSV** — `logger/log_<Hardware>.csv`, one row per application run, shared by every mode
 on that hardware. A file of an older format is renamed aside, never appended to.
