@@ -26,7 +26,7 @@ here: the sizes are repeatable, not absolute, and the describer is not a defect 
 |---|---|---|---|---|
 | 1 | Multi-view calibration set | 40+ | The lens model, the principal point and the mm/px factor. Not checked against known sizes in this version | **Done 2026-09-28** — in force |
 | 2 | Empty-surface reference | 1 | The background reference, shot under the calibration in force, with its provenance sidecar | **Done 2026-09-28** — in force |
-| 3 | Parts session: defects, low-contrast parts, harsh shadow | ~40 | Real frames for the open questions in KNOWN_ISSUES (low-contrast parts, harsh shadow) and data for a future defect rule | To do |
+| 3 | Parts session: defects, low-contrast parts, harsh shadow, plates far from the centre | ~50 | Real frames for the open questions in KNOWN_ISSUES (low-contrast parts, harsh shadow), data for a future defect rule, and mounting plates far from the centre to widen the size checks' verified zone | To do |
 | 4 | Cable pull: a lost connection is detected | 0 | Not a capture: the one check of lost-connection detection on the real camera, which no test can make (it is unverified on the hardware until this is done) | To do |
 
 Items 1 and 2 are repeated, in that order, whenever the camera, the lens, its focus or the mount
@@ -174,10 +174,10 @@ that set's own records, not from a person.
 
 ---
 
-## 3. Parts session — defects, low-contrast parts, harsh shadow
+## 3. Parts session — defects, low-contrast parts, harsh shadow, plates far from the centre
 
-One session on the parts table, in three parts. The first two use the shipped lighting; the third
-changes only the light.
+One session on the parts table, in four parts. The first, second and fourth use the shipped lighting;
+the third changes only the light.
 
 ### 3a. Defective parts, with clean controls
 
@@ -247,6 +247,28 @@ subtraction is only meaningful against a reference lit the same way.
 - [ ] the light's position and angle
 - [ ] which configuration copy (and reference) the frames were analysed under
 - [ ] per frame, whether any part's outline reached into its shadow
+
+### 3d. Mounting plates far from the centre
+
+The size checks are verified only out to 46.4 mm from the frame centre: the farthest judged mounting
+plate of the test set (`Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM`). A plate farther out is
+still judged, but its size check carries a note that it is not verified there. Mounting plates placed far
+from the centre, for example in the corners of the view, would win the zone back: if they read within
+tolerance there, the zone can be widened to them.
+
+Shipped lighting, the mounting-plate mode, clean plates only (no fingerprints), each lying flat:
+
+| Frames | What |
+|---|---|
+| 4 | one plate in each corner of the view, as far out as it fits whole, machined front up |
+| 4 | the same, unmachined back up |
+| 2 | one plate midway along a long edge and one midway along a short edge |
+
+**Record alongside:**
+
+- [ ] each plate's lines in the log: its verdict, its outline's measured sides and, beyond 46.4 mm, its
+      size note, which gives its distance from the frame centre
+- [ ] any plate cut by the frame's edge (not usable: its outline is not whole)
 
 ---
 

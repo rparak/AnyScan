@@ -2933,11 +2933,12 @@ is flagged as a failed part, never passed or ignored), and the thin threshold is
   the references show the parts) and compared in four quarter turns; a round object by its box. The image is
   resized whole to 224 × 224, not centre-cropped as the model card's processor does — a centre crop of a 2:3
   plate cuts its holes off. The normalisation is the processor's own.
-- **The size checks' verified zone.** Every catalogue part on the test set lies within 74.24 mm of the frame
-  centre (measured the way the check measures). Beyond `CONST_VERIFIED_RADIUS_MM` (74.3) an OK or NOK judged on
-  its size carries the note "the size check is not verified here", with its distance. The verdict stands: a
-  NOK stays NOK, the note explains it (the owner's ruling). The request said 75 mm; that was the same parts at
-  the boards' scale.
+- **The size checks' verified zone.** Every judged mounting plate on the test set lies within 46.32 mm of the
+  frame centre (Image_072, measured the way the check measures). Beyond `CONST_VERIFIED_RADIUS_MM` (46.4) an OK
+  or NOK judged on its size carries the note "the size check is not verified here", with its distance. The
+  verdict stands: a NOK stays NOK, the note explains it (the owner's ruling). *Corrected 2026-10-13:* it was
+  74.3 mm, measured on more parts than the mounting plates (*The catalogue holds only the mounting plate*).
+  Plates captured farther out, in the corners of the view, would widen it (capture checklist).
 - **Where the verdict shows.** The frame and the mask (Warning in the status amber — the one place amber marks
   an object, `Parameters/Theme.py` — Unspecified in the neutral colour, with the mask's darker neutral
   outline), the Scene Understanding panel and file (`Reporting.Verdict_Lines`: the state, its evidence, each
@@ -2962,7 +2963,7 @@ is flagged as a failed part, never passed or ignored), and the thin threshold is
   ([*`Verdict`'s confidence branch stays dormant…*](#verdicts-confidence-branch-stays-dormant-a-mask-score-is-not-a-confidence)).
 
 **Revisit if** a new item or a new lighting puts an item below 0.75 or another object above it (re-measure
-with the harness, which reports the states per frame), a part is placed farther than 74.3 mm from the centre
+with the harness, which reports the states per frame), a part is placed farther than 46.4 mm from the centre
 on purpose (measure there, then move the radius), or a real foreign part of the item's size turns up and
 should be a Warning (then a floor needs data, not a guess).
 Tests `test/Vision/Utilities/test_classify.py` (each branch, no floor, the crop upright, the best match),
@@ -3314,9 +3315,14 @@ removed code (its last commit is `4865eee`).
 - **Its plates in the test frames are Warnings.** The 41 frames stay the pinned set, used in Segment Anything and
   the mounting-plate mode. In the latter its 37 plates read Warning (similarity 0.23–0.43 against the plate's
   0.75), as they were labelled before; no verdict on any frame changed.
+- **The verified zone dropped to 46.4 mm**, from 74.3, because only mounting plates remain as evidence: the
+  farthest judged plate's centre is 46.32 mm from the frame centre (Image_072). A size checked beyond it carries
+  the note; the verdict stands.
 - **Older capture sets still load.** A set recorded in the removed mode names its configuration and keeps its
   parts; the reader ignores the text fields this version no longer writes, and History shows it.
 
-**Revisit if** another catalogue item is added (then its checks and its mode are measured afresh).
+**Revisit if** another catalogue item is added (then its checks, its mode and its share of the verified zone
+are measured afresh), or mounting plates are captured farther from the centre (then the zone widens).
 Tests `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (slow),
+`test/Vision/Utilities/test_classify.py`,
 `test/UI/test_history.py::test_a_set_recorded_in_a_mode_that_no_longer_ships_loads_and_shows`.

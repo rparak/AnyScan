@@ -58,13 +58,13 @@ Description:
 """
 
 # How far from the frame centre the size checks were verified on real frames: the farthest centre of a
-# catalogue part on the 41 frames of Data/Images/Test, measured with Center_Distance_Mm at the part's top
-# face (2026-10-11), 74.24 mm, rounded up to the next 0.1 mm so that part is inside. (The request said
-# 75 mm, from the frame-centre distances at the boards' scale; this is the same parts measured the way
-# the check measures.) Beyond it the side wall is predicted to add up to about 1 mm (README >
-# Limitations), so a size check there carries a note that it is not verified.
+# judged mounting plate on the 41 frames of Data/Images/Test, measured with Center_Distance_Mm at the plate's
+# top face (2026-10-13), 46.32 mm (Image_072), rounded up to the next 0.1 mm so that plate is inside. Plates
+# placed farther out, in the corners of the view, would widen it (docs/capture-checklist.md). Beyond it the
+# side wall is predicted to add up to about 1 mm (README > Limitations), so a size check there carries a note
+# that it is not verified.
 #   Unit [float] (mm)
-CONST_VERIFIED_RADIUS_MM = 74.3
+CONST_VERIFIED_RADIUS_MM = 46.4
 # The rotations each object's crop is compared in: the crop is turned upright (long side vertical) but
 # not which end is up, nor which side of a square, so all four quarter turns are compared.
 #   Unit [int]

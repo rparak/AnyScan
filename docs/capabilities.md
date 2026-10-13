@@ -108,7 +108,7 @@ then composes and measures. The numbers are the ones the README and the mode fil
   with the item's front and back reference images by DINOv2 base: the best similarity and the side. Then
   the rule: Unspecified when its area is 1.7× the part's or more; the part when the similarity is 0.75 or
   more (OK if its outline is within tolerance, else NOK); the part and NOK when only its outline matches;
-  otherwise Warning. A size checked more than 74.3 mm from the frame centre carries a note that it is not
+  otherwise Warning. A size checked more than 46.4 mm from the frame centre carries a note that it is not
   verified there
   ([*A catalogue mode identifies by similarity…*](design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok)).
   A part judged OK or NOK then has its holes checked on the side up: FastSAM on its upright crop, each catalogue
