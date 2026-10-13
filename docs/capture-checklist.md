@@ -126,53 +126,49 @@ either.)
 
 ---
 
-## 2. Empty-surface reference (one frame)
+## 2. Empty-surface reference (the mean of 8 frames)
 
-**Done 2026-09-28.** `Data/Images/Background/Image_Background_001.png` was made by `make_reference.py`
-from the capture set `20260928-111434_s1`, seven minutes after item 1's solve. Its sidecar records the
-window (1920 × 1200 at (8, 8)), the fingerprint of the calibration in force, the lighting, and the four
-edge slivers accepted with `--accept-objects`. It was written over the old reference's name, which
-*A replaced image never keeps its name* (docs/design-decisions.md) now forbids: the next reference is
-`_002`, as below.
+**Done 2026-09-28; re-shot 2026-10-12.** `Data/Images/Background/Image_Background_001.png` was first made by
+the old `make_reference.py --from` from the capture set `20260928-111434_s1`, with four edge slivers accepted
+with `--accept-objects`. *Corrected 2026-10-13:* the file in force is not that one. It was re-shot on
+2026-10-12 (commit `b131244`) from the capture set `20261012-170521_s1`, with no objects accepted, and written
+over the same name. Its sidecar records the window (1920 × 1200 at (8, 8)), the fingerprint of the calibration
+in force and the lighting. It named that calibration by the file name it had then
+(`Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml`); the file has since been renamed
+(`…_20260928-110755.yaml`, the same K and coefficients, so the fingerprint matches), and the sidecar's `file`
+was corrected to the current name. The next reference is `_002`.
 
 **Why.** The reference is an undistorted frame, so it belongs to one lens model and one sensor window:
-a new calibration puts its geometry out of date. Shot through the application, with its provenance
-from the capture set's own records, it is a verified artefact rather than a guess. It is one frame of
-an empty table.
+a new calibration puts its geometry out of date. Shot through the application's camera path, with its
+provenance from what the camera reported, it is a verified artefact rather than a guess. It is the mean of
+8 frames: sizes then depend half as much on which frame was grabbed (docs/design-decisions.md, *A new
+reference is the mean of 8 frames…*).
 
-**Conditions.** Item 1's calibration adopted and in force (application restarted), shipped
-configuration, shipped lighting, camera untouched since item 1, **the table empty** — nothing in view,
-no shadows from the operator.
+**Conditions.** The calibration in force (adopted, application restarted), shipped configuration, shipped
+lighting, camera untouched since item 1, **the table empty** — nothing in view, no shadows from the operator.
 
-**Shoot it with the application, and make it with `make_reference.py`.** The reference must be the
-frame the pipeline compares against — the application's capture set — and its provenance must come from
-that set's own records, not from a person.
+**Shoot it with `make_reference.py`.**
 
-1. CONFIGURATION → Load, CONNECT, confirm the log's *Camera set to 1920 × 1200 at offset (8, 8)* line.
-2. SCAN + ANALYZE on the empty table. **Spurious detections are expected here, and are not a
-   failure.** The empty table is analysed against the *old* reference, which was shot at another
-   window position, under another calibration, and perhaps in other light. The small differences
-   between the two frames can show up as objects.
-3. Make the reference from that set:
+1. In AnyScan, press **DISCONNECT** (or close it): the tool needs the camera, and says so if the
+   application still holds it.
+2. Clear the table and step out of the light.
+3. From the repository root:
 
    ```bash
-   cd Example/Camera
-   python make_reference.py --from ../../logger/captures/<connection>/<set>_raw.png
+   .venv/bin/python Example/Camera/make_reference.py
    ```
 
-   It writes `Data/Images/Background/Image_Background_002.png` (the next free number — an existing reference
+   (`--config <mode file>` for another mode; the default is the shipped one.) It loads FastSAM, grabs
+   8 frames through the application's camera path (about 3 s), and checks the mean and each frame with the
+   application's own background difference, FastSAM and fusion against the reference in force. If anything is
+   found it refuses, lists each object (its size in pixels, its share of the frame, where it lies) and writes
+   nothing: clear the table and run it again. When the reference in force no longer matches the camera (after
+   a new calibration or window), it says so and checks with FastSAM alone.
+4. It writes `Data/Images/Background/Image_Background_NNN.png` (the next free number — an existing reference
    is never overwritten: capture sets and the characterization baseline cite it by name) and its sidecar
-   `Image_Background_002.json`: the window the camera read back, the lens model that undistorted the
-   frame, the configuration, the camera, lens and lighting, and the time. It refuses a set that records
-   no window and an existing file. If the analysis found objects, it refuses too, and lists each one:
-   its size in pixels, its share of the frame, and where it lies. Read the list before overriding.
-   A few small boxes scattered near the edges (for example *3 objects, all under 200 px*) are the noise
-   described above: run it again with `--accept-objects`, and the sidecar records what was accepted.
-   One large box, or one near the centre (for example *1 object, 40 000 px, centre*), means something
-   is on the table: clear it and shoot again.
-4. Set `Background.Reference: Data/Images/Background/Image_Background_002.png` in the station file
-   (`Configuration/Station/`, the one the mode names) and restart the application: the load checks the reference against its sidecar (a reference without one fails the
-   load).
+   `Image_Background_NNN.json`, and prints the line of the station file to change. Change that line
+   (`Background.Reference` in `Configuration/Station/`, the station the mode names) and restart the
+   application: the load checks the reference against its sidecar.
 
 ---
 
@@ -235,8 +231,9 @@ shadow replaces the synthetic evidence either way.
 configuration** — a mode file with the station file and calibration beside it — whose station names the
 side light in `Camera.Lighting` — the reference's sidecar records the
 lighting the configuration names, and the load refuses a reference shot under other lighting. **First
-shoot an empty table under that light** with the copy loaded, make the reference from that set with
-`make_reference.py` (as in item 2), and set it as the copy's station `Background.Reference`. The
+shoot the empty table under that light** with `make_reference.py --config <the copy's mode file>` (as in
+item 2; the reference in force names other lighting, so it checks with FastSAM alone and says so), and set
+the new reference as the copy's station `Background.Reference`. The
 subtraction is only meaningful against a reference lit the same way.
 
 | Frames | What |

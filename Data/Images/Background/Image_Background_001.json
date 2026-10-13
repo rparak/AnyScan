@@ -15,7 +15,7 @@
     ]
   },
   "calibration": {
-    "file": "Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml",
+    "file": "Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_20260928-110755.yaml",
     "fingerprint": "0b7b5457e4a02080dc66408dba5f4ec5bcdd1dbb16edc874991ea2c040847de8"
   },
   "hardware": {
@@ -23,5 +23,6 @@
     "camera": "Basler a2A1920-51gcPRO",
     "lens": "Computar M1228-MPW3",
     "lighting": "Effilux EFFI-FD-200-200-000"
-  }
+  },
+  "corrected": "2026-10-13: calibration.file renamed from Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml, the name the calibration in force had when this reference was shot, to its current name; its K and coefficients, and so the fingerprint, are unchanged."
 }
