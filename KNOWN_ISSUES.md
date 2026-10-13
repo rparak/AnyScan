@@ -22,7 +22,9 @@ sentence), and a bare `except Exception` can mask an unexpected error as a routi
   is internal to the driver. One path is already narrowed: a setting the camera refuses or
   does not keep (the sensor window) raises `Basler_Settings_Error_Cls`, reported as it stands
   rather than as "no camera", and a failed configure closes the device before raising
-  (docs/design-decisions.md, *The configuration sets the camera's sensor window*).
+  (docs/design-decisions.md, *The configuration sets the camera's sensor window*). So is a camera
+  another program holds: it raises `Basler_In_Use_Error_Cls` at once, not retried, reported as in use
+  (docs/design-decisions.md, *A new reference is the mean of 8 frames…*).
 - **Not fixed here:** the style pass gave `Basler_Cls` types, docstrings and
   `CONST_*` naming but deliberately did not restructure the connection's control flow —
   rewriting it changes behaviour on a hardware path with little automated coverage. Narrow

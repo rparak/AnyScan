@@ -550,12 +550,82 @@ says in its docstring and output that its frame carries no provenance and is not
 `calibrate.py --capture` keeps its own path on purpose — it needs frames before undistortion — and
 applies the application's processing profile to them.
 
+*Corrected 2026-10-13:* a reference is no longer made from a capture set. `make_reference.py` shoots it
+itself, through the same camera path, and its sidecar records what the camera reported: see *A new reference
+is the mean of 8 frames…* below. The provenance and the load's checks are unchanged; the sidecar gains
+`frames`, `station` and `compared_with`, which the load does not check.
+
 **Revisit if** lighting becomes measurable (a reading from the lamp or a light meter could replace the
-typed `Camera.Lighting` and close the gap above); references are shared between cameras (the checks
-would then need the hardware id as well as the window); or a reference ever has to come from
-something other than a capture set.
+typed `Camera.Lighting` and close the gap above); or references are shared between cameras (the checks
+would then need the hardware id as well as the window).
 Tests `test/Configuration/test_core.py` (the sidecar checks), `test/Camera/test_reference_harnesses.py`
-(the tool against sets built with the application's record builders; `scan.py` against a stand-in).
+(the tool against a stand-in camera; `scan.py` against a stand-in).
+
+## A new reference is the mean of 8 frames, shot by the tool, and refused if the application finds anything on it
+
+`Example/Camera/make_reference.py`, run from the command line with the table empty and the application
+disconnected, connects through `Camera.Core.Basler_Camera_Cls` with the station's camera settings and window,
+grabs 8 frames (processed and undistorted with the station's calibration, as every analysed frame is), and
+writes their rounded mean as the next free `Data/Images/Background/Image_Background_NNN.png` with its sidecar
+(`source: camera`, `frames: 8`, the station, the read-back window, the lens model's fingerprint, the hardware,
+and `compared_with`). Each file is created exclusively, and the next number is above every image or sidecar
+already there, so nothing is written over. The station file is not edited: the tool prints its
+`Background.Reference` line by number, as `calibrate.py` prints the calibration line. `--from` (a capture
+set), `--accept-objects` and `--output` are removed and refuse, naming what replaced them.
+
+**Before it writes, the application must find nothing on it.** The mean and each of the 8 frames go through
+the application's own stages 1 to 3 (`Background_Difference`, `Foreground_Mask`, FastSAM, `Fuse_Objects`)
+with the mode's parameters, against the reference in force; any object the fusion keeps (above
+`Min_Area_Fraction`) refuses the reference and is listed by box, share of the frame and region. Each frame is
+checked, not only the mean: a hand in one frame is an eighth as strong in the mean (130 grey levels become 16,
+under the floor of 28).
+
+**Why FastSAM, not the background difference alone.** On the 41 test frames the difference alone does not see
+38 of the 150 objects, among them the 60 × 40 mm plate in `Image_062`. FastSAM sees all 150, and on the empty
+table (rig, 2026-10-13, 16 frames, both modes) it returns no mask and the fusion finds nothing; the fresh
+frames differed from `Image_Background_001` by at most 23 grey levels.
+
+**When the reference in force no longer matches the camera** — a new calibration or window makes the load fail
+until a new reference is shot — comparing with it would mean nothing. `Load_Configuration_For_Reference`
+returns its problems instead of failing (nothing else is relaxed); the check then runs FastSAM alone, the
+sidecar records `compared_with: null` and `not_compared` (the reason), and the tool prints a warning. On
+`Image_062` FastSAM alone finds the same objects as the application (boxes within a pixel or two).
+
+**Why 8 frames.** Measured on the rig on 2026-10-13: an empty table, 16 frames through the application's
+camera path, then the 41 test frames analysed in the catalogue mode against each candidate, with the
+describer off.
+- Temporal noise is 5.9 grey levels per pixel. Against held-out empty frames, the difference's 99th
+  percentile is 11 with one frame, 9 with 4 and 8 with 8.
+- No candidate changed a count, a side or a verdict: OK 17, Warning 128, NOK 5 for every reference.
+- Sizes moved as follows:
+
+  | References compared | Sizes moved, mean | p95 | Max | Displayed sizes changed |
+  |---|---|---|---|---|
+  | Two single frames | 0.011 mm | 0.063 mm | 0.20 mm | 54 / 150 |
+  | Two independent 8-frame means | 0.005 mm | 0.036 mm | 0.16 mm | 36 / 150 |
+  | `Image_Background_001` against a new 8-frame mean | 0.014 mm | 0.069 mm | 0.25 mm | 57 / 150 |
+
+- 16 frames added little over 8, and 8 frames take about 2.6 s (0.32 s per grab).
+
+Averaging is not "more correct": it makes the reference, and so the sizes, depend half as much on which frame
+was grabbed. Not measured: Gemma's background sentence from an averaged reference; another light or table;
+flat objects FastSAM misses, which the test set does not contain.
+
+**Camera in use.** With the application connected, pylon lists the camera but `IsDeviceAccessible` is false,
+and opening it fails with *The device is controlled by another application* (rig, 2026-10-13, with a second
+process holding it). `Basler_Cls` now raises `Basler_In_Use_Error_Cls` at once instead of retrying ten times
+a second apart, and the camera layer reports `Camera_In_Use_Error_Cls` (a `Camera_Error_Cls`) naming the camera
+and saying to press DISCONNECT, in the application and in the scripts, where it used to say "No Basler camera
+was detected".
+
+**Revisit if** a part FastSAM misses on the empty-table check is ever left on the table (the check would then
+need its own, lower difference threshold); the light changes enough that a fresh empty frame differs from the
+reference in force by more than the floor (the tool would refuse an empty table; FastSAM alone is then the
+check, as for an out-of-date reference); or the camera's noise or frame time changes the 8-frame trade-off.
+Tests `test/Camera/test_reference_harnesses.py` (the mean, the refusals, the stale reference, the station
+file, the camera in use, the removed flags; `test_the_check_finds_what_the_application_finds` with the real
+FastSAM), `test/Camera/test_basler.py` (the in-use refusal and its report),
+`test/Configuration/test_core.py` (`Load_Configuration_For_Reference`, `Reference_Line` inside a block).
 
 ## A replaced image never keeps its name
 
@@ -3483,7 +3553,7 @@ calibration (`Calibration`, REQUIRED). Nothing is found by convention any more: 
   station with none, the line to add below `Hardware`). It never edits the station file. `Write_Calibration`
   refuses any file that exists, so the protection is in the writer, not in the tool's naming;
   `--write-calibration` (overwrite the one in force) is removed and says so. Adopting a calibration is that
-  one deliberate edit, as making a reference is (`make_reference.py`).
+  one deliberate edit, as adopting a reference is (`make_reference.py` prints the line too).
 - **A mode file cannot override the station**: `Calibration` joins `Camera` and the background reference among
   the keys a mode file holding fails on, naming the station file.
 

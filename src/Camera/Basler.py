@@ -105,6 +105,15 @@ class Basler_Settings_Error_Cls(ValueError):
     """
 
 
+class Basler_In_Use_Error_Cls(RuntimeError):
+    """
+    Description:
+        The camera is on the network but another program holds its control channel - usually the
+        AnyScan application connected to it, or a harness still running. Raised at once, never
+        retried: the holder keeps the channel until it disconnects.
+    """
+
+
 class Basler_Cls:
     """
     Description:
@@ -207,6 +216,13 @@ class Basler_Cls:
                 if not self.devices:
                     raise Exception('[ERROR] No Basler cameras detected. Check the connection!')
 
+                # A camera that another program has open is listed but not accessible: opening it fails with
+                # 'controlled by another application' (rig, 2026-10-13: IsDeviceAccessible False while a second
+                # process held it). Said at once, not after max_retries of the same failure.
+                if not self.tl_factory.IsDeviceAccessible(self.devices[0]):
+                    raise Basler_In_Use_Error_Cls('%s at %s is in use by another program.'
+                                                  % (self.devices[0].GetModelName(), self.devices[0].GetIpAddress()))
+
                 # List available devices
                 for device in self.devices:
                     print(f'[INFO] Model: {device.GetModelName()}, IP: {device.GetIpAddress()}, Serial: {device.GetSerialNumber()}')
@@ -220,6 +236,10 @@ class Basler_Cls:
 
                 # Exit the loop if connection is successful
                 break
+            except Basler_In_Use_Error_Cls:
+                self.camera = None; self.tl_factory = None
+                self.devices = None
+                raise
             except Exception as e:
                 print(f'[WARNING] Connection attempt {attempt + 1} failed: {e}')
 

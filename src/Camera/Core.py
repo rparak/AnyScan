@@ -63,6 +63,15 @@ class Camera_Error_Cls(RuntimeError):
     """
 
 
+class Camera_In_Use_Error_Cls(Camera_Error_Cls):
+    """
+    Description:
+        The camera is on the network but another program holds it - the AnyScan application connected
+        to it, or a camera script still running. A Camera_Error_Cls, so every caller that reports one
+        reports this; a script can tell it apart to say which program to stop.
+    """
+
+
 class Camera_Backend_Cls(object):
     """
     Description:
@@ -541,7 +550,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                 sys.path.insert(0, CONST_BASLER_SRC)
             import cv2
             import numpy as np
-            from Camera.Basler import Basler_Cls, Basler_Settings_Error_Cls
+            from Camera.Basler import Basler_Cls, Basler_Settings_Error_Cls, Basler_In_Use_Error_Cls
             import Camera.Utilities.Image_Processing as Image_Processing
         except ImportError as exc:
             raise Camera_Error_Cls(
@@ -568,6 +577,11 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         except Basler_Settings_Error_Cls as exc:
             self.__cam = None
             raise Camera_Error_Cls(str(exc)) from exc
+        except Basler_In_Use_Error_Cls as exc:
+            self.__cam = None
+            raise Camera_In_Use_Error_Cls(
+                'The camera %s It is held by the AnyScan application connected to it, or by a camera script still '
+                'running: press DISCONNECT in AnyScan (or close the other program), then try again.' % exc) from exc
         except Exception as exc:                          # noqa: BLE001
             self.__cam = None
             raise Camera_Error_Cls(

@@ -184,11 +184,12 @@ def _Rewrite_Sidecar(reference: str, mode: tp.Dict[str, tp.Any], block: tp.Dict[
     """The sidecar of a reference made again, as undistorted with a calibration block's lens model."""
     camera = mode['Camera']
     sidecar = Configuration.Build_Reference_Sidecar(
-        reference, source='test', shot='2026-09-28T10:00:00', configuration=CONST_COPY_NAME,
+        reference, source='test', frames=1, shot='2026-09-28T10:00:00', configuration=CONST_COPY_NAME,
+        station='Station_Test.yaml',
         window={'resolution': [camera['Resolution']['x'], camera['Resolution']['y']],
                 'offset': [camera['Offset']['x'], camera['Offset']['y']]},
         undistortion={'calibration': 'test', 'K': block['K'], 'coefficients': block['Coefficients']},
-        hardware={'lighting': camera['Lighting']})
+        hardware={'lighting': camera['Lighting']}, compared_with=None, not_compared='test')
     with open(Configuration.Reference_Sidecar_Path(reference), 'w', encoding='utf-8') as handle:
         json.dump(sidecar, handle)
 
@@ -209,10 +210,11 @@ def _Reference_For(directory: tp.Any, mode: tp.Dict[str, tp.Any], K: tp.Optional
                                            'coefficients': dict(coefficients)}
     camera = mode['Camera']
     sidecar = Configuration.Build_Reference_Sidecar(
-        reference, source='test', shot='2026-09-28T10:00:00', configuration=CONST_COPY_NAME,
+        reference, source='test', frames=1, shot='2026-09-28T10:00:00', configuration=CONST_COPY_NAME,
+        station='Station_Test.yaml',
         window={'resolution': [camera['Resolution']['x'], camera['Resolution']['y']],
                 'offset': [camera['Offset']['x'], camera['Offset']['y']]},
-        undistortion=undistortion, hardware={'lighting': camera['Lighting']})
+        undistortion=undistortion, hardware={'lighting': camera['Lighting']}, compared_with=None, not_compared='test')
     with open(Configuration.Reference_Sidecar_Path(reference), 'w', encoding='utf-8') as handle:
         json.dump(sidecar, handle)
     mode['Segmentation']['Background']['Reference'] = reference
@@ -1009,12 +1011,13 @@ def _Reference_Copy(tmp_path: tp.Any, mode: tp.Dict[str, tp.Any], calibration: t
     if sidecar == 'default':
         block = calibration['Calibration']
         sidecar = Configuration.Build_Reference_Sidecar(
-            reference, source='logger/captures/c/s_raw.png', shot='2026-09-25T09:00:00', configuration=CONST_COPY_NAME,
+            reference, source='camera', frames=1, shot='2026-09-25T09:00:00', configuration=CONST_COPY_NAME,
+            station='Station_Test.yaml',
             window={'resolution': [1920, 1200], 'offset': [8, 8]},
             undistortion={'calibration': 'Calibration_%s.yaml' % CONST_HARDWARE, 'K': block['K'],
                           'coefficients': block['Coefficients']},
             hardware={'camera': 'Basler a2A1920-51gcPRO', 'lens': 'Computar M1228-MPW3',
-                      'lighting': 'Effilux EFFI-FD-200-200-000'})
+                      'lighting': 'Effilux EFFI-FD-200-200-000'}, compared_with=None, not_compared='test')
     if sidecar is not None:
         with open(Configuration.Reference_Sidecar_Path(reference), 'w', encoding='utf-8') as handle:
             json.dump(sidecar, handle)
@@ -1035,6 +1038,54 @@ def test_a_reference_without_a_sidecar_fails_the_load_naming_what_is_unknown(tmp
         Load_Configuration(_Reference_Copy(tmp_path, mode, calibration, sidecar=None)[0])
     assert 'Image_Background_002.png has no provenance sidecar (Image_Background_002.json)' in str(error.value)
     assert 'Example/Camera/make_reference.py' in str(error.value)
+
+
+def test_the_reference_tool_loads_a_mode_whose_reference_is_out_of_date_and_nothing_else(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        make_reference.py must run when the reference in force no longer matches the camera (a new
+        calibration puts it out of date, and the load then fails until a new one is shot).
+        Load_Configuration_For_Reference returns the reference's problems instead of failing, and the rest of
+        the configuration as Load_Configuration reads it; any other problem still fails the load, without the
+        reference's.
+    """
+
+    mode, calibration = _Shipped()
+    path, reference = _Reference_Copy(tmp_path, mode, calibration, sidecar=None)
+    configuration, problems = Configuration.Load_Configuration_For_Reference(path)
+    assert len(problems) == 1 and 'Image_Background_002.png has no provenance sidecar' in problems[0]
+    assert configuration.Segmentation.Background_Reference == reference
+    assert configuration.Camera.Calibration is not None and configuration.Station_Path
+
+    path, _reference = _Reference_Copy(tmp_path, mode, calibration)
+    assert Configuration.Load_Configuration_For_Reference(path)[1] == []
+
+    del mode['Identity']['Model_Set']
+    os.remove(Configuration.Reference_Sidecar_Path(reference))
+    path, _reference = _Reference_Copy(tmp_path, mode, calibration, sidecar=None)
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Configuration.Load_Configuration_For_Reference(path)
+    assert 'Identity.Model_Set is required but missing' in str(error.value)
+    assert 'provenance sidecar' not in str(error.value)
+
+
+def test_reference_line_finds_a_key_inside_a_block(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The line to change for a key inside a block — Background.Reference, which make_reference.py prints —
+        is the key inside that block: not a key of the same name in another block, not a comment, and none
+        when the block ends without it. Top-level keys are found as before.
+    """
+
+    path = tmp_path / 'Station_Test.yaml'
+    path.write_text('# Reference: in a comment\nHardware: x\nCamera:\n  Reference: not this one\n'
+                    'Background:\n  # Reference: commented out\n\n  Reference: Data/Images/Background/a.png\n'
+                    'Other:\n  Key: 1\n', encoding='utf-8')
+    assert Configuration.Reference_Line(str(path), 'Hardware') == 2
+    assert Configuration.Reference_Line(str(path), 'Background.Reference') == 8
+    assert Configuration.Reference_Line(str(path), 'Camera.Reference') == 4
+    assert Configuration.Reference_Line(str(path), 'Camera.Key') is None
+    assert Configuration.Reference_Line(str(path), 'Reference') is None
 
 
 def test_a_reference_whose_sidecar_matches_loads_silently(tmp_path: tp.Any) -> None:

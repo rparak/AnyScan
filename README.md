@@ -324,7 +324,7 @@ Verified on the 41 test frames only (2026-10-11), with every hole within toleran
 The rig's captures, in order. The first two were made on 2026-09-28 and are in force:
 
 1. a **multi-view calibration set**;
-2. the **empty-surface reference**, shot under that calibration and made with `make_reference.py`,
+2. the **empty-surface reference**, shot under that calibration with `make_reference.py`,
    which writes its provenance sidecar.
 
 Two are still to do:

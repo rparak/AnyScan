@@ -40,7 +40,7 @@ file is not the generator's output, so regenerate it, never edit it.
 | Package | What it does | Qt |
 |---|---|---|
 | `Parameters` | The data structures (`*_Str`) and tokens every other package exchanges: detections, analyses, the loaded configuration, the catalogue item, camera and calibration records, the theme. | No |
-| `Configuration` | Reads and validates the mode, station, calibration and catalogue item files (`Load_Configuration`, `Load_Catalogue`; `Load_Station_Camera` for `calibrate.py`), writes new calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*/*.yaml` and `Data/Catalogue/*/*.yaml`. | No |
+| `Configuration` | Reads and validates the mode, station, calibration and catalogue item files (`Load_Configuration`, `Load_Catalogue`; `Load_Station_Camera` for `calibrate.py`; `Load_Configuration_For_Reference` for `make_reference.py`, which returns an out-of-date reference's problems instead of failing), writes new calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*/*.yaml` and `Data/Catalogue/*/*.yaml`. | No |
 | `Camera` | The camera backends (`Basler_Camera_Cls`, `File_Camera_Cls` for `--frame`): connect, set and read back the sensor window, grab, undistort, detect a lost connection. | No |
 | `Vision` | The pipeline (`Vision_Pipeline_Cls`): background subtraction, FastSAM, fusion, Gemma description, measurement, the annotated image and label mask, the heatmap; in a catalogue mode the dimension checks, DINOv2 identification (`Vision.Identifier`) and the verdicts (`Vision.Utilities.Classify`). | No |
 | `Reporting` | The report composer, the one voice of every sentence the operator reads, and the Trends accumulator and chart maths. | No |
@@ -169,8 +169,9 @@ it names. The modes shipped today:
    automatic modes switched off and read back, a camera keeping one on refused; the white-balance ratios read
    back and refused beyond half the camera's step), reads gamma and the colour preset (logged; refused when the
    station file pins them and the camera differs; gamma pinned to 1, the preset not — the rig's camera has none)
-   and reads them back. A lost connection is detected
-   while connected, not only on DISCONNECT.
+   and reads them back. A camera another program holds (AnyScan elsewhere, or a camera script) is
+   reported as in use at once, naming it and what to stop, not as "no camera". A lost connection is
+   detected while connected, not only on DISCONNECT.
 3. **SCAN** — captures one frame (undistorted when calibrated). A new frame clears the previous
    result rather than marking it stale.
 4. **ANALYZE** — runs the pipeline in a worker thread, shows the result and writes a capture set.
@@ -367,7 +368,12 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
 - `Camera/scan.py` — capture frames from the camera into `Data/Results/`.
 - `Camera/calibrate.py` — capture a calibration set (`--capture`) and solve it (`--images`) into a new
   calibration file, printing the station line that puts it in force.
-- `Camera/make_reference.py` — make an empty-surface reference with its provenance sidecar.
+- `Camera/make_reference.py` — shoot a new empty-surface reference through the application's camera path:
+  the mean of 8 frames, refused if the application's own stages 1–3 find any object on the mean or on any
+  frame (against the reference in force, or with FastSAM alone when that reference no longer matches the
+  camera), written as the next free `Image_Background_NNN.png` with its provenance sidecar, never over an
+  existing one. It does not edit the station file; it prints the line to change. A camera held by the running
+  application is named as such.
 - `Camera/generate_checkerboard.py` — write the printed calibration board's PDF.
 - `Camera/calibration_tilt_study.py` — the synthetic study behind the calibration's tilt warning.
 - `Vision/analyze.py` — run the pipeline over `Evaluation.Frames` and save every output. In a catalogue
@@ -408,6 +414,7 @@ Each row names its evidence. A row with none is not verified.
 | Multi-view calibration of the rig's camera | Solved on the rig, 2026-09-28: 63 views, RMS 0.45 px | `Calibration.Solved` in the calibration file; commit `eb00508` |
 | Absolute size against parts of known size | **Not verified** | [README > Limitations](../README.md#limitations) |
 | Empty-surface reference `Image_Background_001` | Re-shot on the rig 2026-10-12, with its provenance sidecar; on the 41 test frames (shot with the previous one) no object, side or verdict changes, sizes within 0.23 mm | commit `b131244` |
+| `make_reference.py`: 8 frames, the empty-table check, the camera-in-use message | Off-hardware with a stand-in camera; the check with the real FastSAM on the shipped reference and `Image_062`. On the rig (2026-10-13): 16 empty frames through the same camera path found nothing in either mode; the script itself, writing into a scratch directory, shot 8 frames, compared with `Image_Background_001`, wrote a reference whose station loads, left the station file unchanged and printed line 99; with a second process holding the camera it named the camera as in use and wrote nothing. **Not run against the running AnyScan application** (a second pylon process stood in for it), **and no reference adopted from it** | `test/Camera/test_reference_harnesses.py`; [*A new reference is the mean of 8 frames…*](design-decisions.md#a-new-reference-is-the-mean-of-8-frames-shot-by-the-tool-and-refused-if-the-application-finds-anything-on-it) |
 | The sensor window set and read back on CONNECT | Verified, 2026-09-24 16:20, after a power-cycle from factory defaults | Session log: *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain 10.00, BayerRG8 (read back from the camera)*; status bar 1920 × 1200 |
 | Exposure, gain and white balance fixed, Gamma pinned, read back on CONNECT | Verified, 2026-10-13: automatic modes Off, ratios 0.949951 / 0.899902 / 1.19995 (no step reported, ± 1/128), Gamma 1, no colour-preset node | [capture-checklist](capture-checklist.md), before item 1; commit `7d9ffe7` |
 | Lost-connection detection (cable pull) | **Not verified** | capture-checklist item 4 |

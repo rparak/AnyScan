@@ -397,13 +397,13 @@ def _Make_Reference_Sidecar(mode: str) -> None:
         undistortion = {'calibration': os.path.basename(station.Calibration_Path), 'K': block['K'],
                         'coefficients': block['Coefficients']}
     sidecar = Build_Reference_Sidecar(
-        reference, source='logger/captures/c/s_raw.png', shot='2026-10-08T09:00:00',
-        configuration=os.path.basename(mode),
+        reference, source='camera', frames=1, shot='2026-10-08T09:00:00',
+        configuration=os.path.basename(mode), station=os.path.basename(station.Station_Path),
         window={'resolution': [camera['Resolution']['x'], camera['Resolution']['y']],
                 'offset': [camera['Offset']['x'], camera['Offset']['y']]},
         undistortion=undistortion,
         hardware={'camera': camera.get('Model', ''), 'lens': camera.get('Lens', ''),
-                  'lighting': camera.get('Lighting', '')})
+                  'lighting': camera.get('Lighting', '')}, compared_with=None, not_compared='test')
     with open(Reference_Sidecar_Path(reference), 'w', encoding='utf-8') as handle:
         json.dump(sidecar, handle)
 

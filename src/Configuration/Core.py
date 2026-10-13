@@ -83,7 +83,7 @@ Description:
           The camera never takes its size from the reference — the hardware follows the
           configuration, and the data is validated against it.
         - The BACKGROUND REFERENCE carries its provenance in a sidecar (<reference>.json), written by
-          Example/Camera/make_reference.py from a capture set's own record, never by hand. The load
+          Example/Camera/make_reference.py from what the camera reported, never by hand. The load
           checks it: the image must be the one the sidecar describes, and its window, calibration
           and lighting must be the configuration's. The window and calibration checks are structural;
           the lighting check compares two fields a person types (see __Check_Reference_Sidecar).
@@ -250,24 +250,36 @@ def Calibration_Directory() -> str:
 def Reference_Line(path: str, key: str) -> tp.Optional[int]:
     """
     Description:
-        The line of a file's top-level key ('Station:', 'Calibration:', 'Hardware:'), counted from 1: where
-        a person changes a reference, or adds one below. Only the configuration layer reads these files,
-        so a tool that tells the user which line to edit asks here.
+        The line of a file's key, counted from 1: where a person changes a reference, or adds one below. The
+        key is a top-level one ('Station', 'Calibration', 'Hardware') or a dotted path into a block
+        ('Background.Reference': the first 'Reference:' inside the top-level 'Background:' block). Only the
+        configuration layer reads these files, so a tool that tells the user which line to edit asks here.
 
     Args:
         (1) path [string]: The YAML file.
-        (2) key [string]: The top-level key.
+        (2) key [string]: The top-level key, or a dotted path of keys.
 
     Returns:
         (1) parameter [int or None]: The line number, or None when the file has no such key or cannot be read.
     """
 
-    pattern = re.compile(r'^%s\s*:' % re.escape(key))
+    parts = key.split('.')
+    # The indentation of the block being searched (-1: the top level, whose keys start at column 0).
+    depth, indent = 0, -1
     try:
         with open(path, 'r', encoding='utf-8') as f:
             for number, line in enumerate(f, start=1):
-                if pattern.match(line):
-                    return number
+                stripped = line.lstrip(' ')
+                if not stripped.strip() or stripped.startswith('#'):
+                    continue
+                leading = len(line) - len(stripped)
+                if depth > 0 and leading <= indent:
+                    return None                                 # the block ended without the key
+                if (leading == 0 if depth == 0 else leading > indent) \
+                        and re.match(r'%s\s*:' % re.escape(parts[depth]), stripped):
+                    if depth == len(parts) - 1:
+                        return number
+                    depth, indent = depth + 1, leading
     except OSError:
         return None
     return None
@@ -853,23 +865,32 @@ def __Check_Reference_Sidecar(reference: str, Camera_Configuration_Str: tp.Any, 
                         'this lighting, or correct Camera.Lighting' % (name, lighting, Camera_Configuration_Str.Lighting))
 
 
-def Build_Reference_Sidecar(image_path: str, *, source: str, shot: str, configuration: str,
+def Build_Reference_Sidecar(image_path: str, *, source: str, frames: int, shot: str, configuration: str, station: str,
                             window: tp.Dict[str, tp.List[int]], undistortion: tp.Optional[tp.Dict[str, tp.Any]],
-                            hardware: tp.Dict[str, str]) -> tp.Dict[str, tp.Any]:
+                            hardware: tp.Dict[str, str], compared_with: tp.Optional[tp.Dict[str, tp.Any]],
+                            not_compared: str) -> tp.Dict[str, tp.Any]:
     """
     Description:
-        The sidecar of a background reference, from the record of the capture set it was made from —
-        the one format __Check_Reference_Sidecar reads, defined beside it so the two cannot drift.
+        The sidecar of a background reference, from what the camera reported when it was shot — the one
+        format __Check_Reference_Sidecar reads, defined beside it so the two cannot drift. Only image_sha256,
+        window, calibration and the lighting are checked at load; the rest is the reference's provenance.
 
     Args:
         (1) image_path [string]: The reference image (as written: its bytes are hashed).
-        (2) source [string]: REQUIRED, keyword-only: the capture-set frame it was copied from.
-        (3) shot [string]: REQUIRED, keyword-only: when the set was captured (ISO 8601).
-        (4) configuration [string]: REQUIRED, keyword-only: the configuration the set was captured under.
-        (5) window [Dict]: REQUIRED, keyword-only: the set's read-back window {'resolution', 'offset'}.
-        (6) undistortion [Dict or None]: REQUIRED, keyword-only: the set's undistortion record (K,
+        (2) source [string]: REQUIRED, keyword-only: where the image came from ('camera').
+        (3) frames [int]: REQUIRED, keyword-only: how many frames it is the mean of.
+        (4) shot [string]: REQUIRED, keyword-only: when it was shot (ISO 8601).
+        (5) configuration [string]: REQUIRED, keyword-only: the mode file it was shot under.
+        (6) station [string]: REQUIRED, keyword-only: the station file whose camera settings were used.
+        (7) window [Dict]: REQUIRED, keyword-only: the read-back window {'resolution', 'offset'}.
+        (8) undistortion [Dict or None]: REQUIRED, keyword-only: the camera's undistortion record (K,
                                          coefficients, the calibration file) or None when uncalibrated.
-        (7) hardware [Dict<string, string>]: REQUIRED, keyword-only: the set's camera, lens and lighting.
+        (9) hardware [Dict<string, string>]: REQUIRED, keyword-only: the camera, lens and lighting.
+        (10) compared_with [Dict or None]: REQUIRED, keyword-only: the reference in force it was checked
+                                           against ({'reference', 'image_sha256'}), or None when that reference
+                                           no longer matched the camera.
+        (11) not_compared [string]: REQUIRED, keyword-only: why it was not compared (recorded when
+                                    compared_with is None).
 
     Returns:
         (1) parameter [Dict]: The sidecar, ready to serialise.
@@ -879,14 +900,17 @@ def Build_Reference_Sidecar(image_path: str, *, source: str, shot: str, configur
     if undistortion is not None:
         calibration = {'file': str(undistortion.get('calibration', '')),
                        'fingerprint': Calibration_Fingerprint(undistortion['K'], undistortion['coefficients'])}
-    return {'note': ('Provenance of this background reference, written by Example/Camera/make_reference.py from '
-                     'the capture set named in source. Do not edit: Load_Configuration checks the image against '
-                     'image_sha256 and the window, calibration and lighting against the configuration.'),
-            'image_sha256': File_Sha256(image_path), 'source': source, 'shot': shot,
-            'configuration': configuration,
+    return {'note': ('Provenance of this background reference, written by Example/Camera/make_reference.py: the '
+                     'mean of the frames it names, shot by the camera. Do not edit: Load_Configuration checks the '
+                     'image against image_sha256 and the window, calibration and lighting against the '
+                     'configuration.'),
+            'image_sha256': File_Sha256(image_path), 'source': source, 'frames': int(frames), 'shot': shot,
+            'configuration': configuration, 'station': station,
             'window': {'resolution': [int(v) for v in window['resolution']],
                        'offset': [int(v) for v in window['offset']]},
-            'calibration': calibration, 'hardware': dict(hardware)}
+            'calibration': calibration, 'hardware': dict(hardware),
+            'compared_with': None if compared_with is None else dict(compared_with),
+            **({'not_compared': not_compared} if compared_with is None else {})}
 
 
 def __Read_Calibration(path: str, station_path: str, hardware: str, resolution: tp.Optional[tp.Tuple[int, int]],
@@ -1525,6 +1549,51 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
                                  invalid, or two of them disagree; the message names each problem.
     """
 
+    return __Load_Mode(config_path, None)
+
+
+def Load_Configuration_For_Reference(config_path: str) -> tp.Tuple[Configuration_Str, tp.List[str]]:
+    """
+    Description:
+        Load_Configuration for Example/Camera/make_reference.py, the one caller that must load a mode whose
+        background reference is out of date: a new calibration or sensor window puts the reference in force
+        out of date, and the load then fails until a new one is shot. Everything is validated as
+        Load_Configuration validates it, except the reference: its problems (missing, another size, a sidecar
+        that does not match the window, lens model or lighting) are returned instead of failing the load.
+
+    Args:
+        (1) config_path [string]: The mode file, 'Config_<Hardware>_Mode_<Mode>.yaml'.
+
+    Returns:
+        (1) parameter [Configuration_Str(object)]: The loaded configuration.
+        (2) parameter [Vector<string>]: What is wrong with the reference in force; empty when it matches the
+                                        camera, and the configuration is then the one Load_Configuration returns.
+
+    Raises:
+        Configuration_Error_Cls: Anything other than the reference is wrong; the message names each problem.
+    """
+
+    reference_problems = []
+    return __Load_Mode(config_path, reference_problems), reference_problems
+
+
+def __Load_Mode(config_path: str, reference_problems: tp.Optional[tp.List[str]]) -> Configuration_Str:
+    """
+    Description:
+        Load_Configuration's work: read and validate the mode file, its station and its calibration.
+
+    Args:
+        (1) config_path [string]: The mode file.
+        (2) reference_problems [Vector<string> or None]: Where the reference's problems go; None puts them
+                                                         with every other problem, which fails the load.
+
+    Returns:
+        (1) parameter [Configuration_Str(object)]: The loaded configuration.
+
+    Raises:
+        Configuration_Error_Cls: The configuration cannot be used; the message names each problem.
+    """
+
     config_path = os.path.abspath(config_path)
     name = os.path.basename(config_path)
     problems, notes = [], []
@@ -1532,6 +1601,7 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     data = __Read_Yaml(config_path, 'configuration file', problems)
     if data is None:
         raise Configuration_Error_Cls("Configuration '%s' cannot be used: %s." % (name, '; '.join(problems)))
+    reference_problems = problems if reference_problems is None else reference_problems
 
     # 1\ The file name and the Hardware field must agree.
     hardware, mode = __Read_Hardware(data, config_path, problems)
@@ -1557,9 +1627,9 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
                                                          problems, notes)
 
     # 4\ The cross-field rules, and the paths resolved against the repository.
-    reference = __Resolve_And_Cross_Check(Configuration_Str_i, problems)
+    reference = __Resolve_And_Cross_Check(Configuration_Str_i, problems, reference_problems)
     if reference and resolution:
-        __Check_Reference_Size(reference, resolution, problems)
+        __Check_Reference_Size(reference, resolution, reference_problems)
 
     # 5\ The calibration the station names, checked against the station: its hardware and sensor window.
     board_height = None
@@ -1587,7 +1657,7 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     # 6\ The reference's provenance, against the window, the calibration and the lighting — after
     #    the calibration is read, since the reference must have been undistorted with it.
     if reference and resolution and offset and calibrated and os.path.isfile(reference):
-        __Check_Reference_Sidecar(reference, Configuration_Str_i.Camera, problems)
+        __Check_Reference_Sidecar(reference, Configuration_Str_i.Camera, reference_problems)
 
     # 7\ Keys nothing reads — usually a misspelt optional field.
     for key in __Unknown_Keys(data, __Mode_File_Known_Paths()):
@@ -1672,7 +1742,8 @@ def __Read_Fields(data: tp.Dict[str, tp.Any], structure: tp.Any, fields: tp.Tupl
         setattr(target, attribute[-1], value)
 
 
-def __Resolve_And_Cross_Check(Configuration_Str: Configuration_Str, problems: tp.List[str]) -> str:
+def __Resolve_And_Cross_Check(Configuration_Str: Configuration_Str, problems: tp.List[str],
+                              reference_problems: tp.List[str]) -> str:
     """
     Description:
         The rules between fields, and the paths resolved against the repository: the error band
@@ -1684,6 +1755,8 @@ def __Resolve_And_Cross_Check(Configuration_Str: Configuration_Str, problems: tp
     Args:
         (1) Configuration_Str [Configuration_Str(object)]: The configuration being filled.
         (2) problems [Vector<string>]: Collects what is wrong.
+        (3) reference_problems [Vector<string>]: Collects what is wrong with the reference (problems itself,
+                                                 except for Load_Configuration_For_Reference).
 
     Returns:
         (1) parameter [string]: The resolved reference path, or '' when it is unset or missing.
@@ -1706,7 +1779,7 @@ def __Resolve_And_Cross_Check(Configuration_Str: Configuration_Str, problems: tp
     if reference:
         reference = Configuration_Str.Segmentation.Background_Reference = __Resolve_Model_Path(reference)
         if not os.path.isfile(reference):
-            problems.append('Background.Reference: the file "%s" does not exist' % reference)
+            reference_problems.append('Background.Reference: the file "%s" does not exist' % reference)
             reference = ''
     return reference
 

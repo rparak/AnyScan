@@ -29,9 +29,9 @@ import typing as tp
 #   ../Camera/Basler
 pytest.importorskip('pypylon')
 import Camera.Basler as Basler
-from Camera.Basler import Basler_Cls, Basler_Settings_Error_Cls
+from Camera.Basler import Basler_Cls, Basler_Settings_Error_Cls, Basler_In_Use_Error_Cls
 #   ../Camera/Core
-from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
+from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls, Camera_In_Use_Error_Cls
 #   ../Parameters/Camera
 from Parameters.Camera import Camera_Configuration_Str
 
@@ -381,12 +381,39 @@ def test_a_camera_that_does_not_keep_the_white_balance_is_refused(monkeypatch) -
     assert not device.open
 
 
+def test_a_camera_held_by_another_program_is_refused_at_once_without_retries(monkeypatch) -> None:
+    """
+    Description:
+        A camera another program holds is listed but not accessible (rig, 2026-10-13: IsDeviceAccessible False
+        while a second process had it open). Basler_Cls says so at once, naming the camera, without opening it
+        and without the ten retries a second apart that end in a generic failure.
+    """
+
+    info = type('_Info', (), {'GetModelName': lambda self: 'a2A1920-51gcPRO',
+                              'GetIpAddress': lambda self: '192.168.1.11',
+                              'GetSerialNumber': lambda self: '0030533690A7'})()
+    opened, slept = [], []
+    factory = type('_Factory', (), {'EnumerateDevices': lambda self: [info],
+                                    'IsDeviceAccessible': lambda self, device: False,
+                                    'CreateFirstDevice': lambda self: opened.append('created')})()
+    monkeypatch.setattr(Basler.pylon.TlFactory, 'GetInstance', staticmethod(lambda: factory))
+    monkeypatch.setattr(Basler.pylon, 'InstantCamera', lambda device: opened.append('opened'))
+    monkeypatch.setattr(Basler.time, 'sleep', slept.append)
+    with pytest.raises(Basler_In_Use_Error_Cls, match=r'^a2A1920-51gcPRO at 192.168.1.11 is in use by another '
+                                                      r'program\.$'):
+        Basler_Cls(config=dict(CONST_CUSTOM_CFG), resolution=(1920, 1200), offset=(8, 8))
+    assert opened == [] and slept == []
+
+
 class _Fake_Basler_Cls(object):
-    """A stand-in Basler_Cls for the camera layer: the read-back settings, or a settings error."""
+    """A stand-in Basler_Cls for the camera layer: the read-back settings, a settings error, or a held camera."""
 
     refuse = ''
+    held = False
 
     def __init__(self, config: tp.Dict, resolution: tp.Tuple[int, int], offset: tp.Tuple[int, int]) -> None:
+        if self.held:
+            raise Basler_In_Use_Error_Cls('a2A1920-51gcPRO at 192.168.1.11 is in use by another program.')
         if self.refuse:
             raise Basler_Settings_Error_Cls(self.refuse)
         self.camera = object()
@@ -445,6 +472,26 @@ def test_a_settings_error_is_reported_as_it_stands_not_as_no_camera(monkeypatch)
     with pytest.raises(Camera_Error_Cls, match='does not fit') as error:
         camera.Connect()
     assert 'No Basler camera' not in str(error.value)
+
+
+def test_a_camera_in_use_is_reported_as_in_use_not_as_no_camera(monkeypatch) -> None:
+    """
+    Description:
+        A camera held by another program — the AnyScan application connected to it, or a camera script — is
+        reported as in use, naming it and what to do, as a Camera_In_Use_Error_Cls (a Camera_Error_Cls, so the
+        window reports it as any other), not as 'No Basler camera was detected'.
+    """
+
+    monkeypatch.setattr(Basler, 'Basler_Cls', _Fake_Basler_Cls)
+    monkeypatch.setattr(_Fake_Basler_Cls, 'held', True)
+    camera = _Configured_Camera()
+    with pytest.raises(Camera_In_Use_Error_Cls) as error:
+        camera.Connect()
+    assert isinstance(error.value, Camera_Error_Cls)
+    assert str(error.value) == ('The camera a2A1920-51gcPRO at 192.168.1.11 is in use by another program. It is held '
+                                'by the AnyScan application connected to it, or by a camera script still running: '
+                                'press DISCONNECT in AnyScan (or close the other program), then try again.')
+    assert not camera.Connected
 
 
 def test_a_frame_of_another_size_is_refused_at_the_grab(monkeypatch) -> None:
