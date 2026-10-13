@@ -32,18 +32,22 @@ here: the sizes are repeatable, not absolute, and the describer is not a defect 
 Items 1 and 2 are repeated, in that order, whenever the camera, the lens, its focus or the mount
 changes. Their procedures stay below for that.
 
-**Before item 1: confirm the camera is pinned.** Done on 2026-09-24 at 16:20: after a power-cycle the
-log read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain
-10.00, BayerRG8 (read back from the camera)*, and the status bar read 1920 × 1200. Repeat the check
-after any change to the camera's settings or firmware. Power-cycle the camera (it then starts from its
-factory default, the full 1936 × 1216 sensor), start the application, load the configuration and
-CONNECT. The log must read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor …
-ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off, Gamma …, LightSourcePreset … (read back from the
-camera; Gamma and LightSourcePreset not pinned)*, and the status bar 1920 × 1200. The three automatic modes
-reading Off on the real camera is unverified since 2026-10-11 (only a stand-in device has run it): a camera that
-keeps one on is refused at CONNECT, naming it. **Send the Gamma and LightSourcePreset values from that line**:
-they are pinned in the station file (`Camera.Custom_Cfg.Gamma`, `Light_Source_Preset`), after which a camera
-reading otherwise is refused at CONNECT. Anything else: stop and report it —
+**Before item 1: confirm the camera is pinned.** **Confirmed on the rig 2026-10-13**: the log read *Camera
+set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain 10.00, BayerRG8,
+ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off, Gamma 1, LightSourcePreset not available (read back from
+the camera; Gamma and LightSourcePreset not pinned)* — the three automatic modes Off on the real camera, Gamma 1
+(now pinned in the station file, `Camera.Custom_Cfg.Gamma`), and no colour-preset node on this camera model
+(`Light_Source_Preset` is therefore not pinned; "not available" is not an error while it is unpinned). The
+window itself was first confirmed on 2026-09-24. **Still to do:** one CONNECT with the build that also reads the
+white-balance ratios back — send the new line. Repeat the check after any change to the camera's settings or
+firmware. Power-cycle the camera (it then starts from its factory default, the full 1936 × 1216 sensor), start
+the application, load the configuration and CONNECT. The log must read *Camera set to 1920 × 1200 at offset
+(8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain 10.00, BayerRG8, ExposureAuto Off, GainAuto Off,
+BalanceWhiteAuto Off, BalanceRatio Red …, Green …, Blue … (± …, half the camera's step), Gamma 1,
+LightSourcePreset not available (read back from the camera; LightSourcePreset not pinned)*, and the status bar
+1920 × 1200. Each ratio is within the stated tolerance of the station file's (red 0.95, green 0.90, blue 1.20):
+the camera rounds it to its step. A camera that keeps an automatic mode on, a ratio outside the tolerance or a
+gamma other than 1 is refused at CONNECT, naming it. Anything else: stop and report it —
 every item below depends on the window. Each calibration set goes in its own directory
 (`calibrate.py --capture` makes a new one each run): its `capture.json` records the window, and the
 calibration written from it carries it.

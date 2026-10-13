@@ -89,6 +89,11 @@ CONST_BASLER_PINNED_NODES = (('Gamma', 'Gamma'), ('Light_Source_Preset', 'LightS
 # How far a read-back gamma may be from its pin (the node is a float).
 #   Unit [float]
 CONST_BASLER_GAMMA_TOLERANCE = 1e-3
+# How far a read-back white-balance ratio may be from the station file's when the BalanceRatio node reports no
+# step: half of an assumed 1/64 step. A node that reports its step (Inc) uses half of that instead, since the
+# camera rounds each ratio to its step and an exact match would refuse a correctly set camera.
+#   Unit [float]
+CONST_BASLER_BALANCE_FALLBACK_TOLERANCE = 1.0 / 128.0
 
 class Basler_Settings_Error_Cls(ValueError):
     """
@@ -339,11 +344,15 @@ class Basler_Cls:
         Description:
             The acquisition settings as the camera reports them after configuration - read back,
             not what was asked for: the window's size and offset, the sensor's full size, the
-            exposure, the gain and the pixel format.
+            exposure, the gain, the pixel format, the automatic modes, the white-balance ratios with
+            the tolerance they were checked to, and gamma and the colour preset.
 
         Returns:
             (1) parameter [Dictionary]: {'resolution': (w, h), 'offset': (x, y), 'sensor': (w, h),
-                                         'exposure_us': float, 'gain': float, 'pixel_format': str}.
+                                         'exposure_us': float, 'gain': float, 'pixel_format': str,
+                                         'autos': {node: str}, 'balance_ratios': {colour: float},
+                                         'balance_tolerance': (float, str), 'pinned': {node: float | str},
+                                         'unpinned': [str]}.
         """
 
         return dict(self.__applied)
@@ -446,9 +455,40 @@ class Basler_Cls:
             raise Basler_Settings_Error_Cls('The camera kept an automatic mode on after it was switched off: %s. '
                                             'Power-cycle the camera and connect again.' % ', '.join(kept))
         self.__applied['autos'] = autos
+        self.__Check_Balance_Ratios()
         self.__Check_Pinned()
 
         self.__Configure_Transport()
+
+    def __Check_Balance_Ratios(self) -> None:
+        """
+        Description:
+            Read the white-balance ratios back, one colour at a time, keep them and the tolerance for the log,
+            and refuse a camera whose ratio differs from the station file's (Balance_Ratios) by more than half
+            the BalanceRatio node's step — the stain check's colour band was measured under these ratios. A
+            node that reports no step uses CONST_BASLER_BALANCE_FALLBACK_TOLERANCE.
+        """
+
+        try:
+            step = float(self.camera.BalanceRatio.Inc)
+        except Exception:                                      # noqa: BLE001 - pypylon raises its own for a node without a step
+            step = 0.0
+        if step > 0.0:
+            tolerance, source = step / 2.0, 'half the camera\'s step'
+        else:
+            tolerance, source = CONST_BASLER_BALANCE_FALLBACK_TOLERANCE, 'the camera reports no step'
+        ratios, wrong = {}, []
+        for color, wanted in self.config['Balance_Ratios'].items():
+            self.camera.BalanceRatioSelector.SetValue(color)
+            ratios[color] = float(self.camera.BalanceRatio.Value)
+            if abs(ratios[color] - wanted) > tolerance:
+                wrong.append('%s reads %g, the station file sets %g' % (color, ratios[color], wanted))
+        if wrong:
+            raise Basler_Settings_Error_Cls('The camera did not keep the station file\'s white balance: %s (tolerance '
+                                            '± %g, %s). Power-cycle the camera and connect again.'
+                                            % ('; '.join(wrong), tolerance, source))
+        self.__applied['balance_ratios'] = ratios
+        self.__applied['balance_tolerance'] = (tolerance, source)
 
     def __Check_Pinned(self) -> None:
         """

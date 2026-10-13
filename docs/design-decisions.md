@@ -3133,15 +3133,26 @@ power-up user set. They are not automatic, but a changed user set would change t
 *Corrected 2026-10-11, on the owner's instruction:* both are read and logged on every connect, and the station
 file may pin them (`Camera.Custom_Cfg.Gamma`, `Light_Source_Preset`): a camera that reads otherwise, or lacks the
 node, is refused, naming both values. They are read, never written, so the pin checks the user set rather than
-overriding it. Unpinned until the owner sends the rig's logged values.
-**Unverified on the rig** (capture checklist): only a stand-in device has run the read-back.
+overriding it. *Pinned 2026-10-13, from the rig's connect log:* Gamma 1. `Light_Source_Preset` stays unpinned:
+the a2A1920-51gcPRO has no `LightSourcePreset` node, so it reads "not available", which is logged and is not an
+error while unpinned (a pin could never match it). The rig confirmed the three automatic modes Off the same day.
+*Added 2026-10-13, on the owner's instruction:* the white-balance ratios are read back too, one colour at a time,
+and logged with the tolerance used; a ratio more than half the `BalanceRatio` node's step from the station file's
+is refused, naming the colour. The camera rounds each ratio to that step, so an exact match would refuse a
+correctly set camera; a node reporting no step is checked to 1/128 (half of an assumed 1/64 step).
+**Unverified on the rig:** the ratio read-back (the node's step and the read values) — only a stand-in device has
+run it (capture checklist).
 
-**Revisit if** the camera's user set is changed, or a stain or colour measurement drifts with no change in the
-station file (then set gamma and the preset too).
+**Revisit if** the camera's user set is changed, the camera is replaced by a model with a colour-preset node (then
+pin it), the rig's connect line shows a ratio step coarser than expected, or a stain or colour measurement drifts
+with no change in the station file (then set gamma and the preset too).
 Tests `test/Camera/test_basler.py::test_a_camera_that_keeps_an_automatic_mode_is_refused`,
 `::test_a_factory_default_camera_is_set_to_the_configured_window`, `::test_the_camera_layer_logs_the_window_it_read_back`,
 `::test_gamma_and_the_colour_preset_are_read_and_logged_never_set`, `::test_a_camera_that_does_not_match_a_pin_is_refused`,
 `::test_a_node_the_camera_lacks_is_logged_and_refuses_a_pin`,
+`::test_the_white_balance_ratios_are_read_back_within_half_the_camera_step`,
+`::test_a_ratio_node_without_a_step_uses_the_fallback_tolerance`,
+`::test_a_camera_that_does_not_keep_the_white_balance_is_refused`,
 `test/Configuration/test_core.py::test_gamma_and_the_colour_preset_may_be_pinned_and_are_checked`.
 
 ## A judged part's stains are a colour band on its upright crop, from 1 mm²

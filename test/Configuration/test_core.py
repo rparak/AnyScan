@@ -763,14 +763,15 @@ def test_a_white_balance_without_every_channel_fails_the_load_naming_it(tmp_path
 def test_gamma_and_the_colour_preset_may_be_pinned_and_are_checked(tmp_path: tp.Any) -> None:
     """
     Description:
-        The shipped station file pins neither (they are read and logged until the rig's values are known); a
-        pin of Gamma (a number above 0) and Light_Source_Preset (text) reaches the camera's settings without an
-        unrecognised-key warning, and an invalid pin fails the load naming it.
+        The shipped station file pins Gamma 1 (the rig's logged value, 2026-10-13) and not the colour preset
+        (the rig's camera has no such node); a pin of Gamma (a number above 0) and Light_Source_Preset (text)
+        reaches the camera's settings without an unrecognised-key warning, and an invalid pin fails the load
+        naming it.
     """
 
     mode, calibration = _Shipped()
     shipped = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
-    assert 'Gamma' not in shipped.Camera.Custom_Cfg and 'Light_Source_Preset' not in shipped.Camera.Custom_Cfg
+    assert shipped.Camera.Custom_Cfg['Gamma'] == 1.0 and 'Light_Source_Preset' not in shipped.Camera.Custom_Cfg
     mode['Camera']['Custom_Cfg'].update(Gamma=1.0, Light_Source_Preset='Daylight5000K')
     config = Load_Configuration(_Write(tmp_path, mode, calibration))
     assert (config.Camera.Custom_Cfg['Gamma'], config.Camera.Custom_Cfg['Light_Source_Preset']) == (1.0, 'Daylight5000K')

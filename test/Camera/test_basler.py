@@ -84,6 +84,39 @@ class _Node_Cls(object):
         self.Value = value
 
 
+class _Ratio_Node_Cls(_Node_Cls):
+    """
+    Description:
+        The BalanceRatio node: one ratio per colour, the one BalanceRatioSelector names, rounded to the node's
+        step as the camera does. A step of 0 stands for a node that reports none (reading Inc raises).
+    """
+
+    def __init__(self, device: '_Device_Cls', step: float) -> None:
+        self.ratios = {}
+        super().__init__(device, 'BalanceRatio', None, 0.0, 15.0)
+        self.__step = step
+
+    @property
+    def Inc(self) -> float:
+        if not self.__step:
+            raise RuntimeError('LogicalErrorException: BalanceRatio has no increment')
+        return self.__step
+
+    @Inc.setter
+    def Inc(self, value: float) -> None:
+        pass                                                        # the step is fixed at construction
+
+    @property
+    def Value(self) -> float:
+        return self.ratios.get(self.device.BalanceRatioSelector.Value, 1.0)
+
+    @Value.setter
+    def Value(self, value: tp.Any) -> None:
+        if value is not None:
+            step = self.__step or 0.0
+            self.ratios[self.device.BalanceRatioSelector.Value] = round(value / step) * step if step else value
+
+
 class _Device_Cls(object):
     """
     Description:
@@ -94,10 +127,11 @@ class _Device_Cls(object):
             (1) width, height, offset_x, offset_y [int]: The window the camera starts at (default: the
                 full sensor, its factory default after a power cycle).
             (2) sticky [Vector<string>]: Nodes that accept a write but keep their value.
+            (3) ratio_step [float]: The BalanceRatio node's step (0: it reports none).
     """
 
     def __init__(self, width: int = CONST_SENSOR[0], height: int = CONST_SENSOR[1], offset_x: int = 0,
-                 offset_y: int = 0, sticky: tp.Tuple[str, ...] = ()) -> None:
+                 offset_y: int = 0, sticky: tp.Tuple[str, ...] = (), ratio_step: float = 1.0 / 64.0) -> None:
         self.calls, self.sticky, self.open, self.grabbing = [], sticky, True, False
         self.Width = _Node_Cls(self, 'Width', width, 4, lambda: CONST_SENSOR[0] - self.OffsetX.Value, 4)
         self.Height = _Node_Cls(self, 'Height', height, 2, lambda: CONST_SENSOR[1] - self.OffsetY.Value, 2)
@@ -106,8 +140,9 @@ class _Device_Cls(object):
         self.Gain = _Node_Cls(self, 'Gain', 0.0)
         self.ExposureTime = _Node_Cls(self, 'ExposureTime', 5000.0)
         self.PixelFormat = _Node_Cls(self, 'PixelFormat', 'Mono8')
-        for name in ('BalanceWhiteAuto', 'BalanceRatioSelector', 'BalanceRatio', 'ExposureAuto', 'GainAuto'):
+        for name in ('BalanceWhiteAuto', 'BalanceRatioSelector', 'ExposureAuto', 'GainAuto'):
             setattr(self, name, _Node_Cls(self, name, None))
+        self.BalanceRatio = _Ratio_Node_Cls(self, ratio_step)
         # Read, never set: the power-up user set's gamma and colour preset.
         self.Gamma = _Node_Cls(self, 'Gamma', 1.0)
         self.LightSourcePreset = _Node_Cls(self, 'LightSourcePreset', 'Daylight5000K')
@@ -287,17 +322,63 @@ def test_a_camera_that_does_not_match_a_pin_is_refused(monkeypatch, pins: tp.Dic
 def test_a_node_the_camera_lacks_is_logged_and_refuses_a_pin(monkeypatch) -> None:
     """
     Description:
-        A camera without a colour-preset node reads 'not available': logged when unpinned, and refused when
-        the station file pins a preset.
+        A camera without a colour-preset node (the rig's a2A1920-51gcPRO, 2026-10-13) reads 'not available':
+        logged and never an error when unpinned — with Gamma pinned, as the shipped station file has it — and
+        refused when the station file pins a preset.
     """
 
     device = _Device_Cls()
     del device.LightSourcePreset
-    assert _Connect(monkeypatch, device).Applied_Settings['pinned']['LightSourcePreset'] == 'not available'
+    applied = _Connect(monkeypatch, device, Gamma=1.0).Applied_Settings
+    assert applied['pinned'] == {'Gamma': 1.0, 'LightSourcePreset': 'not available'}
+    assert applied['unpinned'] == ['LightSourcePreset']
     device = _Device_Cls()
     del device.LightSourcePreset
     with pytest.raises(Basler_Settings_Error_Cls, match='LightSourcePreset reads not available'):
         _Connect(monkeypatch, device, Light_Source_Preset='Daylight5000K')
+
+
+def test_the_white_balance_ratios_are_read_back_within_half_the_camera_step(monkeypatch) -> None:
+    """
+    Description:
+        The camera rounds each ratio to its BalanceRatio step (here 1/64: 0.95 reads 0.953125), so the
+        read-back is accepted within half that step; the ratios and the tolerance are kept for the log.
+    """
+
+    applied = _Connect(monkeypatch, _Device_Cls()).Applied_Settings
+    assert applied['balance_ratios'] == {'Red': 0.953125, 'Green': 0.90625, 'Blue': 1.203125}
+    assert applied['balance_tolerance'] == (1.0 / 128.0, 'half the camera\'s step')
+    fine = _Connect(monkeypatch, _Device_Cls(ratio_step=1.0 / 1024.0)).Applied_Settings
+    assert fine['balance_tolerance'] == (1.0 / 2048.0, 'half the camera\'s step')
+
+
+def test_a_ratio_node_without_a_step_uses_the_fallback_tolerance(monkeypatch) -> None:
+    """
+    Description:
+        A BalanceRatio node that reports no step is checked to CONST_BASLER_BALANCE_FALLBACK_TOLERANCE (1/128),
+        and the log says so.
+    """
+
+    applied = _Connect(monkeypatch, _Device_Cls(ratio_step=0.0)).Applied_Settings
+    assert applied['balance_ratios'] == {'Red': 0.95, 'Green': 0.9, 'Blue': 1.2}
+    assert applied['balance_tolerance'] == (1.0 / 128.0, 'the camera reports no step')
+
+
+def test_a_camera_that_does_not_keep_the_white_balance_is_refused(monkeypatch) -> None:
+    """
+    Description:
+        The stain check's colour band was measured under the station file's ratios: a camera that accepts the
+        ratios but keeps its own (here 1.0 for each) is refused at connect, naming each colour that differs,
+        what it reads and what the station file sets, and the device is closed.
+    """
+
+    device = _Device_Cls(sticky=('BalanceRatio',))
+    with pytest.raises(Basler_Settings_Error_Cls, match=r'did not keep the station file\'s white balance: Red reads 1, '
+                                                        r'the station file sets 0.95; Green reads 1, the station file '
+                                                        r'sets 0.9; Blue reads 1, the station file sets 1.2 '
+                                                        r'\(tolerance ± 0.0078125, half the camera\'s step\)'):
+        _Connect(monkeypatch, device)
+    assert not device.open
 
 
 class _Fake_Basler_Cls(object):
@@ -312,8 +393,10 @@ class _Fake_Basler_Cls(object):
         self.Applied_Settings = {'resolution': tuple(resolution), 'offset': tuple(offset), 'sensor': CONST_SENSOR,
                                  'exposure_us': 10000.0, 'gain': 9.999998795594486, 'pixel_format': 'BayerRG8',
                                  'autos': {'ExposureAuto': 'Off', 'GainAuto': 'Off', 'BalanceWhiteAuto': 'Off'},
-                                 'pinned': {'Gamma': 1.0, 'LightSourcePreset': 'Daylight5000K'},
-                                 'unpinned': ['Gamma', 'LightSourcePreset']}
+                                 'balance_ratios': {'Red': 0.953125, 'Green': 0.90625, 'Blue': 1.203125},
+                                 'balance_tolerance': (1.0 / 128.0, 'half the camera\'s step'),
+                                 'pinned': {'Gamma': 1.0, 'LightSourcePreset': 'not available'},
+                                 'unpinned': ['LightSourcePreset']}
 
 
 def _Configured_Camera() -> Basler_Camera_Cls:
@@ -342,8 +425,9 @@ def test_the_camera_layer_logs_the_window_it_read_back(monkeypatch) -> None:
     camera.Connect()
     assert camera.Resolution == (1920, 1200)
     assert ('INFO', 'Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain '
-                    '10.00, BayerRG8, ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off, Gamma 1, LightSourcePreset '
-                    'Daylight5000K (read back from the camera; Gamma and LightSourcePreset not pinned).') \
+                    '10.00, BayerRG8, ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off, BalanceRatio Red 0.953125, '
+                    'Green 0.90625, Blue 1.20312 (± 0.0078125, half the camera\'s step), Gamma 1, LightSourcePreset '
+                    'not available (read back from the camera; LightSourcePreset not pinned).') \
         in camera.events
 
 

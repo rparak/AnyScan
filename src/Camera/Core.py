@@ -602,12 +602,15 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         pinned = ', '.join('%s %s' % (node, ('%g' % value) if isinstance(value, float) else value)
                            for node, value in applied['pinned'].items())
         unpinned = applied['unpinned']
+        # The white-balance ratios the stain check depends on, with the tolerance they were checked to.
+        ratios = ', '.join('%s %g' % (color, value) for color, value in applied['balance_ratios'].items())
+        tolerance, source = applied['balance_tolerance']
         self._Log('INFO', 'Camera set to %d × %d at offset (%d, %d) of its %d × %d sensor, exposure %g µs, gain '
-                          '%.2f, %s, %s, %s (read back from the camera%s).'
+                          '%.2f, %s, %s, BalanceRatio %s (± %g, %s), %s (read back from the camera%s).'
                   % (applied['resolution'] + applied['offset'] + applied['sensor']
                      + (applied['exposure_us'], applied['gain'], applied['pixel_format'],
-                        ', '.join('%s %s' % (node, value) for node, value in applied['autos'].items()), pinned,
-                        '; %s not pinned' % ' and '.join(unpinned) if unpinned else '')))
+                        ', '.join('%s %s' % (node, value) for node, value in applied['autos'].items()), ratios,
+                        tolerance, source, pinned, '; %s not pinned' % ' and '.join(unpinned) if unpinned else '')))
 
     def _Close(self) -> None:
         """

@@ -60,11 +60,14 @@ Camera:
   # REQUIRED: Exposure_Time, Gain, Balance_Ratios, Pixel_Format. Vendor / API specific. These are the only
   # settings the camera reads, each typed at load; any other key here is reported as unrecognised. They are
   # FIXED: on connect the camera's automatic exposure, gain and white balance are switched off and read back,
-  # and a camera that keeps one on is refused (Camera.Basler). Gamma and the colour preset are not set: they
-  # are the camera's power-up user set, read and logged on every connect. Optional pins, Gamma (a number
-  # above 0) and Light_Source_Preset (the camera's name for it, e.g. Daylight5000K): when set, a camera that
-  # reads otherwise is refused. Default: not pinned (read and logged only) — to be pinned from the rig's
-  # logged values.
+  # and a camera that keeps one on is refused (Camera.Basler); the white-balance ratios are read back too, and
+  # a ratio more than half the camera's BalanceRatio step from Balance_Ratios is refused (1/128 when the
+  # camera reports no step). Gamma and the colour preset are not set: they are the camera's power-up user set,
+  # read and logged on every connect. Optional pins, Gamma (a number above 0) and Light_Source_Preset (the
+  # camera's name for it, e.g. Daylight5000K): when set, a camera that reads otherwise is refused. Default:
+  # not pinned (read and logged only). Gamma is pinned here from the rig's connect log of 2026-10-13 (Gamma 1).
+  # Light_Source_Preset is not pinned: this camera (a2A1920-51gcPRO) has no LightSourcePreset node, which it
+  # logs as "not available" — not an error while unpinned, and a pin could never match.
   Custom_Cfg:
     # How long the sensor is exposed to light during acquisition [us].
     Exposure_Time: 10000
@@ -77,6 +80,8 @@ Camera:
       Blue: 1.2
     # Sensor pixel format.
     Pixel_Format: BayerRG8
+    # The camera's gamma, read back on connect and refused when it differs (pinned from the rig, 2026-10-13).
+    Gamma: 1
 
 # The empty-surface reference every frame is differenced against (stage 1 of every mode).
 Background:

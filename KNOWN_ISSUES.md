@@ -488,9 +488,9 @@ read NOK wrongly. 1 miss in the 42 corner holes of the test set.
 ## The stain check's colour band is this light's
 
 The band (hue 5–30, saturation from 50, value from 40) was measured on the test set's fronts under the rig's
-light and the station file's fixed exposure, gain and white balance. A warmer light, another white balance or a
-surface reflecting the table's green differently moves the plate's colours; nothing checks that the band still
-fits.
+light and the station file's fixed exposure, gain and white balance (the ratios read back and checked on every
+connect, since 2026-10-13). A warmer light, another white balance or a surface reflecting the table's green
+differently moves the plate's colours; nothing checks that the band still fits.
 
 - **Impact:** under another light a clean part could show band pixels (a false NOK) or a stain could fall
   outside the band (a stain passed: the error that matters).

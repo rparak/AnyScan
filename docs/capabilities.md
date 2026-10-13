@@ -169,9 +169,10 @@ piece of hardware. The modes shipped today:
    unavailable until then. The README's *Order of a run* has the detail
    ([README > Configuration](../README.md#configuration)).
 2. **CONNECT** — sets the camera's sensor window and its fixed exposure, gain and white balance (the
-   automatic modes switched off and read back, a camera keeping one on refused), reads gamma and the colour
-   preset (logged; refused when the station file pins them and the camera differs; not pinned yet) and reads
-   them back. A lost connection is detected
+   automatic modes switched off and read back, a camera keeping one on refused; the white-balance ratios read
+   back and refused beyond half the camera's step), reads gamma and the colour preset (logged; refused when the
+   station file pins them and the camera differs; gamma pinned to 1, the preset not — the rig's camera has none)
+   and reads them back. A lost connection is detected
    while connected, not only on DISCONNECT.
 3. **SCAN** — captures one frame (undistorted when calibrated). A new frame clears the previous
    result rather than marking it stale.
