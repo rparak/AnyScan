@@ -40,7 +40,7 @@ from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import Reference_Crop, Rotations
 #   ../Configuration/Core
-from Configuration.Core import Load_Configuration, CONST_CONFIG_DIR
+from Configuration.Core import Load_Configuration, Mode_Directory
 
 """
 Description:
@@ -52,7 +52,7 @@ Description:
 
 def _Catalogue_Configuration(mode: str = 'Mounting_Plate') -> tp.Any:
     """A shipped catalogue mode, loaded."""
-    return Load_Configuration(os.path.join(CONST_CONFIG_DIR, 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_%s.yaml'
+    return Load_Configuration(os.path.join(Mode_Directory(), 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_%s.yaml'
                                            % mode))
 
 

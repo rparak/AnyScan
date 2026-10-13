@@ -151,23 +151,18 @@ def _Harness_Written_Mask(monkeypatch, tmp_path, reference_background_path: str,
     """
 
     import yaml
-    hardware = CONST_CONFIGURATION.Hardware
     with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as handle:
         data = yaml.safe_load(handle)
     if classification_enabled:
         # A catalogue mode classifies.
         data['Catalogue'] = {'Item': 'Data/Catalogue/mounting_plate/mounting_plate.yaml',
                              'Identifier': 'models/dinov2-base'}
+    # A copy of the mode file outside Configuration/: its Station and that station's Calibration resolve in
+    # the repository's Configuration/Station/ and Calibration/, wherever the copy is.
     config_dir = tmp_path / 'Configuration'
     config_dir.mkdir()
     config_path = config_dir / os.path.basename(CONST_DEFAULT_CONFIG_FILE)
     config_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')
-    calibration = Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware)
-    with open(calibration, 'r', encoding='utf-8') as handle:
-        (config_dir / os.path.basename(calibration)).write_text(handle.read(), encoding='utf-8')
-    station = Configuration.Station_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware)
-    with open(station, 'r', encoding='utf-8') as handle:
-        (config_dir / os.path.basename(station)).write_text(handle.read(), encoding='utf-8')
     frames = tmp_path / 'frames'
     frames.mkdir()
     scene = cv2.imread(reference_background_path)

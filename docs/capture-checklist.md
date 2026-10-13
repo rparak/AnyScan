@@ -110,17 +110,19 @@ retake it unless the board overhangs the frame on purpose.
 - [ ] the reprojection RMS, and any views the report names as outliers (retake them)
 - [ ] whether the factor is reported as uniform, or which regions differ
 
-**Then.** Solve, which writes a new `Calibration_<Hardware>_calib-<date>.yaml` and leaves the one in
-force untouched:
+**Then.** Solve, which writes a new `Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml`
+and leaves the one in force and the station file untouched:
 
 ```bash
 python calibrate.py --images ../../Data/Images/Calibration/<timestamp> --board-squares 11x8 --square-mm <calipered> --board-height-mm <h>
 ```
 
 Check the report (principal point near the image centre, tilt spread above the 10° floor, the factor's
-map), then adopt the new calibration by renaming it over `Calibration_<Hardware>.yaml` and restart the
-application so it is in force. Item 2 is shot under it. (The old calibration stays in git history; every
-capture set keeps its frame before undistortion, so frames can be re-undistorted under either.)
+map), then adopt the new calibration: change the station file's `Calibration` line, which the tool names by
+number, to the new file name, and restart the application so it is in force. Commit the new calibration file
+with the station file. Item 2 is shot under it. (The old calibration stays in `Configuration/Calibration/`,
+one line away; every capture set keeps its frame before undistortion, so frames can be re-undistorted under
+either.)
 
 ---
 
@@ -169,7 +171,7 @@ that set's own records, not from a person.
    One large box, or one near the centre (for example *1 object, 40 000 px, centre*), means something
    is on the table: clear it and shoot again.
 4. Set `Background.Reference: Data/Images/Background/Image_Background_002.png` in the station file
-   (`Configuration/Station_<Hardware>.yaml`) and restart the application: the load checks the reference against its sidecar (a reference without one fails the
+   (`Configuration/Station/`, the one the mode names) and restart the application: the load checks the reference against its sidecar (a reference without one fails the
    load).
 
 ---

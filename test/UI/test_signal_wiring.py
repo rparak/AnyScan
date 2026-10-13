@@ -46,7 +46,6 @@ from PyQt5.QtWidgets import QApplication, QWidget
 #   ../UI/Core
 from UI.Core import AnyScan_Window_Cls
 #   ../UI/Configuration_Dialog
-import UI.Configuration_Dialog as Dialog
 from UI.Configuration_Dialog import Configuration_Dialog_Cls
 #   ../UI/Views/History
 from UI.Views.History import History_View_Cls
@@ -64,7 +63,7 @@ from Parameters.Vision import Analysis_Str, Detection_Str, Confidence_Thresholds
 #   ../Logger/Core
 from Logger.Core import CONST_LEVEL_INFO, CONST_LEVEL_WARNING
 #   ../Configuration/Core
-from Configuration.Core import Load_Configuration, Calibration_Path_For, Station_Path_For, CONST_DEFAULT_CONFIG_FILE
+from Configuration.Core import Load_Configuration, Mode_Directory, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -311,36 +310,20 @@ def test_clicking_the_view_toggle_repaints_the_viewport_with_the_other_render(qt
 # ------------------------------------------------------------ the Configuration dialog
 
 def _Mode_File(directory: str, mode: str) -> str:
-    """A mode file for the shipped hardware (a copy of the shipped one) and its calibration."""
+    """A mode file for the shipped hardware (a copy of the shipped one), naming the shipped station."""
     with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
     data['Identity']['Display_Name'] = 'Cfg. %s' % mode
     path = os.path.join(directory, 'Config_%s_Mode_%s.yaml' % (CONST_HARDWARE, mode))
     with open(path, 'w', encoding='utf-8') as f:
         yaml.safe_dump(data, f, sort_keys=False)
-    station = Station_Path_For(path, CONST_HARDWARE)
-    if not os.path.exists(station):
-        with open(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
-            station_text = f.read().replace(CONST_HARDWARE, CONST_HARDWARE)
-        with open(station, 'w', encoding='utf-8') as f:
-            f.write(station_text)
-    calibration = Calibration_Path_For(path, CONST_HARDWARE)
-    if not os.path.exists(calibration):
-        with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
-            content = f.read()
-        with open(calibration, 'w', encoding='utf-8') as f:
-            f.write(content)
     return path
 
 
 @pytest.fixture
-def two_modes(tmp_path, monkeypatch) -> tp.List[str]:
-    """A Configuration/ directory the dialog lists: two modes for the shipped hardware."""
-    directory = tmp_path / 'Configuration'
-    directory.mkdir()
-    paths = [_Mode_File(str(directory), 'Alpha'), _Mode_File(str(directory), 'Beta')]
-    monkeypatch.setattr(Dialog, 'CONST_CONFIG_DIR', str(directory))
-    return paths
+def two_modes(configuration_root) -> tp.List[str]:
+    """A Configuration/Mode/ directory the dialog lists: two modes for the shipped hardware."""
+    return [_Mode_File(Mode_Directory(), 'Alpha'), _Mode_File(Mode_Directory(), 'Beta')]
 
 
 def _Item_Point(dialog: Configuration_Dialog_Cls, path: str) -> tp.Tuple[QWidget, QPoint]:

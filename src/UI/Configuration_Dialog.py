@@ -41,7 +41,7 @@ from UI.Workers import Model_Load_Worker_Cls, Join_Worker_Thread
 # Custom Lib.: AnyScan — the configuration layer (the one reader of a configuration file)
 #   ../Configuration/Core
 from Configuration.Core import (Load_Configuration, Discover_Configurations, Configuration_Error_Cls,
-                                Describe_Configuration, Display_Path, CONST_CONFIG_DIR)
+                                Describe_Configuration, Display_Path, Mode_Directory)
 #   ../Parameters/Configuration
 from Parameters.Configuration import Configuration_Str
 
@@ -88,7 +88,7 @@ def _Mark(filled: bool) -> QIcon:
 class Configuration_Dialog_Cls(QDialog):
     """
     Description:
-        The Configuration dialog: the usable configurations found in Configuration/, listed by
+        The Configuration dialog: the usable configurations found in Configuration/Mode/, listed by
         their display name with the one in force marked, and Load. Loading validates the chosen
         file as a whole, then loads it on a worker thread (Model_Load_Worker_Cls: ~9 s) with the
         progress showing. On success it confirms what was loaded, in a sentence, and stays open
@@ -259,7 +259,7 @@ class Configuration_Dialog_Cls(QDialog):
     def __Populate(self, log: bool = True) -> None:
         """
         Description:
-            List the usable configurations in Configuration/ (and the one in force if it lives
+            List the usable configurations in Configuration/Mode/ (and the one in force if it lives
             elsewhere) by display name, the one in force marked and selected. One for other hardware
             is shown greyed — it exists, and its tooltip says why it cannot be chosen. A file that
             cannot be loaded is NOT listed; it is logged at WARNING with the reason. With nothing
@@ -269,7 +269,7 @@ class Configuration_Dialog_Cls(QDialog):
             (1) log [bool]: Log the files not listed (once per opening, not again on a refresh).
         """
 
-        entries = Discover_Configurations(CONST_CONFIG_DIR)
+        entries = Discover_Configurations(Mode_Directory())
         if not any(os.path.abspath(path) == self.__config.Path for path, _c, _e in entries):
             try:
                 entries.insert(0, (self.__config.Path, Load_Configuration(self.__config.Path), ''))
@@ -306,7 +306,7 @@ class Configuration_Dialog_Cls(QDialog):
             self.__label_empty.setText('No usable configuration for this camera in %s. Nothing can be '
                                        'loaded, so CONNECT stays unavailable. Add a valid configuration '
                                        'there (the log says why any file there was not listed).'
-                                       % Display_Path(CONST_CONFIG_DIR))
+                                       % Display_Path(Mode_Directory()))
             self.__Fit(self.__label_empty)
         rows = max(1, min(self.__list.count(), CONST_LIST_ROWS))
         self.__list.setFixedHeight(rows * max(self.__list.sizeHintForRow(0), 1) + 2 * self.__list.frameWidth() + 10)

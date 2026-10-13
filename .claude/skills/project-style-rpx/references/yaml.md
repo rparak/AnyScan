@@ -1,18 +1,22 @@
 # YAML — configuration, station, calibration and catalogue files
 
-Three kinds under `Configuration/`: a mode file, `Config_<Hardware>_Mode_<Mode>.yaml` (one per mode); a
-station file, `Station_<Hardware>.yaml` (one per camera: the camera, its acquisition settings and window,
-and the background reference — shared by its modes, never overridden by one); and a calibration,
-`Calibration_<Hardware>.yaml` (one per camera, shared by its modes). A catalogue mode also reads a catalogue
-item, `Data/Catalogue/<item>/<item>.yaml`, by the same rules.
+Three kinds under `Configuration/`, each in its own folder and linked by name: a mode file,
+`Mode/Config_<Hardware>_Mode_<Mode>.yaml` (one per mode), names its station (`Station`); a station file,
+`Station/Station_<Hardware>[_<Name>].yaml` (the camera, its acquisition settings and window, the background
+reference — shared by the modes naming it, never overridden by one; written by hand), names its calibration
+(`Calibration`); and a calibration, `Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml` (one per solve,
+written by `calibrate.py`, never written over). A reference is a file name, never a path, resolved in its
+kind's folder of the repository. A catalogue mode also reads a catalogue item,
+`Data/Catalogue/<item>/<item>.yaml`, by the same rules.
 ✅ = enforced by `Configuration.Core.Load_Configuration` / `Write_Calibration`; 📄 = documentation only.
 
 ## One reader, one writer ✅ (in practice) 📄 (as a rule)
 
 `Configuration/Core.py` is the only code that parses these files (`Load_Configuration`), and the only
 code that writes a calibration (`Write_Calibration`, called by `calibrate.py`). No module opens the
-YAML for itself; every setting reaches its user through `Configuration_Str`. The writer refuses to
-overwrite a file holding any key it does not own, so content someone added is never regenerated away.
+YAML for itself; every setting reaches its user through `Configuration_Str`. The writer refuses any
+file that exists, so a calibration is never written over and nothing someone added is regenerated away.
+No tool writes a mode or station file: `calibrate.py` prints the station line to change instead.
 
 ## Shape 📄
 
@@ -31,10 +35,10 @@ overwrite a file holding any key it does not own, so content someone added is ne
 - Units in brackets in the comment: `[px]`, `[us]`, `[%]`.
 - Text the model receives (the prompts) lives here as data, with the reasoning behind the wording in
   the comment above it — iterated here, never in code.
-- The mode file's section order is `Hardware, General, Identity, Confidence, Segmentation,
+- The mode file's section order is `Hardware, Station, General, Identity, Confidence, Segmentation,
   Description, Evaluation`, with a catalogue mode's `Catalogue` block after `Identity`. The three mode
   files share it because the catalogue modes were copied from the first; it is their order, not a rule
-  anything checks. The station file's is `Hardware, Camera, Background`.
+  anything checks. The station file's is `Hardware, Calibration, Camera, Background`.
   The calibration's order is fixed by its writer.
 
 ## Loading ✅
@@ -90,7 +94,7 @@ Instance: `8d8a13c` put the station's `/home/sf4/sf4/events/` into the shipped
 `General.Station_Events.Directory`. The loader requires that directory to exist, so everywhere else the
 shipped configuration stopped loading and 17 test modules failed before any test ran. `9d44669` put back
 `logger/Station_Events`; README > Configuration says how a station keeps its own copy (same file name,
-the calibration symlinked beside it, started with `--config`).
+started with `--config`; its `Station` resolves in the repository, so nothing is copied beside it).
 
 Only a **required** path is caught, and only indirectly: the test suite loads the shipped file, so a path
 that does not exist on the machine running the tests fails them. An optional or non-path value specific

@@ -6,15 +6,13 @@
 #     no other module reads this file.
 #
 #   File name:
-#     Config_<Hardware>_Mode_<Mode>.yaml. The hardware part keys everything that
-#     belongs to the camera rather than the mode: the calibration (read from
-#     Calibration_<Hardware>.yaml beside this file) and the run-summary CSV
-#     (log_<Hardware>.csv), so two modes on one camera share both.
+#     Config_<Hardware>_Mode_<Mode>.yaml, in Configuration/Mode/. The hardware part
+#     names the run-summary CSV (log_<Hardware>.csv), so two modes on one camera
+#     share it.
 #
 #   Required and optional:
 #     A field marked REQUIRED has no default: a file without it fails to load, naming
-#     the field. The calibration file is optional: without it the configuration loads
-#     with a warning, frames are not undistorted and objects are not measured. Every other field is optional: when it is absent the documented default
+#     the field. Every other field is optional: when it is absent the documented default
 #     (the value in the comment) is used and the log says so. An unrecognised key is
 #     logged as a warning, so a misspelt optional field does not pass silently.
 #
@@ -26,9 +24,13 @@
 #     are checked on the side up.
 #
 #   The station:
-#     The camera, its acquisition settings and sensor window, and the empty-surface
-#     reference are not here: they are the station's, in Station_<Hardware>.yaml beside
-#     this file, shared by every mode on the hardware and never overridden by a mode.
+#     The camera, its acquisition settings and sensor window, the empty-surface
+#     reference and the calibration are not here: they are the station's, in the
+#     station file this file names (Station, below), shared by every mode on it and
+#     never overridden by a mode. The station file names its calibration in turn.
+#     Both names are file names only, resolved in the repository's
+#     Configuration/Station/ and Configuration/Calibration/, so a copy of this file
+#     kept anywhere reads the same station and calibration.
 #
 #   Hardware setup:
 #     - Camera : Basler a2A1920-51gcPRO
@@ -38,6 +40,10 @@
 
 # REQUIRED. The hardware this mode runs on; must equal the hardware part of this file's name.
 Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
+
+# REQUIRED. The station this mode runs on: a file name in Configuration/Station/, never a path. Its
+# Hardware must be this file's.
+Station: Station_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml
 
 # General (non-hardware) settings for this configuration.
 General:
@@ -131,7 +137,7 @@ Segmentation:
   IoU: 0.9
   # FastSAM inference size [px]. Default: 1024
   Image_Size: 1024
-  # Stage 1, the background difference. Its reference is the station's (Station_<Hardware>.yaml).
+  # Stage 1, the background difference. Its reference is the station's (Background.Reference there).
   Background:
     # The floor under the Otsu threshold [grey level 0..255], so a near-empty frame cannot
     # promote the shadow halo and sensor noise to foreground. Default: 28

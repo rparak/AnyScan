@@ -42,8 +42,6 @@ from PyQt5.QtWidgets import QApplication
 # Custom Lib.: AnyScan UI — the window, the dialog module and the Log view whose sink is read
 #   ../UI/Core
 from UI.Core import AnyScan_Window_Cls
-#   ../UI/Configuration_Dialog
-import UI.Configuration_Dialog as Dialog
 #   ../UI/Views/Log
 from UI.Views.Log import Log_View_Cls
 #   ../UI/Capture
@@ -64,7 +62,7 @@ from Parameters.Vision import (Analysis_Str, CONST_TIMING_STAGES, CONST_STAGE_BA
 from Logger.Core import Session_Logger_Cls
 # Custom Lib.: AnyScan — the configuration layer
 #   ../Configuration/Core
-from Configuration.Core import Load_Configuration, Calibration_Path_For, Station_Path_For, CONST_DEFAULT_CONFIG_FILE
+from Configuration.Core import Load_Configuration, Mode_Directory, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
@@ -326,7 +324,7 @@ def test_stages_that_overlap_are_reported_not_clamped(qt_app, tmp_path, received
 
 
 def _Mode_File(directory: str, mode: str, runtime) -> str:
-    """A mode file for the shipped hardware whose models are the stand-in weights, and its calibration."""
+    """A mode file for the shipped hardware whose models are the stand-in weights, naming the shipped station."""
     with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as handle:
         data = yaml.safe_load(handle)
     data['Segmentation']['Model'], data['Segmentation']['Device'] = runtime.segmenter_path, 'mps'
@@ -334,18 +332,6 @@ def _Mode_File(directory: str, mode: str, runtime) -> str:
     path = os.path.join(directory, 'Config_%s_Mode_%s.yaml' % (CONST_HARDWARE, mode))
     with open(path, 'w', encoding='utf-8') as handle:
         yaml.safe_dump(data, handle, sort_keys=False)
-    station = Station_Path_For(path, CONST_HARDWARE)
-    if not os.path.exists(station):
-        with open(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
-            station_text = f.read().replace(CONST_HARDWARE, CONST_HARDWARE)
-        with open(station, 'w', encoding='utf-8') as f:
-            f.write(station_text)
-    calibration = Calibration_Path_For(path, CONST_HARDWARE)
-    if not os.path.exists(calibration):
-        with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as handle:
-            content = handle.read()
-        with open(calibration, 'w', encoding='utf-8') as handle:
-            handle.write(content)
     return path
 
 
@@ -362,7 +348,7 @@ def _Load_Through_Dialog(window, path: str) -> None:
     assert not dialog.Loading
 
 
-def test_a_configuration_load_logs_each_model_and_the_warm_up(qt_app, tmp_path, monkeypatch, received,
+def test_a_configuration_load_logs_each_model_and_the_warm_up(qt_app, tmp_path, configuration_root, received,
                                                              fake_runtimes) -> None:
     """
     Description:
@@ -371,11 +357,8 @@ def test_a_configuration_load_logs_each_model_and_the_warm_up(qt_app, tmp_path, 
         configuration with the same models logs each as kept, not reloaded — never as a 0 s load.
     """
 
-    directory = tmp_path / 'Configuration'
-    directory.mkdir()
-    monkeypatch.setattr(Dialog, 'CONST_CONFIG_DIR', str(directory))
-    first = _Mode_File(str(directory), 'Seg_Anything', fake_runtimes)
-    second = _Mode_File(str(directory), 'Inspect', fake_runtimes)
+    first = _Mode_File(Mode_Directory(), 'Seg_Anything', fake_runtimes)
+    second = _Mode_File(Mode_Directory(), 'Inspect', fake_runtimes)
     fake_runtimes.segmenter_load_s, fake_runtimes.describer_load_s = 0.3, 0.5
     window = _Window(tmp_path, Load_Configuration(first))
 
@@ -404,7 +387,7 @@ def test_a_configuration_load_logs_each_model_and_the_warm_up(qt_app, tmp_path, 
                                                'Model gemma-4-e4b-it-4bit kept, not reloaded.']
 
 
-def test_a_warm_up_that_stops_early_is_a_warning(qt_app, tmp_path, monkeypatch, received, fake_runtimes) -> None:
+def test_a_warm_up_that_stops_early_is_a_warning(qt_app, tmp_path, configuration_root, received, fake_runtimes) -> None:
     """
     Description:
         When the warm-up fails (here FastSAM's first pass, on the reference), the configuration still
@@ -412,10 +395,7 @@ def test_a_warm_up_that_stops_early_is_a_warning(qt_app, tmp_path, monkeypatch, 
         that the first analysis pays the rest — the failure is not swallowed silently.
     """
 
-    directory = tmp_path / 'Configuration'
-    directory.mkdir()
-    monkeypatch.setattr(Dialog, 'CONST_CONFIG_DIR', str(directory))
-    path = _Mode_File(str(directory), 'Seg_Anything', fake_runtimes)
+    path = _Mode_File(Mode_Directory(), 'Seg_Anything', fake_runtimes)
     fake_runtimes.segment_raises = True
     window = _Window(tmp_path, Load_Configuration(path))
 
@@ -501,11 +481,10 @@ def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_a
         Segment Anything's timing line is unchanged (test_the_logged_numbers_add_up_to_the_logged_total).
     """
 
-    from Configuration.Core import CONST_CONFIG_DIR
     from Parameters.Vision import Detection_Str, Catalogue_Result_Str, Timing_Str, Object_Timing_Str
     from Vision.Utilities.Dimensions import Check_Dimension
     import os
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_'
+    config = Load_Configuration(os.path.join(Mode_Directory(), 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_'
                                                                'Mounting_Plate.yaml'))
     window = _Window(tmp_path, config)
 

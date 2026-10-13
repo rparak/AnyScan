@@ -26,7 +26,6 @@ import os
 import re
 import math
 import string
-import shutil
 import tempfile
 # Hashlib (the reference image's and the calibration's fingerprints)
 import hashlib
@@ -62,14 +61,22 @@ Description:
     structure; none opens the YAML for itself. Qt-free.
 
     The rules:
-        - A REQUIRED field (the hardware, both model paths, the station-event directory — which must
-          exist and be writable — both prompts, the identity's display name and model set; and in the
-          station file, the background reference — which must exist — the camera's acquisition settings
-          and its sensor window) has no default: its absence fails the load, naming the field.
-        - The STATION file (Station_<Hardware>.yaml beside the mode file) holds the camera and the
-          reference, shared by every mode on the hardware. It is required, it must name the mode's
-          hardware, and a mode file never overrides it: one holding Camera or a background reference
-          fails the load, naming the station file.
+        - A REQUIRED field (the hardware, the station, both model paths, the station-event directory —
+          which must exist and be writable — both prompts, the identity's display name and model set; and
+          in the station file, the calibration, the background reference — which must exist — the
+          camera's acquisition settings and its sensor window) has no default: its absence fails the
+          load, naming the field.
+        - The configuration is a CHAIN OF REFERENCES, each kind in its own folder: a mode file
+          (Configuration/Mode/) names its station file (Station, in Configuration/Station/), and the
+          station names its calibration (Calibration, in Configuration/Calibration/). A reference is a
+          file name, never a path, resolved in its kind's folder of the repository wherever the file
+          holding it is — so a local copy of a mode file reads the shipped station and calibration. Each
+          link must agree: the station's Hardware is the mode's, and the calibration's Hardware and
+          sensor window are the station's; a mismatch fails the load, naming both files. A missing
+          reference fails it too, naming the line to add.
+        - The STATION file holds the camera, the reference and the calibration in force, shared by every
+          mode that names it, and a mode file never overrides it: one holding Camera, Calibration or a
+          background reference fails the load, naming the station file.
         - The SENSOR WINDOW (Camera.Resolution, Camera.Offset) is set on the camera on connect, and
           what depends on it is checked against it here, at load: a background reference of another
           size fails the load, naming both sizes, and so does a calibration solved at another window.
@@ -80,11 +87,9 @@ Description:
           checks it: the image must be the one the sidecar describes, and its window, calibration
           and lighting must be the configuration's. The window and calibration checks are structural;
           the lighting check compares two fields a person types (see __Check_Reference_Sidecar).
-        - The CALIBRATION is optional as a whole: a hardware without a calibration file loads with
-          no lens model and no scale (frames are not undistorted, objects are not measured) and a
-          warning saying to run calibrate.py — the honest degraded state, and the one a camera
-          being calibrated for the first time must be able to start from. A calibration file that
-          exists must be complete and valid: K and all five coefficients.
+        - The CALIBRATION is required: nothing loads uncalibrated. It must be complete and valid: K and
+          all five coefficients. A camera calibrated for the first time is read by Load_Station_Camera,
+          which reads the station's camera alone, for Example/Camera/calibrate.py.
         - An OPTIONAL field falls back to the documented default (the Parameters/Configuration
           field default, which is the value the code ran with as a constant) and the fall-back is
           recorded in Configuration_Str.Notes for the caller to log.
@@ -102,21 +107,32 @@ Description:
 #   Unit [string]
 CONST_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 CONST_CONFIG_DIR = os.path.join(CONST_PROJECT_ROOT, 'Configuration')
+# One folder per kind under CONST_CONFIG_DIR: the mode files, the station files and the calibrations. A
+# reference (a mode's Station, a station's Calibration) is a file name resolved in its kind's folder of
+# the repository, wherever the file holding it is — so a local copy of a mode file kept elsewhere reads
+# the shipped station and calibration (Mode_Directory, Station_Directory, Calibration_Directory).
+#   Unit [string]
+CONST_MODE_FOLDER = 'Mode'
+CONST_STATION_FOLDER = 'Station'
+CONST_CALIBRATION_FOLDER = 'Calibration'
 # The configuration the application loads at startup (App/run.py --config overrides it).
 #   Unit [string]
-CONST_DEFAULT_CONFIG_FILE = os.path.join(CONST_CONFIG_DIR,
+CONST_DEFAULT_CONFIG_FILE = os.path.join(CONST_CONFIG_DIR, CONST_MODE_FOLDER,
                                          'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml')
-# The mode-file name is 'Config_<Hardware>_Mode_<Mode>.yaml'; the calibration of <Hardware> is
-# 'Calibration_<Hardware>.yaml' in the same directory.
+# The mode-file name is 'Config_<Hardware>_Mode_<Mode>.yaml'.
 #   Unit [string]
 CONST_CONFIG_PREFIX = 'Config_'
 CONST_MODE_SEPARATOR = '_Mode_'
-CONST_CALIBRATION_TEMPLATE = 'Calibration_{hardware}.yaml'
-# The station file of <Hardware>, beside the mode file: the camera, its acquisition settings and sensor
-# window, and the empty-surface reference — what belongs to the camera, the light and the table, shared
-# by every mode on that hardware. A mode file never overrides it.
+# The chain of references: a mode file's Station names its station file, and the station file's
+# Calibration names the calibration in force. Each is REQUIRED, and is a file name of its kind
+# ('<prefix>*.yaml') in its kind's folder, never a path.
+#   Unit [Tuple<string>]
+CONST_STATION_REFERENCE = ('Station', CONST_STATION_FOLDER, 'Station_')
+CONST_CALIBRATION_REFERENCE = ('Calibration', CONST_CALIBRATION_FOLDER, 'Calibration_')
+# The name calibrate.py gives a new calibration: the hardware and the time it was solved, so every
+# calibration of a hardware is kept beside the others and none is ever written over.
 #   Unit [string]
-CONST_STATION_TEMPLATE = 'Station_{hardware}.yaml'
+CONST_CALIBRATION_FILE_TEMPLATE = 'Calibration_{hardware}_{stamp}.yaml'
 # The acquisition settings the Basler camera cannot start without; each is REQUIRED in
 # Camera.Custom_Cfg so a file missing one fails at load and not deep inside the Basler SDK.
 # They are the ONLY keys it reads (Basler_Cls.__Configure), so Custom_Cfg is a schema like every
@@ -140,17 +156,12 @@ CONST_COEFFICIENT_KEYS = ('k1', 'k2', 'p1', 'p2', 'k3')
 # The compute devices a configuration may name.
 #   Unit [Tuple<string>]
 CONST_DEVICES = ('auto', 'cpu', 'mps', 'cuda')
-# The keys the calibration writer owns. It refuses to overwrite a file holding anything else, so
-# content someone adds to a calibration file is never silently deleted.
-#   Unit [Tuple<string>]
-CONST_CALIBRATION_FILE_KEYS = ('Hardware', 'Calibration')
 # The comment the calibration writer puts above 'Hardware:'. The header it copies from the file in
-# force stops before it — otherwise every write over an existing file added one more copy (the
-# calibration of eb00508 carried two).
+# force stops before it — otherwise every write added one more copy (the calibration of eb00508
+# carried two).
 #   Unit [string]
-CONST_CALIBRATION_HARDWARE_COMMENT = ("# The hardware this calibration belongs to; must equal the hardware part "
-                                      "of this file's name.")
-CONST_CALIBRATION_BLOCK_KEYS = ('Solved', 'Resolution', 'Offset', 'K', 'Coefficients', 'Conversion_Factor')
+CONST_CALIBRATION_HARDWARE_COMMENT = ("# The hardware this calibration belongs to; must equal the Hardware of the "
+                                      "station that names it.")
 # The background reference's sidecar: the same name with this suffix (Image_Background_002.json).
 #   Unit [string]
 CONST_REFERENCE_SIDECAR_SUFFIX = '.json'
@@ -198,38 +209,141 @@ def Hardware_And_Mode(config_path: str) -> tp.Tuple[str, str]:
     return hardware, mode
 
 
-def Calibration_Path_For(config_path: str, hardware: str) -> str:
+def Mode_Directory() -> str:
     """
     Description:
-        The calibration file of a hardware id: 'Calibration_<Hardware>.yaml' beside the mode file.
-
-    Args:
-        (1) config_path [string]: The mode file path.
-        (2) hardware [string]: The hardware id.
+        The folder of the shipped mode files, Configuration/Mode/: what the Configuration dialog lists.
 
     Returns:
-        (1) parameter [string]: The calibration file path (absolute).
+        (1) parameter [string]: The folder path (absolute).
     """
 
-    return os.path.join(os.path.dirname(os.path.abspath(config_path)),
-                        CONST_CALIBRATION_TEMPLATE.format(hardware=hardware))
+    return os.path.join(CONST_CONFIG_DIR, CONST_MODE_FOLDER)
 
 
-def Station_Path_For(config_path: str, hardware: str) -> str:
+def Station_Directory() -> str:
     """
     Description:
-        The station file of a hardware id: 'Station_<Hardware>.yaml' beside the mode file.
-
-    Args:
-        (1) config_path [string]: The mode file path.
-        (2) hardware [string]: The hardware id.
+        The folder every mode file's Station is resolved in, Configuration/Station/, wherever the mode
+        file is.
 
     Returns:
-        (1) parameter [string]: The station file path (absolute).
+        (1) parameter [string]: The folder path (absolute).
     """
 
-    return os.path.join(os.path.dirname(os.path.abspath(config_path)),
-                        CONST_STATION_TEMPLATE.format(hardware=hardware))
+    return os.path.join(CONST_CONFIG_DIR, CONST_STATION_FOLDER)
+
+
+def Calibration_Directory() -> str:
+    """
+    Description:
+        The folder every station file's Calibration is resolved in, Configuration/Calibration/, and the
+        one calibrate.py writes into.
+
+    Returns:
+        (1) parameter [string]: The folder path (absolute).
+    """
+
+    return os.path.join(CONST_CONFIG_DIR, CONST_CALIBRATION_FOLDER)
+
+
+def Reference_Line(path: str, key: str) -> tp.Optional[int]:
+    """
+    Description:
+        The line of a file's top-level key ('Station:', 'Calibration:', 'Hardware:'), counted from 1: where
+        a person changes a reference, or adds one below. Only the configuration layer reads these files,
+        so a tool that tells the user which line to edit asks here.
+
+    Args:
+        (1) path [string]: The YAML file.
+        (2) key [string]: The top-level key.
+
+    Returns:
+        (1) parameter [int or None]: The line number, or None when the file has no such key or cannot be read.
+    """
+
+    pattern = re.compile(r'^%s\s*:' % re.escape(key))
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            for number, line in enumerate(f, start=1):
+                if pattern.match(line):
+                    return number
+    except OSError:
+        return None
+    return None
+
+
+def __Kind_Files(directory: str, prefix: str, hardware: str) -> tp.List[str]:
+    """
+    Description:
+        The files of one kind for one hardware ('<prefix><Hardware>*.yaml' in its folder), named when a
+        reference is missing so the message can say which line to add.
+
+    Args:
+        (1) directory [string]: The kind's folder.
+        (2) prefix [string]: 'Station_' or 'Calibration_'.
+        (3) hardware [string]: The hardware id.
+
+    Returns:
+        (1) parameter [Vector<string>]: The file names, sorted.
+    """
+
+    names = sorted(os.listdir(directory)) if os.path.isdir(directory) else []
+    return [name for name in names if name.startswith(prefix + hardware) and name.endswith('.yaml')]
+
+
+def __Read_Reference(data: tp.Dict[str, tp.Any], reference: tp.Tuple[str, str, str], owner: str, hardware: str,
+                     problems: tp.List[str]) -> tp.Optional[str]:
+    """
+    Description:
+        Resolve one link of the chain: a mode's Station, or a station's Calibration. It is REQUIRED, and is a
+        file name of its kind in its kind's folder of the repository, never a path, so a copy of the file
+        holding it, kept anywhere, resolves to the same file. A missing reference names the line to add and
+        the files that could fill it; a wrong one names the file holding it and the line.
+
+    Args:
+        (1) data [Dict]: The parsed file holding the reference.
+        (2) reference [Tuple<string> 1x3]: (the key, the kind's folder name, the file-name prefix), e.g.
+                                           CONST_STATION_REFERENCE.
+        (3) owner [string]: The path of the file holding the reference.
+        (4) hardware [string]: The hardware the referenced file must be of, for the candidates named.
+        (5) problems [Vector<string>]: Collects what is wrong.
+
+    Returns:
+        (1) parameter [string or None]: The referenced file (absolute, existing), or None when it is wrong.
+    """
+
+    key, folder, prefix = reference
+    directory = os.path.join(CONST_CONFIG_DIR, folder)
+    shown = Display_Path(directory) + os.sep
+    owner_name = os.path.basename(owner)
+    present, value = __Lookup(data, (key,))
+    if not present:
+        below = Reference_Line(owner, 'Hardware')
+        where = "below 'Hardware:' (line %d)" % below if below else 'at the top level'
+        candidates = __Kind_Files(directory, prefix, hardware)
+        if candidates:
+            # The newest: dated names sort in time.
+            line, choice = candidates[-1], 'the files for %s are %s' % (hardware, ', '.join(candidates))
+        else:
+            line, choice = '%s<...>.yaml' % prefix, 'there is none for %s yet' % hardware
+            if key == CONST_CALIBRATION_REFERENCE[0]:
+                choice += '; Example/Camera/calibrate.py writes one'
+        problems.append("%s names no %s, which is required: add the line '%s: %s' %s, naming a file in %s (%s)"
+                        % (owner_name, key.lower(), key, line, where, shown, choice))
+        return None
+    line = Reference_Line(owner, key)
+    at = '%s line %d' % (owner_name, line) if line else owner_name
+    if (not isinstance(value, str) or value != os.path.basename(value) or '/' in value or '\\' in value
+            or not value.startswith(prefix) or not value.endswith('.yaml')):
+        problems.append("%s: %s must be the name of a file in %s ('%s*.yaml'), not a path or another kind of file; "
+                        "it is %r" % (at, key, shown, prefix, value))
+        return None
+    path = os.path.join(directory, value)
+    if not os.path.isfile(path):
+        problems.append('%s names the %s %s, which does not exist in %s' % (at, key.lower(), value, shown))
+        return None
+    return path
 
 
 def __Resolve_Model_Path(path: str) -> str:
@@ -341,16 +455,18 @@ CONST_FIELDS = (
 # Every setting a station file holds beside its acquisition settings and sensor window (read by their own
 # readers), in the same form (attributes of Configuration_Str).
 #   Unit [Vector<Tuple>]
-CONST_STATION_FIELDS = (
+CONST_STATION_CAMERA_FIELDS = (
     (('Camera', 'Model'), ('Camera', 'Model'), 'text', False),
     (('Camera', 'Lens'), ('Camera', 'Lens'), 'text', False),
     (('Camera', 'Lighting'), ('Camera', 'Lighting'), 'text', False),
+)
+CONST_STATION_FIELDS = CONST_STATION_CAMERA_FIELDS + (
     (('Background', 'Reference'), ('Segmentation', 'Background_Reference'), 'path', True),
 )
-# What a mode file may not hold because the station file holds it: the whole Camera block, and the
-# reference (Segmentation.Background.Reference before 2026-10-11).
+# What a mode file may not hold because the station file holds it: the whole Camera block, the
+# reference (Segmentation.Background.Reference before 2026-10-11), and the calibration the station names.
 #   Unit [Tuple<Tuple<string>>]
-CONST_STATION_ONLY_PATHS = (('Camera',), ('Segmentation', 'Background', 'Reference'))
+CONST_STATION_ONLY_PATHS = (('Camera',), ('Segmentation', 'Background', 'Reference'), ('Calibration',))
 # Every setting a catalogue item file holds, in the same form (attributes of Catalogue_Item_Str).
 # Checks.Outline.Tolerance_Mm is optional and not listed: its default is the item's Tolerance_Mm, not
 # a constant (__Read_Catalogue).
@@ -453,21 +569,22 @@ def __Mode_File_Known_Paths() -> tp.Set[tp.Tuple[str, ...]]:
         (1) parameter [Set<Tuple<string>>]: The known key paths.
     """
 
-    return __Known_Paths([('Hardware',), CONST_CATALOGUE_ITEM_PATH]
+    return __Known_Paths([('Hardware',), CONST_STATION_REFERENCE[:1], CONST_CATALOGUE_ITEM_PATH]
                          + [path for path, _a, _k, _r in CONST_FIELDS + CONST_CATALOGUE_BLOCK_FIELDS])
 
 
 def __Station_File_Known_Paths() -> tp.Set[tp.Tuple[str, ...]]:
     """
     Description:
-        Every key path a station file may hold: the hardware, the station field table, the camera's
-        acquisition settings and its sensor window.
+        Every key path a station file may hold: the hardware, the calibration it names, the station field
+        table, the camera's acquisition settings and its sensor window.
 
     Returns:
         (1) parameter [Set<Tuple<string>>]: The known key paths.
     """
 
-    known = __Known_Paths([('Hardware',)] + [path for path, _a, _k, _r in CONST_STATION_FIELDS])
+    known = __Known_Paths([('Hardware',), CONST_CALIBRATION_REFERENCE[:1]]
+                          + [path for path, _a, _k, _r in CONST_STATION_FIELDS])
     custom = ('Camera', 'Custom_Cfg')
     known.update({custom[:1], custom} | {custom + (key,) for key in CONST_REQUIRED_CUSTOM_CFG_KEYS}
                  | {custom + (key,) for key in CONST_PINNED_CUSTOM_CFG_KINDS}
@@ -772,43 +889,39 @@ def Build_Reference_Sidecar(image_path: str, *, source: str, shot: str, configur
             'calibration': calibration, 'hardware': dict(hardware)}
 
 
-def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tuple[int, int]],
+def __Read_Calibration(path: str, station_path: str, hardware: str, resolution: tp.Optional[tp.Tuple[int, int]],
                        offset: tp.Optional[tp.Tuple[int, int]], problems: tp.List[str],
-                       notes: tp.List[tp.Tuple[str, str]]) -> tp.Tuple[tp.Optional[Camera_Calibration_Parameters_Str],
+                       notes: tp.List[tp.Tuple[str, str]]) -> tp.Tuple[Camera_Calibration_Parameters_Str,
                                                                         tp.Optional[Scale_Str], tp.Optional[float]]:
     """
     Description:
-        Read and validate a hardware's calibration file. The file itself is optional: without it
-        there is no calibration (None) and no scale, with a warning to run calibrate.py. A file that
-        exists must hold K (3 x 3) and the five distortion coefficients; its Conversion_Factor is
-        optional, and its documented default is 'no scale' — objects are then not measured, never
-        measured from an invented factor. The board height its factor holds at
-        (Solved.Board_Height_Mm) is returned when the file records a valid one, and None otherwise:
-        only a catalogue mode needs it, and it says so (Load_Configuration).
+        Read and validate the calibration a station names, against that station. It must hold K (3 x 3)
+        and the five distortion coefficients; its Conversion_Factor is optional, and its documented
+        default is 'no scale' — objects are then not measured, never measured from an invented factor.
+        The board height its factor holds at (Solved.Board_Height_Mm) is returned when the file records
+        a valid one, and None otherwise: only a catalogue mode needs it, and it says so
+        (Load_Configuration).
 
-        The sensor window it was solved at (Resolution, Offset) must equal the camera's: K's
-        principal point and the factor are in that window's pixels, so a calibration of another
-        window fails the load rather than producing wrong millimetres, and so does a file that does
-        not record its window: it cannot be checked.
+        It must be the station's camera: the station's Hardware, and the sensor window the station sets
+        (Resolution, Offset). K's principal point and the factor are in that window's pixels, so a
+        calibration of another window fails the load rather than producing wrong millimetres, and so
+        does a file that does not record its window: it cannot be checked. Each mismatch names both
+        files.
 
     Args:
-        (1) path [string]: The calibration file path.
-        (2) hardware [string]: The hardware id the mode file names.
-        (3 - 4) resolution, offset [Vector<int> 1x2 or None]: The camera's sensor window from the mode
+        (1) path [string]: The calibration file path (it exists: its reference was resolved).
+        (2) station_path [string]: The station file that names it.
+        (3) hardware [string]: The station's hardware id.
+        (4 - 5) resolution, offset [Vector<int> 1x2 or None]: The camera's sensor window from the station
                                                             file (None when invalid there).
-        (5) problems [Vector<string>]: The problem list, appended to.
-        (6) notes [Vector<Tuple<string> 1x2>]: The (level, message) notes, appended to.
+        (6) problems [Vector<string>]: The problem list, appended to.
+        (7) notes [Vector<Tuple<string> 1x2>]: The (level, message) notes, appended to.
 
     Returns:
-        (1) parameter [Tuple]: (the calibration parameters or None, the scale or None, the board
-                               height in mm or None).
+        (1) parameter [Tuple]: (the calibration parameters, the scale or None, the board height in mm
+                               or None).
     """
 
-    if not os.path.exists(path):
-        notes.append(('WARNING', 'no calibration file %s: frames will not be undistorted and objects '
-                                 'will not be measured. Run Example/Camera/calibrate.py to create it.'
-                                 % os.path.basename(path)))
-        return None, None, None
     calibration = Camera_Calibration_Parameters_Str()
     data = __Read_Yaml(path, 'calibration file', problems)
     if data is None:
@@ -817,9 +930,10 @@ def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tupl
     valid, board_height, _expected = __Check('nonnegative', board_height)
     board_height = board_height if valid else None
     name = os.path.basename(path)
+    named_by = '%s, the calibration %s names,' % (name, os.path.basename(station_path))
     if data.get('Hardware') != hardware:
-        problems.append('%s: Hardware is %r but the configuration names %r'
-                        % (name, data.get('Hardware'), hardware))
+        problems.append('%s is of Hardware %r, but the station is %r: a station uses only a calibration of its '
+                        'own camera and lens' % (named_by, data.get('Hardware'), hardware))
     block = data.get('Calibration')
     if not isinstance(block, dict):
         problems.append('%s: Calibration is required but missing' % name)
@@ -832,17 +946,18 @@ def __Read_Calibration(path: str, hardware: str, resolution: tp.Optional[tp.Tupl
                         'against the camera (%s). If they differ, its principal point and conversion factor '
                         'are in the wrong pixels: undistortion and every measurement may be wrong by an '
                         'unknown amount. Recalibrate with Example/Camera/calibrate.py, which records the '
-                        'window' % (name, camera))
+                        'window' % (named_by, camera))
     else:
         solved_at = __Read_Window(block.get('Resolution'), '%s: Calibration.Resolution' % name, 1, problems)
         solved_offset = __Read_Window(block.get('Offset'), '%s: Calibration.Offset' % name, 0, problems)
         calibration.Resolution, calibration.Offset = solved_at, solved_offset
         if solved_at and solved_offset and resolution and offset and (solved_at, solved_offset) != (resolution, offset):
-            problems.append('%s was solved at %s, but Camera.Resolution and Camera.Offset set the camera to %s: '
-                            'its principal point and conversion factor are in the other window\'s pixels. '
-                            'Recalibrate at this window, or set the camera back to the one the calibration '
-                            'belongs to' % (name, __Describe_Window(solved_at, solved_offset),
-                                            __Describe_Window(resolution, offset)))
+            problems.append('%s was solved at %s, but the station\'s Camera.Resolution and Camera.Offset set the '
+                            'camera to %s: its principal point and conversion factor are in the other window\'s '
+                            'pixels. Recalibrate at this window, name a calibration of it, or set the camera back '
+                            'to the one the calibration belongs to'
+                            % (named_by, __Describe_Window(solved_at, solved_offset),
+                               __Describe_Window(resolution, offset)))
 
     try:
         K = np.array(block.get('K'), dtype=np.float64)
@@ -1393,10 +1508,10 @@ def __Catalogue_Scale(Configuration_Str: Configuration_Str, board_height: tp.Opt
 def Load_Configuration(config_path: str) -> Configuration_Str:
     """
     Description:
-        Read a mode file and its hardware's calibration, validate them as a whole, and return the
-        configuration. Every problem is collected before anything is returned, so the caller gets
-        either a configuration that is valid throughout or an error listing everything wrong —
-        never a configuration that is right up to the first bad field.
+        Read a mode file, the station file it names and the calibration the station names, validate them
+        as a whole, and return the configuration. Every problem is collected before anything is returned,
+        so the caller gets either a configuration that is valid throughout or an error listing everything
+        wrong — never a configuration that is right up to the first bad field.
 
     Args:
         (1) config_path [string]: The mode file, 'Config_<Hardware>_Mode_<Mode>.yaml'.
@@ -1406,8 +1521,8 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
                                                    defaulted fields and unknown keys, to be logged.
 
     Raises:
-        Configuration_Error_Cls: The file (or its calibration) is missing, unreadable or invalid;
-                                 the message names each problem.
+        Configuration_Error_Cls: The file, its station or its calibration is missing, unreadable or
+                                 invalid, or two of them disagree; the message names each problem.
     """
 
     config_path = os.path.abspath(config_path)
@@ -1425,29 +1540,39 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
     # 2\ Every setting in the field table.
     __Read_Fields(data, Configuration_Str_i, CONST_FIELDS, problems, notes)
 
-    # 3\ The hardware's station file: the camera and the reference, shared by every mode on it. A mode
-    #    file never overrides it, so what it may hold of the station's is refused, naming the file.
-    resolution, offset = None, None
+    # 3\ The station the mode names: the camera, the reference and the calibration, shared by every mode
+    #    that names it. A mode file never overrides it, so what it may hold of the station's is refused,
+    #    naming the file.
+    station, resolution, offset = None, None, None
     if hardware:
-        Configuration_Str_i.Station_Path = Station_Path_For(config_path, hardware)
-        station_name = os.path.basename(Configuration_Str_i.Station_Path)
+        Configuration_Str_i.Station_Path = __Read_Reference(data, CONST_STATION_REFERENCE, config_path, hardware,
+                                                            problems) or ''
+        station_name = os.path.basename(Configuration_Str_i.Station_Path) or 'the station file'
         for path in CONST_STATION_ONLY_PATHS:
             if __Lookup(data, path)[0]:
                 problems.append('%s is the station\'s, not the mode\'s: remove it from this file and set it in %s '
                                 '(a mode file never overrides the station)' % ('.'.join(path), station_name))
-        resolution, offset = __Read_Station(Configuration_Str_i, hardware, problems, notes)
+        if Configuration_Str_i.Station_Path:
+            station, resolution, offset = __Read_Station(Configuration_Str_i, CONST_STATION_FIELDS, hardware,
+                                                         problems, notes)
 
     # 4\ The cross-field rules, and the paths resolved against the repository.
     reference = __Resolve_And_Cross_Check(Configuration_Str_i, problems)
     if reference and resolution:
         __Check_Reference_Size(reference, resolution, problems)
 
-    # 5\ The hardware's calibration, shared by every mode on it, checked against the sensor window.
+    # 5\ The calibration the station names, checked against the station: its hardware and sensor window.
     board_height = None
-    if hardware:
-        Configuration_Str_i.Calibration_Path = Calibration_Path_For(config_path, hardware)
-        Configuration_Str_i.Camera.Calibration, Configuration_Str_i.Scale, board_height = __Read_Calibration(
-            Configuration_Str_i.Calibration_Path, hardware, resolution, offset, problems, notes)
+    if station is not None:
+        station_hardware = station.get('Hardware') if isinstance(station.get('Hardware'), str) else hardware
+        Configuration_Str_i.Calibration_Path = __Read_Reference(station, CONST_CALIBRATION_REFERENCE,
+                                                                Configuration_Str_i.Station_Path, station_hardware,
+                                                                problems) or ''
+        if Configuration_Str_i.Calibration_Path:
+            Configuration_Str_i.Camera.Calibration, Configuration_Str_i.Scale, board_height = __Read_Calibration(
+                Configuration_Str_i.Calibration_Path, Configuration_Str_i.Station_Path, station_hardware,
+                resolution, offset, problems, notes)
+    calibrated = Configuration_Str_i.Camera.Calibration is not None
 
     # 5b\ A catalogue mode: its item, and the scale corrected to the item's top face — after the
     #     calibration, whose factor and board height the correction starts from.
@@ -1456,12 +1581,12 @@ def Load_Configuration(config_path: str) -> Configuration_Str:
         Configuration_Str_i.Catalogue = __Read_Catalogue_Block(block, problems, notes)
         __Read_Fields(data, Configuration_Str_i, CONST_CATALOGUE_BLOCK_FIELDS, problems, notes)
         __Check_Identification(Configuration_Str_i, resolution, problems)
-        if Configuration_Str_i.Catalogue is not None and hardware:
+        if Configuration_Str_i.Catalogue is not None and calibrated:
             Configuration_Str_i.Scale = __Catalogue_Scale(Configuration_Str_i, board_height, problems)
 
     # 6\ The reference's provenance, against the window, the calibration and the lighting — after
     #    the calibration is read, since the reference must have been undistorted with it.
-    if reference and resolution and offset and os.path.isfile(reference):
+    if reference and resolution and offset and calibrated and os.path.isfile(reference):
         __Check_Reference_Sidecar(reference, Configuration_Str_i.Camera, problems)
 
     # 7\ Keys nothing reads — usually a misspelt optional field.
@@ -1610,42 +1735,98 @@ def __Check_Writable_Directory(directory: str, dotted: str, problems: tp.List[st
         problems.append('%s: the directory "%s" is not writable (%s)' % (dotted, directory, error.strerror or error))
 
 
-def __Read_Station(Configuration_Str: Configuration_Str, hardware: str, problems: tp.List[str],
-                   notes: tp.List[tp.Tuple[str, str]]) -> tp.Tuple[tp.Optional[tp.Tuple[int, int]],
-                                                                    tp.Optional[tp.Tuple[int, int]]]:
+def __Read_Station(Configuration_Str: Configuration_Str, fields: tp.Tuple[tp.Tuple, ...], hardware: str,
+                   problems: tp.List[str], notes: tp.List[tp.Tuple[str, str]]) -> tp.Tuple[
+                       tp.Optional[tp.Dict[str, tp.Any]], tp.Optional[tp.Tuple[int, int]], tp.Optional[tp.Tuple[int, int]]]:
     """
     Description:
-        Read and validate the station file into the configuration: its Hardware must be the mode's; the
-        camera as a person names it and the reference (CONST_STATION_FIELDS); the acquisition settings
-        Basler_Cls cannot start without; and the sensor window the camera is set to on connect, against
-        which the reference and the calibration are checked. Its messages name the file. It is REQUIRED:
-        without it there is no camera to configure.
+        Read and validate the station file a mode names into the configuration: its Hardware must be the
+        mode's; the camera as a person names it and, for the application, the reference (the field
+        table); the acquisition settings Basler_Cls cannot start without; and the sensor window the
+        camera is set to on connect, against which the reference and the calibration are checked. Its
+        messages name the file.
 
     Args:
-        (1) Configuration_Str [Configuration_Str(object)]: The configuration being filled (Station_Path set).
-        (2) hardware [string]: The hardware id the mode file names.
-        (3) problems [Vector<string>]: Collects what is wrong.
-        (4) notes [Vector<Tuple<string> 1x2>]: Collects the (level, message) notes to log.
+        (1) Configuration_Str [Configuration_Str(object)]: The configuration being filled (Path and
+                                                           Station_Path set).
+        (2) fields [Vector<Tuple>]: The station settings read: CONST_STATION_FIELDS, or
+                                    CONST_STATION_CAMERA_FIELDS for the camera alone (Load_Station_Camera).
+        (3) hardware [string]: The hardware id the mode file names.
+        (4) problems [Vector<string>]: Collects what is wrong.
+        (5) notes [Vector<Tuple<string> 1x2>]: Collects the (level, message) notes to log.
 
     Returns:
-        (1) parameter [Vector<int> 1x2 or None]: The window's size, or None when invalid.
-        (2) parameter [Vector<int> 1x2 or None]: The window's offset, or None when invalid.
+        (1) parameter [Dict or None]: The station file's document (its Calibration is read from it), or None
+                                      when it could not be read.
+        (2) parameter [Vector<int> 1x2 or None]: The window's size, or None when invalid.
+        (3) parameter [Vector<int> 1x2 or None]: The window's offset, or None when invalid.
     """
 
     data = __Read_Yaml(Configuration_Str.Station_Path, 'station file', problems)
     if data is None:
-        return None, None
-    prefix = '%s: ' % os.path.basename(Configuration_Str.Station_Path)
+        return None, None, None
+    station_name = os.path.basename(Configuration_Str.Station_Path)
+    prefix = '%s: ' % station_name
     if data.get('Hardware') != hardware:
-        problems.append('%sHardware is %r but the configuration names %r' % (prefix, data.get('Hardware'), hardware))
-    __Read_Fields(data, Configuration_Str, CONST_STATION_FIELDS, problems, notes, prefix)
+        problems.append('%s (Hardware %r) names the station %s, whose Hardware is %r: a mode runs only on a station '
+                        'of its own hardware' % (os.path.basename(Configuration_Str.Path), hardware, station_name,
+                                                 data.get('Hardware')))
+    __Read_Fields(data, Configuration_Str, fields, problems, notes, prefix)
     Configuration_Str.Camera.Custom_Cfg = __Read_Custom_Cfg(data, problems, prefix)
     resolution, offset = __Read_Camera_Window(data, problems, prefix)
     Configuration_Str.Camera.Resolution = resolution or (0, 0)
     Configuration_Str.Camera.Offset = offset or (0, 0)
     for key in __Unknown_Keys(data, __Station_File_Known_Paths()):
         notes.append(('WARNING', '%sunrecognised key %s is ignored (misspelt?).' % (prefix, key)))
-    return resolution, offset
+    return data, resolution, offset
+
+
+def Load_Station_Camera(config_path: str) -> Configuration_Str:
+    """
+    Description:
+        The camera of the station a mode file names, and nothing else: for Example/Camera/calibrate.py,
+        which must run on a camera that has no calibration yet, so it cannot go through
+        Load_Configuration, which requires one. The mode file's Hardware and Station are read, and the
+        station's camera (its names, acquisition settings and sensor window) is validated as
+        Load_Configuration validates it; the rest of the mode file, the background reference and the
+        calibration are not read. The calibration the station names, when it names one that exists, is
+        reported in Calibration_Path, unvalidated: the tool copies its header and says it stays in force.
+
+    Args:
+        (1) config_path [string]: The mode file, 'Config_<Hardware>_Mode_<Mode>.yaml'.
+
+    Returns:
+        (1) parameter [Configuration_Str(object)]: Path, Name, Hardware, Mode, Station_Path, Camera (without a
+                                                   calibration), Calibration_Path ('' when the station names
+                                                   none that exists) and Notes are set; nothing else is.
+
+    Raises:
+        Configuration_Error_Cls: The mode file, its Station or the station's camera is missing or invalid;
+                                 the message names each problem.
+    """
+
+    config_path = os.path.abspath(config_path)
+    name = os.path.basename(config_path)
+    problems, notes = [], []
+    Configuration_Str_i = Configuration_Str(Path=config_path, Name=name)
+    data = __Read_Yaml(config_path, 'configuration file', problems)
+    station = None
+    if data is not None:
+        hardware, mode = __Read_Hardware(data, config_path, problems)
+        Configuration_Str_i.Hardware, Configuration_Str_i.Mode = hardware, mode
+        if hardware:
+            Configuration_Str_i.Station_Path = __Read_Reference(data, CONST_STATION_REFERENCE, config_path, hardware,
+                                                                problems) or ''
+        if Configuration_Str_i.Station_Path:
+            station, _resolution, _offset = __Read_Station(Configuration_Str_i, CONST_STATION_CAMERA_FIELDS, hardware,
+                                                           problems, notes)
+    if problems:
+        raise Configuration_Error_Cls("The camera of configuration '%s' cannot be read: %s." % (name, '; '.join(problems)))
+    Configuration_Str_i.Calibration_Path = __Read_Reference(station, CONST_CALIBRATION_REFERENCE,
+                                                            Configuration_Str_i.Station_Path,
+                                                            Configuration_Str_i.Hardware, []) or ''
+    Configuration_Str_i.Notes = [(level, "Configuration '%s': %s" % (name, message)) for level, message in notes]
+    return Configuration_Str_i
 
 
 def __Read_Custom_Cfg(data: tp.Dict[str, tp.Any], problems: tp.List[str], prefix: str) -> tp.Dict[str, tp.Any]:
@@ -1782,7 +1963,7 @@ def Discover_Configurations(directory: str) -> tp.List[tp.Tuple[str, tp.Optional
         not silently missing.
 
     Args:
-        (1) directory [string]: The directory to look in (Configuration/).
+        (1) directory [string]: The directory to look in (Mode_Directory(), Configuration/Mode/).
 
     Returns:
         (1) parameter [Vector<Tuple>]: (path, the configuration or None, the error or ''), ordered by
@@ -1836,8 +2017,7 @@ def Config_Sources_Log_Line(Configuration_Str: Configuration_Str) -> str:
         (1) parameter [string]: The log line.
     """
 
-    calibration = (Display_Path(Configuration_Str.Calibration_Path)
-                   if Configuration_Str.Camera.Calibration is not None else 'none (no calibration file)')
+    calibration = Display_Path(Configuration_Str.Calibration_Path)
     sources = 'station %s, calibration %s and background reference %s' % (
         Display_Path(Configuration_Str.Station_Path), calibration,
         Display_Path(Configuration_Str.Segmentation.Background_Reference))
@@ -1953,18 +2133,18 @@ def Config_Loaded_Log_Line(Configuration_Str: Configuration_Str) -> str:
                Configuration_Str.Mode, Configuration_Str.Identity.Model_Set, state))
 
 
-def __Check_Writable(Camera_Calibration_Parameters_Str: Camera_Calibration_Parameters_Str, hardware: str,
+def __Check_Writable(Camera_Calibration_Parameters_Str: Camera_Calibration_Parameters_Str,
                      output_path: str) -> None:
     """
     Description:
-        Step 1 of Write_Calibration: refuse a calibration that does not record its window, and a
-        file holding anything the writer does not own (another key, another hardware).
+        Step 1 of Write_Calibration: refuse a calibration that does not record its window, and any
+        file that exists — a calibration is never written over, so an older one stays available to
+        switch back to, and content someone added to one is never regenerated away.
 
     Args:
         (1) Camera_Calibration_Parameters_Str [Camera_Calibration_Parameters_Str(object)]: The solved
             calibration.
-        (2) hardware [string]: The hardware id the calibration belongs to.
-        (3) output_path [string]: The file to be written.
+        (2) output_path [string]: The file to be written.
 
     Raises:
         AssertionError: The write is refused; the message says why.
@@ -1973,24 +2153,16 @@ def __Check_Writable(Camera_Calibration_Parameters_Str: Camera_Calibration_Param
     assert (Camera_Calibration_Parameters_Str.Resolution is not None
             and Camera_Calibration_Parameters_Str.Offset is not None), (
         'the calibration does not record the sensor window (Resolution and Offset) it was solved at')
-    if os.path.exists(output_path):
-        with open(output_path, 'r', encoding='utf-8') as f:
-            existing = yaml.safe_load(f)
-        assert isinstance(existing, dict), 'it does not hold a YAML mapping'
-        foreign = [key for key in existing if key not in CONST_CALIBRATION_FILE_KEYS]
-        block = existing.get('Calibration') or {}
-        foreign += ['Calibration.%s' % key for key in block if key not in CONST_CALIBRATION_BLOCK_KEYS]
-        assert not foreign, ('it holds %s, which this writer does not own and would delete'
-                             % ', '.join(foreign))
-        assert existing.get('Hardware') in (None, hardware), (
-            'it belongs to hardware %r, not %r' % (existing.get('Hardware'), hardware))
+    assert not os.path.lexists(output_path), (
+        '%s already exists, and a calibration is never written over: the older one stays available to switch '
+        'back to' % Display_Path(output_path))
 
 
 def __Header_Lines(header_source: tp.Optional[str], hardware: str) -> tp.List[str]:
     """
     Description:
-        Step 2 of Write_Calibration: the header comment, the leading comment lines of the file in
-        force, or a minimal one when there is none.
+        Step 2 of Write_Calibration: the header comment, the leading comment lines of the calibration
+        in force, or a minimal one when there is none.
 
     Args:
         (1) header_source [string or None]: The calibration file whose header is copied.
@@ -2071,18 +2243,18 @@ def __Calibration_Body(Camera_Calibration_Parameters_Str: Camera_Calibration_Par
             f'  Conversion_Factor:\n{factors}\n')
 
 
-def __Replace_File(path: str, text: str) -> None:
+def __Write_Whole(path: str, text: str) -> None:
     """
     Description:
-        Step 4 of Write_Calibration: write the text beside the target, then replace it whole, so a
-        write that fails part-way (a full disk) leaves the file in force, not a torn one.
+        Step 4 of Write_Calibration: write the text beside the target, then move it into place whole,
+        so a write that fails part-way (a full disk) leaves no torn calibration for a station to name.
 
     Args:
-        (1) path [string]: The file replaced.
-        (2) text [string]: Its new content.
+        (1) path [string]: The file written.
+        (2) text [string]: Its content.
 
     Raises:
-        OSError: The write failed; the target is as it was and nothing is left beside it.
+        OSError: The write failed; nothing is left at the target or beside it.
     """
 
     temporary = path + '.writing'
@@ -2091,8 +2263,6 @@ def __Replace_File(path: str, text: str) -> None:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
-        if os.path.exists(path):
-            shutil.copymode(path, temporary)
         os.replace(temporary, path)
     except BaseException:
         if os.path.exists(temporary):
@@ -2105,18 +2275,16 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
                       record: tp.Dict[str, tp.Any]) -> bool:
     """
     Description:
-        Write a hardware's calibration file from a freshly solved result: the header comment,
-        'Hardware', and the 'Calibration' block (how it was solved, K, the coefficients and the
-        conversion factor).
+        Write a NEW calibration file from a freshly solved result: the header comment, 'Hardware',
+        and the 'Calibration' block (how it was solved, K, the coefficients and the conversion
+        factor).
 
         Note:
-            The writer can only destroy what it owns. When output_path already exists it is read
-            first, and the write is REFUSED if the file holds any top-level key other than
-            'Hardware' and 'Calibration', any key in 'Calibration' the writer does not produce, or
-            another hardware — so content someone added to a calibration file is never silently
-            regenerated away. The existing header comment is kept. The file is written whole
-            beside the target and then replaces it, so a write that fails part-way leaves the
-            calibration in force as it was.
+            The writer destroys nothing: when output_path exists, the write is REFUSED. A calibration
+            is never written over, so every older one stays available to switch back to, by the
+            station file's Calibration line — which the writer never edits. The header comment of the
+            calibration in force is copied. The file is written whole beside the target and then moved
+            into place, so a write that fails part-way leaves no torn file.
 
     Args:
         (1) Camera_Calibration_Parameters_Str [Camera_Calibration_Parameters_Str(object)]: The
@@ -2126,7 +2294,7 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
         (2) hardware [string]: REQUIRED, keyword-only: the hardware id the calibration belongs to.
         (3) header_source [string or None]: REQUIRED, keyword-only: a calibration file whose
             header comment is copied (the one in force); None writes a minimal header.
-        (4) output_path [string]: REQUIRED, keyword-only: the file written (may be the one in force).
+        (4) output_path [string]: REQUIRED, keyword-only: the file written; it must not exist.
         (5) record [Dict]: REQUIRED, keyword-only: how the calibration was solved — 'date',
             'images', 'views' {'total', 'flat', 'tilted'}, 'rms_px', 'square_mm' and
             'board_height_mm' (the reference plane: the flat boards' surface above the table).
@@ -2136,10 +2304,10 @@ def Write_Calibration(Camera_Calibration_Parameters_Str: Camera_Calibration_Para
     """
 
     try:
-        __Check_Writable(Camera_Calibration_Parameters_Str, hardware, output_path)
+        __Check_Writable(Camera_Calibration_Parameters_Str, output_path)
         header = __Header_Lines(header_source, hardware)
         body = __Calibration_Body(Camera_Calibration_Parameters_Str, hardware, record)
-        __Replace_File(output_path, '\n'.join(header).rstrip('\n') + '\n\n' + body)
+        __Write_Whole(output_path, '\n'.join(header).rstrip('\n') + '\n\n' + body)
         return True
 
     except (AssertionError, OSError, KeyError, yaml.YAMLError) as error:

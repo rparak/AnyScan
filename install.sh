@@ -1086,7 +1086,7 @@ Ensure_Hub_Model() {
 
 Check_Configurations() {
     # Description:
-    #   Every Configuration/Config_*.yaml names its model files. If one does not point at
+    #   Every Configuration/Mode/Config_*.yaml names its model files. If one does not point at
     #   what this script installed, the setup looks complete and fails at load - so name the
     #   file, the field and the value to change it to. The installed models are the same on
     #   every platform, so a mismatch means an edited configuration, not a platform difference.
@@ -1097,7 +1097,7 @@ Check_Configurations() {
 import glob, os, sys
 import yaml
 root, fastsam, gemma, dinov2 = sys.argv[1:5]
-for path in sorted(glob.glob(os.path.join(root, 'Configuration', 'Config_*.yaml'))):
+for path in sorted(glob.glob(os.path.join(root, 'Configuration', 'Mode', 'Config_*.yaml'))):
     with open(path) as handle:
         data = yaml.safe_load(handle) or {}
     fields = [('Segmentation', 'Model', fastsam), ('Description', 'Model', gemma)]
@@ -1110,10 +1110,10 @@ for path in sorted(glob.glob(os.path.join(root, 'Configuration', 'Config_*.yaml'
         verdict = 'ok' if same else ('elsewhere' if value is not None and os.path.exists(resolved) else 'missing')
         print('\t'.join([os.path.basename(path), section + '.' + key, str(value), verdict]))
 PY
-)" || Die 'Reading the configurations in Configuration/ failed:' "$(printf '%s\n' "${report}" | tail -n 1)" \
+)" || Die 'Reading the configurations in Configuration/Mode/ failed:' "$(printf '%s\n' "${report}" | tail -n 1)" \
           'Fix the YAML file it names (the application would fail to load it too), then re-run ./install.sh.'
     if [ -z "${report}" ]; then
-        Log WARNING 'No Configuration/Config_*.yaml found; the application needs one to load the models.'
+        Log WARNING 'No Configuration/Mode/Config_*.yaml found; the application needs one to load the models.'
         return 0
     fi
     while IFS="$(printf '\t')" read -r file field value verdict; do
@@ -1130,7 +1130,7 @@ PY
                 # Another model that is on disk (a directory the configuration was edited to name):
                 # the configuration still loads, just not the model this run installed. The installer never
                 # edits a configuration; it names the field.
-                Log WARNING "Configuration ${file}: ${field} is '${value}', not the model this run installed. To use ${MODEL_NAME}, set ${field} to ${expected} in Configuration/${file} (the installer does not edit configurations)."
+                Log WARNING "Configuration ${file}: ${field} is '${value}', not the model this run installed. To use ${MODEL_NAME}, set ${field} to ${expected} in Configuration/Mode/${file} (the installer does not edit configurations)."
             else
                 Log WARNING "Configuration ${file}: ${field} is '${value}', but this installer put that model at ${expected}. Change ${field} to ${expected}, or the application will fail when it loads the model."
             fi

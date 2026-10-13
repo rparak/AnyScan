@@ -44,7 +44,6 @@ from PyQt5.QtWidgets import QApplication, QPushButton, QLabel, QListWidget, QPro
 #   ../UI/Core
 from UI.Core import AnyScan_Window_Cls
 #   ../UI/Configuration_Dialog
-import UI.Configuration_Dialog as Dialog
 from UI.Configuration_Dialog import Configuration_Dialog_Cls
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
@@ -62,7 +61,8 @@ from UI.Capture import Discover_Capture_Sets
 from Parameters.Vision import Analysis_Str
 # Custom Lib.: AnyScan — the configuration layer
 #   ../Configuration/Core
-from Configuration.Core import Load_Configuration, Calibration_Path_For, Station_Path_For, CONST_DEFAULT_CONFIG_FILE
+from Configuration.Core import (Load_Configuration, Mode_Directory, Station_Directory, Calibration_Directory,
+                                CONST_DEFAULT_CONFIG_FILE)
 
 """
 Description:
@@ -146,44 +146,43 @@ def _Pump_Until(condition: tp.Callable[[], bool], timeout: float = 10.0) -> None
 
 def _Mode_File(directory: tp.Any, mode: str, hardware: str = CONST_HARDWARE,
                edit: tp.Optional[tp.Callable[[tp.Dict], None]] = None) -> str:
-    """A mode file (from the shipped one, optionally edited), its hardware's station file and calibration."""
+    """
+    A mode file (from the shipped one, optionally edited) in a directory, naming its hardware's station. For
+    hardware other than the shipped one, that station and its calibration are written into the test's
+    Configuration/ (configuration_root) from the shipped ones, renamed for the hardware.
+    """
     with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
-    data['Hardware'] = hardware
+    data['Hardware'], data['Station'] = hardware, data['Station'].replace(CONST_HARDWARE, hardware)
     if edit is not None:
         edit(data)
     path = os.path.join(str(directory), 'Config_%s_Mode_%s.yaml' % (hardware, mode))
     with open(path, 'w', encoding='utf-8') as f:
         yaml.safe_dump(data, f, sort_keys=False)
-    station = Station_Path_For(path, hardware)
-    if not os.path.exists(station):
-        with open(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
-            station_text = f.read().replace(CONST_HARDWARE, hardware)
-        with open(station, 'w', encoding='utf-8') as f:
-            f.write(station_text)
-    calibration = Calibration_Path_For(path, hardware)
-    if not os.path.exists(calibration):
-        with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
-            content = f.read().replace(CONST_HARDWARE, hardware)
-        with open(calibration, 'w', encoding='utf-8') as f:
-            f.write(content)
+    for folder in (Station_Directory(), Calibration_Directory()):
+        for name in [name for name in os.listdir(folder) if CONST_HARDWARE in name]:
+            target = os.path.join(folder, name.replace(CONST_HARDWARE, hardware))
+            if not os.path.exists(target):
+                with open(os.path.join(folder, name), 'r', encoding='utf-8') as f:
+                    text = f.read().replace(CONST_HARDWARE, hardware)
+                with open(target, 'w', encoding='utf-8') as f:
+                    f.write(text)
     return path
 
 
 @pytest.fixture
-def configurations(tmp_path, monkeypatch) -> tp.Dict[str, str]:
-    """A Configuration/ directory the dialog discovers: two modes on this camera, one on another
+def configurations(configuration_root) -> tp.Dict[str, str]:
+    """A Configuration/Mode/ directory the dialog discovers: two modes on this camera, one on another
     camera, one broken file (Model_Set missing) and an unrelated YAML."""
-    directory = tmp_path / 'Configuration'
-    directory.mkdir()
+    directory = Mode_Directory()
     paths = {'seg': _Mode_File(directory, 'Seg_Anything'),
              'second': _Mode_File(directory, 'Inspect', edit=lambda d: d['Identity'].update(Display_Name='Cfg. Inspection')),
              'other': _Mode_File(directory, 'Seg_Anything', hardware='acA2500_14gc_Fujinon_HF16',
                                  edit=lambda d: d['Identity'].update(Display_Name='Cfg. Bench Camera')),
              'broken': _Mode_File(directory, 'Draft', edit=lambda d: d['Identity'].pop('Model_Set'))}
-    (directory / 'notes.yaml').write_text('Hardware: x\n')
-    monkeypatch.setattr(Dialog, 'CONST_CONFIG_DIR', str(directory))
-    paths['dir'] = str(directory)
+    with open(os.path.join(directory, 'notes.yaml'), 'w', encoding='utf-8') as f:
+        f.write('Hardware: x\n')
+    paths['dir'] = directory
     return paths
 
 
@@ -296,16 +295,14 @@ def test_the_dialog_lists_usable_configurations_and_logs_the_rest(qt_app, tmp_pa
     assert 'Identity.Model_Set is required but missing' in message
 
 
-def test_an_empty_directory_says_so_where_the_list_would_be(qt_app, tmp_path, monkeypatch) -> None:
+def test_an_empty_directory_says_so_where_the_list_would_be(qt_app, tmp_path, configuration_root) -> None:
     """
     Description:
         With no usable configuration the list is replaced by a message naming the directory searched
         and saying CONNECT stays unavailable — and there is nothing to Load.
     """
 
-    empty = tmp_path / 'Empty'
-    empty.mkdir()
-    monkeypatch.setattr(Dialog, 'CONST_CONFIG_DIR', str(empty))
+    empty = Mode_Directory()                                          # configuration_root's Mode/ is empty
     config = Load_Configuration(_Mode_File(tmp_path, 'Seg_Anything'))
     os.remove(config.Path)                                            # the one in force is gone too
     dialog = Configuration_Dialog_Cls(_Fake_Vision_Cls(), config)
@@ -442,7 +439,7 @@ def test_a_loaded_configuration_is_applied_and_logged(qt_app, tmp_path, configur
     log = _Log_Text(logger)
     assert "Loaded configuration '%s' ('Cfg. Strict'" % config.Name in log
     assert 'reads station ' in log and 'Station_%s.yaml, calibration ' % CONST_HARDWARE in log
-    assert 'Calibration_%s.yaml, background reference' % CONST_HARDWARE in log
+    assert '%s, background reference' % os.path.basename(config.Calibration_Path) in log
     assert ('background reference Data/Images/Background/Image_Background_001.png and catalogue item '
             'Data/Catalogue/mounting_plate/mounting_plate.yaml' in log)
     assert "Models loaded for '%s' (JIC_AnyScan_Strict_v1, task 'part inspection')" % config.Name in log

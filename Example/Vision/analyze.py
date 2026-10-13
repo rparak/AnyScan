@@ -129,7 +129,7 @@ def Discover_Scenes(data_dir: str) -> tp.List[str]:
         The scene frames in a directory, naturally sorted (Image_2 before Image_10): a glob of
         CONST_SCENE_GLOB, never a hard-coded range, so a gap in the numbering is tolerated and the
         empty-surface reference is not among them. The reference itself is never discovered: it is
-        the station's Background.Reference (Station_<Hardware>.yaml).
+        the station's Background.Reference (the station file the mode names, Configuration/Station/).
 
     Args:
         (1) data_dir [string]: The directory to search for scene frames.

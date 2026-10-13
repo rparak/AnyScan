@@ -141,8 +141,20 @@ fall back to the nearest system faces.
 
 ## Configuration
 
+The configuration is three kinds of file, each in its own folder, linked by name:
+
+```
+Configuration/Mode/Config_<Hardware>_Mode_<Mode>.yaml      Station: Station_<...>.yaml
+Configuration/Station/Station_<Hardware>[_<Name>].yaml     Calibration: Calibration_<...>.yaml
+Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml
+```
+
+A mode file names its station, and the station file names its calibration. A reference is a file
+name, never a path, and resolves in its kind's folder of this repository wherever the file holding it
+is. A new station or a new calibration is a new file and one changed reference; no code changes.
+
 Everything a user can change without touching code lives in one file per mode,
-`Configuration/Config_<Hardware>_Mode_<Mode>.yaml`, for example
+`Configuration/Mode/Config_<Hardware>_Mode_<Mode>.yaml`, for example
 `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml`. A catalogue mode's file also names
 its catalogue item, `Data/Catalogue/<item>/<item>.yaml`, which the loader reads by the same rules. The
 hardware comes first so
@@ -152,33 +164,38 @@ file's own comments give every field's default and unit.
 
 **A station sets its own station-event directory in a local copy of the mode file, never in the
 shipped one.** The shipped file keeps `logger/Station_Events`. A station copies the mode file to a
-directory outside the repository, keeping its name, and symlinks `Calibration_<Hardware>.yaml` and
-`Station_<Hardware>.yaml` beside it. The loader looks for both next to the mode file, and the symlinks
-follow any recalibration or station change. The copy sets `General.Station_Events.Directory` to the station's path, and the station
-starts with `--config <that copy>`. The Configuration dialog lists only `Configuration/`, whose modes
-name `logger/Station_Events`, so on such a station the dialog refuses them: another mode needs its own
-local copy too.
+directory outside the repository, keeping its name, and changes only
+`General.Station_Events.Directory` to the station's path; the station starts with
+`--config <that copy>`. The copy's `Station` line resolves in this repository's
+`Configuration/Station/`, and that station's `Calibration` in `Configuration/Calibration/`, so nothing
+is copied or symlinked beside it, and a calibration switched in the repository is the copy's too. The
+Configuration dialog lists only `Configuration/Mode/`, whose modes name `logger/Station_Events`, so on
+such a station the dialog refuses them: another mode needs its own local copy too. A copy made before
+2026-10-13 has no `Station` line and fails to load, naming the line to add; its symlinks are no longer
+read.
 
 The camera is not in the mode file either. Its settings — the camera, lens and lighting as a person
-names them, the acquisition settings, the sensor window — and the empty-surface reference live once per
-station in `Configuration/Station_<Hardware>.yaml`: they belong to the camera, the light and the table, so
-every mode on that hardware shares them. A mode file never overrides them: one that still holds `Camera`
-or a background reference fails to load and names the station file. The station file is committed, so it
-holds nothing true of one machine only; the station-event directory stays in the local copy of the mode
-file.
+names them, the acquisition settings, the sensor window — the empty-surface reference and the
+calibration in force live in the station file the mode names, `Configuration/Station/`: they belong to
+the camera, the light and the table, so every mode naming that station shares them. A mode file never
+overrides them: one that holds `Camera`, `Calibration` or a background reference fails to load and names
+the station file. The station file is written by hand and committed, so it holds nothing true of one
+machine only; the station-event directory stays in the local copy of the mode file.
 
-The calibration is not in the mode file. It lives once per camera in
-`Configuration/Calibration_<Hardware>.yaml`, and every mode on that hardware shares it, as it
-shares the run summary (`logger/log_<Hardware>.csv`). A camera with no calibration file yet still
-loads, with a warning: frames are not undistorted and sizes are not reported until
-`Example/Camera/calibrate.py` has created the file.
+The calibration is not in the station file. Each calibration is a file of its own in
+`Configuration/Calibration/`, written by `Example/Camera/calibrate.py`, and the station's `Calibration`
+line says which one is in force. Older calibrations stay beside it, so switching back is that one line.
+Nothing loads without a calibration: a station that names none fails to load and says the line to add.
 
-`Configuration.Core.Load_Configuration` is the only code that reads these files. It checks the whole
-file before anything is applied:
+`Configuration.Core.Load_Configuration` is the only code that reads these files. It checks the mode
+file, its station and its calibration as a whole before anything is applied:
 
-- A missing **required** field (the hardware, the station-event directory, a model path, a prompt, the
-  display name or model set; in the station file, the background reference and the camera's acquisition
-  settings and sensor window) fails the load and names it, with the file it belongs in.
+- A missing **required** field (the hardware, the station, the station-event directory, a model path, a
+  prompt, the display name or model set; in the station file, the calibration, the background reference
+  and the camera's acquisition settings and sensor window) fails the load and names it, with the file it
+  belongs in. A missing `Station` or `Calibration` names the line to add.
+- Each link must agree: the station's `Hardware` is the mode's, and the calibration's `Hardware` and
+  sensor window are the station's. A mismatch fails the load, naming both files.
 - What depends on the sensor window is checked against it: a background reference of another size
   fails the load, naming both sizes, and so does a calibration solved at another window. The
   camera never takes its size from the reference. A calibration that does not record its window
@@ -196,7 +213,7 @@ file before anything is applied:
 1. The application starts with its configuration (`--config`, default above) named but **not
    loaded**. The header's model pill reads *Configuration not loaded.* (dashed outline), and
    CONNECT is unavailable until a configuration is loaded.
-2. **CONFIGURATION** opens a dialog listing the configurations in `Configuration/` by name, with the
+2. **CONFIGURATION** opens a dialog listing the configurations in `Configuration/Mode/` by name, with the
    one in force marked. Pick one and press **Load**: it loads in the background with a progress bar,
    then says what was loaded and closes. On failure it says why, and the previous configuration
    stays in force.
@@ -209,11 +226,13 @@ file before anything is applied:
    capture set records the configuration, its background reference, and the camera, lens and
    lighting.
 
-Recalibrating writes a new `Calibration_<Hardware>_calib-<date>.yaml` beside the one in force; a
-camera's first calibration goes straight into place. Pass `--write-calibration` to overwrite the one
-in force instead: `python Example/Camera/calibrate.py --images DIR ... [--write-calibration]`.
-(`--write-config`, the old name, now fails with a message naming the new one.) The writer refuses to
-overwrite a calibration file holding anything it does not own.
+Recalibrating (`python Example/Camera/calibrate.py --images DIR ...`) always writes a new
+`Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml` and never writes over a file.
+It does not edit the station file: it prints the station file's `Calibration` line, by number, and the
+text to set it to (on a station with no calibration yet, the line to add below `Hardware:`). Make that
+edit and restart to use the new calibration. It reads only the station's camera, so it runs on a camera
+with no calibration yet. `--write-calibration` and `--write-config` are removed and fail with a message
+saying so.
 
 ## Limitations
 
@@ -489,7 +508,7 @@ than silently leaving a gap, so a broken asset path is visible immediately.
 - `Parameters/Vision.py` — the app's data structures (`Detection_Str`, `Analysis_Str`);
   `Parameters/Camera.py` — the camera / calibration structures; `Parameters/Configuration.py`
   — the loaded configuration (`Configuration_Str`) and its documented defaults.
-- `Configuration/` — `Configuration/Core.py`, the one reader of `Configuration/*.yaml` (and
+- `Configuration/` — `Configuration/Core.py`, the one reader of `Configuration/*/*.yaml` (and
   the calibration writer). Every module receives its settings from it.
 
 These are the Qt-free domain modules plus the Qt UI; `App/run.py` imports only
@@ -502,8 +521,8 @@ these, and the domain half imports with PyQt5 unavailable (a tested contract).
   the repository imports it today.
 - `Calibration/` — the multi-view checkerboard calibration, written in this project's
   style. `Example/Camera/calibrate.py` drives the real camera and calibrates through it;
-  `Example/Vision/analyze.py` uses its natural sort key. The camera setup itself lives in `Configuration/*.yaml`, read and written
-through `Configuration/Core.py`.
+  `Example/Vision/analyze.py` uses its natural sort key. The camera setup itself lives in `Configuration/Station/` and
+`Configuration/Calibration/`, read and written through `Configuration/Core.py`.
 
 ## Platform
 

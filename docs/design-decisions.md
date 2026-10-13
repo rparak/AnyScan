@@ -1258,6 +1258,14 @@ are the station's, in `Station_<Hardware>.yaml` beside it, shared by every mode 
 ([*The station file holds the camera and the reference…*](#the-station-file-holds-the-camera-and-the-reference-and-a-mode-file-never-overrides-it)).
 The rest of this entry stands.*
 
+*Corrected 2026-10-13: the calibration is no longer found by the hardware beside the mode file, and is no
+longer optional. The station file names it (`Calibration`), the mode file names the station (`Station`),
+each kind in its own folder; nothing loads uncalibrated, and `calibrate.py` reads the station's camera alone,
+so a new camera can still be calibrated. `Write_Calibration` now refuses any existing file
+([*The configuration is a chain of references…*](#the-configuration-is-a-chain-of-references-mode--station--calibration-each-kind-in-its-own-folder)).
+"Calibration lives once per camera, and is optional as a whole" below is superseded by that entry; the
+rest stands.*
+
 **The layout.** A configuration is one file per mode on one camera:
 `Config_<Hardware>_Mode_<Mode>.yaml`. The hardware comes first so camera-specific data still
 separates by camera, and the mode comes after so it stays visible. It holds everything a user
@@ -2995,6 +3003,12 @@ missing-weights sentence; slow: unit rows, repeatable, the two sides apart).
 
 ## The station file holds the camera and the reference, and a mode file never overrides it
 
+*Corrected 2026-10-13: the station is no longer found by the mode file's `Hardware`: the mode file names it
+(`Station`), and it lives in `Configuration/Station/`. It now also names the calibration in force, which a mode
+file cannot override either. A local copy of a mode file no longer keeps the station beside it
+([*The configuration is a chain of references…*](#the-configuration-is-a-chain-of-references-mode--station--calibration-each-kind-in-its-own-folder)).
+The no-overrides rule stands.*
+
 Decided 2026-10-11 (catalogue phase B.1), on the owner's rulings. What belongs to the camera, the light and
 the table moved out of the mode files into one station file per hardware,
 `Configuration/Station_<Hardware>.yaml`: the camera, lens and lighting as a person names them, the
@@ -3436,3 +3450,62 @@ station, nor the whole `install.sh`.
 shipping Qt plugins, or the application starts using OpenCV's own windows.
 Tests `test/Install/test_install.py` (the swap, idempotence, the stops, the check's own Python, its place after
 the requirements install), `test/UI/test_opencv_check.py` (`App/run.py` stopping before cv2 and Qt).
+
+
+## The configuration is a chain of references, mode → station → calibration, each kind in its own folder
+
+Decided 2026-10-13, on the owner's request and rulings. `Configuration/` holds three folders, one per kind:
+`Mode/` (`Config_<Hardware>_Mode_<Mode>.yaml`), `Station/` (`Station_*.yaml`) and `Calibration/`
+(`Calibration_*.yaml`). A mode file names its station (`Station`, REQUIRED); the station file names its
+calibration (`Calibration`, REQUIRED). Nothing is found by convention any more: the loader no longer builds
+`Station_<Hardware>.yaml` and `Calibration_<Hardware>.yaml` beside the mode file
+(`Configuration.Core.__Read_Reference`, `Load_Configuration`).
+
+- **A reference is a file name, never a path**, of its kind (`Station_*.yaml`, `Calibration_*.yaml`), resolved
+  in its kind's folder of the repository (`Station_Directory`, `Calibration_Directory`) wherever the file
+  holding it is. A local copy of a mode file kept outside the repository — a station's, for its own
+  station-event directory — reads the shipped station and calibration with nothing beside it. Until now that
+  copy needed both files symlinked beside it; a path in a reference would make a copy read something else.
+- **Each link is checked, and a failure names both files**: the station's `Hardware` must be the mode's; the
+  calibration's `Hardware`, `Resolution` and `Offset` must be the station's. A missing reference fails the load
+  with the line to add, where, and the files of that kind for the hardware.
+- **Nothing loads uncalibrated.** A station that names no calibration fails, in the application and every
+  harness. Until now a hardware without a calibration file loaded with a warning, not undistorted and not
+  measured, so that `calibrate.py` could run on a new camera. That one case now has its own reader,
+  `Load_Station_Camera`: the mode's Hardware and Station, and the station's camera — names, acquisition
+  settings, window — validated as `Load_Configuration` validates them; no reference image, no calibration.
+- **The calibration stays a file of its own, never inside the station file**: the station file is written by
+  hand, with comments, and the calibration is written by a tool; and separate files keep every older
+  calibration available to switch back to, by one line.
+- **A calibration is never written over.** `calibrate.py --images` always writes a new
+  `Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml` into `Configuration/Calibration/`, copying the header of the
+  one in force, and prints the station file's `Calibration` line by number with the text to set (or, on a
+  station with none, the line to add below `Hardware`). It never edits the station file. `Write_Calibration`
+  refuses any file that exists, so the protection is in the writer, not in the tool's naming;
+  `--write-calibration` (overwrite the one in force) is removed and says so. Adopting a calibration is that
+  one deliberate edit, as making a reference is (`make_reference.py`).
+- **A mode file cannot override the station**: `Calibration` joins `Camera` and the background reference among
+  the keys a mode file holding fails on, naming the station file.
+
+**Migration.** The four files moved with `git mv`. The calibration in force was renamed after its solve,
+`Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_20260928-110755.yaml`, so every calibration is named the way the
+tool names them; its content is unchanged. Each mode file gained `Station:`, the station `Calibration:`. Older
+records are untouched and still read: a capture set records the mode file's *name*, the reference, the hardware,
+window and factor, and nothing resolves a recorded name back to a file. The reference sidecar's
+`calibration.file` (`Calibration_<Hardware>.yaml`) is history; its check compares the lens model's fingerprint,
+which the rename does not change.
+
+**Revisit if** two stations must share a station file with different references or lights (then the station
+splits further), a reference must point outside the repository (a station's own calibration not committed),
+or a second tool needs to write the station file (then it is no longer hand-written, and the calibration could
+move into it).
+Tests `test/Configuration/test_core.py` (`test_a_mode_file_without_a_station_fails_naming_the_line_to_add`,
+`test_a_reference_must_be_a_file_name_of_its_kind`, `test_the_station_file_must_be_the_modes_hardware`,
+`test_the_calibration_must_be_the_stations_hardware`, `test_a_calibration_solved_at_another_window_fails_the_load`,
+`test_a_station_without_a_calibration_fails_naming_the_line_to_add`, `test_the_station_camera_reads_without_a_calibration`,
+`test_switching_the_calibration_is_one_changed_line`,
+`test_a_local_copy_of_a_mode_file_reads_the_shipped_station_and_calibration`,
+`test_every_configuration_file_lives_in_its_kind_folder`, `test_the_calibration_writer_never_writes_over_a_file`,
+`test_a_mode_file_never_overrides_the_station`), `test/Calibration/test_core.py`
+(`test_images_harness_writes_a_new_calibration_and_prints_the_station_line`,
+`test_a_first_calibration_is_a_new_file_and_the_harness_says_the_line_to_add`, `test_a_removed_flag_says_what_replaced_it`).

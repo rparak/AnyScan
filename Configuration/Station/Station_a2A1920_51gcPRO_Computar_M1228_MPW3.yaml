@@ -1,16 +1,16 @@
 ## =========================================================================== ##
 #   Description:
-#     One STATION: the camera, its acquisition settings and sensor window, and the
-#     empty-surface reference — what belongs to the camera, the light and the table,
-#     shared by every mode on this hardware. Read, validated as a whole and applied by
-#     Configuration.Core.Load_Configuration with each mode file; no other module reads
-#     this file.
+#     One STATION: the camera, its acquisition settings and sensor window, the
+#     empty-surface reference and the calibration in force — what belongs to the camera,
+#     the light and the table, shared by every mode that names this file. Read, validated
+#     as a whole and applied by Configuration.Core.Load_Configuration with each mode file;
+#     no other module reads this file. Written by hand; no tool edits it.
 #
 #   File name:
-#     Station_<Hardware>.yaml, beside the mode files (Config_<Hardware>_Mode_<Mode>.yaml),
-#     which find it by their Hardware, as they find Calibration_<Hardware>.yaml. A mode file
-#     never overrides it: a mode file holding Camera, or a background reference, fails to
-#     load and names this file.
+#     Station_<Hardware>[_<Name>].yaml, in Configuration/Station/. A mode file names it
+#     (its Station field) and must be of the same Hardware. A mode file never overrides
+#     it: a mode file holding Camera, Calibration or a background reference fails to load
+#     and names this file.
 #
 #   Required and optional:
 #     A field marked REQUIRED has no default: a file without it fails to load, naming the
@@ -20,8 +20,8 @@
 #   Machine-specific values:
 #     Everything here is true of the rig, so it is committed. A value true on one machine
 #     only (the station-event directory) stays in that machine's local copy of the mode
-#     file; a station starting from a local copy keeps this file beside it (README >
-#     Configuration).
+#     file, which still names this file: references resolve in Configuration/Station/
+#     wherever the mode file is (README > Configuration).
 #
 #   Hardware setup:
 #     - Camera : Basler a2A1920-51gcPRO
@@ -29,12 +29,17 @@
 #     - Light  : Effilux EFFI-FD-200-200-000
 ## =========================================================================== ##
 
-# REQUIRED. The hardware this station is; must equal the hardware part of this file's name and
-# the Hardware of every mode file that reads it.
+# REQUIRED. The hardware this station is; must equal the Hardware of every mode file that names it,
+# and of the calibration it names.
 Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
 
-# The camera: identity, resolution and acquisition settings. Its calibration is NOT here — it
-# lives in Calibration_<Hardware>.yaml beside this file.
+# REQUIRED. The calibration in force: a file name in Configuration/Calibration/, never a path. Its
+# Hardware, Resolution and Offset must be this station's. Example/Camera/calibrate.py writes every new
+# calibration as a new file and prints this line to change; the older files stay, so switching back is
+# this one line.
+Calibration: Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_20260928-110755.yaml
+
+# The camera: identity, resolution and acquisition settings. Its calibration is in the file named above.
 Camera:
   # The camera, lens and lighting as a person names them: named in the Configuration dialog's
   # confirmation and recorded in every capture set. The lighting matters as much as the optics:

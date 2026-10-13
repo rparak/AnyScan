@@ -45,7 +45,7 @@ from Configuration.Core import (Load_Configuration, Configuration_Error_Cls, Wri
                                 Hardware_And_Mode, Describe_Configuration, Hardware_Record,
                                 Discover_Configurations, Load_Catalogue, Scale_At_Height, Config_Sources_Log_Line,
                                 CONST_DEFAULT_CONFIG_FILE, CONST_FIELDS, CONST_CATALOGUE_FIELDS,
-                                CONST_CATALOGUE_BLOCK_FIELDS, CONST_STATION_FIELDS, Station_Path_For,
+                                CONST_CATALOGUE_BLOCK_FIELDS, CONST_STATION_FIELDS, Load_Station_Camera,
                                 CONST_REQUIRED_CUSTOM_CFG_KEYS, CONST_COEFFICIENT_KEYS, CONST_PROJECT_ROOT,
                                 CONST_CONFIG_DIR)
 #   ../Parameters/Configuration
@@ -57,13 +57,22 @@ from Parameters.Vision import Scale_Str
 
 """
 Description:
-    Tests for the configuration layer. Each test copies the shipped mode file and its calibration
-    into tmp_path, edits the copy, and loads it — so the rules are checked against the real schema:
-    a valid file loads end to end; a missing REQUIRED field fails naming it; a missing OPTIONAL
-    field takes its documented default and says so; a present but invalid value fails instead of
-    defaulting; every problem is reported at once; and the calibration writer cannot delete content
-    it does not own.
+    Tests for the configuration layer. Each test copies the shipped mode file, its station and its
+    calibration into a Configuration/ of its own under tmp_path (Mode/, Station/, Calibration/, which
+    the references then resolve in), edits the copy, and loads it — so the rules are checked against
+    the real schema: a valid file loads end to end; a missing REQUIRED field fails naming it; a
+    missing OPTIONAL field takes its documented default and says so; a present but invalid value
+    fails instead of defaulting; every problem is reported at once; each link of the chain (mode ->
+    station -> calibration) must agree; and the calibration writer never writes over a file.
 """
+
+
+def _Read_Yaml(path: str) -> tp.Dict[str, tp.Any]:
+    """A YAML file, parsed."""
+    with open(path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+
 # The hardware and mode of the shipped configuration, and a copy's file name in tmp_path.
 #   Unit [string]
 CONST_HARDWARE = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
@@ -75,12 +84,32 @@ CONST_COPY_NAME = 'Config_%s_Mode_Test.yaml' % CONST_HARDWARE
 CONST_CATALOGUE_MODES = (
     ('Config_%s_Mode_Mounting_Plate.yaml' % CONST_HARDWARE, 'mounting_plate', 8.0, (60.0, 40.0, 1.5)),
 )
-# Every shipped mode file.
-#   Unit [Vector<string>]
-CONST_SHIPPED_MODE_FILES = sorted(glob.glob(os.path.join(CONST_CONFIG_DIR, 'Config_*_Mode_*.yaml')))
+# Every shipped mode file, and the shipped station and calibration the default mode's chain names, read
+# from the repository before any test points the references elsewhere.
+#   Unit [string]
+CONST_SHIPPED_MODE_DIR = os.path.join(CONST_CONFIG_DIR, 'Mode')
+CONST_SHIPPED_MODE_FILES = sorted(glob.glob(os.path.join(CONST_SHIPPED_MODE_DIR, 'Config_*_Mode_*.yaml')))
+CONST_STATION_NAME = _Read_Yaml(CONST_DEFAULT_CONFIG_FILE)['Station']
+CONST_SHIPPED_STATION = os.path.join(CONST_CONFIG_DIR, 'Station', CONST_STATION_NAME)
+CONST_SHIPPED_CALIBRATION = os.path.join(CONST_CONFIG_DIR, 'Calibration',
+                                         _Read_Yaml(CONST_SHIPPED_STATION)['Calibration'])
+# The calibration a test's station names (_Write): another name than the shipped one, so a test can tell
+# which of the two a configuration read.
+CONST_CALIBRATION_NAME = 'Calibration_%s_20260924-100000.yaml' % CONST_HARDWARE
 CONST_RECORD = {'date': '2026-09-24T10:00:00', 'images': '/tmp/calib',
                 'views': {'total': 12, 'flat': 4, 'tilted': 8}, 'rms_px': 0.21,
                 'square_mm': 15.0, 'board_height_mm': 3.0}
+
+
+@pytest.fixture(autouse=True)
+def _Configuration_Root(request: tp.Any) -> None:
+    """
+    A test that uses tmp_path gets a Configuration/ of its own there (the configuration_root fixture: copies
+    of the shipped station and calibration, so a shipped mode file still loads), and the references resolve
+    in it: a test edits its own files, never the repository's.
+    """
+    if 'tmp_path' in request.fixturenames:
+        request.getfixturevalue('configuration_root')
 
 
 def _Merged(mode: tp.Dict[str, tp.Any]) -> tp.Dict[str, tp.Any]:
@@ -89,7 +118,7 @@ def _Merged(mode: tp.Dict[str, tp.Any]) -> tp.Dict[str, tp.Any]:
     before the station file (Camera, Segmentation.Background.Reference) — one mapping a test edits; _Write
     splits it back into the mode file and the station file.
     """
-    with open(Configuration.Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as f:
+    with open(CONST_SHIPPED_STATION, 'r', encoding='utf-8') as f:
         station = yaml.safe_load(f)
     mode['Camera'] = station['Camera']
     mode['Segmentation']['Background']['Reference'] = station['Background']['Reference']
@@ -100,35 +129,39 @@ def _Shipped() -> tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, tp.Any]]:
     """The shipped mode file, merged with its station (_Merged), and the calibration, parsed."""
     with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as f:
         mode = _Merged(yaml.safe_load(f))
-    with open(Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r',
-              encoding='utf-8') as f:
+    with open(CONST_SHIPPED_CALIBRATION, 'r', encoding='utf-8') as f:
         calibration = yaml.safe_load(f)
     return mode, calibration
 
 
 def _Write(directory: tp.Any, mode: tp.Dict[str, tp.Any], calibration: tp.Optional[tp.Dict[str, tp.Any]],
-           name: str = CONST_COPY_NAME, split: bool = True) -> str:
+           name: str = CONST_COPY_NAME, split: bool = True,
+           station_calibration: tp.Optional[str] = CONST_CALIBRATION_NAME) -> str:
     """
-    Write a mode file (and, unless None, the hardware's calibration) into a directory, splitting a merged
-    mapping (_Merged) into the mode file and the station file beside it. With split False the mapping is
-    written as it is, so a mode file can hold what is the station's.
+    Write a mode file into the test's Configuration/Mode/ (_Configuration_Root), splitting a merged mapping
+    (_Merged) into the mode file and the station file it names, Station/<CONST_STATION_NAME>, whose
+    Calibration is station_calibration (None: the key is left out). The calibration, unless None, is written
+    as Calibration/<CONST_CALIBRATION_NAME>. With split False the mapping is written as it is, so a mode file
+    can hold what is the station's, and the station file is left as it was.
     """
-    path = os.path.join(str(directory), name)
+    root = os.path.join(str(directory), 'Configuration')
+    path = os.path.join(root, 'Mode', name)
     mode = copy.deepcopy(mode)
     if split:
         station = {'Hardware': CONST_HARDWARE}
+        if station_calibration is not None:
+            station['Calibration'] = station_calibration
         if 'Camera' in mode:
             station['Camera'] = mode.pop('Camera')
         background = (mode.get('Segmentation') or {}).get('Background') or {}
         if 'Reference' in background:
             station['Background'] = {'Reference': background.pop('Reference')}
-        with open(os.path.join(str(directory), 'Station_%s.yaml' % CONST_HARDWARE), 'w', encoding='utf-8') as f:
+        with open(os.path.join(root, 'Station', CONST_STATION_NAME), 'w', encoding='utf-8') as f:
             yaml.safe_dump(station, f, sort_keys=False)
     with open(path, 'w', encoding='utf-8') as f:
         yaml.safe_dump(mode, f, sort_keys=False)
     if calibration is not None:
-        with open(os.path.join(str(directory), 'Calibration_%s.yaml' % CONST_HARDWARE), 'w',
-                  encoding='utf-8') as f:
+        with open(os.path.join(root, 'Calibration', CONST_CALIBRATION_NAME), 'w', encoding='utf-8') as f:
             yaml.safe_dump(calibration, f, sort_keys=False)
     return path
 
@@ -145,6 +178,19 @@ def _Set(data: tp.Dict[str, tp.Any], path: tp.Tuple[str, ...], value: tp.Any) ->
     for key in path[:-1]:
         data = data[key]
     data[path[-1]] = value
+
+
+def _Rewrite_Sidecar(reference: str, mode: tp.Dict[str, tp.Any], block: tp.Dict[str, tp.Any]) -> None:
+    """The sidecar of a reference made again, as undistorted with a calibration block's lens model."""
+    camera = mode['Camera']
+    sidecar = Configuration.Build_Reference_Sidecar(
+        reference, source='test', shot='2026-09-28T10:00:00', configuration=CONST_COPY_NAME,
+        window={'resolution': [camera['Resolution']['x'], camera['Resolution']['y']],
+                'offset': [camera['Offset']['x'], camera['Offset']['y']]},
+        undistortion={'calibration': 'test', 'K': block['K'], 'coefficients': block['Coefficients']},
+        hardware={'lighting': camera['Lighting']})
+    with open(Configuration.Reference_Sidecar_Path(reference), 'w', encoding='utf-8') as handle:
+        json.dump(sidecar, handle)
 
 
 def _Reference_For(directory: tp.Any, mode: tp.Dict[str, tp.Any], K: tp.Optional[tp.Any],
@@ -546,8 +592,8 @@ def test_the_conversion_factor_is_optional_but_never_invented(tmp_path: tp.Any) 
 def test_two_modes_on_one_hardware_share_its_calibration(tmp_path: tp.Any) -> None:
     """
     Description:
-        The calibration lives once, per hardware: two mode files on the same camera read the same
-        calibration file, so recalibrating updates both and neither can keep a stale scale.
+        The calibration lives once, named by the station: two mode files naming the same station read
+        the same calibration file, so switching it changes both and neither can keep a stale scale.
     """
 
     mode, calibration = _Shipped()
@@ -569,22 +615,21 @@ def _Solved() -> Camera_Calibration_Parameters_Str:
 def test_the_calibration_writer_output_loads_back(tmp_path: tp.Any) -> None:
     """
     Description:
-        A calibration written over the one in force keeps its header comment and loads back through
-        the configuration layer with the solved values.
+        A new calibration, written with the header comment of the one in force, loads back through the
+        configuration layer with the solved values once the station names it.
     """
 
-    mode, calibration = _Shipped()
+    mode, _calibration = _Shipped()
     # The reference must have been undistorted with the lens model written below, or the load is
     # (rightly) refused: a new calibration needs a new reference.
     solved = _Solved()
     _Reference_For(tmp_path, mode, solved.K, solved.Coefficients)
-    config_path = _Write(tmp_path, mode, calibration)
-    in_force = Configuration.Calibration_Path_For(config_path, CONST_HARDWARE)
-    shutil.copy(Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), in_force)
-    assert Write_Calibration(solved, hardware=CONST_HARDWARE, header_source=in_force,
-                             output_path=in_force, record=CONST_RECORD)
-    with open(in_force, 'r', encoding='utf-8') as f:
-        assert f.read().startswith('## ====')                        # the header survived
+    config_path = _Write(tmp_path, mode, None)
+    written = os.path.join(Configuration.Calibration_Directory(), CONST_CALIBRATION_NAME)
+    assert Write_Calibration(solved, hardware=CONST_HARDWARE, header_source=CONST_SHIPPED_CALIBRATION,
+                             output_path=written, record=CONST_RECORD)
+    with open(written, 'r', encoding='utf-8') as f:
+        assert f.read().startswith('## ====')                        # the header was copied
     config = Load_Configuration(config_path)
     assert config.Camera.Calibration.K[0, 0] == 4000.0
     assert (config.Scale.Mm_Per_Px_X, config.Scale.Mm_Per_Px_Y) == (0.1, 0.1001)
@@ -648,8 +693,8 @@ def test_a_calibration_solved_at_another_window_fails_the_load(tmp_path: tp.Any)
     """
     Description:
         K's principal point and the factor are in the pixels of the window the calibration was
-        solved at. Another window — even the same size at another offset — fails the load, naming
-        both, rather than producing wrong millimetres.
+        solved at. Another window than the station's — even the same size at another offset — fails
+        the load, naming both windows and both files, rather than producing wrong millimetres.
     """
 
     mode, calibration = _Shipped()
@@ -657,8 +702,9 @@ def test_a_calibration_solved_at_another_window_fails_the_load(tmp_path: tp.Any)
     calibration['Calibration']['Offset'] = {'x': 0, 'y': 0}
     with pytest.raises(Configuration_Error_Cls) as error:
         Load_Configuration(_Write(tmp_path, mode, calibration))
-    assert ('was solved at 1920 × 1200 at offset (0, 0), but Camera.Resolution and Camera.Offset set the '
-            'camera to 1920 × 1200 at offset (8, 8)') in str(error.value)
+    assert ("%s, the calibration %s names, was solved at 1920 × 1200 at offset (0, 0), but the station's "
+            "Camera.Resolution and Camera.Offset set the camera to 1920 × 1200 at offset (8, 8)"
+            % (CONST_CALIBRATION_NAME, CONST_STATION_NAME)) in str(error.value)
 
     calibration['Calibration']['Offset'] = {'x': 8, 'y': 8}
     config = Load_Configuration(_Write(tmp_path, mode, calibration))
@@ -780,38 +826,37 @@ def test_gamma_and_the_colour_preset_may_be_pinned_and_are_checked(tmp_path: tp.
         Load_Configuration(_Write(tmp_path, mode, calibration))
 
 
-def test_the_calibration_writer_refuses_to_delete_content_it_does_not_own(tmp_path: tp.Any) -> None:
+def test_the_calibration_writer_never_writes_over_a_file(tmp_path: tp.Any, capsys: tp.Any) -> None:
     """
     Description:
-        A calibration file holding a key the writer does not produce — a section someone added, or
-        one inside the Calibration block — or belonging to other hardware is left byte-for-byte
-        untouched: the write is refused, never regenerated over it.
+        A calibration is never written over: older ones stay available to switch back to. Any file at
+        the target — a valid calibration of this hardware, one holding a key someone added, an empty
+        one — is left byte for byte, and the refusal says why.
     """
 
     target = tmp_path / ('Calibration_%s.yaml' % CONST_HARDWARE)
-    for content in ('Hardware: %s\nCalibration:\n  K: [[1,0,0],[0,1,0],[0,0,1]]\nNotes:\n  Lens: cleaned\n'
-                    % CONST_HARDWARE,
-                    'Hardware: %s\nCalibration:\n  Temperature_C: 21\n' % CONST_HARDWARE,
-                    'Hardware: another_camera\nCalibration: {}\n'):
+    with open(CONST_SHIPPED_CALIBRATION, 'r', encoding='utf-8') as f:
+        shipped = f.read()
+    for content in (shipped, 'Hardware: %s\nCalibration:\n  Temperature_C: 21\n' % CONST_HARDWARE, ''):
         target.write_text(content)
         assert not Write_Calibration(_Solved(), hardware=CONST_HARDWARE, header_source=None,
                                      output_path=str(target), record=CONST_RECORD)
         assert target.read_text() == content
+        assert 'already exists, and a calibration is never written over' in capsys.readouterr().out
 
 
-def test_a_calibration_write_that_fails_part_way_leaves_the_file_in_force(tmp_path: tp.Any) -> None:
+def test_a_calibration_write_that_fails_part_way_leaves_no_file(tmp_path: tp.Any) -> None:
     """
     Description:
-        A write that fails part-way, as on a full disk, returns False and leaves the calibration in
-        force byte for byte, with nothing else left beside it: "False if refused or failed" means
-        nothing was written. Before this, the file in force was opened for writing directly and was
-        left truncated, so the next load failed. A fresh interpreter caps the size of any file it
-        writes (RLIMIT_FSIZE, below the calibration's size), so the write really fails part-way.
+        A write that fails part-way, as on a full disk, returns False and leaves nothing — no torn
+        calibration a station could name, and nothing beside it: "False if refused or failed" means
+        nothing was written. (Before, the file was opened for writing directly and was left
+        truncated.) A fresh interpreter caps the size of any file it writes (RLIMIT_FSIZE, below the
+        calibration's size), so the write really fails part-way.
     """
 
     target = tmp_path / ('Calibration_%s.yaml' % CONST_HARDWARE)
-    shutil.copy(Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), target)
-    before = target.read_bytes()
+    before = sorted(os.listdir(tmp_path))
     script = '\n'.join((
         'import sys, signal, resource, numpy as np',
         'sys.path.insert(0, %r)' % os.path.join(CONST_PROJECT_ROOT, 'src'),
@@ -823,29 +868,64 @@ def test_a_calibration_write_that_fails_part_way_leaves_the_file_in_force(tmp_pa
         'signal.signal(signal.SIGXFSZ, signal.SIG_IGN)',
         'resource.setrlimit(resource.RLIMIT_FSIZE, (300, resource.RLIM_INFINITY))',
         'sys.exit(0 if Write_Calibration(solved, hardware=%r, header_source=%r, output_path=%r, record=%r) else 3)'
-        % (CONST_HARDWARE, str(target), str(target), CONST_RECORD)))
+        % (CONST_HARDWARE, CONST_SHIPPED_CALIBRATION, str(target), CONST_RECORD)))
     result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True, cwd=str(tmp_path))
     assert result.returncode == 3, result.stdout + result.stderr          # refused: the write failed
     assert 'File too large' in result.stdout
-    assert target.read_bytes() == before
-    assert sorted(os.listdir(tmp_path)) == [target.name]
+    assert not target.exists()
+    assert sorted(os.listdir(tmp_path)) == before
 
 
-def test_a_camera_without_a_calibration_file_loads_uncalibrated_with_a_warning(tmp_path: tp.Any) -> None:
+def test_a_station_without_a_calibration_fails_naming_the_line_to_add(tmp_path: tp.Any) -> None:
     """
     Description:
-        The calibration file is optional as a whole — a camera being calibrated for the first time
-        has none, and calibrate.py must be able to load its configuration. The configuration loads
-        with no lens model and no scale, and a WARNING names the missing file and says to run
-        calibrate.py.
+        Nothing loads uncalibrated: a station that names no calibration fails the load, saying which line
+        to add to the station file, where, and which calibrations of its hardware exist to name — or, with
+        none, that calibrate.py writes one. (Until 2026-10-13 it loaded with a warning, not undistorted
+        and not measured.)
     """
 
-    mode, _calibration = _Shipped()
-    _Reference_For(tmp_path, mode, None, None)          # shot uncalibrated, as a first camera's would be
-    config = Load_Configuration(_Write(tmp_path, mode, None))
-    assert config.Camera.Calibration is None and config.Scale is None
-    (warning,) = [message for level, message in config.Notes if level == 'WARNING' and 'calibration file' in message]
-    assert 'Calibration_%s.yaml' % CONST_HARDWARE in warning and 'calibrate.py' in warning
+    mode, calibration = _Shipped()
+    path = _Write(tmp_path, mode, calibration, station_calibration=None)
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(path)
+    # The line suggested names the newest calibration (dated names sort in time); every one is listed.
+    shipped = os.path.basename(CONST_SHIPPED_CALIBRATION)
+    assert ("%s names no calibration, which is required: add the line 'Calibration: %s' below 'Hardware:' (line 1), "
+            "naming a file in %s (the files for %s are %s, %s)"
+            % (CONST_STATION_NAME, shipped, Configuration.Calibration_Directory() + os.sep, CONST_HARDWARE,
+               CONST_CALIBRATION_NAME, shipped)) in str(error.value)
+
+    for name in os.listdir(Configuration.Calibration_Directory()):
+        os.remove(os.path.join(Configuration.Calibration_Directory(), name))
+    with pytest.raises(Configuration_Error_Cls, match='there is none for %s yet; Example/Camera/calibrate.py writes one'
+                       % CONST_HARDWARE):
+        Load_Configuration(path)
+
+
+def test_the_station_camera_reads_without_a_calibration(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        calibrate.py must calibrate a camera that has no calibration yet, so Load_Station_Camera reads the
+        station's camera alone: with no Calibration in the station (where Load_Configuration fails), it
+        returns the window and acquisition settings, and no calibration path. A station that names one
+        reports it, for the tool to keep its header; a camera that is wrong still fails.
+    """
+
+    mode, calibration = _Shipped()
+    path = _Write(tmp_path, mode, calibration, station_calibration=None)
+    station = Load_Station_Camera(path)
+    assert (station.Camera.Resolution, station.Camera.Offset) == ((1920, 1200), (8, 8))
+    assert station.Camera.Custom_Cfg['Pixel_Format'] == 'BayerRG8'
+    assert station.Camera.Calibration is None and station.Calibration_Path == ''
+    assert station.Station_Path == os.path.join(Configuration.Station_Directory(), CONST_STATION_NAME)
+
+    path = _Write(tmp_path, mode, calibration)
+    assert Load_Station_Camera(path).Calibration_Path == os.path.join(Configuration.Calibration_Directory(),
+                                                                      CONST_CALIBRATION_NAME)
+    del mode['Camera']['Custom_Cfg']['Gain']
+    with pytest.raises(Configuration_Error_Cls, match='Gain'):
+        Load_Station_Camera(_Write(tmp_path, mode, calibration))
 
 
 def test_the_background_reference_must_exist(tmp_path: tp.Any) -> None:
@@ -903,8 +983,8 @@ def test_discovery_lists_usable_configurations_and_says_why_the_others_are_not(t
     _Write(tmp_path, mode, None, name='Config_%s_Mode_Alpha.yaml' % CONST_HARDWARE)
     del mode['Identity']['Model_Set']
     _Write(tmp_path, mode, None, name='Config_%s_Mode_Broken.yaml' % CONST_HARDWARE)
-    (tmp_path / 'notes.yaml').write_text('Hardware: x\n')
-    found = Discover_Configurations(str(tmp_path))
+    (tmp_path / 'Configuration' / 'Mode' / 'notes.yaml').write_text('Hardware: x\n')
+    found = Discover_Configurations(Configuration.Mode_Directory())
     assert [(c.Identity.Display_Name if c else None) for _p, c, _e in found] == \
         ['Cfg. Alpha', 'Cfg. Segment Anything', None]
     assert 'Identity.Model_Set is required but missing' in found[2][2]
@@ -989,7 +1069,7 @@ def test_a_reference_shot_under_other_conditions_fails_the_load(tmp_path: tp.Any
     """
 
     mode, calibration = _Shipped()
-    _config, reference = _Reference_Copy(tmp_path, mode, calibration)
+    config, reference = _Reference_Copy(tmp_path, mode, calibration)
     path = Configuration.Reference_Sidecar_Path(reference)
     with open(path, 'r', encoding='utf-8') as handle:
         sidecar = json.load(handle)
@@ -997,7 +1077,7 @@ def test_a_reference_shot_under_other_conditions_fails_the_load(tmp_path: tp.Any
     with open(path, 'w', encoding='utf-8') as handle:
         json.dump(sidecar, handle)
     with pytest.raises(Configuration_Error_Cls) as error:
-        Load_Configuration(os.path.join(str(tmp_path), CONST_COPY_NAME))
+        Load_Configuration(config)
     assert words in str(error.value)
 
 
@@ -1047,22 +1127,23 @@ def test_the_test_frames_are_resolved_but_never_checked_at_load(tmp_path: tp.Any
     assert Load_Configuration(_Write(tmp_path, mode, calibration)).Evaluation.Frames == ''
 
 
-def test_writing_a_calibration_twice_over_the_same_file_gives_the_same_file(tmp_path: tp.Any) -> None:
+def test_a_calibration_written_from_the_last_one_gives_the_same_file(tmp_path: tp.Any) -> None:
     """
     Description:
-        Write_Calibration copies the header comment of the file it writes over and regenerates the
-        rest — including the comment above 'Hardware:', which is therefore not header. Writing the
-        same result twice gives the same bytes, with that comment once: before this, every write over
-        an existing calibration added one more copy of it (the calibration of eb00508 carried two).
+        Write_Calibration copies the header comment of the calibration in force and regenerates the
+        rest — including the comment above 'Hardware:', which is therefore not header. A calibration
+        written with the header of one written from the same result gives the same bytes, with that
+        comment once: before this, every write added one more copy of it (the calibration of eb00508
+        carried two).
     """
 
-    target = tmp_path / ('Calibration_%s.yaml' % CONST_HARDWARE)
-    shutil.copy(Configuration.Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), target)
-    written = []
-    for _ in range(2):
-        assert Write_Calibration(_Solved(), hardware=CONST_HARDWARE, header_source=str(target),
+    header_source, written = CONST_SHIPPED_CALIBRATION, []
+    for index in range(2):
+        target = tmp_path / ('Calibration_%s_%d.yaml' % (CONST_HARDWARE, index))
+        assert Write_Calibration(_Solved(), hardware=CONST_HARDWARE, header_source=header_source,
                                  output_path=str(target), record=CONST_RECORD)
         written.append(target.read_text(encoding='utf-8'))
+        header_source = str(target)
     assert written[0] == written[1]
     assert written[1].count(Configuration.CONST_CALIBRATION_HARDWARE_COMMENT) == 1
     assert written[1].startswith('## ====') and written[1].endswith('\n')
@@ -1070,7 +1151,7 @@ def test_writing_a_calibration_twice_over_the_same_file_gives_the_same_file(tmp_
 
 def _Catalogue_Mode(name: str) -> tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, tp.Any]]:
     """A shipped catalogue mode file and the calibration, parsed."""
-    with open(os.path.join(CONST_CONFIG_DIR, name), 'r', encoding='utf-8') as f:
+    with open(os.path.join(CONST_SHIPPED_MODE_DIR, name), 'r', encoding='utf-8') as f:
         mode = _Merged(yaml.safe_load(f))
     return mode, _Shipped()[1]
 
@@ -1118,7 +1199,7 @@ def test_each_shipped_catalogue_mode_loads_its_item(name: str, item: str, thickn
         either file but the outline's tolerance, which falls back to the item's and says so.
     """
 
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, name))
+    config = Load_Configuration(os.path.join(CONST_SHIPPED_MODE_DIR, name))
     assert config.Catalogue is not None and config.Catalogue.Name == item
     assert config.Catalogue.Thickness_Mm == thickness
     assert (config.Catalogue.Outline.Length_Mm, config.Catalogue.Outline.Width_Mm,
@@ -1141,7 +1222,7 @@ def test_a_catalogue_mode_measures_at_the_parts_top_face(name: str, item: str, t
     _mode, calibration = _Shipped()
     block = calibration['Calibration']
     dh = thickness - block['Solved']['Board_Height_Mm']
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, name))
+    config = Load_Configuration(os.path.join(CONST_SHIPPED_MODE_DIR, name))
     assert config.Scale.Height_Mm == thickness
     assert config.Scale.Mm_Per_Px_X == pytest.approx(block['Conversion_Factor']['x'] - dh / block['K'][0][0], abs=1e-15)
     assert config.Scale.Mm_Per_Px_Y == pytest.approx(block['Conversion_Factor']['y'] - dh / block['K'][1][1], abs=1e-15)
@@ -1324,7 +1405,7 @@ def test_the_sources_line_names_the_catalogue_item() -> None:
         a catalogue mode, so a run can be traced to the item it checked; Segment Anything's is unchanged.
     """
 
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, CONST_CATALOGUE_MODES[0][0]))
+    config = Load_Configuration(os.path.join(CONST_SHIPPED_MODE_DIR, CONST_CATALOGUE_MODES[0][0]))
     assert Config_Sources_Log_Line(config).endswith(
         'background reference Data/Images/Background/Image_Background_001.png and catalogue item '
         'Data/Catalogue/mounting_plate/mounting_plate.yaml.')
@@ -1339,7 +1420,7 @@ def test_a_catalogue_mode_needs_its_identifier() -> None:
         Catalogue.Identifier, and the path is resolved against the repository root like every model.
     """
 
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, CONST_CATALOGUE_MODES[0][0]))
+    config = Load_Configuration(os.path.join(CONST_SHIPPED_MODE_DIR, CONST_CATALOGUE_MODES[0][0]))
     assert config.Identification.Model_Path == os.path.join(CONST_PROJECT_ROOT, 'models', 'dinov2-base')
 
 
@@ -1396,7 +1477,7 @@ def test_the_catalogue_blocks_document_their_defaults(name: str, item: str) -> N
         optional threshold's comment states the default the code applies.
     """
 
-    comments = _Field_Comments(os.path.join(CONST_CONFIG_DIR, name))
+    comments = _Field_Comments(os.path.join(CONST_SHIPPED_MODE_DIR, name))
     code = Configuration_Str()
     for path, attribute, _kind, required in CONST_CATALOGUE_BLOCK_FIELDS:
         text, position = comments[path]
@@ -1479,55 +1560,181 @@ def test_the_removed_classification_switch_is_named_when_a_file_still_has_it(tmp
                        'classifies when it has a Catalogue block.' % CONST_COPY_NAME) in config.Notes
 
 
-@pytest.mark.parametrize('path', [('Camera',), ('Segmentation', 'Background', 'Reference')], ids=lambda p: '.'.join(p))
+@pytest.mark.parametrize('path', [('Camera',), ('Segmentation', 'Background', 'Reference'), ('Calibration',)],
+                         ids=lambda p: '.'.join(p))
 def test_a_mode_file_never_overrides_the_station(tmp_path: tp.Any, path: tp.Tuple[str, ...]) -> None:
     """
     Description:
-        The camera and the reference are the station's: a mode file that still holds the Camera block or a
-        background reference fails to load, naming the key and the station file to set it in — even when
-        its value equals the station's, since a second copy is a second source.
+        The camera, the reference and the calibration are the station's: a mode file that holds the Camera
+        block, a background reference or a Calibration fails to load, naming the key and the station file
+        to set it in — even when its value equals the station's, since a second copy is a second source.
     """
 
     mode, calibration = _Shipped()
     _Write(tmp_path, mode, calibration)                    # the station file, from the merged mapping
+    mode['Calibration'] = CONST_CALIBRATION_NAME           # the merged mapping holds the other two already
     with pytest.raises(Configuration_Error_Cls) as error:
         Load_Configuration(_Write(tmp_path, mode, None, split=False))
     assert ("%s is the station's, not the mode's: remove it from this file and set it in Station_%s.yaml"
             % ('.'.join(path), CONST_HARDWARE)) in str(error.value)
 
 
-def test_a_mode_without_its_station_file_fails(tmp_path: tp.Any) -> None:
+def test_a_mode_naming_a_station_that_does_not_exist_fails_naming_the_line(tmp_path: tp.Any) -> None:
     """
     Description:
-        The station file is REQUIRED — without it there is no camera to configure: a mode whose hardware has
-        none beside it fails to load, naming the file it looked for.
+        The station file is REQUIRED — without it there is no camera to configure: a mode naming one that is
+        not in Configuration/Station/ fails to load, naming the line and the folder it looked in.
     """
 
     mode, calibration = _Shipped()
     path = _Write(tmp_path, mode, calibration)
-    os.remove(Station_Path_For(path, CONST_HARDWARE))
-    with pytest.raises(Configuration_Error_Cls, match=r'the station file ".*Station_%s\.yaml" does not exist'
-                       % CONST_HARDWARE):
+    os.remove(os.path.join(Configuration.Station_Directory(), CONST_STATION_NAME))
+    with pytest.raises(Configuration_Error_Cls) as error:
         Load_Configuration(path)
+    line = Configuration.Reference_Line(path, 'Station')
+    assert ('%s line %d names the station %s, which does not exist in %s'
+            % (CONST_COPY_NAME, line, CONST_STATION_NAME, Configuration.Station_Directory() + os.sep)) in str(error.value)
+
+
+def test_a_mode_file_without_a_station_fails_naming_the_line_to_add(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The Station is REQUIRED and never derived from the Hardware: a mode file without it (a local copy
+        made before 2026-10-13) fails to load, saying the exact line to add and where — the one step that
+        migrates such a copy.
+    """
+
+    mode, calibration = _Shipped()
+    del mode['Station']
+    path = _Write(tmp_path, mode, calibration)
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(path)
+    assert ("%s names no station, which is required: add the line 'Station: %s' below 'Hardware:' (line 1)"
+            % (CONST_COPY_NAME, CONST_STATION_NAME)) in str(error.value)
+
+
+@pytest.mark.parametrize('owner, value', [('mode', '../Station/Station_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml'),
+                                          ('station', CONST_COPY_NAME)])
+def test_a_reference_must_be_a_file_name_of_its_kind(tmp_path: tp.Any, owner: str, value: str) -> None:
+    """
+    Description:
+        A reference resolves in its kind's folder of the repository, whatever file holds it, so it is a file
+        name, never a path — a path would make a copy of the file read something else — and names a file of
+        its kind (Station_*.yaml, Calibration_*.yaml). Anything else fails the load, naming the line.
+    """
+
+    mode, calibration = _Shipped()
+    if owner == 'mode':
+        mode['Station'] = value
+        path = _Write(tmp_path, mode, calibration)
+        expected = '%s line %d: Station must be the name of a file in' % (
+            CONST_COPY_NAME, Configuration.Reference_Line(path, 'Station'))
+    else:
+        path = _Write(tmp_path, mode, calibration, station_calibration=value)
+        expected = '%s line 2: Calibration must be the name of a file in' % CONST_STATION_NAME
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(path)
+    assert expected in str(error.value) and repr(value) in str(error.value)
 
 
 def test_the_station_file_must_be_the_modes_hardware(tmp_path: tp.Any) -> None:
     """
     Description:
-        The station file repeats its hardware, and it must be the mode's: a copied file that still names
-        another camera is refused.
+        The station file states its hardware, and it must be the mode's: a mode naming the station of
+        another camera is refused, naming both files and both hardware ids.
     """
 
     mode, calibration = _Shipped()
     path = _Write(tmp_path, mode, calibration)
-    station = Station_Path_For(path, CONST_HARDWARE)
-    with open(station, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
+    station = os.path.join(Configuration.Station_Directory(), CONST_STATION_NAME)
+    data = _Read_Yaml(station)
     data['Hardware'] = 'Other_Camera'
     with open(station, 'w', encoding='utf-8') as f:
         yaml.safe_dump(data, f)
-    with pytest.raises(Configuration_Error_Cls, match="Station_%s.yaml: Hardware is 'Other_Camera'" % CONST_HARDWARE):
+    with pytest.raises(Configuration_Error_Cls) as error:
         Load_Configuration(path)
+    assert ("%s (Hardware '%s') names the station %s, whose Hardware is 'Other_Camera'"
+            % (CONST_COPY_NAME, CONST_HARDWARE, CONST_STATION_NAME)) in str(error.value)
+
+
+def test_the_calibration_must_be_the_stations_hardware(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        The calibration states its hardware, and it must be the station's: a station naming another
+        camera's calibration is refused, naming both files and both hardware ids.
+    """
+
+    mode, calibration = _Shipped()
+    calibration['Hardware'] = 'Other_Camera'
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert ("%s, the calibration %s names, is of Hardware 'Other_Camera', but the station is '%s'"
+            % (CONST_CALIBRATION_NAME, CONST_STATION_NAME, CONST_HARDWARE)) in str(error.value)
+
+
+def test_switching_the_calibration_is_one_changed_line(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Calibrations are kept side by side, and the station's Calibration line alone decides which is in
+        force: naming the other one changes the lens model the mode reads, with no other change, and
+        naming the first again switches back.
+    """
+
+    mode, calibration = _Shipped()
+    shipped_fx = calibration['Calibration']['K'][0][0]
+    calibration['Calibration']['K'][0][0] = 4000.0
+    _Reference_For(tmp_path, mode, None, None)
+    reference = mode['Segmentation']['Background']['Reference']
+    path = _Write(tmp_path, mode, calibration, station_calibration=os.path.basename(CONST_SHIPPED_CALIBRATION))
+    station = os.path.join(Configuration.Station_Directory(), CONST_STATION_NAME)
+    with open(station, 'r', encoding='utf-8') as f:
+        text = f.read()
+    for name, fx in ((os.path.basename(CONST_SHIPPED_CALIBRATION), shipped_fx), (CONST_CALIBRATION_NAME, 4000.0),
+                     (os.path.basename(CONST_SHIPPED_CALIBRATION), shipped_fx)):
+        with open(station, 'w', encoding='utf-8') as f:
+            f.write(re.sub(r'(?m)^Calibration: .*$', 'Calibration: %s' % name, text))
+        # A reference is undistorted with one lens model, so each switch makes it again with the one named.
+        block = _Read_Yaml(os.path.join(Configuration.Calibration_Directory(), name))['Calibration']
+        _Rewrite_Sidecar(reference, mode, block)
+        config = Load_Configuration(path)
+        assert config.Calibration_Path == os.path.join(Configuration.Calibration_Directory(), name)
+        assert config.Camera.Calibration.K[0, 0] == fx
+
+
+def test_a_local_copy_of_a_mode_file_reads_the_shipped_station_and_calibration(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A station keeps a local copy of a mode file outside the repository (for its own station-event
+        directory). The references resolve in the repository's Configuration/Station/ and Calibration/,
+        not beside the copy, so the copy loads with nothing beside it — no copy, no symlink — and reads
+        exactly what the shipped mode file reads.
+    """
+
+    elsewhere = tmp_path / 'station_machine'
+    elsewhere.mkdir()
+    copy_path = elsewhere / os.path.basename(CONST_DEFAULT_CONFIG_FILE)
+    shutil.copy(CONST_DEFAULT_CONFIG_FILE, copy_path)
+    assert sorted(os.listdir(elsewhere)) == [copy_path.name]
+    local, shipped = Load_Configuration(str(copy_path)), Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
+    assert local.Station_Path == shipped.Station_Path == os.path.join(Configuration.Station_Directory(),
+                                                                      CONST_STATION_NAME)
+    assert local.Calibration_Path == shipped.Calibration_Path
+    assert np.array_equal(local.Camera.Calibration.K, shipped.Camera.Calibration.K)
+
+
+def test_every_configuration_file_lives_in_its_kind_folder() -> None:
+    """
+    Description:
+        The shipped configuration is three folders, one per kind, each holding only its kind: mode files in
+        Mode/, station files in Station/, calibrations in Calibration/ — and no YAML left in Configuration/
+        itself, where nothing would read it.
+    """
+
+    kinds = {'Mode': 'Config_', 'Station': 'Station_', 'Calibration': 'Calibration_'}
+    assert sorted(name for name in os.listdir(CONST_CONFIG_DIR) if not name.startswith('.')) == sorted(kinds)
+    for folder, prefix in kinds.items():
+        names = os.listdir(os.path.join(CONST_CONFIG_DIR, folder))
+        assert names and all(name.startswith(prefix) and name.endswith('.yaml') for name in names), (folder, names)
 
 
 def test_an_unrecognised_station_key_is_a_warning_naming_the_station_file(tmp_path: tp.Any) -> None:
@@ -1552,7 +1759,7 @@ def test_every_mode_reads_the_one_station() -> None:
 
     configs = [Load_Configuration(path) for path in CONST_SHIPPED_MODE_FILES]
     assert len({config.Station_Path for config in configs}) == 1
-    assert configs[0].Station_Path == os.path.join(CONST_CONFIG_DIR, 'Station_%s.yaml' % CONST_HARDWARE)
+    assert configs[0].Station_Path == CONST_SHIPPED_STATION
     first = configs[0]
     for config in configs[1:]:
         for name in ('Model', 'Lens', 'Lighting', 'Resolution', 'Offset', 'Custom_Cfg'):
@@ -1568,7 +1775,7 @@ def test_every_station_field_says_required_or_its_default() -> None:
         applies (the camera, lens and lighting: empty).
     """
 
-    comments = _Field_Comments(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE))
+    comments = _Field_Comments(CONST_SHIPPED_STATION)
     code = Configuration_Str()
     for path, attribute, _kind, required in CONST_STATION_FIELDS:
         text, position = comments[path]
@@ -1580,7 +1787,7 @@ def test_every_station_field_says_required_or_its_default() -> None:
         for part in attribute:
             expected = getattr(expected, part)
         assert _Documented_Default(text, position) == expected, path
-    for path in (('Hardware',), ('Camera', 'Resolution'), ('Camera', 'Custom_Cfg')):
+    for path in (('Hardware',), ('Calibration',), ('Camera', 'Resolution'), ('Camera', 'Custom_Cfg')):
         said = [comments.get(path[:i], ('', 0))[0] for i in range(1, len(path) + 1)]
         assert any('REQUIRED' in comment for comment in said), path
     # The window's two halves share one comment, above Resolution, which says both are required.

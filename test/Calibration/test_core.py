@@ -23,6 +23,7 @@
 
 # System (Default)
 import os
+import re
 import sys
 import json
 import math
@@ -42,9 +43,9 @@ import Calibration.Core as Calibration_Core
 from Calibration.Core import (Detect_Board, Next_Capture_Name, Record_Capture, Calibrate,
                               Report_Lines, Calibration_Error_Cls, Calibration_Parameters)
 #   ../Configuration/Core — the configuration layer the calibration is written and read through
-from Configuration.Core import (Load_Configuration, Write_Calibration, Calibration_Path_For, Station_Path_For,
-                                Hardware_Record, Build_Reference_Sidecar, Reference_Sidecar_Path,
-                                CONST_DEFAULT_CONFIG_FILE)
+from Configuration.Core import (Load_Configuration, Load_Station_Camera, Write_Calibration, Calibration_Directory,
+                                Reference_Line, Hardware_Record, Build_Reference_Sidecar, Reference_Sidecar_Path,
+                                Configuration_Error_Cls, CONST_DEFAULT_CONFIG_FILE)
 
 """
 Description:
@@ -373,27 +374,27 @@ def test_no_flat_view_fails_loudly(render) -> None:
 def _Make_Reference_Sidecar(mode: str) -> None:
     """
     Description:
-        Write the mode file's reference sidecar as make_reference.py would for a reference shot now: at
-        the mode file's window, undistorted with the calibration in force beside it (or none), under its
-        lighting. A configuration whose reference has no sidecar, or one made under another calibration,
-        does not load, so a test that puts a new calibration in force makes the reference again.
+        Write the reference sidecar of the station a mode file names, as make_reference.py would for a
+        reference shot now: at the station's window, undistorted with the calibration it names (or none),
+        under its lighting. A configuration whose reference has no sidecar, or one made under another
+        calibration, does not load, so a test that puts a new calibration in force makes the reference again.
 
     Args:
         (1) mode [string]: The mode file.
     """
 
     import yaml
-    with open(Station_Path_For(mode, 'a2A1920_51gcPRO_Computar_M1228_MPW3'), 'r', encoding='utf-8') as handle:
+    station = Load_Station_Camera(mode)
+    with open(station.Station_Path, 'r', encoding='utf-8') as handle:
         data = yaml.safe_load(handle)
     camera = data['Camera']
     reference = data['Background']['Reference']
-    reference = reference if os.path.isabs(reference) else os.path.join(CONST_PROJECT_ROOT, reference)
-    calibration = Calibration_Path_For(mode, 'a2A1920_51gcPRO_Computar_M1228_MPW3')
+    reference = reference if os.path.isabs(reference) else os.path.join(CONST_PROJECT_FOLDER, reference)
     undistortion = None
-    if os.path.isfile(calibration):
-        with open(calibration, 'r', encoding='utf-8') as handle:
+    if station.Calibration_Path:
+        with open(station.Calibration_Path, 'r', encoding='utf-8') as handle:
             block = yaml.safe_load(handle)['Calibration']
-        undistortion = {'calibration': os.path.basename(calibration), 'K': block['K'],
+        undistortion = {'calibration': os.path.basename(station.Calibration_Path), 'K': block['K'],
                         'coefficients': block['Coefficients']}
     sidecar = Build_Reference_Sidecar(
         reference, source='logger/captures/c/s_raw.png', shot='2026-10-08T09:00:00',
@@ -407,113 +408,134 @@ def _Make_Reference_Sidecar(mode: str) -> None:
         json.dump(sidecar, handle)
 
 
-def _Configuration_Copy(directory: tp.Any, window: tp.Optional[tp.Tuple[int, int]] = None) -> tp.Tuple[str, str]:
+def _Configuration_Copy(directory: tp.Any, window: tp.Tuple[int, int]) -> tp.Tuple[str, str, str]:
     """
-    A copy of the shipped mode file, its hardware's station file and calibration in a directory: (mode,
-    calibration). With a window (width, height), the station sets the camera — and the copied calibration's
-    recorded window — to it at offset (0, 0), with a grey background reference of that size and its sidecar
-    — the configuration the rendered 960 x 600 boards belong to.
+    A copy of the shipped mode file in a directory, naming the shipped station, which — like the calibration
+    it names — lives in the test's Configuration/ (configuration_root): (mode, station, calibration). The
+    station sets the camera, and the calibration its recorded window, to the window (width, height) at offset
+    (0, 0), with a grey background reference of that size and its sidecar — the configuration the rendered
+    960 x 600 boards belong to.
     """
     import yaml
-    hardware = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
-    mode = os.path.join(str(directory), 'Config_%s_Mode_Test.yaml' % hardware)
+    mode = os.path.join(str(directory), 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Test.yaml')
     shutil.copy(CONST_DEFAULT_CONFIG_FILE, mode)
-    station = Station_Path_For(mode, hardware)
-    shutil.copy(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware), station)
-    if window is not None:
-        with open(station, 'r', encoding='utf-8') as handle:
-            data = yaml.safe_load(handle)
-        reference = os.path.join(str(directory), 'Background_%dx%d.png' % window)
-        cv2.imwrite(reference, np.full((window[1], window[0], 3), 90, np.uint8))
-        data['Camera']['Resolution'] = {'x': window[0], 'y': window[1]}
-        data['Camera']['Offset'] = {'x': 0, 'y': 0}
-        data['Background']['Reference'] = reference
-        with open(station, 'w', encoding='utf-8') as handle:
-            yaml.safe_dump(data, handle, sort_keys=False)
-    calibration = Calibration_Path_For(mode, hardware)
-    shutil.copy(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, hardware), calibration)
-    if window is not None:
-        # The calibration records the window it was solved at; a configuration setting the camera to
-        # another is refused, so the copy is recorded at the same window.
-        with open(calibration, 'r', encoding='utf-8') as handle:
-            data = yaml.safe_load(handle)
-        data['Calibration']['Resolution'] = {'x': window[0], 'y': window[1]}
-        data['Calibration']['Offset'] = {'x': 0, 'y': 0}
-        with open(calibration, 'w', encoding='utf-8') as handle:
-            yaml.safe_dump(data, handle, sort_keys=False)
-        _Make_Reference_Sidecar(mode)
-    return mode, calibration
+    shipped = Load_Station_Camera(mode)
+    with open(shipped.Station_Path, 'r', encoding='utf-8') as handle:
+        data = yaml.safe_load(handle)
+    reference = os.path.join(str(directory), 'Background_%dx%d.png' % window)
+    cv2.imwrite(reference, np.full((window[1], window[0], 3), 90, np.uint8))
+    data['Camera']['Resolution'] = {'x': window[0], 'y': window[1]}
+    data['Camera']['Offset'] = {'x': 0, 'y': 0}
+    data['Background']['Reference'] = reference
+    with open(shipped.Station_Path, 'w', encoding='utf-8') as handle:
+        yaml.safe_dump(data, handle, sort_keys=False)
+    # The calibration records the window it was solved at; a station setting the camera to another is
+    # refused, so the copy is recorded at the same window.
+    with open(shipped.Calibration_Path, 'r', encoding='utf-8') as handle:
+        data = yaml.safe_load(handle)
+    data['Calibration']['Resolution'] = {'x': window[0], 'y': window[1]}
+    data['Calibration']['Offset'] = {'x': 0, 'y': 0}
+    with open(shipped.Calibration_Path, 'w', encoding='utf-8') as handle:
+        yaml.safe_dump(data, handle, sort_keys=False)
+    _Make_Reference_Sidecar(mode)
+    return mode, shipped.Station_Path, shipped.Calibration_Path
 
 
-def test_result_goes_to_a_new_calibration_file_and_leaves_the_one_in_force(tmp_path, solved) -> None:
+def _Name_Calibration(station: str, name: str) -> None:
+    """Do what the harness tells the user: set (or add, below Hardware) the station's Calibration line."""
+    with open(station, 'r', encoding='utf-8') as handle:
+        lines = handle.read().splitlines(True)
+    line = Reference_Line(station, 'Calibration') or Reference_Line(station, 'Hardware') + 1
+    if Reference_Line(station, 'Calibration'):
+        lines[line - 1] = 'Calibration: %s\n' % name
+    else:
+        lines.insert(line - 1, 'Calibration: %s\n' % name)
+    with open(station, 'w', encoding='utf-8') as handle:
+        handle.write(''.join(lines))
+
+
+def _Calibrate_Script() -> tp.Any:
+    """Example/Camera/calibrate.py, loaded as a module."""
+    spec = importlib.util.spec_from_file_location(
+        'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
+    calibrate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(calibrate)
+    return calibrate
+
+
+def test_result_goes_to_a_new_calibration_file_and_leaves_the_one_in_force(tmp_path, configuration_root,
+                                                                           solved) -> None:
     """
     Description:
         Writing a solved calibration to a new file copies the header of the calibration in force,
         regenerates the block with the solve's record (views, RMS, square size, board height), and
-        leaves the calibration in force and the mode file byte-for-byte unchanged. Adopted (moved
-        over the one in force), it reads back through the configuration layer.
+        leaves the calibration in force, the station file and the mode file byte-for-byte unchanged.
+        Named by the station, it reads back through the configuration layer.
     """
 
     import yaml
-    mode, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
-    before = (open(mode, 'rb').read(), open(in_force, 'rb').read())
-    output = tmp_path / 'Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_calib-1.yaml'
+    mode, station, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
+    before = [open(path, 'rb').read() for path in (mode, station, in_force)]
+    output = os.path.join(Calibration_Directory(), 'Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_20260923-100000.yaml')
     record = {'date': '2026-09-23T10:00:00', 'images': str(tmp_path), 'rms_px': solved.Rms_Px,
               'views': {'total': 11, 'flat': 3, 'tilted': 8}, 'square_mm': 12.0, 'board_height_mm': 4.5}
     assert Write_Calibration(Calibration_Parameters(solved, (0, 0)), hardware='a2A1920_51gcPRO_Computar_M1228_MPW3',
-                             header_source=in_force, output_path=str(output), record=record)
-    assert (open(mode, 'rb').read(), open(in_force, 'rb').read()) == before
-    written = yaml.safe_load(output.read_text())['Calibration']
+                             header_source=in_force, output_path=output, record=record)
+    assert [open(path, 'rb').read() for path in (mode, station, in_force)] == before
+    with open(output, 'r', encoding='utf-8') as handle:
+        written = yaml.safe_load(handle)['Calibration']
     assert written['Solved']['Views'] == {'Total': 11, 'Flat': 3, 'Tilted': 8}
     # The window the images were solved at: their own size, and the offset they were captured at.
     assert (written['Resolution'], written['Offset']) == ({'x': 960, 'y': 600}, {'x': 0, 'y': 0})
     assert written['Solved']['Board_Height_Mm'] == 4.5 and written['Solved']['Square_Size_Mm'] == 12.0
 
-    shutil.move(str(output), in_force)                            # adopt it
+    _Name_Calibration(station, os.path.basename(output))         # adopt it: the one changed line
     _Make_Reference_Sidecar(mode)                                 # a new calibration needs a new reference
     config = Load_Configuration(mode)
     assert (config.Scale.Mm_Per_Px_X, config.Scale.Mm_Per_Px_Y) == pytest.approx(solved.Factor)
     assert config.Camera.Calibration.K[0, 2] == pytest.approx(solved.K[0, 2])
 
 
-def test_images_harness_writes_a_new_calibration_and_says_adoption_is_separate(tmp_path, render,
-                                                                               capsys) -> None:
+def test_images_harness_writes_a_new_calibration_and_prints_the_station_line(tmp_path, configuration_root, render,
+                                                                            capsys) -> None:
     """
     Description:
-        'calibrate.py --images DIR' prints the report, writes the result to a new
-        'Calibration_<Hardware>_calib-<date>.yaml' — and nothing else: the calibration in force and
-        the mode file are untouched — and says adopting it is a separate step shared by every mode
-        on the hardware. An all-tilted directory fails with exit code 1 and no file.
+        'calibrate.py --images DIR' prints the report and writes the result as a new
+        'Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml' in Configuration/Calibration/ — and nothing else: the
+        calibration in force, the station file and the mode file are untouched. It prints the station file's
+        Calibration line, by number, and the text to set it to; doing exactly that puts the new calibration
+        in force. An all-tilted directory fails with exit code 1 and no file.
     """
 
-    spec = importlib.util.spec_from_file_location(
-        'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
-    calibrate = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(calibrate)
-    mode, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
-    before = (open(mode, 'rb').read(), open(in_force, 'rb').read())
+    calibrate = _Calibrate_Script()
+    mode, station, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
+    before = [open(path, 'rb').read() for path in (mode, station, in_force)]
+    existing = sorted(os.listdir(Calibration_Directory()))
     images = tmp_path / 'images'
     images.mkdir()
     for name, image in _Flats(render) + _Tilted(render):
         cv2.imwrite(str(images / name), image)
 
-    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False, mode) == 0
+    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, mode) == 0
     out = capsys.readouterr().out
-    assert 'PRINCIPAL POINT' in out and 'separate, deliberate step' in out and 'Caliper' in out
-    assert (open(mode, 'rb').read(), open(in_force, 'rb').read()) == before
-    written = [name for name in os.listdir(tmp_path) if name.startswith('Calibration_') and '_calib-' in name]
-    assert len(written) == 1
-    assert sorted(os.listdir(tmp_path)) == sorted([os.path.basename(mode), os.path.basename(in_force),
-                                                   'Background_960x600.png', 'Background_960x600.json',
-                                                   'Station_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml',
-                                                   'images'] + written)
+    assert [open(path, 'rb').read() for path in (mode, station, in_force)] == before
+    (written,) = sorted(set(os.listdir(Calibration_Directory())) - set(existing))
+    assert re.fullmatch(r'Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_\d{8}-\d{6}\.yaml', written)
+    assert 'PRINCIPAL POINT' in out and 'Caliper' in out
+    assert 'The station file was NOT edited: the calibration in force is unchanged (%s).' % os.path.basename(in_force) in out
+    assert ('To use the new calibration, change line %d of %s to:\n        Calibration: %s\n'
+            % (Reference_Line(station, 'Calibration'), station, written)) in out
+
+    _Name_Calibration(station, written)                           # what the harness said to do
+    _Make_Reference_Sidecar(mode)
+    assert Load_Configuration(mode).Calibration_Path == os.path.join(Calibration_Directory(), written)
 
     for name in os.listdir(images):
         if name.startswith('flat_'):
             os.remove(images / name)
-    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False, mode) == 1
+    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, mode) == 1
     assert '[ERROR]' in capsys.readouterr().out
-    assert len([n for n in os.listdir(tmp_path) if '_calib-' in n]) == 1
+    assert sorted(os.listdir(Calibration_Directory())) == sorted(existing + [written])
 
 
 def test_a_set_captured_with_another_board_is_not_solved(tmp_path, capsys) -> None:
@@ -523,58 +545,65 @@ def test_a_set_captured_with_another_board_is_not_solved(tmp_path, capsys) -> No
         before anything is detected or written, naming both boards.
     """
 
-    spec = importlib.util.spec_from_file_location(
-        'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
-    calibrate = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(calibrate)
+    calibrate = _Calibrate_Script()
     (tmp_path / 'capture.json').write_text(json.dumps({'board_squares': [9, 7], 'frames': []}))
-    assert calibrate.Images_Main(str(tmp_path), CONST_SQUARES, 12.0, 0.0, False, CONST_DEFAULT_CONFIG_FILE) == 1
+    assert calibrate.Images_Main(str(tmp_path), CONST_SQUARES, 12.0, 0.0, CONST_DEFAULT_CONFIG_FILE) == 1
     output = capsys.readouterr().out
     assert '9 x 7 board' in output and '11 x 8' in output and 'nothing was solved' in output
     assert sorted(os.listdir(tmp_path)) == ['capture.json']
 
 
-def test_a_first_calibration_is_written_straight_into_force(tmp_path, render, capsys) -> None:
+def test_a_first_calibration_is_a_new_file_and_the_harness_says_the_line_to_add(tmp_path, configuration_root, render,
+                                                                               capsys) -> None:
     """
     Description:
-        A camera with no calibration yet (its configuration loads uncalibrated) has nothing in force
-        to keep, so 'calibrate.py --images' writes the result as the hardware's calibration directly
-        — and, its reference made again under the new calibration, the configuration then loads
-        calibrated. This is the loop a new camera starts from.
+        A station with no calibration yet cannot load a mode (nothing loads uncalibrated), but
+        'calibrate.py --images' still runs on it: it reads the station's camera alone. It writes the result
+        as a new file, leaves the station file unedited, and prints the line to add below Hardware — which,
+        added, makes the configuration load calibrated. This is the loop a new camera starts from.
     """
 
-    spec = importlib.util.spec_from_file_location(
-        'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
-    calibrate = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(calibrate)
-    mode, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
-    os.remove(in_force)
+    calibrate = _Calibrate_Script()
+    mode, station, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
+    with open(station, 'r', encoding='utf-8') as handle:
+        text = re.sub(r'(?m)^Calibration: .*\n', '', handle.read())
+    with open(station, 'w', encoding='utf-8') as handle:
+        handle.write(text)
+    for name in os.listdir(Calibration_Directory()):
+        os.remove(os.path.join(Calibration_Directory(), name))
     _Make_Reference_Sidecar(mode)                                 # the reference of an uncalibrated camera
-    assert Load_Configuration(mode).Camera.Calibration is None
+    with pytest.raises(Configuration_Error_Cls, match='names no calibration'):
+        Load_Configuration(mode)
     images = tmp_path / 'images'
     images.mkdir()
     for name, image in _Flats(render) + _Tilted(render):
         cv2.imwrite(str(images / name), image)
 
-    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, False, mode) == 0
-    assert 'is now in force' in capsys.readouterr().out
-    assert os.path.isfile(in_force)
+    assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, mode) == 0
+    out = capsys.readouterr().out
+    with open(station, 'r', encoding='utf-8') as handle:
+        assert handle.read() == text
+    (written,) = os.listdir(Calibration_Directory())
+    assert ("To use the new calibration, add this line to %s below 'Hardware:' (line %d):\n        Calibration: %s\n"
+            % (station, Reference_Line(station, 'Hardware'), written)) in out
+    _Name_Calibration(station, written)
     _Make_Reference_Sidecar(mode)                                 # a new calibration needs a new reference
     assert Load_Configuration(mode).Scale is not None
 
 
-def test_the_old_write_config_flag_names_its_replacement(monkeypatch, capsys) -> None:
+@pytest.mark.parametrize('flag', ['--write-config', '--write-calibration'])
+def test_a_removed_flag_says_what_replaced_it(monkeypatch, capsys, flag) -> None:
     """
     Description:
-        '--write-config' may be in someone's shell history: it fails with a message naming
-        '--write-calibration', not with an unrecognised-argument error.
+        '--write-config' and '--write-calibration' may be in someone's shell history: each fails with a
+        message saying a calibration is never written over and what the harness does instead, not with an
+        unrecognised-argument error, and nothing is solved or written.
     """
 
-    spec = importlib.util.spec_from_file_location(
-        'calibrate', os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'calibrate.py'))
-    calibrate = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(calibrate)
-    monkeypatch.setattr(sys, 'argv', ['calibrate.py', '--images', 'x', '--write-config'])
+    calibrate = _Calibrate_Script()
+    monkeypatch.setattr(sys, 'argv', ['calibrate.py', '--images', 'x', flag])
     with pytest.raises(SystemExit):
         calibrate.main()
-    assert '--write-config was renamed --write-calibration' in capsys.readouterr().err
+    error = capsys.readouterr().err
+    assert '%s was removed: a calibration is never written over' % flag in error
+    assert 'prints the line of the station file to change' in error

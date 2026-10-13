@@ -35,7 +35,7 @@ goes through that module's reader. A second parser drifts from the writer silent
 
 | Format | Written and read by |
 |---|---|
-| Mode, station and calibration YAML (`Configuration/*.yaml`), catalogue items (`Data/Catalogue/<item>/<item>.yaml`, with their reference boxes) | `Configuration.Core` (`Load_Configuration`, `Load_Catalogue`, `Write_Calibration`) |
+| Mode, station and calibration YAML (`Configuration/{Mode,Station,Calibration}/*.yaml`), catalogue items (`Data/Catalogue/<item>/<item>.yaml`, with their reference boxes) | `Configuration.Core` (`Load_Configuration`, `Load_Catalogue`, `Write_Calibration`) |
 | Background-reference sidecar (`Image_Background_NNN.json`) | `Configuration.Core` (`Build_Reference_Sidecar`, and the load check) |
 | Capture set: `<set>_objects.json`, `<set>_distorted.json` | `UI.Capture` (`Build_Set_Metadata`, `Distorted_Frame_Record`, `Read_Capture_Set`) |
 | Calibration capture manifest (`capture.json`) | `Calibration.Core` (`Record_Capture`, `Captured_Window`) |

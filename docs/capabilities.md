@@ -40,7 +40,7 @@ file is not the generator's output, so regenerate it, never edit it.
 | Package | What it does | Qt |
 |---|---|---|
 | `Parameters` | The data structures (`*_Str`) and tokens every other package exchanges: detections, analyses, the loaded configuration, the catalogue item, camera and calibration records, the theme. | No |
-| `Configuration` | Reads and validates the mode, station, calibration and catalogue item files (`Load_Configuration`, `Load_Catalogue`), writes calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*.yaml` and `Data/Catalogue/*/*.yaml`. | No |
+| `Configuration` | Reads and validates the mode, station, calibration and catalogue item files (`Load_Configuration`, `Load_Catalogue`; `Load_Station_Camera` for `calibrate.py`), writes new calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*/*.yaml` and `Data/Catalogue/*/*.yaml`. | No |
 | `Camera` | The camera backends (`Basler_Camera_Cls`, `File_Camera_Cls` for `--frame`): connect, set and read back the sensor window, grab, undistort, detect a lost connection. | No |
 | `Vision` | The pipeline (`Vision_Pipeline_Cls`): background subtraction, FastSAM, fusion, Gemma description, measurement, the annotated image and label mask, the heatmap; in a catalogue mode the dimension checks, DINOv2 identification (`Vision.Identifier`) and the verdicts (`Vision.Utilities.Classify`). | No |
 | `Reporting` | The report composer, the one voice of every sentence the operator reads, and the Trends accumulator and chart maths. | No |
@@ -57,8 +57,8 @@ are in the style skill's
 
 ### From a frame to the records
 
-1. **Load.** `Configuration.Core.Load_Configuration` turns the mode file (and the station file and the
-   calibration beside it) into one `Configuration_Str`. That object is what configures the camera, the pipeline
+1. **Load.** `Configuration.Core.Load_Configuration` turns the mode file, the station file it names and
+   the calibration the station names into one `Configuration_Str`. That object is what configures the camera, the pipeline
    (`Vision_Pipeline_Cls.Configure`, run in `Model_Load_Worker_Cls`) and the logger. No other module
    reads the YAML.
 2. **Capture.** `Camera_Backend_Cls.Capture` returns an RGB NumPy array, undistorted when calibrated.
@@ -122,9 +122,9 @@ then composes and measures. The numbers are the ones the README and the mode fil
 
 ## Modes
 
-A **mode** is one configuration file, `Configuration/Config_<Hardware>_Mode_<Mode>.yaml`: how the
-scene is segmented and described, what the UI calls itself, and the confidence thresholds, on one
-piece of hardware. The modes shipped today:
+A **mode** is one configuration file, `Configuration/Mode/Config_<Hardware>_Mode_<Mode>.yaml`: how the
+scene is segmented and described, what the UI calls itself, and the confidence thresholds, on the station
+it names. The modes shipped today:
 
 | Mode | File | What it does |
 |---|---|---|
@@ -233,14 +233,24 @@ touching the file, following the tail unless scrolled up.
 
 ## Configuration
 
-`Configuration.Core.Load_Configuration` is the only reader. It checks the whole file before anything
-is applied. [README > Configuration](../README.md#configuration) covers the file names, the loader's
+The configuration is a chain of references, each kind in its own folder: a mode file
+(`Configuration/Mode/`) names its station file (`Configuration/Station/`), and the station file names its
+calibration (`Configuration/Calibration/`). A reference is a file name, resolved in its kind's folder of the
+repository wherever the file holding it is, so a local copy of a mode file reads the shipped station and
+calibration. A new station or calibration is a new file and one changed reference, with no code change
+([*The configuration is a chain of references…*](design-decisions.md#the-configuration-is-a-chain-of-references-mode--station--calibration-each-kind-in-its-own-folder)).
+
+`Configuration.Core.Load_Configuration` is the only reader. It checks the three files as a whole before
+anything is applied, and each link: the station's hardware is the mode's, and the calibration's hardware and
+sensor window are the station's. A mismatch, or a missing reference, fails the load, naming both files or the
+line to add. [README > Configuration](../README.md#configuration) covers the file names, the loader's
 checks and how a station keeps its own copy. The file's comments give every field's default and
-unit. This table says what each section controls.
+unit. This table says what each section of a mode file controls.
 
 | Section | Controls | Required |
 |---|---|---|
-| `Hardware` | The hardware this mode runs on. Must equal the hardware part of the file's name, and keys the calibration and the run-summary CSV. | Yes |
+| `Hardware` | The hardware this mode runs on. Must equal the hardware part of the file's name and the station's `Hardware`, and names the run-summary CSV. | Yes |
+| `Station` | The station file this mode runs on: a file name in `Configuration/Station/`, never a path. | Yes |
 | `General` | Settings that are neither hardware nor a pipeline stage. | — |
 | `General.Station_Events` | The directory of the daily station event files. It must exist and be writable at load, and is fixed for the run. | Yes |
 | `Catalogue` | A catalogue mode's item (`Item`, its file under `Data/Catalogue/`, with its reference images), the DINOv2 directory (`Identifier`) and the verdict rule's two thresholds. Its presence makes the mode a catalogue mode, which classifies and needs a calibration with a factor and a board height. | No (`Item`, `Identifier` required within it) |
@@ -255,14 +265,16 @@ unit. This table says what each section controls.
 
 ## Station
 
-One station file per camera, `Configuration/Station_<Hardware>.yaml`, shared by every mode on that
-hardware and found by the mode file's `Hardware`: what belongs to the camera, the light and the table. A
-mode file never overrides it: one that holds `Camera` or a background reference fails to load and names
-this file. It is committed, so it holds nothing true of one machine only.
+One station file per station, `Configuration/Station/Station_<Hardware>[_<Name>].yaml`, shared by every mode
+that names it: what belongs to the camera, the light and the table, and the calibration in force. A mode file
+never overrides it: one that holds `Camera`, `Calibration` or a background reference fails to load and names
+this file. It is written by hand and no tool edits it. It is committed, so it holds nothing true of one
+machine only.
 
 | Section | Holds | Required |
 |---|---|---|
-| `Hardware` | The hardware the station is; must equal the mode file's. | Yes |
+| `Hardware` | The hardware the station is; must equal the mode file's and the calibration's. | Yes |
+| `Calibration` | The calibration in force: a file name in `Configuration/Calibration/`, never a path. Its window must be this station's. Switching to another calibration, an older one included, is this one line. | Yes |
 | `Camera` | The camera, lens and lighting as a person names them, recorded in every capture set. | No |
 | `Camera.Resolution`, `Camera.Offset` | The sensor window set on every CONNECT and read back. The reference and the calibration are checked against it. | Yes |
 | `Camera.Custom_Cfg` | The acquisition settings the camera reads: exposure, gain, white balance, pixel format. | Yes |
@@ -270,23 +282,26 @@ this file. It is committed, so it holds nothing true of one machine only.
 
 ## Calibration
 
-One calibration per camera, `Configuration/Calibration_<Hardware>.yaml`, shared by every mode on that
-hardware. `Example/Camera/calibrate.py` writes it and nothing else does: `--capture` records frames
-of the printed 11 × 8 board (`docs/Checkerboard_11x8_12mm_A4.pdf`), and `--images` solves the set,
-reporting per view and overall. A recalibration is written beside the file in force unless
-`--write-calibration` is given. Without the file, the configuration loads with a warning: frames
-are not undistorted and sizes are not reported.
+Calibrations are kept side by side in `Configuration/Calibration/`, one file per solve,
+`Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml`. The one in force is the one the station file names, and every
+mode on the station reads it. `Example/Camera/calibrate.py` writes them and nothing else does: `--capture`
+records frames of the printed 11 × 8 board (`docs/Checkerboard_11x8_12mm_A4.pdf`), and `--images` solves the
+set, reporting per view and overall. Every result is a new file — a calibration is never written over — and the
+tool prints the station file's line to change to put it in force; it never edits the station file. It reads
+only the station's camera, so it runs on a station with no calibration yet. Nothing else loads uncalibrated: a
+station without a calibration fails to load and says the line to add.
 
 | Section | Holds | Written by |
 |---|---|---|
 | `Hardware` | The hardware the calibration belongs to. | `calibrate.py` |
 | `Calibration` | The solved calibration: the intrinsic matrix `K` and the following. | `calibrate.py` |
 | `Calibration.Solved` | How it was solved: date, capture directory, view counts (flat and tilted), RMS, board square size and height. A catalogue mode reads the board height, to move the scale to its part's top face. | `calibrate.py` |
-| `Calibration.Resolution`, `Calibration.Offset` | The sensor window it was solved at. A configuration with another window fails to load, and so does a calibration that does not record it. | `calibrate.py` |
+| `Calibration.Resolution`, `Calibration.Offset` | The sensor window it was solved at. A station with another window fails to load with it, and so does a calibration that does not record it. | `calibrate.py` |
 | `Calibration.Coefficients` | The lens distortion, `k1 k2 p1 p2 k3`. | `calibrate.py` |
 | `Calibration.Conversion_Factor` | mm per pixel in x and y, exact in the flat boards' plane only. | `calibrate.py` |
 
-**The calibration in force** was solved on the rig on 2026-09-28 (commit `eb00508`). It used 63
+**The calibration in force**, `Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_20260928-110755.yaml`, was
+solved on the rig on 2026-09-28 (commit `eb00508`). It used 63
 views (22 flat, 41 tilted), with a reprojection RMS of 0.45 px. Its principal point lies about 25 px
 from the frame centre, and its factor is 0.102 mm/px in both axes. `Calibration.Solved` in the
 calibration file is the record. Its scale has not been checked against parts of known size
@@ -350,7 +365,8 @@ Scripts in `Example/`. A harness that captures or analyses goes through the appl
 path; the one exception, `calibrate.py --capture`, says so where it is.
 
 - `Camera/scan.py` — capture frames from the camera into `Data/Results/`.
-- `Camera/calibrate.py` — capture a calibration set (`--capture`) and solve it (`--images`).
+- `Camera/calibrate.py` — capture a calibration set (`--capture`) and solve it (`--images`) into a new
+  calibration file, printing the station line that puts it in force.
 - `Camera/make_reference.py` — make an empty-surface reference with its provenance sidecar.
 - `Camera/generate_checkerboard.py` — write the printed calibration board's PDF.
 - `Camera/calibration_tilt_study.py` — the synthetic study behind the calibration's tilt warning.
@@ -410,11 +426,11 @@ A capability document that is wrong is worse than none.
 `test/integration/test_capabilities_doc.py` fails when the code and this file disagree:
 
 - **Architecture**: the *Package* table names exactly the packages under `src/`.
-- **Configuration**: the *Section* column equals every section of every mode file in `Configuration/`
+- **Configuration**: the *Section* column equals every section of every mode file in `Configuration/Mode/`
   (the top-level keys and the mappings one level below them), and every key path written in the
   Configuration section exists in a mode file. The same check runs for the station table against the
   station file, and for the calibration table against the calibration file.
-- **Modes**: the Modes table names exactly the mode files in `Configuration/`.
+- **Modes**: the Modes table names exactly the mode files in `Configuration/Mode/`.
 - **Views**: the `###` headings under *UI views* are exactly the central-view switch's labels, and
   the Camera View renders and Live card titles named in the code appear under *Live*.
 - **Records**: the capture-set, run-summary and station-event tables name exactly the file

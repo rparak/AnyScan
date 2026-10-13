@@ -38,7 +38,7 @@ from Camera.Core import File_Camera_Cls
 import Vision.Core as Vision_Core
 from Vision.Core import Vision_Pipeline_Cls
 #   ../Configuration/Core — the shipped configuration the pipeline runs with
-from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE, CONST_CONFIG_DIR
+from Configuration.Core import Load_Configuration, Mode_Directory, CONST_DEFAULT_CONFIG_FILE
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
 #   ../Reporting/Core
@@ -469,7 +469,7 @@ def test_the_outline_passes_exactly_the_catalogue_parts(name: str, require_weigh
         Slow because it runs FastSAM; missing weights fail it under --runslow.
     """
 
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, CONST_CATALOGUE_MODE_FILE))
+    config = Load_Configuration(os.path.join(Mode_Directory(), CONST_CATALOGUE_MODE_FILE))
     config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
     require_weights([config.Segmentation.Model_Path])
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
@@ -497,7 +497,7 @@ def test_each_frame_gets_its_expected_verdicts(name: str, require_weights, monke
 
 def _Catalogue_Objects(name: str, require_weights, monkeypatch) -> tp.List[tp.Any]:
     """A frame through the application's pipeline in the mounting-plate mode (FastSAM and DINOv2 on the CPU)."""
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, CONST_CATALOGUE_MODE_FILE))
+    config = Load_Configuration(os.path.join(Mode_Directory(), CONST_CATALOGUE_MODE_FILE))
     config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
     require_weights([config.Segmentation.Model_Path, config.Identification.Model_Path])
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')

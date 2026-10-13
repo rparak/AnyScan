@@ -1,14 +1,15 @@
 ## =========================================================================== ##
 #   Description:
-#     The calibration of one piece of hardware (camera + lens), SHARED by every mode
-#     configuration that names this hardware (Config_<Hardware>_Mode_<Mode>.yaml), so
-#     recalibrating updates every mode at once and no mode can keep measuring with a
+#     One calibration of one piece of hardware (camera + lens), in force for every mode
+#     whose station file names it (the station's Calibration field), so switching the
+#     calibration changes every mode at once and no mode can keep measuring with a
 #     stale scale.
 #
 #     Solved and written by Example/Camera/calibrate.py, and only by it, through
-#     Configuration.Core.Write_Calibration. The writer owns the 'Calibration' block and
-#     REFUSES to write over any key it does not own, so content added here is never
-#     silently deleted. Read by Configuration.Core.Load_Configuration.
+#     Configuration.Core.Write_Calibration, always as a NEW file
+#     (Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml in Configuration/Calibration/): the
+#     writer refuses any file that exists, so an older calibration is never overwritten
+#     and stays available to switch back to. Read by Configuration.Core.Load_Configuration.
 #
 #   Hardware setup:
 #     - Camera : Basler a2A1920-51gcPRO
@@ -16,7 +17,7 @@
 #     - Light  : Effilux EFFI-FD-200-200-000
 ## =========================================================================== ##
 
-# The hardware this calibration belongs to; must equal the hardware part of this file's name.
+# The hardware this calibration belongs to; must equal the Hardware of the station that names it.
 Hardware: a2A1920_51gcPRO_Computar_M1228_MPW3
 
 Calibration:

@@ -374,6 +374,34 @@ def project_root() -> str:
 
 
 @pytest.fixture
+def configuration_root(tmp_path: tp.Any, monkeypatch: pytest.MonkeyPatch) -> str:
+    """
+    Description:
+        A Configuration/ of the test's own: tmp_path/Configuration with Mode/ (empty), Station/ and
+        Calibration/ (copies of the shipped files), set as Configuration.Core.CONST_CONFIG_DIR. Every
+        reference — a mode's Station, a station's Calibration — then resolves in it, and the
+        Configuration dialog lists its Mode/, so a test writes mode, station and calibration files
+        without touching the repository's.
+
+    Returns:
+        (1) parameter [string]: The Configuration/ directory (absolute).
+    """
+
+    import shutil
+    import Configuration.Core as Configuration
+    root = tmp_path / 'Configuration'
+    for folder in (Configuration.CONST_MODE_FOLDER, Configuration.CONST_STATION_FOLDER,
+                   Configuration.CONST_CALIBRATION_FOLDER):
+        shipped = os.path.join(Configuration.CONST_CONFIG_DIR, folder)
+        (root / folder).mkdir(parents=True)
+        if folder != Configuration.CONST_MODE_FOLDER:
+            for name in os.listdir(shipped):
+                shutil.copy(os.path.join(shipped, name), root / folder)
+    monkeypatch.setattr(Configuration, 'CONST_CONFIG_DIR', str(root))
+    return str(root)
+
+
+@pytest.fixture
 def reference_shape() -> tp.Tuple[int, int, int]:
     """
     Description:

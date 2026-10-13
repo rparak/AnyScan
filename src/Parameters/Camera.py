@@ -35,7 +35,7 @@ class Camera_Calibration_Parameters_Str:
         The structure of the main parameters of the camera calibration.
 
         Note:
-            Populated from the hardware's calibration file (Calibration_<Hardware>.yaml); see
+            Populated from the calibration file the station names (Configuration/Calibration/); see
             ../Configuration/Core.py (Load_Configuration).
     """
 
@@ -62,8 +62,8 @@ class Camera_Configuration_Str:
 
         Note:
             The parameter structure mainly focuses on the 2D representation of the
-            image. It is populated from a configuration's 'Camera' block and its hardware's
-            calibration file; see ../Configuration/Core.py (Load_Configuration).
+            image. It is populated from a station file's 'Camera' block and the calibration
+            file the station names; see ../Configuration/Core.py (Load_Configuration).
     """
 
     # The camera, lens and lighting as a person names them ('Basler a2A1920-51gcPRO', 'Computar
@@ -85,9 +85,10 @@ class Camera_Configuration_Str:
     #       Required vendor/API specific settings (e.g., exposure, gain, white balance, pixel format); the
     #       configuration refuses a file without them, and Basler_Cls refuses an empty one.
     Custom_Cfg: tp.Dict[str, tp.Any] = field(default_factory=dict)
-    # Calibration of the camera above, or None when the hardware has no calibration file yet: frames
-    # are then not undistorted and objects are not measured (a camera being calibrated for the first
-    # time has none — Example/Camera/calibrate.py creates it).
+    # Calibration of the camera above, from the calibration file the station names. Load_Configuration
+    # always fills it (a station without a calibration does not load); it is None only in the camera
+    # Load_Station_Camera reads for Example/Camera/calibrate.py, which never undistorts. A camera handed
+    # None passes frames through, not undistorted.
     Calibration: tp.Optional[Camera_Calibration_Parameters_Str] = None
 
 @dataclass

@@ -198,9 +198,10 @@ class Evaluation_Parameters_Str:
 class Configuration_Str:
     """
     Description:
-        One loaded, fully validated configuration: a mode file plus the calibration of the
-        hardware it names. Only Configuration.Core.Load_Configuration builds one, and only when the
-        whole file is valid, so holding one means every field is usable.
+        One loaded, fully validated configuration: a mode file, the station file it names and the
+        calibration the station names. Only Configuration.Core builds one: Load_Configuration only when
+        all three are valid and agree, so holding one means every field is usable (Load_Station_Camera
+        fills the camera alone, for calibrate.py, and says so).
     """
 
     # The mode file (absolute) and its file name — the name recorded in the log and every set.
@@ -208,7 +209,7 @@ class Configuration_Str:
     Path: str = ''
     Name: str = ''
     # The hardware the mode runs on and the mode itself, from 'Config_<Hardware>_Mode_<Mode>.yaml'.
-    # The hardware keys everything camera-specific: the calibration file and the run-summary CSV.
+    # The hardware names the run-summary CSV, and the station and calibration must be of it.
     #   Unit [string]
     Hardware: str = ''
     Mode: str = ''
@@ -222,7 +223,7 @@ class Configuration_Str:
     Confidence: Confidence_Thresholds_Str = field(default_factory=Confidence_Thresholds_Str)
     Segmentation: Segmentation_Parameters_Str = field(default_factory=Segmentation_Parameters_Str)
     Description: Description_Parameters_Str = field(default_factory=Description_Parameters_Str)
-    # The camera block, with its Calibration filled from the hardware's calibration file.
+    # The camera block, from the station file, with its Calibration filled from the calibration it names.
     Camera: Camera_Configuration_Str = field(default_factory=Camera_Configuration_Str)
     # The harness-only settings (analyze.py's test frames).
     Evaluation: Evaluation_Parameters_Str = field(default_factory=Evaluation_Parameters_Str)
@@ -231,10 +232,12 @@ class Configuration_Str:
     Catalogue: tp.Optional[Catalogue_Item_Str] = None
     # A catalogue mode's identification (the same block); its defaults stand outside one.
     Identification: Identification_Parameters_Str = field(default_factory=Identification_Parameters_Str)
-    # The station file the camera block and the background reference came from (absolute).
+    # The station file the mode names (its Station), which the camera block and the background reference came
+    # from (absolute).
     #   Unit [string]
     Station_Path: str = ''
-    # The calibration file the camera block's Calibration came from (absolute).
+    # The calibration file the station names (its Calibration), which the camera block's Calibration came
+    # from (absolute).
     #   Unit [string]
     Calibration_Path: str = ''
     # The measurement scale from that calibration, or None: no valid Conversion_Factor, so

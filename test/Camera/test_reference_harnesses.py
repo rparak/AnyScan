@@ -38,8 +38,7 @@ import numpy as np
 import yaml
 # Custom Lib.: AnyScan
 #   ../Configuration/Core
-from Configuration.Core import (Load_Configuration, Reference_Sidecar_Path, Calibration_Path_For, Station_Path_For,
-                                CONST_DEFAULT_CONFIG_FILE)
+from Configuration.Core import (Load_Configuration, Load_Station_Camera, Reference_Sidecar_Path, CONST_DEFAULT_CONFIG_FILE)
 #   ../UI/Capture — the capture set's records, as the application writes them
 from UI.Capture import Build_Set_Metadata, Distorted_Frame_Record
 
@@ -74,8 +73,8 @@ def _Load_Script(name: str) -> tp.Any:
 
 
 def _Shipped_Calibration() -> tp.Dict[str, tp.Any]:
-    """The shipped calibration's block (K and coefficients)."""
-    with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as handle:
+    """The shipped calibration's block (K and coefficients): the one the shipped station names."""
+    with open(Load_Station_Camera(CONST_DEFAULT_CONFIG_FILE).Calibration_Path, 'r', encoding='utf-8') as handle:
         return yaml.safe_load(handle)['Calibration']
 
 
@@ -114,29 +113,30 @@ def _Capture_Set(directory: tp.Any, window: tp.Optional[tp.Dict] = CONST_WINDOW,
 
 
 def _Configuration_For(directory: tp.Any, reference: str) -> str:
-    """The shipped mode file, station file and calibration copied into a directory, the station and the
-    calibration set to CONST_WINDOW, and the station naming the reference."""
-    with open(Station_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as handle:
+    """The shipped mode file copied into a directory, and its station and calibration rewritten in the test's
+    Configuration/ (configuration_root): both set to CONST_WINDOW, and the station naming the reference."""
+    shipped = Load_Station_Camera(CONST_DEFAULT_CONFIG_FILE)
+    with open(shipped.Station_Path, 'r', encoding='utf-8') as handle:
         station = yaml.safe_load(handle)
     station['Camera']['Resolution'] = dict(zip('xy', CONST_WINDOW['resolution']))
     station['Camera']['Offset'] = dict(zip('xy', CONST_WINDOW['offset']))
     station['Background']['Reference'] = reference
     path = os.path.join(str(directory), 'Config_%s_Mode_Test.yaml' % CONST_HARDWARE)
     shutil.copy(CONST_DEFAULT_CONFIG_FILE, path)
-    with open(Station_Path_For(path, CONST_HARDWARE), 'w', encoding='utf-8') as handle:
+    with open(shipped.Station_Path, 'w', encoding='utf-8') as handle:
         yaml.safe_dump(station, handle, sort_keys=False)
     # The shipped lens model, recorded as solved at CONST_WINDOW: a calibration records its window,
-    # and a configuration setting the camera to another one is refused.
-    with open(Calibration_Path_For(CONST_DEFAULT_CONFIG_FILE, CONST_HARDWARE), 'r', encoding='utf-8') as handle:
+    # and a station setting the camera to another one is refused.
+    with open(shipped.Calibration_Path, 'r', encoding='utf-8') as handle:
         calibration = yaml.safe_load(handle)
     calibration['Calibration']['Resolution'] = dict(zip('xy', CONST_WINDOW['resolution']))
     calibration['Calibration']['Offset'] = dict(zip('xy', CONST_WINDOW['offset']))
-    with open(Calibration_Path_For(path, CONST_HARDWARE), 'w', encoding='utf-8') as handle:
+    with open(shipped.Calibration_Path, 'w', encoding='utf-8') as handle:
         yaml.safe_dump(calibration, handle, sort_keys=False)
     return path
 
 
-def test_a_reference_made_from_a_capture_set_loads_with_its_provenance(tmp_path) -> None:
+def test_a_reference_made_from_a_capture_set_loads_with_its_provenance(tmp_path, configuration_root) -> None:
     """
     Description:
         From a set of the empty table the tool copies the frame byte for byte and writes a sidecar that

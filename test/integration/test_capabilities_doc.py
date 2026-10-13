@@ -236,7 +236,7 @@ def Sections_Of(data: tp.Dict[str, tp.Any]) -> tp.Set[str]:
 def Mode_Files(project_root: str) -> tp.List[str]:
     """
     Description:
-        The shipped mode files, Configuration/Config_<Hardware>_Mode_<Mode>.yaml.
+        The shipped mode files, Configuration/Mode/Config_<Hardware>_Mode_<Mode>.yaml.
 
     Args:
         (1) project_root [string]: The repository root.
@@ -245,13 +245,13 @@ def Mode_Files(project_root: str) -> tp.List[str]:
         (1) parameter [Vector<string>]: Their paths, sorted.
     """
 
-    return sorted(glob.glob(os.path.join(project_root, 'Configuration', 'Config_*_Mode_*.yaml')))
+    return sorted(glob.glob(os.path.join(project_root, 'Configuration', 'Mode', 'Config_*_Mode_*.yaml')))
 
 
 def Calibration_Files(project_root: str) -> tp.List[str]:
     """
     Description:
-        The shipped calibration files, Configuration/Calibration_<Hardware>.yaml.
+        The shipped calibration files, Configuration/Calibration/Calibration_*.yaml.
 
     Args:
         (1) project_root [string]: The repository root.
@@ -260,13 +260,13 @@ def Calibration_Files(project_root: str) -> tp.List[str]:
         (1) parameter [Vector<string>]: Their paths, sorted.
     """
 
-    return sorted(glob.glob(os.path.join(project_root, 'Configuration', 'Calibration_*.yaml')))
+    return sorted(glob.glob(os.path.join(project_root, 'Configuration', 'Calibration', 'Calibration_*.yaml')))
 
 
 def Station_Files(project_root: str) -> tp.List[str]:
     """
     Description:
-        The shipped station files, Configuration/Station_<Hardware>.yaml.
+        The shipped station files, Configuration/Station/Station_*.yaml.
 
     Args:
         (1) project_root [string]: The repository root.
@@ -275,7 +275,7 @@ def Station_Files(project_root: str) -> tp.List[str]:
         (1) parameter [Vector<string>]: Their paths, sorted.
     """
 
-    return sorted(glob.glob(os.path.join(project_root, 'Configuration', 'Station_*.yaml')))
+    return sorted(glob.glob(os.path.join(project_root, 'Configuration', 'Station', 'Station_*.yaml')))
 
 
 def Load_Yaml(path: str) -> tp.Dict[str, tp.Any]:
@@ -350,7 +350,7 @@ def test_the_configuration_table_names_every_section_of_every_mode_file(project_
     for path in Mode_Files(project_root):
         in_files |= Sections_Of(Load_Yaml(path))
 
-    assert in_files, 'No mode file found under Configuration/.'
+    assert in_files, 'No mode file found under Configuration/Mode/.'
     assert documented == in_files, ('Configuration table out of step with the mode files. Missing from the '
                                     'document: %s. Not in any mode file: %s.'
                                     % (sorted(in_files - documented), sorted(documented - in_files)))
@@ -369,7 +369,7 @@ def test_the_calibration_table_names_every_section_of_the_calibration_file(proje
     for path in Calibration_Files(project_root):
         in_files |= Sections_Of(Load_Yaml(path))
 
-    assert in_files, 'No calibration file found under Configuration/.'
+    assert in_files, 'No calibration file found under Configuration/Calibration/.'
     assert documented == in_files, ('Calibration table out of step with the calibration file. Missing from '
                                     'the document: %s. Not in the file: %s.'
                                     % (sorted(in_files - documented), sorted(documented - in_files)))
@@ -389,7 +389,7 @@ def test_the_station_table_names_every_section_of_the_station_file(project_root)
     for path in Station_Files(project_root):
         in_files |= Sections_Of(Load_Yaml(path))
 
-    assert in_files, 'No station file found under Configuration/.'
+    assert in_files, 'No station file found under Configuration/Station/.'
     assert documented == in_files, ('Station table out of step with the station file. Missing from the document: '
                                     '%s. Not in the file: %s.' % (sorted(in_files - documented),
                                                                   sorted(documented - in_files)))
@@ -459,7 +459,7 @@ def test_the_architecture_table_names_exactly_the_src_packages(project_root) -> 
 def test_the_modes_table_names_exactly_the_shipped_mode_files(project_root) -> None:
     """
     Description:
-        The Modes table lists every mode file in Configuration/ — its mode and its file name — and
+        The Modes table lists every mode file in Configuration/Mode/ — its mode and its file name — and
         nothing else.
     """
 

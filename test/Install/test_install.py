@@ -1150,7 +1150,7 @@ def test_the_requirements_install_is_followed_by_the_headless_opencv_step(sandbo
                                                    ('models/other-describer', 'WARNING')])
 def test_configuration_pointing_elsewhere_names_the_field(sandbox, gemma, expected_level):
     pytest.importorskip('yaml')
-    _Write(os.path.join(sandbox.Root, 'Configuration', 'Config_Test.yaml'),
+    _Write(os.path.join(sandbox.Root, 'Configuration', 'Mode', 'Config_Test.yaml'),
            f'Segmentation:\n  Model: models/FastSAM/FastSAM-x.pt\nDescription:\n  Model: {gemma}\n'.encode())
     os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
     os.symlink(sys.executable, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))
@@ -1202,10 +1202,10 @@ def test_a_catalogue_configuration_identifier_pointing_elsewhere_names_the_field
     """
 
     pytest.importorskip('yaml')
-    _Write(os.path.join(sandbox.Root, 'Configuration', 'Config_Test.yaml'),
+    _Write(os.path.join(sandbox.Root, 'Configuration', 'Mode', 'Config_Test.yaml'),
            ('Segmentation:\n  Model: models/FastSAM/FastSAM-x.pt\nDescription:\n  Model: models/gemma-4-e4b-it-4bit\n'
             'Catalogue:\n  Identifier: %s\n' % identifier).encode())
-    _Write(os.path.join(sandbox.Root, 'Configuration', 'Config_Plain.yaml'),
+    _Write(os.path.join(sandbox.Root, 'Configuration', 'Mode', 'Config_Plain.yaml'),
            b'Segmentation:\n  Model: models/FastSAM/FastSAM-x.pt\nDescription:\n  Model: models/gemma-4-e4b-it-4bit\n')
     os.makedirs(os.path.join(sandbox.Root, 'venv', 'bin'))
     os.symlink(sys.executable, os.path.join(sandbox.Root, 'venv', 'bin', 'python'))

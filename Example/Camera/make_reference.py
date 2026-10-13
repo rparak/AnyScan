@@ -230,7 +230,7 @@ def main():
             python make_reference.py --from logger/captures/<connection>/<set>_raw.png
 
         writes Data/Images/Background/Image_Background_<next>.png and its provenance sidecar (.json). The
-        configuration is not edited: set Background.Reference in the station file (Station_<Hardware>.yaml)
+        configuration is not edited: set Background.Reference in the station file (Configuration/Station/)
         to the new file and restart, as a deliberate step.
     """
 
