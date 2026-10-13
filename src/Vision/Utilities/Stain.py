@@ -63,7 +63,7 @@ def Check_Stain(crop_bgr: tp.Any, holes: tp.List[Hole_Str], Catalogue_Stain_Str:
         The stain regions on a judged part's upright crop: the band's pixels inside the part (an Edge_Margin_Mm
         band along the crop's edges and every hole with CONST_STAIN_HOLE_MARGIN_MM left out), opened; the
         fragments joined within Merge_Mm (each grown by half of it); each region holding a fragment of at least
-        Min_Area_Mm2 kept, with its fragments' area, centre, rotated box and outlines, largest first.
+        Min_Area_Mm2 kept, with its fragments' area, centre, box along the part's axes and outlines, largest first.
 
     Args:
         (1) crop_bgr [Matrix<uint8> hxwx3]: The part's upright crop.
@@ -101,7 +101,9 @@ def Check_Stain(crop_bgr: tp.Any, holes: tp.List[Hole_Str], Catalogue_Stain_Str:
             continue
         own = np.isin(fragments, members)
         ys, xs = np.nonzero(own)
-        corners = cv2.boxPoints(cv2.minAreaRect(np.column_stack([xs, ys]).astype(np.float32)))
+        # Its box along the crop's axes, which are the part's, so on the frame it turns with the part.
+        x0, y0, x1, y1 = float(xs.min()), float(ys.min()), float(xs.max()) + 1.0, float(ys.max()) + 1.0
+        corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
         outlines, _hierarchy = cv2.findContours(own.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         stains.append(Stain_Str(Area_Mm2=float(len(xs)) * mm_per_px ** 2, X_Mm=float(xs.mean()) * mm_per_px,
                                 Y_Mm=float(ys.mean()) * mm_per_px,

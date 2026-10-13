@@ -173,3 +173,26 @@ def test_a_judged_parts_stains_decide_ok_or_nok(stains: tp.List[Stain_Str], befo
     det = Detection_Str(Label='plate', Bbox=(0, 0, 1, 1), Verdict=before)
     Apply_Stain(det, stains)
     assert det.Verdict == after and det.Stains == stains
+
+
+def test_a_stains_box_is_along_the_crops_axes_round_all_its_pixels() -> None:
+    """
+    Description:
+        A slanted stain's box is along the upright crop's axes, which are the part's, not along the stain: its edges
+        are level and upright, the crop's top-left corner first, and it holds every pixel of the stain, so on the
+        frame it turns with the part.
+    """
+
+    crop = _Plate()
+    stripe = cv2.boxPoints(((300.0, 200.0), (120.0, 20.0), 30.0)).astype(np.int32)
+    cv2.fillPoly(crop, [stripe], CONST_BROWN)
+    (stain,) = Check_Stain(crop, [], CONST_BAND, CONST_MM_PER_PX, cv2, np)
+    (x0, y0), (x1, y1b), (x1c, y1), (x0d, y1d) = stain.Corners
+    assert (y0, x1c, x0d) == (y1b, x1, x0) and y1 == y1d                         # level and upright, top-left first
+    # Round the stripe's pixels, within the check's opening (CONST_STAIN_OPEN_PX trims a slanted edge's corners).
+    ys, xs = np.nonzero(cv2.inRange(crop, np.array(CONST_BROWN), np.array(CONST_BROWN)))
+    trim = 3 * CONST_MM_PER_PX + 1e-6
+    assert x0 == pytest.approx(xs.min() * CONST_MM_PER_PX, abs=trim) and y0 == pytest.approx(ys.min() * CONST_MM_PER_PX, abs=trim)
+    assert x1 == pytest.approx((xs.max() + 1) * CONST_MM_PER_PX, abs=trim)
+    assert y1 == pytest.approx((ys.max() + 1) * CONST_MM_PER_PX, abs=trim)
+    assert (x1 - x0) * (y1 - y0) > 2.0 * 12.0 * 2.0                              # the slant's box, not the stripe's

@@ -110,8 +110,8 @@ class Stain_Str(object):
     """
     Description:
         One stain region found on a judged part's side (Vision.Utilities.Stain): its fragments joined within the
-        check's merge distance, its area (the fragments'), its centre, its rotated box and its outline, in mm from
-        the upright crop's top-left corner.
+        check's merge distance, its area (the fragments'), its centre, its box along the part's axes and its outline,
+        in mm from the upright crop's top-left corner.
     """
 
     # The region's area (its fragments' pixels), and its centre.
@@ -119,7 +119,8 @@ class Stain_Str(object):
     Area_Mm2: float = 0.0
     X_Mm: float = 0.0
     Y_Mm: float = 0.0
-    # The rotated rectangle around its fragments (four corners), and each fragment's outline.
+    # The rectangle around its fragments along the crop's axes, which are the part's (four corners, the crop's
+    # top-left first), and each fragment's outline.
     #   Unit [Vector<Tuple<float> 1x2>] (mm) / [Vector<Vector<Tuple<float> 1x2>>] (mm)
     Corners: tp.List[tp.Tuple[float, float]] = field(default_factory=list)
     Outlines: tp.List[tp.List[tp.Tuple[float, float]]] = field(default_factory=list)
@@ -144,8 +145,9 @@ class Feature_Str(object):
     #   Unit [bool]
     Passed: bool = True
     Found: bool = True
-    # Its rotated box (four corners), and its outlines (a found hole's mask contour, a missing hole's circle of the
-    # catalogue's diameter, a stain's regions), in frame pixels.
+    # Its box along the part's axes (four corners; a hole's is recorded with a margin, and drawn tight round its
+    # outline), and its outlines (a found hole's mask contour, a missing hole's circle of the catalogue's diameter, a
+    # stain's regions), in frame pixels.
     #   Unit [Vector<Tuple<float> 1x2>] (px) / [Vector<Vector<Tuple<float> 1x2>>] (px)
     Corners: tp.List[tp.Tuple[float, float]] = field(default_factory=list)
     Outlines: tp.List[tp.List[tp.Tuple[float, float]]] = field(default_factory=list)

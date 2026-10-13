@@ -3250,24 +3250,44 @@ numbered as the object's parts. `Annotate.Draw_Annotated` draws them on the anno
 (the NOK verdict's magenta), the colours that already mark the objects, so a feature's colour means what an
 object's does — at one line weight, 2 px on a 1920 px frame, half the object's box:
 
-- **A hole found:** a dashed axis-aligned box, like the object's dashed box, and its outline solid: the FastSAM
-  mask's contour, simplified under a pixel, so it follows the hole's real shape and the part's rotation.
-- **A hole expected and not found:** in magenta at its expected position, the same dashed box and a DASHED circle
-  of the catalogue's diameter, so a missing hole (dashed outline) never reads as a found hole out of tolerance
-  (solid outline).
-- **A stain:** its rotated box solid, and its pixels under a 35 % tint of the fail colour, so its shape shows. No
-  axis-aligned box.
+Every feature has a box along the part's axes — its edges are the upright crop's, taken to the frame — so it turns
+with the part:
+
+- **A hole found:** its box solid, tight round its outline, and its outline solid: the FastSAM mask's contour,
+  simplified under a pixel, so it follows the hole's real shape.
+- **A hole expected and not found:** in magenta at its expected position, its box (tight round the catalogue's
+  circle) and a circle of the catalogue's diameter, both DASHED — the only dashed feature marks — so a missing hole
+  never reads as a found hole out of tolerance (solid).
+- **A stain:** its box along the part's axes, round all its pixels (`Check_Stain`), solid, and its pixels under a
+  35 % tint of the fail colour, so its shape shows.
 - **Its number:** every feature carries its part number (`3.1`, `3.2` for object 3) on a chip like the object's,
-  at 0.6 of its font, as a tab on its box's top-left corner — the number the log's `Part` lines print, from the same
-  `Feature_Str.Part`. A chip never covers a feature's outline and keeps a 2 px gap from every other chip: where the
-  tab would (a through-hole's corner lies inside its countersink on the mounting plate's front), it steps outward
-  up and left until it is clear. No leader line: one was tried, and it crossed the countersink's ring. Numbering
-  stays group by group (countersinks 1.1, 1.2, then through-holes 1.3, 1.4), as the log lists them.
+  at 0.6 of its font — the number the log's `Part` lines print, from the same `Feature_Str.Part`. The chip belongs
+  to the feature's box as the object's chip to the object's: on the corner of the box nearest the object's chip
+  (the top-left of the object's axis-aligned box), so all of an object's chips sit toward its own chip at any
+  rotation; outside the box, along that corner's edge closer to horizontal, turned with it, its numeral reading
+  left to right, so it is never more than 45° off level. Two rules keep it from jumping between frames: corners
+  within 3 px (at the 1000 px reference, about 6 px on the frame) of the nearest are equally near and the higher one
+  is taken; edges within 5° of each other are equally level and the one running right from the corner is taken
+  (both running right: the one rising). A chip may lie over a neighbouring outline (a through-hole's over its
+  countersink's ring), never over another chip: one that would come within 2 px of an earlier chip of its object
+  slides along its edge, away from the corner, until it does not. Numbering stays group by group (countersinks 1.1,
+  1.2, then through-holes 1.3, 1.4), as the log lists them.
+
+*Corrected 2026-10-13, the owner's rulings (second revision):* the first version (`32418bc`) drew a found hole's
+box dashed and axis-aligned on the frame, a stain's box along the stain's own slant, and moved a chip up and left to
+free space off its box. Every found feature's box is now solid and along the part, and a chip stays on its box. Two
+corner rules were tried first and dropped: the top-left of the part's upright crop (which corner that is flips with
+the crop's 180° ambiguity: across nine turns of two real plates it landed on one corner or the opposite one), and
+that corner fixed by the identifier's turn (right on all 18 synthetic turns, but 180° off on 2 of the test set's 22
+plates, Image_076 and Image_079). The corner nearest the object's chip needs no orientation at all. A chip sliding
+along its edge is for the tolerance limits: at nominal sizes the through-hole's chip sits 29.7 px below the
+countersink's (22 px of chip and the gap), at a 10.5 mm countersink round a 7.5 mm through-hole 14.9 px, and on the
+test set's front (Image_055) it slides 6 px to keep the gap.
 
 *Corrected 2026-10-13, the owner's ruling, reversing the one of 2026-10-11:* the frame now numbers the parts. On
 2026-10-11 failing parts were numbered on the frame, then every part, and the outline's measured sides were tagged
 L and W; the owner ruled that both cluttered the frame, and they were removed. The numbers are back as smaller chips
-placed clear of the features and of each other; the L and W tags stay removed. *Corrected 2026-10-13, same ruling:*
+on their features' boxes, never over each other; the L and W tags stay removed. *Corrected 2026-10-13, same ruling:*
 until then a hole was marked by a solid square of its diameter plus 0.5 mm, a missing hole by a dashed square, and
 every mark stood on a 2 px light halo (the theme's card colour); the square is now only the box recorded in
 `_objects.json` (`CONST_HOLE_MARK_MARGIN_MM`), and the halo is gone.
@@ -3289,19 +3309,26 @@ is drawn, not saved: History shows the saved `_annotated.png`.
 - **Where a missing hole goes.** At its catalogue position: every mirrored position for a group that fills them
   all; for the plate's through-holes, mirrored either way, the pair that holds the holes found and best fits the pitch (none placed with
   none found); a countersink around a through-hole without one (KNOWN_ISSUES).
-- **Rendered and looked at** (2026-10-13): Image_055 (front), Image_056 (dark back), Image_080 (the two
-  fingerprints as two tinted rotated boxes, chips 1.5 and 1.6), and a SYNTHETIC frame made from Image_055 with one
-  through-hole painted out (inpainted), which the pipeline reports as `Part 1.4 · through-hole: not found at its
-  expected position` and the frame draws as a dashed magenta circle inside the found countersink 1.1; the same
-  three plus the synthetic in the Camera View widget, rendered offscreen. No mounting plate of the test set misses
-  a hole, so only the synthetic frame shows one.
+- **Rendered and looked at** (2026-10-13, second revision): Image_055 (front), Image_056 (dark back), Image_080
+  (the two fingerprints as two tinted boxes along the plate, chips 1.5 and 1.6); SYNTHETIC frames: Image_055 with
+  one through-hole painted out (inpainted; `Part 1.4 · through-hole: not found at its expected position`, a dashed
+  magenta box and circle inside the found countersink 1.1), the Image_055 and Image_056 plates turned 135°, 215° and
+  260° and pasted on the background reference (all judged OK, every chip level within 45°), and Image_055's
+  concentric pair redrawn at the tolerance limits (chip 1.3 slides 20 px along its own top edge). In the Camera View
+  widget, rendered offscreen at the default window (0.45 scale), the lines draw about 1 px and stay unbroken, a
+  level chip's numeral is about 6 px tall, and a chip turned near 45° reads but softer. No mounting plate of the test
+  set misses a hole, so only the synthetic frame shows one.
 
-**Revisit if** a mark or a number is misread on the rig's screen, an operator cannot tell indigo from the dark back
-(the halo's case), a chip lands far from its feature on a crowded part, or a feature kind is added.
-Tests `test/Vision/Utilities/test_annotate.py::test_a_holes_marks_are_a_dashed_box_and_its_solid_outline_in_one_colour_without_a_halo`,
-`::test_a_missing_hole_is_a_dashed_circle_where_a_found_one_is_solid`,
-`::test_a_stain_is_outlined_by_its_rotated_box_and_tinted_with_no_axis_aligned_box`,
-`::test_each_feature_has_its_part_number_on_a_smaller_chip_clear_of_every_feature_and_chip`,
+**Revisit if** a mark or a number is misread on the rig's screen (a chip turned near 45° first), an operator cannot
+tell indigo from the dark back (the halo's case), a chip slides off its box on a crowded part, or a feature kind is
+added.
+Tests `test/Vision/Utilities/test_annotate.py::test_a_found_holes_box_and_outline_are_solid_in_one_colour_thinner_than_the_object_without_a_halo`,
+`::test_a_missing_hole_is_a_dashed_box_and_circle_where_a_found_one_is_solid`,
+`::test_a_stains_box_along_the_part_is_solid_and_its_pixels_tinted`,
+`::test_a_chip_sits_outside_its_box_on_the_corner_nearest_the_objects_chip_and_reads_near_level` (0°, 30°, 135°, 200°),
+`::test_a_near_tie_takes_the_higher_corner_and_the_edge_running_right`,
+`::test_a_concentric_pair_at_the_tolerance_limits_has_its_chips_apart_each_on_its_own_box`,
+`test/Vision/Utilities/test_stain.py::test_a_stains_box_is_along_the_crops_axes_round_all_its_pixels`,
 `test/Vision/Utilities/test_holes.py` (the missing-hole placements;
 `::test_a_holes_outline_is_its_masks_contour_in_mm_and_the_frame_marks_it`,
 `::test_a_missing_holes_outline_is_a_circle_of_its_groups_diameter_at_its_position`),

@@ -27,6 +27,8 @@ import typing as tp
 import cv2
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
+# Pytest (Testing framework) [pip3 install pytest]
+import pytest
 # Custom Lib.: AnyScan domain — the annotation renderer and the palette it reads
 #   ../Vision/Utilities/Annotate
 import Vision.Utilities.Annotate as Annotate
@@ -384,6 +386,20 @@ def __Circle(cx: float, cy: float, r: float) -> tp.List[tp.Tuple[float, float]]:
     return [(cx + r * np.cos(2 * np.pi * k / 72), cy + r * np.sin(2 * np.pi * k / 72)) for k in range(72)]
 
 
+def __Square(cx: float, cy: float, half: float, degrees: float) -> tp.List[tp.Tuple[float, float]]:
+    """A box along a part turned by degrees (clockwise on the frame): its four corners in order, in frame pixels."""
+    t = np.radians(degrees)
+    u, v = np.array([np.cos(t), np.sin(t)]), np.array([-np.sin(t), np.cos(t)])
+    return [tuple(np.array([cx, cy]) + u * a + v * b) for a, b in ((-half, -half), (half, -half), (half, half), (-half, half))]
+
+
+def __Hole(part: str, cx: float, cy: float, r: float, degrees: float = 0.0, **kwargs: tp.Any) -> tp.Any:
+    """A hole as the pipeline gives it: its recorded box (its circle, 5 px wider each way) and its outline."""
+    from Parameters.Vision import Feature_Str
+    return Feature_Str(Part=part, Kind='hole', Name='hole', Corners=__Square(cx, cy, r + 5, degrees),
+                       Outlines=[__Circle(cx, cy, r)], **kwargs)
+
+
 def __Judged(features: tp.List[tp.Any]) -> Detection_Str:
     """A judged plate on a 1920 x 1200 frame, its box (100, 100, 600, 600), carrying the features given."""
     mask = np.zeros((1200, 1920), dtype=bool)
@@ -391,141 +407,166 @@ def __Judged(features: tp.List[tp.Any]) -> Detection_Str:
     return Detection_Str(Label='plate', Bbox=(100, 100, 600, 600), Mask=mask, Verdict='NOK', Features=features)
 
 
+def __Render(features: tp.List[tp.Any]) -> np.ndarray:
+    """The annotated frame of a judged plate carrying the features, on a plain grey 1920 x 1200 scene."""
+    return Annotate.Draw_Annotated(np.full((1200, 1920, 3), 90, np.uint8), [__Judged(features)], cv2, np,
+                                   verdict_colored=True)
+
+
 def __Near(image: np.ndarray, bgr: tp.Tuple[int, int, int], tolerance: int = 40) -> np.ndarray:
     """Where the image is within the tolerance of a colour (each channel), as a bool HxW map."""
     return (np.abs(image.astype(int) - np.array(bgr)) <= tolerance).all(axis=2)
 
 
-def __On_Circle(hits: np.ndarray, cx: float, cy: float, r: float) -> tp.List[bool]:
-    """For 180 points round a circle, whether a hit lies within 1 px of it."""
-    points = [(int(round(cx + r * np.cos(2 * np.pi * k / 180))), int(round(cy + r * np.sin(2 * np.pi * k / 180))))
-              for k in range(180)]
-    return [bool(hits[y - 1:y + 2, x - 1:x + 2].any()) for x, y in points]
+def __Along(hits: np.ndarray, points: tp.List[tp.Tuple[float, float]], samples: int = 180) -> tp.List[bool]:
+    """For points spread round a closed path, whether a hit lies within 1 px of each."""
+    ring = np.float64(list(points) + [points[0]])
+    lengths = np.linalg.norm(np.diff(ring, axis=0), axis=1)
+    found = []
+    for s in np.linspace(0.0, lengths.sum(), samples, endpoint=False):
+        k = int(np.searchsorted(np.cumsum(lengths), s, side='right'))
+        x, y = ring[k] + (ring[k + 1] - ring[k]) * (s - np.cumsum(lengths)[k - 1] if k else s) / lengths[k]
+        found.append(bool(hits[int(round(y)) - 1:int(round(y)) + 2, int(round(x)) - 1:int(round(x)) + 2].any()))
+    return found
 
 
-def test_a_holes_marks_are_a_dashed_box_and_its_solid_outline_in_one_colour_without_a_halo() -> None:
+def __Gaps(found: tp.List[bool]) -> int:
+    """How many gaps a closed path's samples show (a run of misses after a hit)."""
+    return sum(1 for a, b in zip(found, found[1:] + found[:1]) if a and not b)
+
+
+def __Chips(image: np.ndarray, unnumbered: np.ndarray) -> tp.List[np.ndarray]:
+    """The chips: where the render differs from the same features' render without numbers, each as its pixels (x, y)."""
+    changed = (image != unnumbered).any(axis=2).astype(np.uint8)
+    count, labels = cv2.connectedComponents(cv2.morphologyEx(changed, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)))
+    return [np.column_stack(np.nonzero(labels == i)[::-1]).astype(float) for i in range(1, count)]
+
+
+def test_a_found_holes_box_and_outline_are_solid_in_one_colour_thinner_than_the_object_without_a_halo() -> None:
     """
     Description:
-        On the annotated frame (rendered pixels, at the camera's 1920 x 1200): a passing hole's outline is drawn
-        solid all the way round in the pass colour (the OK verdict's), a failing found hole's in the fail colour (the
-        NOK verdict's), each inside a dashed axis-aligned box of its own colour — its edge has gaps — at a weight
-        thinner than the object's box; no other colour is drawn beside a mark (no halo); the label mask carries none
-        of it.
+        On the annotated frame (rendered pixels, 1920 x 1200), a found hole on a part turned 30°: its box along the
+        part's axes, tight round its outline, and its outline are drawn SOLID all the way round, in the pass colour
+        (the OK verdict's) for a passing hole and the fail colour (the NOK verdict's) for a failing one, thinner
+        than the object's box; nothing else is drawn round the marks (no halo, no second colour); the label mask
+        carries none of it.
     """
 
-    from Parameters.Vision import Feature_Str
     passed, failed = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0]), Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
-    scene = np.full((1200, 1920, 3), 90, np.uint8)
-    features = [Feature_Str(Part='1.1', Kind='hole', Name='hole', Outlines=[__Circle(250, 250, 40)]),
-                Feature_Str(Part='1.2', Kind='hole', Name='hole', Passed=False, Outlines=[__Circle(500, 250, 40)])]
-    annotated = Annotate.Draw_Annotated(scene, [__Judged(features)], cv2, np, verdict_colored=True)
-    assert all(__On_Circle(__Near(annotated, passed), 250, 250, 40))
-    assert all(__On_Circle(__Near(annotated, failed), 500, 250, 40))
+    features = [__Hole('1.1', 250, 300, 40, 30.0), __Hole('1.2', 500, 300, 40, 30.0, Passed=False)]
+    annotated = __Render(features)
     for cx, bgr in ((250, passed), (500, failed)):
-        top = [bool(__Near(annotated[208:213, x:x + 1], bgr).any()) for x in range(cx - 35, cx + 36)]
-        assert any(top) and not all(top)                                          # the box above it is dashed
-    hole = annotated[212:300, 200:300]                                            # below its chip (a white numeral)
-    assert not __Near(hole, failed).any()                                         # one colour per feature
-    changed = (hole != 90).any(axis=2)
-    marked = __Near(hole, passed, 140)                                            # the mark and its blend into the grey
-    assert changed.any() and not (changed & ~marked).any()                        # nothing else: no halo
-    weight = __Near(annotated[245:256, 200:225], passed, 10).any(axis=0).sum()    # the outline across its left side
-    box = __Near(annotated[400:420, 90:115], Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0]), 10).any(axis=0).sum()
-    assert 0 < weight < box                                                       # thinner than the object's box
-    mask = Annotate.Draw_Label_Mask([__Judged(features)], scene.shape, cv2, np, verdict_colored=True)
-    assert np.array_equal(mask, Annotate.Draw_Label_Mask([__Judged([])], scene.shape, cv2, np, verdict_colored=True))
+        assert all(__Along(__Near(annotated, bgr), __Circle(cx, 300, 40)))
+        assert all(__Along(__Near(annotated, bgr), __Square(cx, 300, 40, 30.0)))       # tight: no margin
+        wide = __Along(__Near(annotated, bgr), __Square(cx, 300, 45, 30.0))      # the recorded box: only its chip
+        assert sum(wide) < 0.2 * len(wide)
+    # No halo: unnumbered (its chip's white numeral aside), every pixel the passing hole changes is its colour,
+    # blended into the grey at the line's edges.
+    bare = __Render([__Hole('', 250, 300, 40, 30.0)])[220:380, 170:330]
+    changed = (bare != 90).any(axis=2)
+    assert changed.any() and not (changed & ~__Near(bare, passed, 140)).any()
+    assert not __Near(annotated[240:360, 190:310], failed).any()
+    weight = __Near(annotated[333:345, 249:252], passed, 10).any(axis=1).sum()    # the outline at its bottom (y 340)
+    box = __Near(annotated[93:108, 399:402], failed, 10).any(axis=1).sum()       # the object's box's top (y 100)
+    assert 0 < weight < box
+    mask = Annotate.Draw_Label_Mask([__Judged(features)], (1200, 1920, 3), cv2, np, verdict_colored=True)
+    assert np.array_equal(mask, Annotate.Draw_Label_Mask([__Judged([])], (1200, 1920, 3), cv2, np, verdict_colored=True))
 
 
-def test_a_missing_hole_is_a_dashed_circle_where_a_found_one_is_solid() -> None:
+def test_a_missing_hole_is_a_dashed_box_and_circle_where_a_found_one_is_solid() -> None:
     """
     Description:
-        A hole expected and not found is drawn at its expected position in the fail colour: its dashed box and its
-        outline (the catalogue's circle) DASHED — colour and gaps round it — so it never reads as a found hole out
-        of tolerance, whose same circle is solid all the way round.
+        A hole expected and not found is drawn at its position in the fail colour, its box and its outline (the
+        catalogue's circle) DASHED — gaps round both — the only dashed feature marks, so it never reads as a found
+        hole out of tolerance, whose same box and circle are solid all the way round.
+    """
+
+    failed = Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
+    missing = __Near(__Render([__Hole('1.1', 400, 400, 40, 20.0, Passed=False, Found=False)]), failed)
+    found = __Near(__Render([__Hole('1.1', 400, 400, 40, 20.0, Passed=False)]), failed)
+    for path in (__Circle(400, 400, 40), __Square(400, 400, 40, 20.0)):
+        assert any(__Along(missing, path)) and __Gaps(__Along(missing, path)) >= 8
+        assert all(__Along(found, path))
+
+
+def test_a_stains_box_along_the_part_is_solid_and_its_pixels_tinted() -> None:
+    """
+    Description:
+        A stain is drawn as its box along the part's axes (turned 30° with the part), solid in the fail colour all
+        the way round, and its pixels tinted with the fail colour.
     """
 
     from Parameters.Vision import Feature_Str
     failed = Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
-    scene = np.full((1200, 1920, 3), 90, np.uint8)
-    outline = __Circle(400, 400, 40)
-    missing = Annotate.Draw_Annotated(scene, [__Judged([Feature_Str(Part='1.1', Kind='hole', Name='hole', Passed=False,
-                                                                    Found=False, Outlines=[outline])])],
-                                      cv2, np, verdict_colored=True)
-    found = Annotate.Draw_Annotated(scene, [__Judged([Feature_Str(Part='1.1', Kind='hole', Name='hole', Passed=False,
-                                                                  Outlines=[outline])])], cv2, np, verdict_colored=True)
-    round_missing = __On_Circle(__Near(missing, failed), 400, 400, 40)
-    gaps = sum(1 for a, b in zip(round_missing, round_missing[1:] + round_missing[:1]) if a and not b)
-    assert any(round_missing) and gaps >= 8                                       # dashed: a dozen and more gaps
-    assert all(__On_Circle(__Near(found, failed), 400, 400, 40))                  # solid
-    top = [bool(__Near(missing[358:363, x:x + 1], failed).any()) for x in range(365, 436)]
-    assert any(top) and not all(top)                                              # its box is dashed too
-
-
-def test_a_stain_is_outlined_by_its_rotated_box_and_tinted_with_no_axis_aligned_box() -> None:
-    """
-    Description:
-        A stain is drawn as its rotated box, solid in the fail colour along each slanted side, its pixels tinted
-        with the fail colour; it gets no dashed axis-aligned box (the corners of the box around it stay bare).
-    """
-
-    from Parameters.Vision import Feature_Str
-    failed = Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
-    scene = np.full((1200, 1920, 3), 90, np.uint8)
-    diamond = [(400, 300), (500, 400), (400, 500), (300, 400)]
-    stain = Feature_Str(Part='1.1', Kind='stain', Name='stain', Passed=False, Corners=diamond,
-                        Outlines=[[(380, 380), (420, 380), (420, 420), (380, 420)]])
-    annotated = Annotate.Draw_Annotated(scene, [__Judged([stain])], cv2, np, verdict_colored=True)
-    hits = __Near(annotated, failed)
-    for (x0, y0), (x1, y1) in zip(diamond, diamond[1:] + diamond[:1]):
-        assert all(hits[int(y0 + (y1 - y0) * t) - 1:int(y0 + (y1 - y0) * t) + 2,
-                        int(x0 + (x1 - x0) * t) - 1:int(x0 + (x1 - x0) * t) + 2].any() for t in np.linspace(0.1, 0.9, 9))
-    assert (annotated[495:500, 305:310] == 90).all()                              # no box round the diamond
+    box = __Square(400, 400, 60, 30.0)
+    annotated = __Render([Feature_Str(Part='1.1', Kind='stain', Name='stain', Passed=False, Corners=box,
+                                      Outlines=[[(380, 380), (420, 380), (420, 420), (380, 420)]])])
+    assert all(__Along(__Near(annotated, failed), box))
     tinted = annotated[400, 400].astype(int)
     assert tinted[2] > 120 and tinted[1] < 80                                     # magenta over the grey
 
 
-def __Chips(image: np.ndarray, unnumbered: np.ndarray) -> tp.List[tp.Tuple[int, int, int, int]]:
-    """The chips: where the render differs from the same features' render without numbers, as (x, y, w, h)."""
-    changed = (image != unnumbered).any(axis=2).astype(np.uint8)
-    count, _, stats, _ = cv2.connectedComponentsWithStats(cv2.morphologyEx(changed, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)))
-    return [tuple(int(v) for v in stats[i, :4]) for i in range(1, count)]
-
-
-def test_each_feature_has_its_part_number_on_a_smaller_chip_clear_of_every_feature_and_chip() -> None:
+@pytest.mark.parametrize('degrees', [0.0, 30.0, 135.0, 200.0])
+def test_a_chip_sits_outside_its_box_on_the_corner_nearest_the_objects_chip_and_reads_near_level(degrees: float) -> None:
     """
     Description:
-        Every feature with a part number carries a chip of its colour, smaller than the object's, at its box's
-        top-left corner, its number the feature's Part (the log's): a concentric countersink and through-hole (the
-        mounting plate's front) and a hole beside them each get one, no two chips overlap, none covers a feature's
-        outline, the countersink's chip is a tab on its box, the hole beside sits at its box's corner (as a tab, or
-        beside the corner when a tab would touch the circle's top), and the through-hole's, whose corner lies inside
-        the countersink, steps out up and left. A feature without a number gets no chip.
+        A feature's chip belongs to its box at any turn of the part: it touches the corner of the box nearest the
+        object's chip (the object box's top-left, (100, 100)), lies outside the box, and runs along an edge within
+        45° of level (its longer side), so its number is never upside down or sideways.
     """
 
-    from Parameters.Vision import Feature_Str
-    scene = np.full((1200, 1920, 3), 90, np.uint8)
+    box = __Square(400, 400, 45, degrees)                                         # the tight box round r 45
+    chips = __Chips(__Render([__Hole('1.1', 400, 400, 45, degrees)]), __Render([__Hole('', 400, 400, 45, degrees)]))
+    assert len(chips) == 1
+    (pixels,) = chips
+    corner = min(np.float64(box), key=lambda c: np.hypot(c[0] - 100, c[1] - 100))
+    assert np.min(np.hypot(*(pixels - corner).T)) <= 3.0                         # it touches that corner
+    inside = cv2.pointPolygonTest(np.float32(box), tuple(float(c) for c in pixels.mean(axis=0)), False)
+    assert inside < 0                                                             # outside the box
+    (_, _), (w, h), angle = cv2.minAreaRect(np.float32(pixels))
+    long_side = angle if w >= h else angle + 90.0                                 # the chip's length, from level
+    assert min(abs(long_side % 180.0), 180.0 - long_side % 180.0) <= 45.5
 
-    def Render(parts: tp.List[str]) -> np.ndarray:
-        shapes = [(300, 350, 60), (300, 350, 30), (550, 350, 30)]
-        features = [Feature_Str(Part=part, Kind='hole', Name='hole', Outlines=[__Circle(*shape)])
-                    for part, shape in zip(parts, shapes)]
-        return Annotate.Draw_Annotated(scene, [__Judged(features)], cv2, np, verdict_colored=True)
 
-    annotated, unnumbered = Render(['1.1', '1.2', '1.3']), Render(['', '', ''])
-    features = __Chips(annotated, unnumbered)
-    # The object's chip: the tab above its box (y 100), alone in that strip.
-    object_chip = (annotated[:99, 90:220] == np.array(Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0]), np.uint8)).all(axis=2)
-    object_h = int(object_chip.any(axis=1).sum())
-    assert len(features) == 3 and all(0 < h < object_h for _, _, _, h in features)
-    discs = np.zeros(scene.shape[:2], np.uint8)
-    for cx, cy, r in ((300, 350, 60), (300, 350, 30), (550, 350, 30)):
-        cv2.circle(discs, (cx, cy), r + 1, 1, -1)
-    for i, (x, y, w, h) in enumerate(features):
-        assert not discs[y:y + h, x:x + w].any()
-        for x2, y2, w2, h2 in features[i + 1:]:                                   # apart, by the gap
-            assert x + w < x2 or x2 + w2 < x or y + h < y2 or y2 + h2 < y
-    assert any(x == 240 and y + h == 291 for x, y, w, h in features)              # the countersink's: a tab on (240, 290)
-    assert any(x + w <= 240 and y + h <= 290 for x, y, w, h in features)          # the through-hole's: out, up-left
-    assert any(x <= 520 <= x + w and y + h == 321 for x, y, w, h in features)     # the hole beside: at (520, 320)
-    assert len(__Chips(Render(['1.1', '', '1.3']), unnumbered)) == 2              # no number, no chip
-    assert not np.array_equal(Render(['1.1', '1.2', '1.9']), annotated)           # the chip shows the Part
+def test_a_near_tie_takes_the_higher_corner_and_the_edge_running_right() -> None:
+    """
+    Description:
+        A box turned 45°, its top and left corners equally near the object's chip: the chip takes the higher (top)
+        corner, and of its two edges, equally level, the one running right from it — the chip lies right of the top
+        corner and above that edge, so it does not jump or swap between frames.
+    """
+
+    box = np.float64(__Square(400, 400, 45, 45.0))
+    top = box[np.argmin(box[:, 1])]
+    left = box[np.argmin(box[:, 0])]
+    assert abs(np.hypot(*(top - 100)) - np.hypot(*(left - 100))) < 1e-6
+    (pixels,) = __Chips(__Render([__Hole('1.1', 400, 400, 45, 45.0)]), __Render([__Hole('', 400, 400, 45, 45.0)]))
+    centre = pixels.mean(axis=0)
+    assert np.min(np.hypot(*(pixels - top).T)) <= 3.0
+    assert centre[0] > top[0] and centre[1] < top[1] + 45.0
+    assert np.min(np.hypot(*(pixels - left).T)) > 10.0
+
+
+def test_a_concentric_pair_at_the_tolerance_limits_has_its_chips_apart_each_on_its_own_box() -> None:
+    """
+    Description:
+        The mounting plate's front at its tolerance limits (a 10.5 mm countersink round a 7.5 mm through-hole, at
+        9.9 px/mm): the through-hole's chip, which would lie on the countersink's, slides along its own box's top
+        edge until the two are apart, so each chip still sits on its own box; a feature without a number has no chip,
+        and the chip shows the Part given.
+    """
+
+    countersink, through = (__Hole(part, 400, 400, r) for part, r in (('1.1', 52), ('1.3', 37)))
+    unnumbered = __Render([__Hole('', 400, 400, 52), __Hole('', 400, 400, 37)])
+    annotated = __Render([countersink, through])
+    chips = sorted(__Chips(annotated, unnumbered), key=lambda p: p[:, 1].max())
+    assert len(chips) == 2
+    outer, inner = chips
+    gap_x = max(inner[:, 0].min() - outer[:, 0].max(), outer[:, 0].min() - inner[:, 0].max())
+    gap_y = max(inner[:, 1].min() - outer[:, 1].max(), outer[:, 1].min() - inner[:, 1].max())
+    assert max(gap_x, gap_y) >= 2.0                                               # apart, by the gap
+    # Each on its own top edge (y 348 and 363): its last rows are on its box's line, of its own colour, so unchanged.
+    assert 0 <= 348 - outer[:, 1].max() <= 3 and 0 <= 363 - inner[:, 1].max() <= 3
+    assert 363 <= inner[:, 0].min() and inner[:, 0].max() <= 437 + 1             # within the inner box's edge
+    assert len(__Chips(__Render([countersink, __Hole('', 400, 400, 37)]), unnumbered)) == 1
+    assert not np.array_equal(__Render([countersink, __Hole('1.9', 400, 400, 37)]), annotated)

@@ -71,22 +71,24 @@ CONST_ANNOTATE_DASH_GAP = 7
 CONST_ANNOTATE_DASHED_W_FRACTION = 0.5
 # A judged part's feature marks (holes, stains), at the reference dimension: their one line weight, half the
 # object's box (2 px on a 1920 px frame, the owner's choice of 2026-10-13 over 1 px, which fades when the Camera
-# View scales the frame down); the dash and gap of a hole's dashed box, and of a missing hole's dashed circle; the
-# tint laid over a stain's pixels. No halo and no second colour: the owner's ruling of 2026-10-13 (design-decisions).
-#   Unit [float] (px) / [float] (px) / [float] (px) / [float] (0-1)
+# View scales the frame down); the dash and gap of a missing hole's dashed box and circle, the only dashed feature
+# marks; the tint laid over a stain's pixels. No halo and no second colour: the owner's ruling of 2026-10-13.
+#   Unit [float] (px) / [float] (px) / [float] (0-1)
 CONST_ANNOTATE_FEATURE_W = 1.0
-CONST_ANNOTATE_FEATURE_BOX_DASH = 6
 CONST_ANNOTATE_FEATURE_DASH = 4
 CONST_ANNOTATE_STAIN_TINT = 0.35
 # A feature's number chip ('3.1'): its numeral at this fraction of the object chip's font scale, never below the
-# floor, so it reads as the object's chip made smaller. When the tab above its box's top-left corner would cover
-# a feature or another chip (a through-hole inside its countersink), the chip steps outward, up and left, a third
-# of its height at a time, at most this many steps; one with no free place is not drawn (its number is in the log).
-# A chip keeps the gap clear round it, so two chips side by side read as two (at the reference dimension).
-#   Unit [float] / [float] / [int] / [float] (px)
+# floor, so it reads as the object's chip made smaller. It sits on the corner of the feature's box nearest the
+# object's chip (the top-left of the object's axis-aligned box); corners within the tie distance of the nearest
+# count as equally near and the higher one is taken, so a chip does not jump between frames. It lies along the
+# corner's edge closer to horizontal; edges within the tie angle of each other count as equal and the one running
+# to the right from the corner is taken (both running right: the one rising), for the same reason. A chip keeps the
+# gap clear round it and slides along its edge, one pixel at a time, until it does (the owner's rulings, 2026-10-13).
+#   Unit [float] / [float] / [float] (px) / [float] (deg) / [float] (px)
 CONST_ANNOTATE_FEATURE_CHIP_FRACTION = 0.6
 CONST_ANNOTATE_FEATURE_CHIP_FONT_MIN = 0.4
-CONST_ANNOTATE_FEATURE_CHIP_STEPS = 60
+CONST_ANNOTATE_FEATURE_CHIP_TIE_PX = 3.0
+CONST_ANNOTATE_FEATURE_CHIP_TIE_DEG = 5.0
 CONST_ANNOTATE_FEATURE_CHIP_GAP = 2
 
 # The index chip's numeral. Its font scales only gently with resolution and is capped
@@ -318,16 +320,16 @@ def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float
     Description:
         A judged part's features on the annotated frame (Detection_Str.Features), each in ONE colour — the pass
         colour (the OK verdict's indigo) or the fail colour (the NOK verdict's magenta), the colours that mark the
-        objects — at one line weight, thinner than the object's box, with no halo:
+        objects — at one line weight, thinner than the object's box, with no halo. Every feature has a box along the
+        part's axes, so it turns with the part (__Feature_Box):
 
-        - a hole found: a dashed axis-aligned box around its outline and its outline (the mask's contour) solid;
-        - a hole expected and not found: the same dashed box and a dashed circle of the catalogue's diameter at its
-          position, so a hole missing never reads as a hole found out of tolerance;
-        - a stain: its rotated box solid, and its pixels under a tint of the fail colour, so its shape shows.
+        - a hole found: its box solid, tight round its outline, and its outline (the mask's contour) solid;
+        - a hole expected and not found: its box and a circle of the catalogue's diameter at its position, both
+          DASHED, the only dashed feature marks, so a hole missing never reads as a hole found out of tolerance;
+        - a stain: its box solid, and its pixels under a tint of the fail colour, so its shape shows.
 
-        Each feature then carries its part number ('3.1') on a chip like the object's, smaller, as a tab on its box's
-        top-left corner (a stain's: the rotated box's axis-aligned box), moved outward up and left when it would
-        cover a feature or come within CONST_ANNOTATE_FEATURE_CHIP_GAP of another chip (__Place_Feature_Chip). The numbers are the log's Part numbers.
+        Each feature then carries its part number ('3.1', the log's Part) on a chip like the object's, smaller,
+        belonging to its box and turned with it (__Draw_Feature_Chip).
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The annotated frame (mutated).
@@ -342,76 +344,201 @@ def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float
     passed, failed = Hex_To_Bgr(Verdict_Color('OK')[0]), Hex_To_Bgr(Verdict_Color('NOK')[0])
     weight = max(1, int(round(CONST_ANNOTATE_FEATURE_W * scale)))
     dash = CONST_ANNOTATE_FEATURE_DASH * scale
-    box_dash = CONST_ANNOTATE_FEATURE_BOX_DASH * scale
     outlines = [np.int32(np.round(outline)) for det in objects for feature in det.Features if feature.Kind == 'stain'
                 for outline in feature.Outlines]
     if outlines:
         tint = image.copy()
         cv2.fillPoly(tint, outlines, failed)
         cv2.addWeighted(tint, CONST_ANNOTATE_STAIN_TINT, image, 1.0 - CONST_ANNOTATE_STAIN_TINT, 0.0, dst=image)
-    # What a feature chip must not cover: the objects' chips, every feature's shape, and the chips placed.
-    blocked = np.zeros(image.shape[:2], dtype=np.uint8)
-    gap = max(1, int(round(CONST_ANNOTATE_FEATURE_CHIP_GAP * scale)))
-    for i, det in enumerate(objects):
-        x, top, w, h = __Index_Chip_Rect(det.Bbox, i, scale, cv2)
-        blocked[max(0, top - gap):top + h + gap + 1, max(0, x - gap):x + w + gap + 1] = 1
-    marks = []
     for det in objects:
+        placed = []
         for feature in det.Features:
-            shape = feature.Outlines[0] if feature.Kind == 'hole' and feature.Outlines else feature.Corners
-            if len(shape) < 3:
+            box = __Feature_Box(feature, np)
+            if box is None:
                 continue
             color = passed if feature.Passed else failed
-            points = [(float(x), float(y)) for x, y in shape]
-            polygon = np.int32(np.round(points))
-            cv2.fillPoly(blocked, [polygon], 1)
-            cv2.polylines(blocked, [polygon], True, 1, weight + 2)
-            bx, by, bw, bh = cv2.boundingRect(polygon)
-            if feature.Kind == 'hole':
-                __Draw_Dashed_Path(image, [(bx, by), (bx + bw, by), (bx + bw, by + bh), (bx, by + bh)], color, weight,
-                                   box_dash, dash, cv2)
-            if feature.Found:
-                cv2.polylines(image, [polygon], True, color, weight, cv2.LINE_AA)
-            else:
-                __Draw_Dashed_Path(image, points, color, weight, dash, dash, cv2)
-            marks.append((feature.Part, color, bx, by))
-    font_scale = max(CONST_ANNOTATE_FEATURE_CHIP_FONT_MIN, CONST_ANNOTATE_FEATURE_CHIP_FRACTION * __Chip_Font_Scale(scale))
-    for label, color, bx, by in marks:
-        if not label:
-            continue
-        chip_w, chip_h, _, _, _ = __Chip_Size(label, font_scale, cv2)
-        spot = __Place_Feature_Chip(blocked, bx, by, chip_w, chip_h)
-        if spot is not None:
-            blocked[max(0, spot[1] - gap):spot[1] + chip_h + gap + 1, max(0, spot[0] - gap):spot[0] + chip_w + gap + 1] = 1
-            __Draw_Chip(image, spot[0], spot[1], label, color, font_scale, cv2)
+            outline = [(float(x), float(y)) for x, y in feature.Outlines[0]] if feature.Kind == 'hole' and feature.Outlines \
+                else []
+            for path in [[(float(x), float(y)) for x, y in box]] + ([outline] if outline else []):
+                if feature.Found:
+                    cv2.polylines(image, [np.int32(np.round(path))], True, color, weight, cv2.LINE_AA)
+                else:
+                    __Draw_Dashed_Path(image, path, color, weight, dash, dash, cv2)
+            if feature.Part:
+                placed.append(__Draw_Feature_Chip(image, box, det.Bbox, feature.Part, color, placed, scale, cv2, np))
 
 
-def __Place_Feature_Chip(blocked: tp.Any, bx: int, by: int, chip_w: int,
-                         chip_h: int) -> tp.Optional[tp.Tuple[int, int]]:
+def __Feature_Box(feature: tp.Any, np: tp.Any) -> tp.Any:
     """
     Description:
-        Where a feature's chip goes: the first free place, inside the frame, of a tab above its box's top-left corner,
-        a tab beside that corner (diagonally out, then level with the box's top), each tried at the corner and then
-        stepped outward, up and left, a third of the chip's height at a time (CONST_ANNOTATE_FEATURE_CHIP_STEPS).
+        The box a feature is drawn with, along the part's axes (the edges of its recorded box, which turn with the
+        part): a hole's tight round its outline (a found hole's contour, a missing hole's circle), a stain's its
+        recorded box.
 
     Args:
-        (1) blocked [Matrix<uint8> HxW]: Non-zero where a chip must not go.
-        (2) bx, by [int]: The feature box's top-left corner.
-        (3) chip_w, chip_h [int]: The chip's size.
+        (1) feature [Feature_Str(object)]: The feature, in frame pixels.
+        (2) np [module]: The NumPy module, injected by the caller.
 
     Returns:
-        (1) parameter [Tuple<int> 1x2 or None]: The chip's top-left corner, or None when nothing is free.
+        (1) parameter [Matrix<float> 4x2 or None]: The four corners in order round the box; None without a box.
     """
 
-    h, w = blocked.shape[:2]
-    step = max(2, chip_h // 3)
-    for k in range(CONST_ANNOTATE_FEATURE_CHIP_STEPS):
-        d = k * step
-        for x, y in ((bx - d, by - chip_h - d), (bx - chip_w - d, by - chip_h - d), (bx - chip_w - d, by - d)):
-            if x >= 0 and y >= 0 and x + chip_w < w and y + chip_h < h \
-                    and not blocked[y:y + chip_h + 1, x:x + chip_w + 1].any():
-                return x, y
-    return None
+    if len(feature.Corners) != 4:
+        return None
+    corners = np.float64(feature.Corners)
+    u, v = corners[1] - corners[0], corners[3] - corners[0]
+    if np.linalg.norm(u) == 0.0 or np.linalg.norm(v) == 0.0:
+        return None
+    if feature.Kind != 'hole' or not feature.Outlines:
+        return corners
+    u, v = u / np.linalg.norm(u), v / np.linalg.norm(v)
+    points = np.float64(feature.Outlines[0]) - corners[0]
+    pu, pv = points @ u, points @ v
+    return np.float64([corners[0] + u * a + v * b for a, b in ((pu.min(), pv.min()), (pu.max(), pv.min()),
+                                                               (pu.max(), pv.max()), (pu.min(), pv.max()))])
+
+
+def __Chip_Corner(box: tp.Any, anchor: tp.Tuple[float, float], scale: float, np: tp.Any) -> int:
+    """
+    Description:
+        Which corner of a feature's box carries its chip: the one nearest the object's chip (anchor, the top-left of
+        the object's axis-aligned box); corners within CONST_ANNOTATE_FEATURE_CHIP_TIE_PX of the nearest are equally
+        near, and the higher one is taken, so the chip does not jump between frames.
+
+    Args:
+        (1) box [Matrix<float> 4x2]: The feature's box.
+        (2) anchor [Vector<float> 1x2]: The object box's top-left corner.
+        (3) scale [float]: The drawing scale.
+        (4) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [int]: The corner's index in the box.
+    """
+
+    distance = np.linalg.norm(box - np.float64(anchor), axis=1)
+    near = [k for k in range(4) if distance[k] <= distance.min() + CONST_ANNOTATE_FEATURE_CHIP_TIE_PX * scale]
+    return min(near, key=lambda k: (box[k][1], distance[k]))
+
+
+def __Chip_Edge(box: tp.Any, corner: int, np: tp.Any) -> tp.Any:
+    """
+    Description:
+        Which of the corner's two edges a chip lies along: the one closer to horizontal; edges within
+        CONST_ANNOTATE_FEATURE_CHIP_TIE_DEG of each other are equal, and the one running to the right from the
+        corner is taken (both running right: the one rising), so the chip does not swap edges between frames.
+
+    Args:
+        (1) box [Matrix<float> 4x2]: The feature's box.
+        (2) corner [int]: The chip's corner.
+        (3) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [Matrix<float> 2x2]: The edge, from the corner to its other end.
+    """
+
+    edges = [np.float64([box[corner], box[(corner + 1) % 4]]), np.float64([box[corner], box[(corner - 1) % 4]])]
+    tilt = [math.degrees(math.atan2(abs(e[1][1] - e[0][1]), abs(e[1][0] - e[0][0]))) for e in edges]
+    if abs(tilt[0] - tilt[1]) > CONST_ANNOTATE_FEATURE_CHIP_TIE_DEG:
+        return edges[0] if tilt[0] < tilt[1] else edges[1]
+    return min(edges, key=lambda e: (e[1][0] <= e[0][0], e[1][1] >= e[0][1]))
+
+
+def __Draw_Feature_Chip(image: tp.Any, box: tp.Any, bbox: tp.Tuple[int, int, int, int], label: str,
+                        chip_bgr: tp.Tuple[int, int, int], placed: tp.List[tp.Any], scale: float, cv2: tp.Any,
+                        np: tp.Any) -> tp.Any:
+    """
+    Description:
+        A feature's chip, part of its box as the object's chip is of the object's: on the box's corner nearest the
+        object's chip (__Chip_Corner), along that corner's edge closer to horizontal (__Chip_Edge), outside the box
+        and turned with the edge, its numeral reading left to right. A chip that would come within
+        CONST_ANNOTATE_FEATURE_CHIP_GAP of an earlier chip of the object slides along its edge, away from the corner,
+        until it does not. It may lie over a neighbouring feature's outline (a through-hole's over its countersink).
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The annotated frame (mutated).
+        (2) box [Matrix<float> 4x2]: The feature's box.
+        (3) bbox [Vector<int> 1x4]: The object's axis-aligned box as (x, y, w, h).
+        (4) label [string]: The part number.
+        (5) chip_bgr [Vector<int> 1x3]: The feature's colour.
+        (6) placed [Vector<Matrix<float> 4x2>]: The object's chips drawn so far, each grown by the gap.
+        (7) scale [float]: The drawing scale.
+        (8) cv2 [module]: The OpenCV module, injected by the caller.
+        (9) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [Matrix<float> 4x2]: The chip, grown by the gap, for the next chips to keep clear of.
+    """
+
+    font_scale = max(CONST_ANNOTATE_FEATURE_CHIP_FONT_MIN, CONST_ANNOTATE_FEATURE_CHIP_FRACTION * __Chip_Font_Scale(scale))
+    chip_w, chip_h, _, _, _ = __Chip_Size(label, font_scale, cv2)
+    corner = __Chip_Corner(box, (float(bbox[0]), float(bbox[1])), scale, np)
+    start, end = __Chip_Edge(box, corner, np)
+    length = float(np.linalg.norm(end - start))
+    slide = (end - start) / length
+    across = slide if slide[0] >= 0.0 else -slide                  # the numeral reads left to right
+    up = np.float64([across[1], -across[0]])                       # the numeral's up, on the frame
+    above = float((box.mean(axis=0) - start) @ up) < 0.0           # the box lies below the edge: the chip above it
+    gap = CONST_ANNOTATE_FEATURE_CHIP_GAP * scale
+
+    def Quad(offset: float, grow: float) -> tp.Any:
+        """
+        Description:
+            The chip's four corners (top-left, top-right, bottom-right, bottom-left), slid along its edge.
+
+        Args:
+            (1) offset [float]: How far it is slid along the edge, away from the corner, in pixels.
+            (2) grow [float]: How far each side is pushed out (the gap), in pixels.
+
+        Returns:
+            (1) parameter [Matrix<float32> 4x2]: The corners.
+        """
+
+        foot = start + slide * offset - (across * chip_w if slide[0] < 0.0 else 0.0)
+        top_left = foot + up * chip_h if above else foot
+        return np.float32([top_left - (across - up) * grow, top_left + across * chip_w + (across + up) * grow,
+                           top_left + across * chip_w - up * chip_h + (across - up) * grow,
+                           top_left - up * chip_h - (across + up) * grow])
+
+    offset = 0.0
+    while offset < length and any(cv2.intersectConvexConvex(Quad(offset, 0.0), other)[0] > 0.0 for other in placed):
+        offset += 1.0
+    quad = Quad(offset, 0.0)
+    __Draw_Turned_Chip(image, quad, label, chip_bgr, font_scale, cv2, np)
+    return Quad(offset, gap)
+
+
+def __Draw_Turned_Chip(image: tp.Any, quad: tp.Any, label: str, chip_bgr: tp.Tuple[int, int, int], font_scale: float,
+                       cv2: tp.Any, np: tp.Any) -> None:
+    """
+    Description:
+        A chip drawn upright (__Draw_Chip) and laid on the frame turned into its place, blended at its edges.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The annotated frame (mutated).
+        (2) quad [Matrix<float> 4x2]: Where the chip goes: its top-left, top-right, bottom-right, bottom-left.
+        (3) label [string]: The part number.
+        (4) chip_bgr [Vector<int> 1x3]: The chip colour.
+        (5) font_scale [float]: The cv2 font scale.
+        (6) cv2 [module]: The OpenCV module, injected by the caller.
+        (7) np [module]: The NumPy module, injected by the caller.
+    """
+
+    chip_w, chip_h, _, _, _ = __Chip_Size(label, font_scale, cv2)
+    patch = np.zeros((chip_h + 1, chip_w + 1, 3), np.uint8)
+    __Draw_Chip(patch, 0, 0, label, chip_bgr, font_scale, cv2)
+    h, w = image.shape[:2]
+    x0, y0 = max(0, int(math.floor(quad[:, 0].min())) - 1), max(0, int(math.floor(quad[:, 1].min())) - 1)
+    x1, y1 = min(w, int(math.ceil(quad[:, 0].max())) + 2), min(h, int(math.ceil(quad[:, 1].max())) + 2)
+    if x1 <= x0 or y1 <= y0:
+        return
+    warp = cv2.getAffineTransform(np.float32([[0, 0], [chip_w, 0], [0, chip_h]]),
+                                  np.float32([quad[0], quad[1], quad[3]]) - np.float32([x0, y0]))
+    size = (x1 - x0, y1 - y0)
+    chip = cv2.warpAffine(patch, warp, size, flags=cv2.INTER_LINEAR).astype(np.float32)
+    alpha = cv2.warpAffine(np.full(patch.shape[:2], 255, np.uint8), warp, size, flags=cv2.INTER_LINEAR)
+    alpha = alpha.astype(np.float32)[..., None] / 255.0
+    region = image[y0:y1, x0:x1].astype(np.float32)
+    image[y0:y1, x0:x1] = np.round(chip * alpha + region * (1.0 - alpha)).astype(np.uint8)
 
 
 def __Draw_Dashed_Path(image: tp.Any, points: tp.List[tp.Tuple[float, float]], color_bgr: tp.Tuple[int, int, int],
