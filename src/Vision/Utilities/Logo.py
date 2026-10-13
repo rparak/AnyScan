@@ -48,8 +48,9 @@ Description:
     complete, the 11 that are not that dark plate with least letter 0.77 (contrast 3.24); each of those 11 logos'
     165 letters erased in turn (synthetic, inpainted) at most 0.47, except two J at 0.58-0.59 whose inpainted seam
     keeps the J's shape at contrast 0.18-0.19. About 65-105 ms per back on the CPU (M-series), the references
-    prepared once per configuration. Correlation alignment without features failed even on the
-    reference frame; OCR cannot read the stylised JIC.
+    prepared once per configuration. A fifth reference (2026-10-13, outline letters on a plate outside the test
+    set) registers to none of the test set's logos, so these figures stand. Correlation alignment without
+    features failed even on the reference frame; OCR cannot read the stylised JIC.
 """
 
 # CLAHE before every comparison, clip 2 on 8 x 8 tiles. Measured with the check as built (complete letters' least

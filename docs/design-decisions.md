@@ -3140,8 +3140,8 @@ error while unpinned (a pin could never match it). The rig confirmed the three a
 and logged with the tolerance used; a ratio more than half the `BalanceRatio` node's step from the station file's
 is refused, naming the colour. The camera rounds each ratio to that step, so an exact match would refuse a
 correctly set camera; a node reporting no step is checked to 1/128 (half of an assumed 1/64 step).
-**Unverified on the rig:** the ratio read-back (the node's step and the read values) — only a stand-in device has
-run it (capture checklist).
+*Confirmed on the rig 2026-10-13:* this camera reports no step for `BalanceRatio`, so the 1/128 fallback applies,
+and it reads the ratios back as 0.949951, 0.899902 and 1.19995 (within about 0.00005 of 0.95, 0.90, 1.20).
 
 **Revisit if** the camera's user set is changed, the camera is replaced by a model with a colour-preset node (then
 pin it), the rig's connect line shows a ratio step coarser than expected, or a stain or colour measurement drifts
@@ -3235,6 +3235,16 @@ is its edges along the reference's strokes against the part's own plate.
   (pixels off their surroundings by more than 8 grey levels): the dark-only one left the dark plate's lighter
   letters in place. With it the 12 complete logos' 180 letters are all caught, the highest at 0.34; the J seams
   above were the dark-only eraser's.
+  *Added 2026-10-13, on the owner's ruling:* a fifth reference, `back_outline_3` — outline letters on a plate
+  shot for the catalogue on 2026-10-12, the only logo reference that is not a test frame. It first replaced
+  `back.png` (b131244) with the filled-letter boxes left in place, which turned the 8 filled-letter backs NOK;
+  `back` is restored (Image_058) and the new shot is its own reference, level as shot, JIC's boxes from the tool
+  and SMART and FACTORY split by hand in `back_outline`'s proportions. It registers to none of the 12 complete
+  logos (at most 18 matches; 3–5 with the other outline plates), so every test-set result is unchanged:
+  per reference as the best match, least letter / least contrast / highest erased — `back` (8 logos) 0.845 /
+  8.03 / 0.28, `back_outline` (1) 0.784 / 3.36 / 0.25, `back_outline_2` (2) 0.885 / 7.73 / 0.31, `back_dark`
+  (1) 0.933 / 2.65 / 0.27; 180 of 180 erasures caught. On its own plate (turned a quarter, scaled 0.8) 15/15
+  letters at 0.89 or more, its 15 erasures caught at most 0.31 — the only plate it is verified on.
 - **Measured and dropped:** a ±4 px search around each letter (no score moved by 0.01); one reference per
   variant (above); CLAHE off or at clip 1 or 4 (off: shape alone cannot separate the J seams, 0.73 against
   0.74; clip 1 brings the blanks to 23 matches; clip 4 the complete letters to 0.60). Correlation alignment
@@ -3242,7 +3252,8 @@ is its edges along the reference's strokes against the part's own plate.
 
 **Revisit if** a logo plate under another light or another engraving appears (measure, add a reference), a
 real plate with a missing letter is captured (the erasures are synthetic), or a second dark or outline-letter
-plate is captured (the first independent test of those appearances).
+plate is captured (the first independent test of those appearances; `back_outline_3`'s plate is the first
+outline plate the test set does not hold, yet it registers to none of the test set's outline plates).
 Tests `test/Vision/Utilities/test_logo.py` (synthetic: the rotation, a complete logo turned and smaller, an
 erased letter named with its word, a plate without the logo, both thresholds, the best reference per letter,
 the rule; slow: `::test_every_letter_erased_from_a_real_logo_is_caught`),

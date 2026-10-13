@@ -140,7 +140,8 @@ Checks:
   # similarity at most 0.47, except two J at 0.58-0.59 whose inpainted seam keeps the J's shape at
   # contrast 0.18-0.19; every one caught. Thresholds midway (0.62) and at the plate's own texture (1.0).
   # Image_092's right plate (dark, scratched, glare) scored 0.19 against the first three references; it is
-  # the fourth (back_dark) since 2026-10-11, and the 165 erasures are still caught with it.
+  # the fourth (back_dark) since 2026-10-11, and the 165 erasures are still caught with it. The fifth,
+  # back_outline_3 (2026-10-13), is the only one that is not a test frame; see its entry below.
   Logo:
     back:
       Expected_Text: [JIC, SMART, FACTORY]
@@ -234,6 +235,32 @@ Checks:
             - [O, 193, 357, 41, 45]
             - [R, 234, 357, 36, 45]
             - [Y, 270, 357, 32, 45]
+        # Outline letters on a further plate, shot for the catalogue on 2026-10-12 (owner's ruling, 2026-10-13): the
+        # only logo reference that is not a test frame — back, back_outline, back_outline_2 and back_dark are
+        # Image_058, Image_092, Image_069 and Image_092 byte for byte. Level as shot (Rotation_Deg 0). JIC from the
+        # tool; SMART and FACTORY have touching outlines the tool splits wrongly, so each line's extent is the
+        # tool's and its letters are split in back_outline's proportions, checked drawn. It registers to none of the
+        # test set's 12 complete logos (at most 18 matches, under Min_Matches; 3-5 with the other outline plates), so
+        # it changes no result there; on its own plate, turned a quarter and scaled 0.8, 15/15 letters at 0.89 or
+        # more, and each of the 15 letters erased is caught (at most 0.31) — verified only on that plate.
+        - Image: back_outline_3
+          Rotation_Deg: 0
+          Letters:
+            - [J, 49, 110, 123, 123]
+            - [I, 234, 112, 31, 120]
+            - [C, 324, 111, 125, 124]
+            - [S, 50, 282, 36, 46]
+            - [M, 86, 282, 44, 46]
+            - [A, 130, 282, 43, 46]
+            - [R, 173, 282, 34, 46]
+            - [T, 207, 282, 29, 46]
+            - [F, 52, 336, 32, 50]
+            - [A, 84, 336, 43, 50]
+            - [C, 127, 336, 36, 50]
+            - [T, 163, 336, 29, 50]
+            - [O, 192, 336, 36, 50]
+            - [R, 228, 336, 28, 50]
+            - [Y, 256, 336, 30, 50]
 
 # The describer's prompt for a judged part (OK or NOK), filled per part: {side} (the side's Name,
 # from DINOv2), {side_description}, {defects} (that side's Defects) and {findings} (what the checks

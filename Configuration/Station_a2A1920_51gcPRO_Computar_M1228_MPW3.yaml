@@ -62,7 +62,9 @@ Camera:
   # FIXED: on connect the camera's automatic exposure, gain and white balance are switched off and read back,
   # and a camera that keeps one on is refused (Camera.Basler); the white-balance ratios are read back too, and
   # a ratio more than half the camera's BalanceRatio step from Balance_Ratios is refused (1/128 when the
-  # camera reports no step). Gamma and the colour preset are not set: they are the camera's power-up user set,
+  # camera reports no step). This camera reports no step for BalanceRatio and reads each ratio back within
+  # about 0.00005 of the set value (rig, 2026-10-13: 0.949951, 0.899902, 1.19995), so the 1/128 fallback
+  # applies. Gamma and the colour preset are not set: they are the camera's power-up user set,
   # read and logged on every connect. Optional pins, Gamma (a number above 0) and Light_Source_Preset (the
   # camera's name for it, e.g. Daylight5000K): when set, a camera that reads otherwise is refused. Default:
   # not pinned (read and logged only). Gamma is pinned here from the rig's connect log of 2026-10-13 (Gamma 1).
