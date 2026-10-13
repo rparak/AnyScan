@@ -215,7 +215,7 @@ def _is_exception_class(node) -> bool:
     """
     for base in node.bases:
         name = base.attr if isinstance(base, ast.Attribute) else getattr(base, "id", "")
-        if name.endswith(("Error", "Exception")):
+        if name.endswith(("Error", "Exception", "_Error_Cls")):
             return True
     return False
 

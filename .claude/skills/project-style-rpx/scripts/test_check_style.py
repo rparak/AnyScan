@@ -232,6 +232,21 @@ def test_exception_class_needs_no_initialization_section(tmp_path):
     assert [f for f in flags if "Initialization of the Class:" in f] == []
 
 
+# A narrower error of a project's own, subclassing its *_Error_Cls so every handler of that error catches it.
+_PROJECT_EXCEPTION_SUBCLASS = '''
+class Thing_Busy_Error_Cls(Thing_Error_Cls):
+    """
+    Description:
+        A narrower error.
+    """
+'''
+
+
+def test_subclass_of_a_project_error_needs_no_initialization_section(tmp_path):
+    flags = _file_flags(_PROJECT_EXCEPTION_SUBCLASS, "src/Vision/err.py", tmp_path)
+    assert [f for f in flags if "Initialization of the Class:" in f] == []
+
+
 def test_behaviour_class_still_needs_initialization_section(tmp_path):
     flags = _file_flags(_BEHAVIOUR_CLASS, "src/Vision/thing.py", tmp_path)
     assert [f for f in flags if "Initialization of the Class:" in f] != []
