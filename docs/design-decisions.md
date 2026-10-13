@@ -3235,16 +3235,20 @@ is its edges along the reference's strokes against the part's own plate.
   (pixels off their surroundings by more than 8 grey levels): the dark-only one left the dark plate's lighter
   letters in place. With it the 12 complete logos' 180 letters are all caught, the highest at 0.34; the J seams
   above were the dark-only eraser's.
-  *Added 2026-10-13, on the owner's ruling:* a fifth reference, `back_outline_3` — outline letters on a plate
-  shot for the catalogue on 2026-10-12, the only logo reference that is not a test frame. It first replaced
+  *Added 2026-10-13, on the owner's ruling:* a fifth reference, `back_outline_3` — **the new logo design, the
+  one that goes into production** (the owner, 2026-10-13): outline letters on a plate shot for the catalogue on
+  2026-10-12, the only logo reference that is not a test frame. It first replaced
   `back.png` (b131244) with the filled-letter boxes left in place, which turned the 8 filled-letter backs NOK;
   `back` is restored (Image_058) and the new shot is its own reference, level as shot, JIC's boxes from the tool
   and SMART and FACTORY split by hand in `back_outline`'s proportions. It registers to none of the 12 complete
-  logos (at most 18 matches; 3–5 with the other outline plates), so every test-set result is unchanged:
+  logos (at most 18 matches; 3–5 with the other outline plates) because they all carry the old design, so
+  every test-set result is unchanged:
   per reference as the best match, least letter / least contrast / highest erased — `back` (8 logos) 0.845 /
   8.03 / 0.28, `back_outline` (1) 0.784 / 3.36 / 0.25, `back_outline_2` (2) 0.885 / 7.73 / 0.31, `back_dark`
   (1) 0.933 / 2.65 / 0.27; 180 of 180 erasures caught. On its own plate (turned a quarter, scaled 0.8) 15/15
-  letters at 0.89 or more, its 15 erasures caught at most 0.31 — the only plate it is verified on.
+  letters at 0.89 or more, its 15 erasures caught at most 0.31 — the only plate it is verified on. The test
+  set holds no plate of the production design: the logo check on it is verified on its own reference plate
+  alone, until production plates are captured.
 - **Measured and dropped:** a ±4 px search around each letter (no score moved by 0.01); one reference per
   variant (above); CLAHE off or at clip 1 or 4 (off: shape alone cannot separate the J seams, 0.73 against
   0.74; clip 1 brings the blanks to 23 matches; clip 4 the complete letters to 0.60). Correlation alignment
@@ -3252,8 +3256,9 @@ is its edges along the reference's strokes against the part's own plate.
 
 **Revisit if** a logo plate under another light or another engraving appears (measure, add a reference), a
 real plate with a missing letter is captured (the erasures are synthetic), or a second dark or outline-letter
-plate is captured (the first independent test of those appearances; `back_outline_3`'s plate is the first
-outline plate the test set does not hold, yet it registers to none of the test set's outline plates).
+plate is captured (the first independent test of those appearances), or plates of the production design
+(`back_outline_3`) are captured — the first test of that design beyond its own reference plate; capture
+several, complete and with letters missing, and measure its margins on them.
 Tests `test/Vision/Utilities/test_logo.py` (synthetic: the rotation, a complete logo turned and smaller, an
 erased letter named with its word, a plate without the logo, both thresholds, the best reference per letter,
 the rule; slow: `::test_every_letter_erased_from_a_real_logo_is_caught`),

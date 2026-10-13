@@ -141,7 +141,8 @@ Checks:
   # contrast 0.18-0.19; every one caught. Thresholds midway (0.62) and at the plate's own texture (1.0).
   # Image_092's right plate (dark, scratched, glare) scored 0.19 against the first three references; it is
   # the fourth (back_dark) since 2026-10-11, and the 165 erasures are still caught with it. The fifth,
-  # back_outline_3 (2026-10-13), is the only one that is not a test frame; see its entry below.
+  # back_outline_3 (2026-10-13), is the new logo design that goes into production, and the only one that is not
+  # a test frame; see its entry below.
   Logo:
     back:
       Expected_Text: [JIC, SMART, FACTORY]
@@ -235,13 +236,14 @@ Checks:
             - [O, 193, 357, 41, 45]
             - [R, 234, 357, 36, 45]
             - [Y, 270, 357, 32, 45]
-        # Outline letters on a further plate, shot for the catalogue on 2026-10-12 (owner's ruling, 2026-10-13): the
-        # only logo reference that is not a test frame — back, back_outline, back_outline_2 and back_dark are
+        # The new logo design, the one that goes into production (owner, 2026-10-13): outline letters on a plate
+        # shot for the catalogue on 2026-10-12. It is the only logo reference that is not a test frame — back, back_outline, back_outline_2 and back_dark are
         # Image_058, Image_092, Image_069 and Image_092 byte for byte. Level as shot (Rotation_Deg 0). JIC from the
         # tool; SMART and FACTORY have touching outlines the tool splits wrongly, so each line's extent is the
         # tool's and its letters are split in back_outline's proportions, checked drawn. It registers to none of the
-        # test set's 12 complete logos (at most 18 matches, under Min_Matches; 3-5 with the other outline plates), so
-        # it changes no result there; on its own plate, turned a quarter and scaled 0.8, 15/15 letters at 0.89 or
+        # test set's 12 complete logos (at most 18 matches, under Min_Matches; 3-5 with the other outline plates):
+        # they carry the old design, which is why, and it changes no result there. The test set holds no plate of
+        # the new design; on its own plate, turned a quarter and scaled 0.8, 15/15 letters at 0.89 or
         # more, and each of the 15 letters erased is caught (at most 0.31) — verified only on that plate.
         - Image: back_outline_3
           Rotation_Deg: 0
