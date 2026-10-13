@@ -100,6 +100,9 @@ class Hole_Str(object):
     # FastSAM's score for the hole's mask, or None when it was not given.
     #   Unit [float] (0-1)
     Score: tp.Optional[float] = None
+    # The mask's outer contour, simplified (CONST_HOLE_OUTLINE_EPS_PX), the outline the frame draws.
+    #   Unit [Vector<Tuple<float> 1x2>] (mm)
+    Outline: tp.List[tp.Tuple[float, float]] = field(default_factory=list)
 
 
 @dataclass
@@ -141,7 +144,8 @@ class Feature_Str(object):
     #   Unit [bool]
     Passed: bool = True
     Found: bool = True
-    # Its rotated box (four corners), and a stain's outlines, in frame pixels.
+    # Its rotated box (four corners), and its outlines (a found hole's mask contour, a missing hole's circle of the
+    # catalogue's diameter, a stain's regions), in frame pixels.
     #   Unit [Vector<Tuple<float> 1x2>] (px) / [Vector<Vector<Tuple<float> 1x2>>] (px)
     Corners: tp.List[tp.Tuple[float, float]] = field(default_factory=list)
     Outlines: tp.List[tp.List[tp.Tuple[float, float]]] = field(default_factory=list)

@@ -3240,31 +3240,72 @@ Tests `test/Reporting/test_core.py` (`::test_a_nok_has_one_reason_sentence_for_i
 `::test_the_log_lists_each_part_with_its_measured_and_expected_values`),
 `test/UI/test_timing_log.py::test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time`.
 
-## A judged part's features are marked on the frame, pass or fail, and saved as its parts
+## A judged part's features are marked on the frame, pass or fail, numbered as the log's parts, and saved as its parts
 
 Decided 2026-10-11 (catalogue phase E), as the request asks and the owner approved. Each judged part's features
 (`Parameters.Vision.Feature_Str`) are built where its checks run — each hole found and each hole expected and not
 found (`Vision.Utilities.Holes.Hole_Features`) and each stain region (`Check_Stain`) — on the upright crop, then taken to the frame through the inverse of the crop's warp (`Classify.Crop_To_Frame`) and
 numbered as the object's parts. `Annotate.Draw_Annotated` draws them on the annotated frame (Live, the saved
-`_annotated.png`, the harness): a rotated box in the pass colour (the OK verdict's indigo) or the fail colour (the
-NOK verdict's magenta) — the colours that already mark the objects, so a feature's colour means what an object's
-does; a hole expected and not found dashed; a stain's pixels under a 35 % tint of the fail colour; each mark on a
-2 px light halo. The frame carries the object's number only: the parts' numbers are in the log. *Corrected
-2026-10-11 (phase E review), the owner's ruling:* failing parts were numbered on the frame, then every part, and
-the outline's measured sides were tagged L and W; both cluttered the frame and were removed, with the code that
-placed the numbers and the side features. The label mask has none of it: it shows the segmentation. The parts are saved in `_objects.json` as each object's `parts`, an
-additive field (owner's ruling): an older set loads with none, the CSVs are unchanged.
+`_annotated.png`, the harness), each in ONE colour — the pass colour (the OK verdict's indigo) or the fail colour
+(the NOK verdict's magenta), the colours that already mark the objects, so a feature's colour means what an
+object's does — at one line weight, 2 px on a 1920 px frame, half the object's box:
+
+- **A hole found:** a dashed axis-aligned box, like the object's dashed box, and its outline solid: the FastSAM
+  mask's contour, simplified under a pixel, so it follows the hole's real shape and the part's rotation.
+- **A hole expected and not found:** in magenta at its expected position, the same dashed box and a DASHED circle
+  of the catalogue's diameter, so a missing hole (dashed outline) never reads as a found hole out of tolerance
+  (solid outline).
+- **A stain:** its rotated box solid, and its pixels under a 35 % tint of the fail colour, so its shape shows. No
+  axis-aligned box.
+- **Its number:** every feature carries its part number (`3.1`, `3.2` for object 3) on a chip like the object's,
+  at 0.6 of its font, as a tab on its box's top-left corner — the number the log's `Part` lines print, from the same
+  `Feature_Str.Part`. A chip never covers a feature's outline and keeps a 2 px gap from every other chip: where the
+  tab would (a through-hole's corner lies inside its countersink on the mounting plate's front), it steps outward
+  up and left until it is clear. No leader line: one was tried, and it crossed the countersink's ring. Numbering
+  stays group by group (countersinks 1.1, 1.2, then through-holes 1.3, 1.4), as the log lists them.
+
+*Corrected 2026-10-13, the owner's ruling, reversing the one of 2026-10-11:* the frame now numbers the parts. On
+2026-10-11 failing parts were numbered on the frame, then every part, and the outline's measured sides were tagged
+L and W; the owner ruled that both cluttered the frame, and they were removed. The numbers are back as smaller chips
+placed clear of the features and of each other; the L and W tags stay removed. *Corrected 2026-10-13, same ruling:*
+until then a hole was marked by a solid square of its diameter plus 0.5 mm, a missing hole by a dashed square, and
+every mark stood on a 2 px light halo (the theme's card colour); the square is now only the box recorded in
+`_objects.json` (`CONST_HOLE_MARK_MARGIN_MM`), and the halo is gone.
+
+**No halo: the marks stand out by hue, not brightness — the owner's decision (2026-10-13).** Measured on the plate
+surface 3–8 px outside each hole (Image_055 front, Image_056 dark back, Image_080 stained front), the indigo's CIE76
+ΔE against the ground is 49.5, 53.7 and 48.8 (10th percentile 44.1, 49.2, 44.4) and the magenta's 84.8, 91.0 and
+84.1, four times the renderer's 12 floor (`CONST_ANNOTATE_MIN_DELTA_E`) on the dark back as on the light front; the
+luminance contrast is only about 2:1 on every ground (indigo 2.1, 2.2, 1.9), below the 3:1 usually asked of a
+graphic. The owner accepted that, and that it is weaker for a colour-blind viewer, over a halo, which is a second
+colour beside every mark. In the Camera View at the default window (1720 x 1020, the frame shown at 0.45 scale) the
+2 px lines draw about 1 px wide and stay unbroken on the dark back, a dashed outline still reads dashed, and a
+feature chip's numeral is about 6 px tall; 1 px lines were rejected as likely to fade there.
+
+The label mask has none of it: it shows the segmentation. The parts are saved in `_objects.json` as each object's
+`parts`, an additive field (owner's ruling): an older set loads with none, the CSVs are unchanged. A hole's outline
+is drawn, not saved: History shows the saved `_annotated.png`.
 
 - **Where a missing hole goes.** At its catalogue position: every mirrored position for a group that fills them
   all; for the plate's through-holes, mirrored either way, the pair that holds the holes found and best fits the pitch (none placed with
   none found); a countersink around a through-hole without one (KNOWN_ISSUES).
-- **Rendered and looked at** (2026-10-11): Image_059 (the two fingerprints as two tinted boxes, the holes
-  indigo). The dashed mark of a hole expected and not found was looked at on frames of the time; no mounting
-  plate of the test set misses a hole, so none shows it now.
+- **Rendered and looked at** (2026-10-13): Image_055 (front), Image_056 (dark back), Image_080 (the two
+  fingerprints as two tinted rotated boxes, chips 1.5 and 1.6), and a SYNTHETIC frame made from Image_055 with one
+  through-hole painted out (inpainted), which the pipeline reports as `Part 1.4 · through-hole: not found at its
+  expected position` and the frame draws as a dashed magenta circle inside the found countersink 1.1; the same
+  three plus the synthetic in the Camera View widget, rendered offscreen. No mounting plate of the test set misses
+  a hole, so only the synthetic frame shows one.
 
-**Revisit if** a mark is misread on the rig's screen, or a feature kind is added.
-Tests `test/Vision/Utilities/test_annotate.py::test_a_judged_parts_features_are_marked_in_the_pass_and_the_fail_colour`,
-`test/Vision/Utilities/test_holes.py` (the missing-hole placements), `test/Vision/Utilities/test_classify.py::test_a_point_on_the_upright_crop_goes_back_to_where_it_is_on_the_frame`,
+**Revisit if** a mark or a number is misread on the rig's screen, an operator cannot tell indigo from the dark back
+(the halo's case), a chip lands far from its feature on a crowded part, or a feature kind is added.
+Tests `test/Vision/Utilities/test_annotate.py::test_a_holes_marks_are_a_dashed_box_and_its_solid_outline_in_one_colour_without_a_halo`,
+`::test_a_missing_hole_is_a_dashed_circle_where_a_found_one_is_solid`,
+`::test_a_stain_is_outlined_by_its_rotated_box_and_tinted_with_no_axis_aligned_box`,
+`::test_each_feature_has_its_part_number_on_a_smaller_chip_clear_of_every_feature_and_chip`,
+`test/Vision/Utilities/test_holes.py` (the missing-hole placements;
+`::test_a_holes_outline_is_its_masks_contour_in_mm_and_the_frame_marks_it`,
+`::test_a_missing_holes_outline_is_a_circle_of_its_groups_diameter_at_its_position`),
+`test/Vision/Utilities/test_classify.py::test_a_point_on_the_upright_crop_goes_back_to_where_it_is_on_the_frame`,
 `test/Vision/test_core.py::test_a_judged_parts_features_and_similarity_are_on_the_frame`,
 `test/UI/test_history_data.py::test_a_judged_parts_parts_round_trip_and_an_older_record_has_none`,
 `test/UI/test_history.py::test_a_set_recorded_in_a_mode_that_no_longer_ships_loads_and_shows`.

@@ -73,9 +73,16 @@ CONST_HOLE_POSITION_MARGIN_MM = 0.5
 # Two candidates with centres this close and diameters this close are one hole found twice.
 #   Unit [float] (mm)
 CONST_HOLE_DUPLICATE_MM = 1.0
-# How much wider than its circle a hole's mark is, each way, so the mark sits beside the hole's edge, not on it.
+# How much wider than its circle a hole's recorded box is, each way (the part's 'corners' in '_objects.json').
 #   Unit [float] (mm)
 CONST_HOLE_MARK_MARGIN_MM = 0.5
+# The outline a found hole is drawn with is its mask's contour simplified to within this distance (approxPolyDP),
+# under a pixel so it keeps the mask's shape, ragged where the mask is.
+#   Unit [float] (px)
+CONST_HOLE_OUTLINE_EPS_PX = 0.5
+# The points of the circle a hole expected and not found is drawn with (the catalogue's diameter, at its position).
+#   Unit [int]
+CONST_HOLE_CIRCLE_POINTS = 72
 
 
 def Hole_Candidates(masks: tp.List[tp.Any], mm_per_px: float, cv2: tp.Any, np: tp.Any,
@@ -84,7 +91,8 @@ def Hole_Candidates(masks: tp.List[tp.Any], mm_per_px: float, cv2: tp.Any, np: t
     Description:
         The holes among a crop's masks: each mask's largest outer contour, kept when it is round
         (CONST_HOLE_MIN_CIRCULARITY) and does not reach the crop's border; its diameter is a circle's of the same
-        area, its centre the enclosing circle's. A hole FastSAM returns twice is kept once.
+        area, its centre the enclosing circle's, its outline the contour simplified. A hole FastSAM returns twice is
+        kept once.
 
     Args:
         (1) masks [Vector<Matrix<bool> hxw>]: The crop's masks.
@@ -112,7 +120,9 @@ def Hole_Candidates(masks: tp.List[tp.Any], mm_per_px: float, cv2: tp.Any, np: t
                 or cx + radius > w - CONST_HOLE_BORDER_PX or cy + radius > h - CONST_HOLE_BORDER_PX):
             continue
         hole = Hole_Str(Diameter_Mm=2.0 * math.sqrt(area / math.pi) * mm_per_px, X_Mm=cx * mm_per_px, Y_Mm=cy * mm_per_px,
-                        Score=float(scores[index]) if scores is not None else None)
+                        Score=float(scores[index]) if scores is not None else None,
+                        Outline=[(float(x) * mm_per_px, float(y) * mm_per_px)
+                                 for x, y in cv2.approxPolyDP(contour, CONST_HOLE_OUTLINE_EPS_PX, True).reshape(-1, 2)])
         if not any(math.hypot(hole.X_Mm - other.X_Mm, hole.Y_Mm - other.Y_Mm) < CONST_HOLE_DUPLICATE_MM
                    and abs(hole.Diameter_Mm - other.Diameter_Mm) < CONST_HOLE_DUPLICATE_MM for other in found):
             found.append(hole)
@@ -234,7 +244,7 @@ def __Positions(group: Catalogue_Hole_Group_Str, width_mm: float, height_mm: flo
 def __Square(x_mm: float, y_mm: float, diameter_mm: float) -> tp.List[tp.Tuple[float, float]]:
     """
     Description:
-        The box a hole is marked with: a square around its circle, CONST_HOLE_MARK_MARGIN_MM wider each way.
+        The box a hole is recorded with: a square around its circle, CONST_HOLE_MARK_MARGIN_MM wider each way.
 
     Args:
         (1) x_mm, y_mm [float]: The centre.
@@ -248,13 +258,33 @@ def __Square(x_mm: float, y_mm: float, diameter_mm: float) -> tp.List[tp.Tuple[f
     return [(x_mm - r, y_mm - r), (x_mm + r, y_mm - r), (x_mm + r, y_mm + r), (x_mm - r, y_mm + r)]
 
 
+def __Circle(x_mm: float, y_mm: float, diameter_mm: float) -> tp.List[tp.Tuple[float, float]]:
+    """
+    Description:
+        The outline a hole expected and not found is drawn with: a circle of the catalogue's diameter at its
+        position, as CONST_HOLE_CIRCLE_POINTS points.
+
+    Args:
+        (1) x_mm, y_mm [float]: The centre.
+        (2) diameter_mm [float]: The diameter.
+
+    Returns:
+        (1) parameter [Vector<Tuple<float> 1x2>]: The points, in mm.
+    """
+
+    r = diameter_mm / 2.0
+    return [(x_mm + r * math.cos(2.0 * math.pi * k / CONST_HOLE_CIRCLE_POINTS),
+             y_mm + r * math.sin(2.0 * math.pi * k / CONST_HOLE_CIRCLE_POINTS)) for k in range(CONST_HOLE_CIRCLE_POINTS)]
+
+
 def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str], width_mm: float,
                   height_mm: float) -> tp.List[Feature_Str]:
     """
     Description:
-        The holes as the frame marks them, on the upright crop (mm): each counted hole with its checks (diameter;
+        The holes as the frame marks them, on the upright crop (mm): each counted hole with its outline and checks (diameter;
         edge distances for a positioned group; the pitch to a neighbour, on both holes), failed when one fails or
-        when its group holds more holes than the part has; and each hole expected but not found, at its position.
+        when its group holds more holes than the part has; and each hole expected but not found, at its position,
+        outlined by a circle of its group's diameter.
         A positioned group's expected positions are all its mirrored positions when it has as many holes, else
         the set of its size that holds the holes found and best fits its pitch (none placed when it found none).
         An unpositioned group's missing holes are placed at the centres of other groups' holes it would surround
@@ -289,7 +319,7 @@ def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_
                     if other is not hole and abs(pitch - group.Pitch_Mm) < CONST_HOLE_CAPTURE_TOLERANCES * tolerance:
                         checks.append(Check_Dimension('%s pitch' % group.Name, pitch, group.Pitch_Mm, tolerance))
             own.append(Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(hole.X_Mm, hole.Y_Mm, hole.Diameter_Mm),
-                                   Passed=len(holes) <= group.Count and all(check.Within for check in checks),
+                                   Outlines=[hole.Outline], Passed=len(holes) <= group.Count and all(check.Within for check in checks),
                                    Checks=checks, Score=hole.Score))
         missing = max(0, group.Count - len(holes))
         places = []
@@ -313,7 +343,7 @@ def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_
             places = [centre for centre in centres
                       if not any(math.hypot(hole.X_Mm - centre[0], hole.Y_Mm - centre[1]) < group.Diameter_Mm / 2.0
                                  for hole in holes)][:missing]
-        own += [Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(x, y, group.Diameter_Mm), Passed=False,
-                            Found=False) for x, y in places]
+        own += [Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(x, y, group.Diameter_Mm),
+                            Outlines=[__Circle(x, y, group.Diameter_Mm)], Passed=False, Found=False) for x, y in places]
         features += own
     return features

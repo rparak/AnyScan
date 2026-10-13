@@ -69,15 +69,25 @@ CONST_ANNOTATE_BOX_W = 2          # bounding-box stroke
 CONST_ANNOTATE_DASH = 10
 CONST_ANNOTATE_DASH_GAP = 7
 CONST_ANNOTATE_DASHED_W_FRACTION = 0.5
-# A judged part's feature marks (holes, stains): their line weight and the dash of a hole expected and
-# not found, at the reference dimension; the tint laid over a stain's pixels.
-#   Unit [float] (px) / [float] (px) / [float] (0-1)
-CONST_ANNOTATE_FEATURE_W = 1.5
+# A judged part's feature marks (holes, stains), at the reference dimension: their one line weight, half the
+# object's box (2 px on a 1920 px frame, the owner's choice of 2026-10-13 over 1 px, which fades when the Camera
+# View scales the frame down); the dash and gap of a hole's dashed box, and of a missing hole's dashed circle; the
+# tint laid over a stain's pixels. No halo and no second colour: the owner's ruling of 2026-10-13 (design-decisions).
+#   Unit [float] (px) / [float] (px) / [float] (px) / [float] (0-1)
+CONST_ANNOTATE_FEATURE_W = 1.0
+CONST_ANNOTATE_FEATURE_BOX_DASH = 6
 CONST_ANNOTATE_FEATURE_DASH = 4
 CONST_ANNOTATE_STAIN_TINT = 0.35
-# The light halo each side of a feature mark, so it holds on a dark plate (Image_092's right one) as on a light one.
-#   Unit [int] (px)
-CONST_ANNOTATE_HALO_PX = 2
+# A feature's number chip ('3.1'): its numeral at this fraction of the object chip's font scale, never below the
+# floor, so it reads as the object's chip made smaller. When the tab above its box's top-left corner would cover
+# a feature or another chip (a through-hole inside its countersink), the chip steps outward, up and left, a third
+# of its height at a time, at most this many steps; one with no free place is not drawn (its number is in the log).
+# A chip keeps the gap clear round it, so two chips side by side read as two (at the reference dimension).
+#   Unit [float] / [float] / [int] / [float] (px)
+CONST_ANNOTATE_FEATURE_CHIP_FRACTION = 0.6
+CONST_ANNOTATE_FEATURE_CHIP_FONT_MIN = 0.4
+CONST_ANNOTATE_FEATURE_CHIP_STEPS = 60
+CONST_ANNOTATE_FEATURE_CHIP_GAP = 2
 
 # The index chip's numeral. Its font scales only gently with resolution and is capped
 # (CONST_ANNOTATE_CHIP_FONT_MIN/MAX), so the chip stays a small tab — legible at 100%
@@ -168,6 +178,76 @@ def __Chip_Font_Scale(scale: float) -> float:
                max(CONST_ANNOTATE_CHIP_FONT_MIN, CONST_ANNOTATE_CHIP_FONT * scale))
 
 
+def __Chip_Size(label: str, font_scale: float, cv2: tp.Any) -> tp.Tuple[int, int, int, int, int]:
+    """
+    Description:
+        A chip's size for its numeral: the numeral's text extent plus a padding that scales with the font.
+
+    Args:
+        (1) label [string]: The numeral ('3', '3.1').
+        (2) font_scale [float]: The cv2 font scale.
+        (3) cv2 [module]: The OpenCV module, injected by the caller.
+
+    Returns:
+        (1) parameter [Tuple<int> 1x5]: (chip width, chip height, font thickness, padding, text height), in px.
+    """
+
+    thickness = max(1, int(round(CONST_ANNOTATE_CHIP_FONT_W * font_scale)))
+    pad = max(2, int(round(CONST_ANNOTATE_CHIP_PAD * font_scale)))
+    (tw, th), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+    return tw + 2 * pad, th + baseline + 2 * pad, thickness, pad, th
+
+
+def __Draw_Chip(image: tp.Any, x: int, top: int, label: str, chip_bgr: tp.Tuple[int, int, int], font_scale: float,
+                cv2: tp.Any) -> None:
+    """
+    Description:
+        A chip at (x, top): a filled rectangle in chip_bgr with the numeral in whichever theme foreground (white or
+        ink) keeps it legible against that colour.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
+        (2) x, top [int]: The chip's top-left corner.
+        (3) label [string]: The numeral.
+        (4) chip_bgr [Vector<int> 1x3]: The chip colour.
+        (5) font_scale [float]: The cv2 font scale.
+        (6) cv2 [module]: The OpenCV module, injected by the caller.
+    """
+
+    chip_w, chip_h, thickness, pad, th = __Chip_Size(label, font_scale, cv2)
+    # The numeral's tone contrasts the chip's own verdict colour, so it stays legible
+    # (both verdict colours are dark, so the numeral is the light theme card colour).
+    text_bgr = Hex_To_Bgr(CONST_CARD) if __Luminance(chip_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
+    cv2.rectangle(image, (x, top), (x + chip_w, top + chip_h), chip_bgr, thickness=-1)
+    cv2.putText(image, label, (x + pad, top + pad + th), cv2.FONT_HERSHEY_SIMPLEX, font_scale,
+                text_bgr, thickness, cv2.LINE_AA)
+
+
+def __Index_Chip_Rect(bbox: tp.Tuple[int, int, int, int], index: int, scale: float,
+                      cv2: tp.Any) -> tp.Tuple[int, int, int, int]:
+    """
+    Description:
+        Where an object's index chip sits: a tab whose bottom is on the box's top edge at its top-left corner, or,
+        when the box is too near the top of the frame for the tab, flipped inside the box.
+
+    Args:
+        (1) bbox [Vector<int> 1x4]: The object's box as (x, y, w, h).
+        (2) index [int]: The 0-based object index.
+        (3) scale [float]: The drawing scale.
+        (4) cv2 [module]: The OpenCV module, injected by the caller.
+
+    Returns:
+        (1) parameter [Vector<int> 1x4]: The chip as (x, top, width, height).
+    """
+
+    chip_w, chip_h, _, _, _ = __Chip_Size(str(index + 1), __Chip_Font_Scale(scale), cv2)
+    x, y, _, _ = bbox
+    top = y - chip_h                     # a tab whose bottom sits on the box's top edge
+    if top < 0:                          # box near the top: flip the tab inside the box
+        top = y
+    return x, top, chip_w, chip_h
+
+
 def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: int,
                       chip_bgr: tp.Tuple[int, int, int], scale: float, cv2: tp.Any) -> None:
     """
@@ -180,8 +260,8 @@ def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: 
         from the numeral's text extent plus a small padding, seated flush against the
         box's top-left corner so it reads as a tab; when the box is too near the top of
         the frame for the tab to sit above it, the chip flips INSIDE the box rather than
-        clipping off-frame. The numeral takes whichever theme foreground (white or ink)
-        keeps it legible against the chip's own colour.
+        clipping off-frame (__Index_Chip_Rect). The numeral takes whichever theme foreground
+        (white or ink) keeps it legible against the chip's own colour.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
@@ -192,24 +272,8 @@ def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: 
         (6) cv2 [module]: The OpenCV module, injected by the caller.
     """
 
-    label = str(index + 1)
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = __Chip_Font_Scale(scale)
-    thickness = max(1, int(round(CONST_ANNOTATE_CHIP_FONT_W * font_scale)))
-    pad = max(2, int(round(CONST_ANNOTATE_CHIP_PAD * font_scale)))
-    (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
-    chip_w, chip_h = tw + 2 * pad, th + baseline + 2 * pad
-
-    x, y, _, _ = bbox
-    top = y - chip_h                     # a tab whose bottom sits on the box's top edge
-    if top < 0:                          # box near the top: flip the tab inside the box
-        top = y
-    # The numeral's tone contrasts the chip's own verdict colour, so it stays legible
-    # (both verdict colours are dark, so the numeral is the light theme card colour).
-    text_bgr = Hex_To_Bgr(CONST_CARD) if __Luminance(chip_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
-    cv2.rectangle(image, (x, top), (x + chip_w, top + chip_h), chip_bgr, thickness=-1)
-    cv2.putText(image, label, (x + pad, top + pad + th), font, font_scale,
-                text_bgr, thickness, cv2.LINE_AA)
+    x, top, _, _ = __Index_Chip_Rect(bbox, index, scale, cv2)
+    __Draw_Chip(image, x, top, str(index + 1), chip_bgr, __Chip_Font_Scale(scale), cv2)
 
 
 def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
@@ -252,13 +316,18 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
 def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float, cv2: tp.Any, np: tp.Any) -> None:
     """
     Description:
-        A judged part's features on the annotated frame (Detection_Str.Features): each hole and stain region as
-        its rotated box, in the pass colour (the OK verdict's) or the fail colour (the NOK verdict's) — the
-        same two colours that mark the objects, so a feature's colour means what an object's does; a hole expected
-        and not found as a dashed box at its position; each stain's pixels under a tint of the fail colour, so its
-        shape shows. Every mark is drawn over a light halo (the theme's card colour), so it holds on a dark plate as
-        on a light one. No numbers or tags (the owner's ruling, 2026-10-11: they cluttered the frame); the parts'
-        numbers are in the log.
+        A judged part's features on the annotated frame (Detection_Str.Features), each in ONE colour — the pass
+        colour (the OK verdict's indigo) or the fail colour (the NOK verdict's magenta), the colours that mark the
+        objects — at one line weight, thinner than the object's box, with no halo:
+
+        - a hole found: a dashed axis-aligned box around its outline and its outline (the mask's contour) solid;
+        - a hole expected and not found: the same dashed box and a dashed circle of the catalogue's diameter at its
+          position, so a hole missing never reads as a hole found out of tolerance;
+        - a stain: its rotated box solid, and its pixels under a tint of the fail colour, so its shape shows.
+
+        Each feature then carries its part number ('3.1') on a chip like the object's, smaller, as a tab on its box's
+        top-left corner (a stain's: the rotated box's axis-aligned box), moved outward up and left when it would
+        cover a feature or come within CONST_ANNOTATE_FEATURE_CHIP_GAP of another chip (__Place_Feature_Chip). The numbers are the log's Part numbers.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The annotated frame (mutated).
@@ -268,30 +337,132 @@ def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float
         (5) np [module]: The NumPy module, injected by the caller.
     """
 
+    if not any(det.Features for det in objects):
+        return
     passed, failed = Hex_To_Bgr(Verdict_Color('OK')[0]), Hex_To_Bgr(Verdict_Color('NOK')[0])
-    halo = Hex_To_Bgr(CONST_CARD)
     weight = max(1, int(round(CONST_ANNOTATE_FEATURE_W * scale)))
-    dash, gap = CONST_ANNOTATE_FEATURE_DASH * scale, CONST_ANNOTATE_FEATURE_DASH * scale
+    dash = CONST_ANNOTATE_FEATURE_DASH * scale
+    box_dash = CONST_ANNOTATE_FEATURE_BOX_DASH * scale
     outlines = [np.int32(np.round(outline)) for det in objects for feature in det.Features if feature.Kind == 'stain'
                 for outline in feature.Outlines]
     if outlines:
         tint = image.copy()
         cv2.fillPoly(tint, outlines, failed)
         cv2.addWeighted(tint, CONST_ANNOTATE_STAIN_TINT, image, 1.0 - CONST_ANNOTATE_STAIN_TINT, 0.0, dst=image)
+    # What a feature chip must not cover: the objects' chips, every feature's shape, and the chips placed.
+    blocked = np.zeros(image.shape[:2], dtype=np.uint8)
+    gap = max(1, int(round(CONST_ANNOTATE_FEATURE_CHIP_GAP * scale)))
+    for i, det in enumerate(objects):
+        x, top, w, h = __Index_Chip_Rect(det.Bbox, i, scale, cv2)
+        blocked[max(0, top - gap):top + h + gap + 1, max(0, x - gap):x + w + gap + 1] = 1
+    marks = []
     for det in objects:
         for feature in det.Features:
-            corners = [(float(x), float(y)) for x, y in feature.Corners]
-            if len(corners) < 3:
+            shape = feature.Outlines[0] if feature.Kind == 'hole' and feature.Outlines else feature.Corners
+            if len(shape) < 3:
                 continue
             color = passed if feature.Passed else failed
-            edges = list(zip(corners, corners[1:] + corners[:1]))
-            for line_w, line_color in ((weight + 2 * CONST_ANNOTATE_HALO_PX, halo), (weight, color)):
-                for start, end in edges:
-                    if feature.Found:
-                        cv2.line(image, (int(round(start[0])), int(round(start[1]))),
-                                 (int(round(end[0])), int(round(end[1]))), line_color, line_w, cv2.LINE_AA)
-                    else:
-                        __Draw_Dashed_Line(image, start, end, line_color, line_w, dash, gap, cv2)
+            points = [(float(x), float(y)) for x, y in shape]
+            polygon = np.int32(np.round(points))
+            cv2.fillPoly(blocked, [polygon], 1)
+            cv2.polylines(blocked, [polygon], True, 1, weight + 2)
+            bx, by, bw, bh = cv2.boundingRect(polygon)
+            if feature.Kind == 'hole':
+                __Draw_Dashed_Path(image, [(bx, by), (bx + bw, by), (bx + bw, by + bh), (bx, by + bh)], color, weight,
+                                   box_dash, dash, cv2)
+            if feature.Found:
+                cv2.polylines(image, [polygon], True, color, weight, cv2.LINE_AA)
+            else:
+                __Draw_Dashed_Path(image, points, color, weight, dash, dash, cv2)
+            marks.append((feature.Part, color, bx, by))
+    font_scale = max(CONST_ANNOTATE_FEATURE_CHIP_FONT_MIN, CONST_ANNOTATE_FEATURE_CHIP_FRACTION * __Chip_Font_Scale(scale))
+    for label, color, bx, by in marks:
+        if not label:
+            continue
+        chip_w, chip_h, _, _, _ = __Chip_Size(label, font_scale, cv2)
+        spot = __Place_Feature_Chip(blocked, bx, by, chip_w, chip_h)
+        if spot is not None:
+            blocked[max(0, spot[1] - gap):spot[1] + chip_h + gap + 1, max(0, spot[0] - gap):spot[0] + chip_w + gap + 1] = 1
+            __Draw_Chip(image, spot[0], spot[1], label, color, font_scale, cv2)
+
+
+def __Place_Feature_Chip(blocked: tp.Any, bx: int, by: int, chip_w: int,
+                         chip_h: int) -> tp.Optional[tp.Tuple[int, int]]:
+    """
+    Description:
+        Where a feature's chip goes: the first free place, inside the frame, of a tab above its box's top-left corner,
+        a tab beside that corner (diagonally out, then level with the box's top), each tried at the corner and then
+        stepped outward, up and left, a third of the chip's height at a time (CONST_ANNOTATE_FEATURE_CHIP_STEPS).
+
+    Args:
+        (1) blocked [Matrix<uint8> HxW]: Non-zero where a chip must not go.
+        (2) bx, by [int]: The feature box's top-left corner.
+        (3) chip_w, chip_h [int]: The chip's size.
+
+    Returns:
+        (1) parameter [Tuple<int> 1x2 or None]: The chip's top-left corner, or None when nothing is free.
+    """
+
+    h, w = blocked.shape[:2]
+    step = max(2, chip_h // 3)
+    for k in range(CONST_ANNOTATE_FEATURE_CHIP_STEPS):
+        d = k * step
+        for x, y in ((bx - d, by - chip_h - d), (bx - chip_w - d, by - chip_h - d), (bx - chip_w - d, by - d)):
+            if x >= 0 and y >= 0 and x + chip_w < w and y + chip_h < h \
+                    and not blocked[y:y + chip_h + 1, x:x + chip_w + 1].any():
+                return x, y
+    return None
+
+
+def __Draw_Dashed_Path(image: tp.Any, points: tp.List[tp.Tuple[float, float]], color_bgr: tp.Tuple[int, int, int],
+                       thickness: int, dash: float, gap: float, cv2: tp.Any) -> None:
+    """
+    Description:
+        A closed path dashed as one line: the dash runs on round a corner or a polygon's vertex instead of starting
+        again at each side, so a circle of many short sides is dashed, not drawn solid.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
+        (2) points [Vector<Tuple<float> 1x2>]: The path's vertices (x, y) in pixels; it is closed back to the first.
+        (3) color_bgr [Vector<int> 1x3]: The line colour (B, G, R).
+        (4) thickness [int]: The line weight in pixels.
+        (5 - 6) dash, gap [float]: The dash and gap lengths in pixels.
+        (7) cv2 [module]: The OpenCV module, injected by the caller.
+    """
+
+    ring = list(points) + [points[0]]
+    drawing, left, piece = True, dash, [ring[0]]
+    for (x0, y0), (x1, y1) in zip(ring, ring[1:]):
+        length, along = math.hypot(x1 - x0, y1 - y0), 0.0
+        while length - along > left:
+            along += left
+            point = (x0 + (x1 - x0) * along / length, y0 + (y1 - y0) * along / length)
+            if drawing:
+                __Draw_Piece(image, piece + [point], color_bgr, thickness, cv2)
+            drawing, left, piece = not drawing, dash if not drawing else gap, [point]
+        left -= length - along
+        piece.append((x1, y1))
+    if drawing:
+        __Draw_Piece(image, piece, color_bgr, thickness, cv2)
+
+
+def __Draw_Piece(image: tp.Any, points: tp.List[tp.Tuple[float, float]], color_bgr: tp.Tuple[int, int, int],
+                 thickness: int, cv2: tp.Any) -> None:
+    """
+    Description:
+        One dash of a dashed path: an open polyline through its points.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
+        (2) points [Vector<Tuple<float> 1x2>]: The dash's points (x, y) in pixels.
+        (3) color_bgr [Vector<int> 1x3]: The line colour (B, G, R).
+        (4) thickness [int]: The line weight in pixels.
+        (5) cv2 [module]: The OpenCV module, injected by the caller.
+    """
+
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        cv2.line(image, (int(round(x0)), int(round(y0))), (int(round(x1)), int(round(y1))), color_bgr, thickness,
+                 cv2.LINE_AA)
 
 
 def __Draw_Dashed_Line(image: tp.Any, start: tp.Tuple[float, float], end: tp.Tuple[float, float],

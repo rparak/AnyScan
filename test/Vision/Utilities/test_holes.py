@@ -230,3 +230,35 @@ def test_a_hole_too_many_fails_its_group() -> None:
              Hole_Str(Diameter_Mm=6.1, X_Mm=25.0, Y_Mm=17.5)]
     features = Hole_Features(found, CONST_PLATE_FRONT[1:], 40.0, 60.0)
     assert len(features) == 3 and not any(f.Passed for f in features)
+
+
+def test_a_holes_outline_is_its_masks_contour_in_mm_and_the_frame_marks_it() -> None:
+    """
+    Description:
+        A candidate keeps its mask's outer contour, simplified under a pixel, in mm: every point of a 6 mm disc's
+        outline lies on its 3 mm radius, and the hole's feature carries that outline for the frame to draw.
+    """
+
+    from Vision.Utilities.Holes import Hole_Features
+    (hole,) = Hole_Candidates([_Disc((600, 400), 15.0, 17.5, 6.0)], 0.1, cv2, np)
+    radii = [np.hypot(x - 15.0, y - 17.5) for x, y in hole.Outline]
+    assert len(radii) >= 12 and max(abs(r - 3.0) for r in radii) < 0.15
+    features = Hole_Features([hole], CONST_PLATE_FRONT[1:], 40.0, 60.0)
+    assert features[0].Found and features[0].Outlines == [hole.Outline]
+
+
+def test_a_missing_holes_outline_is_a_circle_of_its_groups_diameter_at_its_position() -> None:
+    """
+    Description:
+        A hole expected and not found is outlined by a circle of its group's diameter at its expected position:
+        the through-hole missing at the pitch from the one found (6 mm, at 15, 42.5) and the countersink missing
+        around the through-hole found (12 mm, at 15, 17.5), so the frame draws the hole the part should have.
+    """
+
+    from Vision.Utilities.Holes import Hole_Features
+    features = Hole_Features([Hole_Str(Diameter_Mm=6.1, X_Mm=15.0, Y_Mm=17.5)], CONST_PLATE_FRONT, 40.0, 60.0)
+    missing = [(f.Name, f.Outlines) for f in features if not f.Found]
+    assert [name for name, _ in missing] == ['countersink', 'through-hole']
+    for (_name, (outline,)), (cx, cy, d) in zip(missing, ((15.0, 17.5, 12.0), (15.0, 42.5, 6.0))):
+        assert len(outline) >= 36
+        assert all(np.hypot(x - cx, y - cy) == pytest.approx(d / 2.0) for x, y in outline)

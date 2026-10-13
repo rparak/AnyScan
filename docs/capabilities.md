@@ -191,9 +191,11 @@ median) and Confidence (run mean).
 Two cards:
 
 - **Camera View** — the frame, then the analysis, in one of four renders: **Annotated** (numbered
-  outlines; in a catalogue mode also each judged part's features — holes, stain regions with their pixels
-  tinted — in the pass or the fail colour, a hole expected and not found dashed; no part numbers on
-  the frame, the log numbers the parts), **Mask** (the label mask: black ground,
+  outlines; in a catalogue mode also each judged part's features, each in one colour, pass or fail, on a
+  thinner line and with no halo: a hole as a dashed box and its own outline solid, a hole expected and not
+  found as a dashed box and a dashed circle of the catalogue's diameter, a stain as its rotated box with its
+  pixels tinted; each feature numbered on a smaller chip (`3.1`) with the number of its `Part` line in the
+  Log, placed clear of the features and of the other chips), **Mask** (the label mask: black ground,
   tinted fill, verdict contour; no feature marks), **Heatmap** (the background difference on a fixed 0–128
   scale, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
@@ -397,7 +399,7 @@ Each row names its evidence. A row with none is not verified.
 | Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled, the five stained plates NOK, every other object a Warning | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
 | Catalogue stain check on the test set | Off-hardware: the five fingerprinted fronts caught, each as its two fingerprints (two regions, largest 149–158 mm²), every clean front clean | the same test; `test/Vision/Utilities/test_stain.py` |
 | Describer told the findings, guarded | Off-hardware, Gemma 4 E4B on 24 judged parts: every contradiction it wrote dropped and logged, no digit | [design-decisions](design-decisions.md#the-describer-is-told-what-the-checks-found-never-a-number-and-its-contradictions-are-dropped-and-logged) |
-| Feature marks on the frame | Off-hardware: rendered and looked at on a real NOK frame (Image_059) | `test/integration/test_pipeline.py::test_each_stained_front_shows_its_two_fingerprints_as_two_stains` |
+| Feature marks on the frame | Off-hardware: rendered and looked at on a front, the dark back and a stained front (Image_055, 056, 080), a synthetic missing hole, and the Camera View at 0.45 scale; not looked at on the rig's screen | `test/Vision/Utilities/test_annotate.py::test_each_feature_has_its_part_number_on_a_smaller_chip_clear_of_every_feature_and_chip`, `test/integration/test_pipeline.py::test_each_stained_front_shows_its_two_fingerprints_as_two_stains` |
 | Catalogue hole check on the test set | Off-hardware: every mounting-plate hole within tolerance | `test/integration/test_pipeline.py::test_every_mounting_plate_shows_all_its_holes_within_tolerance` |
 | Defect detection | **Not built** | README > Limitations |
 
