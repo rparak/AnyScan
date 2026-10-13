@@ -70,21 +70,21 @@ CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 CONST_INVENTORY = {
     'Image_055.png': 1,     # machined aluminium plate
     'Image_056.png': 1,     # dark rusted plate
-    'Image_057.png': 1,     # maze plate
-    'Image_058.png': 1,     # SMART FACTORY plate
+    'Image_057.png': 1,     # milled square plate
+    'Image_058.png': 1,     # engraved square plate
     'Image_059.png': 6,     # flanged bushing, rust-stained plate, cap screw, washer, terminal strip, hex nut
-    'Image_060.png': 7,     # bushing, maze plate, cap screw, washer, terminal strip, triangle, hex nut
-    'Image_061.png': 7,     # the same, with the SMART FACTORY plate
+    'Image_060.png': 7,     # bushing, milled square plate, cap screw, washer, terminal strip, triangle, hex nut
+    'Image_061.png': 7,     # the same, with an engraved square plate
     'Image_062.png': 7,     # the same, with the dark rusted plate
     'Image_063.png': 8,     # red block, aluminium plate, cap screw, terminal strip, triangle, hex nut, washer, lattice bracket
     'Image_064.png': 8,     # the same eight, nudged
     'Image_065.png': 8,     # the same, with the dark rusted plate
-    'Image_066.png': 7,     # red block, triangle, maze plate, upright cap screw, terminal strip, hex nut, washer
-    'Image_067.png': 8,     # red block, large washer, triangle, SMART FACTORY plate, cap screw, terminal strip, hex nut, washer
-    'Image_068.png': 8,     # the same, with the maze plate
-    'Image_069.png': 8,     # the same, with a worn SMART FACTORY plate
+    'Image_066.png': 7,     # red block, triangle, milled square plate, upright cap screw, terminal strip, hex nut, washer
+    'Image_067.png': 8,     # red block, large washer, triangle, engraved square plate, cap screw, terminal strip, hex nut, washer
+    'Image_068.png': 8,     # the same, with a milled square plate
+    'Image_069.png': 8,     # the same, with a worn engraved square plate
     'Image_070.png': 6,     # red block, large washer, triangle, blank square plate, hex nut, washer
-    'Image_071.png': 6,     # the same, with the maze plate
+    'Image_071.png': 6,     # the same, with a milled square plate
     'Image_072.png': 6,     # the same, with the rust-stained plate
     'Image_073.png': 6,     # the same, with the dark rusted plate
     'Image_074.png': 2,     # rust-stained plate, aluminium plate
@@ -97,18 +97,18 @@ CONST_INVENTORY = {
     'Image_081.png': 1,     # dark rusted plate
     'Image_082.png': 1,     # dark rusted plate, moved slightly
     'Image_083.png': 1,     # aluminium plate
-    'Image_084.png': 2,     # maze plate, SMART FACTORY plate
-    'Image_085.png': 2,     # two maze plates
-    'Image_086.png': 2,     # blank plate, SMART FACTORY plate
-    'Image_087.png': 2,     # blank plate, maze plate
-    'Image_088.png': 1,     # maze plate
-    'Image_089.png': 1,     # maze plate
-    'Image_090.png': 1,     # SMART FACTORY plate
-    'Image_091.png': 1,     # maze plate
-    'Image_092.png': 3,     # maze plate, two SMART FACTORY plates
-    'Image_093.png': 4,     # four maze plates in a 2x2 grid, set close together
-    'Image_094.png': 4,     # blank, two maze, SMART FACTORY plate in a 2x2 grid
-    'Image_095.png': 4,     # two maze, two SMART FACTORY plates in a 2x2 grid
+    'Image_084.png': 2,     # milled square plate, engraved square plate
+    'Image_085.png': 2,     # two milled square plates
+    'Image_086.png': 2,     # blank plate, engraved square plate
+    'Image_087.png': 2,     # blank plate, milled square plate
+    'Image_088.png': 1,     # milled square plate
+    'Image_089.png': 1,     # milled square plate
+    'Image_090.png': 1,     # engraved square plate
+    'Image_091.png': 1,     # milled square plate
+    'Image_092.png': 3,     # milled square plate, two engraved square plates
+    'Image_093.png': 4,     # four milled square plates in a 2x2 grid, set close together
+    'Image_094.png': 4,     # blank, two milled, one engraved square plate in a 2x2 grid
+    'Image_095.png': 4,     # two milled, two engraved square plates in a 2x2 grid
 }
 
 
@@ -117,100 +117,64 @@ def _Warnings(n: int) -> tp.Tuple[str, ...]:
     return ('Warning',) * n
 
 
-# The catalogue modes, by the mode-file name's mode part, and the four states an object can take in one.
+# The states an object can take in the catalogue mode.
 #   Unit [Tuple<string>]
-CONST_CATALOGUE_MODES = ('Mounting_Plate', 'Labyrinth')
 CONST_STATES = ('OK', 'NOK', 'Unspecified', 'Warning')
-# Each frame's expected verdicts in the catalogue modes, as (mounting-plate mode, labyrinth mode), in no
-# particular order. Labelled by eye from the frames, on the owner's rulings (2026-10-11). The parts, by
-# the inventory's names above:
-#   - mounting plate: the 'aluminium plate' (front, clean) and the 'dark rusted plate' (back) are OK; the
-#     'rust-stained plate' (front, brown fingerprint stains) is NOK;
-#   - labyrinth: the 'SMART FACTORY plate' (back, the logo complete, the worn one of 069 too) is OK; the
-#     'maze plate' (front) is OK with its four corner holes (057, 060, 066, 085's first, 089, 093's last) and
-#     NOK without them — six fronts have three, nine have none and another maze layout (068, 071, 084, 085's
-#     second, 087, 088, 091, 092, three of 093, two of 094, two of 095; the owner's ruling, 2026-10-11:
-#     DINOv2 decides it is the labyrinth, the holes decide OK or NOK, the layout is not checked); the
-#     'blank plate' (50 x 50, no logo, no maze) is NOK: the owner's ruling, a back with no logo;
-#   - each part is a Warning in the other mode, and every other object is a Warning in both.
-# No frame shows two catalogue parts touching (the 2x2 grids of 093-095 lie apart), so none is
-# Unspecified; no frame shows a letter missing from a logo (the logo check's erased letters are synthetic,
-# test/Vision/Utilities/test_logo.py), and none is labelled for frames that do not exist.
-# Every catalogue part here is nominal in size (no calipers; the owner's ruling: a part within tolerance
-# reads OK), so no NOK is a size.
-#   Unit [Dict<string, Tuple<Tuple<string>>>]
-CONST_EXPECTED_VERDICTS = {
-    'Image_055.png': (('OK',), _Warnings(1)),
-    'Image_056.png': (('OK',), _Warnings(1)),
-    'Image_057.png': (_Warnings(1), ('OK',)),
-    'Image_058.png': (_Warnings(1), ('OK',)),
-    'Image_059.png': (('NOK',) + _Warnings(5), _Warnings(6)),
-    'Image_060.png': (_Warnings(7), ('OK',) + _Warnings(6)),
-    'Image_061.png': (_Warnings(7), ('OK',) + _Warnings(6)),
-    'Image_062.png': (('OK',) + _Warnings(6), _Warnings(7)),
-    'Image_063.png': (('OK',) + _Warnings(7), _Warnings(8)),
-    'Image_064.png': (('OK',) + _Warnings(7), _Warnings(8)),
-    'Image_065.png': (('OK',) + _Warnings(7), _Warnings(8)),
-    'Image_066.png': (_Warnings(7), ('OK',) + _Warnings(6)),
-    'Image_067.png': (_Warnings(8), ('OK',) + _Warnings(7)),
-    'Image_068.png': (_Warnings(8), ('NOK',) + _Warnings(7)),
-    'Image_069.png': (_Warnings(8), ('OK',) + _Warnings(7)),
-    'Image_070.png': (_Warnings(6), ('NOK',) + _Warnings(5)),
-    'Image_071.png': (_Warnings(6), ('NOK',) + _Warnings(5)),
-    'Image_072.png': (('NOK',) + _Warnings(5), _Warnings(6)),
-    'Image_073.png': (('OK',) + _Warnings(5), _Warnings(6)),
-    'Image_074.png': (('NOK', 'OK'), _Warnings(2)),
-    'Image_075.png': (('OK', 'OK'), _Warnings(2)),
-    'Image_076.png': (('NOK', 'OK'), _Warnings(2)),
-    'Image_077.png': (('OK',), _Warnings(1)),
-    'Image_078.png': (('OK',), _Warnings(1)),
-    'Image_079.png': (('OK',), _Warnings(1)),
-    'Image_080.png': (('NOK',), _Warnings(1)),
-    'Image_081.png': (('OK',), _Warnings(1)),
-    'Image_082.png': (('OK',), _Warnings(1)),
-    'Image_083.png': (('OK',), _Warnings(1)),
-    'Image_084.png': (_Warnings(2), ('OK', 'NOK')),
-    'Image_085.png': (_Warnings(2), ('OK', 'NOK')),
-    'Image_086.png': (_Warnings(2), ('NOK', 'OK')),
-    'Image_087.png': (_Warnings(2), ('NOK', 'NOK')),
-    'Image_088.png': (_Warnings(1), ('NOK',)),
-    'Image_089.png': (_Warnings(1), ('OK',)),
-    'Image_090.png': (_Warnings(1), ('OK',)),
-    'Image_091.png': (_Warnings(1), ('NOK',)),
-    'Image_092.png': (_Warnings(3), ('NOK', 'OK', 'OK')),
-    'Image_093.png': (_Warnings(4), ('NOK', 'NOK', 'NOK', 'OK')),
-    'Image_094.png': (_Warnings(4), ('NOK', 'NOK', 'NOK', 'OK')),
-    'Image_095.png': (_Warnings(4), ('NOK', 'NOK', 'OK', 'OK')),
-}
-# The frames whose expected verdict the checks are known to miss, each a strict xfail naming its cause: it fails
-# the run the day the frame reads as labelled, so the mark is lifted with it. None today: Image_092's right
-# labyrinth back, a false NOK until 2026-10-11, is the logo's fourth reference (back_dark) since.
-#   Unit [Dict<Tuple<string, string>, string>]
-CONST_PENDING_VERDICTS = {}
-# The corner holes on each labyrinth front of a frame, counted by eye on the enlarged corners (2026-10-11), in no
-# particular order: four on the reference plate's kind, three on one kind (a corner blank), none on the plates with
-# the other maze layout. The hole check must find exactly these.
-#   Unit [Dict<string, Tuple<int>>]
-CONST_CORNER_HOLES = {
-    'Image_057.png': (4,), 'Image_060.png': (4,), 'Image_066.png': (4,), 'Image_068.png': (0,), 'Image_071.png': (3,),
-    'Image_084.png': (3,), 'Image_085.png': (4, 3), 'Image_087.png': (0,), 'Image_088.png': (3,), 'Image_089.png': (4,),
-    'Image_091.png': (0,), 'Image_092.png': (0,), 'Image_093.png': (3, 0, 0, 4), 'Image_094.png': (0, 0),
-    'Image_095.png': (3, 0),
-}
-# The hole counts the check is known to get wrong: on Image_071 the plate lies in shadow and FastSAM never segments
-# one of its three corner holes (two found). Its verdict is NOK either way; its reason says two of four. Strict:
-# it fails the run the day the hole is found, so the mark is lifted with it.
-#   Unit [Dict<string, string>]
-CONST_PENDING_HOLE_COUNTS = {'Image_071.png': 'a corner hole in shadow, never segmented (KNOWN_ISSUES)'}
-# The frames that ARE the catalogue items' reference images (Data/Catalogue/<item>/reference_image/, byte
-# for byte), per mode. Judging an item on them is circular, so results on them are reported apart:
-# analyze.py finds them by content (test_analyze_harness pins which they are), and the verdict tests of
-# the catalogue's later phases report them separately from these labels. The logo references' frames are
-# apart: each holds one referenced plate among others (Image_069's plate 3, Image_092's left plate).
+# Each frame's expected verdicts in the mounting-plate mode, in no particular order. Labelled by eye from the
+# frames, on the owner's rulings (2026-10-11): the 'aluminium plate' (front, clean) and the 'dark rusted plate'
+# (back) are OK; the 'rust-stained plate' (front, brown fingerprint stains) is NOK; every other object, the
+# 50 x 50 square plates among them, is a Warning. No frame shows two plates touching, so none is Unspecified.
+# Every plate here is nominal in size (no calipers; the owner's ruling: a part within tolerance reads OK), so no
+# NOK is a size.
 #   Unit [Dict<string, Tuple<string>>]
-CONST_REFERENCE_FRAMES = {'Mounting_Plate': ('Image_055.png', 'Image_056.png'),
-                          'Labyrinth': ('Image_057.png', 'Image_058.png')}
-CONST_LOGO_REFERENCE_FRAMES = {'Labyrinth': ('Image_069.png', 'Image_092.png')}
+CONST_EXPECTED_VERDICTS = {
+    'Image_055.png': ('OK',),
+    'Image_056.png': ('OK',),
+    'Image_057.png': _Warnings(1),
+    'Image_058.png': _Warnings(1),
+    'Image_059.png': ('NOK',) + _Warnings(5),
+    'Image_060.png': _Warnings(7),
+    'Image_061.png': _Warnings(7),
+    'Image_062.png': ('OK',) + _Warnings(6),
+    'Image_063.png': ('OK',) + _Warnings(7),
+    'Image_064.png': ('OK',) + _Warnings(7),
+    'Image_065.png': ('OK',) + _Warnings(7),
+    'Image_066.png': _Warnings(7),
+    'Image_067.png': _Warnings(8),
+    'Image_068.png': _Warnings(8),
+    'Image_069.png': _Warnings(8),
+    'Image_070.png': _Warnings(6),
+    'Image_071.png': _Warnings(6),
+    'Image_072.png': ('NOK',) + _Warnings(5),
+    'Image_073.png': ('OK',) + _Warnings(5),
+    'Image_074.png': ('NOK', 'OK'),
+    'Image_075.png': ('OK', 'OK'),
+    'Image_076.png': ('NOK', 'OK'),
+    'Image_077.png': ('OK',),
+    'Image_078.png': ('OK',),
+    'Image_079.png': ('OK',),
+    'Image_080.png': ('NOK',),
+    'Image_081.png': ('OK',),
+    'Image_082.png': ('OK',),
+    'Image_083.png': ('OK',),
+    'Image_084.png': _Warnings(2),
+    'Image_085.png': _Warnings(2),
+    'Image_086.png': _Warnings(2),
+    'Image_087.png': _Warnings(2),
+    'Image_088.png': _Warnings(1),
+    'Image_089.png': _Warnings(1),
+    'Image_090.png': _Warnings(1),
+    'Image_091.png': _Warnings(1),
+    'Image_092.png': _Warnings(3),
+    'Image_093.png': _Warnings(4),
+    'Image_094.png': _Warnings(4),
+    'Image_095.png': _Warnings(4),
+}
+# The frames that ARE the catalogue item's reference images (Data/Catalogue/mounting_plate/reference_image/, byte
+# for byte). Judging the item on them is circular, so results on them are reported apart: analyze.py finds them
+# by content (test_analyze_harness pins which they are).
+#   Unit [Tuple<string>]
+CONST_REFERENCE_FRAMES = ('Image_055.png', 'Image_056.png')
 
 
 
@@ -470,137 +434,74 @@ def test_symmetric_parts_measure_as_diameters_on_real_captures(require_weights, 
 def test_the_expected_verdicts_label_every_object_of_every_frame() -> None:
     """
     Description:
-        The catalogue labels cover exactly the inventory: every frame, in both catalogue modes, one state
-        per counted object, each one of the four states — so a frame added, removed or recounted without
-        its labels fails here, in the default run.
+        The catalogue labels cover exactly the inventory: every frame, one state per counted object, each one of
+        the four states — so a frame added, removed or recounted without its labels fails here, in the default run.
     """
 
     assert sorted(CONST_EXPECTED_VERDICTS) == sorted(CONST_INVENTORY)
-    for name, by_mode in CONST_EXPECTED_VERDICTS.items():
-        assert len(by_mode) == len(CONST_CATALOGUE_MODES), name
-        for states in by_mode:
-            assert len(states) == CONST_INVENTORY[name] and set(states) <= set(CONST_STATES), name
+    for name, states in CONST_EXPECTED_VERDICTS.items():
+        assert len(states) == CONST_INVENTORY[name] and set(states) <= set(CONST_STATES), name
 
 
-def test_no_object_is_labelled_the_item_in_both_modes() -> None:
+def test_the_reference_frames_are_labelled_ok() -> None:
     """
     Description:
-        A mounting plate is a Warning in the labyrinth mode and the reverse: on every frame, the objects
-        one mode labels its item (OK or NOK) are no more than the other mode's Warnings.
+        A reference image shows the part in its OK state (the request), so each reference frame is one OK object.
     """
 
-    for name, (plate, labyrinth) in CONST_EXPECTED_VERDICTS.items():
-        for items, other in ((plate, labyrinth), (labyrinth, plate)):
-            assert sum(state in ('OK', 'NOK') for state in items) <= other.count('Warning'), name
+    for name in CONST_REFERENCE_FRAMES:
+        assert CONST_EXPECTED_VERDICTS[name] == ('OK',), name
 
 
-def test_the_reference_frames_are_labelled_ok_in_their_mode() -> None:
-    """
-    Description:
-        A reference image shows the part in its OK state (the request), so each reference frame is one
-        OK object in its own mode, and a logo reference's frame holds an OK object (the referenced plate).
-    """
-
-    for mode, names in CONST_REFERENCE_FRAMES.items():
-        for name in names:
-            assert CONST_EXPECTED_VERDICTS[name][CONST_CATALOGUE_MODES.index(mode)] == ('OK',), name
-    for mode, names in CONST_LOGO_REFERENCE_FRAMES.items():
-        for name in names:
-            assert 'OK' in CONST_EXPECTED_VERDICTS[name][CONST_CATALOGUE_MODES.index(mode)], name
+# The catalogue mode's file.
+#   Unit [string]
+CONST_CATALOGUE_MODE_FILE = 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml'
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize('mode', CONST_CATALOGUE_MODES)
 @pytest.mark.parametrize('name', sorted(CONST_EXPECTED_VERDICTS))
-def test_the_outline_passes_exactly_the_catalogue_parts(name: str, mode: str, require_weights, monkeypatch) -> None:
+def test_the_outline_passes_exactly_the_catalogue_parts(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
-        Through the application's pipeline (FastSAM on the CPU, the model-free describer) in each
-        catalogue mode, the objects whose outline is within the item's tolerance are exactly as many as
-        the labels' OK and NOK objects: every nominal part reads within tolerance at its top face, and
-        no other object is the item's size. Slow because it runs FastSAM; missing weights fail it under
-        --runslow.
+        Through the application's pipeline (FastSAM on the CPU, the model-free describer) in the mounting-plate
+        mode, the objects whose outline is within the item's tolerance are exactly as many as the labels' OK and
+        NOK objects: every nominal plate reads within tolerance at its top face, and no other object is its size.
+        Slow because it runs FastSAM; missing weights fail it under --runslow.
     """
 
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_%s.yaml'
-                                             % mode))
+    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, CONST_CATALOGUE_MODE_FILE))
     config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
     require_weights([config.Segmentation.Model_Path])
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
     objects = _Analyze_Frame(config, name)
     within = [det for det in objects if det.Dimension_Checks and all(check.Within for check in det.Dimension_Checks)]
-    states = collections.Counter(CONST_EXPECTED_VERDICTS[name][CONST_CATALOGUE_MODES.index(mode)])
+    states = collections.Counter(CONST_EXPECTED_VERDICTS[name])
     assert len(within) == states['OK'] + states['NOK']
 
 
-def _Verdict_Cases() -> tp.List[tp.Any]:
-    """Every (frame, mode) of the labels, a pending one marked as a strict expected failure naming its cause."""
-    cases = []
-    for name in sorted(CONST_EXPECTED_VERDICTS):
-        for mode in CONST_CATALOGUE_MODES:
-            reason = CONST_PENDING_VERDICTS.get((name, mode))
-            marks = [pytest.mark.xfail(strict=True, raises=AssertionError, reason=reason)] if reason else []
-            cases.append(pytest.param(name, mode, marks=marks, id='%s-%s' % (name[:-4], mode)))
-    return cases
-
-
 @pytest.mark.slow
-@pytest.mark.parametrize('name, mode', _Verdict_Cases())
-def test_each_frame_gets_its_expected_verdicts(name: str, mode: str, require_weights, monkeypatch) -> None:
+@pytest.mark.parametrize('name', sorted(CONST_EXPECTED_VERDICTS))
+def test_each_frame_gets_its_expected_verdicts(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
-        Through the application's pipeline (FastSAM and DINOv2 on the CPU, the model-free describer) in each
-        catalogue mode, every frame's objects take exactly the labelled states — OK, NOK, Unspecified,
-        Warning, counted, since the labels are in no particular order; a known miss is a strict expected
-        failure (CONST_PENDING_VERDICTS). The reference frames are in the run like any other; the
-        harness reports them apart. Slow because it runs both models; missing weights fail it under --runslow.
+        Through the application's pipeline (FastSAM and DINOv2 on the CPU, the model-free describer) in the
+        mounting-plate mode, every frame's objects take exactly the labelled states — OK, NOK, Unspecified,
+        Warning, counted, since the labels are in no particular order. The reference frames are in the run like
+        any other; the harness reports them apart. Slow because it runs both models; missing weights fail it
+        under --runslow.
     """
 
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_%s.yaml'
-                                             % mode))
-    config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
-    require_weights([config.Segmentation.Model_Path, config.Identification.Model_Path])
-    monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
-    objects = _Analyze_Frame(config, name)
-    expected = collections.Counter(CONST_EXPECTED_VERDICTS[name][CONST_CATALOGUE_MODES.index(mode)])
-    assert collections.Counter(det.Verdict for det in objects) == expected
+    objects = _Catalogue_Objects(name, require_weights, monkeypatch)
+    assert collections.Counter(det.Verdict for det in objects) == collections.Counter(CONST_EXPECTED_VERDICTS[name])
 
 
-def _Hole_Cases() -> tp.List[tp.Any]:
-    """Every labyrinth front's frame, a pending one marked as a strict expected failure naming its cause."""
-    return [pytest.param(name, marks=[pytest.mark.xfail(strict=True, raises=AssertionError,
-                                                        reason=CONST_PENDING_HOLE_COUNTS[name])]
-                         if name in CONST_PENDING_HOLE_COUNTS else [], id=name[:-4])
-            for name in sorted(CONST_CORNER_HOLES)]
-
-
-def _Catalogue_Objects(mode: str, name: str, require_weights, monkeypatch) -> tp.List[tp.Any]:
-    """A frame through the application's pipeline in a catalogue mode (FastSAM and DINOv2 on the CPU)."""
-    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_%s.yaml'
-                                             % mode))
+def _Catalogue_Objects(name: str, require_weights, monkeypatch) -> tp.List[tp.Any]:
+    """A frame through the application's pipeline in the mounting-plate mode (FastSAM and DINOv2 on the CPU)."""
+    config = Load_Configuration(os.path.join(CONST_CONFIG_DIR, CONST_CATALOGUE_MODE_FILE))
     config = dataclasses.replace(config, Segmentation=dataclasses.replace(config.Segmentation, Device='cpu'))
     require_weights([config.Segmentation.Model_Path, config.Identification.Model_Path])
     monkeypatch.setattr(Vision_Core, 'CONST_DESCRIBER', 'fallback')
     return _Analyze_Frame(config, name)
-
-
-@pytest.mark.slow
-@pytest.mark.parametrize('name', _Hole_Cases())
-def test_the_corner_holes_found_are_the_ones_on_the_plate(name: str, require_weights, monkeypatch) -> None:
-    """
-    Description:
-        In the labyrinth mode, the corner holes the check counts on each front of a frame are exactly those
-        counted by eye (CONST_CORNER_HOLES): four, three or none, the maze's start and finish marks never among
-        them. Slow because it runs FastSAM and DINOv2; missing weights fail it under --runslow.
-    """
-
-    objects = _Catalogue_Objects('Labyrinth', name, require_weights, monkeypatch)
-    found = [count.Found for det in objects for count in det.Hole_Counts if count.Name == 'corner hole']
-    # The frame marks every corner position of each front: the holes found as found, the rest expected there.
-    for det in (det for det in objects if det.Hole_Counts):
-        marks = [feature for feature in det.Features if feature.Kind == 'hole']
-        assert len(marks) == 4 and sum(feature.Found for feature in marks) == det.Hole_Counts[0].Found
-    assert sorted(found) == sorted(CONST_CORNER_HOLES[name])
 
 
 # The mounting plates with fingerprints on the front, each showing two by eye (2026-10-11), either side of a hole.
@@ -620,7 +521,7 @@ def test_each_stained_front_shows_its_two_fingerprints_as_two_stains(name: str, 
     """
 
     from Reporting.Core import Reason_Sentence
-    objects = _Catalogue_Objects('Mounting_Plate', name, require_weights, monkeypatch)
+    objects = _Catalogue_Objects(name, require_weights, monkeypatch)
     (stained,) = [det for det in objects if det.Stains]
     assert len(stained.Stains) == 2 and stained.Verdict == 'NOK'
     assert sum(1 for feature in stained.Features if feature.Kind == 'stain' and not feature.Passed) == 2
@@ -628,8 +529,8 @@ def test_each_stained_front_shows_its_two_fingerprints_as_two_stains(name: str, 
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize('name', sorted(name for name, (plate, _labyrinth) in CONST_EXPECTED_VERDICTS.items()
-                                        if set(plate) & {'OK', 'NOK'}))
+@pytest.mark.parametrize('name', sorted(name for name, states in CONST_EXPECTED_VERDICTS.items()
+                                        if set(states) & {'OK', 'NOK'}))
 def test_every_mounting_plate_shows_all_its_holes_within_tolerance(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
@@ -638,7 +539,7 @@ def test_every_mounting_plate_shows_all_its_holes_within_tolerance(name: str, re
         and the pitch within tolerance. Slow because it runs FastSAM and DINOv2.
     """
 
-    objects = _Catalogue_Objects('Mounting_Plate', name, require_weights, monkeypatch)
+    objects = _Catalogue_Objects(name, require_weights, monkeypatch)
     judged = [det for det in objects if det.Verdict in ('OK', 'NOK')]
     assert judged
     for det in judged:

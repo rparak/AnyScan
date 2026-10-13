@@ -93,7 +93,7 @@ def test_the_references_embed_to_unit_vectors_that_tell_the_sides_apart(require_
         least 0.08, docs/design-decisions.md). Slow because it runs DINOv2.
     """
 
-    for mode in ('Mounting_Plate', 'Labyrinth'):
+    for mode in ('Mounting_Plate',):
         config = _Catalogue_Configuration(mode)
         require_weights([config.Identification.Model_Path])
         identifier = Dino_Identifier_Cls(config.Identification.Model_Path, 'cpu')

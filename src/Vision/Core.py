@@ -61,13 +61,11 @@ from Vision.Utilities.Dimensions import Check_Objects
 from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import (Object_Crop, Reference_Crop, Rotations, Best_Match, Best_Turn, Similarity_Grid,
-                                       Classify, Apply_Holes, Apply_Stain, Apply_Logo, Crop_To_Frame)
+                                       Classify, Apply_Holes, Apply_Stain, Crop_To_Frame)
 #   ../Vision/Utilities/Holes
 from Vision.Utilities.Holes import Hole_Candidates, Check_Holes, Hole_Features
 #   ../Vision/Utilities/Stain
 from Vision.Utilities.Stain import Check_Stain
-#   ../Vision/Utilities/Logo
-from Vision.Utilities.Logo import Reference_Logo_Crop, Prepare_Reference, Check_Logo
 #   ../Vision/Utilities/Timing
 from Vision.Utilities.Timing import Build_Timing
 
@@ -121,8 +119,9 @@ CONST_FALLBACK_TASK_LABEL = 'model-free description'
 # harness (analyze.py --no-describe) and the weight-free tests set it; the application never does.
 CONST_DESCRIBER = 'gemma'
 # The similarity overlay's colour scale, unlikeness (1 - cosine) from 0 to this. Measured at the 224 px input
-# (2026-10-11, the stained 059 and the labyrinth parts of 084 and 092): a part's patches' mean 0.13-0.23, the
-# fingerprints' up to 0.61; 0.5 keeps them apart without saturating.
+# on the test set's 22 mounting plates (2026-10-13): a clean plate's patches' mean 0.01-0.16, a stained one's
+# 0.19-0.25, the fingerprints' up to 0.63 (their 99th percentile 0.55-0.61); 0.5 keeps them apart without
+# saturating.
 #   Unit [float]
 CONST_SIMILARITY_SCALE_MAX = 0.5
 
@@ -334,13 +333,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         self.__segmenter = Fast_Sam_Cls(Configuration_Str.Segmentation)
         # A catalogue mode's identifier (None in any other mode), as cheap to construct, and the catalogue
         # item's reference images as unit rows with their sides — embedded once per configuration
-        # (__Reference_Rows), cleared by Configure; likewise its logo references' features, per side
-        # (__Logo_References).
+        # (__Reference_Rows), cleared by Configure.
         self.__identifier = self.__New_Identifier(Configuration_Str)
         self.__reference_rows = None
         self.__reference_patches = None
         self.__reference_sides = []
-        self.__logo_references = None
         # Where the last Load_Models (and the warm-up after it) spent its time, and whether the next
         # analysis is the first since the models were put in force (see Analyze).
         self.__load_timing = None
@@ -541,7 +538,6 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         self.__reference_rows = None
         self.__reference_patches = None
         self.__reference_sides = []
-        self.__logo_references = None
 
         # 4\ Then pay here, under the load's progress, what the first analysis would otherwise pay.
         self.__Warm_Up(stage_cb)
@@ -590,7 +586,6 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             if self.__identifier is not None:
                 started = time.perf_counter()
                 self.__Reference_Rows(self.__cv2, self.__np)
-                self.__Logo_References(self.__cv2, self.__np)
                 timing.Reference_Images_S = time.perf_counter() - started
         except Exception as exc:                          # noqa: BLE001
             # Swallowed on purpose: the configuration is already in force, so this is not a failed
@@ -962,47 +957,16 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             self.__reference_sides = [reference.Side for reference in self.__config.Catalogue.References]
         return self.__reference_rows
 
-    def __Logo_References(self, cv2: tp.Any, np: tp.Any) -> tp.Dict[str, tp.List[tp.Dict[str, tp.Any]]]:
-        """
-        Description:
-            The catalogue item's logo references, per side, each cut out and turned (Reference_Logo_Crop) and
-            its features computed (Prepare_Reference), once per configuration and kept.
-
-        Args:
-            (1) cv2 [module]: The OpenCV module.
-            (2) np [module]: The NumPy module.
-
-        Returns:
-            (1) parameter [Dict<string, Vector<Dict>>]: Per side, each reference prepared, in the check's order.
-
-        Raises:
-            Vision_Error_Cls: A reference image cannot be read.
-        """
-
-        if self.__logo_references is None:
-            prepared = {}
-            for side, logo in self.__config.Catalogue.Logo.items():
-                prepared[side] = []
-                for reference in logo.References:
-                    image = cv2.imread(reference.Image_Path)
-                    if image is None:
-                        raise Vision_Error_Cls('The logo reference image "%s" could not be read; restore the catalogue '
-                                               'item\'s reference_image folder.' % reference.Image_Path)
-                    prepared[side].append(Prepare_Reference(Reference_Logo_Crop(image, reference, cv2, np), cv2, np))
-            self.__logo_references = prepared
-        return self.__logo_references
-
     def __Classify_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.Any, cv2: tp.Any, np: tp.Any) -> tp.Any:
         """
         Description:
             A catalogue mode's judgement, before the objects are described: every object's crop, turned
             upright, in four quarter turns, through DINOv2 in one pass, its best match to the item's
             references, and its verdict (Vision.Utilities.Classify); then each judged part's checks on the
-            side up, on its upright crop: its holes (FastSAM again, Vision.Utilities.Holes), its stains
-            (Vision.Utilities.Stain) and its inscription (Vision.Utilities.Logo), each found defect making it
-            NOK. The crop's scale is the mean of the two factors (they differ by 0.17 %). Each judged part's
-            features are taken to the frame and numbered as its parts, and its patches' unlikeness to its matched
-            reference is laid on the frame's similarity map.
+            side up, on its upright crop: its holes (FastSAM again, Vision.Utilities.Holes) and its stains
+            (Vision.Utilities.Stain), each found defect making it NOK. The crop's scale is the mean of the two
+            factors (they differ by 0.17 %). Each judged part's features are taken to the frame and numbered as
+            its parts, and its patches' unlikeness to its matched reference is laid on the frame's similarity map.
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The measured, checked objects (mutated).
@@ -1056,18 +1020,14 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                 height_px, width_px = upright.shape[:2]
                 Apply_Holes(det, *Check_Holes(holes, groups, width_px * mm_per_px, height_px * mm_per_px))
                 features += Hole_Features(holes, groups, width_px * mm_per_px, height_px * mm_per_px)
-            # Its stains and its inscription, on the side up.
+            # Its stains, on the side up.
             if stain is not None:
                 Apply_Stain(det, Check_Stain(upright, holes, stain, mm_per_px, cv2, np))
                 features += [Feature_Str(Kind='stain', Name='stain', Passed=False, Corners=found.Corners,
                                          Outlines=found.Outlines, Area_Mm2=found.Area_Mm2) for found in det.Stains]
-            if side in item.Logo:
-                Apply_Logo(det, Check_Logo(upright, item.Logo[side], self.__Logo_References(cv2, np)[side], cv2, np))
-                features += self.__Word_Features(det)
-            # Each feature to the frame (holes and stains are in mm on the crop, words in its pixels), numbered as
-            # the object's parts; then the outline's measured sides, the object's own.
+            # Each feature to the frame (holes and stains are in mm on the crop), numbered as the object's parts.
+            scale = 1.0 / mm_per_px
             for number, feature in enumerate(features, 1):
-                scale = 1.0 if feature.Kind == 'word' else 1.0 / mm_per_px
                 feature.Part = '%d.%d' % (index + 1, number)
                 feature.Corners = Crop_To_Frame(det, [(x * scale, y * scale) for x, y in feature.Corners], cv2, np)
                 feature.Outlines = [Crop_To_Frame(det, [(x * scale, y * scale) for x, y in outline], cv2, np)
@@ -1102,31 +1062,6 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                    borderMode=cv2.BORDER_CONSTANT, borderValue=float('nan'))
         own = det.Mask.astype(bool) & np.isfinite(laid)
         unlike[own] = laid[own]
-
-    @staticmethod
-    def __Word_Features(det: Detection_Str) -> tp.List[Feature_Str]:
-        """
-        Description:
-            A judged part's logo words as features, on its crop (pixels): one per expected word, failed when a
-            letter of it is missing, with its expected and read text ('_' for each missing letter) and its least
-            letter similarity. None when the logo registered to no reference (no inscription: nowhere to mark).
-
-        Args:
-            (1) det [Detection_Str(object)]: The part, its logo checked.
-
-        Returns:
-            (1) parameter [Vector<Feature_Str(object)>]: The words, in reading order.
-        """
-
-        logo, features, start = det.Logo, [], 0
-        for word, corners in logo.Words:
-            letters = logo.Letters[start:start + len(word.replace(' ', ''))]
-            start += len(letters)
-            features.append(Feature_Str(Kind='word', Name=word, Corners=corners,
-                                        Passed=all(letter.Present for letter in letters), Expected_Text=word,
-                                        Read_Text=''.join(letter.Letter if letter.Present else '_' for letter in letters),
-                                        Score=min(letter.Similarity for letter in letters)))
-        return features
 
     def __Describe_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.List[tp.List[int]],
                            bg_bgr: tp.List[tp.List[int]], progress_cb: tp.Optional[tp.Callable],

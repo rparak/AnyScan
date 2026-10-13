@@ -22,8 +22,8 @@
 #     This mode inspects one catalogue item, the mounting plate (the Catalogue block below).
 #     Every object is found and described as in Segment Anything, measured at the item's
 #     top face, compared with the item's reference images (DINOv2) and judged: OK, NOK,
-#     Unspecified or Warning (docs/design-decisions.md). The item's holes, surface and
-#     logo are not checked yet.
+#     Unspecified or Warning (docs/design-decisions.md). A judged part's holes and stains
+#     are checked on the side up.
 #
 #   The station:
 #     The camera, its acquisition settings and sensor window, and the empty-surface

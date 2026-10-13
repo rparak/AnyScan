@@ -110,52 +110,6 @@ class Catalogue_Stain_Str:
 
 
 @dataclass
-class Catalogue_Logo_Reference_Str:
-    """
-    Description:
-        One variant of the logo (Checks.Logo.<side>.References[i]): its reference image (a frame with the part's
-        box, reference_image/<Name>.png and .txt), the rotation that makes its box crop read upright, and each
-        letter's box in that turned crop, in reading order (Example/Catalogue/logo_letters.py writes them).
-    """
-
-    # The reference's name (the image's file name without .png), the image (absolute) and the part's YOLO box.
-    #   Unit [string] / [string] / [Vector<float> 1x4]
-    Name: str = ''
-    Image_Path: str = ''
-    Box: tp.Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
-    # The frame's counter-clockwise rotation about the box's centre (OpenCV's sense: positive turns the image
-    # counter-clockwise on screen) before the box is cut, so the logo reads upright and level.
-    #   Unit [float] (degrees)
-    Rotation_Deg: float = 0.0
-    # Each letter and its box (x, y, width, height) in the turned crop's pixels, in reading order.
-    #   Unit [Vector<Tuple<string, int, int, int, int>>]
-    Letters: tp.List[tp.Tuple[str, int, int, int, int]] = field(default_factory=list)
-
-
-@dataclass
-class Catalogue_Logo_Str:
-    """
-    Description:
-        The logo check on one side (Checks.Logo.<side>): the expected words, the logo's variants, and the
-        thresholds — the feature matches that register a crop to a reference at all, and the similarity and
-        contrast at which a letter is there (Vision.Utilities.Logo).
-    """
-
-    # The words, in reading order ('JIC', 'SMART'); their letters, spaces left out, are the references'.
-    #   Unit [Vector<string>]
-    Expected_Text: tp.List[str] = field(default_factory=list)
-    # The least matched features (RANSAC inliers) for a crop to register to a reference, and a letter's least
-    # similarity (edge-image correlation) and least contrast (its edges against the part's plate).
-    #   Unit [int] / [float] / [float]
-    Min_Matches: int = 0
-    Letter_Min_Similarity: float = 0.0
-    Letter_Min_Contrast: float = 0.0
-    # The logo's variants: each letter is compared with every reference the crop registers to.
-    #   Unit [Vector<Catalogue_Logo_Reference_Str(object)>]
-    References: tp.List[Catalogue_Logo_Reference_Str] = field(default_factory=list)
-
-
-@dataclass
 class Catalogue_Reference_Str:
     """
     Description:
@@ -198,7 +152,7 @@ class Catalogue_Defect_Str:
     Description:
         One defect the catalogue part can have, as a person describes it: what it is called, the side it is
         looked for on, what it looks like, and what looks like it but is not. Validated, and read by nothing
-        yet: the stain, hole and logo checks and the describer use it from phases C and D.
+        yet: the stain and hole checks and the describer use it from phases C and D.
     """
 
     # The defect's name, and the side it is looked for on ('front' or 'back').
@@ -244,10 +198,9 @@ class Catalogue_Item_Str:
     # The hole checks, per side ('front', 'back'): a side without groups has no hole check.
     #   Unit [Dict<string, Vector<Catalogue_Hole_Group_Str(object)>>]
     Holes: tp.Dict[str, tp.List[Catalogue_Hole_Group_Str]] = field(default_factory=dict)
-    # The stain and logo checks, per side; a side without one has none.
-    #   Unit [Dict<string, Catalogue_Stain_Str(object)>] / [Dict<string, Catalogue_Logo_Str(object)>]
+    # The stain checks, per side; a side without one has none.
+    #   Unit [Dict<string, Catalogue_Stain_Str(object)>]
     Stain: tp.Dict[str, Catalogue_Stain_Str] = field(default_factory=dict)
-    Logo: tp.Dict[str, Catalogue_Logo_Str] = field(default_factory=dict)
     # The describer's prompt for a judged part, with {side}, {side_description}, {defects} and {findings} filled
     # in per object (Reporting.Describer_Prompt); '' to describe it with the mode's object prompt.
     #   Unit [string]

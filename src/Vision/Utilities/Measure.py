@@ -60,12 +60,12 @@ Description:
 # (washers, nuts, the bushing) 1.002-1.016; the least elongated non-square part 1.468 (the robot in
 # 005), the plates 1.49-1.54, the screws 3.76-4.05. (The thirteen-frame set of b5ca788^ gave the same,
 # with plates up to 1.60.) 1.15 sits ten times the round parts' noise above
-# 1.0 and far below any elongated part. (The square maze plate, 1.013, is told apart by its extent.)
+# 1.0 and far below any elongated part. (A square plate, 1.013, is told apart by its extent.)
 #   Unit [float]
 CONST_MEASURE_SYMMETRIC_ELONGATION = 1.15
 # The extent (contour area / rotated-rectangle area) at or above which a non-elongated object is
 # square-like, not round: a disc is pi/4 = 0.785 in theory, measured 0.777-0.809 on the round parts
-# of Data/Images/Test/All (the previous set, as above); the square maze plate (All/Image_008) measured 0.983.
+# of Data/Images/Test/All (the previous set, as above); a square plate (All/Image_008) measured 0.983.
 #   Unit [float]
 CONST_MEASURE_SQUARE_EXTENT = 0.92
 # The smallest mask (pixels) that is measured at all; below it the rectangle is noise.

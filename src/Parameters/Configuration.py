@@ -145,9 +145,9 @@ class Identification_Parameters_Str:
     #   Unit [string]
     Model_Path: str = ''
     # The similarity at and above which an object is identified as the part, whatever its size. Measured
-    # on the 41 frames of Data/Images/Test (2026-10-11): every mounting plate 0.79-1.00 (the stained
-    # fronts lowest), every labyrinth 0.80-0.96, every other object at most 0.66 (the red block against
-    # the plate's back). docs/design-decisions.md has the rule.
+    # on the 41 frames of Data/Images/Test (2026-10-11, re-checked 2026-10-13): every mounting plate 0.79-1.00
+    # (the stained fronts lowest), every other object at most 0.673 (the red block against the plate's back),
+    # the 50 x 50 square plates 0.23-0.43. docs/design-decisions.md has the rule.
     #   Unit [float]
     Identify_Similarity: float = 0.75
     # The area, as a multiple of the part's nominal area, from which an object is Unspecified (probably

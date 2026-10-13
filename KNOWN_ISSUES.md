@@ -241,9 +241,9 @@ commit).
   | Lattice bracket (007) | 11 windows | 0.000 | 0.40 |
   | Red block (006, 007) | side face, holes | 0.000 | 0.25–0.29 |
   | Single plates (003, 004, 010, 013, old 002–005) | 2–4 | 0.000 | 0.030–0.196 |
-  | Maze plate (008), old 006, old 007 | 4–6 | 0.000 | 0.009–0.019 |
+  | Milled square plate (008), old 006, old 007 | 4–6 | 0.000 | 0.009–0.019 |
 
-  - **The two-plate components are near the bottom.** Only single plates and the maze plate cover less.
+  - **The two-plate components are near the bottom.** Only single plates and the milled square plate cover less.
     A coverage cut low enough to include 009 fires on every multi-part object in the set. One high
     enough to mean "most" fires only on single objects.
   - **The leaf-overlap test does not protect the robot.** Leaves are the finest pieces, so they barely
@@ -413,7 +413,7 @@ below were shown to one decimal then):
   periodicity and reports `A/F 11.7 mm` / `A/F 11.5 mm`, not `Ø`. The geometry knows it is a hex
   nut; the text says washer.
 - **The square plate in `Image_007`**: Gemma calls it "a rectangular, flat plate"; the measurement
-  is 48.1 × 46.9 mm, i.e. square. (It calls the other square plate, `Image_006`'s maze plate,
+  is 48.1 × 46.9 mm, i.e. square. (It calls the other square plate, `Image_006`'s milled square plate,
   47.8 × 47.0 mm, "square".)
 
 Both models miss the nuts, so this is a limitation of describing a small crop, not something prompt
@@ -462,28 +462,15 @@ dump), as had about 20 full runs and a 30-run stress loop of `test/UI` earlier t
 ## A hole drilled where the catalogue puts none is not reported
 
 The hole check counts a positioned group's holes only near the positions the catalogue gives (within √2 ×
-tolerance + 0.5 mm, mirrored to all four corners), which is what keeps the labyrinth's maze start and finish
-marks, round and of the corner holes' size, out of the count. A hole of the right size anywhere else on the part
-is not counted, and nothing says it is there. Accepted by the owner, 2026-10-11, for phase C.
+tolerance + 0.5 mm, mirrored to all four corners), which keeps a round mark of a hole's size elsewhere on the part
+out of the count. A hole of the right size anywhere else on the part is not counted, and nothing says it is there.
+Accepted by the owner, 2026-10-11, for phase C.
 
 - **Impact:** a part with its catalogue holes right and one more in an unexpected place reads OK.
-- **Not fixed here:** reporting candidates outside every position needs the maze marks told apart by something
-  other than position; no part with a misplaced hole is in the test set to measure it on.
-- **Pinned by:** `test/Vision/Utilities/test_holes.py::test_corner_holes_are_counted_at_the_corners_and_the_maze_marks_are_not`
+- **Not fixed here:** reporting candidates outside every position needs round marks told apart from holes by
+  something other than position; no part with a misplaced hole is in the test set to measure it on.
+- **Pinned by:** `test/Vision/Utilities/test_holes.py::test_a_hole_at_every_corner_is_counted_and_a_round_mark_beside_one_is_not`
   (a mark 5 mm along an edge is not counted).
-
-## A corner hole in shadow can go unseen, and the count says one fewer
-
-On Image_071 the labyrinth plate lies partly in shadow and FastSAM never segments one of its three corner holes —
-no mask near that corner at any roundness — so the hole check counts two. The plate is NOK either way (it has
-three of four); its reason says "2 of 4 corner holes found". On a plate with all four holes the same miss would
-read NOK wrongly. 1 miss in the 42 corner holes of the test set.
-
-- **Impact:** a shadowed hole can be reported missing; the verdict can be a false NOK.
-- **Not fixed here:** the lighting is the cause (*The fusion's parameters are validated on one table under one light*, above); the side-light
-  capture session will show how often.
-- **Pinned by:** `test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate[Image_071]`,
-  a strict xfail: it fails the run the day the hole is found.
 
 ## The stain check's colour band is this light's
 
@@ -502,9 +489,9 @@ differently moves the plate's colours; nothing checks that the band still fits.
 ## The describer guard reads words, so a paraphrase can pass and a right sentence can go
 
 `Reporting.Guard_Description` drops a describer's sentence that holds a number or contradicts a check by matching
-patterns (a stain word with or without a negation, a hole count, "each corner", a logo word with a verb that
-shows it). It caught every contradiction Gemma wrote on the 24 judged parts measured (five, all "holes in each
-corner" on fronts missing holes) and dropped no right sentence in the final run; the first run dropped one
+patterns (a stain word with or without a negation, a hole count, "each corner"). It caught every contradiction
+Gemma wrote on the 24 judged parts measured on 2026-10-11 (five, all "holes in each corner" on parts missing
+holes) and dropped no right sentence in the final run; the first run dropped one
 ("clean of any staining", fixed).
 
 - **Impact:** a contradiction worded unlike those measured can reach the panel; a right sentence using a
@@ -515,33 +502,12 @@ corner" on fronts missing holes) and dropped no right sentence in the final run;
 - **Pinned by:** `test/Reporting/test_core.py::test_the_guard_drops_numbers_and_what_contradicts_a_check`
   (Gemma's own sentences).
 
-## Two logo appearances rest on their reference plates, and uneven light dims different letters
-
-The test set has three plates with the outline-letter logo (Image_069's, Image_092's left, Image_095's left).
-Two of them are the variant's references (`back_outline`, `back_outline_2`), so reading them complete proves
-little: each is compared with itself. Only Image_095's left plate is an independent test (least letter 0.88).
-On these plates the light falls off unevenly, and each plate has its own dim letters: with 092's plate as the
-only reference, 069's and 095's read S, F, A and C missing (0.19-0.20), and with 069's plate, 092's read missing
-(0.09). Two references lit from different sides make up for it, measured on one plate.
-
-The dark, scratched, glare-lit appearance (Image_092's right plate, the engraving lighter than the plate) read
-NOK with its logo complete (0.19) until it became the fourth reference, `back_dark` (owner's ruling,
-2026-10-11). It is the only plate of that appearance in the test set, so its reading complete is measured on
-itself: the appearance has no independent test plate.
-
-- **Impact:** an outline-letter or dark plate lit in a way no reference covers can read letters missing (a false
-  NOK). The erasure test covers the outline plates too, so a missing letter is still caught.
-- **Not fixed here:** more outline-letter plates under the rig's light, and the side-light session, are needed to
-  measure it (capture checklist).
-- **Pinned by:** `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts[Image_095-Labyrinth]`
-  (the independent plate), `test/Vision/Utilities/test_logo.py::test_every_letter_erased_from_a_real_logo_is_caught`.
-
 ## A missing hole is not marked when the part shows nothing to place it by
 
 A hole expected and not found is marked dashed at its position. Where that position depends on the holes
 found, it cannot always be placed. The mounting plate's through-holes sit by one long edge, mirrored either way:
 with none found, either edge could be meant, so none is marked. A countersink is placed around a through-hole
-without one, so with neither found, neither is marked. The labyrinth's four corner positions are always marked.
+without one, so with neither found, neither is marked.
 
 - **Impact:** a plate missing all its holes shows no hole marks; its reason ("Both through-holes are
   missing.") and its log lines still say so.

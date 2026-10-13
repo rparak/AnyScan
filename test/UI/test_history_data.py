@@ -197,7 +197,7 @@ def test_a_judged_parts_parts_round_trip_and_an_older_record_has_none(tmp_path) 
     """
     Description:
         A judged part's features are saved as its 'parts' (an additive field) and read back the same — part
-        number, kind, name, pass and found, box, checks, area, text and score; a set written before parts were
+        number, kind, name, pass and found, box, checks, area and score; a set written before parts were
         recorded (no 'parts' key) still loads, its objects with none; a malformed part is skipped, not made up.
     """
 
@@ -207,11 +207,10 @@ def test_a_judged_parts_parts_round_trip_and_an_older_record_has_none(tmp_path) 
     objects = _Detections()
     objects[0].Verdict = 'NOK'
     objects[0].Features = [
-        Feature_Str(Part='1.1', Kind='hole', Name='corner hole', Corners=[(1.0, 2.0), (3.0, 2.0), (3.0, 4.0), (1.0, 4.0)],
-                    Checks=[Check_Dimension('corner hole Ø', 2.95, 2.459, 1.0)], Score=0.93),
-        Feature_Str(Part='1.2', Kind='hole', Name='corner hole', Passed=False, Found=False),
-        Feature_Str(Part='1.3', Kind='stain', Name='stain', Passed=False, Area_Mm2=156.71),
-        Feature_Str(Part='1.4', Kind='word', Name='JIC', Passed=False, Expected_Text='JIC', Read_Text='J_C', Score=0.19)]
+        Feature_Str(Part='1.1', Kind='hole', Name='through-hole', Corners=[(1.0, 2.0), (3.0, 2.0), (3.0, 4.0), (1.0, 4.0)],
+                    Checks=[Check_Dimension('through-hole Ø', 6.2, 6.0, 1.5)], Score=0.93),
+        Feature_Str(Part='1.2', Kind='hole', Name='through-hole', Passed=False, Found=False),
+        Feature_Str(Part='1.3', Kind='stain', Name='stain', Passed=False, Area_Mm2=156.71)]
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Set(writer, 'sessionA', 'set1', objects, classification=True)
     cap = Read_Capture_Set(str(tmp_path / 'sessionA'), 'sessionA', 'set1')

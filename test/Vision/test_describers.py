@@ -151,9 +151,9 @@ def test_gemma_sends_a_given_prompt_instead_of_the_purposes(fake_mlx) -> None:
 
     describer = Gemma_Describer_Cls(fake_mlx.params)
     describer.Load()
-    describer.Describe(np.zeros((8, 8, 3), np.uint8), CONST_PURPOSE_OBJECT, 'The part is a labyrinth plate.')
+    describer.Describe(np.zeros((8, 8, 3), np.uint8), CONST_PURPOSE_OBJECT, 'The part is a mounting plate.')
     describer.Describe(np.zeros((8, 8, 3), np.uint8), CONST_PURPOSE_OBJECT)
-    assert [prompt for prompt, _ in fake_mlx.templates] == ['The part is a labyrinth plate.',
+    assert [prompt for prompt, _ in fake_mlx.templates] == ['The part is a mounting plate.',
                                                             fake_mlx.params.Prompt_Object]
 
 

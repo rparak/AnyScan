@@ -676,3 +676,39 @@ def test_missing_captures_root_shows_empty_grid(qt_app, tmp_path) -> None:
     assert _Private(view, '__cards') == []
     body = _Private(view, '__list_box')
     assert isinstance(body.itemAt(0).widget(), QLabel)   # the empty-state message
+
+
+def test_a_set_recorded_in_a_mode_that_no_longer_ships_loads_and_shows(qt_app, tmp_path) -> None:
+    """
+    Description:
+        A capture set from a catalogue mode that no longer ships still loads and shows in History: its record
+        (test/UI/data/removed_mode_objects.json, written by the application on 2026-10-13 before that mode was
+        removed) names the old configuration and carries kinds of part this version no longer makes ('word', with
+        the expected_text and read_text this version ignores). It reads complete, every object and part kept, and
+        History lists it, its objects and its configuration's name.
+    """
+
+    import json
+    import shutil
+    from UI.Capture import Read_Capture_Set
+    record = os.path.join(os.path.dirname(__file__), 'data', 'removed_mode_objects.json')
+    data = json.load(open(record, encoding='utf-8'))
+    session, set_id = data['session_id'], data['set_id']
+    folder = tmp_path / session
+    folder.mkdir()
+    shutil.copy(record, str(folder / (set_id + '_objects.json')))
+    for suffix in ('_raw.png', '_annotated.png', '_mask.png'):
+        cv2.imwrite(str(folder / (set_id + suffix)), np.full((120, 192, 3), 60, np.uint8))
+
+    cap = Read_Capture_Set(str(folder), session, set_id)
+    assert not cap.Partial and cap.Configuration == data['configuration']
+    assert [obj.Verdict for obj in cap.Objects] == ['NOK', 'OK', 'OK']
+    assert [[part.Kind for part in obj.Parts] for obj in cap.Objects] == [['hole'] * 4, ['word'] * 3, ['word'] * 3]
+    assert cap.Objects[1].Parts[0].Name == 'JIC' and len(cap.Objects[1].Parts[0].Corners) == 4
+
+    view = History_View_Cls(str(tmp_path), run_id=data['run_id'], Confidence_Thresholds_Str=Confidence_Thresholds_Str())
+    view.Refresh()
+    assert [card.Cap().Set_Id for card in _Private(view, '__cards')] == [set_id]
+    assert _Private(view, '__banner').isHidden()
+    assert _Private(view, '__object_list').box.count() == 3
+    assert _Private(view, '__meta_configuration').text() == data['configuration']

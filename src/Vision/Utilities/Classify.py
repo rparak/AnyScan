@@ -28,7 +28,7 @@ import typing as tp
 # Custom Lib.: AnyScan domain — the detection, scale, catalogue and identification structures
 #   ../Parameters/Vision
 from Parameters.Vision import (Detection_Str, Scale_Str, Catalogue_Result_Str, Hole_Count_Str, Dimension_Check_Str,
-                               Stain_Str, Logo_Result_Str)
+                               Stain_Str)
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Item_Str
 #   ../Parameters/Configuration
@@ -366,20 +366,4 @@ def Apply_Stain(det: Detection_Str, stains: tp.List[Stain_Str]) -> None:
 
     det.Stains = stains
     if det.Verdict == 'OK' and stains:
-        det.Verdict = 'NOK'
-
-
-def Apply_Logo(det: Detection_Str, logo: Logo_Result_Str) -> None:
-    """
-    Description:
-        A judged part's logo check (Vision.Utilities.Logo.Check_Logo), in place: the result is kept on the object
-        (det.Logo), and an OK part with no inscription or any letter missing becomes NOK. A NOK part stays NOK.
-
-    Args:
-        (1) det [Detection_Str(object)]: The object, judged OK or NOK (mutated).
-        (2) logo [Logo_Result_Str(object)]: The logo check's result.
-    """
-
-    det.Logo = logo
-    if det.Verdict == 'OK' and (not logo.Reference or not all(letter.Present for letter in logo.Letters)):
         det.Verdict = 'NOK'

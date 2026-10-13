@@ -47,7 +47,8 @@ Description:
     0.1 mm/px, so every size is known; the real frames are pinned in test_pipeline (slow).
 """
 
-# The mounting plate's front groups and the labyrinth's corner holes, as the shipped items give them.
+# The mounting plate's front groups, as the shipped item gives them, and a synthetic group with a hole at each of
+# its four mirrored positions (on a 50 x 50 mm part): the positioned group's other case, all positions filled.
 CONST_PLATE_FRONT = [Catalogue_Hole_Group_Str(Name='countersink', Diameter_Mm=12.0, Count=2, Tolerance_Mm=1.5),
                      Catalogue_Hole_Group_Str(Name='through-hole', Diameter_Mm=6.0, Count=2, From_Long_Edge_Mm=15.0,
                                               From_Short_Edge_Mm=17.5, Pitch_Mm=25.0, Tolerance_Mm=1.5)]
@@ -71,7 +72,7 @@ def test_round_masks_inside_the_crop_are_candidates_in_mm() -> None:
     """
     Description:
         A disc inside the crop is a candidate, its diameter and centre in mm; a square (π/4 round, below the
-        threshold that sits under the real holes' 0.875), a disc
+        threshold that sits under the real holes' 0.881), a disc
         reaching the crop's border (the part's edge), and the same disc returned twice by FastSAM are not.
     """
 
@@ -127,13 +128,12 @@ def test_a_misplaced_hole_fails_its_edge_distance_and_pitch() -> None:
                                                               "through-hole's distance from the short edge"]
 
 
-def test_corner_holes_are_counted_at_the_corners_and_the_maze_marks_are_not() -> None:
+def test_a_hole_at_every_corner_is_counted_and_a_round_mark_beside_one_is_not() -> None:
     """
     Description:
-        The labyrinth's corner holes are counted at all four corners; a round mark of their size 5 mm along an
-        edge from a corner (where the maze's start and finish lie, 4.9 mm or more on the test set) is outside the
-        counting gate and is not counted; a missing corner hole is counted missing. Only neighbouring holes,
-        42 mm apart, are checked as pitch, not the diagonals.
+        A group with a hole at each of its four mirrored positions counts all four; a round mark of their size
+        5 mm along an edge from a corner is outside the counting gate and is not counted; a missing hole is
+        counted missing. Only neighbouring holes, 42 mm apart, are checked as pitch, not the diagonals.
     """
 
     four = [(4.0, 4.0, 2.8), (46.0, 4.0, 2.8), (4.0, 46.0, 2.8), (46.0, 46.0, 2.8)]
@@ -184,8 +184,8 @@ def _Centres(features: tp.List[tp.Any]) -> tp.List[tp.Tuple[float, float, bool]]
 def test_a_missing_corner_hole_is_marked_where_the_catalogue_puts_it() -> None:
     """
     Description:
-        The corner holes as the frame marks them: the three found, each with its checks and its mask score, and
-        the fourth expected at its corner (4 mm from both edges) and not found, failed.
+        A four-position group's holes as the frame marks them: the three found, each with its checks and its mask
+        score, and the fourth expected at its corner (4 mm from both edges) and not found, failed.
     """
 
     from Vision.Utilities.Holes import Hole_Features

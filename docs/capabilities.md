@@ -115,8 +115,7 @@ then composes and measures. The numbers are the ones the README and the mode fil
   group counted near its positions, each hole's diameter, edge distances and pitch within tolerance; a hole
   missing, extra or out of tolerance makes it NOK
   ([*A judged part's holes are counted…*](design-decisions.md#a-judged-parts-holes-are-counted-where-the-catalogue-puts-them-by-fastsam-on-its-upright-crop)).
-  On a side with a stain check, a yellow-brown area of 1 mm² or more inside it makes it NOK; on a side with
-  a logo check, no inscription or a missing letter does, each letter named with its word.
+  On a side with a stain check, a yellow-brown area of 1 mm² or more inside it makes it NOK.
   The verdict colours the frame and the mask and sets the badge; its state and reasons are in Scene
   Understanding, and the log adds the side and the similarity. An OK or NOK part's description gains the
   side that is up, in the catalogue's words, from DINOv2.
@@ -131,7 +130,6 @@ piece of hardware. The modes shipped today:
 |---|---|---|
 | Seg_Anything | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml` | Finds every part on the surface (no class list), describes and measures it. Classification off. |
 | Mounting_Plate | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml` | Catalogue mode for `Data/Catalogue/mounting_plate`: as Seg_Anything, measured at the plate's top face (8 mm), each outline checked against 60 × 40 ± 1.5 mm, each object identified and judged, the plate's holes on both sides and stains on its front checked. Classifies. |
-| Labyrinth | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Labyrinth.yaml` | Catalogue mode for `Data/Catalogue/labyrinth`: as Seg_Anything, measured at the plate's top face (6 mm), each outline checked against 50 × 50 ± 1.0 mm, each object identified and judged, the front's corner holes and the back's logo checked. Classifies. |
 
 - The configuration is picked in the **CONFIGURATION** dialog and is fixed after the first CONNECT.
   Changing it means restarting the application. Another camera means restarting with `--config`.
@@ -145,16 +143,13 @@ piece of hardware. The modes shipped today:
   its known defects, its thickness, tolerance and checks, with its reference images beside it. Each side's
   description and its defects fill the describer's prompt, with no number
   ([*A catalogue item is the single tracked source…*](design-decisions.md#a-catalogue-item-is-the-single-tracked-source-for-its-part-and-its-descriptions-wait-for-the-describer), corrected). It identifies the item and its
-  side, checks the outline, the holes, stains by their colour
-  ([*A judged part's stains…*](design-decisions.md#a-judged-parts-stains-are-a-colour-band-on-its-upright-crop-from-1-mm²))
-  and the logo letter by letter
-  ([*The logo is read letter by letter…*](design-decisions.md#the-logo-is-read-letter-by-letter-against-every-reference-it-registers-to-by-shape-and-by-contrast)),
+  side, checks the outline, the holes and stains by their colour
+  ([*A judged part's stains…*](design-decisions.md#a-judged-parts-stains-are-a-colour-band-on-its-upright-crop-from-1-mm²)),
   and gives every object one of four states, each NOK with its reasons. It then describes a judged part
   with what the checks found; the describer's sentences with a number or contradicting a check are dropped
   and logged
   ([*The describer is told what the checks found…*](design-decisions.md#the-describer-is-told-what-the-checks-found-never-a-number-and-its-contradictions-are-dropped-and-logged)).
-  What it does not check — the maze layout, a back-up labyrinth's holes, a defect no check names — it
-  cannot fail
+  What it does not check — a hole where the catalogue puts none, a defect no check names — it cannot fail
   ([README > Limitations](../README.md#a-catalogue-mode-checks-only-what-its-item-lists);
   [*A catalogue mode is a Catalogue block…*](design-decisions.md#a-catalogue-mode-is-a-catalogue-block-naming-an-item-folder-and-the-configuration-picks-checks-never-their-order)).
   Within tolerance means consistent with nominal: the parts were not calipered
@@ -195,7 +190,7 @@ Two cards:
 
 - **Camera View** — the frame, then the analysis, in one of four renders: **Annotated** (numbered
   outlines; in a catalogue mode also each judged part's features — holes, stain regions with their pixels
-  tinted, logo words — in the pass or the fail colour, a hole expected and not found dashed; no part numbers on
+  tinted — in the pass or the fail colour, a hole expected and not found dashed; no part numbers on
   the frame, the log numbers the parts), **Mask** (the label mask: black ground,
   tinted fill, verdict contour; no feature marks), **Heatmap** (the background difference on a fixed 0–128
   scale, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
@@ -204,9 +199,9 @@ Two cards:
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
   each object adds `State: …`, one `Reason: …` sentence summing up why it is not OK (counts in words up to
-  ten: "Two of four corner holes are missing and one is out of tolerance."), and a note when its size was
-  checked outside the verified zone. The measured and expected values, part by part (Part 2.3 · …), the
-  logo's expected and read text, and the similarity are in the log. The badge states the worst verdict: `NOK · n of m` (magenta), `Not judged · n` and
+  ten: "One of two through-holes is missing, and there are two stains on the machined front."), and a note when
+  its size was checked outside the verified zone. The measured and expected values, part by part
+  (Part 2.3 · …), and the similarity are in the log. The badge states the worst verdict: `NOK · n of m` (magenta), `Not judged · n` and
   `Foreign object · n` (amber), `All OK · n` (green); outside a catalogue mode, `n found`.
 
 ### Trends
@@ -357,8 +352,6 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
 - `Vision/analyze.py` — run the pipeline over `Evaluation.Frames` and save every output. In a catalogue
   mode (`--config`) it also prints each object's outline checks and verdict, and counts the states and the
   outlines within tolerance with the item's reference frames (found by content) apart.
-- `Catalogue/logo_letters.py` — draw a logo reference's letter boxes on its crop (into `Data/Results/`) and
-  print them for the item file.
 - `Vision/evaluate_describer.py` — score the descriptions against the test set's answer key. The current set
   (`Data/Images/Test`) has none yet, so it cannot run until one is written.
 - `UI/architecture_diagram.py`, `UI/build_logo.py`, `UI/build_fonts.py` — rebuild the README diagram,
@@ -398,12 +391,11 @@ Each row names its evidence. A row with none is not verified.
 | Lost-connection detection (cable pull) | **Not verified** | capture-checklist item 4 |
 | Parts session: defects, low-contrast parts, harsh shadow | Not recorded | capture-checklist item 3 |
 | Daily station event export on the station | Not recorded | — |
-| Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled in both modes, the five stained plates NOK | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
+| Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled, the five stained plates NOK, every other object a Warning | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
 | Catalogue stain check on the test set | Off-hardware: the five fingerprinted fronts caught, each as its two fingerprints (two regions, largest 149–158 mm²), every clean front clean | the same test; `test/Vision/Utilities/test_stain.py` |
-| Catalogue logo check on the test set | Off-hardware: every complete logo read complete, the four blank plates no inscription; a missing letter verified on synthetic erasures only (180 of 180 caught); three of the five references' appearances have no independent plate, and the fifth (`back_outline_3`, the production design, not a test frame) registers to none of the test set's logos, which all carry the old design | `test/Vision/Utilities/test_logo.py::test_every_letter_erased_from_a_real_logo_is_caught` |
 | Describer told the findings, guarded | Off-hardware, Gemma 4 E4B on 24 judged parts: every contradiction it wrote dropped and logged, no digit | [design-decisions](design-decisions.md#the-describer-is-told-what-the-checks-found-never-a-number-and-its-contradictions-are-dropped-and-logged) |
-| Feature marks on the frame | Off-hardware: rendered and looked at on real NOK frames of both modes (Image_059, 084, 087, 092); every labyrinth front marks its four corner positions, found or expected | `test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate`, `::test_each_stained_front_shows_its_two_fingerprints_as_two_stains` |
-| Catalogue hole check on the test set | Off-hardware: every mounting-plate hole within tolerance; every labyrinth front's corner holes as counted by eye, but one in shadow (Image_071) | `test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate`, `::test_every_mounting_plate_shows_all_its_holes_within_tolerance` |
+| Feature marks on the frame | Off-hardware: rendered and looked at on a real NOK frame (Image_059) | `test/integration/test_pipeline.py::test_each_stained_front_shows_its_two_fingerprints_as_two_stains` |
+| Catalogue hole check on the test set | Off-hardware: every mounting-plate hole within tolerance | `test/integration/test_pipeline.py::test_every_mounting_plate_shows_all_its_holes_within_tolerance` |
 | Defect detection | **Not built** | README > Limitations |
 
 ## Keeping this file true

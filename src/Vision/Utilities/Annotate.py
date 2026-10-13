@@ -69,7 +69,7 @@ CONST_ANNOTATE_BOX_W = 2          # bounding-box stroke
 CONST_ANNOTATE_DASH = 10
 CONST_ANNOTATE_DASH_GAP = 7
 CONST_ANNOTATE_DASHED_W_FRACTION = 0.5
-# A judged part's feature marks (holes, stains, logo words): their line weight and the dash of a hole expected and
+# A judged part's feature marks (holes, stains): their line weight and the dash of a hole expected and
 # not found, at the reference dimension; the tint laid over a stain's pixels.
 #   Unit [float] (px) / [float] (px) / [float] (0-1)
 CONST_ANNOTATE_FEATURE_W = 1.5
@@ -252,8 +252,8 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
 def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float, cv2: tp.Any, np: tp.Any) -> None:
     """
     Description:
-        A judged part's features on the annotated frame (Detection_Str.Features): each hole, stain region and logo
-        word as its rotated box, in the pass colour (the OK verdict's) or the fail colour (the NOK verdict's) — the
+        A judged part's features on the annotated frame (Detection_Str.Features): each hole and stain region as
+        its rotated box, in the pass colour (the OK verdict's) or the fail colour (the NOK verdict's) — the
         same two colours that mark the objects, so a feature's colour means what an object's does; a hole expected
         and not found as a dashed box at its position; each stain's pixels under a tint of the fail colour, so its
         shape shows. Every mark is drawn over a light halo (the theme's card colour), so it holds on a dark plate as

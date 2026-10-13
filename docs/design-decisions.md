@@ -170,7 +170,7 @@ two plates 10.8 and 9.8 px apart came back as one object. That was a bridge with
 and a smaller kernel would only have moved the distance at which it happens. Across all twenty real
 frames then available (the thirteen of `b5ca788^` and the previous seven) the closing
 healed nothing — every count was the same with no closing at all — and with the new rule every other
-object's mask is identical pixel for pixel, the lattice bracket and the maze plate included. 010 and
+object's mask is identical pixel for pixel, the lattice bracket and the milled square plate included. 010 and
 013 then counted two. Cost: fusion ~25 ms slower per frame. The trade-off is stated: a part the cues see
 as two separate pieces now stays two objects (KNOWN_ISSUES, the fusion entry's failure signatures) —
 not seen on any frame.
@@ -710,7 +710,7 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   current set) put round parts at 1.002–1.016 and the least elongated non-square part at 1.468 (the
   robot in 005; the plates 1.49–1.60). Re-measured on the eight left after `b5ca788`, every figure
   holds except the plates, 1.49–1.54. **A square is the exception:** it is as un-elongated as a
-  disc (1.013, the maze plate in `All/Image_008`) but its sides are real edges that `minAreaRect`
+  disc (1.013, the milled square plate in `All/Image_008`) but its sides are real edges that `minAreaRect`
   finds reliably, so un-elongated parts are only called symmetric when also round — extent (contour
   area / rectangle area) below **0.92** (round parts 0.777–0.809, the square 0.983). The set has one
   square part, in one frame.
@@ -2828,13 +2828,13 @@ check. The rest is the agreed design, recorded here so the later phases build to
   file's rules: REQUIRED fields, documented defaults, invalid values fail, unknown keys warn.
 - **A `Catalogue` block selects the mode.** A mode file with `Catalogue.Item` is a catalogue mode; one
   without is Segment Anything, unchanged. One mode file per item
-  (`Config_<Hardware>_Mode_Mounting_Plate.yaml`, `..._Mode_Labyrinth.yaml`). The request coupled the mode
+  (`Config_<Hardware>_Mode_Mounting_Plate.yaml`). The request coupled the mode
   to `General.Classification.Enabled`; that switch already exposes the verdict UI with nothing behind it,
   so the owner chose to let the block select the mode and to remove the switch. Removed with the states in
   phase B (2026-10-11).
 - **The configuration picks checks and sets their parameters; it never describes an algorithm.** Each
-  block under `Checks` selects one ready-made check module (`Outline`, `Holes`, `Stain`, `Logo`, the last
-  three built in phases C and D) with the parameters it reads. No OpenCV call sequence, and **no order**: the checks are
+  block under `Checks` selects one ready-made check module (`Outline`, `Holes`, `Stain`, the last two built
+  in phases C and D) with the parameters it reads. No OpenCV call sequence, and **no order**: the checks are
   independent and the verdict will require all of them, so an order field could not change a result
   (structure.md: no field that cannot take effect). A defect check is optional per item: an item may
   define none yet, and one is added later with no code change.
@@ -2843,16 +2843,14 @@ check. The rest is the agreed design, recorded here so the later phases build to
 - **The agreed split for the later phases.** FastSAM and the fusion keep finding the objects and their
   outlines (41 of 41 frames counted correctly); DINOv2 base, run locally, will identify which object is
   the item and which side is up, since its 14 px patches cannot give an outline to measure. Deterministic
-  checks decide (dimensions, hole counts, a stain by colour, the logo by comparing glyph regions with the
-  reference); Gemma confirms, and a disagreement is logged, never decisive. The four states are OK, NOK,
+  checks decide (dimensions, hole counts, a stain by colour); Gemma confirms, and a disagreement is logged, never decisive. The four states are OK, NOK,
   Unspecified (area ≥ 1.7× the item's) and Warning (not the item); Warning takes the amber, Unspecified the
   neutral detection colour.
 - **Expected verdicts are labelled for the frames that exist.** `test/integration/test_pipeline.py`
-  `CONST_EXPECTED_VERDICTS` gives each object of the 41 frames its state in both modes, on the owner's
-  rulings (the 50 × 50 blank plate is a labyrinth back with no logo, NOK). No frame shows a defect the
-  later checks look for (a missing letter, a hole out of place, two parts touching), and the owner chose
-  no placeholder tests for frames that do not exist. The four frames that are the items' reference images
-  (055–058) are reported apart: the harness finds them by content.
+  `CONST_EXPECTED_VERDICTS` gives each object of the 41 frames its state, on the owner's rulings. No frame
+  shows a defect the later checks look for (a hole out of place, two parts touching), and the owner chose
+  no placeholder tests for frames that do not exist. The two frames that are the item's reference images
+  (055, 056) are reported apart: the harness finds them by content.
 
 **Why.** The request asked for configuration-only changes for new parts; a configuration that sequences
 OpenCV calls is a program without tests. Recording the split now keeps phase B from building localisation
@@ -2876,13 +2874,11 @@ Segment Anything is unchanged: its scale stays the calibration's.
 
 **Why.** Measured before the change on the current test set (the harness's own path, the model-free
 describer, every instance of each part): the 22 mounting plates read 60.33–61.40 × 39.64–41.15 mm, a bias
-of +0.89 mm on the 60 mm side and a worst case 0.10 mm from the ±1.5 mm limit; the 37 labyrinths
-49.80–50.68 mm, worst 0.32 mm from ±1.0. The bias is the thickness: a face 3.78 mm above the boards reads
-1.06 % large (predicted +0.64 mm on 60), 1.78 mm above reads 0.50 % large (+0.25 on 50). It did not grow
-towards the frame edge on these parts (correlation with distance from the centre 0.02 for the labyrinth,
-0.25 for the plate, out to 75 mm). Corrected, the plates read −0.77 to +0.76 mm off nominal and the
-labyrinths −0.58 to +0.43: margins of 0.73 and 0.42 mm, every one of the 59 within tolerance, and no other
-object on the 41 frames the size of either item.
+of +0.89 mm on the 60 mm side and a worst case 0.10 mm from the ±1.5 mm limit. The bias is the thickness: a
+face 3.78 mm above the boards reads 1.06 % large (predicted +0.64 mm on 60). It did not grow towards the frame
+edge on these plates (correlation with distance from the centre 0.25, out to 46 mm). Corrected, the plates
+read −0.77 to +0.76 mm off nominal: a margin of 0.73 mm, every one of the 22 within tolerance, and no other
+object on the 41 frames the item's size.
 
 - **K's focal lengths, not the undistorted space's.** The factor is in the pixel space
   `getOptimalNewCameraMatrix` (alpha 1) gives, whose focal lengths differ from K's by 0.23 % (x) and
@@ -2924,13 +2920,12 @@ compared with the catalogue item's two reference images by DINOv2 base and judge
 
 **Why 0.75.** Measured on the 41 frames (fallback describer, the class token's cosine, the best of four
 quarter turns and both sides): every mounting plate 0.79–1.00, the fingerprint-stained fronts lowest; every
-labyrinth 0.80–0.96 (the worn logo 0.82); every other object at most 0.66 (the red block against the plate's
-back). 0.75 sits in that gap. The side is the reference that scored highest: right on all 59 instances, the
-smallest margin 0.08.
+other object at most 0.673 (the red block against the plate's back), the 50 × 50 square plates 0.23–0.43
+(re-checked 2026-10-13). 0.75 sits in that gap. The side is the reference that scored highest: right on all 22
+plates, the smallest margin at least 0.08.
 
-**Why step 3 has no lower bound.** The blank 50 × 50 plate (the owner's ruling: a labyrinth back with no
-logo, NOK) scores 0.54–0.65 against the labyrinth, and the other objects reach 0.49. A floor between them
-would have had 0.05 of margin. The owner chose none: an object of the part's size that does not look like it
+**Why step 3 has no lower bound.** Objects that are not the part reach 0.673 against it, close under the
+plates' 0.79. The owner chose no floor: an object of the part's size that does not look like it
 reads NOK rather than Warning, **the safer error in quality control** (a foreign plate the size of the part
 is flagged as a failed part, never passed or ignored), and the thin threshold is gone.
 
@@ -2959,10 +2954,10 @@ is flagged as a failed part, never passed or ignored), and the thin threshold is
   (KNOWN_ISSUES). *Corrected 2026-10-11 (phase E):* a NOK has one `Reason:` sentence and its values are in the
   log (*A NOK reads as one sentence…*); History filters by the four states (*History filters by the four
   states…*).
-- **What it does not judge yet.** The stain, the holes and the logo. The five stained-plate frames read OK
-  until the stain check (phase D); their expected NOK is a strict xfail naming it. *Corrected 2026-10-11:* the
-  holes are judged since phase C, the stain and the logo since phase D (*A judged part's stains are a colour
-  band…*, *The logo is read letter by letter…*); the stained plates read NOK and their marks are lifted.
+- **What it does not judge yet.** The stain and the holes. The five stained-plate frames read OK until the
+  stain check (phase D); their expected NOK is a strict xfail naming it. *Corrected 2026-10-11:* the holes are
+  judged since phase C, the stain since phase D (*A judged part's stains are a colour band…*); the stained
+  plates read NOK and their marks are lifted.
 - **Confidence stays a mask score.** The similarity is shown as "similarity", never as Confidence
   ([*`Verdict`'s confidence branch stays dormant…*](#verdicts-confidence-branch-stays-dormant-a-mask-score-is-not-a-confidence)).
 
@@ -2972,8 +2967,7 @@ on purpose (measure there, then move the radius), or a real foreign part of the 
 should be a Warning (then a floor needs data, not a guess).
 Tests `test/Vision/Utilities/test_classify.py` (each branch, no floor, the crop upright, the best match),
 `test/Reporting/test_core.py` (the lines, the note, the log levels),
-`test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (slow, 82 cases, five strict
-xfails), `test/Vision/test_core.py` (the identifier loaded, kept and released; the rule applied to every
+`test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (slow, 41 cases), `test/Vision/test_core.py` (the identifier loaded, kept and released; the rule applied to every
 object), `test/Parameters/test_theme.py::test_every_catalogue_state_has_its_colour`,
 `test/UI/test_timing_log.py::test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time`,
 `test/UI/test_reading_view.py::test_a_judged_object_shows_its_verdict_between_label_and_description`.
@@ -3037,13 +3031,13 @@ said about the part, in a schema phases C and D extend rather than reshape:
 
 - `Name` (REQUIRED) — the item as a person names it; the configuration-loaded line names it.
 - `Description`, `Measurement_Rules` (optional, default empty) — the part as a whole, and how a dimension
-  is read on it beyond its nominal value (the plate's symmetry, the labyrinth's square).
+  is read on it beyond its nominal value (the plate's symmetry).
 - `Sides` (REQUIRED: exactly `front` and `back`, the reference images' names) — each a `Name` (REQUIRED)
   and a `Description`. The `Name` is read now: a judged part's description gains "It lies with its <Name>
   up.", from DINOv2's side, never the describer's.
 - `Defects` (optional, default none: a part whose defective examples may not exist yet) — each a `Name`,
   the `Side` it is looked for on, what it `Looks_Like` and what is `Not_A_Defect`.
-- `Checks` — what the code measures (`Outline`, `Holes`, `Stain`, `Logo`), kept apart from what a person or
+- `Checks` — what the code measures (`Outline`, `Holes`, `Stain`), kept apart from what a person or
   the describer looks for.
 
 **A dated exception to "a field must be read".** `Description`, `Measurement_Rules`, each side's
@@ -3078,43 +3072,36 @@ distances and pitch are checked against the tolerance. A hole missing, extra or 
 NOK, one `Reason:` per finding. (*Corrected 2026-10-11, phase E:* one sentence for all findings, the values in
 the log.)
 
-**Why FastSAM on the crop.** Measured on the 59 identified parts of the 41 frames: every mounting-plate hole
-(12 fronts, 2 countersinks and 2 through-holes each; 10 backs, 2 through-holes each), and 41 of the 42 labyrinth
-corner holes that exist, with no false corner hole on the plates that have none. About 134 ms per judged part
-on Apple silicon (Metal), 739 ms on the CPU. A classical detector was not needed at these scores.
+**Why FastSAM on the crop.** Measured on the 22 mounting plates of the 41 frames (re-checked 2026-10-13): every
+hole (12 fronts, 2 countersinks and 2 through-holes each; 10 backs, 2 through-holes each, 68 in all), and no
+other round mask of a group's size. About 134 ms per judged part on Apple silicon (Metal), 739 ms on the CPU. A
+classical detector was not needed at these scores.
 
-- **The labyrinth fronts are three kinds.** Six have four corner holes, six three (a corner blank), nine none
-  and another maze layout. The owner's ruling: DINOv2 decides it is the labyrinth, the holes decide OK or NOK, so
-  the 15 fronts without four holes are NOK (relabelled in `CONST_EXPECTED_VERDICTS`). The maze layout itself is
-  not checked (README > Limitations).
 - **Counting.** A hole counts in a group when its diameter is within twice the tolerance of the group's — wider
   than the check, so a hole of the wrong size is reported as the wrong size, not as missing; the load refuses two
   groups of one side that would capture the same diameter. A positioned group counts a hole within √2 × tolerance
-  + 0.5 mm of an expected position, mirrored to all four corners since the part lies either way round: the maze's
-  start and finish marks, round and of the corner holes' size, lie at least 4.9 mm from every corner position, out
-  of the labyrinth's 1.91 mm. A hole anywhere else is not counted and not reported (KNOWN_ISSUES).
-- **Roundness 0.83.** Every real hole's mask is 0.875-0.926 round; a square is π/4 = 0.785. The corner hole
-  missed on Image_071 (the plate in shadow) was never segmented at any roundness (KNOWN_ISSUES).
+  + 0.5 mm of an expected position (2.62 mm for the through-holes), mirrored to all four corners since the part lies
+  either way round; every through-hole lies within 1.23 mm of its position. A hole anywhere else is not counted
+  and not reported (KNOWN_ISSUES).
+- **Roundness 0.83.** Every real hole's mask is 0.881-0.914 round, and no mask of a hole's size lies between
+  0.70 and 0.83; a square is π/4 = 0.785.
 - **The diameters read large, and it is the hole, not the mask.** Countersinks 12.07-12.33, through-holes
-  6.14-6.25 on the front and 6.46-6.73 on the back, corner holes 2.74-3.12. The mask follows the visible edge
+  6.14-6.25 on the front and 6.46-6.73 on the back. The mask follows the visible edge
   (within 0.1-0.4 mm of the strongest radial change); through a mounting-plate hole the table shows 5.67-5.99 mm
   from the front and 6.05-6.26 from the back, so the back's opening is wider than its bore — by the look a chamfer
-  or deburring, as are the labyrinth's openings over the 2.459 drill. Not measured with a pin gauge. The
-  catalogue's tolerances are unchanged (the owner's ruling): every hole is within them, the narrowest margin
-  0.34 mm (the corner holes' diameter).
+  or deburring. Not measured with a pin gauge. The catalogue's tolerances are unchanged (the owner's ruling):
+  every hole is within them, the narrowest margin 0.77 mm (a back through-hole's diameter).
 - **Not checked:** the countersink's centering on its through-hole (0.12-1.05 mm apart in the image, the bore seen
-  at an angle; the catalogue gives no tolerance); the labyrinth's back (its corner holes are blind — README >
-  Limitations); the mounting plate's per-hole Part x.y report lines (phase E).
+  at an angle; the catalogue gives no tolerance).
 
 **Revisit if** a part with a hole in the wrong place turns up (then report candidates outside every position), a
 plate's holes are measured with a pin gauge (then the bias has its number), the lighting changes (re-measure the
-roundness and the shadow miss), or the crop pass's 134 ms per part matters (then one FastSAM pass could serve
+roundness), or the crop pass's 134 ms per part matters (then one FastSAM pass could serve
 both).
 Tests `test/Vision/Utilities/test_holes.py`, `test/Configuration/test_core.py` (the groups, their validation),
 `test/Reporting/test_core.py::test_a_nok_names_its_missing_extra_and_wrong_holes`,
 `test/Vision/test_core.py` (the crop segmented once per judged part, a part without its holes NOK),
-`test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate` (slow, one strict xfail)
-and `::test_every_mounting_plate_shows_all_its_holes_within_tolerance` (slow).
+`test/integration/test_pipeline.py::test_every_mounting_plate_shows_all_its_holes_within_tolerance` (slow).
 
 
 ## Exposure, gain and white balance are fixed: the automatic modes are switched off and read back
@@ -3188,83 +3175,6 @@ hairlines, colours outside the band, the order, the rule), `test/integration/tes
 (the five stained plates NOK, the clean ones OK), `::test_each_stained_front_shows_its_two_fingerprints_as_two_stains`,
 `test/Configuration/test_core.py::test_an_invalid_stain_check_fails_the_item`.
 
-## The logo is read letter by letter against every reference it registers to, by shape and by contrast
-
-Decided 2026-10-11 (catalogue phase D), the variant and the known false NOK on the owner's rulings.
-`Checks.Logo.<side>` lists the expected words (JIC, SMART, FACTORY), Min_Matches (30), Letter_Min_Similarity
-(0.62), Letter_Min_Contrast (1.0) and its references: each one plate's image, a rotation that makes it read
-upright and level, and its 15 letters' boxes (`Example/Catalogue/logo_letters.py` draws and prints them; the
-loader refuses boxes that do not spell the words). `Vision.Utilities.Logo` registers the part's upright crop to
-each reference by SIFT features and a similarity transform (RANSAC); none reaching Min_Matches is no
-inscription. Each letter is compared with that letter in every reference the part registered to — the
-correlation of the CLAHE-equalised edge images, the best kept — and is there at both thresholds: the contrast
-is its edges along the reference's strokes against the part's own plate.
-
-- **Three references.** The filled letters (`back`), and the outline letters, a valid variant (owner's
-  ruling), on two plates: Image_092's left (`back_outline`, as the owner named) and Image_069's
-  (`back_outline_2`). One outline reference was not enough: each plate's light leaves different letters dim,
-  so 092's reference failed 069 and 095 (least letter 0.19–0.20) and 069's failed 092 (0.09). Each letter
-  taking its best reference lets one plate's dim letter be read from another.
-- **Contrast beside shape.** Correlation is blind to how faint the edges are, and an inpainted letter's seam
-  keeps its shape: two erased J scored 0.58–0.59, under the complete letters' 0.77 by only 0.18 and 0.03 under
-  the threshold; their contrast is 0.18–0.19 against the complete letters' least 3.24.
-- **Measured on the test set's 16 backs:** the 4 blank plates register with at most 12 matches, every logo
-  with at least 54; the 11 complete logos' least letter 0.77 (contrast 3.24); each of their 165 letters erased
-  in turn (synthetic) at most 0.47 but the two J seams, every one caught. Image_092's right plate (dark,
-  scratched, glare, the engraving's polarity reversed) registers but scores 0.19: a known false NOK
-  (KNOWN_ISSUES), kept because every equalisation that lifted it (CLAHE clips 1–4, equalised histograms,
-  absolute high-pass, top-hat) lifted erased letters past it — the owner's condition. 50–75 ms per back on
-  the CPU, the references prepared once per configuration.
-  *Corrected 2026-10-11 (phase E), on the owner's ruling:* that plate is the fourth reference (`back_dark`,
-  turned 5.6°, boxes carried over from `back`) for the dark, inverted-contrast appearance, as the outline
-  variant got its references. It reads complete (least letter 0.93); the 165 erasures are all still caught, the
-  highest unchanged (0.59, 0.58, 0.47); the blanks still register with at most 12 matches; 65–105 ms per back.
-  The appearance has no independent test plate (KNOWN_ISSUES).
-  *Corrected 2026-10-11 (phase E review), found by the owner on a render:* the two outline-letter references
-  were not level in their crops (−9.3°): `back_outline` had no rotation, and `back_outline_2` had been levelled
-  to match it. Their letter boxes, drawn level in the crop, lay around tilted letters, each taking in pieces of its
-  neighbours, and their word boxes came out at the frame's angle on Image_092's left plate instead of the plate's.
-  The comparison stayed consistent — the same boxes over the reference and the registered part — so complete
-  letters matched and every erasure was still caught. Both are now levelled (`Rotation_Deg` −9.3 and 15.0) and
-  their boxes redrawn on the levelled crops (the small letters by hand, then carried to `back_outline_2` through
-  the registration); every reference's plate lies within 0.3° of level in its crop. Re-measured: the 16 backs as
-  labelled, the outline plates' least letter 0.78 / 0.91 / 0.88; the 180 erasures all caught, at most 0.30 (was
-  0.34); the dark-only eraser's 165 all caught, the outline S at 0.51 (was 0.47). A test now tilts each
-  reference's plate on the frame and checks its word boxes lie along the plate's edges.
-  The synthetic eraser now takes the strokes of either polarity
-  (pixels off their surroundings by more than 8 grey levels): the dark-only one left the dark plate's lighter
-  letters in place. With it the 12 complete logos' 180 letters are all caught, the highest at 0.34; the J seams
-  above were the dark-only eraser's.
-  *Added 2026-10-13, on the owner's ruling:* a fifth reference, `back_outline_3` — **the new logo design, the
-  one that goes into production** (the owner, 2026-10-13): outline letters on a plate shot for the catalogue on
-  2026-10-12, the only logo reference that is not a test frame. It first replaced
-  `back.png` (b131244) with the filled-letter boxes left in place, which turned the 8 filled-letter backs NOK;
-  `back` is restored (Image_058) and the new shot is its own reference, level as shot, JIC's boxes from the tool
-  and SMART and FACTORY split by hand in `back_outline`'s proportions. It registers to none of the 12 complete
-  logos (at most 18 matches; 3–5 with the other outline plates) because they all carry the old design, so
-  every test-set result is unchanged:
-  per reference as the best match, least letter / least contrast / highest erased — `back` (8 logos) 0.845 /
-  8.03 / 0.28, `back_outline` (1) 0.784 / 3.36 / 0.25, `back_outline_2` (2) 0.885 / 7.73 / 0.31, `back_dark`
-  (1) 0.933 / 2.65 / 0.27; 180 of 180 erasures caught. On its own plate (turned a quarter, scaled 0.8) 15/15
-  letters at 0.89 or more, its 15 erasures caught at most 0.31 — the only plate it is verified on. The test
-  set holds no plate of the production design: the logo check on it is verified on its own reference plate
-  alone, until production plates are captured.
-- **Measured and dropped:** a ±4 px search around each letter (no score moved by 0.01); one reference per
-  variant (above); CLAHE off or at clip 1 or 4 (off: shape alone cannot separate the J seams, 0.73 against
-  0.74; clip 1 brings the blanks to 23 matches; clip 4 the complete letters to 0.60). Correlation alignment
-  without features failed on the reference frame itself; OCR cannot read the stylised JIC.
-
-**Revisit if** a logo plate under another light or another engraving appears (measure, add a reference), a
-real plate with a missing letter is captured (the erasures are synthetic), or a second dark or outline-letter
-plate is captured (the first independent test of those appearances), or plates of the production design
-(`back_outline_3`) are captured — the first test of that design beyond its own reference plate; capture
-several, complete and with letters missing, and measure its margins on them.
-Tests `test/Vision/Utilities/test_logo.py` (synthetic: the rotation, a complete logo turned and smaller, an
-erased letter named with its word, a plate without the logo, both thresholds, the best reference per letter,
-the rule; slow: `::test_every_letter_erased_from_a_real_logo_is_caught`),
-`test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (Image_092 a strict xfail),
-`test/Configuration/test_core.py::test_an_invalid_logo_check_fails_the_item`.
-
 ## The describer is told what the checks found, never a number, and its contradictions are dropped and logged
 
 Decided 2026-10-11 (catalogue phase D), on the owner's rulings: the describer may only confirm and describe,
@@ -3273,25 +3183,23 @@ or number. In a catalogue mode the objects are now judged before they are descri
 still left out of the latency). A judged part (OK, NOK) is described with the item's `Describer.Prompt`, filled
 by `Reporting.Describer_Prompt` with the side up (DINOv2's), that side's description and defects, and what the
 checks found in words (`Reporting.Findings`: "found yellow-brown stains on its machined front; describe them
-and where they are", "found fewer corner holes than the part has"). A Warning or an Unspecified object gets the
+and where they are", "found fewer through-holes than the part has"). A Warning or an Unspecified object gets the
 mode's own prompt. The loader refuses a digit or a number word (two to twelve, pair, half…) in a side's
 description, a defect or the prompt. `Reporting.Guard_Description` then drops, sentence by sentence, one with
 a digit and one contradicting a check that ran (a stain claimed on a clean side or denied on a stained one; a
-count of holes, or holes "in each corner", when the hole count failed; a logo affirmed where none was found;
-complete or missing letters against the check); each drop is an audit warning in the log with the describer's
+count of holes, or holes "in each corner", when the hole count failed); each drop is an audit warning in the log with the describer's
 full text. The verdict, State and Reasons come from the checks only.
 
-**Measured with Gemma 4 E4B on 24 judged parts of 15 frames** (7 mounting-plate fronts, 4 of them stained; 12
-labyrinth backs, 3 of them blank and 092's false NOK among them; 5 hole-NOK labyrinth fronts, Image_084's
-among them):
-- **First run**, the catalogue's sides still counting ("Four small blind holes…"): on all five hole-NOK fronts
-  Gemma wrote "four small blind holes in each corner", and on a blank plate "features an engraved JIC Smart
-  Factory logo …, though an automatic check found no inscription"; the first guard let both through, and
-  dropped one correct sentence ("clean of any staining").
+**Measured with Gemma 4 E4B on 24 judged parts of 15 frames** (2026-10-11: 7 mounting-plate fronts, 4 of them
+stained, and 17 parts of an item since removed, 5 of them NOK for missing holes — *The catalogue holds only the
+mounting plate*):
+- **First run**, the catalogue's sides still counting ("Four small blind holes…"): on all five parts missing
+  holes Gemma wrote "four small blind holes in each corner"; the first guard let it through, and dropped one
+  correct sentence ("clean of any staining").
 - **After** the number words were taken out of what it is given and the guard extended: it still wrote
-  "small blind holes in each corner" on the five hole-NOK fronts — the guard dropped all five; no other drop;
-  no contradiction left in the text shown; no digit. The stains were described and placed ("concentrated on
-  the left side"); two of the three blanks were called blank, and none was given a logo. 1.9–3.7 s per judged part on the M-series GPU.
+  "small blind holes in each corner" on the five — the guard dropped all five; no other drop; no contradiction
+  left in the text shown; no digit. The stains were described and placed ("concentrated on the left side").
+  1.9–3.7 s per judged part on the M-series GPU.
 - **Before phase D** (the side description and defects without the findings, then with them, on the 12
   fronts): 0 contradictions, but 11–12 of 12 recited the catalogue's sizes as seen, among them the 8 mm
   thickness, invisible from above — why no number reaches it.
@@ -3314,22 +3222,20 @@ Gemma's own sentences; `::test_the_findings_say_what_the_checks_found_in_words_w
 
 Decided 2026-10-11 (catalogue phase E), on the owner's instruction. Scene Understanding gives a NOK exactly one
 `Reason:` line (`Reporting.Reason_Sentence`): each kind of finding a clause, in a fixed order — the outline's size,
-its look, the holes per group, the stains, the inscription — joined into one sentence, counts in words up to ten
-and digits above ("Two of four corner holes are missing and one is out of tolerance."; "There are two stains on
-the machined front."; "Letters S and M of SMART are missing."; "SMART is missing."; "There is no inscription on
-the logo side."). The measured and expected values move to the log (`Reporting.Part_Lines`), below the object's
-verdict line: the outline's checks, each hole group's count, the logo's expected and read text, and one line per
-part, numbered as the frame numbers its failing parts ("Part 2.4 · corner hole: not found at its expected
-position."; "Part 1.4 · JIC: expected JIC, read J_C …"). The request's explainability — measured value, expected
-value and tolerance for each NOK part; expected and read text for the logo — is met in the log.
+its look, the holes per group, the stains — joined into one sentence, counts in words up to ten and digits above
+("One of two through-holes is missing and one is out of tolerance."; "There are two stains on the machined
+front."). The measured and expected values move to the log (`Reporting.Part_Lines`), below the object's verdict
+line: the outline's checks, each hole group's count, and one line per part, numbered as the frame numbers its
+failing parts ("Part 2.4 · through-hole: not found at its expected position."). The request's explainability —
+measured value, expected value and tolerance for each NOK part — is met in the log.
 
-**Why one sentence.** The panel lists every object of a frame; a NOK with seven letter lines or eight hole checks
-pushed the others out of sight (seen on Image_092 in phase D). The sentence says what is wrong; the log says by how
+**Why one sentence.** The panel lists every object of a frame; a NOK with a line per finding (eight hole checks on
+one part were seen in phase D) pushed the others out of sight. The sentence says what is wrong; the log says by how
 much.
 
 **Revisit if** a check is added (its clause joins the order), or an operator needs a value on screen.
 Tests `test/Reporting/test_core.py` (`::test_a_nok_has_one_reason_sentence_for_its_outline_and_look`,
-`::test_a_nok_names_its_holes_in_one_sentence`, `::test_a_nok_names_its_stains_and_its_missing_letters_in_one_sentence`,
+`::test_a_nok_names_its_holes_in_one_sentence`, `::test_a_nok_names_its_stains_in_one_sentence`,
 `::test_the_log_lists_each_part_with_its_measured_and_expected_values`),
 `test/UI/test_timing_log.py::test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time`.
 
@@ -3337,9 +3243,7 @@ Tests `test/Reporting/test_core.py` (`::test_a_nok_has_one_reason_sentence_for_i
 
 Decided 2026-10-11 (catalogue phase E), as the request asks and the owner approved. Each judged part's features
 (`Parameters.Vision.Feature_Str`) are built where its checks run — each hole found and each hole expected and not
-found (`Vision.Utilities.Holes.Hole_Features`), each stain region (`Check_Stain`), each logo word (`Check_Logo`'s
-word boxes, the best-matched reference's letters through the registration) — on the
-upright crop, then taken to the frame through the inverse of the crop's warp (`Classify.Crop_To_Frame`) and
+found (`Vision.Utilities.Holes.Hole_Features`) and each stain region (`Check_Stain`) — on the upright crop, then taken to the frame through the inverse of the crop's warp (`Classify.Crop_To_Frame`) and
 numbered as the object's parts. `Annotate.Draw_Annotated` draws them on the annotated frame (Live, the saved
 `_annotated.png`, the harness): a rotated box in the pass colour (the OK verdict's indigo) or the fail colour (the
 NOK verdict's magenta) — the colours that already mark the objects, so a feature's colour means what an object's
@@ -3350,23 +3254,19 @@ the outline's measured sides were tagged L and W; both cluttered the frame and w
 placed the numbers and the side features. The label mask has none of it: it shows the segmentation. The parts are saved in `_objects.json` as each object's `parts`, an
 additive field (owner's ruling): an older set loads with none, the CSVs are unchanged.
 
-- **Where a missing hole goes.** At its catalogue position: all four corners for the labyrinth; for the plate's
-  through-holes, mirrored either way, the pair that holds the holes found and best fits the pitch (none placed with
+- **Where a missing hole goes.** At its catalogue position: every mirrored position for a group that fills them
+  all; for the plate's through-holes, mirrored either way, the pair that holds the holes found and best fits the pitch (none placed with
   none found); a countersink around a through-hole without one (KNOWN_ISSUES).
 - **Rendered and looked at** (2026-10-11): Image_059 (the two fingerprints as two tinted boxes, the holes
-  indigo), Image_084 (three corner holes indigo, the fourth dashed and numbered), Image_087 and Image_092 (all four
-  corner positions dashed on the hole-less fronts; the logo words indigo on the outline and the dark plates). The
-  corner holes, about 3 mm (30 px), read clearly at full resolution. The outline plate's word boxes looked a few
-  pixels off; they were tilted with their reference (*The logo is read letter by letter…*, corrected) and now
-  follow the plate.
+  indigo). The dashed mark of a hole expected and not found was looked at on frames of the time; no mounting
+  plate of the test set misses a hole, so none shows it now.
 
 **Revisit if** a mark is misread on the rig's screen, or a feature kind is added.
 Tests `test/Vision/Utilities/test_annotate.py::test_a_judged_parts_features_are_marked_in_the_pass_and_the_fail_colour`,
 `test/Vision/Utilities/test_holes.py` (the missing-hole placements), `test/Vision/Utilities/test_classify.py::test_a_point_on_the_upright_crop_goes_back_to_where_it_is_on_the_frame`,
-`test/Vision/Utilities/test_logo.py::test_each_word_is_boxed_on_the_part_where_its_letters_are`,
 `test/Vision/test_core.py::test_a_judged_parts_features_and_similarity_are_on_the_frame`,
-`test/UI/test_history_data.py::test_a_judged_parts_parts_round_trip_and_an_older_record_has_none`, and the slow
-`test/integration/test_pipeline.py::test_the_corner_holes_found_are_the_ones_on_the_plate`.
+`test/UI/test_history_data.py::test_a_judged_parts_parts_round_trip_and_an_older_record_has_none`,
+`test/UI/test_history.py::test_a_set_recorded_in_a_mode_that_no_longer_ships_loads_and_shows`.
 
 ## The similarity overlay shows where a part looks unlike its reference, and decides nothing
 
@@ -3378,9 +3278,10 @@ the frame (`Heatmap.Render_Overlay`, 55 % opaque) under the legend "Unlike the r
 defect map", on a fixed 0–0.5 scale. The patch tokens come from the identification's own pass at 224 px (16 × 16
 patches), so it costs no model time.
 
-**Measured** (2026-10-11, at 448 px then 224 px, on Image_059, 084 and 092): the fingerprints on 059 stand out at
-both (patches up to 0.61 unlike, the part's mean 0.13–0.23), so 224 px was kept (owner's condition). Missing
-corner holes and letters do not show; glare and the outline lettering show as unlike. It is therefore not a defect
+**Measured** (2026-10-11, at 448 px then 224 px, on Image_059): the fingerprints on 059 stand out at both, so
+224 px was kept (owner's condition). Re-measured at 224 px on the 22 mounting plates (2026-10-13): a clean
+plate's patches' mean 0.01–0.16 unlike, a stained one's 0.19–0.25, the fingerprints up to 0.63. Missing holes do
+not show; glare shows as unlike. It is therefore not a defect
 map, and no verdict reads it.
 
 **Revisit if** a defect is seen only in it (then it is a check to build, not a reading of the overlay).
@@ -3401,3 +3302,21 @@ a Warning object's dot takes; the error line keeps its deep red, which no verdic
 Tests `test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
 `::test_a_set_is_outlined_in_its_worst_state`,
 `test/UI/test_trends_view.py::test_the_warning_threshold_line_is_not_the_warning_verdicts_amber`.
+
+
+## The catalogue holds only the mounting plate
+
+Decided 2026-10-13, on the owner's instruction: the labyrinth was removed — its catalogue item, reference images
+and mode file, and the code only it used (the logo check, `Checks.Logo`, its frame marks and report lines, and
+`Example/Catalogue/logo_letters.py`). A catalogue mode is now the mounting-plate mode. Git history keeps the
+removed code (its last commit is `4865eee`).
+
+- **Its plates in the test frames are Warnings.** The 41 frames stay the pinned set, used in Segment Anything and
+  the mounting-plate mode. In the latter its 37 plates read Warning (similarity 0.23–0.43 against the plate's
+  0.75), as they were labelled before; no verdict on any frame changed.
+- **Older capture sets still load.** A set recorded in the removed mode names its configuration and keeps its
+  parts; the reader ignores the text fields this version no longer writes, and History shows it.
+
+**Revisit if** another catalogue item is added (then its checks and its mode are measured afresh).
+Tests `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (slow),
+`test/UI/test_history.py::test_a_set_recorded_in_a_mode_that_no_longer_ships_loads_and_shows`.

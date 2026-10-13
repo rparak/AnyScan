@@ -44,18 +44,16 @@ Description:
     group with positions, near one of them; each counted hole's diameter, edge distances and pitch are then
     checked against the tolerance. Qt-free, OpenCV and NumPy injected.
 
-    Measured on the 59 identified parts of the 41 test frames (2026-10-11): FastSAM finds every mounting-plate
-    hole (12 fronts with 2 countersinks and 2 through-holes, 10 backs with 2 through-holes) and 41 of the 42
-    labyrinth corner holes that exist (one missed on the shadowed plate of Image_071), with no false corner
-    hole on the plates that have none. The crop's edges are the measured outline, so an edge distance is from
+    Measured on the 22 mounting plates of the 41 test frames (2026-10-13): FastSAM finds every hole (12 fronts
+    with 2 countersinks and 2 through-holes, 10 backs with 2 through-holes, 68 in all), and no other round mask
+    of a group's size. The crop's edges are the measured outline, so an edge distance is from
     the silhouette.
 """
 
 # The roundness (4·π·area / perimeter²) at and above which a mask is a hole candidate: a disc is 1. Measured on
-# the test set's identified parts (2026-10-11): every real hole's mask 0.875-0.926 (68 on the mounting plates, 41
-# corner holes). A square is π/4 = 0.785, so 0.83 sits between a square and the least round real hole (0.045
-# below it): a square feature of a hole's size is not a hole. The corner hole missed on Image_071 was never
-# segmented — no mask near that corner at any roundness — so no threshold would have found it.
+# the test set's 22 mounting plates (2026-10-13): every real hole's mask 0.881-0.914 (68 holes), and no mask of a
+# hole's size between 0.70 and 0.83. A square is π/4 = 0.785, so 0.83 sits between a square and the least round
+# real hole (0.051 below it): a square feature of a hole's size is not a hole.
 #   Unit [float]
 CONST_HOLE_MIN_CIRCULARITY = 0.83
 # A mask this close to the crop's border is the part's edge or the table, not a hole inside the part.
@@ -67,9 +65,9 @@ CONST_HOLE_BORDER_PX = 3
 #   Unit [float]
 CONST_HOLE_CAPTURE_TOLERANCES = 2.0
 # For a group with positions, a hole is counted when its centre is within √2 × tolerance (a hole off by the
-# tolerance on both axes) plus this margin of an expected position. The maze's start and finish marks, round and
-# of the corner holes' size, lie at least 4.9 mm from every corner position (the test set's labyrinths): outside
-# the labyrinth's 1.91 mm. A hole drilled anywhere else is not counted, and not reported (KNOWN_ISSUES).
+# tolerance on both axes) plus this margin of an expected position: 2.62 mm for the mounting plate's through-holes.
+# Measured on the test set's 22 plates (2026-10-13): every through-hole within 1.23 mm of its position. A hole
+# drilled anywhere else is not counted, and not reported (KNOWN_ISSUES).
 #   Unit [float] (mm)
 CONST_HOLE_POSITION_MARGIN_MM = 0.5
 # Two candidates with centres this close and diameters this close are one hole found twice.

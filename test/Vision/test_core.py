@@ -575,7 +575,7 @@ def test_a_catalogue_mode_loads_releases_and_keeps_its_identifier(fake_models) -
     """
     Description:
         The identifier is a model like the others: a catalogue mode loads it with the segmenter and the
-        describer (and Load_Timing names it); a second catalogue mode on the same weights keeps it; Segment
+        describer (and Load_Timing names it); another catalogue configuration on the same weights keeps it; Segment
         Anything releases it, so it is never held where nothing uses it; and a mode whose identifier
         cannot load leaves the previous configuration in force, its identifier loaded again.
     """
@@ -588,7 +588,9 @@ def test_a_catalogue_mode_loads_releases_and_keeps_its_identifier(fake_models) -
     assert [model.Name for model in pipeline.Load_Timing.Models] == ['FastSAM-x.pt', 'dinov2-base', 'gemma-4-e4b-it-4bit']
 
     events.clear()
-    pipeline.Configure(_Catalogue_Mode('Labyrinth'))
+    other = _Catalogue_Mode()
+    pipeline.Configure(dataclasses.replace(other, Identification=dataclasses.replace(other.Identification,
+                                                                                     Identify_Similarity=0.8)))
     assert not [event for event in events if 'identifier' in event[0]] and pipeline.Models_Loaded
 
     pipeline.Configure(config)
@@ -598,7 +600,7 @@ def test_a_catalogue_mode_loads_releases_and_keeps_its_identifier(fake_models) -
     assert pipeline.Models_Loaded
 
     pipeline.Configure(_Catalogue_Mode())
-    broken = _Catalogue_Mode('Labyrinth')
+    broken = _Catalogue_Mode()
     broken = dataclasses.replace(broken, Identification=dataclasses.replace(broken.Identification,
                                                                              Model_Path='/x/broken-dinov2'))
     with pytest.raises(Vision_Core.Vision_Error_Cls, match='could not be loaded'):

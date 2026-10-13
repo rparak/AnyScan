@@ -242,14 +242,14 @@ part is within a stated tolerance does not, except where the catalogue bullet be
   principal point sat about 800 px off centre. Nothing in this version checks the resulting scale
   against parts of known size. A good fit shows that the lens model is consistent, not that the sizes
   are right.
-- **Catalogue modes:** the owner chose to check the two catalogue parts' outlines against tolerances
+- **Catalogue mode:** the owner chose to check the catalogue part's outline against tolerances
   anyway, with the scale moved to the part's top face
   ([*A catalogue mode measures at its part's top face*](docs/design-decisions.md#a-catalogue-mode-measures-at-its-parts-top-face)).
   On the current test set, every instance reads within: the 22 mounting plates −0.77 to +0.76 mm off
-  60 × 40 (tolerance ±1.5), the 37 labyrinths −0.58 to +0.43 mm off 50 × 50 (±1.0), with their centres
-  up to 75 mm from the frame centre. **Not verified:** the parts were not calipered, so "within" means
-  consistent with nominal, not a measured truth. **Not measured:** a part nearer a frame corner, where
-  the side-wall term above predicts up to about 1 mm more, beyond the labyrinth's 0.42 mm margin.
+  60 × 40 (tolerance ±1.5), with their centres up to 46.3 mm from the frame centre. **Not verified:** the
+  parts were not calipered, so "within" means consistent with nominal, not a measured truth. **Not
+  measured:** a plate nearer a frame corner, where the side-wall term above predicts up to about 1 mm
+  more, beyond the plates' 0.73 mm margin.
 - Sizes are shown to 0.01 mm as a formatting choice: one pixel is about 0.10 mm, and the error above
   is up to about 1.5 mm, so the second decimal — and the first — says nothing about accuracy.
 
@@ -268,7 +268,7 @@ one. Treat surface condition in the text as a hint that may be absent, never as 
   caution, not less.
 - **Why:** a stain is a texture on a surface, not an object with a boundary, and describing a part is
   not detecting a defect on it. A catalogue mode's verdict comes from named checks instead — identity,
-  the outline, the holes, a stain by its colour, the logo letter by letter — and the describer is told
+  the outline, the holes, a stain by its colour — and the describer is told
   their findings. A defect no check names (a scratch, a dent) is detected by nothing: anomaly detection
   inside the part's mask is not built in this version.
 
@@ -277,22 +277,13 @@ one. Treat surface condition in the text as a hint that may be absent, never as 
 **An OK means the part passed the checks its catalogue item lists — not that nothing else is wrong.**
 What a catalogue mode does not check, it cannot fail:
 
-- **The labyrinth's maze layout is not checked.** DINOv2 decides an object is the labyrinth; the corner
-  holes decide OK or NOK. The test set holds plates of another maze layout (nine fronts, all without corner
-  holes, so all NOK); a plate of another layout *with* four correct corner holes would read OK.
-- **A labyrinth lying back up is not judged on its holes.** The corner holes are blind: from the back there
-  is nothing to see, so the back has no hole check, and a back-up plate missing a corner hole reads OK on
-  its holes (the logo check covers the back).
 - **A hole drilled where the catalogue puts none is not reported** (KNOWN_ISSUES): holes are counted near
   their expected positions only.
 - **A stain is caught by its colour, measured under this light** (KNOWN_ISSUES): a yellow-brown area of
   1 mm² or more on the mounting plate's front. A stain of another colour, or this colour under another light,
   is not verified.
-- **A missing letter is verified on synthetic erasures only.** No plate of the test set has one; each letter
-  of the 12 complete real logos was erased in turn and caught. The outline-letter and the dark, glare-lit
-  appearances rest on their reference plates, with one and no independent test plate (KNOWN_ISSUES).
 - **The Similarity tab is not a defect map.** It shows where a judged part looks unlike its reference to
-  DINOv2: the fingerprints show, but so do glare and another engraving, and missing holes and letters do not.
+  DINOv2: the fingerprints show, but so does glare, and missing holes do not.
   No verdict reads it.
 - **The describer's words are guarded, not trusted.** In a catalogue mode it is told what the checks found
   and given no number; a sentence with a number or contradicting a check is dropped and logged, by word

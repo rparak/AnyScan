@@ -149,8 +149,8 @@ class Capture_Object_Str:
     Description: str = ''
     # The stored measurement (sizes in mm, angle), or None when the object was not measured.
     Measurement: tp.Optional[Measurement_Str] = None
-    # A judged part's features (holes, stains, logo words, measured sides), its Parts; empty for any other
-    # object and for a set written before 2026-10-11, which has none.
+    # A judged part's features (holes, stains), its Parts; empty for any other object and for a set written
+    # before 2026-10-11, which has none. A set's other kinds of part are read as stored (Kind, Name, box).
     Parts: tp.List[Feature_Str] = field(default_factory=list)
 
 
@@ -383,7 +383,7 @@ def Part_Record(Feature_Str: Feature_Str) -> tp.Dict[str, tp.Any]:
     Description:
         One feature of a judged part as its '_objects.json' record (the object's 'parts', an additive field since
         2026-10-11): its part number, kind, name, whether it passed and was found, its box in frame pixels, its
-        checks in millimetres, a stain's area, a word's expected and read text, and its check's score.
+        checks in millimetres, a stain's area, and its check's score.
 
     Args:
         (1) Feature_Str [Feature_Str(object)]: The feature.
@@ -397,15 +397,15 @@ def Part_Record(Feature_Str: Feature_Str) -> tp.Dict[str, tp.Any]:
             'found': bool(feature.Found), 'corners': [[round(float(x), 2), round(float(y), 2)] for x, y in feature.Corners],
             'checks': [{'name': check.Name, 'measured_mm': check.Measured_Mm, 'nominal_mm': check.Nominal_Mm,
                         'tolerance_mm': check.Tolerance_Mm, 'within': bool(check.Within)} for check in feature.Checks],
-            'area_mm2': feature.Area_Mm2, 'expected_text': feature.Expected_Text, 'read_text': feature.Read_Text,
-            'score': feature.Score}
+            'area_mm2': feature.Area_Mm2, 'score': feature.Score}
 
 
 def __Read_Parts(records: tp.Any) -> tp.List[Feature_Str]:
     """
     Description:
         An object's stored parts read back defensively: absent (a set written before parts were recorded) or
-        malformed reads as none, a malformed part is skipped, and nothing is made up.
+        malformed reads as none, a malformed part is skipped, and nothing is made up. A key this version no longer
+        writes (a word part's expected_text and read_text, until 2026-10-13) is ignored; the part itself is kept.
 
     Args:
         (1) records [Vector<Dict> or None]: The 'parts' records.
@@ -424,8 +424,7 @@ def __Read_Parts(records: tp.Any) -> tp.List[Feature_Str]:
                 Checks=[Dimension_Check_Str(Name=str(c['name']), Measured_Mm=float(c['measured_mm']),
                                             Nominal_Mm=float(c['nominal_mm']), Tolerance_Mm=float(c['tolerance_mm']),
                                             Within=bool(c['within'])) for c in record.get('checks', [])],
-                Area_Mm2=float(record.get('area_mm2') or 0.0), Expected_Text=str(record.get('expected_text', '')),
-                Read_Text=str(record.get('read_text', '')),
+                Area_Mm2=float(record.get('area_mm2') or 0.0),
                 Score=None if record.get('score') is None else float(record['score'])))
         except (KeyError, TypeError, ValueError):
             continue

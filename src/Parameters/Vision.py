@@ -127,12 +127,12 @@ class Feature_Str(object):
     """
     Description:
         One feature of a judged part, marked on the frame and listed as a Part in the log (Reporting.Part_Lines):
-        a hole (found, or expected and not found), a stain region, or a word of the logo. Its box is in frame
-        pixels; what it was checked against is kept for the log.
+        a hole (found, or expected and not found) or a stain region. Its box is in frame pixels; what it was
+        checked against is kept for the log.
     """
 
-    # Its part number ('2.3': object 2, its third part), its kind ('hole', 'stain', 'word') and its name
-    # ('corner hole', 'SMART').
+    # Its part number ('2.3': object 2, its third part), its kind ('hole', 'stain') and its name
+    # ('through-hole', 'stain').
     #   Unit [string]
     Part: str = ''
     Kind: str = ''
@@ -145,54 +145,12 @@ class Feature_Str(object):
     #   Unit [Vector<Tuple<float> 1x2>] (px) / [Vector<Vector<Tuple<float> 1x2>>] (px)
     Corners: tp.List[tp.Tuple[float, float]] = field(default_factory=list)
     Outlines: tp.List[tp.List[tp.Tuple[float, float]]] = field(default_factory=list)
-    # Its checks (a hole's diameter, edge distances and pitch), a stain's area, a word's expected and
-    # read text ('_' for a missing letter), and the check's own score (a hole's mask score, a word's least
-    # letter similarity), never called a confidence.
-    #   Unit [Vector<Dimension_Check_Str(object)>] / [float] (mm²) / [string] / [float]
+    # Its checks (a hole's diameter, edge distances and pitch), a stain's area, and the check's own score (a
+    # hole's mask score), never called a confidence.
+    #   Unit [Vector<Dimension_Check_Str(object)>] / [float] (mm²) / [float]
     Checks: tp.List[Dimension_Check_Str] = field(default_factory=list)
     Area_Mm2: float = 0.0
-    Expected_Text: str = ''
-    Read_Text: str = ''
     Score: tp.Optional[float] = None
-
-
-@dataclass
-class Logo_Letter_Str(object):
-    """
-    Description:
-        One letter of the logo on a judged part (Vision.Utilities.Logo): which word and letter, its best similarity
-        to that letter in the references that registered, its contrast there, and whether it is there.
-    """
-
-    # The word ('SMART'), the letter ('R'), its best similarity (-1 to 1), its edges' strength against the part's
-    # plate at that fit (1 = as strong as the plate's texture), and whether it is there.
-    #   Unit [string] / [string] / [float] / [float] / [bool]
-    Word: str = ''
-    Letter: str = ''
-    Similarity: float = 0.0
-    Contrast: float = 0.0
-    Present: bool = False
-
-
-@dataclass
-class Logo_Result_Str(object):
-    """
-    Description:
-        The logo check on a judged part: the reference with the most matched features ('' when none reached
-        Min_Matches — no inscription), its matches, and each letter.
-    """
-
-    # The best-matched reference's name, or '' when none registered, and the features matched with it.
-    #   Unit [string] / [int]
-    Reference: str = ''
-    Matches: int = 0
-    # Each letter, in reading order; empty when no reference registered.
-    #   Unit [Vector<Logo_Letter_Str(object)>]
-    Letters: tp.List[Logo_Letter_Str] = field(default_factory=list)
-    # Each expected word's box on the checked crop (four corners, in its pixels), from the best-matched
-    # reference's letters through the registration; empty when no reference registered.
-    #   Unit [Vector<Tuple<string, Vector<Tuple<float> 1x2>>>]
-    Words: tp.List[tp.Tuple[str, tp.List[tp.Tuple[float, float]]]] = field(default_factory=list)
 
 
 @dataclass
@@ -203,7 +161,7 @@ class Hole_Count_Str(object):
         extra hole can be named.
     """
 
-    # The group's name ('corner hole'), the holes found and the holes the catalogue gives.
+    # The group's name ('through-hole'), the holes found and the holes the catalogue gives.
     #   Unit [string] / [int] / [int]
     Name: str = ''
     Found: int = 0
@@ -376,11 +334,10 @@ class Detection_Str(object):
     #   Unit [Vector<Hole_Count_Str(object)>] / [Vector<Dimension_Check_Str(object)>]
     Hole_Counts: tp.List[Hole_Count_Str] = field(default_factory=list)
     Hole_Checks: tp.List[Dimension_Check_Str] = field(default_factory=list)
-    # A judged part's stain and logo checks on the side up (catalogue Checks.Stain, Checks.Logo): None when the
-    # side has no such check or the object is not the part; an empty stain list is a side checked and clean.
-    #   Unit [Vector<Stain_Str(object)>] / [Logo_Result_Str(object)]
+    # A judged part's stain check on the side up (catalogue Checks.Stain): None when the side has no stain check
+    # or the object is not the part; an empty list is a side checked and clean.
+    #   Unit [Vector<Stain_Str(object)>]
     Stains: tp.Optional[tp.List[Stain_Str]] = None
-    Logo: tp.Optional[Logo_Result_Str] = None
     # A judged part's features, marked on the frame and listed as its Parts (empty for any other object).
     #   Unit [Vector<Feature_Str(object)>]
     Features: tp.List[Feature_Str] = field(default_factory=list)

@@ -74,7 +74,6 @@ CONST_COPY_NAME = 'Config_%s_Mode_Test.yaml' % CONST_HARDWARE
 #   Unit [Vector<Tuple>]
 CONST_CATALOGUE_MODES = (
     ('Config_%s_Mode_Mounting_Plate.yaml' % CONST_HARDWARE, 'mounting_plate', 8.0, (60.0, 40.0, 1.5)),
-    ('Config_%s_Mode_Labyrinth.yaml' % CONST_HARDWARE, 'labyrinth', 6.0, (50.0, 50.0, 1.0)),
 )
 # Every shipped mode file.
 #   Unit [Vector<string>]
@@ -1245,13 +1244,13 @@ def test_the_outline_tolerance_overrides_the_items(tmp_path: tp.Any) -> None:
         nothing is noted; invalid, the load fails rather than fall back to the item's.
     """
 
-    data = _Item('labyrinth')
+    data = _Item('mounting_plate')
     data['Checks']['Outline']['Tolerance_Mm'] = 0.5
-    item = Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))
-    assert (item.Tolerance_Mm, item.Outline.Tolerance_Mm, item.Notes) == (1.0, 0.5, [])
+    item = Load_Catalogue(_Write_Item(tmp_path, data))
+    assert (item.Tolerance_Mm, item.Outline.Tolerance_Mm, item.Notes) == (1.5, 0.5, [])
     data['Checks']['Outline']['Tolerance_Mm'] = 0
     with pytest.raises(Configuration_Error_Cls, match='Checks.Outline.Tolerance_Mm must be a number above 0'):
-        Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))
+        Load_Catalogue(_Write_Item(tmp_path, data))
 
 
 def test_a_catalogue_item_is_refused_when_its_length_is_its_shorter_side(tmp_path: tp.Any) -> None:
@@ -1292,7 +1291,7 @@ def test_an_unrecognised_catalogue_key_is_a_warning(tmp_path: tp.Any) -> None:
         in item.Notes
 
 
-@pytest.mark.parametrize('item', ['mounting_plate', 'labyrinth'])
+@pytest.mark.parametrize('item', ['mounting_plate'])
 def test_every_field_of_a_shipped_catalogue_item_says_required_or_its_default(item: str) -> None:
     """
     Description:
@@ -1603,9 +1602,6 @@ def test_the_item_carries_its_description_sides_and_defects() -> None:
     assert 'tool marks' in plate.Sides[0].Description and 'whitish to silver' in plate.Sides[1].Description
     assert [(d.Name, d.Side) for d in plate.Defects] == [('fingerprint', 'front')]
     assert 'papillary lines' in plate.Defects[0].Looks_Like and plate.Defects[0].Not_A_Defect
-    labyrinth = Load_Catalogue('Data/Catalogue/labyrinth/labyrinth.yaml')
-    assert [(side.Side, side.Name) for side in labyrinth.Sides] == [('front', 'maze side'), ('back', 'logo side')]
-    assert [(d.Name, d.Side) for d in labyrinth.Defects] == [('corner hole count', 'front'), ('incomplete logo', 'back')]
 
 
 @pytest.mark.parametrize('change, words', [
@@ -1638,18 +1634,17 @@ def test_an_item_with_no_defects_described_loads() -> None:
     """
 
     import tempfile
-    data = _Item('labyrinth')
+    data = _Item('mounting_plate')
     del data['Defects']
     with tempfile.TemporaryDirectory() as directory:
-        assert Load_Catalogue(_Write_Item(directory, data, references='labyrinth')).Defects == []
+        assert Load_Catalogue(_Write_Item(directory, data)).Defects == []
 
 
 def test_the_items_carry_their_hole_groups() -> None:
     """
     Description:
-        The shipped items' holes, per side: the mounting plate's front, two countersinks and two positioned
-        through-holes at a 25 mm pitch, and its back's two through-holes; the labyrinth's four corner holes on the
-        front and no hole check on its back (blind holes). Each group takes the item's tolerance.
+        The shipped item's holes, per side: the mounting plate's front, two countersinks and two positioned
+        through-holes at a 25 mm pitch, and its back's two through-holes. Each group takes the item's tolerance.
     """
 
     plate = Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')
@@ -1658,10 +1653,6 @@ def test_the_items_carry_their_hole_groups() -> None:
             for g in plate.Holes['front']] == [('countersink', 12.0, 2, 0.0, 0.0, 0.0, 1.5),
                                                ('through-hole', 6.0, 2, 15.0, 17.5, 25.0, 1.5)]
     assert [(g.Name, g.Count) for g in plate.Holes['back']] == [('through-hole', 2)]
-    labyrinth = Load_Catalogue('Data/Catalogue/labyrinth/labyrinth.yaml')
-    assert list(labyrinth.Holes) == ['front']
-    assert [(g.Name, g.Diameter_Mm, g.Count, g.From_Long_Edge_Mm, g.Pitch_Mm, g.Tolerance_Mm)
-            for g in labyrinth.Holes['front']] == [('corner hole', 2.459, 4, 4.0, 42.0, 1.0)]
 
 
 @pytest.mark.parametrize('change, words', [
@@ -1698,32 +1689,19 @@ def test_an_item_without_holes_has_no_hole_check(tmp_path: tp.Any) -> None:
     assert Load_Catalogue(_Write_Item(tmp_path, data)).Holes == {}
 
 
-def test_the_items_carry_their_stain_logo_and_describer_prompt() -> None:
+def test_the_item_carries_its_stain_check_and_describer_prompt() -> None:
     """
     Description:
-        The shipped items' phase D checks: the mounting plate's front has the stain band (hue 5-30, saturation
-        and value from 50 and 40, 1 mm², a 1 mm edge band) and its back none; the labyrinth's back has the logo
-        (JIC, SMART, FACTORY; 30 matches, 0.62 similarity, contrast 1.0) with five references — the filled
-        letters, the outline letters on three plates (the third not a test frame), the filled letters on a dark
-        plate — each spelling the text; both carry a describer prompt.
+        The shipped item's phase D checks: the mounting plate's front has the stain band (hue 5-30, saturation
+        and value from 50 and 40, 1 mm², a 1 mm edge band) and its back none, and it carries a describer prompt.
     """
 
     plate = Load_Catalogue('Data/Catalogue/mounting_plate/mounting_plate.yaml')
-    labyrinth = Load_Catalogue('Data/Catalogue/labyrinth/labyrinth.yaml')
-    assert list(plate.Stain) == ['front'] and plate.Logo == {} and labyrinth.Stain == {}
+    assert list(plate.Stain) == ['front']
     band = plate.Stain['front']
     assert (band.Hue_Min, band.Hue_Max, band.Saturation_Min, band.Value_Min, band.Min_Area_Mm2, band.Edge_Margin_Mm,
             band.Merge_Mm) == (5, 30, 50, 40, 1.0, 1.0, 3.0)
-    logo = labyrinth.Logo['back']
-    assert list(labyrinth.Logo) == ['back']
-    assert (logo.Expected_Text, logo.Min_Matches, logo.Letter_Min_Similarity, logo.Letter_Min_Contrast) == \
-        (['JIC', 'SMART', 'FACTORY'], 30, 0.62, 1.0)
-    assert [(r.Name, r.Rotation_Deg, len(r.Letters)) for r in logo.References] == \
-        [('back', 0.0, 15), ('back_outline', -9.3, 15), ('back_outline_2', 15.0, 15), ('back_dark', 5.6, 15),
-         ('back_outline_3', 0.0, 15)]
-    assert all(''.join(letter[0] for letter in r.Letters) == 'JICSMARTFACTORY' for r in logo.References)
-    assert all(os.path.isfile(r.Image_Path) for r in logo.References)
-    assert '{findings}' in plate.Describer_Prompt and '{findings}' in labyrinth.Describer_Prompt
+    assert '{findings}' in plate.Describer_Prompt
 
 
 @pytest.mark.parametrize('change, words', [
@@ -1748,46 +1726,6 @@ def test_an_invalid_stain_check_fails_the_item(tmp_path: tp.Any, change: tp.Call
 
 
 @pytest.mark.parametrize('change, words', [
-    (lambda l: l['References'][0]['Letters'].pop(), r"References\[1\].Letters spell 'JICSMARTFACTOR', but Expected_Text is "
-                                                     r"'JICSMARTFACTORY'"),
-    (lambda l: l['References'][1]['Letters'][0].__setitem__(0, 'L'), r"References\[2\].Letters spell 'LIC"),
-    (lambda l: l['References'][0]['Letters'][0].__setitem__(1, -5), r'Letters must be \[letter, x, y, width, height\]'),
-    (lambda l: l.pop('Letter_Min_Contrast'), 'Checks.Logo.back.Letter_Min_Contrast is required but missing'),
-    (lambda l: l.update(Letter_Min_Similarity=1.5), 'Letter_Min_Similarity must be a number from 0 to 1'),
-    (lambda l: l['References'][2].update(Rotation_Deg=270), 'Rotation_Deg must be a number of degrees from -180 to 180'),
-    (lambda l: l['References'][0].update(Image='nope'), r'reference_image/nope.png and its one-line YOLO .txt are required'),
-    (lambda l: l.update(Font='Arial'), 'Checks.Logo.back.Font is not a key it may hold'),
-    (lambda l: l.update(Expected_Text='JIC'), 'Expected_Text must be a list of the words'),
-], ids=['a letter short', 'a wrong letter', 'a negative box', 'no contrast', 'similarity past 1', 'rotation past 180',
-        'no image', 'unknown key', 'text not a list'])
-def test_an_invalid_logo_check_fails_the_item(tmp_path: tp.Any, change: tp.Callable, words: str) -> None:
-    """
-    Description:
-        The logo check is validated at load: each reference's letters must spell the expected words (a box cannot
-        name the wrong letter), each box four whole numbers from 0, every threshold present and in range, the
-        rotation within a half turn either way, the image and its YOLO box present, no key it may not hold.
-    """
-
-    data = _Item('labyrinth')
-    change(data['Checks']['Logo']['back'])
-    with pytest.raises(Configuration_Error_Cls, match=words):
-        Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))
-
-
-def test_the_logo_text_is_matched_whatever_its_case(tmp_path: tp.Any) -> None:
-    """
-    Description:
-        The expected words and the letters are compared in capitals, so 'Smart' and the boxes' 'S M A R T' agree,
-        and the check reports the words in capitals.
-    """
-
-    data = _Item('labyrinth')
-    data['Checks']['Logo']['back']['Expected_Text'] = ['Jic', 'Smart', 'factory']
-    item = Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))
-    assert item.Logo['back'].Expected_Text == ['JIC', 'SMART', 'FACTORY']
-
-
-@pytest.mark.parametrize('change, words', [
     (lambda d: d['Describer'].update(Prompt='Its {side} up; {colour}.'), r'Describer.Prompt holds \{colour\}; it may hold only'),
     (lambda d: d['Describer'].update(Prompt='Describe it in 3 sentences.'), 'Describer.Prompt holds a number'),
     (lambda d: d['Sides']['front'].update(Description='Four small blind holes.'), "Sides.front.Description holds a number \\('four'\\)"),
@@ -1804,7 +1742,7 @@ def test_what_the_describer_is_given_holds_no_number(tmp_path: tp.Any, change: t
         number word fails the item, and the prompt may hold only its four placeholders.
     """
 
-    data = _Item('labyrinth')
+    data = _Item('mounting_plate')
     change(data)
     with pytest.raises(Configuration_Error_Cls, match=words):
-        Load_Catalogue(_Write_Item(tmp_path, data, references='labyrinth'))
+        Load_Catalogue(_Write_Item(tmp_path, data))
