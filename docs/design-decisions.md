@@ -3691,9 +3691,45 @@ into pixmaps at the application's ratio and rounded to whole-pixel widths, which
 pixel differences); where the application's ratio differs from the window's screen, Qt then scales such a pixmap when
 drawing it, which offscreen could not reproduce. Rendering at paint time removes both. What remains at 1x is the
 logos' own geometry: their edges fall between pixels at these sizes (the AnyScan mark and wordmark 0.70, the JIC logo
-0.63 of their ink at full contrast); a size that lands more edges on whole pixels is the lever if that is still too
-soft on the station.
+0.63 of their ink at full contrast). *Followed up 2026-10-14:* on a 1x display the two header logos' marks are now
+grid-fitted (*The header logos are grid-fitted on a 1x display*).
 
 **Revisit if** a logo is added (render it through `Svg_Image_Cls`), or the band's logos become available as SVG.
 Tests `test/UI/test_logo_rendering.py` (each SVG logo against a direct render, at DPR 1 and again at DPR 2; the
 previous pixmap code fails every one), `test/UI/test_header.py`.
+
+## The header logos are grid-fitted on a 1x display
+
+On a display of device pixel ratio 1 the AnyScan lockup and the JIC Smart Factory logo are drawn with their mark's
+straight edges on whole pixels (`UI.Utilities.Grid_Fit.Fit_Svg`, through `Widgets.Svg_Renderer_For`): the AnyScan mark
+(every shape left of 152 units, `Style.CONST_LOGO_MARK_RIGHT`) and the J-I-C bars (left of 452, `CONST_JIC_MARK_RIGHT`).
+The SVG is fitted for the exact drawn height, once, and rendered as vectors. Rectangles, polygons and straight paths are
+fitted, filled ones through one map per axis (an edge shared by two shapes stays shared; a stroke under 10 px keeps its
+rounded width, so equal strokes stay equal), stroked ones with a whole-pixel stroke centred so both its edges land on
+pixels. Each edge moves by under a pixel. The lettering (curves, and everything right of the mark) and the mark's
+numeral are drawn exactly as delivered, and at any other ratio the whole logo is.
+
+**Why.** On the station's 1x screen the header logos still looked soft after they were rendered as vectors at their
+drawn size: their edges fall between pixels. The owner asked first for drawn sizes whose main edges land on whole
+pixels; measured, no size does it, because the edges are not on a regular grid (the AnyScan mark's edges at 9, 18, 19,
+23, 32 … 131, 140 of its 140 units): the best heights near the header put 52 % (63 px) or 50 % (77 px) of the mark's
+edge length within 0.1 px of a pixel against 23 % at 69 px, and 37 % of the J-I-C bars' (34 px) against 8 %. The owner
+chose grid-fitting at the drawn sizes. Measured on direct renders (the share of the mark's ink pixels fully covered,
+and partly covered):
+
+| Logo | before | after |
+|---|---|---|
+| AnyScan mark, 69 px (96 dpi) | 0.68 full, 0.33 partial | 1.00 full, 0.00 partial |
+| AnyScan mark, 72 px (100 dpi) | 0.66, 0.39 | 1.00, 0.00 |
+| J-I-C bars, 33 px (96 dpi) | 0.72, 0.28 | 1.00, 0.00 |
+| J-I-C bars, 35 px (100 dpi) | 0.75, 0.28 | 1.00, 0.00 |
+
+At 69 px the brackets are a 4 px stroke (4.43 delivered), the mark's three bars 3 px each (3.45), its frame 2 px
+(2.46); at 33 px each J-I-C bar is 6 px (6.47) and the C's and J's feet are level with the I's.
+
+**Revisit if** the logos are redesigned (the mark's right edge, and whether its shapes are still straight), or the
+station moves to a display of another ratio, where the logos are drawn as delivered.
+Tests `test/UI/test_grid_fit.py` (equal strokes stay equal where rounding each edge alone would not; a translated
+relative path; curves and the lettering left as delivered; both logos' marks on whole pixels at 69, 72, 33 and 35 px),
+`test/UI/test_logo_rendering.py::test_at_1x_the_header_marks_have_no_half_covered_pixel` and the DPR 1 and DPR 2
+vector-identity tests, `test/UI/test_header.py` (the fitted lockup still within 1 device px of the outlined logo).

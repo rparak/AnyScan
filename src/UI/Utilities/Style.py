@@ -109,6 +109,10 @@ CONST_LOGO_TAGLINE_SIZE = 24.55
 # The logo's viewBox height, the unit the tagline's size is a share of.
 #   Unit [float] (logo units)
 CONST_LOGO_VIEWBOX_HEIGHT = 140.0
+# Where the logo's mark ends, for grid-fitting it on a 1x display (UI.Utilities.Grid_Fit): its ink ends at 139.9 units
+# and the wordmark's starts at 165.5, so every shape left of 152 is the mark's.
+#   Unit [float] (logo units)
+CONST_LOGO_MARK_RIGHT = 152.0
 # The empty space the lockup keeps right of the tagline's ink, near the logo's own (its ink ends 5.9 units inside
 # its viewBox), so no anti-aliased edge is clipped. Ink_Insets takes it off the gap to the divider.
 #   Unit [float] (logo units)

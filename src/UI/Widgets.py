@@ -28,7 +28,7 @@ import re
 # Typing (Support for type hints)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QByteArray, pyqtSignal
 from PyQt5.QtGui import (QColor, QFont, QFontInfo, QFontMetrics, QFontMetricsF, QImage, QPainter, QPainterPath, QPen,
                          QPixmap, QPaintEvent)
 from PyQt5.QtSvg import QSvgRenderer
@@ -38,6 +38,9 @@ from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup,
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline, Load_Logo
+# Custom Lib.: AnyScan UI — a logo's mark grid-fitted for a 1x display (Qt-free)
+#   ../UI/Utilities/Grid_Fit
+from UI.Utilities.Grid_Fit import Fit_Svg
 # Custom Lib.: AnyScan domain — the confidence thresholds the object list colours numbers by
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str, Heatmap_Str
@@ -1315,20 +1318,53 @@ def Paint_To_Pixmap(widget: QWidget, paint: tp.Callable[[QPainter], None]) -> QP
     return pixmap
 
 
+def Svg_Renderer_For(painter: QPainter, path: str, delivered: QSvgRenderer, height: float, mark_right: float,
+                     fitted: tp.Dict[float, QSvgRenderer]) -> QSvgRenderer:
+    """
+    Description:
+        The renderer to draw a logo with on a painter: on a device of pixel ratio 1 its mark grid-fitted to whole pixels at
+        the drawn height (UI.Utilities.Grid_Fit, built once per height and kept in `fitted`), on any other the SVG as
+        delivered (docs/design-decisions.md, "The header logos are grid-fitted on a 1x display").
+
+    Args:
+        (1) painter [QPainter(object)]: The painter it will be drawn with.
+        (2) path [string]: The SVG file.
+        (3) delivered [QSvgRenderer(object)]: The SVG's renderer as delivered.
+        (4) height [float]: The drawn height, in logical pixels.
+        (5) mark_right [float]: The mark's right edge, in viewBox units.
+        (6) fitted [Dict<float, QSvgRenderer(object)>]: The fitted renderers built so far, by height (filled in).
+
+    Returns:
+        (1) parameter [QSvgRenderer(object)]: The renderer.
+    """
+
+    if painter.device().devicePixelRatioF() != 1.0:
+        return delivered
+    if height not in fitted:
+        with open(path, 'r', encoding='utf-8') as handle:
+            svg = handle.read()
+        fitted[height] = QSvgRenderer(QByteArray(Fit_Svg(svg, height / delivered.viewBoxF().height(), mark_right).encode('utf-8')))
+    return fitted[height]
+
+
 class Svg_Image_Cls(QWidget):
     """
     Description:
-        An SVG asset at a height, its width the viewBox's aspect, rendered as vectors by a QSvgRenderer whenever the
+        An SVG logo at a height, its width the viewBox's aspect, rendered as vectors by a QSvgRenderer whenever the
         widget paints: it lands on the device pixels it is drawn on at any device pixel ratio, and is never a raster
-        scaled to fit (docs/design-decisions.md, "Logos are rendered as vectors at paint time").
+        scaled to fit (docs/design-decisions.md, "Logos are rendered as vectors at paint time"). On a 1x display its
+        mark, every shape left of mark_right, is grid-fitted to whole pixels (Svg_Renderer_For).
     """
 
-    def __init__(self, name: str, height: int, parent: tp.Optional[QWidget] = None) -> None:
+    def __init__(self, name: str, height: int, mark_right: float, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName('svgImage')
 
         # << PRIVATE >> #
-        self.__renderer = QSvgRenderer(os.path.join(Style.CONST_ASSETS, name))
+        self.__path = os.path.join(Style.CONST_ASSETS, name)
+        self.__mark_right = mark_right
+        self.__fitted = {}
+        self.__renderer = QSvgRenderer(self.__path)
         box = self.__renderer.viewBoxF()
         self.__rect = QRectF(0.0, 0.0, height * box.width() / box.height() if box.height() else 0.0, float(height))
         self.setFixedSize(int(math.ceil(self.__rect.width())), height)
@@ -1336,13 +1372,14 @@ class Svg_Image_Cls(QWidget):
     def __Paint(self, painter: QPainter) -> None:
         """
         Description:
-            Render the SVG into the widget's rectangle.
+            Render the SVG into the widget's rectangle, grid-fitted when the painter's device is 1x.
 
         Args:
             (1) painter [QPainter(object)]: A painter on the widget or on a pixmap of its size.
         """
 
-        self.__renderer.render(painter, self.__rect)
+        Svg_Renderer_For(painter, self.__path, self.__renderer, self.__rect.height(), self.__mark_right,
+                         self.__fitted).render(painter, self.__rect)
 
     def Render(self) -> QPixmap:
         """
@@ -1375,7 +1412,8 @@ class Logo_Lockup_Cls(QWidget):
     Description:
         The top bar's AnyScan lockup: the delivered logo without its tagline (Style.CONST_LOGO_WORDMARK_FILE, in the
         logo's own viewBox), rendered as vectors by a QSvgRenderer whenever the widget paints, so it lands on the
-        device pixels it is drawn on at any device pixel ratio and is never a scaled raster, and the tagline as live text in the UI font,
+        device pixels it is drawn on at any device pixel ratio and is never a scaled raster (on a 1x display its mark
+        grid-fitted to whole pixels, Svg_Renderer_For), and the tagline as live text in the UI font,
         Public Sans 400, where the logo outlines it and at its size (Style.CONST_LOGO_TAGLINE_ORIGIN,
         Style.CONST_LOGO_TAGLINE_SIZE, scaled to the lockup's height), in the logo's colour. Outlined, the tagline is a
         picture whose stems fall between pixels at DPR 1, where nothing can hint them; live text goes through the
@@ -1391,7 +1429,9 @@ class Logo_Lockup_Cls(QWidget):
         super().__init__(parent)
 
         # << PRIVATE >> #
-        self.__wordmark = QSvgRenderer(os.path.join(Style.CONST_ASSETS, Style.CONST_LOGO_WORDMARK_FILE))
+        self.__wordmark_path = os.path.join(Style.CONST_ASSETS, Style.CONST_LOGO_WORDMARK_FILE)
+        self.__wordmark = QSvgRenderer(self.__wordmark_path)
+        self.__fitted = {}
         box = self.__wordmark.viewBoxF()
         scale = height / box.height()
         self.__wordmark_rect = QRectF(0.0, 0.0, box.width() * scale, float(height))
@@ -1414,7 +1454,8 @@ class Logo_Lockup_Cls(QWidget):
             (1) painter [QPainter(object)]: A painter on the widget or on a pixmap of its size.
         """
 
-        self.__wordmark.render(painter, self.__wordmark_rect)
+        Svg_Renderer_For(painter, self.__wordmark_path, self.__wordmark, self.__wordmark_rect.height(), Style.CONST_LOGO_MARK_RIGHT,
+                         self.__fitted).render(painter, self.__wordmark_rect)
         painter.setFont(self.__font)
         painter.setPen(QColor(Style.CONST_LOGO_INK))
         painter.drawText(self.__origin, Style.CONST_TAGLINE)

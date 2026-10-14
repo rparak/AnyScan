@@ -139,6 +139,10 @@ class AnyScan_Window_Cls(QMainWindow):
     #   Unit [string] / [px] (beside a Style.CONST_LOGO_HEIGHT lockup)
     CONST_JIC_LOGO_FILE = 'jic-smart-factory.svg'
     CONST_JIC_LOGO_HEIGHT = 26
+    # Where the J-I-C bars end, for grid-fitting them on a 1x display: the C's right edge is at 449.44 units and the
+    # lettering starts at 516.
+    #   Unit [float] (viewBox units)
+    CONST_JIC_MARK_RIGHT = 452.0
     # The status strip's value formats, used where each value is set and where its cell reserves its
     # width, and the largest number each numeric value reserves room for (a digit stands for any
     # digit: Stat_Cell_Cls.Reserve_Width). A value past its bound would widen its cell again.
@@ -480,7 +484,8 @@ class AnyScan_Window_Cls(QMainWindow):
         brand.addWidget(Hairline(vertical=True, length=34, color=Style.CONST_TOPBAR_DIVIDER))
 
         jic = Svg_Image_Cls(self.CONST_JIC_LOGO_FILE,
-                            int(round(self.CONST_JIC_LOGO_HEIGHT * lockup_height / Style.CONST_LOGO_HEIGHT)))
+                            int(round(self.CONST_JIC_LOGO_HEIGHT * lockup_height / Style.CONST_LOGO_HEIGHT)),
+                            self.CONST_JIC_MARK_RIGHT)
         jic.setObjectName('jicLogo')
         brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(jic.Render())[0]))
         brand.addWidget(jic)

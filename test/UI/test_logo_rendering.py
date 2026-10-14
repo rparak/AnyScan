@@ -35,7 +35,7 @@ import numpy as np
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import QPoint, QRect, QRectF, QSize
+from PyQt5.QtCore import QByteArray, QPoint, QRect, QRectF, QSize
 from PyQt5.QtGui import QColor, QImage, QPainter
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget
@@ -47,6 +47,9 @@ import UI.Utilities.Style as Style
 # Custom Lib.: AnyScan — the one configuration layer
 #   ../Configuration/Core
 from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
+# Custom Lib.: AnyScan UI — the 1x grid-fitting of a logo's mark
+#   ../UI/Utilities/Grid_Fit
+from UI.Utilities.Grid_Fit import Fit_Svg
 
 """
 Description:
@@ -55,6 +58,8 @@ Description:
     mark and wordmark, the JIC Smart Factory logo and the mark in the empty Camera View. Each is grabbed from the shown
     window and compared with the same SVG rendered directly into an image of the grabbed size; a raster scaled to fit,
     or one rounded to a whole-pixel width, differs (measured before this rule: up to 76, 229 and 70 levels at DPR 1).
+    At DPR 1 the two header logos are drawn with their mark grid-fitted (UI.Utilities.Grid_Fit, docs/design-decisions.md,
+    "The header logos are grid-fitted on a 1x display"), so there the reference is the fitted SVG.
     The module runs at the session's device pixel ratio and once more at DPR 2 in a fresh interpreter.
 """
 # The largest per-channel difference allowed between the drawn logo and the direct render.
@@ -103,7 +108,8 @@ def _Pixels(image: QImage) -> np.ndarray:
     return np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)[:, :image.width(), 2::-1].astype(int)
 
 
-def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, opacity: float = 1.0) -> tp.Tuple[np.ndarray, np.ndarray]:
+def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, opacity: float = 1.0,
+                      mark_right: tp.Optional[float] = None) -> tp.Tuple[np.ndarray, np.ndarray]:
     """
     Description:
         A region of a shown widget as the window draws it, and the SVG asset rendered directly into an image of the same
@@ -115,6 +121,7 @@ def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, 
         (3) rect [QRect(object)]: The logo's rectangle in the widget, in logical pixels.
         (4) name [string]: The SVG asset.
         (5) opacity [float]: The opacity the widget draws it at.
+        (6) mark_right [float]: For a logo grid-fitted at DPR 1, its mark's right edge (viewBox units); None otherwise.
 
     Returns:
         (1) parameter [Tuple<Matrix, Matrix>]: (drawn, direct) RGB pixels.
@@ -130,6 +137,9 @@ def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, 
     painter.setOpacity(opacity)
     renderer = QSvgRenderer(os.path.join(Style.CONST_ASSETS, name))
     box = renderer.viewBoxF()
+    if mark_right is not None and grab.devicePixelRatio() == 1.0:
+        with open(os.path.join(Style.CONST_ASSETS, name), 'r', encoding='utf-8') as handle:
+            renderer = QSvgRenderer(QByteArray(Fit_Svg(handle.read(), drawn.shape[0] / box.height(), mark_right).encode('utf-8')))
     renderer.render(painter, QRectF(0, 0, drawn.shape[0] * box.width() / box.height(), drawn.shape[0]))
     painter.end()
     return drawn, _Pixels(image)
@@ -139,11 +149,12 @@ def test_the_anyscan_logo_is_rendered_as_vectors_at_its_size(window) -> None:
     """
     Description:
         The lockup's mark and wordmark (its rows above the live tagline) are the wordmark SVG rendered directly at the
-        lockup's device size, within CONST_TOLERANCE.
+        lockup's device size (its mark grid-fitted at DPR 1), within CONST_TOLERANCE.
     """
 
     lockup = window.findChild(Widgets.Logo_Lockup_Cls)
-    drawn, direct = _Drawn_And_Direct(window, lockup, QRect(0, 0, lockup.width(), lockup.height()), Style.CONST_LOGO_WORDMARK_FILE)
+    drawn, direct = _Drawn_And_Direct(window, lockup, QRect(0, 0, lockup.width(), lockup.height()), Style.CONST_LOGO_WORDMARK_FILE,
+                                      mark_right=Style.CONST_LOGO_MARK_RIGHT)
     rows = int(drawn.shape[0] * 107.5 / 140)
     assert np.abs(drawn[:rows] - direct[:rows]).max() <= CONST_TOLERANCE
 
@@ -151,11 +162,13 @@ def test_the_anyscan_logo_is_rendered_as_vectors_at_its_size(window) -> None:
 def test_the_jic_logo_is_rendered_as_vectors_at_its_size(window) -> None:
     """
     Description:
-        The JIC Smart Factory logo is its SVG rendered directly at its device size, within CONST_TOLERANCE.
+        The JIC Smart Factory logo is its SVG rendered directly at its device size (its J-I-C bars grid-fitted at DPR 1),
+        within CONST_TOLERANCE.
     """
 
     jic = window.findChild(QWidget, 'jicLogo')
-    drawn, direct = _Drawn_And_Direct(window, jic, QRect(0, 0, jic.width(), jic.height()), 'jic-smart-factory.svg')
+    drawn, direct = _Drawn_And_Direct(window, jic, QRect(0, 0, jic.width(), jic.height()), 'jic-smart-factory.svg',
+                                      mark_right=AnyScan_Window_Cls.CONST_JIC_MARK_RIGHT)
     assert np.abs(drawn - direct).max() <= CONST_TOLERANCE
 
 
@@ -171,6 +184,33 @@ def test_the_empty_camera_view_mark_is_rendered_as_vectors_at_its_size(window) -
     rect = QRect((viewport.width() - size) // 2, viewport.height() // 2 - size // 2 - 20, size, size)
     drawn, direct = _Drawn_And_Direct(window, viewport, rect, 'anyscan-mark.svg', opacity=0.92)
     assert np.abs(drawn - direct).max() <= CONST_TOLERANCE
+
+
+def test_at_1x_the_header_marks_have_no_half_covered_pixel(qt_app, window) -> None:
+    """
+    Description:
+        On a 1x display the AnyScan mark and the J-I-C bars, as the shown header draws them, have every pixel either the
+        ground or the full purple: their edges land on whole pixels (grid-fitted). The mark's numeral, a white curve on
+        its tag, is the one part left as delivered and is set aside with its tag (units 18-36 x 19-39).
+    """
+
+    if qt_app.devicePixelRatio() != 1.0:
+        pytest.skip('this run is at DPR %g; grid-fitting applies at DPR 1' % qt_app.devicePixelRatio())
+    lockup = window.findChild(Widgets.Logo_Lockup_Cls)
+    jic = window.findChild(QWidget, 'jicLogo')
+    for widget, units, mark_right, tag in ((lockup, 140.0, Style.CONST_LOGO_MARK_RIGHT, (18, 19, 36, 39)),
+                                           (jic, 134.76, AnyScan_Window_Cls.CONST_JIC_MARK_RIGHT, None)):
+        scale = widget.height() / units
+        width = int(mark_right * scale)
+        drawn = _Pixels(window.grab(QRect(widget.mapTo(window, QPoint(0, 0)), QSize(width, widget.height()))).toImage()).astype(float)
+        ground = _Pixels(window.grab(QRect(widget.mapTo(window, QPoint(widget.width() - 2, 1)), QSize(1, 1))).toImage())[0, 0]
+        ink = np.array([int(Style.CONST_LOGO_INK[i:i + 2], 16) for i in (1, 3, 5)])
+        coverage = np.clip(((ground - drawn) / (ground - ink)).mean(axis=2), 0.0, 1.0)
+        if tag is not None:
+            x0, y0, x1, y1 = (int(v * scale) for v in tag)
+            coverage[max(0, y0 - 1):y1 + 2, max(0, x0 - 1):x1 + 2] = 0.0
+        half = ((coverage > 0.05) & (coverage < 0.95)).sum()
+        assert half == 0, '%d half-covered pixels in %s' % (half, widget.objectName() or type(widget).__name__)
 
 
 def test_only_the_funding_bands_raster_logos_are_pixmaps(window) -> None:

@@ -112,6 +112,8 @@ practices followed inconsistently are under **Unsettled**.
 - An SVG logo is rendered as vectors at paint time (`QSvgRenderer` into the widget's painter, `Widgets.Svg_Image_Cls`
   for a plain one), never drawn from a pixmap, scaled or not (DD *Logos are rendered as vectors at paint time*).
 - ✅ `test/UI/test_logo_rendering.py` compares each drawn logo with a direct render at DPR 1 and DPR 2.
+- On a 1x display the header logos' marks are grid-fitted to whole pixels (`UI.Utilities.Grid_Fit`), the lettering left
+  as delivered (DD *The header logos are grid-fitted on a 1x display*); ✅ `test/UI/test_grid_fit.py`.
 
 ## Content type comes from the scale; one content, one size ✅ (content) 📄 (chrome)
 
