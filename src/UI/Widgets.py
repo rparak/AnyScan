@@ -1381,15 +1381,20 @@ class Logo_Lockup_Cls(QWidget):
 class Funding_Row_Cls(Card_Cls):
     """
     Description:
-        The funding obligation, as part of the product: the EU emblem ("Funded by the European Union") and its
-        disclaimer side by side in one slim row at the foot of the window, on the purple band. The project's and the
-        Ministry's logos are not shown in the application (the owner's decision, 2026-10-14); the architecture
-        diagram's band keeps them.
+        The project and funding obligation, as part of the product, as on the AnyScan poster's footer: a solid purple
+        band carrying the EDIH-DIGIMAT wordmark, a white rule, the Ministry of Industry and Trade's logo and the EU
+        emblem with "Funded by the European Union", and under a white rule the EU disclaimer, all in white. The logos
+        are their white (reverse) versions; the Ministry's has no all-white one and keeps its coat of arms, the black
+        lion on a white field. Logo heights are set per logo, never globally: a wordmark and a two-line institutional
+        block cannot share one height and stay optically equal.
     """
 
-    # The emblem and its drawn height.
-    #   Unit [Tuple<string, int>] (asset, px)
-    EMBLEM = ('funder-eu-white.png', 30)
+    LOGOS = [
+        ('edih-digimat-white.png', 20),
+        (None, 0),                       # hairline divider
+        ('partner-ministry-white.png', 36),
+        ('funder-eu-white.png', 30),
+    ]
 
     DISCLAIMER = (
         'Funded by the European Union. Views and opinions expressed are however those '
@@ -1398,35 +1403,39 @@ class Funding_Row_Cls(Card_Cls):
         'authority can be held responsible for them.'
     )
 
-    # The gap between the emblem and the disclaimer, and the disclaimer's widest line, so it wraps into two.
-    #   Unit [px]
-    CONST_EMBLEM_GAP = 24
-    CONST_DISCLAIMER_WIDTH = 900
-
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
-        super().__init__(padding=10, parent=parent)
+        super().__init__(padding=16, parent=parent)
         # Repaint the card as the purple band. The border is the band colour itself, so the block reads as one
         # solid surface on the white page.
         self.setStyleSheet(
             '#card { background: %s; border: 1px solid %s; }' % (Style.CONST_BAND, Style.CONST_BAND)
         )
         row = QHBoxLayout()
-        row.setSpacing(self.CONST_EMBLEM_GAP)
+        row.setSpacing(Style.CONST_MARK_GAP)
         row.addStretch(1)
-        name, height = self.EMBLEM
-        pix = Load_Logo(name, height)
-        emblem = QLabel()
-        if not pix.isNull():
-            emblem.setPixmap(pix)
-        else:
-            emblem.setText(name)  # a missing asset should be visible, not silent
-            emblem.setStyleSheet('color: %s;' % Style.CONST_BAND_TEXT)
-        row.addWidget(emblem)
+        for name, height in self.LOGOS:
+            if name is None:
+                row.addWidget(Hairline(vertical=True, length=30, color=Style.CONST_BAND_LINE))
+                continue
+            pix = Load_Logo(name, height)
+            label = QLabel()
+            if not pix.isNull():
+                label.setPixmap(pix)
+            else:
+                label.setText(name)  # a missing asset should be visible, not silent
+                label.setStyleSheet('color: %s;' % Style.CONST_BAND_TEXT)
+            row.addWidget(label)
+        row.addStretch(1)
+        self.box.addLayout(row)
+
+        self.box.addSpacing(13)
+        self.box.addWidget(Hairline(vertical=False, color=Style.CONST_BAND_LINE))
+
+        # The disclaimer runs the full width rather than wrapping into a four-line block: the same words, a third of
+        # the height. White on the purple band.
         note = QLabel(self.DISCLAIMER)
         note.setFont(Font(8))
         note.setWordWrap(True)
-        note.setMaximumWidth(self.CONST_DISCLAIMER_WIDTH)
-        note.setStyleSheet('color: %s;' % Style.CONST_BAND_TEXT)
-        row.addWidget(note)
-        row.addStretch(1)
-        self.box.addLayout(row)
+        note.setAlignment(Qt.AlignCenter)
+        note.setStyleSheet('color: %s; padding-top: 10px;' % Style.CONST_BAND_TEXT)
+        self.box.addWidget(note)

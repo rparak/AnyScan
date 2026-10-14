@@ -3642,20 +3642,24 @@ Tests `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_con
 `test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`, `test/UI/test_text_contrast.py`,
 `test/UI/test_control_contrast.py`.
 
-## The application shows the EU emblem alone; the diagram's band keeps the project's logos
+## The funding band is the poster's: the project's, the Ministry's and the EU's logos in white on the purple
 
-The band at the foot of the window (`Widgets.Funding_Row_Cls`) shows the EU emblem ("Funded by the European Union")
-and the EU disclaimer side by side in one slim row, and nothing else: the EDIH-DIGIMAT wordmark and the Ministry of
-Industry and Trade's block are no longer shown in the application. The architecture diagram's band
-(`Example/UI/architecture_diagram.py`, `CONST_BAND_LOGOS`) keeps all three logos and the disclaimer, on the purple.
-The README keeps its sentence on the project and its funding.
+The band at the foot of the window (`Widgets.Funding_Row_Cls`) and the architecture diagram's are one band, as on the
+AnyScan poster's footer: on the solid purple `#640ABA`, the EDIH-DIGIMAT wordmark, a white rule, the Ministry of
+Industry and Trade's logo and the EU emblem with "Funded by the European Union", then a white rule and the EU
+disclaimer, all in white (9.15:1). The diagram reads the window's list (`Funding_Row_Cls.LOGOS`).
 
-**Why.** The owner's decision of 2026-10-14, restyling the application to the JIC Smart Factory brand: remove the
-EDIH, Ministry and other logos that are not needed in the application, keep the EU funding notice, and keep the
-diagram's and the README's funding statements as they were. The emblem and its disclaimer are what EU funding asks
-an output to carry. The band stays the white emblem on the purple until the owner supplies the official colour
-emblem for a light band (open, 2026-10-14).
+The logos are their white (reverse) versions, `App/assets/*-white.png`, the ones the band has carried since
+2026-09-17. The EDIH-DIGIMAT wordmark and the EU emblem are all white. **The Ministry's logo has no all-white version
+in the repository's history:** its white file keeps the coat of arms as a white field with the black Czech lion (8 %
+of its ink is dark), beside white text, as the earlier colour file kept the red-and-white shield. The earlier colour EU
+file (deleted 2026-09-17) read "Co-funded by the European Union"; the white one and the disclaimer read "Funded by".
 
-**Revisit if** the funding or its publicity rules change, or the colour emblem is supplied.
-Tests `test/UI/test_funding_band.py::test_the_band_shows_the_eu_emblem_and_its_disclaimer_alone`,
+*Corrected 2026-10-14:* earlier the same day this entry was "The application shows the EU emblem alone; the diagram's
+band keeps the project's logos": the window showed the white EU emblem and the disclaimer in one slim row, and a light
+band was to follow with the colour emblem. On the station's screen the owner chose the poster's footer instead.
+
+**Revisit if** the funding or its publicity rules change, or vector (SVG) versions of the three logos are supplied:
+they are the window's only raster logos, drawn scaled down 8–26 times from their PNGs.
+Tests `test/UI/test_funding_band.py::test_the_band_carries_the_three_logos_and_the_disclaimer_in_white`,
 `test/UI/test_brand_figures.py::test_the_diagram_is_self_contained_and_carries_every_logo`.

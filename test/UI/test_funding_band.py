@@ -36,9 +36,10 @@ import UI.Utilities.Style as Style
 
 """
 Description:
-    The funding band at the foot of the window shows the EU emblem and its disclaimer side by side, and no other
-    logo: the project's (EDIH-DIGIMAT) and the Ministry's are not shown in the application (the owner's decision,
-    2026-10-14). Measured on the built band: the images it shows and the text beside them.
+    The funding band at the foot of the window, as on the AnyScan poster's footer (the owner's decision, 2026-10-14):
+    the EDIH-DIGIMAT wordmark, a rule, the Ministry of Industry and Trade's logo and the EU emblem, each its white
+    version, then a rule and the EU disclaimer, all white on the purple. Measured on the built band: the images it
+    shows, in order, the rules' colour and the text.
 """
 
 
@@ -48,18 +49,27 @@ def qt_app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
 
-def test_the_band_shows_the_eu_emblem_and_its_disclaimer_alone(qt_app) -> None:
+def test_the_band_carries_the_three_logos_and_the_disclaimer_in_white(qt_app) -> None:
     """
     Description:
-        The band holds exactly one image, the EU emblem as Style.Load_Logo draws it, and one text, the EU disclaimer,
-        beside it in one row; no label names a missing asset.
+        The band holds exactly three images, in the poster's order, each the white asset as Style.Load_Logo draws it,
+        and one text, the EU disclaimer, drawn in white on the purple; its two rules are white.
     """
 
     band = Funding_Row_Cls()
-    labels = band.findChildren(QLabel)
-    images = [label.pixmap() for label in labels if label.pixmap() is not None and not label.pixmap().isNull()]
-    texts = [label.text() for label in labels if label.text()]
-    name, height = Funding_Row_Cls.EMBLEM
-    assert name == 'funder-eu-white.png'
-    assert len(images) == 1 and images[0].toImage() == Style.Load_Logo(name, height).toImage()
-    assert texts == [Funding_Row_Cls.DISCLAIMER]
+    band.resize(1600, 140)
+    row = band.box.itemAt(0).layout()
+    labels = [row.itemAt(i).widget() for i in range(row.count()) if isinstance(row.itemAt(i).widget(), QLabel)]
+    images = [label.pixmap() for label in labels]
+    expected = [(name, height) for name, height in Funding_Row_Cls.LOGOS if name is not None]
+    assert [name for name, _ in expected] == ['edih-digimat-white.png', 'partner-ministry-white.png', 'funder-eu-white.png']
+    assert len(images) == 3 and all(image is not None and not image.isNull() for image in images)
+    assert [image.toImage() for image in images] == [Style.Load_Logo(name, height).toImage() for name, height in expected]
+    texts = [label for label in band.findChildren(QLabel) if label.text()]
+    assert [label.text() for label in texts] == [Funding_Row_Cls.DISCLAIMER]
+    assert Style.CONST_BAND_TEXT.upper() == '#FFFFFF' and Style.CONST_BAND_LINE.upper() == '#FFFFFF'
+    band.show()
+    QApplication.processEvents()
+    drawn = texts[0].grab().toImage()
+    assert any(drawn.pixelColor(x, y).name() == '#ffffff' for x in range(0, drawn.width(), 2) for y in range(drawn.height())), \
+        'the disclaimer is not drawn in white'

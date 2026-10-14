@@ -138,12 +138,12 @@ CONST_STATUS_TEXT_COLORS = {CONST_OK: CONST_OK_INK, CONST_WARN: CONST_WARN_INK}
 CONST_VIEWPORT      = '#E1DCE6'
 CONST_VIEWPORT_TEXT = CONST_INK
 
-# The funding band (the EU emblem and its disclaimer, at the foot of the window, and the architecture diagram's
-# band): the purple, carrying the white institutional logos, with grey-lilac rules and text (6.79:1).
+# The funding band (at the foot of the window, and the architecture diagram's band, as on the poster's footer): the
+# purple, carrying the white institutional logos, white rules and the disclaimer in white (9.15:1).
 #   Unit [string] (hex colour)
 CONST_BAND          = CONST_INK
-CONST_BAND_LINE     = '#E1DCE6'
-CONST_BAND_TEXT     = '#E1DCE6'
+CONST_BAND_LINE     = '#FFFFFF'
+CONST_BAND_TEXT     = '#FFFFFF'
 
 # The label-mask FILL floors. They live here, not in the renderer, because Theme DERIVES the
 # neutral fill from them (Neutral_Mask_Colors) and the parameters layer must not import the vision
