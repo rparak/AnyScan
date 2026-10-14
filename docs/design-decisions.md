@@ -2131,7 +2131,9 @@ Below a device pixel ratio of 1.5 the top bar draws the AnyScan lockup as tall a
 24.55 of its 140 units, to be 9 pt (`Style.CONST_TYPE_FLOOR_LOW_DENSITY`) in the widget's logical DPI, rounded up to a
 whole pixel: 69 px at 96 dpi, 72 px in the offscreen tests (100 dpi). At 1.5 and above it is 54 px
 (`Style.CONST_LOGO_HEIGHT`). `Style.Logo_Height(widget)` chooses, through `Style.Is_Low_Density(widget)`, the one
-density check. The spacing to the divider is measured from ink (`Style.Ink_Insets`), so the 32 px gap holds at both.
+density check. The JIC Smart Factory logo beside it scales with it (26 px beside 54 px, 35 px beside 72 px; the
+owner's decision of 2026-10-14), so the pair keeps its proportions at both densities. The spacing to the divider is
+measured from ink (`Style.Ink_Insets`), so the 32 px gap holds at both.
 
 How the ratio is read, and its limit: Qt 5.15 gives a widget the ratio of its top-level window's screen once that
 window has a native handle. The header is built before the window is shown, so it reads the application's ratio, the
@@ -2152,7 +2154,8 @@ put the previous logo's 4-unit brackets on whole pixels. That reason went with t
 **Revisit if** the logo is redesigned (its tagline's share of the height sets the 1x size), if the type floor
 changes, or when the window re-reads its screen's ratio on a screen change.
 Tests `test/UI/test_header.py::test_the_logo_puts_its_tagline_at_9_pt_on_a_low_density_display`,
-`::test_the_logo_is_54_px_on_a_high_density_display`, `::test_the_tagline_is_crisp_on_a_low_density_display` and
+`::test_the_logo_is_54_px_on_a_high_density_display`, `::test_the_jic_logo_keeps_its_share_of_the_lockup`,
+`::test_the_tagline_is_crisp_on_a_low_density_display` and
 `::test_the_header_is_measured_again_at_dpr_2` (the module run again at `QT_SCALE_FACTOR=2`), with
 `::test_the_brand_marks_are_spaced_by_the_brand_gap_from_ink` at both ratios.
 

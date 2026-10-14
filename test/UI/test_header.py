@@ -83,6 +83,9 @@ CONST_INK_THRESHOLD = 30
 # units, at 9 pt in the display's logical DPI (rounded up to a whole pixel).
 #   Unit [px] / [-] / [logo units] / [pt]
 CONST_LOGO_HEIGHT_HIGH_DENSITY = 54
+# The JIC Smart Factory logo's height over the AnyScan lockup's: 26 px beside 54 px.
+#   Unit [-]
+CONST_JIC_SHARE = 26.0 / 54.0
 CONST_LOGO_INK_SHARE = 1.0
 CONST_LOGO_UNITS = 140.0
 CONST_TAGLINE_UNITS = 24.55
@@ -293,6 +296,22 @@ def test_the_logo_is_54_px_on_a_high_density_display(qt_app) -> None:
     window.close()
 
 
+def test_the_jic_logo_keeps_its_share_of_the_lockup(qt_app) -> None:
+    """
+    Description:
+        The JIC Smart Factory logo is CONST_JIC_SHARE of the AnyScan lockup's height at this run's density: 26 px
+        beside the 54 px lockup, and scaled with it where a low-density display grows the lockup (72 px offscreen),
+        so the pair keeps its proportions. Read from the shown header's JIC pixmap, in logical pixels.
+    """
+
+    window, logo, _ = _Shown_Logo(qt_app)
+    jic = [label for label in window.findChildren(QLabel) if label.pixmap() is not None and not label.pixmap().isNull()][0]
+    pixmap = jic.pixmap()
+    height = pixmap.height() / pixmap.devicePixelRatio()
+    assert abs(height - CONST_JIC_SHARE * logo.height()) <= 0.5, (height, logo.height())
+    window.close()
+
+
 def _Outlined(height: int, ground: np.ndarray) -> np.ndarray:
     """
     Description:
@@ -496,6 +515,7 @@ def test_the_header_is_measured_again_at_dpr_2(qt_app, project_root) -> None:
                    'test_the_brand_marks_are_spaced_by_the_brand_gap_from_ink[0]',
                    'test_the_brand_marks_are_spaced_by_the_brand_gap_from_ink[1720]',
                    'test_the_lockup_matches_the_outlined_logo',
+                   'test_the_jic_logo_keeps_its_share_of_the_lockup',
                    'test_the_lockup_tagline_is_the_bundled_public_sans'):
         assert 'PASSED test/UI/test_header.py::%s' % passed in report, report[-3000:]
     for skipped in ('the low-density logo is measured in the DPR 1 run',

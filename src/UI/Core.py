@@ -133,8 +133,10 @@ class AnyScan_Window_Cls(QMainWindow):
     #   Unit [px]
     CONST_BRAND_GAP = Style.CONST_MARK_GAP
     # The JIC Smart Factory logo right of the divider: the purple horizontal lockup (the grey one is for dark
-    # grounds, and the bar is white), at the height the JIC mark had, about half the AnyScan logo's as on the poster.
-    #   Unit [string] / [px]
+    # grounds, and the bar is white), at the height the JIC mark had beside the 54 px lockup, about half the AnyScan
+    # logo's as on the poster. It scales with the lockup, so on a low-density display, where the lockup grows
+    # (Style.Logo_Height), the pair keeps its proportions.
+    #   Unit [string] / [px] (beside a Style.CONST_LOGO_HEIGHT lockup)
     CONST_JIC_LOGO_FILE = 'jic-smart-factory.svg'
     CONST_JIC_LOGO_HEIGHT = 26
     # The status strip's value formats, used where each value is set and where its cell reserves its
@@ -470,13 +472,15 @@ class AnyScan_Window_Cls(QMainWindow):
         # The lockup's right ink is its wider line of text, measured on a render of it.
         brand = QHBoxLayout()
         brand.setSpacing(0)
-        lockup = Logo_Lockup_Cls(Style.Logo_Height(bar))
+        lockup_height = Style.Logo_Height(bar)
+        lockup = Logo_Lockup_Cls(lockup_height)
         brand.addWidget(lockup)
         brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(lockup.Render())[1]))
 
         brand.addWidget(Hairline(vertical=True, length=34, color=Style.CONST_TOPBAR_DIVIDER))
 
-        jic_pixmap = Style.Load_Svg(self.CONST_JIC_LOGO_FILE, self.CONST_JIC_LOGO_HEIGHT)
+        jic_pixmap = Style.Load_Svg(self.CONST_JIC_LOGO_FILE,
+                                    int(round(self.CONST_JIC_LOGO_HEIGHT * lockup_height / Style.CONST_LOGO_HEIGHT)))
         brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(jic_pixmap)[0]))
         jic = QLabel()
         jic.setPixmap(jic_pixmap)
