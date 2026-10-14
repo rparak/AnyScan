@@ -2457,8 +2457,10 @@ the evidence for the choice.
   " appearing", " featuring"; `CONST_LABEL_BOUNDARIES`);
 - does not end the adjective run at a hyphenated "-ing" word ("metallic-looking object").
 
-**Why.** In the real window (`docs/evidence/label-2026-09-29/`: grabs of Image_003 and Image_005 and their
-log lines) the label only reaches the log; History stores the full description and no label. There it
+**Why.** In the real window (`docs/evidence/label-2026-09-29/` at commit `2607804`: grabs of Image_003 and
+Image_005 and their log lines; *Corrected 2026-10-14:* the folder was removed from the tree, and this cited
+it as present, so it is read from history, `git show 2607804:docs/evidence/label-2026-09-29/`) the label
+only reaches the log; History stores the full description and no label. There it
 read `type=this` for "This is a small, stylized robot figure", and `type=circular metallic washer` for
 "washer or cap". On the 111 descriptions of three describers (E4B 4-bit and 8-bit, the 12B) the old rules
 left 6 / 12 / 1 labels that name no part; these leave 3 / 4 / 0. Scored against the answer key (37
