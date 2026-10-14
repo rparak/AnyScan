@@ -133,9 +133,8 @@ loaded, which needs the model weights):
 python App/run.py --frame path/to/frame.png
 ```
 
-The console draws its text in Inter and JetBrains Mono, which ship with it in `App/assets/fonts/`
-(static Regular, Medium, SemiBold and Bold of each, and Inter Display Regular for the header's
-wordmark, built by `Example/UI/build_fonts.py`), so it looks
+The console draws its text in Public Sans and JetBrains Mono, which ship with it in `App/assets/fonts/`
+(static Regular, Medium, SemiBold and Bold of each, built by `Example/UI/build_fonts.py`), so it looks
 the same on every platform whatever fonts the machine has. Only if that directory is missing does it
 fall back to the nearest system faces.
 
@@ -437,15 +436,15 @@ What is committed, and what you must supply:
 App/
   run.py                  the application (entry point)
   assets/                 UI images, committed
-    anyscan-logo.svg          the AnyScan brand lockup (the outlined logo); built, see images/source/
-    anyscan-logo-mark.svg     the lockup's mark alone, which the topbar draws under its live text; built
-    brand-jic-mute.png        the JIC mark beside the lockup
+    anyscan-logo.svg          the AnyScan logo, a copy of images/anyscan-logo.svg; built
+    anyscan-logo-wordmark.svg the logo without its tagline, which the topbar draws beside the live tagline; built
+    anyscan-mark.svg          the mark alone, shown in the empty viewport; built
+    anyscan-mark.ico          the window / taskbar icon: the mark on a white square, 16-256 px; built
+    jic-smart-factory.svg     the JIC Smart Factory logo beside the AnyScan logo
     edih-digimat-white.png    project wordmark, funding band
     partner-ministry-white.png  Ministry of Industry and Trade
     funder-eu-white.png       Funded by the European Union
-    anyscan-mark.png          the mark shown in the empty viewport
-    anyscan-mark-white.ico    the window / taskbar icon (multi-size, rounded)
-    fonts/                    Inter, Inter Display and JetBrains Mono, static, with their OFL licences; built by
+    fonts/                    Public Sans and JetBrains Mono, static, with their OFL licences; built by
                               Example/UI/build_fonts.py
 src/                      Qt-free domain modules + the UI (see "Source layout")
 Example/                  runnable scripts (scan, calibrate, calibration_tilt_study, generate_checkerboard,
@@ -460,7 +459,7 @@ Data/Images/Background/   the empty-surface reference(s) and their provenance si
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored
 Data/Results/             analyze.py and scan.py output — git-ignored
 images/                   documentation illustrations for this README — committed
-  source/anyscan-logo-text.svg  the logo's text source; Example/UI/build_logo.py outlines it
+  anyscan-logo.svg          the AnyScan logo as the JIC Smart Factory designer delivered it (outlined)
 models/                   model weights — you supply these, NOT committed
   gemma-4-e4b-it-4bit/      Gemma 4 E4B (MLX), downloaded per Setup (git-ignored)
   FastSAM/FastSAM-x.pt      FastSAM, downloaded per Setup (git-ignored)
@@ -474,10 +473,9 @@ to, so it is a deliberate move made with the pins, never a side effect of a tool
 added under a new name, never written over an old one (docs/design-decisions.md, *A replaced image
 never keeps its name*). Only `models/` is user-supplied.
 
-**Changing the logo.** Edit `images/source/anyscan-logo-text.svg`, then rebuild in this order. The
-diagram embeds the logo, so regenerating it before the logo is rebuilt would copy the old one.
-`build_logo.py` writes `images/anyscan-logo.svg`, its copy in `App/assets/` and the mark; it needs
-Inkscape 1.2.2.
+**Changing the logo.** Replace `images/anyscan-logo.svg` with the delivered file, then rebuild in this
+order. The diagram embeds the logo, so regenerating it before the logo is rebuilt would copy the old one.
+`build_logo.py` writes the logo's copy in `App/assets/`, the logo without its tagline, the mark and the icon.
 
 ```bash
 python Example/UI/build_logo.py
@@ -650,7 +648,7 @@ The catalogue modes' identifier, Meta's DINOv2 base (`facebook/dinov2-base`), is
 2026-10-11) — likewise not MIT, not redistributed with this repository, and shipped by anyone under Apache
 2.0's conditions.
 
-The bundled fonts in `App/assets/fonts/`, Inter and JetBrains Mono, are under the **SIL Open Font
-License 1.1**, not MIT; each family's licence text ships beside its files (`Inter-OFL.txt`,
+The bundled fonts in `App/assets/fonts/`, Public Sans and JetBrains Mono, are under the **SIL Open Font
+License 1.1**, not MIT; each family's licence text ships beside its files (`PublicSans-OFL.txt`,
 `JetBrainsMono-OFL.txt`) as the OFL requires. They are static instances of the families' variable
 fonts from google/fonts; neither family declares a Reserved Font Name.

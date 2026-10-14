@@ -105,15 +105,10 @@ CONST_SCROLLBAR_HANDLE = '#c7c3d9'
 # it still reads on the bar.
 #   Unit [string] (hex colour)
 CONST_TOPBAR_DIVIDER = '#c9c5d8'
-# The logo's palette, which the top bar's live wordmark and tagline are set in: the fills of the logo's
-# text source (images/source/anyscan-logo-text.svg), value for value. Since 352688d the ink and the
-# tagline are the theme's own CONST_INK and CONST_INK_SOFT; the magenta stays the logo's, not CONST_BRAND
-# (docs/design-decisions.md, "The logo's palette predates the theme", as corrected 2026-10-03). On
-# CONST_BG, the top bar's ground: 12.79:1, 4.65:1 and 8.06:1.
+# The logo's one colour: the fill of the delivered, outlined logo (images/anyscan-logo.svg), the JIC Smart Factory
+# purple, which the top bar's live tagline is set in so it matches the outlined wordmark beside it.
 #   Unit [string] (hex colour)
-CONST_LOGO_INK      = CONST_INK        # deep indigo: "Any", and the mark's frame and object
-CONST_LOGO_MAGENTA  = '#d6006e'        # magenta: "Scan", and the mark's box and description
-CONST_LOGO_TAGLINE  = CONST_INK_SOFT   # mid violet: the tagline
+CONST_LOGO_INK      = '#640ABA'
 
 # The status colours. Green and red are RESERVED here: they mean pass and fail on the badge, so they
 # never appear as an object colour (an OK object is indigo, a NOK one magenta). Amber is the one

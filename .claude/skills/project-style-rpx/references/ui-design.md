@@ -93,15 +93,17 @@ practices followed inconsistently are under **Unsettled**.
   (`CONST_TYPE_FLOOR_LOW_DENSITY`) read it. A chrome size below 9 pt is raised to 9 pt at DPR 1 and kept
   on a 2x display. The ratio is read when a
   widget is built, which for the window is before it is shown (Qt 5 then reports the highest ratio of all
-  screens), and nothing re-reads it on a screen change (DD *The logo is 59 px on a low-density display*).
+  screens), and nothing re-reads it on a screen change (DD *The logo is taller on a low-density display, so its
+  tagline is 9 pt*).
 - ✅ `test/UI/test_header.py` measures the logo at DPR 1 and runs itself again at DPR 2.
-- The header's wordmark and tagline are live text over the mark (`Widgets.Logo_Lockup_Cls`), not the
-  outlined logo: their origins, sizes, words and colours are `Style.CONST_LOGO_TEXT` and the `CONST_LOGO_*`
-  tokens, held to the logo's text source. The wordmark takes the display cut (`Style.Font(display=True)`,
-  Inter Display); nothing else does. Change the logo in its source and rebuild; never hand-edit the
-  mark or the constants apart (DD *The header's wordmark and tagline are live text*).
+- The header draws the delivered, outlined logo without its tagline (`App/assets/anyscan-logo-wordmark.svg`) and
+  sets the tagline as live text where the logo outlines it (`Widgets.Logo_Lockup_Cls`;
+  `Style.CONST_LOGO_TAGLINE_ORIGIN`, `CONST_LOGO_TAGLINE_SIZE`, in the logo's colour `CONST_LOGO_INK`). The logo's
+  copies are derived from `images/anyscan-logo.svg` by `Example/UI/build_logo.py`; never hand-edit them or move the
+  tagline's constants apart from the outlines (DD *The header draws the delivered logo and sets its tagline as live
+  text*).
 - ✅ `test/UI/test_header.py` holds the live lockup's offsets to the outlined logo's within 1 device px at
-  both densities; `test/UI/test_brand_figures.py` holds the mark and the text to the source.
+  both densities; `test/UI/test_brand_figures.py` holds the derived files to the logo.
 
 ## Content type comes from the scale; one content, one size ✅ (content) 📄 (chrome)
 

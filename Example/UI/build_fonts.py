@@ -39,20 +39,17 @@ from fontTools.varLib import instancer
 
 """
 Description:
-    Build the console's bundled UI fonts into App/assets/fonts/: static Inter and JetBrains Mono at the
-    four weights the UI requests (Regular 400, Medium 500, SemiBold 600, Bold 700), Inter Display Regular
-    (Inter at the display optical size, which the header's wordmark is set in: docs/design-decisions.md,
-    "The header's wordmark and tagline are live text"), and each family's SIL Open Font License text,
-    which the OFL requires to travel with the fonts. Style.Load_Fonts registers every .ttf in that
-    directory (docs/design-decisions.md, "The UI fonts are bundled").
+    Build the console's bundled UI fonts into App/assets/fonts/: static Public Sans (the UI face, the open
+    font closest to the brand's GT America Standard: docs/design-decisions.md, "The UI is set in Public
+    Sans") and JetBrains Mono at the four weights the UI requests (Regular 400, Medium 500, SemiBold 600,
+    Bold 700), and each family's SIL Open Font License text, which the OFL requires to travel with the
+    fonts. Style.Load_Fonts registers every .ttf in that directory (docs/design-decisions.md, "The UI fonts
+    are bundled").
 
     google/fonts carries only the variable fonts, and Qt 5.15 uses a variable font's default instance
     alone (it synthesises every other weight), so each weight is instanced into its own static file with
-    fontTools: Inter at the text optical size (opsz 14), Inter Display at opsz 32 (the size build_logo.py
-    pins for the wordmark) under its own family name, so it is never taken for the text cut, and
-    JetBrains Mono on its one axis. The name table and usWeightClass are set so Qt lists each family
-    with its styles. The sources are the variable
-    fonts at a pinned google/fonts commit (Inter is the file build_logo.py outlines the logo with), each
+    fontTools on the family's one axis. The name table and usWeightClass are set so Qt lists each family
+    with its styles. The sources are the variable fonts at a pinned google/fonts commit, each
     checked against its SHA-256; a missing or different file stops the build. The output does not depend
     on the clock (the source's head timestamps are kept), so a rebuild reproduces the committed files.
 
@@ -64,15 +61,15 @@ Description:
 #   Unit [string]
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 CONST_OUTPUT_DIR = os.path.join(CONST_PROJECT_FOLDER, 'App', 'assets', 'fonts')
-# The google/fonts commit every source is taken from (the same one build_logo.py pins).
+# The google/fonts commit every source is taken from.
 #   Unit [string]
 CONST_GOOGLE_FONTS = 'https://raw.githubusercontent.com/google/fonts/e1d6480102fed30739fead0faee463101f892c8f/'
 # Every pinned source: the file name it is kept under, its path in google/fonts, its SHA-256.
 #   Unit [Dict<string, Tuple<string> 1x2>]
 CONST_SOURCES = {
-    'Inter[opsz,wght].ttf': ('ofl/inter/Inter%5Bopsz,wght%5D.ttf',
-                             '29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031'),
-    'Inter-OFL.txt': ('ofl/inter/OFL.txt', '5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57'),
+    'PublicSans[wght].ttf': ('ofl/publicsans/PublicSans%5Bwght%5D.ttf',
+                             'd75a7dc1a27eb9e336d5b33f55489d2ecb5621bf694d5c43b2415bce2ca830a8'),
+    'PublicSans-OFL.txt': ('ofl/publicsans/OFL.txt', '157a9e77f7580246e97c769490e2e977ae94399f9d30f4556015c41fe8c28bac'),
     'JetBrainsMono[wght].ttf': ('ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf',
                                 '48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda'),
     'JetBrainsMono-OFL.txt': ('ofl/jetbrainsmono/OFL.txt', 'b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d')}
@@ -82,8 +79,7 @@ CONST_WEIGHTS = (('Regular', 400), ('Medium', 500), ('SemiBold', 600), ('Bold', 
 # The families built: the family name Qt lists, the variable source, the axes held fixed besides the
 # weight, the licence that ships beside it, and the weights built.
 #   Unit [Vector<Tuple>]
-CONST_FAMILIES = (('Inter', 'Inter[opsz,wght].ttf', {'opsz': 14}, 'Inter-OFL.txt', CONST_WEIGHTS),
-                  ('Inter Display', 'Inter[opsz,wght].ttf', {'opsz': 32}, 'Inter-OFL.txt', (('Regular', 400),)),
+CONST_FAMILIES = (('Public Sans', 'PublicSans[wght].ttf', {}, 'PublicSans-OFL.txt', CONST_WEIGHTS),
                   ('JetBrains Mono', 'JetBrainsMono[wght].ttf', {}, 'JetBrainsMono-OFL.txt', CONST_WEIGHTS))
 # The fontTools version the committed fonts were built with.
 #   Unit [string]
@@ -212,7 +208,7 @@ def main() -> int:
         (1) parameter [int]: The exit code.
     """
 
-    parser = argparse.ArgumentParser(description='Build the bundled UI fonts (static Inter, Inter Display, JetBrains Mono).')
+    parser = argparse.ArgumentParser(description='Build the bundled UI fonts (static Public Sans and JetBrains Mono).')
     parser.add_argument('--output-dir', default=CONST_OUTPUT_DIR, help='Where to write (default: App/assets/fonts/).')
     parser.add_argument('--sources', default=None, help='A directory with local copies of the pinned files.')
     args = parser.parse_args()

@@ -47,11 +47,6 @@ import UI.Utilities.Style as Style
 # Custom Lib.: AnyScan UI — the console's funding band, whose logos and disclaimer the diagram repeats
 #   ../UI/Widgets
 from UI.Widgets import Funding_Row_Cls
-# Custom Lib.: AnyScan — the logo build, whose margin around the ink the header subtracts
-#   ./build_logo
-if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from build_logo import CONST_MARGIN as CONST_LOGO_MARGIN
 
 """
 Description:
@@ -70,8 +65,8 @@ Description:
     from a Parameters/Theme.py token and every size from the console's type scale, so the
     figure moves with the theme instead of drifting from it. The SVG is self-contained, because
     the README shows it through <img>, and an SVG loaded that way never fetches another file:
-    the AnyScan logo is copied in byte for byte from images/anyscan-logo.svg, and the JIC mark and
-    the funding band's logos are embedded from App/assets/ as base64 PNG data. The band is the
+    the AnyScan logo is copied in byte for byte from images/anyscan-logo.svg, the JIC Smart Factory
+    logo from App/assets/, and the funding band's logos are embedded from App/assets/ as base64 PNG data. The band is the
     console's own (UI.Widgets.Funding_Row_Cls): the same logos, order and disclaimer.
 
     test/UI/test_brand_figures.py fails when the committed SVG is not this script's output, or
@@ -81,19 +76,23 @@ Description:
         python Example/UI/architecture_diagram.py --check    # exit 1 if it is stale
 
     The layout is checked against FALLBACK font metrics (Helvetica Neue / Arial), which is
-    what most README readers get: an <img> SVG cannot load Inter as a web font. A layout that
-    only fits with Inter installed will overflow for them.
+    what most README readers get: an <img> SVG cannot load Public Sans as a web font. A layout that
+    only fits with Public Sans installed will overflow for them.
 """
-# The source logo, the folder of the PNG marks, the JIC mark, and the diagram this script writes.
+# The source logo, the folder of the marks, the JIC Smart Factory logo, and the diagram this script writes.
 #   Unit [string]
 CONST_LOGO_FILE = os.path.join(CONST_PROJECT_FOLDER, 'images', 'anyscan-logo.svg')
 CONST_ASSETS_FOLDER = os.path.join(CONST_PROJECT_FOLDER, 'App', 'assets')
-CONST_JIC_FILE = os.path.join(CONST_ASSETS_FOLDER, 'brand-jic-mute.png')
+CONST_JIC_FILE = os.path.join(CONST_ASSETS_FOLDER, 'jic-smart-factory.svg')
 CONST_DIAGRAM_FILE = os.path.join(CONST_PROJECT_FOLDER, 'images', 'anyscan-architecture.svg')
 # The marker comments around the inline logo; the test reads the copy between them.
 #   Unit [string]
 CONST_LOGO_BEGIN = '<!-- logo:begin -->'
 CONST_LOGO_END = '<!-- logo:end -->'
+# The marker comments around the inline JIC Smart Factory logo, brand artwork in its own colour like the AnyScan logo.
+#   Unit [string]
+CONST_JIC_BEGIN = '<!-- jic:begin -->'
+CONST_JIC_END = '<!-- jic:end -->'
 # The drawing size in user units: wide, so it stays legible at README width (~900 px renders
 # it at 0.75).
 #   Unit [px]
@@ -105,7 +104,16 @@ CONST_HEIGHT = 1226
 #   Unit [px] / [-]
 CONST_LOGO_X = 40
 CONST_LOGO_Y = 34
-CONST_LOGO_SCALE = 0.4
+CONST_LOGO_SCALE = 0.5
+# Where the delivered logo's ink ends inside its viewBox: 603.9 of 609.8 units (measured on a render), so the
+# divider is spaced from the ink, as in the top bar.
+#   Unit [logo units]
+CONST_LOGO_RIGHT_MARGIN = 5.9
+# The JIC Smart Factory logo's drawn height and top edge: the top bar's ratio to the AnyScan logo
+# (UI/Core.py, CONST_JIC_LOGO_HEIGHT over Style.CONST_LOGO_HEIGHT), centred on the logo.
+#   Unit [px]
+CONST_JIC_HEIGHT = 33.7
+CONST_JIC_Y = 52.2
 # The header divider's stroke width.
 #   Unit [px]
 CONST_DIVIDER_WIDTH = 1.5
@@ -478,7 +486,7 @@ def Header_Positions(logo_svg: str) -> tp.Tuple[float, float]:
     """
 
     _, _, view_w, view_h = (float(v) for v in re.search(r'viewBox="([^"]+)"', logo_svg).group(1).split())
-    ink_right = CONST_LOGO_X + CONST_LOGO_SCALE * (view_w - CONST_LOGO_MARGIN)
+    ink_right = CONST_LOGO_X + CONST_LOGO_SCALE * (view_w - CONST_LOGO_RIGHT_MARGIN)
     gap = Style.CONST_MARK_GAP * CONST_LOGO_SCALE * view_h / Style.CONST_LOGO_HEIGHT
     divider = ink_right + gap + CONST_DIVIDER_WIDTH / 2
     return round(divider, 2), round(divider + CONST_DIVIDER_WIDTH / 2 + gap, 2)
@@ -548,7 +556,13 @@ def Draw_Architecture(logo_svg: str) -> str:
     divider_x, jic_x = Header_Positions(logo_svg)
     c.Add('<line x1="%g" y1="44" x2="%g" y2="96" stroke="%s" stroke-width="%g"/>'
           % (divider_x, divider_x, T.CONST_TOPBAR_DIVIDER, CONST_DIVIDER_WIDTH))
-    c.Image(jic_x, 53, 34, CONST_JIC_FILE, 'JIC')
+    with open(CONST_JIC_FILE, 'r', encoding='utf-8') as handle:
+        jic = re.sub(r'<\?xml[^>]*>\s*', '', handle.read()).strip()
+    _, _, jic_w, jic_h = (float(v) for v in re.search(r'viewBox="([^"]+)"', jic).group(1).split())
+    c.Raw(CONST_JIC_BEGIN)
+    c.Raw(jic.replace('<svg ', '<svg x="%g" y="%g" width="%g" height="%g" ' % (jic_x, CONST_JIC_Y, round(CONST_JIC_HEIGHT * jic_w / jic_h, 1),
+                                                                               CONST_JIC_HEIGHT), 1))
+    c.Raw(CONST_JIC_END)
     c.Text(1160, 76, 'ARCHITECTURE', S[2], T.CONST_INK_MUTE, weight='700', anchor='end', spacing='2')
     c.Close('g')
     c.Blank()

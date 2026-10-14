@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `1f1f8f1` (2026-10-14).
+Last reviewed against the code at commit `2f7c3a5` (2026-10-14).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -381,8 +381,9 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
   outlines within tolerance with the item's reference frames (found by content) apart.
 - `Vision/evaluate_describer.py` — score the descriptions against the test set's answer key. The current set
   (`Data/Images/Test`) has none yet, so it cannot run until one is written.
-- `UI/architecture_diagram.py`, `UI/build_logo.py`, `UI/build_fonts.py` — rebuild the README diagram,
-  the logo and the bundled fonts.
+- `UI/architecture_diagram.py`, `UI/build_logo.py`, `UI/build_fonts.py` — rebuild the README diagram, derive
+  the application's copies of the delivered logo (the logo without its tagline, the mark, the icon), and build the
+  bundled fonts (Public Sans and JetBrains Mono).
 
 ## Known limitations
 

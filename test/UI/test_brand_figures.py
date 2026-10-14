@@ -22,16 +22,12 @@
 ## =========================================================================== ##
 
 # System (Default)
-import ast
 import base64
 import importlib.util
 import os
 import re
-import shutil
 import subprocess
 import sys
-# XML (Read the logo's text source) [Python standard library]
-import xml.etree.ElementTree as ET
 # Qt must never open a window during tests: the offscreen platform renders without a display.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Typing (Support for type hints)
@@ -68,10 +64,11 @@ Description:
     stale while nothing linked to it. And they hold the diagram self-contained, with every logo in it:
     under <img> a referenced file draws nothing, silently.
 
-    The top bar draws the logo's mark (App/assets/anyscan-logo-mark.svg, derived from the outlined logo by
-    Example/UI/build_logo.py) and sets its wordmark and tagline as live text from Style.CONST_LOGO_TEXT and
-    the logo's colour tokens. These tests hold the mark to being the logo's own, and the live text's
-    positions, sizes, words and colours to the logo's text source.
+    images/anyscan-logo.svg is the delivered logo, committed as the designer made it. Example/UI/build_logo.py
+    derives the application's copies from it: the logo without its tagline (App/assets/anyscan-logo-wordmark.svg,
+    which the top bar draws, setting the tagline beside it as live text) and the mark alone
+    (App/assets/anyscan-mark.svg). These tests hold both to being the logo's own, and the live tagline's words and
+    colour to the logo's.
 """
 # The repository root and the three files involved.
 #   Unit [string]
@@ -82,28 +79,24 @@ CONST_DIAGRAM = os.path.join(CONST_ROOT, 'images', 'anyscan-architecture.svg')
 CONST_README = os.path.join(CONST_ROOT, 'README.md')
 CONST_GENERATOR = os.path.join(CONST_ROOT, 'Example', 'UI', 'architecture_diagram.py')
 CONST_BUILDER = os.path.join(CONST_ROOT, 'Example', 'UI', 'build_logo.py')
-CONST_FONT_BUILDER = os.path.join(CONST_ROOT, 'Example', 'UI', 'build_fonts.py')
-CONST_TEXT_SOURCE = os.path.join(CONST_ROOT, 'images', 'source', 'anyscan-logo-text.svg')
-CONST_MARK = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-logo-mark.svg')
-# Where the mark's ink ends and the logo's text begins, in logo units (the mark's ink ends at 228, the
-# wordmark starts at 268).
+CONST_WORDMARK = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-logo-wordmark.svg')
+CONST_MARK = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-mark.svg')
+CONST_JIC = os.path.join(CONST_ROOT, 'App', 'assets', 'jic-smart-factory.svg')
+# Where the logo's parts are told apart, in logo units: the mark's ink ends at 139.9 and the wordmark's starts at
+# 165.5; the wordmark's ink ends at y 105.1 and the tagline's starts at 109.9.
 #   Unit [logo units]
-CONST_TEXT_LEFT_UNITS = 248.0
-# Why the full rebuild runs on macOS only (docs/design-decisions.md, "The logo's text is outlined").
-#   Unit [string]
-CONST_FULL_REBUILD_SKIP = ("the committed logo reproduces only on macOS: the Linux Inkscape 1.2.2 AppImage's Pango ignores "
-                           "the source's pinned optical size ('opsz' 32), outlining the wordmark and tagline at opsz 14")
-# A local copy of the pinned variable Inter for the full rebuild; without it build_logo.py downloads it.
-#   Unit [string]
-CONST_FONT_VARIABLE = 'ANYSCAN_LOGO_FONT'
+CONST_TEXT_LEFT_UNITS = 152.0
+CONST_LINE_SPLIT_UNITS = 107.5
 CONST_ASSETS = os.path.join(CONST_ROOT, 'App', 'assets')
-# The PNG marks the diagram embeds: the JIC mark of the top bar, then the console's funding band.
+# The PNG marks the diagram embeds: the console's funding band.
 #   Unit [List<string>]
-CONST_EMBEDDED_MARKS = ['brand-jic-mute.png'] + [name for name, _ in Funding_Row_Cls.LOGOS if name is not None]
-# The marker comments around the inline logo in the diagram.
+CONST_EMBEDDED_MARKS = [name for name, _ in Funding_Row_Cls.LOGOS if name is not None]
+# The marker comments around the inline logos in the diagram: the AnyScan logo and the JIC Smart Factory logo.
 #   Unit [string]
 CONST_LOGO_BEGIN = '<!-- logo:begin -->'
 CONST_LOGO_END = '<!-- logo:end -->'
+CONST_JIC_BEGIN = '<!-- jic:begin -->'
+CONST_JIC_END = '<!-- jic:end -->'
 # A hex colour as SVG writes it (#rgb or #rrggbb).
 #   Unit [Pattern]
 CONST_HEX_COLOUR = re.compile(r'#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9A-Za-z_])')
@@ -227,90 +220,66 @@ def _Read(path: str) -> str:
         return handle.read()
 
 
-def _Split_Diagram() -> tp.Tuple[str, str]:
+def _Split(document: str, begin: str, end: str) -> tp.Tuple[str, str]:
     """
     Description:
-        The diagram split into its inline logo (between the markers) and everything else.
+        A document split into the part between one pair of markers and everything else.
+
+    Args:
+        (1) document [string]: The document.
+        (2 - 3) begin, end [string]: The markers.
 
     Returns:
-        (1) parameter [Tuple<string> 1x2]: (the inline logo, the diagram without it).
+        (1) parameter [Tuple<string> 1x2]: (the part between the markers, the document without it).
     """
 
-    diagram = _Read(CONST_DIAGRAM)
-    assert diagram.count(CONST_LOGO_BEGIN) == 1 and diagram.count(CONST_LOGO_END) == 1, \
-        'the diagram must carry the logo between one pair of logo:begin / logo:end markers'
-    head, rest = diagram.split(CONST_LOGO_BEGIN)
-    logo, tail = rest.split(CONST_LOGO_END)
-    return logo, head + tail
+    assert document.count(begin) == 1 and document.count(end) == 1, 'expected one pair of %s / %s markers' % (begin, end)
+    head, rest = document.split(begin)
+    inner, tail = rest.split(end)
+    return inner, head + tail
+
+
+def _Split_Diagram() -> tp.Tuple[str, str, str]:
+    """
+    Description:
+        The diagram split into its inline AnyScan logo, its inline JIC Smart Factory logo, and everything else.
+
+    Returns:
+        (1) parameter [Tuple<string> 1x3]: (the AnyScan logo, the JIC logo, the diagram without either).
+    """
+
+    logo, rest = _Split(_Read(CONST_DIAGRAM), CONST_LOGO_BEGIN, CONST_LOGO_END)
+    jic, rest = _Split(rest, CONST_JIC_BEGIN, CONST_JIC_END)
+    return logo, jic, rest
 
 
 def test_the_three_logo_copies_are_identical() -> None:
     """
     Description:
-        The topbar's asset is the source file byte for byte, and the diagram's inline copy is the
-        source's content unchanged. Rebuild with Example/UI/build_logo.py (it writes both files),
-        then regenerate the diagram.
+        The application's asset is the source file byte for byte, and the diagram's inline copy is the
+        source's content unchanged. Rebuild with Example/UI/build_logo.py (it copies the file), then
+        regenerate the diagram.
     """
 
     source = _Read(CONST_LOGO)
     assert _Read(CONST_LOGO_ASSET) == source, 'App/assets/anyscan-logo.svg differs from images/anyscan-logo.svg'
-    inline, _ = _Split_Diagram()
+    inline, _, _ = _Split_Diagram()
     assert inline.strip() == source.strip(), \
         'the logo inlined in images/anyscan-architecture.svg differs from images/anyscan-logo.svg'
-
-
-def _Module_Constants(path: str) -> tp.Dict[str, tp.Any]:
-    """
-    Description:
-        A script's module-level literal constants, read from its source without importing it (the font
-        builder imports fontTools at module load).
-
-    Args:
-        (1) path [string]: The script.
-
-    Returns:
-        (1) parameter [Dict]: Each module-level name assigned a literal, and its value.
-    """
-
-    constants = {}
-    for node in ast.parse(open(path, encoding='utf-8').read()).body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            try:
-                constants[node.targets[0].id] = ast.literal_eval(node.value)
-            except ValueError:
-                pass
-    return constants
-
-
-def test_the_logo_and_the_ui_fonts_pin_the_same_inter() -> None:
-    """
-    Description:
-        build_logo.py outlines the wordmark in the variable Inter that build_fonts.py instances the UI
-        fonts from, and each script pins it on its own (each runs alone, without the other's imports).
-        The two pins are one file: the same name, the same URL at the same google/fonts commit, the same
-        SHA-256, so bumping one without the other fails here rather than letting the logo and the UI
-        drift apart.
-    """
-
-    logo = _Module_Constants(CONST_BUILDER)
-    fonts = _Module_Constants(CONST_FONT_BUILDER)
-    remote, sha256 = fonts['CONST_SOURCES'][logo['CONST_FONT_NAME']]
-    assert logo['CONST_FONT_URL'] == fonts['CONST_GOOGLE_FONTS'] + remote
-    assert logo['CONST_FONT_SHA256'] == sha256
 
 
 def test_the_diagram_draws_only_theme_tokens() -> None:
     """
     Description:
-        Every colour the diagram draws, outside the inline logo, is a value of a Parameters/Theme.py
-        token, so the figure reads as the same product as the application. The logo keeps its own
-        palette (its magenta is not a theme token; docs/design-decisions.md); its CONST_LOGO_* tokens,
-        which the top bar's live text uses, do not count here, so the diagram cannot draw in them.
+        Every colour the diagram draws, outside the two inline logos (brand artwork in its own colour), is a
+        value of a Parameters/Theme.py token, so the figure reads as the same product as the application. The
+        CONST_LOGO_* token, which the top bar's live tagline uses, does not count here, so the diagram cannot draw
+        in it.
     """
 
     tokens = {value.lower() for name, value in vars(Theme).items() if name.startswith('CONST_')
               and not name.startswith('CONST_LOGO_') and isinstance(value, str) and CONST_HEX_COLOUR.fullmatch(value)}
-    _, drawing = _Split_Diagram()
+    _, _, drawing = _Split_Diagram()
     used = {colour.lower() for colour in CONST_HEX_COLOUR.findall(drawing)}
     assert used, 'the scan found no colours at all'
     assert sorted(used - tokens) == []
@@ -348,8 +317,8 @@ def test_the_diagram_is_self_contained_and_carries_every_logo() -> None:
     Description:
         The README shows the diagram through <img>, which fetches nothing: a linked file, an @import or
         a <link> would draw nothing, with no error. So every href and url() the generator writes is a
-        #fragment or a data: URI, and every logo is inside the file — the AnyScan logo inlined, the JIC
-        mark and each logo of the console's funding band as the asset's own bytes in a PNG data URI.
+        #fragment or a data: URI, and every logo is inside the file — the AnyScan logo and the JIC Smart Factory
+        logo inlined, and each logo of the console's funding band as the asset's own bytes in a PNG data URI.
     """
 
     diagram = _Generated()
@@ -358,6 +327,8 @@ def test_the_diagram_is_self_contained_and_carries_every_logo() -> None:
     assert [r for r in references if not r.startswith(('#', 'data:'))] == []
     assert '@import' not in diagram and '<link' not in diagram
     assert _Read(CONST_LOGO).strip() in diagram, 'the AnyScan logo is not inlined'
+    jic = re.sub(r'<\?xml[^>]*>\s*', '', _Read(CONST_JIC)).strip()
+    assert jic.split('<svg ', 1)[1] in diagram, 'the JIC Smart Factory logo is not inlined'
     for name in CONST_EMBEDDED_MARKS:
         with open(os.path.join(CONST_ASSETS, name), 'rb') as handle:
             uri = 'data:image/png;base64,' + base64.b64encode(handle.read()).decode('ascii')
@@ -373,116 +344,55 @@ def test_the_readme_shows_the_diagram() -> None:
     assert 'images/anyscan-architecture.svg' in _Read(CONST_README)
 
 
-def _Build(*arguments: str) -> subprocess.CompletedProcess:
+def test_the_derived_logo_files_rebuild_byte_identically(tmp_path) -> None:
     """
     Description:
-        Run Example/UI/build_logo.py with arguments.
-
-    Args:
-        (1) arguments [Vector<string>]: Its command-line arguments.
-
-    Returns:
-        (1) parameter [subprocess.CompletedProcess(object)]: The finished run.
+        build_logo.py, into an empty directory, writes the logo's copy, the wordmark and the mark byte for byte
+        as committed in App/assets/, and the icon: they are the builder's output from images/anyscan-logo.svg,
+        never a hand edit. The icon is rendered by Qt and is checked for existing, not byte for byte.
     """
 
-    return subprocess.run([sys.executable, CONST_BUILDER] + list(arguments), capture_output=True, text=True, timeout=600)
-
-
-def test_the_mark_rebuilds_byte_identically_from_the_logo(tmp_path) -> None:
-    """
-    Description:
-        build_logo.py --mark-only, into an empty directory, writes App/assets/anyscan-logo-mark.svg byte
-        for byte from the committed logo: the mark is the builder's output, never a hand edit.
-    """
-
-    run = _Build('--mark-only', '--output-dir', str(tmp_path))
+    run = subprocess.run([sys.executable, CONST_BUILDER, '--output-dir', str(tmp_path)], capture_output=True, text=True,
+                         timeout=600, env=dict(os.environ, QT_QPA_PLATFORM='offscreen'))
     assert run.returncode == 0, run.stdout + run.stderr
-    assert _Read(str(tmp_path / 'anyscan-logo-mark.svg')) == _Read(CONST_MARK), \
-        'App/assets/anyscan-logo-mark.svg is stale or hand-edited; run python Example/UI/build_logo.py --mark-only'
+    for committed in (CONST_LOGO_ASSET, CONST_WORDMARK, CONST_MARK):
+        assert _Read(str(tmp_path / os.path.basename(committed))) == _Read(committed), \
+            '%s is stale or hand-edited; run python Example/UI/build_logo.py' % os.path.relpath(committed, CONST_ROOT)
+    assert (tmp_path / 'anyscan-mark.ico').stat().st_size > 0
 
 
-@pytest.mark.slow
-@pytest.mark.skipif(sys.platform != 'darwin', reason=CONST_FULL_REBUILD_SKIP)
-def test_the_logo_and_the_mark_rebuild_byte_identically_from_the_source(tmp_path) -> None:
+def test_the_wordmark_and_the_mark_are_the_logos_own(qt_app) -> None:
     """
     Description:
-        build_logo.py, run whole into an empty directory (Inkscape outlines the text source, the mark is
-        derived from that), writes both the logo and the mark byte for byte as committed. Needs Inkscape on
-        PATH and the pinned variable Inter (from $ANYSCAN_LOGO_FONT, else downloaded), so it is `slow`; and
-        macOS, where the committed logo was built (CONST_FULL_REBUILD_SKIP). The mark alone is rebuilt on
-        every platform by test_the_mark_rebuilds_byte_identically_from_the_logo.
+        Rendered at one scale, the wordmark draws the logo's pixels everywhere except under the
+        wordmark, where the logo's tagline is and the wordmark draws nothing; and the mark draws exactly the logo's
+        first 140 x 140 units, at the logo's scale, but for its last column: the brackets end on the mark's edge,
+        where its own viewBox clips them to a whole pixel and the logo draws that pixel anti-aliased.
     """
 
-    if shutil.which('inkscape') is None:
-        pytest.fail('Inkscape is not on PATH; the full rebuild cannot run (build_logo.py pins Inkscape 1.2.2).')
-    font = os.environ.get(CONST_FONT_VARIABLE)
-    run = _Build('--output-dir', str(tmp_path), *(('--font', font) if font else ()))
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert _Read(str(tmp_path / 'anyscan-logo.svg')) == _Read(CONST_LOGO_ASSET), 'the rebuilt logo differs from App/assets/anyscan-logo.svg'
-    assert _Read(str(tmp_path / 'anyscan-logo-mark.svg')) == _Read(CONST_MARK), 'the rebuilt mark differs from App/assets/anyscan-logo-mark.svg'
+    # 5 px per logo unit: the logo's 609.8 units are a whole 3049 px, so it and the mark are drawn at one scale.
+    height = 700
+    logo = _Pixels(Style.Load_Svg('anyscan-logo.svg', height).toImage())
+    wordmark = _Pixels(Style.Load_Svg(Style.CONST_LOGO_WORDMARK_FILE, height).toImage())
+    assert logo.shape == wordmark.shape
+    box = QSvgRenderer(CONST_WORDMARK).viewBoxF()
+    left = int((CONST_TEXT_LEFT_UNITS - box.x()) * height / box.height())
+    split = int((CONST_LINE_SPLIT_UNITS - box.y()) * height / box.height())
+    assert np.array_equal(wordmark[:split], logo[:split]), 'the wordmark differs from the logo above its tagline'
+    assert np.array_equal(wordmark[:, :left], logo[:, :left]), 'the wordmark\'s mark differs from the logo\'s'
+    assert wordmark[split:, left:, 3].max() == 0, 'the wordmark draws where the logo\'s tagline is'
+    assert logo[split:, left:, 3].max() > 0
+    mark = _Pixels(Style.Load_Svg('anyscan-mark.svg', height).toImage())
+    assert np.array_equal(mark[:, :-1], logo[:, :mark.shape[1] - 1]), 'the mark differs from the logo\'s mark'
 
 
-def test_the_mark_is_the_logos_own(qt_app) -> None:
-    """
-    Description:
-        Rendered at the top bar's heights, the mark draws the logo's pixels exactly where the logo's mark
-        is, and nothing where the logo's text is: same viewBox, same image size, same mark.
-    """
-
-    for height in (Style.CONST_LOGO_HEIGHT, Style.CONST_LOGO_HEIGHT_LOW_DENSITY):
-        logo = _Pixels(Style.Load_Svg('anyscan-logo.svg', height).toImage())
-        mark = _Pixels(Style.Load_Svg(Style.CONST_LOGO_MARK_FILE, height).toImage())
-        assert logo.shape == mark.shape
-        box = QSvgRenderer(CONST_MARK).viewBoxF()
-        split = int((CONST_TEXT_LEFT_UNITS - box.x()) * logo.shape[0] / box.height())
-        assert np.array_equal(mark[:, :split], logo[:, :split]), 'the mark differs from the logo\'s mark at %d px' % height
-        assert mark[:, split:, 3].max() == 0, 'the mark draws right of the mark at %d px' % height
-        assert logo[:, split:, 3].max() > 0
-
-
-def _Source_Texts() -> tp.List[tp.Tuple[tp.Any, ...]]:
+def test_the_live_tagline_is_the_logos() -> None:
     """
     Description:
-        The logo's top-level texts as its text source sets them: pen origin, font size, weight, the
-        spans with their fills, and the pinned optical size.
-
-    Returns:
-        (1) parameter [Vector<Tuple>]: ((x, y), size, weight, ((text, fill), ...), opsz) for the wordmark and the
-                                       tagline.
+        The tagline the top bar sets as live text is the logo's own: its words are the ones the delivered logo
+        names in its accessible label, and its colour is the logo's fill.
     """
 
-    namespace = '{http://www.w3.org/2000/svg}'
-    texts = []
-    for text in ET.parse(CONST_TEXT_SOURCE).getroot().findall(namespace + 'text'):
-        spans = [(text.text or '', text.get('fill').lower())]
-        spans += [(tspan.text, tspan.get('fill', text.get('fill')).lower()) for tspan in text.findall(namespace + 'tspan')]
-        optical = re.search(r"'opsz' (\d+)", text.get('style', ''))
-        texts.append(((float(text.get('x')), float(text.get('y'))), float(text.get('font-size')), text.get('font-weight'),
-                      tuple(span for span in spans if span[0]), int(optical.group(1)) if optical else None))
-    return texts
-
-
-def test_the_live_text_is_the_logo_sources_text() -> None:
-    """
-    Description:
-        The lockup's live text (Style.CONST_LOGO_TEXT) is the text source's wordmark and tagline value for
-        value: each pen origin, font size and word, at weight 400, and each span's colour is the source's
-        fill, as the logo's tokens hold it. The outlined logo carries the same fills. A line set in the
-        display cut is one the source pins at the optical size build_fonts.py builds that cut at.
-    """
-
-    source = _Source_Texts()
-    assert [(origin, size, '400', spans) for origin, size, _, spans in Style.CONST_LOGO_TEXT] == [text[:4] for text in source]
-    fills = {colour for _, _, _, spans in Style.CONST_LOGO_TEXT for _, colour in spans}
-    assert fills == {Theme.CONST_LOGO_INK, Theme.CONST_LOGO_MAGENTA, Theme.CONST_LOGO_TAGLINE}
-    logo = _Read(CONST_LOGO).lower()
-    for colour in fills:
-        assert 'fill="%s"' % colour in logo, '%s is not a fill of the outlined logo' % colour
-    spec = importlib.util.spec_from_file_location('build_fonts', CONST_FONT_BUILDER)
-    builder = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(builder)
-    display = [fixed['opsz'] for family, _, fixed, _, _ in builder.CONST_FAMILIES if family == Style.CONST_FONT_DISPLAY]
-    assert display, 'build_fonts.py builds no %s' % Style.CONST_FONT_DISPLAY
-    for (_, _, is_display, _), (_, _, _, _, optical) in zip(Style.CONST_LOGO_TEXT, source):
-        if is_display:
-            assert optical == display[0], 'a display line is pinned at opsz %s in the source; the cut is built at %s' % (optical, display[0])
+    logo = _Read(CONST_LOGO)
+    assert re.search(r'aria-label="[^"]*%s"' % re.escape(Style.CONST_TAGLINE), logo), 'the logo does not name this tagline'
+    assert 'fill="%s"' % Theme.CONST_LOGO_INK.lower() in logo.lower(), '%s is not the logo\'s fill' % Theme.CONST_LOGO_INK

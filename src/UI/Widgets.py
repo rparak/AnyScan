@@ -325,7 +325,7 @@ class Viewport_Cls(QWidget):
         self.__timer.timeout.connect(self.__Tick)
         # An empty state is an instruction — it names the step available right now.
         self.__empty_text = 'Connect a camera, then press Scan to capture a frame.'
-        self.__mark = QPixmap(os.path.join(Style.CONST_ASSETS, 'anyscan-mark.png'))
+        self.__mark = Style.Load_Svg('anyscan-mark.svg', 256)
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMinimumHeight(320)
@@ -1307,53 +1307,32 @@ class Status_Strip_Cls(Card_Cls):
 class Logo_Lockup_Cls(QWidget):
     """
     Description:
-        The top bar's AnyScan lockup: the mark as an SVG pixmap (Style.CONST_LOGO_MARK_FILE, the logo
-        without its text, in the logo's own viewBox) and the wordmark and tagline as live text in the UI
-        font, Inter 400, at the text source's coordinates and sizes scaled to the lockup's height
-        (Style.CONST_LOGO_TEXT): the wordmark in the display cut (Style.CONST_FONT_DISPLAY), the optical
-        size the logo is outlined at, and the tagline in the text cut. Outlined text is a picture, and at DPR 1 its stems and baseline fall
-        between pixels where nothing can hint them; live text goes through the platform's rasteriser,
-        which hints it (docs/design-decisions.md, "The header's wordmark and tagline are live text").
-        One code path at every density: only the height, Style.Logo_Height, differs.
+        The top bar's AnyScan lockup: the delivered logo without its tagline as an SVG pixmap
+        (Style.CONST_LOGO_WORDMARK_FILE, in the logo's own viewBox), and the tagline as live text in the UI font,
+        Public Sans 400, where the logo outlines it and at its size (Style.CONST_LOGO_TAGLINE_ORIGIN,
+        Style.CONST_LOGO_TAGLINE_SIZE, scaled to the lockup's height), in the logo's colour. Outlined, the tagline is a
+        picture whose stems fall between pixels at DPR 1, where nothing can hint them; live text goes through the
+        platform's rasteriser, which hints it at 9 pt and above, the size Style.Logo_Height gives it on a
+        low-density display (docs/design-decisions.md, "The header draws the delivered logo and sets its tagline as
+        live text").
 
-        The sizes are logo geometry, converted to points through the widget's own logical DPI so the
-        pixel size is the logo's on any screen, and built with Style.Font like every UI font, so the
-        low-density type floor applies to them too.
+        The size is logo geometry, converted to points through the widget's own logical DPI so the pixel size
+        is the logo's on any screen, and built with Style.Font like every UI font.
     """
 
     def __init__(self, height: int, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         # << PRIVATE >> #
-        self.__mark = Style.Load_Svg(Style.CONST_LOGO_MARK_FILE, height)
-        # Each run: its font and, per span, the pen origin in widget pixels, the text and its colour.
-        self.__runs = []
-
-        box = QSvgRenderer(os.path.join(Style.CONST_ASSETS, Style.CONST_LOGO_MARK_FILE)).viewBoxF()
+        self.__wordmark = Style.Load_Svg(Style.CONST_LOGO_WORDMARK_FILE, height)
+        box = QSvgRenderer(os.path.join(Style.CONST_ASSETS, Style.CONST_LOGO_WORDMARK_FILE)).viewBoxF()
         scale = height / box.height()
-        right = self.__mark.width() / max(1.0, self.__mark.devicePixelRatio())
-        for (x, y), size, display, spans in Style.CONST_LOGO_TEXT:
-            font = Font(size * scale * 72.0 / self.logicalDpiY(), display=display)
-            text = ''.join(span for span, _ in spans)
-            # Qt 5 draws a face at a whole-pixel size (29.5 px draws at 30), which moves a line's width by up
-            # to half a pixel per em. The display line keeps the logo's width: the spacing takes the
-            # rounding up, so the run advances as far as it would at the requested size.
-            drawn = QFontInfo(font).pixelSize()
-            if display and drawn > 0:
-                requested = font.pointSizeF() * self.logicalDpiY() / 72.0
-                advance = QFontMetricsF(font).horizontalAdvance(text)
-                font.setLetterSpacing(QFont.AbsoluteSpacing, advance * (requested / drawn - 1.0) / len(text))
-            metrics = QFontMetricsF(font)
-            origin = QPointF((x - box.x()) * scale, (y - box.y()) * scale)
-            # A span starts where it starts inside the whole run as shaped (kerning across the colour
-            # change included): the run's advance less the advance of the text from the span onwards.
-            pens = []
-            for index, (span, colour) in enumerate(spans):
-                rest = ''.join(later for later, _ in spans[index:])
-                start = metrics.horizontalAdvance(text) - metrics.horizontalAdvance(rest)
-                pens.append((QPointF(origin.x() + start, origin.y()), span, colour))
-            self.__runs.append((font, pens))
-            right = max(right, origin.x() + metrics.tightBoundingRect(text).right() + Style.CONST_LOGO_MARGIN * scale)
+        self.__font = Font(Style.CONST_LOGO_TAGLINE_SIZE * scale * 72.0 / self.logicalDpiY())
+        x, y = Style.CONST_LOGO_TAGLINE_ORIGIN
+        self.__origin = QPointF((x - box.x()) * scale, (y - box.y()) * scale)
+        right = self.__origin.x() + QFontMetricsF(self.__font).tightBoundingRect(Style.CONST_TAGLINE).right() \
+            + Style.CONST_LOGO_MARGIN * scale
+        right = max(right, self.__wordmark.width() / max(1.0, self.__wordmark.devicePixelRatio()))
 
         self.setAccessibleName('AnyScan. %s' % Style.CONST_TAGLINE)
         self.setFixedSize(int(math.ceil(right)), height)
@@ -1361,18 +1340,16 @@ class Logo_Lockup_Cls(QWidget):
     def __Paint(self, painter: QPainter) -> None:
         """
         Description:
-            Draw the mark and every span of text with its own colour.
+            Draw the wordmark and the tagline.
 
         Args:
             (1) painter [QPainter(object)]: A painter on the widget or on a pixmap of its size.
         """
 
-        painter.drawPixmap(0, 0, self.__mark)
-        for font, pens in self.__runs:
-            painter.setFont(font)
-            for point, span, colour in pens:
-                painter.setPen(QColor(colour))
-                painter.drawText(point, span)
+        painter.drawPixmap(0, 0, self.__wordmark)
+        painter.setFont(self.__font)
+        painter.setPen(QColor(Style.CONST_LOGO_INK))
+        painter.drawText(self.__origin, Style.CONST_TAGLINE)
 
     def Render(self) -> QPixmap:
         """

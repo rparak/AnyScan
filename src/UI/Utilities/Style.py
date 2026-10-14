@@ -22,6 +22,7 @@
 ## =========================================================================== ##
 
 # System (Default)
+import math
 import os
 # Typing (Support for type hints)
 import typing as tp
@@ -48,7 +49,7 @@ from Parameters.Theme import (                                             # noq
     CONST_OK_SOFT, CONST_OK_BORDER, CONST_WARN, CONST_WARN_INK, CONST_WARN_SOFT, CONST_FAIL_INK, CONST_FAIL_SOFT,
     CONST_FAIL_BORDER,
     CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_ERROR_ON_DARK, CONST_BAND,
-    CONST_BAND_LINE, CONST_BAND_TEXT, CONST_LOGO_INK, CONST_LOGO_MAGENTA, CONST_LOGO_TAGLINE,
+    CONST_BAND_LINE, CONST_BAND_TEXT, CONST_LOGO_INK,
     CONST_LOG_WARNING, CONST_LOG_ERROR, Log_Level_Color, Status_Text_Color, Heatmap_Colors)
 
 """
@@ -70,21 +71,19 @@ CONST_RADIUS_CARD   = 18
 CONST_RADIUS_BTN    = 11
 CONST_GAP           = 16          # gap between cards, everywhere
 CONST_MARK_GAP      = 32          # gap between brand marks and either side of the divider between them
-CONST_LOGO_HEIGHT   = 54          # the top bar's AnyScan lockup height
+# The top bar's AnyScan lockup height on a high-density display. On a low-density one Logo_Height grows it until the
+# tagline is CONST_TYPE_FLOOR_LOW_DENSITY (docs/design-decisions.md, "The header draws the delivered logo and sets its
+# tagline as live text").
+#   Unit [int] (logical px)
+CONST_LOGO_HEIGHT   = 54
 # Below this device pixel ratio a display is low density (a 1x monitor): Is_Low_Density.
 #   Unit [float]
 CONST_LOW_DENSITY_DPR = 1.5
 # The smallest type on a low-density display: Font raises any smaller size to it there. At DPR 1 a
-# regular-weight 7.5-8.5 pt text (10-11 px) has 0.02-0.05 of its ink at full contrast in Inter; at 9 pt
+# regular-weight 7.5-8.5 pt text (10-11 px) had 0.02-0.05 of its ink at full contrast in Inter; at 9 pt
 # (12 px) 0.12-0.19. A 2x display draws those sizes with 15-17 device px per em and keeps them.
 #   Unit [float] (point size)
 CONST_TYPE_FLOOR_LOW_DENSITY = 9.0
-# The lockup height on a low-density display. At 54 px the corner brackets (4 units, 1.24 px) and the
-# connector (3 units, 0.93 px) never cover a whole pixel; at 59 px (0.339 px per unit) both land on one,
-# and the mark's full-contrast ink rises from 0.38 to 0.52 of its pixels. A 2x display already draws every
-# stroke over two device pixels or more, so it keeps CONST_LOGO_HEIGHT.
-#   Unit [int] (logical px)
-CONST_LOGO_HEIGHT_LOW_DENSITY = 59
 
 # Busy-indicator animation, driven by a QTimer in the viewport while the worker
 # runs. Kept here so the whole console's tunable values live in one place.
@@ -98,39 +97,37 @@ CONST_NO_VALUE      = '—'
 
 CONST_TAGLINE = 'The camera sees, the model describes.'
 
-# The top bar's lockup (Widgets.Logo_Lockup_Cls): the mark alone, which Example/UI/build_logo.py derives
-# from the outlined logo in the logo's own viewBox, and the logo's two lines of text as its text source
-# (images/source/anyscan-logo-text.svg) sets them, in logo units: the pen origin (x, baseline y), the
-# font size, whether the line is set in the display cut (CONST_FONT_DISPLAY), and the spans with their
-# colours. The lockup draws them as live text at those coordinates; test/UI/test_brand_figures.py holds
-# every value to the text source. The wordmark takes the display cut, the logo's own optical size, so
-# it keeps the logo's width; the tagline keeps the text cut, which is what Inter draws at 11-12 px.
-#   Unit [string] / [Tuple<Tuple<float> 1x2, float, bool, Tuple<Tuple<string, string>>>]
-CONST_LOGO_MARK_FILE = 'anyscan-logo-mark.svg'
-CONST_LOGO_TEXT = (((268.0, 132.0), 87.0, True, (('Any', CONST_LOGO_INK), ('Scan', CONST_LOGO_MAGENTA))),
-                   ((270.0, 184.0), 36.0, False, ((CONST_TAGLINE, CONST_LOGO_TAGLINE),)))
-# The empty space the lockup keeps right of its text's ink: the logo's own margin (build_logo.py's
-# CONST_MARGIN), so no anti-aliased edge is clipped. Ink_Insets takes it off the gap to the divider.
+# The top bar's lockup (Widgets.Logo_Lockup_Cls): the delivered logo without its tagline, which
+# Example/UI/build_logo.py derives in the logo's own viewBox, and the tagline set as live text where the logo outlines
+# it, in logo units: the pen origin (x, baseline y) and the font size. The outlined tagline's "T" starts at x 167.25,
+# its cap top is at y 110.25 and its baseline at 128.0, a cap height of 17.75; Public Sans draws a cap height of
+# 0.723 em (1446 of 2000 units) and starts its "T" 0.023 em right of the pen, so the size is 17.75 / 0.723 = 24.55
+# and the pen origin x 167.25 - 0.023 x 24.55 = 166.69. test/UI/test_header.py holds the live tagline to the outlined
+# one within 1 device px.
+#   Unit [string] / [Vector<float> 1x2] / [float] (logo units)
+CONST_LOGO_WORDMARK_FILE = 'anyscan-logo-wordmark.svg'
+CONST_LOGO_TAGLINE_ORIGIN = (166.69, 128.0)
+CONST_LOGO_TAGLINE_SIZE = 24.55
+# The logo's viewBox height, the unit the tagline's size is a share of.
+#   Unit [float] (logo units)
+CONST_LOGO_VIEWBOX_HEIGHT = 140.0
+# The empty space the lockup keeps right of the tagline's ink, near the logo's own (its ink ends 5.9 units inside
+# its viewBox), so no anti-aliased edge is clipped. Ink_Insets takes it off the gap to the divider.
 #   Unit [float] (logo units)
 CONST_LOGO_MARGIN = 5.0
 
 # The resolved UI/monospace font families. NOT CONST_*: Load_Fonts reassigns them
 # once at startup to the nearest available faces — they are resolved state, not
 # constants.
-FONT_UI = 'Inter'       # resolved in Load_Fonts
+FONT_UI = 'Public Sans'  # resolved in Load_Fonts
 FONT_MONO = 'Consolas'  # resolved in Load_Fonts
 
 # The faces Load_Fonts tries, in order: the design's face first, then the nearest system ones.
 # Also the font stacks of the architecture diagram (Example/UI/architecture_diagram.py), so the
 # figure falls back the way the application does.
 #   Unit [Tuple<string>]
-CONST_FONT_UI_CANDIDATES = ('Inter', 'Segoe UI Variable Display', 'Segoe UI', 'Helvetica Neue', 'Arial')
+CONST_FONT_UI_CANDIDATES = ('Public Sans', 'Segoe UI Variable Display', 'Segoe UI', 'Helvetica Neue', 'Arial')
 CONST_FONT_MONO_CANDIDATES = ('JetBrains Mono', 'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', 'Courier New')
-# Inter at the display optical size (opsz 32), bundled under its own family name, Regular only: the face
-# the header's wordmark is set in, as the logo outlines it (docs/design-decisions.md, "The header's
-# wordmark and tagline are live text"). Nothing else uses it; without the bundle Qt substitutes a face.
-#   Unit [string]
-CONST_FONT_DISPLAY = 'Inter Display'
 
 # The console's modular type scale (point sizes), smallest to largest. Every type token below
 # names a STEP in this scale rather than a literal, so a size change is 'move to the next step',
@@ -293,8 +290,12 @@ def Is_Low_Density(widget: tp.Optional[QWidget] = None) -> bool:
 def Logo_Height(widget: QWidget) -> int:
     """
     Description:
-        The top bar's lockup height for the display a widget is drawn on: CONST_LOGO_HEIGHT_LOW_DENSITY
-        on a low-density display (Is_Low_Density), CONST_LOGO_HEIGHT otherwise.
+        The top bar's lockup height for the display a widget is drawn on. On a high-density display it is
+        CONST_LOGO_HEIGHT. On a low-density one (Is_Low_Density) it is the smallest whole height at which the
+        logo's tagline (CONST_LOGO_TAGLINE_SIZE of the logo's 140 units) is CONST_TYPE_FLOOR_LOW_DENSITY in the
+        widget's logical DPI, so the tagline keeps the logo's proportions at the size where live text is hinted:
+        69 px at 96 dpi. At the logo's own 54 px the tagline is 7 pt, where neither its outlines nor live text are
+        sharp at DPR 1 (0.009 and 0.011 of its ink at full contrast; 0.18 at 9 pt).
 
     Args:
         (1) widget [QWidget(object)]: The widget the lockup is placed in.
@@ -303,7 +304,10 @@ def Logo_Height(widget: QWidget) -> int:
         (1) parameter [int]: The height in logical pixels.
     """
 
-    return CONST_LOGO_HEIGHT_LOW_DENSITY if Is_Low_Density(widget) else CONST_LOGO_HEIGHT
+    if not Is_Low_Density(widget):
+        return CONST_LOGO_HEIGHT
+    floor_px = CONST_TYPE_FLOOR_LOW_DENSITY * widget.logicalDpiY() / 72.0
+    return max(CONST_LOGO_HEIGHT, int(math.ceil(floor_px * CONST_LOGO_VIEWBOX_HEIGHT / CONST_LOGO_TAGLINE_SIZE)))
 
 
 def Scroll_Style(framed: bool) -> str:
@@ -335,7 +339,7 @@ def Scroll_Style(framed: bool) -> str:
 def Load_Fonts() -> None:
     """
     Description:
-        Register the bundled fonts and pick the faces. Inter and JetBrains Mono, what
+        Register the bundled fonts and pick the faces. Public Sans and JetBrains Mono, what
         the design is drawn in, ship in App/assets/fonts/ as static Regular, Medium,
         SemiBold and Bold files (built by Example/UI/build_fonts.py), so every weight
         the UI requests has its own face on every platform. The candidate lists are
@@ -366,33 +370,16 @@ def Load_Fonts() -> None:
 def App_Icon() -> QIcon:
     """
     Description:
-        The window, taskbar and Alt-Tab icon. Several explicit sizes are
-        registered rather than one large pixmap: Qt picks the nearest and scales,
-        and a 256px render squeezed into a 16px title-bar slot loses the shape.
+        The window, taskbar and Alt-Tab icon: anyscan-mark.ico, the mark on a white square at every size
+        from 16 to 256 px (Example/UI/build_logo.py renders each size), so Qt picks the nearest slot itself and
+        a 256 px render is never squeezed into a 16 px title-bar slot. Without the file the icon is empty.
 
     Returns:
         (1) parameter [QIcon(object)]: The multi-size application icon.
     """
 
-    # The .ico already carries every size (16…256) on the indigo brand ground, so
-    # Qt loads it whole and picks the nearest slot itself — no manual downscaling.
-    ico = os.path.join(CONST_ASSETS, 'anyscan-mark-white.ico')
-    if os.path.isfile(ico):
-        return QIcon(ico)
-
-    # Fallback: rasterize the nearest available mark into explicit sizes, so a
-    # 256px render is never squeezed straight into a 16px title-bar slot.
-    icon = QIcon()
-    for name in ('anyscan-mark.png',):
-        source = QPixmap(os.path.join(CONST_ASSETS, name))
-        if not source.isNull():
-            break
-    else:
-        return icon
-    for size in (16, 20, 24, 32, 48, 64, 128, 256):
-        icon.addPixmap(source.scaled(size, size, Qt.KeepAspectRatio,
-                                     Qt.SmoothTransformation))
-    return icon
+    ico = os.path.join(CONST_ASSETS, 'anyscan-mark.ico')
+    return QIcon(ico) if os.path.isfile(ico) else QIcon()
 
 
 def Load_Logo(name: str, height: int) -> QPixmap:
@@ -445,9 +432,10 @@ def Load_Svg(name: str, height: int) -> QPixmap:
     app = QApplication.instance()
     dpr = app.devicePixelRatio() if app else 1.0
     dpr = max(1.0, float(dpr))
-    # Preserve the SVG's own aspect ratio: width follows from the viewBox.
-    size = renderer.defaultSize()
-    ratio = size.width() / float(size.height()) if size.height() else 1.0
+    # Preserve the SVG's own aspect ratio: width follows from the viewBox, read as the real numbers it is.
+    # defaultSize() truncates to whole units (the logo's 609.8 to 609), which squeezed it by 0.13 %.
+    box = renderer.viewBoxF()
+    ratio = box.width() / box.height() if box.height() else 1.0
     px_h = int(round(height * dpr))
     px_w = int(round(px_h * ratio))
     image = QImage(px_w, px_h, QImage.Format_ARGB32_Premultiplied)
@@ -489,7 +477,7 @@ def Ink_Insets(pixmap: QPixmap) -> tp.Tuple[int, int]:
 
 
 def Font(size: float, weight: int = QFont.Normal, mono: bool = False,
-         tracking: float = 0.0, display: bool = False) -> QFont:
+         tracking: float = 0.0) -> QFont:
     """
     Description:
         Build a font. `tracking` is percentage letter spacing, as in the CSS. On a low-density display
@@ -501,7 +489,6 @@ def Font(size: float, weight: int = QFont.Normal, mono: bool = False,
         (2) weight [int]: QFont weight.
         (3) mono [bool]: Use the monospace family.
         (4) tracking [float]: Percentage letter spacing (0 = none).
-        (5) display [bool]: Use the display cut, CONST_FONT_DISPLAY (Regular only; the header's wordmark).
 
     Returns:
         (1) parameter [QFont(object)]: The configured font.
@@ -509,7 +496,7 @@ def Font(size: float, weight: int = QFont.Normal, mono: bool = False,
 
     if size < CONST_TYPE_FLOOR_LOW_DENSITY and Is_Low_Density():
         size = CONST_TYPE_FLOOR_LOW_DENSITY
-    font = QFont(CONST_FONT_DISPLAY if display else FONT_MONO if mono else FONT_UI)
+    font = QFont(FONT_MONO if mono else FONT_UI)
     font.setPointSizeF(size)
     font.setWeight(weight)
     if tracking:

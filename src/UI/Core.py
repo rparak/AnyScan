@@ -40,7 +40,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLay
 # Custom Lib.: AnyScan UI — style, widgets and workers
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
-from UI.Utilities.Style import (Font, Load_Logo, Rgb_To_Qimage, Bgr_To_Qimage,
+from UI.Utilities.Style import (Font, Rgb_To_Qimage, Bgr_To_Qimage,
                                 Hairline)
 #   ../UI/Widgets
 from UI.Widgets import (Card_Cls, Card_Head_Cls, Icon_Cls, Viewport_Cls, Tool_Button_Cls,
@@ -132,6 +132,11 @@ class AnyScan_Window_Cls(QMainWindow):
     # measured from ink to divider and from divider to ink: the funding band's gap around its divider.
     #   Unit [px]
     CONST_BRAND_GAP = Style.CONST_MARK_GAP
+    # The JIC Smart Factory logo right of the divider: the purple horizontal lockup (the grey one is for dark
+    # grounds, and the bar is white), at the height the JIC mark had, about half the AnyScan logo's as on the poster.
+    #   Unit [string] / [px]
+    CONST_JIC_LOGO_FILE = 'jic-smart-factory.svg'
+    CONST_JIC_LOGO_HEIGHT = 26
     # The status strip's value formats, used where each value is set and where its cell reserves its
     # width, and the largest number each numeric value reserves room for (a digit stands for any
     # digit: Stat_Cell_Cls.Reserve_Width). A value past its bound would widen its cell again.
@@ -446,14 +451,9 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             The top bar: the AnyScan brand lockup, the JIC mark, the camera pill and
-            the model pill. The lockup is Logo_Lockup_Cls: the logo's mark as an SVG and
-            its wordmark and tagline as live text, laid out as `anyscan-logo.svg` lays them
-            out. The "developed by JIC" attribution is no longer
-            set as words in the logo; the JIC mark itself carries it, divided off to
-            the right and tinted the muted violet #8983a6 (CONST_INK_MUTE until it was darkened for
-            text contrast; the mark is artwork, not text, and was not re-tinted) so it reads as quiet
-            attribution on the console's own palette. The lockup's height is Style.Logo_Height: 59 px
-            on a low-density display, 54 px otherwise.
+            the model pill. The lockup is Logo_Lockup_Cls: the delivered logo without its tagline as
+            an SVG, and the tagline as live text where `anyscan-logo.svg` outlines it, Style.Logo_Height
+            tall. The JIC Smart Factory logo, divided off to the right, carries the attribution.
 
         Returns:
             (1) parameter [QWidget(object)]: The top-bar widget.
@@ -476,7 +476,7 @@ class AnyScan_Window_Cls(QMainWindow):
 
         brand.addWidget(Hairline(vertical=True, length=34, color=Style.CONST_TOPBAR_DIVIDER))
 
-        jic_pixmap = Load_Logo('brand-jic-mute.png', 26)
+        jic_pixmap = Style.Load_Svg(self.CONST_JIC_LOGO_FILE, self.CONST_JIC_LOGO_HEIGHT)
         brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(jic_pixmap)[0]))
         jic = QLabel()
         jic.setPixmap(jic_pixmap)
