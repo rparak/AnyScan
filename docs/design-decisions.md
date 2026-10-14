@@ -3623,9 +3623,9 @@ rust-stained metal `#999298` (61), a stain `#786354` (44).
   ≤ 0.085 at once), so a "stronger" fail colour only trades one plate for the other: `#D03C1D` reached 1.9:1 on
   aluminium and lost the table (1.4:1) and the stains (1.2:1). An outline under the marks lifts them on bright metal;
   the owner chose none, by eye (*A judged part's features are marked on the frame*).
-- The OK purple is 1.3:1 against the table and the dark plate; it reads there by hue (ΔE 119 and 96). *Open
-  (2026-10-14):* the owner decides from 1:1 renders of Image_056 (the dark back) and Image_077 whether the frame's
-  marks need thicker lines or a lighter purple.
+- The OK purple is 1.3:1 against the table and the dark plate; it reads there by hue (ΔE 119 and 96). The owner
+  judged it acceptable as it is (2026-10-14), at the shipped weights, from 1:1 renders of Image_056 (the dark back)
+  and Image_077, over thicker lines or a lighter purple for the frame's marks.
 - Green was not chosen for OK although it does not vanish on the table (2.8:1, ΔE 60): its hue is 28° from the
   table's teal, against 119° for the periwinkle that was first proposed, and the poster marks a detection purple.
 - The four boxes are ≥ ΔE 44 apart; NOK and Warning are ΔE 27 under deuteranopia, where the words and the weights
