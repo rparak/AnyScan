@@ -303,47 +303,93 @@ def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_
     members = [__Members(candidates, group, width_mm, height_mm) for group in groups]
     features = []
     for group, holes in zip(groups, members):
-        tolerance = group.Tolerance_Mm
-        own = []
-        for hole in holes:
-            checks = [Check_Dimension('%s Ø' % group.Name, hole.Diameter_Mm, group.Diameter_Mm, tolerance)]
-            if group.From_Long_Edge_Mm:
-                long_edge, short_edge = __Edge_Distances(hole, width_mm, height_mm)
-                checks += [Check_Dimension("%s's distance from the long edge" % group.Name, long_edge,
-                                           group.From_Long_Edge_Mm, tolerance),
-                           Check_Dimension("%s's distance from the short edge" % group.Name, short_edge,
-                                           group.From_Short_Edge_Mm, tolerance)]
-            if group.Pitch_Mm:
-                for other in holes:
-                    pitch = math.hypot(hole.X_Mm - other.X_Mm, hole.Y_Mm - other.Y_Mm)
-                    if other is not hole and abs(pitch - group.Pitch_Mm) < CONST_HOLE_CAPTURE_TOLERANCES * tolerance:
-                        checks.append(Check_Dimension('%s pitch' % group.Name, pitch, group.Pitch_Mm, tolerance))
-            own.append(Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(hole.X_Mm, hole.Y_Mm, hole.Diameter_Mm),
-                                   Outlines=[hole.Outline], Passed=len(holes) <= group.Count and all(check.Within for check in checks),
-                                   Checks=checks, Score=hole.Score))
-        missing = max(0, group.Count - len(holes))
-        places = []
-        if missing and group.From_Long_Edge_Mm:
-            positions = __Positions(group, width_mm, height_mm)
-            gate = math.sqrt(2.0) * tolerance + CONST_HOLE_POSITION_MARGIN_MM
-            taken = [any(math.hypot(hole.X_Mm - x, hole.Y_Mm - y) <= gate for hole in holes) for x, y in positions]
-            if len(positions) == group.Count:
-                places = [position for position, held in zip(positions, taken) if not held]
-            elif holes:
-                fits = [subset for subset in itertools.combinations(range(len(positions)), group.Count)
-                        if all(i in subset for i, held in enumerate(taken) if held)]
-                if fits:
-                    best = min(fits, key=lambda subset: sum(
-                        abs(math.dist(positions[i], positions[j]) - (group.Pitch_Mm or 0.0))
-                        for i, j in itertools.combinations(subset, 2)))
-                    places = [positions[i] for i in best if not taken[i]]
-        elif missing:
-            centres = [(hole.X_Mm, hole.Y_Mm) for other, found in zip(groups, members) if other is not group
-                       for hole in found]
-            places = [centre for centre in centres
-                      if not any(math.hypot(hole.X_Mm - centre[0], hole.Y_Mm - centre[1]) < group.Diameter_Mm / 2.0
-                                 for hole in holes)][:missing]
-        own += [Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(x, y, group.Diameter_Mm),
-                            Outlines=[__Circle(x, y, group.Diameter_Mm)], Passed=False, Found=False) for x, y in places]
-        features += own
+        features += __Found_Holes(group, holes, width_mm, height_mm)
+        features += [Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(x, y, group.Diameter_Mm),
+                                 Outlines=[__Circle(x, y, group.Diameter_Mm)], Passed=False, Found=False)
+                     for x, y in __Missing_Places(group, holes, groups, members, width_mm, height_mm)]
     return features
+
+
+def __Found_Holes(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], width_mm: float,
+                  height_mm: float) -> tp.List[Feature_Str]:
+    """
+    Description:
+        A group's counted holes, each with its outline and checks: its diameter; its edge distances for a
+        positioned group; the pitch to each neighbour at about the group's pitch. A hole fails when one check
+        fails or when its group holds more holes than the part has.
+
+    Args:
+        (1) group [Catalogue_Hole_Group_Str(object)]: The group.
+        (2) holes [Vector<Hole_Str(object)>]: Its holes (__Members).
+        (3) width_mm [float]: The crop's width (the part's short side).
+        (4) height_mm [float]: The crop's height (the part's long side).
+
+    Returns:
+        (1) parameter [Vector<Feature_Str(object)>]: The holes, in the order given.
+    """
+
+    tolerance = group.Tolerance_Mm
+    found = []
+    for hole in holes:
+        checks = [Check_Dimension('%s Ø' % group.Name, hole.Diameter_Mm, group.Diameter_Mm, tolerance)]
+        if group.From_Long_Edge_Mm:
+            long_edge, short_edge = __Edge_Distances(hole, width_mm, height_mm)
+            checks += [Check_Dimension("%s's distance from the long edge" % group.Name, long_edge,
+                                       group.From_Long_Edge_Mm, tolerance),
+                       Check_Dimension("%s's distance from the short edge" % group.Name, short_edge,
+                                       group.From_Short_Edge_Mm, tolerance)]
+        if group.Pitch_Mm:
+            for other in holes:
+                pitch = math.hypot(hole.X_Mm - other.X_Mm, hole.Y_Mm - other.Y_Mm)
+                if other is not hole and abs(pitch - group.Pitch_Mm) < CONST_HOLE_CAPTURE_TOLERANCES * tolerance:
+                    checks.append(Check_Dimension('%s pitch' % group.Name, pitch, group.Pitch_Mm, tolerance))
+        found.append(Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(hole.X_Mm, hole.Y_Mm, hole.Diameter_Mm),
+                                 Outlines=[hole.Outline], Passed=len(holes) <= group.Count and all(check.Within for check in checks),
+                                 Checks=checks, Score=hole.Score))
+    return found
+
+
+def __Missing_Places(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str],
+                     members: tp.List[tp.List[Hole_Str]], width_mm: float, height_mm: float) -> tp.List[tp.Tuple[float, float]]:
+    """
+    Description:
+        Where a group's missing holes are expected (none when it found all it has). A positioned group's are
+        among its mirrored positions: all of them not holding a hole when it has as many holes, else those of
+        the set of its size that holds the holes found and best fits its pitch (none placed when it found none).
+        An unpositioned group's are the centres of other groups' holes it would surround (a countersink at its
+        through-hole), the first ones without one of its own.
+
+    Args:
+        (1) group [Catalogue_Hole_Group_Str(object)]: The group.
+        (2) holes [Vector<Hole_Str(object)>]: Its holes (__Members).
+        (3) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
+        (4) members [Vector<Vector<Hole_Str(object)>>]: Each group's holes, in groups' order.
+        (5) width_mm [float]: The crop's width (the part's short side).
+        (6) height_mm [float]: The crop's height (the part's long side).
+
+    Returns:
+        (1) parameter [Vector<Tuple<float> 1x2>]: The centres (x, y) in mm.
+    """
+
+    missing = max(0, group.Count - len(holes))
+    if not missing:
+        return []
+    if group.From_Long_Edge_Mm:
+        positions = __Positions(group, width_mm, height_mm)
+        gate = math.sqrt(2.0) * group.Tolerance_Mm + CONST_HOLE_POSITION_MARGIN_MM
+        taken = [any(math.hypot(hole.X_Mm - x, hole.Y_Mm - y) <= gate for hole in holes) for x, y in positions]
+        if len(positions) == group.Count:
+            return [position for position, held in zip(positions, taken) if not held]
+        if not holes:
+            return []
+        fits = [subset for subset in itertools.combinations(range(len(positions)), group.Count)
+                if all(i in subset for i, held in enumerate(taken) if held)]
+        if not fits:
+            return []
+        best = min(fits, key=lambda subset: sum(abs(math.dist(positions[i], positions[j]) - (group.Pitch_Mm or 0.0))
+                                                for i, j in itertools.combinations(subset, 2)))
+        return [positions[i] for i in best if not taken[i]]
+    centres = [(hole.X_Mm, hole.Y_Mm) for other, found in zip(groups, members) if other is not group for hole in found]
+    return [centre for centre in centres
+            if not any(math.hypot(hole.X_Mm - centre[0], hole.Y_Mm - centre[1]) < group.Diameter_Mm / 2.0
+                       for hole in holes)][:missing]
