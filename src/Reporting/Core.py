@@ -159,36 +159,6 @@ CONST_GUARD_CLAIMS = {
 CONST_GUARD_NEGATION = r"\b(no|not|without|free of|free from|clean of|none)\b|n't\b"
 
 
-def Zone(bbox: tp.Tuple[int, int, int, int], size: tp.Tuple[int, int]) -> str:
-    """
-    Description:
-        A coarse nine-cell position, the way a person would describe it.
-
-        Note:
-            Currently unused: object lines were changed to say what a part is, not
-            where it is (the number on the coloured box carries position). Kept for
-            the day a position phrase is wanted back — re-add it in Object_Description.
-
-    Args:
-        (1) bbox [Vector<int> 1x4]: The box as (x, y, w, h) in frame pixels.
-        (2) size [Vector<int> 1x2]: The frame size as (width, height).
-
-    Returns:
-        (1) parameter [string]: A phrase naming the region of the frame.
-    """
-
-    width, height = size
-    cx = (bbox[0] + bbox[2] / 2) / max(width, 1)
-    cy = (bbox[1] + bbox[3] / 2) / max(height, 1)
-    row = 'upper' if cy < 0.34 else ('lower' if cy > 0.66 else 'middle')
-    col = 'left' if cx < 0.34 else ('right' if cx > 0.66 else 'centre')
-    if row == 'middle' and col == 'centre':
-        return 'the centre of the frame'
-    if col == 'centre':
-        return 'the %s centre of the frame' % row
-    return 'the %s %s of the frame' % (row, col)
-
-
 def Clean_Detail(text: str) -> str:
     """
     Description:
