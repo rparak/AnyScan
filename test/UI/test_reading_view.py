@@ -235,6 +235,8 @@ def test_object_blocks_are_single_colour_two_level(qt_app, reference_background_
                                        Verdict='2 found', Verdict_Level='ok', Task='caption'))
 
     layout = _Private(window, '__object_list').box
+    # One block per object, so the loop below cannot pass by running zero times.
+    assert layout.count() == len(objects)
     for i in range(layout.count()):
         name, confidence, description = _Label_Line_Widgets(layout.itemAt(i).widget())
         # All three lines are the one panel colour, and none carries a per-object colour.

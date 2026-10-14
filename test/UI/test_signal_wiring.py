@@ -279,10 +279,17 @@ def test_clicking_a_view_segment_switches_the_central_page(qt_app, reference_bac
     window = _Shown_Window(reference_background_path, _Loaded_Vision_Cls())
     switch = _Window_Private(window, '__view_switch')
     stack = _Window_Private(window, '__stack')
+    # The page each segment must show is the window's own view widget, not an index from the table the
+    # click handler reads (the test would then pin the table against itself). Live is the page that is
+    # none of the other three.
+    views = {key: _Window_Private(window, '__%s_view' % key) for key in ('trends', 'history', 'log')}
 
     for key in ('trends', 'history', 'log', 'live'):
         _Click(_Segment(switch, key))
-        assert stack.currentIndex() == AnyScan_Window_Cls.CONST_VIEW_INDEX[key], key
+        if key == 'live':
+            assert stack.currentWidget() not in views.values(), key
+        else:
+            assert stack.currentWidget() is views[key], key
     window.close()
 
 

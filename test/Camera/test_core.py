@@ -90,7 +90,9 @@ def test_capture_before_connect_raises(reference_background_path) -> None:
         Capturing before Connect is refused with a Camera_Error_Cls.
     """
 
-    with pytest.raises(Camera_Error_Cls):
+    # The message pins the not-connected guard: a File_Camera_Cls with no frame loaded raises its own
+    # Camera_Error_Cls further on, which would otherwise satisfy this test without the guard.
+    with pytest.raises(Camera_Error_Cls, match='not connected'):
         File_Camera_Cls(reference_background_path).Capture()
 
 
