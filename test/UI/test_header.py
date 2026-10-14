@@ -218,7 +218,7 @@ def test_the_brand_marks_are_spaced_by_the_brand_gap_from_ink(qt_app, width) -> 
 
     window = _Shown_Window(qt_app, width)
     logo = window.findChild(Logo_Lockup_Cls)
-    jic = [label for label in window.findChildren(QLabel) if label.pixmap() is not None and not label.pixmap().isNull()][0]
+    jic = window.findChild(QWidget, 'jicLogo')
     bar = logo.parentWidget()
     divider = [w for w in bar.findChildren(QWidget) if w.objectName() == 'hairline' and w.parentWidget() is bar][0]
 
@@ -301,14 +301,12 @@ def test_the_jic_logo_keeps_its_share_of_the_lockup(qt_app) -> None:
     Description:
         The JIC Smart Factory logo is CONST_JIC_SHARE of the AnyScan lockup's height at this run's density: 26 px
         beside the 54 px lockup, and scaled with it where a low-density display grows the lockup (72 px offscreen),
-        so the pair keeps its proportions. Read from the shown header's JIC pixmap, in logical pixels.
+        so the pair keeps its proportions. Read from the shown header's JIC logo widget, in logical pixels.
     """
 
     window, logo, _ = _Shown_Logo(qt_app)
-    jic = [label for label in window.findChildren(QLabel) if label.pixmap() is not None and not label.pixmap().isNull()][0]
-    pixmap = jic.pixmap()
-    height = pixmap.height() / pixmap.devicePixelRatio()
-    assert abs(height - CONST_JIC_SHARE * logo.height()) <= 0.5, (height, logo.height())
+    jic = window.findChild(QWidget, 'jicLogo')
+    assert abs(jic.height() - CONST_JIC_SHARE * logo.height()) <= 0.5, (jic.height(), logo.height())
     window.close()
 
 

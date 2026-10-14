@@ -322,7 +322,7 @@ class Viewport_Cls(QWidget):
         self.__timer.timeout.connect(self.__Tick)
         # An empty state is an instruction — it names the step available right now.
         self.__empty_text = 'Connect a camera, then press Scan to capture a frame.'
-        self.__mark = Style.Load_Svg('anyscan-mark.svg', 256)
+        self.__mark = QSvgRenderer(os.path.join(Style.CONST_ASSETS, 'anyscan-mark.svg'))
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMinimumHeight(320)
@@ -677,17 +677,12 @@ class Viewport_Cls(QWidget):
         """
 
         cy = self.height() // 2
-        if not self.__mark.isNull():
+        if self.__mark.isValid():
+            # The mark is rendered as vectors at its drawn size, never scaled from a raster (which blurred it).
             size = min(210, int(self.width() * 0.44))
-            dpr = max(1.0, float(self.devicePixelRatioF()))
-            scaled = self.__mark.scaled(int(size * dpr), int(size * dpr),
-                                        Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            scaled.setDevicePixelRatio(dpr)
-            draw_w = int(scaled.width() / dpr)
-            draw_h = int(scaled.height() / dpr)
             p.setOpacity(0.92)
-            p.drawPixmap((self.width() - draw_w) // 2, cy - draw_h // 2 - 20, scaled)
-            text_top = cy + draw_h // 2 - 8
+            self.__mark.render(p, QRectF((self.width() - size) // 2, cy - size // 2 - 20, size, size))
+            text_top = cy + size // 2 - 8
         else:
             text_top = cy
         p.setPen(QColor(Style.CONST_VIEWPORT_TEXT))
@@ -1296,11 +1291,91 @@ class Status_Strip_Cls(Card_Cls):
         self.system.Set_Value(Style.CONST_NO_VALUE, Style.CONST_INK_MUTE, Style.CONST_INK_MUTE)
 
 
+def Paint_To_Pixmap(widget: QWidget, paint: tp.Callable[[QPainter], None]) -> QPixmap:
+    """
+    Description:
+        What a widget paints, on a transparent pixmap of its size at its device pixel ratio (the application's before
+        its window is shown): for measuring a mark's ink (Style.Ink_Insets), never for drawing it.
+
+    Args:
+        (1) widget [QWidget(object)]: The widget.
+        (2) paint [function]: Paints the widget's content with a given painter.
+
+    Returns:
+        (1) parameter [QPixmap(object)]: The render, tagged with its devicePixelRatio.
+    """
+
+    ratio = max(1.0, float(widget.devicePixelRatioF()))
+    pixmap = QPixmap(int(round(widget.width() * ratio)), int(round(widget.height() * ratio)))
+    pixmap.setDevicePixelRatio(ratio)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    paint(painter)
+    painter.end()
+    return pixmap
+
+
+class Svg_Image_Cls(QWidget):
+    """
+    Description:
+        An SVG asset at a height, its width the viewBox's aspect, rendered as vectors by a QSvgRenderer whenever the
+        widget paints: it lands on the device pixels it is drawn on at any device pixel ratio, and is never a raster
+        scaled to fit (docs/design-decisions.md, "Logos are rendered as vectors at paint time").
+    """
+
+    def __init__(self, name: str, height: int, parent: tp.Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setObjectName('svgImage')
+
+        # << PRIVATE >> #
+        self.__renderer = QSvgRenderer(os.path.join(Style.CONST_ASSETS, name))
+        box = self.__renderer.viewBoxF()
+        self.__rect = QRectF(0.0, 0.0, height * box.width() / box.height() if box.height() else 0.0, float(height))
+        self.setFixedSize(int(math.ceil(self.__rect.width())), height)
+
+    def __Paint(self, painter: QPainter) -> None:
+        """
+        Description:
+            Render the SVG into the widget's rectangle.
+
+        Args:
+            (1) painter [QPainter(object)]: A painter on the widget or on a pixmap of its size.
+        """
+
+        self.__renderer.render(painter, self.__rect)
+
+    def Render(self) -> QPixmap:
+        """
+        Description:
+            The image on a transparent pixmap, for measuring its ink (Style.Ink_Insets); never drawn.
+
+        Returns:
+            (1) parameter [QPixmap(object)]: The render, tagged with its devicePixelRatio.
+        """
+
+        return Paint_To_Pixmap(self, self.__Paint)
+
+    # << QT OVERRIDE >> #
+    def paintEvent(self, event: QPaintEvent) -> None:
+        """
+        Description:
+            Paint the SVG.
+
+        Args:
+            (1) event [QPaintEvent(object)]: The paint event (unused; the whole image is painted).
+        """
+
+        painter = QPainter(self)
+        self.__Paint(painter)
+        painter.end()
+
+
 class Logo_Lockup_Cls(QWidget):
     """
     Description:
-        The top bar's AnyScan lockup: the delivered logo without its tagline as an SVG pixmap
-        (Style.CONST_LOGO_WORDMARK_FILE, in the logo's own viewBox), and the tagline as live text in the UI font,
+        The top bar's AnyScan lockup: the delivered logo without its tagline (Style.CONST_LOGO_WORDMARK_FILE, in the
+        logo's own viewBox), rendered as vectors by a QSvgRenderer whenever the widget paints, so it lands on the
+        device pixels it is drawn on at any device pixel ratio and is never a scaled raster, and the tagline as live text in the UI font,
         Public Sans 400, where the logo outlines it and at its size (Style.CONST_LOGO_TAGLINE_ORIGIN,
         Style.CONST_LOGO_TAGLINE_SIZE, scaled to the lockup's height), in the logo's colour. Outlined, the tagline is a
         picture whose stems fall between pixels at DPR 1, where nothing can hint them; live text goes through the
@@ -1316,15 +1391,16 @@ class Logo_Lockup_Cls(QWidget):
         super().__init__(parent)
 
         # << PRIVATE >> #
-        self.__wordmark = Style.Load_Svg(Style.CONST_LOGO_WORDMARK_FILE, height)
-        box = QSvgRenderer(os.path.join(Style.CONST_ASSETS, Style.CONST_LOGO_WORDMARK_FILE)).viewBoxF()
+        self.__wordmark = QSvgRenderer(os.path.join(Style.CONST_ASSETS, Style.CONST_LOGO_WORDMARK_FILE))
+        box = self.__wordmark.viewBoxF()
         scale = height / box.height()
+        self.__wordmark_rect = QRectF(0.0, 0.0, box.width() * scale, float(height))
         self.__font = Font(Style.CONST_LOGO_TAGLINE_SIZE * scale * 72.0 / self.logicalDpiY())
         x, y = Style.CONST_LOGO_TAGLINE_ORIGIN
         self.__origin = QPointF((x - box.x()) * scale, (y - box.y()) * scale)
         right = self.__origin.x() + QFontMetricsF(self.__font).tightBoundingRect(Style.CONST_TAGLINE).right() \
             + Style.CONST_LOGO_MARGIN * scale
-        right = max(right, self.__wordmark.width() / max(1.0, self.__wordmark.devicePixelRatio()))
+        right = max(right, self.__wordmark_rect.width())
 
         self.setAccessibleName('AnyScan. %s' % Style.CONST_TAGLINE)
         self.setFixedSize(int(math.ceil(right)), height)
@@ -1338,7 +1414,7 @@ class Logo_Lockup_Cls(QWidget):
             (1) painter [QPainter(object)]: A painter on the widget or on a pixmap of its size.
         """
 
-        painter.drawPixmap(0, 0, self.__wordmark)
+        self.__wordmark.render(painter, self.__wordmark_rect)
         painter.setFont(self.__font)
         painter.setPen(QColor(Style.CONST_LOGO_INK))
         painter.drawText(self.__origin, Style.CONST_TAGLINE)
@@ -1346,22 +1422,14 @@ class Logo_Lockup_Cls(QWidget):
     def Render(self) -> QPixmap:
         """
         Description:
-            The lockup on a transparent pixmap at the application's device pixel ratio, for measuring
-            its ink (Style.Ink_Insets) before the window is shown. The widget itself paints on the bar.
+            The lockup on a transparent pixmap at the widget's device pixel ratio, for measuring its ink
+            (Style.Ink_Insets) before the window is shown. It is never drawn: the widget paints the vectors itself.
 
         Returns:
             (1) parameter [QPixmap(object)]: The render, tagged with its devicePixelRatio.
         """
 
-        app = QApplication.instance()
-        ratio = max(1.0, float(app.devicePixelRatio() if app else 1.0))
-        pixmap = QPixmap(int(round(self.width() * ratio)), int(round(self.height() * ratio)))
-        pixmap.setDevicePixelRatio(ratio)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        self.__Paint(painter)
-        painter.end()
-        return pixmap
+        return Paint_To_Pixmap(self, self.__Paint)
 
     # << QT OVERRIDE >> #
     def paintEvent(self, event: QPaintEvent) -> None:

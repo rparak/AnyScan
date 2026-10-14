@@ -45,7 +45,7 @@ from UI.Utilities.Style import (Font, Rgb_To_Qimage, Bgr_To_Qimage,
 #   ../UI/Widgets
 from UI.Widgets import (Card_Cls, Card_Head_Cls, Icon_Cls, Viewport_Cls, Tool_Button_Cls,
                         View_Toggle_Cls, Segmented_Control_Cls, Object_List_Cls,
-                        Status_Strip_Cls, Funding_Row_Cls, Logo_Lockup_Cls, Meta_Row)
+                        Status_Strip_Cls, Funding_Row_Cls, Logo_Lockup_Cls, Svg_Image_Cls, Meta_Row)
 #   ../UI/Views/History
 from UI.Views.History import History_View_Cls
 from UI.Views.Trends import Trends_View_Cls
@@ -479,11 +479,10 @@ class AnyScan_Window_Cls(QMainWindow):
 
         brand.addWidget(Hairline(vertical=True, length=34, color=Style.CONST_TOPBAR_DIVIDER))
 
-        jic_pixmap = Style.Load_Svg(self.CONST_JIC_LOGO_FILE,
-                                    int(round(self.CONST_JIC_LOGO_HEIGHT * lockup_height / Style.CONST_LOGO_HEIGHT)))
-        brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(jic_pixmap)[0]))
-        jic = QLabel()
-        jic.setPixmap(jic_pixmap)
+        jic = Svg_Image_Cls(self.CONST_JIC_LOGO_FILE,
+                            int(round(self.CONST_JIC_LOGO_HEIGHT * lockup_height / Style.CONST_LOGO_HEIGHT)))
+        jic.setObjectName('jicLogo')
+        brand.addSpacing(max(0, self.CONST_BRAND_GAP - Style.Ink_Insets(jic.Render())[0]))
         brand.addWidget(jic)
         row.addLayout(brand)
 

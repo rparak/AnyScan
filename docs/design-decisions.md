@@ -3663,3 +3663,32 @@ band was to follow with the colour emblem. On the station's screen the owner cho
 they are the window's only raster logos, drawn scaled down 8–26 times from their PNGs.
 Tests `test/UI/test_funding_band.py::test_the_band_carries_the_three_logos_and_the_disclaimer_in_white`,
 `test/UI/test_brand_figures.py::test_the_diagram_is_self_contained_and_carries_every_logo`.
+
+## Logos are rendered as vectors at paint time
+
+Every SVG logo the window shows is rendered by a `QSvgRenderer` into the widget's painter whenever it paints: the
+AnyScan lockup's mark and wordmark (`Widgets.Logo_Lockup_Cls`), the JIC Smart Factory logo (`Widgets.Svg_Image_Cls`)
+and the mark in the empty Camera View (`Viewport_Cls`). The vectors land on the device pixels they are drawn on, at
+any device pixel ratio, and no logo is a pixmap scaled to fit. A pixmap of a logo is rendered only to measure its ink
+(`Style.Ink_Insets`), never drawn. The funding band's three logos exist only as PNG and stay pixmaps.
+
+**Why.** On the station's 1x display the logos looked blurred. Measured offscreen (the share of a logo's ink pixels at
+full contrast, as the window draws it, against the same SVG rendered directly at the drawn device size):
+
+| Logo | DPR 1 before → after (direct) | DPR 2 before → after (direct) |
+|---|---|---|
+| AnyScan mark and wordmark | 0.697 → 0.699 (0.699), up to 76 levels apart → identical | 0.808 → 0.805 (0.805), 80 → identical |
+| JIC Smart Factory | 0.628 → 0.625 (0.625), 229 → identical | 0.729 → 0.729 (0.729), 102 → identical |
+| Camera View mark | **0.818 → 0.894** (0.894), 70 → identical | **0.896 → 0.990** (0.990), 71 → identical |
+
+The Camera View's mark was the real blur: a 256 px raster scaled down to about 210 px. The header logos were rendered
+into pixmaps at the application's ratio and rounded to whole-pixel widths, which stretched them slightly (hence the
+pixel differences); where the application's ratio differs from the window's screen, Qt then scales such a pixmap when
+drawing it, which offscreen could not reproduce. Rendering at paint time removes both. What remains at 1x is the
+logos' own geometry: their edges fall between pixels at these sizes (the AnyScan mark and wordmark 0.70, the JIC logo
+0.63 of their ink at full contrast); a size that lands more edges on whole pixels is the lever if that is still too
+soft on the station.
+
+**Revisit if** a logo is added (render it through `Svg_Image_Cls`), or the band's logos become available as SVG.
+Tests `test/UI/test_logo_rendering.py` (each SVG logo against a direct render, at DPR 1 and again at DPR 2; the
+previous pixmap code fails every one), `test/UI/test_header.py`.

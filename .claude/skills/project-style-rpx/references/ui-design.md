@@ -109,6 +109,9 @@ practices followed inconsistently are under **Unsettled**.
   text*).
 - ✅ `test/UI/test_header.py` holds the live lockup's offsets to the outlined logo's within 1 device px at
   both densities; `test/UI/test_brand_figures.py` holds the derived files to the logo.
+- An SVG logo is rendered as vectors at paint time (`QSvgRenderer` into the widget's painter, `Widgets.Svg_Image_Cls`
+  for a plain one), never drawn from a pixmap, scaled or not (DD *Logos are rendered as vectors at paint time*).
+- ✅ `test/UI/test_logo_rendering.py` compares each drawn logo with a direct render at DPR 1 and DPR 2.
 
 ## Content type comes from the scale; one content, one size ✅ (content) 📄 (chrome)
 
