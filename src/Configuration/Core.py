@@ -963,7 +963,32 @@ def __Read_Calibration(path: str, station_path: str, hardware: str, resolution: 
         problems.append('%s: Calibration is required but missing' % name)
         return calibration, None, None
 
-    # The window the calibration was solved at, against the camera's.
+    __Check_Calibration_Window(block, name, named_by, resolution, offset, calibration, problems)
+    __Read_K(block, name, calibration, problems)
+    __Read_Coefficients(block, name, calibration, problems)
+    scale = __Read_Conversion_Factor(block, name, calibration, problems, notes)
+    return calibration, scale, board_height if scale is not None else None
+
+
+def __Check_Calibration_Window(block: tp.Dict[str, tp.Any], name: str, named_by: str,
+                               resolution: tp.Optional[tp.Tuple[int, int]], offset: tp.Optional[tp.Tuple[int, int]],
+                               calibration: Camera_Calibration_Parameters_Str, problems: tp.List[str]) -> None:
+    """
+    Description:
+        The sensor window a calibration was solved at, against the camera's: a file that records none cannot be
+        checked and is refused, and one solved at another window is refused, naming both. The window read is
+        stored in the calibration parameters.
+
+    Args:
+        (1) block [Dict]: The file's Calibration block.
+        (2) name [string]: The file's name, for the messages.
+        (3) named_by [string]: The file and the station that names it, for the messages.
+        (4 - 5) resolution, offset [Vector<int> 1x2 or None]: The camera's sensor window from the station
+                                                            file (None when invalid there).
+        (6) calibration [Camera_Calibration_Parameters_Str(object)]: The parameters being read, filled.
+        (7) problems [Vector<string>]: The problem list, appended to.
+    """
+
     if 'Resolution' not in block and 'Offset' not in block:
         camera = __Describe_Window(resolution, offset) if resolution and offset else 'the configured window'
         problems.append('%s does not record the sensor window it was solved at, so it cannot be checked '
@@ -983,12 +1008,41 @@ def __Read_Calibration(path: str, station_path: str, hardware: str, resolution: 
                             % (named_by, __Describe_Window(solved_at, solved_offset),
                                __Describe_Window(resolution, offset)))
 
+
+def __Read_K(block: tp.Dict[str, tp.Any], name: str, calibration: Camera_Calibration_Parameters_Str,
+             problems: tp.List[str]) -> None:
+    """
+    Description:
+        The calibration's camera matrix K, REQUIRED: a 3 x 3 matrix of finite numbers, stored in the parameters.
+
+    Args:
+        (1) block [Dict]: The file's Calibration block.
+        (2) name [string]: The file's name, for the messages.
+        (3) calibration [Camera_Calibration_Parameters_Str(object)]: The parameters being read, filled.
+        (4) problems [Vector<string>]: The problem list, appended to.
+    """
+
     try:
         K = np.array(block.get('K'), dtype=np.float64)
         assert K.shape == (3, 3) and np.all(np.isfinite(K))
         calibration.K = K
     except (TypeError, ValueError, AssertionError):
         problems.append('%s: Calibration.K is required and must be a 3 x 3 matrix of numbers' % name)
+
+
+def __Read_Coefficients(block: tp.Dict[str, tp.Any], name: str, calibration: Camera_Calibration_Parameters_Str,
+                        problems: tp.List[str]) -> None:
+    """
+    Description:
+        The calibration's five distortion coefficients (CONST_COEFFICIENT_KEYS), each REQUIRED and a finite
+        number, stored in the parameters.
+
+    Args:
+        (1) block [Dict]: The file's Calibration block.
+        (2) name [string]: The file's name, for the messages.
+        (3) calibration [Camera_Calibration_Parameters_Str(object)]: The parameters being read, filled.
+        (4) problems [Vector<string>]: The problem list, appended to.
+    """
 
     coefficients = block.get('Coefficients')
     missing = [key for key in CONST_COEFFICIENT_KEYS
@@ -1003,20 +1057,39 @@ def __Read_Calibration(path: str, station_path: str, hardware: str, resolution: 
         except (TypeError, ValueError, AssertionError):
             problems.append('%s: Calibration.Coefficients must all be numbers' % name)
 
+
+def __Read_Conversion_Factor(block: tp.Dict[str, tp.Any], name: str, calibration: Camera_Calibration_Parameters_Str,
+                             problems: tp.List[str], notes: tp.List[tp.Tuple[str, str]]) -> tp.Optional[Scale_Str]:
+    """
+    Description:
+        The calibration's Conversion_Factor, optional: absent, objects are not measured, and a note says so;
+        present, it must hold a positive x and y, stored in the parameters.
+
+    Args:
+        (1) block [Dict]: The file's Calibration block.
+        (2) name [string]: The file's name, for the messages.
+        (3) calibration [Camera_Calibration_Parameters_Str(object)]: The parameters being read, filled.
+        (4) problems [Vector<string>]: The problem list, appended to.
+        (5) notes [Vector<Tuple<string> 1x2>]: The (level, message) notes, appended to.
+
+    Returns:
+        (1) parameter [Scale_Str(object) or None]: The scale, or None when there is none or it is invalid.
+    """
+
     factor = block.get('Conversion_Factor')
     if factor is None:
         notes.append(('WARNING', '%s has no Calibration.Conversion_Factor; objects will not be '
                                  'measured.' % name))
-        return calibration, None, None
+        return None
     try:
         x, y = float(factor['x']), float(factor['y'])
         assert all(math.isfinite(v) and v > 0.0 for v in (x, y))
     except (TypeError, KeyError, ValueError, AssertionError):
         problems.append('%s: Calibration.Conversion_Factor must hold a positive x and y [%s]'
                         % (name, CONST_SCALE_UNITS))
-        return calibration, None, None
+        return None
     calibration.Conversion_Factor = {'x': x, 'y': y}
-    return calibration, Scale_Str(Mm_Per_Px_X=x, Mm_Per_Px_Y=y), board_height
+    return Scale_Str(Mm_Per_Px_X=x, Mm_Per_Px_Y=y)
 
 
 def Scale_At_Height(scale: Scale_Str, K: tp.Any, plane_mm: float, height_mm: float) -> Scale_Str:
