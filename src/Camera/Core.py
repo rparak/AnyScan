@@ -113,9 +113,6 @@ class Camera_Backend_Cls(object):
         # Basler.py avoids by not importing Core), so it emits (level, message) events
         # through this injected callback instead — default None (nothing wired).
         self._log_cb = None
-        # The number of grab retries the last Capture needed (a dropped-frame count), for
-        # the UI to report as one line rather than the driver streaming per-attempt.
-        self._last_capture_retries = 0
         # The last captured frame BEFORE undistortion (RGB) and the undistortion that turned it
         # into the delivered frame — None for a backend that does not undistort (a saved frame
         # is delivered as it is). Kept so a capture set can store the lens-distorted original,
@@ -193,19 +190,6 @@ class Camera_Backend_Cls(object):
         """
 
         return None
-
-    @property
-    def Last_Capture_Retries(self) -> int:
-        """
-        Description:
-            The number of grab retries the most recent Capture needed — a dropped-frame
-            count the UI logs as one WARNING ('N dropped in a row') rather than per event.
-
-        Returns:
-            (1) parameter [int]: The retry count (0 when the first grab succeeded).
-        """
-
-        return self._last_capture_retries
 
     @property
     def Last_Distorted_Frame(self) -> tp.Optional[tp.List[tp.List[int]]]:

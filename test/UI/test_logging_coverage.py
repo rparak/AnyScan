@@ -278,19 +278,19 @@ def test_camera_events_reach_the_log_through_the_sink(qt_app, tmp_path) -> None:
     """
     Description:
         The Qt-free camera emits events through the injected sink, which the window routes
-        to the logger by level — so a frame drop or a config note reaches the log without
+        to the logger by level — so a missing calibration or a config note reaches the log without
         the camera holding the logger.
     """
 
     window, logger = _Window(tmp_path)
     camera = _Private(window, '__camera')
     # The camera's sink is wired to the window; emitting through it reaches the log.
-    camera._Log('WARNING', '3 frame(s) dropped during capture (retried)')
+    camera._Log('WARNING', 'No calibration for this camera: frames are not undistorted')
     camera._Log('INFO', 'camera configuration loaded')
     logger.Close()
 
     content = _Log_Text(logger)
-    assert '[WARNING] 3 frame(s) dropped during capture (retried)' in content
+    assert '[WARNING] No calibration for this camera: frames are not undistorted' in content
     assert '[INFO   ] camera configuration loaded' in content
 
 

@@ -141,11 +141,9 @@ def test_log_sink_delivers_level_and_message_and_never_raises() -> None:
         The Qt-free camera emits (level, message) events through the injected sink — a
         level plus a message, not a formatted line. The emit is wrapped so a sink that
         raises can never break capture or connection: logging is not load-bearing.
-        Last_Capture_Retries defaults to 0 (the first grab succeeded).
     """
 
     camera = _Sink_Camera_Cls()
-    assert camera.Last_Capture_Retries == 0
 
     received = []
     camera.Set_Log_Callback(lambda level, message: received.append((level, message)))

@@ -1082,11 +1082,6 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__Fail(str(exc))
         else:
             self.__viewport.Show_Frame(Rgb_To_Qimage(self.__frame))
-            # A dropped-frame count from the driver's retries is reported as one line, not
-            # one per retry (the count is attached to the capture, not streamed).
-            if self.__logger is not None and self.__camera.Last_Capture_Retries > 0:
-                self.__logger.Log_Warning('%d frame(s) dropped during capture (retried)'
-                                          % self.__camera.Last_Capture_Retries)
             self.__frame_badge.setText('%d × %d · RGB'
                                        % (self.__frame.shape[1], self.__frame.shape[0]))
             self.__status.updated.Set_Value(datetime.now().strftime(self.CONST_TIME_FORMAT))
