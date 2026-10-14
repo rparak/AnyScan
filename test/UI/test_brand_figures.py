@@ -394,3 +394,19 @@ def test_the_live_tagline_is_the_logos() -> None:
     logo = _Read(CONST_LOGO)
     assert re.search(r'aria-label="[^"]*%s"' % re.escape(Style.CONST_TAGLINE), logo), 'the logo does not name this tagline'
     assert 'fill="%s"' % Theme.CONST_LOGO_INK.lower() in logo.lower(), '%s is not the logo\'s fill' % Theme.CONST_LOGO_INK
+
+
+def test_the_diagram_icons_are_twelve_by_twelve_pixel_grids() -> None:
+    """
+    Description:
+        Every card icon in the diagram is a 12 x 12 grid of '#' and '.', in the JIC Smart Factory guide's pixel style,
+        drawn at whole-pixel cells (CONST_ICON_SIZE a multiple of 12), so no square smears across a pixel edge.
+    """
+
+    spec = importlib.util.spec_from_file_location('architecture_diagram', CONST_GENERATOR)
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    assert generator.CONST_ICON_SIZE % 12 == 0
+    for name, grid in generator.CONST_ICONS.items():
+        assert len(grid) == 12 and all(len(row) == 12 and set(row) <= {'#', '.'} for row in grid), name
+        assert any('#' in row for row in grid), name

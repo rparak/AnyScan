@@ -1720,6 +1720,11 @@ input or a record is added or removed: the diagram draws each one.
   from `images/` and `App/assets/`, so a changed mark makes the committed SVG stale and the whole-file test fails.
   There are three copies of the AnyScan logo: `images/`, `App/assets/` and the one the generator inlines. A test holds
   all three equal. After a new logo run `Example/UI/build_logo.py`, then regenerate.
+- **The card icons are pixel icons.** *Updated 2026-10-14, the owner's choice from renders:* the stroked line icons
+  (24-unit grid, round caps) are replaced by icons in the JIC Smart Factory guide's pixel style, each a 12 × 12 grid
+  drawn as one path of 3 px squares (`CONST_ICONS`, `CONST_ICON_SIZE` 36). At the line icons' 28 px a cell would be
+  2.33 px and the grid smeared; at 3 px a cell they stay legible at README width. A test holds every grid to
+  12 × 12 at whole-pixel cells (`test_the_diagram_icons_are_twelve_by_twelve_pixel_grids`).
 - **The logo's colour is its own.** *Corrected 2026-10-14:* the delivered logo is one purple, `#640ABA`, the JIC
   Smart Factory primary; until then the logo kept a palette that predated the theme (indigo and the magenta
   `#D6006E`). The diagram draws it as delivered whatever the theme is.

@@ -40,8 +40,7 @@ Description:
 CONST_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 CONST_UI_DIR = os.path.join(CONST_ROOT, 'src', 'UI')
 CONST_GENERATOR = os.path.join(CONST_ROOT, 'Example', 'UI', 'architecture_diagram.py')
-# What rounds a corner: a stylesheet radius, a painted rounded rectangle, an SVG rectangle's radius in the
-# diagram's own drawing calls (its icon set aside: its shapes are artwork on a 24-unit grid).
+# What rounds a corner: a stylesheet radius, a painted rounded rectangle, an SVG rectangle's radius in the diagram.
 #   Unit [Pattern]
 CONST_ROUNDED = re.compile(r'border-[a-z-]*radius|drawRoundedRect|addRoundedRect')
 CONST_SVG_RADIUS = re.compile(r'\brx\s*=')
@@ -82,5 +81,5 @@ def test_no_diagram_rectangle_is_rounded() -> None:
     """
 
     found = [(number, line.strip()) for number, line in _Code_Lines(CONST_GENERATOR)
-             if CONST_SVG_RADIUS.search(line) and 'CONST_ICONS' not in line and not line.lstrip().startswith(("'", '"'))]
+             if CONST_SVG_RADIUS.search(line)]
     assert found == [], 'rounded rectangles in the diagram: %s' % found

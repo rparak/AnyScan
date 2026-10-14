@@ -121,44 +121,45 @@ CONST_DIVIDER_WIDTH = 1.5
 # The top edge of the group of what sets the stages up.
 #   Unit [px]
 CONST_SET_TOP = 792
-# The card icons: drawn here, on a 24-unit grid, as line shapes in one stroke (no icon font, no
-# third-party set, so no licence to carry). Each is a list of SVG shapes, stroked, never filled.
+# The card icons, in the JIC Smart Factory guide's pixel style (its IKONY pages): each a 12 x 12 grid, one square per
+# '#', drawn in one colour (no icon font, no third-party set, so no licence to carry). They stay legible at 3 px a
+# cell, CONST_ICON_SIZE; at the earlier 28 px line icons' size a cell is 2.33 px and the grid smears.
 #   Unit [Dictionary<string, List<string>>]
 CONST_ICONS = {
-    'camera': ['<path d="M3 8 a2 2 0 0 1 2 -2 h2.5 l1.5 -2 h6 l1.5 2 h2.5 a2 2 0 0 1 2 2 v10 a2 2 0 0 1 -2 2 h-14 '
-               'a2 2 0 0 1 -2 -2 Z"/>', '<circle cx="12" cy="13" r="3.5"/>'],
-    'magnifier': ['<circle cx="10.5" cy="10.5" r="6.5"/>', '<path d="M15.5 15.5 L21 21"/>'],
-    'text': ['<path d="M4 6 H20 M4 11 H20 M4 16 H14"/>', '<path d="M4 20 H10"/>'],
-    'ruler': ['<rect x="2" y="8" width="20" height="8" rx="1.5"/>',
-              '<path d="M6 8 V11 M10 8 V12.5 M14 8 V11 M18 8 V12.5"/>'],
-    'window': ['<rect x="3" y="4" width="18" height="16" rx="2"/>', '<path d="M3 9 H21"/>',
-               '<path d="M6.5 6.5 H6.6 M9 6.5 H9.1"/>'],
-    'focus': ['<path d="M3 8 V5 a2 2 0 0 1 2 -2 H8 M16 3 H19 a2 2 0 0 1 2 2 V8 M21 16 V19 a2 2 0 0 1 -2 2 H16 '
-              'M8 21 H5 a2 2 0 0 1 -2 -2 V16"/>', '<rect x="8" y="8" width="8" height="8" rx="1"/>'],
-    'checklist': ['<path d="M3 6.5 L5 8.5 L8.5 5 M3 15.5 L5 17.5 L8.5 14"/>', '<path d="M12 7 H21 M12 16 H21"/>'],
-    'badge': ['<path d="M12 3 L19 6 V11 c0 4.5 -3 8 -7 10 c-4 -2 -7 -5.5 -7 -10 V6 Z"/>',
-              '<path d="M9 12 L11 14 L15 10"/>'],
-    'gear': ['<circle cx="12" cy="12" r="3"/>',
-             '<path d="M18.7 10 L21.4 10.5 L21.4 13.5 L18.7 14 L18.2 15.3 L19.7 17.6 L17.6 19.7'
-             ' L15.3 18.2 L14 18.7 L13.5 21.4 L10.5 21.4 L10 18.7 L8.7 18.2 L6.4 19.7 L4.3 17.6'
-             ' L5.8 15.3 L5.3 14 L2.6 13.5 L2.6 10.5 L5.3 10 L5.8 8.7 L4.3 6.4 L6.4 4.3 L8.7 5.8'
-             ' L10 5.3 L10.5 2.6 L13.5 2.6 L14 5.3 L15.3 5.8 L17.6 4.3 L19.7 6.4 L18.2 8.7 Z"/>'],
-    'station': ['<path d="M2 21 H22 M6 21 V3 H15 V6"/>', '<rect x="11.5" y="6" width="7" height="5" rx="1"/>',
-                '<path d="M13.5 11 L13 13.5 H17 L16.5 11"/>'],
-    'target': ['<circle cx="12" cy="12" r="8"/>', '<circle cx="12" cy="12" r="3.5"/>',
-               '<path d="M12 1.5 V5 M12 19 V22.5 M1.5 12 H5 M19 12 H22.5"/>'],
-    'catalogue': ['<path d="M12 6.5 C10 5 7 4.5 3 5 V19 C7 18.5 10 19 12 20.5 C14 19 17 18.5 21 19 V5 '
-                  'C17 4.5 14 5 12 6.5 Z"/>', '<path d="M12 6.5 V20.5"/>'],
-    'image': ['<rect x="3" y="4" width="18" height="16" rx="2"/>', '<circle cx="8.5" cy="9.5" r="1.5"/>',
-              '<path d="M21 16 L16 11 L6 20"/>'],
-    'folder': ['<path d="M3 7 a2 2 0 0 1 2 -2 h4 l2 2.5 h8 a2 2 0 0 1 2 2 V18 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 Z"/>'],
+    'camera': ['............', '...####.....', '.##########.', '.#........#.', '.#...##...#.', '.#..#..#..#.',
+               '.#..#..#..#.', '.#...##...#.', '.#........#.', '.##########.', '............', '............'],
+    'magnifier': ['............', '..####......', '.#....#.....', '#......#....', '#......#....', '#......#....',
+                  '#......#....', '.#....#.....', '..####.#....', '........#...', '.........#..', '..........#.'],
+    'text': ['............', '##########..', '............', '##########..', '............', '##########..',
+             '............', '######......', '............', '###.........', '............', '............'],
+    'ruler': ['............', '............', '............', '############', '#.#.#.#.#.##', '#.#...#....#',
+              '#..........#', '############', '............', '............', '............', '............'],
+    'window': ['............', '############', '#..........#', '#.#.#......#', '############', '#..........#',
+               '#..........#', '#..........#', '#..........#', '#..........#', '############', '............'],
+    'focus': ['###......###', '#..........#', '#..........#', '............', '....####....', '....#..#....',
+              '....#..#....', '....####....', '............', '#..........#', '#..........#', '###......###'],
+    'checklist': ['............', '..#.........', '.#..........', '#.#..######.', '............', '............',
+                  '..#.........', '.#..........', '#.#..######.', '............', '............', '............'],
+    'badge': ['.....##.....', '...##..##...', '.##......##.', '.#........#.', '.#.....#..#.', '.#....#...#.',
+              '.#.#.#....#.', '.#..#.....#.', '..#......#..', '...#....#...', '....#..#....', '.....##.....'],
+    'gear': ['.....##.....', '..#.####.#..', '.##########.', '..###..###..', '.##......##.', '###......###',
+             '###......###', '.##......##.', '..###..###..', '.##########.', '..#.####.#..', '.....##.....'],
+    'station': ['............', '.######.....', '.#....#.....', '.#...####...', '.#...#..#...', '.#...####...',
+                '.#....##....', '.#..........', '.#..........', '.#..........', '############', '............'],
+    'target': ['.....#......', '...#####....', '..#..#..#...', '.#...#...#..', '.#..###..#..', '######.#####',
+               '.#..###..#..', '.#...#...#..', '..#..#..#...', '...#####....', '.....#......', '............'],
+    'catalogue': ['............', '####....####', '#...#..#...#', '#....##....#', '#....#.....#', '#....#.....#',
+                  '#....#.....#', '#....#.....#', '#....#.....#', '####.#.####.', '....###.....', '............'],
+    'image': ['............', '############', '#..........#', '#.##.......#', '#.##.......#', '#.......#..#',
+              '#......###.#', '#..#..#####.', '#.##########', '############', '............', '............'],
+    'folder': ['............', '####........', '#...#.......', '#....######.', '#..........#', '#..........#',
+               '#..........#', '#..........#', '#..........#', '############', '............', '............'],
 }
-# The icon's drawn size, its stroke on the 24-unit grid (2 px drawn), and its inset from a card's
-# right edge; it is centred on the title's capitals.
+# The icon's drawn size (12 cells of 3 px) and its inset from a card's right edge; it is centred on the title's
+# capitals.
 #   Unit [px]
-CONST_ICON_SIZE = 28
-CONST_ICON_STROKE = 1.75
-CONST_ICON_INSET = 18
+CONST_ICON_SIZE = 36
+CONST_ICON_INSET = 16
 # The funding band: its top edge, the console's per-logo heights scaled by this factor (the
 # heights are tuned per logo there, so they are scaled, never replaced), and the gap between logos.
 #   Unit [px] / [-]
@@ -348,7 +349,8 @@ class Svg_Writer_Cls(object):
     def Icon(self, x: float, y: float, name: str, color: str) -> None:
         """
         Description:
-            One of CONST_ICONS, CONST_ICON_SIZE square, stroked in a Theme colour.
+            One of CONST_ICONS, CONST_ICON_SIZE square, in a Theme colour: one filled path of the grid's squares,
+            drawn with crisp edges so neighbouring squares meet without a seam.
 
         Args:
             (1 - 2) x, y [float]: The top-left corner.
@@ -356,12 +358,11 @@ class Svg_Writer_Cls(object):
             (4) color [string]: A Theme colour token.
         """
 
-        self.Open('<g transform="translate(%g,%g) scale(%g)" fill="none" stroke="%s" stroke-width="%g" '
-                  'stroke-linecap="round" stroke-linejoin="round">'
-                  % (x, y, CONST_ICON_SIZE / 24, color, CONST_ICON_STROKE))
-        for shape in CONST_ICONS[name]:
-            self.Add(shape)
-        self.Close('g')
+        grid = CONST_ICONS[name]
+        cell = CONST_ICON_SIZE / len(grid)
+        squares = ['M%g %g h%g v%g h-%g Z' % (round(x + column * cell, 2), round(y + row * cell, 2), cell, cell, cell)
+                   for row, line in enumerate(grid) for column, mark in enumerate(line) if mark == '#']
+        self.Add('<path d="%s" fill="%s" shape-rendering="crispEdges"/>' % (' '.join(squares), color))
 
     def Connector(self, x: float, y1: float, y2: float) -> None:
         """

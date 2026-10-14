@@ -65,10 +65,7 @@
   <!-- 1. Capture: the camera takes the frame -->
   <g id="capture">
     <rect x="40" y="232" width="180" height="224" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(174,291) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 8 a2 2 0 0 1 2 -2 h2.5 l1.5 -2 h6 l1.5 2 h2.5 a2 2 0 0 1 2 2 v10 a2 2 0 0 1 -2 2 h-14 a2 2 0 0 1 -2 -2 Z"/>
-      <circle cx="12" cy="13" r="3.5"/>
-    </g>
+    <path d="M177 290 h3 v3 h-3 Z M180 290 h3 v3 h-3 Z M183 290 h3 v3 h-3 Z M186 290 h3 v3 h-3 Z M171 293 h3 v3 h-3 Z M174 293 h3 v3 h-3 Z M177 293 h3 v3 h-3 Z M180 293 h3 v3 h-3 Z M183 293 h3 v3 h-3 Z M186 293 h3 v3 h-3 Z M189 293 h3 v3 h-3 Z M192 293 h3 v3 h-3 Z M195 293 h3 v3 h-3 Z M198 293 h3 v3 h-3 Z M171 296 h3 v3 h-3 Z M198 296 h3 v3 h-3 Z M171 299 h3 v3 h-3 Z M183 299 h3 v3 h-3 Z M186 299 h3 v3 h-3 Z M198 299 h3 v3 h-3 Z M171 302 h3 v3 h-3 Z M180 302 h3 v3 h-3 Z M189 302 h3 v3 h-3 Z M198 302 h3 v3 h-3 Z M171 305 h3 v3 h-3 Z M180 305 h3 v3 h-3 Z M189 305 h3 v3 h-3 Z M198 305 h3 v3 h-3 Z M171 308 h3 v3 h-3 Z M183 308 h3 v3 h-3 Z M186 308 h3 v3 h-3 Z M198 308 h3 v3 h-3 Z M171 311 h3 v3 h-3 Z M198 311 h3 v3 h-3 Z M171 314 h3 v3 h-3 Z M174 314 h3 v3 h-3 Z M177 314 h3 v3 h-3 Z M180 314 h3 v3 h-3 Z M183 314 h3 v3 h-3 Z M186 314 h3 v3 h-3 Z M189 314 h3 v3 h-3 Z M192 314 h3 v3 h-3 Z M195 314 h3 v3 h-3 Z M198 314 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="64" y="313" font-size="23.1" fill="#640ABA" font-weight="700">Capture</text>
     <text x="64" y="343" font-size="17.5" fill="#640ABA">the camera</text>
     <text x="64" y="367" font-size="17.5" fill="#640ABA">takes a frame and</text>
@@ -79,10 +76,7 @@
   <!-- 2. Find the objects: two cues, fused -->
   <g id="find">
     <rect x="264" y="232" width="250" height="224" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(468,279) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="10.5" cy="10.5" r="6.5"/>
-      <path d="M15.5 15.5 L21 21"/>
-    </g>
+    <path d="M468 278 h3 v3 h-3 Z M471 278 h3 v3 h-3 Z M474 278 h3 v3 h-3 Z M477 278 h3 v3 h-3 Z M465 281 h3 v3 h-3 Z M480 281 h3 v3 h-3 Z M462 284 h3 v3 h-3 Z M483 284 h3 v3 h-3 Z M462 287 h3 v3 h-3 Z M483 287 h3 v3 h-3 Z M462 290 h3 v3 h-3 Z M483 290 h3 v3 h-3 Z M462 293 h3 v3 h-3 Z M483 293 h3 v3 h-3 Z M465 296 h3 v3 h-3 Z M480 296 h3 v3 h-3 Z M468 299 h3 v3 h-3 Z M471 299 h3 v3 h-3 Z M474 299 h3 v3 h-3 Z M477 299 h3 v3 h-3 Z M483 299 h3 v3 h-3 Z M486 302 h3 v3 h-3 Z M489 305 h3 v3 h-3 Z M492 308 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="288" y="301" font-size="23.1" fill="#640ABA" font-weight="700">Find objects</text>
     <text x="288" y="331" font-size="17.5" fill="#640ABA">two cues, fused: what</text>
     <text x="288" y="355" font-size="17.5" fill="#640ABA">differs from the empty</text>
@@ -97,18 +91,12 @@
     <rect x="578" y="198" width="124" height="28" fill="#640ABA"/>
     <text x="640" y="218" font-size="16.1" fill="#FFFFFF" font-weight="700" text-anchor="middle">each object</text>
     <rect x="574" y="236" width="258" height="104" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(786,247) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M4 6 H20 M4 11 H20 M4 16 H14"/>
-      <path d="M4 20 H10"/>
-    </g>
+    <path d="M780 246 h3 v3 h-3 Z M783 246 h3 v3 h-3 Z M786 246 h3 v3 h-3 Z M789 246 h3 v3 h-3 Z M792 246 h3 v3 h-3 Z M795 246 h3 v3 h-3 Z M798 246 h3 v3 h-3 Z M801 246 h3 v3 h-3 Z M804 246 h3 v3 h-3 Z M807 246 h3 v3 h-3 Z M780 252 h3 v3 h-3 Z M783 252 h3 v3 h-3 Z M786 252 h3 v3 h-3 Z M789 252 h3 v3 h-3 Z M792 252 h3 v3 h-3 Z M795 252 h3 v3 h-3 Z M798 252 h3 v3 h-3 Z M801 252 h3 v3 h-3 Z M804 252 h3 v3 h-3 Z M807 252 h3 v3 h-3 Z M780 258 h3 v3 h-3 Z M783 258 h3 v3 h-3 Z M786 258 h3 v3 h-3 Z M789 258 h3 v3 h-3 Z M792 258 h3 v3 h-3 Z M795 258 h3 v3 h-3 Z M798 258 h3 v3 h-3 Z M801 258 h3 v3 h-3 Z M804 258 h3 v3 h-3 Z M807 258 h3 v3 h-3 Z M780 264 h3 v3 h-3 Z M783 264 h3 v3 h-3 Z M786 264 h3 v3 h-3 Z M789 264 h3 v3 h-3 Z M792 264 h3 v3 h-3 Z M795 264 h3 v3 h-3 Z M780 270 h3 v3 h-3 Z M783 270 h3 v3 h-3 Z M786 270 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="598" y="269" font-size="23.1" fill="#640ABA" font-weight="700">Describe</text>
     <text x="598" y="299" font-size="17.5" fill="#640ABA">in words, by a local</text>
     <text x="598" y="323" font-size="17.5" fill="#640ABA">vision-language model</text>
     <rect x="574" y="348" width="258" height="104" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(786,359) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="2" y="8" width="20" height="8" rx="1.5"/>
-      <path d="M6 8 V11 M10 8 V12.5 M14 8 V11 M18 8 V12.5"/>
-    </g>
+    <path d="M780 364 h3 v3 h-3 Z M783 364 h3 v3 h-3 Z M786 364 h3 v3 h-3 Z M789 364 h3 v3 h-3 Z M792 364 h3 v3 h-3 Z M795 364 h3 v3 h-3 Z M798 364 h3 v3 h-3 Z M801 364 h3 v3 h-3 Z M804 364 h3 v3 h-3 Z M807 364 h3 v3 h-3 Z M810 364 h3 v3 h-3 Z M813 364 h3 v3 h-3 Z M780 367 h3 v3 h-3 Z M786 367 h3 v3 h-3 Z M792 367 h3 v3 h-3 Z M798 367 h3 v3 h-3 Z M804 367 h3 v3 h-3 Z M810 367 h3 v3 h-3 Z M813 367 h3 v3 h-3 Z M780 370 h3 v3 h-3 Z M786 370 h3 v3 h-3 Z M798 370 h3 v3 h-3 Z M813 370 h3 v3 h-3 Z M780 373 h3 v3 h-3 Z M813 373 h3 v3 h-3 Z M780 376 h3 v3 h-3 Z M783 376 h3 v3 h-3 Z M786 376 h3 v3 h-3 Z M789 376 h3 v3 h-3 Z M792 376 h3 v3 h-3 Z M795 376 h3 v3 h-3 Z M798 376 h3 v3 h-3 Z M801 376 h3 v3 h-3 Z M804 376 h3 v3 h-3 Z M807 376 h3 v3 h-3 Z M810 376 h3 v3 h-3 Z M813 376 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="598" y="381" font-size="23.1" fill="#640ABA" font-weight="700">Measure</text>
     <text x="598" y="411" font-size="17.5" fill="#640ABA">size in mm, through</text>
     <text x="598" y="435" font-size="17.5" fill="#640ABA">the calibration</text>
@@ -122,20 +110,14 @@
     <rect x="214" y="512" width="320" height="28" fill="#640ABA"/>
     <text x="374" y="532" font-size="16.1" fill="#FFFFFF" font-weight="700" text-anchor="middle">catalogue mode adds, for each object</text>
     <rect x="56" y="546" width="232" height="150" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(242,568) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 8 V5 a2 2 0 0 1 2 -2 H8 M16 3 H19 a2 2 0 0 1 2 2 V8 M21 16 V19 a2 2 0 0 1 -2 2 H16 M8 21 H5 a2 2 0 0 1 -2 -2 V16"/>
-      <rect x="8" y="8" width="8" height="8" rx="1"/>
-    </g>
+    <path d="M236 564 h3 v3 h-3 Z M239 564 h3 v3 h-3 Z M242 564 h3 v3 h-3 Z M263 564 h3 v3 h-3 Z M266 564 h3 v3 h-3 Z M269 564 h3 v3 h-3 Z M236 567 h3 v3 h-3 Z M269 567 h3 v3 h-3 Z M236 570 h3 v3 h-3 Z M269 570 h3 v3 h-3 Z M248 576 h3 v3 h-3 Z M251 576 h3 v3 h-3 Z M254 576 h3 v3 h-3 Z M257 576 h3 v3 h-3 Z M248 579 h3 v3 h-3 Z M257 579 h3 v3 h-3 Z M248 582 h3 v3 h-3 Z M257 582 h3 v3 h-3 Z M248 585 h3 v3 h-3 Z M251 585 h3 v3 h-3 Z M254 585 h3 v3 h-3 Z M257 585 h3 v3 h-3 Z M236 591 h3 v3 h-3 Z M269 591 h3 v3 h-3 Z M236 594 h3 v3 h-3 Z M269 594 h3 v3 h-3 Z M236 597 h3 v3 h-3 Z M239 597 h3 v3 h-3 Z M242 597 h3 v3 h-3 Z M263 597 h3 v3 h-3 Z M266 597 h3 v3 h-3 Z M269 597 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="80" y="590" font-size="23.1" fill="#640ABA" font-weight="700">Recognise</text>
     <text x="80" y="620" font-size="17.5" fill="#640ABA">the catalogued part and</text>
     <text x="80" y="644" font-size="17.5" fill="#640ABA">the side that is up, by</text>
     <text x="80" y="668" font-size="17.5" fill="#640ABA">its reference images</text>
     <line x1="294" y1="621" x2="328" y2="621" stroke="#640ABA" stroke-width="2.5" stroke-linecap="round" marker-end="url(#arch-tip)"/>
     <rect x="334" y="546" width="208" height="150" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(496,568) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 6.5 L5 8.5 L8.5 5 M3 15.5 L5 17.5 L8.5 14"/>
-      <path d="M12 7 H21 M12 16 H21"/>
-    </g>
+    <path d="M496 567 h3 v3 h-3 Z M493 570 h3 v3 h-3 Z M490 573 h3 v3 h-3 Z M496 573 h3 v3 h-3 Z M505 573 h3 v3 h-3 Z M508 573 h3 v3 h-3 Z M511 573 h3 v3 h-3 Z M514 573 h3 v3 h-3 Z M517 573 h3 v3 h-3 Z M520 573 h3 v3 h-3 Z M496 582 h3 v3 h-3 Z M493 585 h3 v3 h-3 Z M490 588 h3 v3 h-3 Z M496 588 h3 v3 h-3 Z M505 588 h3 v3 h-3 Z M508 588 h3 v3 h-3 Z M511 588 h3 v3 h-3 Z M514 588 h3 v3 h-3 Z M517 588 h3 v3 h-3 Z M520 588 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="358" y="590" font-size="23.1" fill="#640ABA" font-weight="700">Check</text>
     <text x="358" y="620" font-size="17.5" fill="#640ABA">the checks its item</text>
     <text x="358" y="644" font-size="17.5" fill="#640ABA">defines, which differ</text>
@@ -143,10 +125,7 @@
     <line x1="548" y1="621" x2="582" y2="621" stroke="#640ABA" stroke-width="2.5" stroke-linecap="round" marker-end="url(#arch-tip)"/>
     <rect x="588" y="546" width="244" height="150" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
     <text x="612" y="588" font-size="23.1" fill="#640ABA" font-weight="700">Verdict</text>
-    <g transform="translate(786,566) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 3 L19 6 V11 c0 4.5 -3 8 -7 10 c-4 -2 -7 -5.5 -7 -10 V6 Z"/>
-      <path d="M9 12 L11 14 L15 10"/>
-    </g>
+    <path d="M795 562 h3 v3 h-3 Z M798 562 h3 v3 h-3 Z M789 565 h3 v3 h-3 Z M792 565 h3 v3 h-3 Z M801 565 h3 v3 h-3 Z M804 565 h3 v3 h-3 Z M783 568 h3 v3 h-3 Z M786 568 h3 v3 h-3 Z M807 568 h3 v3 h-3 Z M810 568 h3 v3 h-3 Z M783 571 h3 v3 h-3 Z M810 571 h3 v3 h-3 Z M783 574 h3 v3 h-3 Z M801 574 h3 v3 h-3 Z M810 574 h3 v3 h-3 Z M783 577 h3 v3 h-3 Z M798 577 h3 v3 h-3 Z M810 577 h3 v3 h-3 Z M783 580 h3 v3 h-3 Z M789 580 h3 v3 h-3 Z M795 580 h3 v3 h-3 Z M810 580 h3 v3 h-3 Z M783 583 h3 v3 h-3 Z M792 583 h3 v3 h-3 Z M810 583 h3 v3 h-3 Z M786 586 h3 v3 h-3 Z M807 586 h3 v3 h-3 Z M789 589 h3 v3 h-3 Z M804 589 h3 v3 h-3 Z M792 592 h3 v3 h-3 Z M801 592 h3 v3 h-3 Z M795 595 h3 v3 h-3 Z M798 595 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <rect x="612" y="608" width="64" height="30" fill="#C2C9FF"/>
     <text x="644" y="629" font-size="16.1" fill="#640ABA" font-weight="700" text-anchor="middle">OK</text>
     <rect x="684" y="608" width="72" height="30" fill="#FFD9D0"/>
@@ -163,11 +142,7 @@
   <g id="application">
     <rect x="892" y="232" width="268" height="512" fill="#E1DCE6"/>
     <text x="916" y="385" font-size="23.1" fill="#640ABA" font-weight="700">Desktop app</text>
-    <g transform="translate(1114,363) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="4" width="18" height="16" rx="2"/>
-      <path d="M3 9 H21"/>
-      <path d="M6.5 6.5 H6.6 M9 6.5 H9.1"/>
-    </g>
+    <path d="M1108 362 h3 v3 h-3 Z M1111 362 h3 v3 h-3 Z M1114 362 h3 v3 h-3 Z M1117 362 h3 v3 h-3 Z M1120 362 h3 v3 h-3 Z M1123 362 h3 v3 h-3 Z M1126 362 h3 v3 h-3 Z M1129 362 h3 v3 h-3 Z M1132 362 h3 v3 h-3 Z M1135 362 h3 v3 h-3 Z M1138 362 h3 v3 h-3 Z M1141 362 h3 v3 h-3 Z M1108 365 h3 v3 h-3 Z M1141 365 h3 v3 h-3 Z M1108 368 h3 v3 h-3 Z M1114 368 h3 v3 h-3 Z M1120 368 h3 v3 h-3 Z M1141 368 h3 v3 h-3 Z M1108 371 h3 v3 h-3 Z M1111 371 h3 v3 h-3 Z M1114 371 h3 v3 h-3 Z M1117 371 h3 v3 h-3 Z M1120 371 h3 v3 h-3 Z M1123 371 h3 v3 h-3 Z M1126 371 h3 v3 h-3 Z M1129 371 h3 v3 h-3 Z M1132 371 h3 v3 h-3 Z M1135 371 h3 v3 h-3 Z M1138 371 h3 v3 h-3 Z M1141 371 h3 v3 h-3 Z M1108 374 h3 v3 h-3 Z M1141 374 h3 v3 h-3 Z M1108 377 h3 v3 h-3 Z M1141 377 h3 v3 h-3 Z M1108 380 h3 v3 h-3 Z M1141 380 h3 v3 h-3 Z M1108 383 h3 v3 h-3 Z M1141 383 h3 v3 h-3 Z M1108 386 h3 v3 h-3 Z M1141 386 h3 v3 h-3 Z M1108 389 h3 v3 h-3 Z M1111 389 h3 v3 h-3 Z M1114 389 h3 v3 h-3 Z M1117 389 h3 v3 h-3 Z M1120 389 h3 v3 h-3 Z M1123 389 h3 v3 h-3 Z M1126 389 h3 v3 h-3 Z M1129 389 h3 v3 h-3 Z M1132 389 h3 v3 h-3 Z M1135 389 h3 v3 h-3 Z M1138 389 h3 v3 h-3 Z M1141 389 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="916" y="415" font-size="17.5" fill="#640ABA">shows each object, its</text>
     <text x="916" y="439" font-size="17.5" fill="#640ABA">description and size,</text>
     <text x="916" y="463" font-size="17.5" fill="#640ABA">and, in a catalogue</text>
@@ -188,45 +163,27 @@
     <rect x="60" y="778" width="104" height="28" fill="#640ABA"/>
     <text x="112" y="798" font-size="16.1" fill="#FFFFFF" font-weight="700" text-anchor="middle">set up by</text>
     <rect x="56" y="814" width="252" height="96" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(262,821) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M18.7 10 L21.4 10.5 L21.4 13.5 L18.7 14 L18.2 15.3 L19.7 17.6 L17.6 19.7 L15.3 18.2 L14 18.7 L13.5 21.4 L10.5 21.4 L10 18.7 L8.7 18.2 L6.4 19.7 L4.3 17.6 L5.8 15.3 L5.3 14 L2.6 13.5 L2.6 10.5 L5.3 10 L5.8 8.7 L4.3 6.4 L6.4 4.3 L8.7 5.8 L10 5.3 L10.5 2.6 L13.5 2.6 L14 5.3 L15.3 5.8 L17.6 4.3 L19.7 6.4 L18.2 8.7 Z"/>
-    </g>
+    <path d="M271 817 h3 v3 h-3 Z M274 817 h3 v3 h-3 Z M262 820 h3 v3 h-3 Z M268 820 h3 v3 h-3 Z M271 820 h3 v3 h-3 Z M274 820 h3 v3 h-3 Z M277 820 h3 v3 h-3 Z M283 820 h3 v3 h-3 Z M259 823 h3 v3 h-3 Z M262 823 h3 v3 h-3 Z M265 823 h3 v3 h-3 Z M268 823 h3 v3 h-3 Z M271 823 h3 v3 h-3 Z M274 823 h3 v3 h-3 Z M277 823 h3 v3 h-3 Z M280 823 h3 v3 h-3 Z M283 823 h3 v3 h-3 Z M286 823 h3 v3 h-3 Z M262 826 h3 v3 h-3 Z M265 826 h3 v3 h-3 Z M268 826 h3 v3 h-3 Z M277 826 h3 v3 h-3 Z M280 826 h3 v3 h-3 Z M283 826 h3 v3 h-3 Z M259 829 h3 v3 h-3 Z M262 829 h3 v3 h-3 Z M283 829 h3 v3 h-3 Z M286 829 h3 v3 h-3 Z M256 832 h3 v3 h-3 Z M259 832 h3 v3 h-3 Z M262 832 h3 v3 h-3 Z M283 832 h3 v3 h-3 Z M286 832 h3 v3 h-3 Z M289 832 h3 v3 h-3 Z M256 835 h3 v3 h-3 Z M259 835 h3 v3 h-3 Z M262 835 h3 v3 h-3 Z M283 835 h3 v3 h-3 Z M286 835 h3 v3 h-3 Z M289 835 h3 v3 h-3 Z M259 838 h3 v3 h-3 Z M262 838 h3 v3 h-3 Z M283 838 h3 v3 h-3 Z M286 838 h3 v3 h-3 Z M262 841 h3 v3 h-3 Z M265 841 h3 v3 h-3 Z M268 841 h3 v3 h-3 Z M277 841 h3 v3 h-3 Z M280 841 h3 v3 h-3 Z M283 841 h3 v3 h-3 Z M259 844 h3 v3 h-3 Z M262 844 h3 v3 h-3 Z M265 844 h3 v3 h-3 Z M268 844 h3 v3 h-3 Z M271 844 h3 v3 h-3 Z M274 844 h3 v3 h-3 Z M277 844 h3 v3 h-3 Z M280 844 h3 v3 h-3 Z M283 844 h3 v3 h-3 Z M286 844 h3 v3 h-3 Z M262 847 h3 v3 h-3 Z M268 847 h3 v3 h-3 Z M271 847 h3 v3 h-3 Z M274 847 h3 v3 h-3 Z M277 847 h3 v3 h-3 Z M283 847 h3 v3 h-3 Z M271 850 h3 v3 h-3 Z M274 850 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="80" y="843" font-size="23.1" fill="#640ABA" font-weight="700">Mode</text>
     <text x="80" y="873" font-size="17.5" fill="#640ABA">models and prompts,</text>
     <text x="80" y="897" font-size="17.5" fill="#640ABA">and its station</text>
     <rect x="318" y="814" width="252" height="96" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(524,821) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2 21 H22 M6 21 V3 H15 V6"/>
-      <rect x="11.5" y="6" width="7" height="5" rx="1"/>
-      <path d="M13.5 11 L13 13.5 H17 L16.5 11"/>
-    </g>
+    <path d="M521 820 h3 v3 h-3 Z M524 820 h3 v3 h-3 Z M527 820 h3 v3 h-3 Z M530 820 h3 v3 h-3 Z M533 820 h3 v3 h-3 Z M536 820 h3 v3 h-3 Z M521 823 h3 v3 h-3 Z M536 823 h3 v3 h-3 Z M521 826 h3 v3 h-3 Z M533 826 h3 v3 h-3 Z M536 826 h3 v3 h-3 Z M539 826 h3 v3 h-3 Z M542 826 h3 v3 h-3 Z M521 829 h3 v3 h-3 Z M533 829 h3 v3 h-3 Z M542 829 h3 v3 h-3 Z M521 832 h3 v3 h-3 Z M533 832 h3 v3 h-3 Z M536 832 h3 v3 h-3 Z M539 832 h3 v3 h-3 Z M542 832 h3 v3 h-3 Z M521 835 h3 v3 h-3 Z M536 835 h3 v3 h-3 Z M539 835 h3 v3 h-3 Z M521 838 h3 v3 h-3 Z M521 841 h3 v3 h-3 Z M521 844 h3 v3 h-3 Z M518 847 h3 v3 h-3 Z M521 847 h3 v3 h-3 Z M524 847 h3 v3 h-3 Z M527 847 h3 v3 h-3 Z M530 847 h3 v3 h-3 Z M533 847 h3 v3 h-3 Z M536 847 h3 v3 h-3 Z M539 847 h3 v3 h-3 Z M542 847 h3 v3 h-3 Z M545 847 h3 v3 h-3 Z M548 847 h3 v3 h-3 Z M551 847 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="342" y="843" font-size="23.1" fill="#640ABA" font-weight="700">Station</text>
     <text x="342" y="873" font-size="17.5" fill="#640ABA">camera, light, table,</text>
     <text x="342" y="897" font-size="17.5" fill="#640ABA">and its calibration</text>
     <rect x="580" y="814" width="252" height="96" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(786,821) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="8"/>
-      <circle cx="12" cy="12" r="3.5"/>
-      <path d="M12 1.5 V5 M12 19 V22.5 M1.5 12 H5 M19 12 H22.5"/>
-    </g>
+    <path d="M795 817 h3 v3 h-3 Z M789 820 h3 v3 h-3 Z M792 820 h3 v3 h-3 Z M795 820 h3 v3 h-3 Z M798 820 h3 v3 h-3 Z M801 820 h3 v3 h-3 Z M786 823 h3 v3 h-3 Z M795 823 h3 v3 h-3 Z M804 823 h3 v3 h-3 Z M783 826 h3 v3 h-3 Z M795 826 h3 v3 h-3 Z M807 826 h3 v3 h-3 Z M783 829 h3 v3 h-3 Z M792 829 h3 v3 h-3 Z M795 829 h3 v3 h-3 Z M798 829 h3 v3 h-3 Z M807 829 h3 v3 h-3 Z M780 832 h3 v3 h-3 Z M783 832 h3 v3 h-3 Z M786 832 h3 v3 h-3 Z M789 832 h3 v3 h-3 Z M792 832 h3 v3 h-3 Z M795 832 h3 v3 h-3 Z M801 832 h3 v3 h-3 Z M804 832 h3 v3 h-3 Z M807 832 h3 v3 h-3 Z M810 832 h3 v3 h-3 Z M813 832 h3 v3 h-3 Z M783 835 h3 v3 h-3 Z M792 835 h3 v3 h-3 Z M795 835 h3 v3 h-3 Z M798 835 h3 v3 h-3 Z M807 835 h3 v3 h-3 Z M783 838 h3 v3 h-3 Z M795 838 h3 v3 h-3 Z M807 838 h3 v3 h-3 Z M786 841 h3 v3 h-3 Z M795 841 h3 v3 h-3 Z M804 841 h3 v3 h-3 Z M789 844 h3 v3 h-3 Z M792 844 h3 v3 h-3 Z M795 844 h3 v3 h-3 Z M798 844 h3 v3 h-3 Z M801 844 h3 v3 h-3 Z M795 847 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="604" y="843" font-size="23.1" fill="#640ABA" font-weight="700">Calibration</text>
     <text x="604" y="873" font-size="17.5" fill="#640ABA">undistortion and</text>
     <text x="604" y="897" font-size="17.5" fill="#640ABA">mm per pixel</text>
     <rect x="56" y="920" width="383" height="96" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(393,927) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 6.5 C10 5 7 4.5 3 5 V19 C7 18.5 10 19 12 20.5 C14 19 17 18.5 21 19 V5 C17 4.5 14 5 12 6.5 Z"/>
-      <path d="M12 6.5 V20.5"/>
-    </g>
+    <path d="M387 926 h3 v3 h-3 Z M390 926 h3 v3 h-3 Z M393 926 h3 v3 h-3 Z M396 926 h3 v3 h-3 Z M411 926 h3 v3 h-3 Z M414 926 h3 v3 h-3 Z M417 926 h3 v3 h-3 Z M420 926 h3 v3 h-3 Z M387 929 h3 v3 h-3 Z M399 929 h3 v3 h-3 Z M408 929 h3 v3 h-3 Z M420 929 h3 v3 h-3 Z M387 932 h3 v3 h-3 Z M402 932 h3 v3 h-3 Z M405 932 h3 v3 h-3 Z M420 932 h3 v3 h-3 Z M387 935 h3 v3 h-3 Z M402 935 h3 v3 h-3 Z M420 935 h3 v3 h-3 Z M387 938 h3 v3 h-3 Z M402 938 h3 v3 h-3 Z M420 938 h3 v3 h-3 Z M387 941 h3 v3 h-3 Z M402 941 h3 v3 h-3 Z M420 941 h3 v3 h-3 Z M387 944 h3 v3 h-3 Z M402 944 h3 v3 h-3 Z M420 944 h3 v3 h-3 Z M387 947 h3 v3 h-3 Z M402 947 h3 v3 h-3 Z M420 947 h3 v3 h-3 Z M387 950 h3 v3 h-3 Z M390 950 h3 v3 h-3 Z M393 950 h3 v3 h-3 Z M396 950 h3 v3 h-3 Z M402 950 h3 v3 h-3 Z M408 950 h3 v3 h-3 Z M411 950 h3 v3 h-3 Z M414 950 h3 v3 h-3 Z M417 950 h3 v3 h-3 Z M399 953 h3 v3 h-3 Z M402 953 h3 v3 h-3 Z M405 953 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="80" y="949" font-size="23.1" fill="#640ABA" font-weight="700">Catalogue item</text>
     <text x="80" y="979" font-size="17.5" fill="#640ABA">named by a catalogue mode: the</text>
     <text x="80" y="1003" font-size="17.5" fill="#640ABA">part, its checks, reference images</text>
     <rect x="449" y="920" width="383" height="96" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(786,927) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="4" width="18" height="16" rx="2"/>
-      <circle cx="8.5" cy="9.5" r="1.5"/>
-      <path d="M21 16 L16 11 L6 20"/>
-    </g>
+    <path d="M780 926 h3 v3 h-3 Z M783 926 h3 v3 h-3 Z M786 926 h3 v3 h-3 Z M789 926 h3 v3 h-3 Z M792 926 h3 v3 h-3 Z M795 926 h3 v3 h-3 Z M798 926 h3 v3 h-3 Z M801 926 h3 v3 h-3 Z M804 926 h3 v3 h-3 Z M807 926 h3 v3 h-3 Z M810 926 h3 v3 h-3 Z M813 926 h3 v3 h-3 Z M780 929 h3 v3 h-3 Z M813 929 h3 v3 h-3 Z M780 932 h3 v3 h-3 Z M786 932 h3 v3 h-3 Z M789 932 h3 v3 h-3 Z M813 932 h3 v3 h-3 Z M780 935 h3 v3 h-3 Z M786 935 h3 v3 h-3 Z M789 935 h3 v3 h-3 Z M813 935 h3 v3 h-3 Z M780 938 h3 v3 h-3 Z M804 938 h3 v3 h-3 Z M813 938 h3 v3 h-3 Z M780 941 h3 v3 h-3 Z M801 941 h3 v3 h-3 Z M804 941 h3 v3 h-3 Z M807 941 h3 v3 h-3 Z M813 941 h3 v3 h-3 Z M780 944 h3 v3 h-3 Z M789 944 h3 v3 h-3 Z M798 944 h3 v3 h-3 Z M801 944 h3 v3 h-3 Z M804 944 h3 v3 h-3 Z M807 944 h3 v3 h-3 Z M810 944 h3 v3 h-3 Z M780 947 h3 v3 h-3 Z M786 947 h3 v3 h-3 Z M789 947 h3 v3 h-3 Z M792 947 h3 v3 h-3 Z M795 947 h3 v3 h-3 Z M798 947 h3 v3 h-3 Z M801 947 h3 v3 h-3 Z M804 947 h3 v3 h-3 Z M807 947 h3 v3 h-3 Z M810 947 h3 v3 h-3 Z M813 947 h3 v3 h-3 Z M780 950 h3 v3 h-3 Z M783 950 h3 v3 h-3 Z M786 950 h3 v3 h-3 Z M789 950 h3 v3 h-3 Z M792 950 h3 v3 h-3 Z M795 950 h3 v3 h-3 Z M798 950 h3 v3 h-3 Z M801 950 h3 v3 h-3 Z M804 950 h3 v3 h-3 Z M807 950 h3 v3 h-3 Z M810 950 h3 v3 h-3 Z M813 950 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="473" y="949" font-size="23.1" fill="#640ABA" font-weight="700">Reference</text>
     <text x="473" y="979" font-size="17.5" fill="#640ABA">named by the station: the empty</text>
     <text x="473" y="1003" font-size="17.5" fill="#640ABA">surface each frame is compared with</text>
@@ -236,9 +193,7 @@
   <g id="records">
     <line x1="1026" y1="792" x2="1026" y2="748" stroke="#6F5783" stroke-width="1.5" stroke-dasharray="4 5"/>
     <rect x="892" y="792" width="268" height="240" fill="#FFFFFF" stroke="#E1DCE6" stroke-width="1.5"/>
-    <g transform="translate(1114,835) scale(1.16667)" fill="none" stroke="#640ABA" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 7 a2 2 0 0 1 2 -2 h4 l2 2.5 h8 a2 2 0 0 1 2 2 V18 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 Z"/>
-    </g>
+    <path d="M1108 834 h3 v3 h-3 Z M1111 834 h3 v3 h-3 Z M1114 834 h3 v3 h-3 Z M1117 834 h3 v3 h-3 Z M1108 837 h3 v3 h-3 Z M1120 837 h3 v3 h-3 Z M1108 840 h3 v3 h-3 Z M1123 840 h3 v3 h-3 Z M1126 840 h3 v3 h-3 Z M1129 840 h3 v3 h-3 Z M1132 840 h3 v3 h-3 Z M1135 840 h3 v3 h-3 Z M1138 840 h3 v3 h-3 Z M1108 843 h3 v3 h-3 Z M1141 843 h3 v3 h-3 Z M1108 846 h3 v3 h-3 Z M1141 846 h3 v3 h-3 Z M1108 849 h3 v3 h-3 Z M1141 849 h3 v3 h-3 Z M1108 852 h3 v3 h-3 Z M1141 852 h3 v3 h-3 Z M1108 855 h3 v3 h-3 Z M1141 855 h3 v3 h-3 Z M1108 858 h3 v3 h-3 Z M1111 858 h3 v3 h-3 Z M1114 858 h3 v3 h-3 Z M1117 858 h3 v3 h-3 Z M1120 858 h3 v3 h-3 Z M1123 858 h3 v3 h-3 Z M1126 858 h3 v3 h-3 Z M1129 858 h3 v3 h-3 Z M1132 858 h3 v3 h-3 Z M1135 858 h3 v3 h-3 Z M1138 858 h3 v3 h-3 Z M1141 858 h3 v3 h-3 Z" fill="#640ABA" shape-rendering="crispEdges"/>
     <text x="916" y="857" font-size="23.1" fill="#640ABA" font-weight="700">Records</text>
     <text x="916" y="887" font-size="17.5" fill="#640ABA">images and results</text>
     <text x="916" y="911" font-size="17.5" fill="#640ABA">of every analysis,</text>
