@@ -300,7 +300,7 @@ class Thumb_Card_Cls(QFrame):
         # No thumbnail — a partial set (a failed analysis, or one stopped at close). Marked as an
         # error, not a bland placeholder.
         self.__thumb.setStyleSheet('background: %s; color: %s;'
-                                   % (Style.CONST_VIEWPORT, Style.CONST_ERROR_ON_DARK))
+                                   % (Style.CONST_VIEWPORT, Style.CONST_LOG_ERROR))
         self.__thumb.setText('ANALYSIS\nFAILED')
         self.__thumb.setFont(Font(7.5, QFont.DemiBold, tracking=1))
 

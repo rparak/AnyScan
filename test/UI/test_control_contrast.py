@@ -326,12 +326,15 @@ def test_self_check_hover_is_really_rendered(records) -> None:
         working, every 'hover' render equals its 'rest' render, and the floor test passes against
         identical pixels. So: if NO control's hovered render differs from its resting one, the
         harness is broken and this fails loudly. And every control's hover is expected to change
-        its pixels today — one that stops doing so either lost its hover style or its forcing.
+        its pixels today — one that stops doing so either lost its hover style or its forcing —
+        but a selected segment's: clicking it does nothing, and in the one purple its hover keeps
+        the selected look (docs/design-decisions.md, "The palette is the JIC Smart Factory brand's").
     """
 
     by_key = {(r['control'], r['selection'], r['state']): r for r in records}
     unchanged = ['%s %s' % (control, selection) for (control, selection, state), r in by_key.items()
-                 if state == 'hover' and r['digest'] == by_key[(control, selection, 'rest')]['digest']]
+                 if state == 'hover' and selection != 'selected'
+                 and r['digest'] == by_key[(control, selection, 'rest')]['digest']]
     hovered = sum(1 for key in by_key if key[2] == 'hover')
     assert len(unchanged) < hovered, (
         'HARNESS BROKEN: no hovered render differs from its resting render, so hover was never '

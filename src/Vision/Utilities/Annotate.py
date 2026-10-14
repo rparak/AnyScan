@@ -28,7 +28,7 @@ import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
 from Parameters.Theme import (Verdict_Color, Detection_Color, Detection_Mask_Outline, Mask_Outline_Color,
-                              Hex_To_Bgr, CONST_CARD, CONST_INK)
+                              Hex_To_Bgr, Chip_Numeral_Color)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -106,7 +106,7 @@ CONST_ANNOTATE_CHIP_PAD = 6       # padding (px, at font scale 1) around the num
 # distance at which two colours read as different marks rather than a near-repeat. The renderer
 # does not read it: it is the CONTRACT the annotation colours must meet — a box against its own
 # fill, the neutral detection colour against the surfaces it is drawn on — enforced by
-# test/Parameters/test_theme.py::test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis.
+# test/Parameters/test_theme.py::test_neutral_detection_colour_is_distinct_and_near_achromatic.
 # It lives beside the renderer it constrains, not in the test, so the two cannot drift apart.
 #   Unit [float]
 CONST_ANNOTATE_MIN_DELTA_E = 12.0
@@ -144,24 +144,6 @@ def __Scale(shape: tp.Tuple[int, int, int]) -> float:
     """
 
     return max(0.6, max(shape[0], shape[1]) / float(CONST_ANNOTATE_REF_DIM))
-
-
-def __Luminance(bgr: tp.Tuple[float, float, float]) -> float:
-    """
-    Description:
-        The luma (0..1) of a BGR colour, for the numeral's tone: Rec. 709 weights on the gamma-encoded
-        channels, not WCAG relative luminance (Theme.Relative_Luminance). The two differ on amber (luma
-        0.52, relative luminance 0.28), which this keeps on the dark ink, the better contrast there.
-
-    Args:
-        (1) bgr [Vector<float> 1x3]: The colour as (B, G, R), 0..255.
-
-    Returns:
-        (1) parameter [float]: The luma (0..1).
-    """
-
-    b, g, r = bgr[0] / 255.0, bgr[1] / 255.0, bgr[2] / 255.0
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
 def __Chip_Font_Scale(scale: float) -> float:
@@ -206,8 +188,9 @@ def __Draw_Chip(image: tp.Any, x: int, top: int, label: str, chip_bgr: tp.Tuple[
                 cv2: tp.Any) -> None:
     """
     Description:
-        A chip at (x, top): a filled rectangle in chip_bgr with the numeral in whichever theme foreground (white or
-        ink) keeps it legible against that colour.
+        A chip at (x, top): a filled rectangle in chip_bgr, the box's own colour as on the poster, with the numeral in
+        the colour Theme.Chip_Numeral_Color gives that chip (white on the OK purple and the NOK orange-red, the purple on
+        the amber and the neutral).
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
@@ -219,9 +202,7 @@ def __Draw_Chip(image: tp.Any, x: int, top: int, label: str, chip_bgr: tp.Tuple[
     """
 
     chip_w, chip_h, thickness, pad, th = __Chip_Size(label, font_scale, cv2)
-    # The numeral's tone contrasts the chip's own verdict colour, so it stays legible: the light card
-    # colour on a dark chip (OK, NOK), the dark ink on a light one (Warning's amber, luma 0.52).
-    text_bgr = Hex_To_Bgr(CONST_CARD) if __Luminance(chip_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
+    text_bgr = Hex_To_Bgr(Chip_Numeral_Color('#%02X%02X%02X' % (chip_bgr[2], chip_bgr[1], chip_bgr[0])))
     cv2.rectangle(image, (x, top), (x + chip_w, top + chip_h), chip_bgr, thickness=-1)
     cv2.putText(image, label, (x + pad, top + pad + th), cv2.FONT_HERSHEY_SIMPLEX, font_scale,
                 text_bgr, thickness, cv2.LINE_AA)
@@ -264,8 +245,7 @@ def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: 
         from the numeral's text extent plus a small padding, seated flush against the
         box's top-left corner so it reads as a tab; when the box is too near the top of
         the frame for the tab to sit above it, the chip flips INSIDE the box rather than
-        clipping off-frame (__Index_Chip_Rect). The numeral takes whichever theme foreground
-        (white or ink) keeps it legible against the chip's own colour.
+        clipping off-frame (__Index_Chip_Rect). The numeral's colour is Theme.Chip_Numeral_Color's for the chip.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
@@ -321,7 +301,7 @@ def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float
     """
     Description:
         A judged part's features on the annotated frame (Detection_Str.Features), each in ONE colour — the pass
-        colour (the OK verdict's indigo) or the fail colour (the NOK verdict's magenta), the colours that mark the
+        colour (the OK verdict's purple) or the fail colour (the NOK verdict's orange-red), the colours that mark the
         objects — at one line weight, thinner than the object's box, with no halo. Every feature has a box along the
         part's axes, so it turns with the part (__Feature_Box):
 

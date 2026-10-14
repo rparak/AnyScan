@@ -84,16 +84,18 @@ def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
     """
     Description:
         The objects chart's per-verdict series when the run classifies, as (label, Trend_Image_Str attribute,
-        colour): OK and NOK in their verdict colours, the Warnings — objects that should not be on the surface
-        — in the amber, and the Unspecified ones, so the four add up to the total. Unspecified is drawn in the
-        neutral colour's ink twin: its box (#B8BECA) is a frame colour, too light for a line on the white card.
+        colour): OK, NOK, the Warnings — objects that should not be on the surface — and the Unspecified ones,
+        so the four add up to the total, each in its verdict's text twin (Verdict_Color()[1]): the boxes are
+        frame colours, and the orange-red, the amber and the grey-lilac are too light for a line on the white
+        card (2.92:1, 1.62:1, 1.32:1), where the twins are 6.2:1 and the purple 9.15:1. The total is the muted
+        purple-grey, since the OK line is the purple.
 
     Returns:
         (1) parameter [Vector<Tuple<string> 1x3>]: The series, in legend order.
     """
 
-    return [('OK', 'Cumulative_Ok', Verdict_Color('OK')[0]), ('NOK', 'Cumulative_Nok', Verdict_Color('NOK')[0]),
-            ('Warning', 'Cumulative_Warning', Verdict_Color('Warning')[0]),
+    return [('OK', 'Cumulative_Ok', Verdict_Color('OK')[1]), ('NOK', 'Cumulative_Nok', Verdict_Color('NOK')[1]),
+            ('Warning', 'Cumulative_Warning', Verdict_Color('Warning')[1]),
             ('Unspecified', 'Cumulative_Unspecified', Verdict_Color('Unspecified')[1])]
 
 
@@ -479,7 +481,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
         y_ticks = Nice_Ticks(0.0, y_max, 5)
         # The axis ends ON the top nice tick, so the highest point is never above the last gridline.
         self._Set_Axes(0.5, n + 0.5 if n else 1.5, 0.0, y_ticks[-1], x_ticks, y_ticks, x_text)
-        legend = [('Total', Style.CONST_INK)]
+        legend = [('Total', Style.CONST_INK_MUTE)]
         if classification_enabled:
             legend += [(label, color) for label, _attr, color in _Verdict_Series()]
         self._Set_Legend(legend)
@@ -497,7 +499,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
             (2) rect [QRectF]: The plot rectangle.
         """
 
-        series = [('Cumulative_Total', Style.CONST_INK)]
+        series = [('Cumulative_Total', Style.CONST_INK_MUTE)]
         if self.__classified:
             series += [(attr, color) for _label, attr, color in _Verdict_Series()]
         for attr, color in series:
@@ -611,8 +613,8 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
             painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
         # The scored-object dots, jittered horizontally within their column.
         spacing = rect.width() / max(1, len(self.__rows))
-        # On the white card the neutral dot is the detection INK twin: the box value is tuned to be
-        # drawn on the green frame and would all but vanish here.
+        # On the white card every dot is its verdict's text twin, and the neutral dot the detection's: the boxes are
+        # tuned to be drawn on the green frame and some would all but vanish here.
         neutral = Detection_Color()[1]
         painter.setPen(Qt.NoPen)
         for row in self.__rows:
@@ -620,7 +622,7 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
             for position, obj in enumerate(row.Objects):
                 offset = 0.0 if count == 1 else ((position - (count - 1) / 2.0)
                                                  * (spacing * CONST_JITTER_FRACTION) / count)
-                color = Verdict_Color(obj.Verdict)[0] if self.__classified else neutral
+                color = Verdict_Color(obj.Verdict)[1] if self.__classified else neutral
                 dot = QColor(color)
                 dot.setAlpha(200)
                 painter.setBrush(QBrush(dot))

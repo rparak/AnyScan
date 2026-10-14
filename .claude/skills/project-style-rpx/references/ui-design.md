@@ -25,22 +25,27 @@ practices followed inconsistently are under **Unsettled**.
 
 ## A verdict colour never changes; its foreground carries legibility ✅
 
-- The verdict colours are fixed tokens: OK `#6C63B5`, NOK `#ff005c` — the brand magenta, kept as the
-  fail marker because it reads as one at a glance (DD *`#ff005c` is the fail marker*). A
-  detect-only run draws one neutral colour, distinct in hue from OK (DD *Classification is a
-  per-configuration switch*).
+- The verdict colours are fixed tokens from the JIC Smart Factory palette: OK the purple `#640ABA`, NOK the
+  orange-red `#FF6540` (DD *The fail marker is the JIC orange-red*), Warning the amber `#FFC226`, Unspecified
+  the neutral grey-lilac `#E1DCE6`. A detect-only run draws one neutral colour, distinct in hue from OK (DD
+  *Classification is a per-configuration switch*). One purple: no darker shade of it exists in the theme (DD
+  *The palette is the JIC Smart Factory brand's*).
 - The box, the chip and the mask outline are drawn in the verdict colour itself, unshifted, on any
   background. A colour is never lightened, darkened or rotated to gain contrast against a frame.
-- Legibility comes from the foreground: the chip's numeral takes whichever theme foreground (white or
-  ink) contrasts with the chip. There is no casing or outline around the chip — a chip in one colour
-  with a contrasting numeral reads as one thing; an added casing read as two (`Vision/Utilities/
-  Annotate.py`, `__Draw_Index_Chip`).
+- Legibility comes from the foreground: a chip is its box's colour and its numeral is
+  `Theme.Chip_Numeral_Color`'s — white on OK and NOK, the purple on Warning and Unspecified. White on the NOK
+  orange-red (2.92:1) is the owner's one recorded exception to 4.5:1. There is no casing or outline around a
+  chip or a mark (the owner's ruling, kept after an outline was measured).
+- Words on a verdict (the badge, the diagram's labels) are the purple on `Theme.Label_Ground`: the verdict's
+  colour where the purple clears 4.5:1 on it, the poster's tint of it otherwise.
 - The label-mask fill is a tint that keeps its box's hue (within 5°, at ≥ 40 % of its chroma), so the
   silhouette and its outline read as one object (DD *The label mask is black ground, tinted fill,
   verdict contour*).
 - ✅ `test/Vision/Utilities/test_annotate.py::test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour`,
+  `::test_each_chip_is_its_box_colour_with_its_numeral_colour`,
   `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box`,
-  `::test_verdict_colour_comes_from_the_one_constant`.
+  `::test_verdict_colour_comes_from_the_one_constant`, `::test_chip_numerals_clear_4_5_but_the_one_nok_exception`,
+  `::test_the_palette_keeps_the_brands_rules`.
 
 ## Severity is never carried by colour alone ✅
 
@@ -80,8 +85,8 @@ practices followed inconsistently are under **Unsettled**.
   `CONST_WARN` → `CONST_WARN_INK`). A call site passes the status colour; the widget that draws words
   (`Stat_Cell_Cls.Set_Value`, the header pill) asks for the text colour. A dot keeps the bright colour and
   is held to 3:1, as a graphic.
-- Text on the indigo viewport has its own token (`CONST_VIEWPORT_TEXT`, `CONST_ERROR_ON_DARK`); a light-ground
-  text token is not reused there.
+- Text on the viewport (the grey-lilac) is `CONST_VIEWPORT_TEXT`, the purple (6.79:1); error text there is the
+  Log's `CONST_LOG_ERROR` (4.61:1).
 - ✅ `test/UI/test_text_contrast.py` builds the window in its states, measures every visible label, rich-text
   span and painted text against the ground grabbed under it (which must be a theme token); disabled text is
   exempt. Buttons are measured by `test_control_contrast.py`.

@@ -209,32 +209,31 @@ class Icon_Cls(QWidget):
 class Badge_Cls(QLabel):
     """
     Description:
-        The verdict badge, coloured by meaning never by brand: green when objects
-        were found, amber when confidence is under threshold, neutral otherwise.
+        The verdict badge, coloured by meaning, as the poster's tags are: the purple words on the OK verdict's
+        ground (the periwinkle), on the NOK verdict's (the orange-red's tint) or on Warning's amber, and muted
+        on the card otherwise (Style.Label_Ground: the words clear 4.5:1 on every ground).
     """
 
     def __init__(self, text: str = 'Idle', parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(text, parent)
-        self.setFont(Font(8, mono=True))
+        self.setFont(Font(8, QFont.Bold, mono=True))
         self.setFixedHeight(24)
         self.Set_Level('idle')
 
     def Set_Level(self, level: str) -> None:
         """
         Description:
-            Repaint the badge for a severity level ('ok' | 'warn' | 'fail' | anything else): 'fail' is a
-            catalogue mode's NOK, in the NOK ink.
+            Repaint the badge for a severity level ('ok' | 'warn' | 'fail' | anything else): the ground of the OK,
+            Warning or NOK verdict ('fail' is a catalogue mode's NOK), the idle card otherwise.
 
         Args:
             (1) level [string]: The severity level.
         """
 
-        if level == 'ok':
-            border, bg, fg = Style.CONST_OK_BORDER, Style.CONST_OK_SOFT, Style.CONST_OK_INK
-        elif level == 'warn':
-            border, bg, fg = Style.CONST_WARN_BORDER, Style.CONST_WARN_SOFT, Style.CONST_WARN_INK
-        elif level == 'fail':
-            border, bg, fg = Style.CONST_FAIL_BORDER, Style.CONST_FAIL_SOFT, Style.CONST_FAIL_INK
+        verdict = {'ok': 'OK', 'warn': 'Warning', 'fail': 'NOK'}.get(level)
+        if verdict is not None:
+            bg = Style.Label_Ground(verdict)
+            border, fg = bg, Style.CONST_INK
         else:
             border, bg, fg = Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK_MUTE
         self.setStyleSheet(
@@ -700,9 +699,9 @@ class Viewport_Cls(QWidget):
 class Tool_Button_Cls(QPushButton):
     """
     Description:
-        48px tall, uppercase, tracked. Exactly one is primary. The primary is the
-        deep-indigo brand ink rather than magenta: the strongest control reads as
-        structural, leaving magenta to mean one thing only — a detected object.
+        48px tall, uppercase, tracked, outlined in the purple as the brand's buttons are. Exactly one is
+        primary: a 2 px rule where the others have 1 px, filled purple under a white label when hovered or
+        pressed. A plain button fills grey-lilac when hovered and periwinkle when pressed.
     """
 
     def __init__(self, text: str, primary: bool = False,
@@ -717,14 +716,15 @@ class Tool_Button_Cls(QPushButton):
         # for another state. Nothing competes here today, but the pairing keeps it that way.
         if primary:
             self.setStyleSheet("""
-                QPushButton { background: %(ink)s; border: 1px solid %(ink)s; color: %(on_ink)s; }
+                QPushButton { background: %(card)s; border: 2px solid %(ink)s; color: %(ink)s; }
                 QPushButton:hover:enabled { background: %(hover)s; border-color: %(hover)s;
                                             color: %(on_ink)s; }
                 QPushButton:pressed:enabled { background: %(pressed)s; border-color: %(pressed)s;
                                               color: %(on_ink)s; }
-                QPushButton:disabled { background: %(off_fill)s; border-color: %(off_fill)s;
+                QPushButton:disabled { background: %(off_fill)s; border-color: %(off_border)s;
                                        color: %(off_text)s; }
-            """ % {'ink': Style.CONST_INK, 'on_ink': Style.CONST_ON_INK, 'hover': Style.CONST_INK_HOVER,
+            """ % {'card': Style.CONST_CARD, 'off_border': Style.CONST_CONTROL_DISABLED_BORDER, 'ink': Style.CONST_INK,
+                   'on_ink': Style.CONST_ON_INK, 'hover': Style.CONST_INK_HOVER,
                    'pressed': Style.CONST_INK_PRESSED, 'off_fill': Style.CONST_PRIMARY_DISABLED_FILL,
                    'off_text': Style.CONST_PRIMARY_DISABLED_TEXT})
         else:
@@ -732,11 +732,13 @@ class Tool_Button_Cls(QPushButton):
                 QPushButton { background: %(card)s; border: 1px solid %(border)s; color: %(ink)s; }
                 QPushButton:hover:enabled { background: %(hover)s; border-color: %(hover_border)s;
                                             color: %(ink)s; }
+                QPushButton:pressed:enabled { background: %(pressed)s; border-color: %(hover_border)s;
+                                              color: %(ink)s; }
                 QPushButton:disabled { background: %(card)s; border-color: %(off_border)s;
                                        color: %(off_text)s; }
             """ % {'card': Style.CONST_CARD, 'border': Style.CONST_CONTROL_BORDER, 'ink': Style.CONST_INK,
                    'hover': Style.CONST_CONTROL_HOVER, 'hover_border': Style.CONST_CONTROL_HOVER_BORDER,
-                   'off_border': Style.CONST_CONTROL_DISABLED_BORDER,
+                   'pressed': Style.CONST_CONTROL_PRESSED, 'off_border': Style.CONST_CONTROL_DISABLED_BORDER,
                    'off_text': Style.CONST_CONTROL_DISABLED_TEXT})
 
 
@@ -771,7 +773,7 @@ class Segmented_Control_Cls(QWidget):
             button.setCursor(Qt.PointingHandCursor)
             button.setFont(Font(9, QFont.DemiBold, tracking=2))
             button.setFixedHeight(height)
-            button.setStyleSheet(self.__Segment_Style(index, len(segments)))
+            button.setStyleSheet(self.__Segment_Style(index))
             button.clicked.connect(lambda _checked, k=key: self.Segment_Selected.emit(k))
             self.__group.addButton(button)
             self.__buttons[key] = button
@@ -779,12 +781,12 @@ class Segmented_Control_Cls(QWidget):
         if self.__buttons:
             next(iter(self.__buttons.values())).setChecked(True)
 
-    def __Segment_Style(self, index: int, total: int) -> str:
+    def __Segment_Style(self, index: int) -> str:
         """
         Description:
-            The stylesheet for one segment: only the outer corners are rounded, so the
-            buttons read as a single segmented control, and the checked segment carries the
-            brand ink.
+            The stylesheet for one segment: outlined in the purple, each segment after the first
+            without its left rule, so neighbours share one 1 px rule and the buttons read as a
+            single segmented control; the checked segment is filled purple under a white label.
 
             Note:
                 Qt ranks a selector by its pseudo-state count, not its order, so a bare
@@ -796,7 +798,6 @@ class Segmented_Control_Cls(QWidget):
 
         Args:
             (1) index [int]: The segment's position.
-            (2) total [int]: The number of segments.
 
         Returns:
             (1) parameter [string]: The Qt stylesheet.
@@ -804,7 +805,7 @@ class Segmented_Control_Cls(QWidget):
 
         return ("""
             QPushButton { background: %(card)s; border: 1px solid %(border)s; color: %(ink)s;
-                          padding: 0 16px; }
+                          padding: 0 16px; border-left-width: %(left_border)dpx; }
             QPushButton:!checked:hover:enabled { background: %(hover)s; color: %(ink)s; }
             QPushButton:checked { background: %(ink)s; border-color: %(ink)s; color: %(on_ink)s; }
             QPushButton:checked:hover:enabled { background: %(ink_hover)s; border-color: %(ink_hover)s;
@@ -816,7 +817,7 @@ class Segmented_Control_Cls(QWidget):
         """ % {'card': Style.CONST_CARD, 'border': Style.CONST_CONTROL_BORDER, 'ink': Style.CONST_INK,
                'hover': Style.CONST_CONTROL_HOVER, 'ink_hover': Style.CONST_INK_HOVER,
                'on_ink': Style.CONST_ON_INK, 'off_border': Style.CONST_CONTROL_DISABLED_BORDER,
-               'off_text': Style.CONST_CONTROL_DISABLED_TEXT, })
+               'off_text': Style.CONST_CONTROL_DISABLED_TEXT, 'left_border': 1 if index == 0 else 0})
 
     def Set_Selection(self, key: str) -> None:
         """
@@ -1381,7 +1382,7 @@ class Funding_Row_Cls(Card_Cls):
     """
     Description:
         The project and funding obligation, as part of the product — and the console's
-        strongest EDIH-DIGIMAT statement: a deep-indigo brand band carrying the white
+        strongest EDIH-DIGIMAT statement: a purple brand band carrying the white
         institutional logos. Logo heights are set per logo, never globally: a wordmark
         and a two-line institutional block cannot share one height and stay optically
         equal, and the white lockups are proportioned differently from the old dark
@@ -1404,8 +1405,8 @@ class Funding_Row_Cls(Card_Cls):
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(padding=16, parent=parent)
-        # Repaint the card as the deep-indigo band. The border is the band colour
-        # itself, so the block reads as one solid indigo surface on the light page
+        # Repaint the card as the purple band. The border is the band colour
+        # itself, so the block reads as one solid purple surface on the light page
         # rather than the light violet outline the white cards carry.
         self.setStyleSheet(
             '#card { background: %s; border: 1px solid %s; }' % (Style.CONST_BAND, Style.CONST_BAND)
@@ -1432,7 +1433,7 @@ class Funding_Row_Cls(Card_Cls):
         self.box.addWidget(Hairline(vertical=False, color=Style.CONST_BAND_LINE))
 
         # The disclaimer runs the full width rather than wrapping into a four-line
-        # block: the same words, a third of the height. Lavender on the indigo band.
+        # block: the same words, a third of the height. Grey-lilac on the purple band.
         note = QLabel(self.DISCLAIMER)
         note.setFont(Font(8))
         note.setWordWrap(True)

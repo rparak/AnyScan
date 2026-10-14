@@ -171,8 +171,8 @@ def test_a_catalogue_run_charts_ok_nok_warning_and_unspecified(qt_app, tmp_path)
     Description:
         In a catalogue mode the objects chart draws a series per verdict beside the total — OK and NOK, and the
         Warnings (objects that should not be on the surface) and the Unspecified ones — named in its legend and
-        its hover, so how many foreign objects were found is visible; rendered, the Warning series paints the
-        amber. Segment Anything charts the total alone.
+        its hover, so how many foreign objects were found is visible; rendered, the Warning series paints its
+        verdict's text twin. Segment Anything charts the total alone.
     """
 
     from Reporting.Trends import Trends_Accumulator_Cls
@@ -187,8 +187,8 @@ def test_a_catalogue_run_charts_ok_nok_warning_and_unspecified(qt_app, tmp_path)
     assert [label for label, _color in chart._legend] == ['Total', 'OK', 'NOK', 'Warning', 'Unspecified']
     assert chart._Hover_Lines(0)[-1][0] == 'OK 1 · NOK 1 · Warning 2 · Unspecified 1'
     image = chart.grab().toImage()
-    amber = Verdict_Color('Warning')[0].lower()
-    assert any(image.pixelColor(x, y).name() == amber for x in range(image.width()) for y in range(image.height()))
+    warning = Verdict_Color('Warning')[1].lower()
+    assert any(image.pixelColor(x, y).name() == warning for x in range(image.width()) for y in range(image.height()))
     chart.Set_Data(acc.Images(), False)
     assert [label for label, _color in chart._legend] == ['Total']
 

@@ -321,8 +321,10 @@ def test_verdict_colored_false_draws_one_neutral_colour_not_verdicts() -> None:
     """
     Description:
         When classification is off (verdict_colored=False), every object — OK or NOK — is drawn in
-        the ONE neutral detection colour, and no verdict colour appears: not the OK indigo and,
-        crucially, not the NOK magenta. With it on, the NOK object is drawn in the verdict magenta.
+        the ONE neutral detection colour, and no verdict colour marks an object: the NOK orange-red
+        appears nowhere, and the purple, which is the OK verdict's and the console's ink, only as the
+        numerals on the neutral chips beside each object's top-left corner, never on a box. With it
+        on, the NOK object is drawn in the verdict orange-red.
     """
 
     neutral = tuple(Theme.Hex_To_Bgr(Theme.CONST_DETECTION_COLORS[0]))
@@ -337,9 +339,15 @@ def test_verdict_colored_false_draws_one_neutral_colour_not_verdicts() -> None:
     plain = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), 30, np.uint8), objects,
                                     cv2, np, verdict_colored=False)
     assert _Has(plain, neutral)
-    assert not _Has(plain, nok) and not _Has(plain, ok)
+    assert not _Has(plain, nok)
+    rows, columns = np.nonzero((plain == np.array(ok, np.uint8)).all(axis=2))
+    corners = [(det.Bbox[0], det.Bbox[1]) for det in objects]
+    assert all(any(abs(x - cx) <= 40 and abs(y - cy) <= 40 for cx, cy in corners) for y, x in zip(rows, columns)), \
+        'the purple marks a box, not only a chip numeral'
+    for x, y, w, h in (det.Bbox for det in objects):
+        assert tuple(int(c) for c in plain[y + h, x + w // 2]) == neutral        # the bottom edge is the neutral
 
-    # On: the NOK object is drawn in the verdict magenta; the neutral colour is not used.
+    # On: the NOK object is drawn in the verdict orange-red; the neutral colour is not used.
     verdicted = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), 30, np.uint8), objects,
                                         cv2, np, verdict_colored=True)
     assert _Has(verdicted, nok)
@@ -503,7 +511,8 @@ def test_a_stains_box_along_the_part_is_solid_and_its_pixels_tinted() -> None:
                                       Outlines=[[(380, 380), (420, 380), (420, 420), (380, 420)]])])
     assert all(__Along(__Near(annotated, failed), box))
     tinted = annotated[400, 400].astype(int)
-    assert tinted[2] > 120 and tinted[1] < 80                                     # magenta over the grey
+    expected = Annotate.CONST_ANNOTATE_STAIN_TINT * np.array(failed) + (1.0 - Annotate.CONST_ANNOTATE_STAIN_TINT) * 90
+    assert np.abs(tinted - expected).max() <= 1                                   # the fail colour over the grey
 
 
 @pytest.mark.parametrize('degrees', [0.0, 30.0, 135.0, 200.0])
@@ -570,3 +579,24 @@ def test_a_concentric_pair_at_the_tolerance_limits_has_its_chips_apart_each_on_i
     assert 363 <= inner[:, 0].min() and inner[:, 0].max() <= 437 + 1             # within the inner box's edge
     assert len(__Chips(__Render([countersink, __Hole('', 400, 400, 37)]), unnumbered)) == 1
     assert not np.array_equal(__Render([countersink, __Hole('1.9', 400, 400, 37)]), annotated)
+
+
+def test_each_chip_is_its_box_colour_with_its_numeral_colour() -> None:
+    """
+    Description:
+        On the annotated frame each object's chip is filled with its verdict's box colour, as on the poster, and its
+        numeral is drawn in Theme.Chip_Numeral_Color for that chip: white on OK and NOK, the purple on Warning and
+        Unspecified. Read in the rendered pixels of the chip, which sits above each box's top-left corner.
+    """
+
+    verdicts = ('OK', 'NOK', 'Warning', 'Unspecified')
+    objects = [__Object(150, 40 + 140 * i, size=80, verdict=verdict) for i, verdict in enumerate(verdicts)]
+    annotated = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8), objects, cv2, np,
+                                        verdict_colored=True)
+    for det in objects:
+        x, y, _, _ = det.Bbox
+        chip = annotated[y - 30:y, x:x + 30]
+        box = Theme.Verdict_Color(det.Verdict)[0]
+        numeral = Theme.Chip_Numeral_Color(box)
+        assert __Has_Bgr(chip, Theme.Hex_To_Bgr(box)), det.Verdict
+        assert __Has_Bgr(chip, Theme.Hex_To_Bgr(numeral)), det.Verdict

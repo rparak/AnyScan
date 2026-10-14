@@ -74,6 +74,17 @@ black ground, and a chromatic fill within 5° of its box's hue at ≥ 40% of its
 box↔fill ΔE went *down*: that is the cost of a fill that is actually a colour, and both stay well
 above the floor. When classification is off the fill is the neutral one, implying no verdict
 nobody made.
+*Corrected 2026-10-14, the JIC Smart Factory palette (*The palette is the JIC Smart Factory brand's, one purple,
+measured on the frames*):* the boxes are now light (but OK), so each fill is built in the box's hue BELOW it, at
+L\* 56–72, against the same floors; a fill lighter than a light box would read as white.
+
+| | box | fill | ΔE box↔fill | ΔE fill↔white | vs black ground |
+|---|---|---|---|---|---|
+| OK | `#640ABA` | **`#CC9EF1`** | 63.5 | 55.4 | 9.7:1 |
+| NOK | `#FF6540` | **`#CD7157`** | 30.8 | 62.2 | 6.1:1 |
+| Warning | `#FFC226` | **`#B28508`** | 28.3 | 75.3 | 6.3:1 |
+| neutral | `#E1DCE6` → mask outline **`#7E7982`** | **`#C7C2CC`** (derived pair, L\* 79.09; bound 79.74) | 27.6 | 21.7 | 12.0:1 |
+
 **Revisit if** the operator-facing mask needs to encode something other than verdict (e.g.
 per-class colour), in which case add a mode rather than overloading the default.
 Tests `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box` (fails
@@ -84,13 +95,20 @@ margins), `::test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_fl
 `test/Vision/Utilities/test_annotate.py::test_label_mask_fills_each_object_with_a_tint_of_its_box_colour`,
 `::test_detect_only_label_mask_fills_with_the_neutral_tint`, `test/UI/test_harness_parity.py`.
 
-## `#ff005c` is the fail marker and must stay the NOK colour
+## The fail marker is the JIC orange-red `#FF6540`
 
-The EDIH-DIGIMAT brand magenta `#ff005c` reads as a fail marker at a glance, so it is the
-**NOK** verdict colour — exactly what that quality makes it good for. **Revisit only** if
-the verdict scheme itself changes; do not repurpose the magenta as a decorative object
-colour or swap it for a calmer red, because its fail-lookalike quality is the point.
-Commit `ab7df30`; test `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`.
+The NOK verdict colour is the JIC orange-red `#FF6540`, the colour the AnyScan poster marks a defect in, for the
+object's box and chip, a failed feature's marks and the stain tint. Its text twin `#BA260B` and, for words on its
+ground, the poster's defect-tag tint `#FFD9D0` carry it into the UI.
+
+*Corrected 2026-10-14:* until the JIC Smart Factory palette this entry was "`#ff005c` is the fail marker and must
+stay the NOK colour": the EDIH-DIGIMAT magenta, kept because it read as a fail marker at a glance. The owner moved the
+application to the JIC Smart Factory brand, whose poster gives the defect its orange-red; it still reads as a fail
+marker and stays apart from every other state (ΔE ≥ 58) and from the Log's error pink (ΔE 55), so a defect and an
+application fault never share a colour. Do not swap it for a calmer red.
+
+**Revisit if** the verdict scheme or the brand changes.
+Commit `ab7df30` (the magenta); test `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`.
 
 ## The colour-name saturation cutoff is 120, and was not tuned for the red block
 
@@ -1321,6 +1339,15 @@ simulation was checked against Qt 5.15's `QPushButton` only, so on another versi
 hovered renders still differ from the resting ones first. The test's self-check fails if they
 don't.
 
+*Corrected 2026-10-14, the JIC Smart Factory palette:* the controls are outlined in the one purple `#640ABA`, as the
+brand's buttons are: a plain button and an unselected segment in a 1 px purple rule (neighbouring segments share
+one), ANALYZE in a 2 px one, all on the white card with a purple label (9.15:1). A hovered plain button fills
+grey-lilac (6.79:1), a pressed one periwinkle (5.71:1); a selected segment, and a hovered or pressed ANALYZE, fill
+purple under a white label (9.15:1). With one purple there is no darker hover fill, so a selected segment's hover
+keeps the selected look: clicking it does nothing. The harness's self-check that every hover changes pixels exempts
+the selected segments by name and still holds every other control to it. Disabled labels are `#B4A6BE` (2.30:1,
+exempt), their rule the divider grey-lilac.
+
 ## One configuration file per mode, one calibration per camera, decided before the first CONNECT
 
 *Corrected 2026-10-11: the camera block and the background reference are no longer in the mode file. They
@@ -2160,6 +2187,12 @@ is drawn, so a new pair below 4.5:1 fails it.
 Tests `test/UI/test_text_contrast.py::test_every_enabled_text_clears_the_floor`,
 `::test_every_text_ground_is_a_theme_token`, `::test_every_flagged_text_was_measured` (one text of every
 flagged style reached); buttons in every state are measured by `test/UI/test_control_contrast.py`.
+
+*Corrected 2026-10-14, the JIC Smart Factory palette:* the muted ink is `#6F5783` (the purple's hue at L\* 41,
+chroma 28: 6.24:1 on white, 4.63:1 on the grey-lilac); the status words are the JIC green's and amber's hues at L\* 41
+(`#00711B`, `#7C5B00`, 6.2:1), their dots at L\* 60.5 (3.1:1, the graphic floor). The viewport is no longer dark:
+it is the grey-lilac `#E1DCE6`, its text the purple (6.79:1), and a failed set's thumbnail says so in the Log's
+error colour `#BE0362` (4.61:1), so `CONST_ERROR_ON_DARK` is removed.
 
 ## The UI fonts are bundled: static Public Sans and JetBrains Mono at the four weights the UI requests
 
@@ -3312,6 +3345,13 @@ until then a hole was marked by a solid square of its diameter plus 0.5 mm, a mi
 every mark stood on a 2 px light halo (the theme's card colour); the square is now only the box recorded in
 `_objects.json` (`CONST_HOLE_MARK_MARGIN_MM`), and the halo is gone.
 
+*Reconsidered 2026-10-14 with the JIC Smart Factory palette, and kept:* the marks are now the purple (pass) and the
+orange-red (fail). The poster lays a thin dark outline under each defect box, so an outline under every mark was
+measured on the test frames: the orange-red is 1.2:1 against bright aluminium and rust-stained metal (median), and a
+2 px outline lifts every mark there to 3.5:1 in `#640ABA` (6.4:1 in the darker `#2D0557`, which the owner then
+dropped from the palette). The owner compared renders of Image_074 and Image_076 with and without the outline and
+chose none, by eye, despite the 1.2:1: the ruling below stands (*The palette is the JIC Smart Factory brand's*).
+
 **No halo: the marks stand out by hue, not brightness — the owner's decision (2026-10-13).** Measured on the plate
 surface 3–8 px outside each hole (Image_055 front, Image_056 dark back, Image_080 stained front), the indigo's CIE76
 ΔE against the ground is 49.5, 53.7 and 48.8 (10th percentile 44.1, 49.2, 44.4) and the magenta's 84.8, 91.0 and
@@ -3533,3 +3573,63 @@ reading of the stylesheets: a radius anywhere is a regression, which a source sc
 
 **Revisit if** the brand guide changes its shapes.
 Tests `test/UI/test_square_corners.py::test_no_ui_corner_is_rounded`, `::test_no_diagram_rectangle_is_rounded`.
+
+## The palette is the JIC Smart Factory brand's, one purple, measured on the frames
+
+The console, the frame's marks and the architecture diagram take their colours from the JIC Smart Factory guide
+(`Parameters/Theme.py`): the purple `#640ABA` for all text, outlines, the selected segment and the OK verdict; the
+grey-lilac `#E1DCE6` for rules, the control hover, the viewport and the neutral (Unspecified, detect-only); the
+periwinkle `#C2C9FF` for a pressed button, the scroll handle and the OK verdict's word ground; and from the wider
+JIC palette in the same guide the orange-red `#FF6540` (NOK), the amber `#FFC226` (Warning) and the green
+`#3DBE4C` (system health only). One purple: the owner dropped the poster's dark purple `#2D0557` everywhere, the
+hover fills, the text on chips and badges, an outline under the marks and the diagram's band. Text twins too light
+for words are derived in each colour's hue at L\* 41 (6.2:1 on white, 4.6:1 on the grey-lilac). The guide's yellow
+`#FFEF85` is decoration and is no token.
+
+- **On the frame.** OK is the purple, as the poster marks a detected part; NOK the orange-red, as it marks a defect;
+  Warning the amber; Unspecified the grey-lilac. A chip is filled with its box's colour, as on the poster, with a
+  white numeral on OK (9.15:1) and NOK (2.92:1: **the owner's one deliberate exception** for these short bold
+  numerals, pinned at that value) and a purple one on Warning (5.66:1) and Unspecified (6.79:1). The box stays the
+  dashed axis-aligned box around the solid rotated outline of a measured part; corner brackets (the AnyScan mark's
+  motif) were rendered and not chosen.
+- **Words on a verdict.** The badge and the diagram's verdict labels set the purple on the verdict's ground where it
+  reads at ≥ 4.5:1 (Warning's amber, the grey-lilac) and on the poster's tint of it otherwise: the part tag's
+  periwinkle for OK (5.71:1) and the defect tag's `#FFD9D0` for NOK (7.01:1; the purple on the solid orange-red is
+  3.13:1). Trends draws each verdict's series in its text twin (the boxes are under 3:1 as lines on white) and the
+  total in the muted purple-grey, since OK is the purple.
+
+**Why, measured.** Per-pixel WCAG ratio on the test frames (055, 062, 063, 065, 072, 074, 076, 080; 60,000 pixels
+per surface; plate interiors from each object's own mask, eroded 7 px; the table outside the dilated masks). Median
+surfaces: the table `#1A6651` (L\* 38), bright aluminium `#A49FA7` (66), the dark rusted plate `#3A3A3A` (25),
+rust-stained metal `#999298` (61), a stain `#786354` (44).
+
+| Colour | table | aluminium | dark plate | rust-stained | stain |
+|---|---|---|---|---|---|
+| OK `#640ABA` | 1.3 | 3.5 | 1.3 | 3.0 | 1.6 |
+| NOK `#FF6540` | 2.4 | 1.2 | 3.9 | 1.2 | 1.9 |
+| Warning `#FFC226` | 4.3 | 1.6 | 7.0 | 1.9 | 3.5 |
+| Unspecified `#E1DCE6` | 5.1 | 1.9 | 8.4 | 2.2 | 4.2 |
+| green `#3DBE4C` (not chosen for OK) | 2.8 | 1.2 | 4.7 | 1.3 | 2.3 |
+
+- No single colour can reach 3:1 against both the dark plate and the aluminium (relative luminance ≥ 0.227 and
+  ≤ 0.085 at once), so a "stronger" fail colour only trades one plate for the other: `#D03C1D` reached 1.9:1 on
+  aluminium and lost the table (1.4:1) and the stains (1.2:1). An outline under the marks lifts them on bright metal;
+  the owner chose none, by eye (*A judged part's features are marked on the frame*).
+- The OK purple is 1.3:1 against the table and the dark plate; it reads there by hue (ΔE 119 and 96). *Open
+  (2026-10-14):* the owner decides from 1:1 renders of Image_056 (the dark back) and Image_077 whether the frame's
+  marks need thicker lines or a lighter purple.
+- Green was not chosen for OK although it does not vanish on the table (2.8:1, ΔE 60): its hue is 28° from the
+  table's teal, against 119° for the periwinkle that was first proposed, and the poster marks a detection purple.
+- The four boxes are ≥ ΔE 44 apart; NOK and Warning are ΔE 27 under deuteranopia, where the words and the weights
+  carry them as before.
+- Every enabled text clears 4.5:1 on its ground and every control state does, measured from rendered pixels
+  (`test_text_contrast.py`, `test_control_contrast.py`).
+
+**Revisit if** the brand guide changes, the work surface or the parts change (the table above is one table under one
+light), or the owner wants the frame's marks to clear 3:1 on bright metal (the outline is the measured lever).
+Tests `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`,
+`::test_chip_numerals_clear_4_5_but_the_one_nok_exception`, `::test_the_palette_keeps_the_brands_rules`,
+`::test_label_mask_fill_is_a_visible_tint_of_its_box`, `::test_every_catalogue_state_has_its_colour`,
+`test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_its_numeral_colour`,
+`test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`, `test/UI/test_text_contrast.py`,
+`test/UI/test_control_contrast.py`.

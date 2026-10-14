@@ -209,9 +209,11 @@ def test_level_to_colour_mapping(qt_app) -> None:
     assert Log_Level_Color(CONST_LEVEL_WARNING) == CONST_LOG_WARNING
     assert Log_Level_Color(CONST_LEVEL_ERROR) == CONST_LOG_ERROR
     assert Log_Level_Color('SOMETHING_ELSE') == CONST_LOG_INFO
-    # The three tokens are distinct, and ERROR is deliberately not the NOK verdict magenta.
+    # The three tokens are distinct, and ERROR is deliberately not the NOK verdict's colour: it is the pink
+    # family where defects are the orange, clearly apart (ΔE >= 40 from the NOK box and its ink).
+    from Parameters.Theme import Verdict_Color, Delta_E
     assert len({CONST_LOG_INFO, CONST_LOG_WARNING, CONST_LOG_ERROR}) == 3
-    assert CONST_LOG_ERROR != '#ff005c'
+    assert min(Delta_E(CONST_LOG_ERROR, colour) for colour in Verdict_Color('NOK')[:2]) >= 40
 
 
 def test_filter_selects_by_level_and_counts_including_the_empty_case(qt_app) -> None:

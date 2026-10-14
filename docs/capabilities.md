@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `3e2dec7` (2026-10-14).
+Last reviewed against the code at commit `a1b8c00` (2026-10-14).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -207,8 +207,9 @@ Two cards:
   each object adds `State: …`, one `Reason: …` sentence summing up why it is not OK (counts in words up to
   ten: "One of two through-holes is missing, and there are two stains on the machined front."), and a note when
   its size was checked outside the verified zone. The measured and expected values, part by part
-  (Part 2.3 · …), and the similarity are in the log. The badge states the worst verdict: `NOK · n of m` (magenta), `Not judged · n` and
-  `Foreign object · n` (amber), `All OK · n` (green); outside a catalogue mode, `n found`.
+  (Part 2.3 · …), and the similarity are in the log. The badge states the worst verdict, in the purple on its verdict's ground: `NOK · n of m` (the orange-red's
+  tint), `Not judged · n` and `Foreign object · n` (the amber), `All OK · n` (the periwinkle); outside a catalogue
+  mode, `n found`.
 
 ### Trends
 

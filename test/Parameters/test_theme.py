@@ -58,8 +58,8 @@ def test_verdict_colour_comes_from_the_one_constant() -> None:
 
     assert Theme.Verdict_Color('OK') == Theme.CONST_VERDICT_COLORS['OK']
     assert Theme.Verdict_Color('NOK') == Theme.CONST_VERDICT_COLORS['NOK']
-    assert Theme.Verdict_Color('OK')[0] == '#6C63B5'
-    assert Theme.Verdict_Color('NOK')[0] == '#ff005c'
+    assert Theme.Verdict_Color('OK')[0] == '#640ABA'
+    assert Theme.Verdict_Color('NOK')[0] == '#FF6540'
     # An unknown/empty verdict falls back to OK, never raises.
     assert Theme.Verdict_Color('') == Theme.CONST_VERDICT_COLORS['OK']
     assert Theme.Verdict_Color('bogus') == Theme.CONST_VERDICT_COLORS[Theme.CONST_VERDICT_DEFAULT]
@@ -77,15 +77,15 @@ def test_hex_conversions_match_opencv_order() -> None:
     assert Theme.Hex_To_Bgr('#ffffff') == (255, 255, 255)
 
 
-def test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis() -> None:
+def test_neutral_detection_colour_is_distinct_and_near_achromatic() -> None:
     """
     Description:
         The neutral detection colour ('detected, not judged') must be visibly different from the
         OK verdict colour, not a quieter shade of it — otherwise a detect-only set and an all-OK
         classified set look the same and the per-set flag distinction cannot be seen. It is a
-        distinct token, well separated from OK in perceptual distance (ΔE >> the ~26 of the old
-        slate-indigo), off the indigo axis (a low-saturation grey), and calm — far from the loud
-        NOK magenta. Because the box is drawn INTO the frame, it must also clear the project's
+        distinct token, well separated from OK in perceptual distance, near-achromatic (a
+        low-saturation grey-lilac, where OK is the saturated purple), and calm — far from the loud
+        NOK orange-red. Because the box is drawn INTO the frame, it must also clear the project's
         distinctness floor against the real annotation surfaces — and its worst case, having no
         hue to lean on, is grey-on-grey against bright machined steel.
     """
@@ -100,10 +100,9 @@ def test_neutral_detection_colour_is_distinct_and_off_the_indigo_axis() -> None:
     assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['OK']
     assert Theme.Detection_Color() == Theme.CONST_DETECTION_COLORS
 
-    # Clearly separated from OK, and more so than before (lightening it along the grey axis to
-    # clear the steel also pushed it further from the medium-dark OK indigo, ΔE ~46 -> ~53).
+    # Clearly separated from OK (ΔE 107 between the grey-lilac and the purple).
     assert Theme.Delta_E(neutral, ok) > 46
-    # Off the indigo axis: a low-saturation grey, not a saturated indigo like OK.
+    # Near-achromatic: a low-saturation grey, not a saturated purple like OK.
     def _Saturation(hex_color: str) -> float:
         r, g, b = (v / 255.0 for v in Theme.Hex_To_Rgb(hex_color))
         return colorsys.rgb_to_hls(r, g, b)[2]
@@ -168,7 +167,7 @@ def test_neutral_mask_pair_is_derived_light_fill_and_darker_outline() -> None:
         lightness for the table and the parts; on the mask the outline only meets the fill and the
         black ground, so it is darker, which frees the fill to go light. The test states the two
         bounds and asserts the pair's placement against them with the margin:
-          - fill: as light as the fill/white floor allows (L* <= 80.12 for this chroma at the
+          - fill: as light as the fill/white floor allows (L* <= 79.74 for this chroma at the
             floor of 21), placed at that bound less the 0.5 margin — never back to a dark fill;
           - outline: inside [48.88 (4.5:1 on black), fill L* - 25], at least 0.5 from the lower
             bound and at least 25 + 0.5 below the fill.
@@ -181,7 +180,7 @@ def test_neutral_mask_pair_is_derived_light_fill_and_darker_outline() -> None:
 
     outline_lower, fill_upper = Theme.Neutral_Mask_Bounds(box)
     margin = Theme.CONST_MASK_FILL_WINDOW_MARGIN
-    assert (round(outline_lower, 2), round(fill_upper, 2)) == (48.88, 80.12)   # stated in Theme
+    assert (round(outline_lower, 2), round(fill_upper, 2)) == (48.88, 79.74)   # stated in Theme
     outline_l, fill_l = Theme.Lch_Of(outline)[0], Theme.Lch_Of(fill)[0]
     assert abs(fill_l - (fill_upper - margin)) < 0.3                # the lightest allowed fill
     assert fill_l >= 79.0                                           # light — the L* ~80 fill
@@ -269,7 +268,7 @@ def test_the_heatmap_colours_stay_clear_of_the_verdict_status_and_log_colours() 
     from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
     reserved = (list(Theme.CONST_VERDICT_COLORS['OK']) + list(Theme.CONST_VERDICT_COLORS['NOK'])
                 + [Theme.CONST_OK, Theme.CONST_OK_INK, Theme.CONST_WARN, Theme.CONST_WARN_INK,
-                   Theme.CONST_LOG_ERROR, Theme.CONST_ERROR_ON_DARK])
+                   Theme.CONST_LOG_ERROR])
     closest = min((Theme.Delta_E(color, mark), color, mark) for color in Theme.Heatmap_Colors() for mark in reserved)
     assert closest[0] >= CONST_ANNOTATE_MIN_DELTA_E, closest
 
@@ -277,8 +276,8 @@ def test_the_heatmap_colours_stay_clear_of_the_verdict_status_and_log_colours() 
 def test_every_catalogue_state_has_its_colour() -> None:
     """
     Description:
-        Each of the four states a catalogue mode gives has a colour triple: OK and NOK unchanged; Warning the
-        status amber with its text twin (the one place amber marks an object); Unspecified the neutral
+        Each of the four states a catalogue mode gives has a colour triple: OK the purple and NOK the orange-red;
+        Warning the JIC amber with the status amber's text twin (the one place amber marks an object); Unspecified the neutral
         detection colour, since it is not judged — and on the label mask the neutral's darker outline, as for
         a detect-only object, while the judged states keep their box. The four boxes stay ΔE >= 12 apart.
     """
@@ -286,10 +285,48 @@ def test_every_catalogue_state_has_its_colour() -> None:
     from Parameters.Vision import CONST_VERDICTS
     from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
     assert set(Theme.CONST_VERDICT_COLORS) == set(CONST_VERDICTS)
-    assert Theme.Verdict_Color('Warning')[:2] == (Theme.CONST_WARN, Theme.CONST_WARN_INK)
+    assert Theme.Verdict_Color('Warning')[:2] == (Theme.CONST_WARNING_BOX, Theme.CONST_WARN_INK)
     assert Theme.Verdict_Color('Unspecified') == Theme.Detection_Color()
     assert Theme.Mask_Outline_Color('Unspecified') == Theme.Detection_Mask_Outline()
     assert [Theme.Mask_Outline_Color(v) for v in ('OK', 'NOK', 'Warning')] == \
         [Theme.Verdict_Color(v)[0] for v in ('OK', 'NOK', 'Warning')]
     boxes = [Theme.Verdict_Color(v)[0] for v in CONST_VERDICTS]
     assert min(Theme.Delta_E(a, b) for i, a in enumerate(boxes) for b in boxes[i + 1:]) >= CONST_ANNOTATE_MIN_DELTA_E
+
+
+def test_chip_numerals_clear_4_5_but_the_one_nok_exception() -> None:
+    """
+    Description:
+        A chip on the frame is filled with its verdict's box and carries its numeral in Chip_Numeral_Color: white on the
+        OK purple, the purple on Warning's amber and on the neutral, each >= 4.5:1. White on the NOK orange-red is the
+        owner's one deliberate exception for these short bold numerals, at 2.92:1 (docs/design-decisions.md); it is
+        pinned at that value, so a change to the NOK colour or its numeral has to revisit the exception.
+    """
+
+    exceptions = {'NOK': 2.92}
+    for verdict in ('OK', 'NOK', 'Warning', 'Unspecified'):
+        chip = Theme.Verdict_Color(verdict)[0]
+        ratio = Theme.Contrast_Ratio(Theme.Chip_Numeral_Color(chip), chip)
+        if verdict in exceptions:
+            assert Theme.Chip_Numeral_Color(chip) == '#FFFFFF' and round(ratio, 2) == exceptions[verdict], (verdict, ratio)
+        else:
+            assert ratio >= 4.5, (verdict, ratio)
+
+
+def test_the_palette_keeps_the_brands_rules() -> None:
+    """
+    Description:
+        The palette's rules from the JIC Smart Factory brief: the guide's yellow (#FFEF85 and its two tints) is
+        decoration and is no token, so it marks no status and no defect; no object is marked in the JIC green, which
+        would sit in the green table's hue (every verdict box and fill >= ΔE 40 from it); and a verdict's words clear
+        4.5:1 on the ground they sit on (Label_Ground: the badge, the diagram's labels).
+    """
+
+    tokens = {value.upper() for name, value in vars(Theme).items() if name.startswith('CONST_') and isinstance(value, str)}
+    assert not tokens & {'#FFEF85', '#F2E16A', '#E3CD35'}
+    green = Theme.CONST_OK_BORDER
+    for verdict in ('OK', 'NOK', 'Warning', 'Unspecified'):
+        box, ink, fill = Theme.Verdict_Color(verdict)
+        assert min(Theme.Delta_E(box, green), Theme.Delta_E(fill, green)) >= 40, verdict
+        assert Theme.Contrast_Ratio(Theme.CONST_INK, Theme.Label_Ground(verdict)) >= 4.5, verdict
+        assert Theme.Contrast_Ratio(ink, Theme.CONST_CARD) >= 4.5, verdict

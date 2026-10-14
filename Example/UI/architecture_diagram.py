@@ -389,7 +389,7 @@ class Svg_Writer_Cls(object):
                  % (x, y, round(h * w / h_px, 1), h, escape(label), data))
 
     def Card(self, x: float, y: float, w: float, h: float, title: str, lines: tp.List[str],
-             icon: tp.Optional[str] = None, dark: bool = False) -> None:
+             icon: tp.Optional[str] = None) -> None:
         """
         Description:
             A block: a card with a bold title and up to three lines under it, centred vertically.
@@ -399,24 +399,19 @@ class Svg_Writer_Cls(object):
             (5) title [string]: The block's name.
             (6) lines [List<string>]: What it does, one short line each.
             (7) icon [string]: The key in CONST_ICONS drawn in the top-right corner, or None.
-            (8) dark [bool]: The indigo viewport surface instead of a white card.
         """
 
         S = CONST_SCALE
-        if dark:
-            self.Rect(x, y, w, h, Theme.CONST_VIEWPORT)
-        else:
-            self.Rect(x, y, w, h, Theme.CONST_CARD, Theme.CONST_CARD_BORDER)
+        self.Rect(x, y, w, h, Theme.CONST_CARD, Theme.CONST_CARD_BORDER)
         # The text block runs from the title's cap height (~22 above its baseline) to the last
         # line's descender (~6 below its baseline).
         top = y + (h - (22 + 30 + 24 * (len(lines) - 1) + 6)) / 2 + 22
         if icon is not None:
             self.Icon(x + w - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top), icon,
-                      Theme.CONST_VIEWPORT_TEXT if dark else Theme.CONST_INK_SOFT)
-        self.Text(x + 24, top, title, S[6], Theme.CONST_ON_INK if dark else Theme.CONST_INK, weight='700')
+                      Theme.CONST_INK_SOFT)
+        self.Text(x + 24, top, title, S[6], Theme.CONST_INK, weight='700')
         for i, line in enumerate(lines):
-            self.Text(x + 24, top + 30 + 24 * i, line, S[3],
-                      Theme.CONST_VIEWPORT_TEXT if dark else Theme.CONST_INK_SOFT)
+            self.Text(x + 24, top + 30 + 24 * i, line, S[3], Theme.CONST_INK_SOFT)
 
 
 def Icon_Top(baseline: float) -> float:
@@ -613,17 +608,15 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Card(334, y_cat, 208, h_cat, 'Check', ['the checks its item', 'defines, which differ', 'from item to item'],
            icon='checklist')
     c.Arrow(548, mid_cat, 582)
-    # The four verdicts, each a chip outlined and lettered in its ink, two to a row.
+    # The four verdicts, each a label in the purple on its verdict's ground, as the console's badge, two to a row.
     c.Rect(588, y_cat, 244, h_cat, T.CONST_CARD, T.CONST_CARD_BORDER)
     c.Text(612, y_cat + 42, 'Verdict', S[6], T.CONST_INK, weight='700')
     c.Icon(832 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(y_cat + 42), 'badge', T.CONST_INK_SOFT)
-    for i, (verdict, ink, x_chip, w_chip) in enumerate([('OK', T.CONST_INK_SOFT, 612, 64),
-                                                        ('NOK', T.CONST_FAIL_INK, 684, 72),
-                                                        ('Warning', T.CONST_WARN_INK, 612, 82),
-                                                        ('Unspecified', T.CONST_DETECTION_INK, 702, 108)]):
+    for i, (verdict, x_chip, w_chip) in enumerate([('OK', 612, 64), ('NOK', 684, 72), ('Warning', 612, 82),
+                                                   ('Unspecified', 702, 108)]):
         y_chip = y_cat + 62 + 40 * (i // 2)
-        c.Rect(x_chip, y_chip, w_chip, 30, T.CONST_CARD, ink)
-        c.Text(x_chip + w_chip / 2, y_chip + 21, verdict, S[2], ink, weight='600', anchor='middle')
+        c.Rect(x_chip, y_chip, w_chip, 30, T.Label_Ground(verdict))
+        c.Text(x_chip + w_chip / 2, y_chip + 21, verdict, S[2], T.CONST_INK, weight='700', anchor='middle')
     c.Arrow(854, mid_cat, 886)
     # In a catalogue mode the description comes last: it is written with what the checks found.
     c.Text(832, y_cat + h_cat + 32, 'In this mode each object is described after its verdict.', S[2],
@@ -635,14 +628,14 @@ def Draw_Architecture(logo_svg: str) -> str:
     h_app = y_cat + h_cat + 48 - y
     c.Rect(892, y, 268, h_app, T.CONST_VIEWPORT)
     top = y + (h_app - 250) / 2 + 22
-    c.Text(916, top, 'Desktop app', S[6], T.CONST_ON_INK, weight='700')
+    c.Text(916, top, 'Desktop app', S[6], T.CONST_VIEWPORT_TEXT, weight='700')
     c.Icon(1160 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top), 'window', T.CONST_VIEWPORT_TEXT)
     for i, line in enumerate(['shows each object, its', 'description and size,', 'and, in a catalogue', 'mode, its verdict']):
         c.Text(916, top + 30 + 24 * i, line, S[3], T.CONST_VIEWPORT_TEXT)
     for i, view in enumerate(['Live', 'Trends', 'History', 'Log']):
         x_view, y_view = 916 + 114 * (i % 2), top + 140 + 44 * (i // 2)
-        c.Rect(x_view, y_view, 106, 34, T.CONST_INK_HOVER, T.CONST_BAND_LINE)
-        c.Text(x_view + 53, y_view + 23, view, S[2], T.CONST_ON_INK, weight='600', anchor='middle')
+        c.Rect(x_view, y_view, 106, 34, T.CONST_CARD, T.CONST_INK)
+        c.Text(x_view + 53, y_view + 23, view, S[2], T.CONST_INK, weight='600', anchor='middle')
     c.Close('g')
     c.Blank()
 
