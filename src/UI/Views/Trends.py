@@ -403,7 +403,7 @@ class Chart_Base_Cls(QWidget):
         by = rect.top() + 6
         painter.setBrush(QBrush(QColor(Style.CONST_CARD)))
         painter.setPen(QPen(QColor(Style.CONST_CARD_BORDER), 1))
-        painter.drawRoundedRect(QRectF(bx, by, width, height), 5, 5)
+        painter.drawRect(QRectF(bx, by, width, height))
         ty = by + pad
         for text, color in lines:
             painter.setPen(QColor(color))

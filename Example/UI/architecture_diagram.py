@@ -296,23 +296,21 @@ class Svg_Writer_Cls(object):
                  % (x, y, size, fill, attributes, escape(text)))
 
     def Rect(self, x: float, y: float, w: float, h: float, fill: str, stroke: tp.Optional[str] = None,
-             rx: float = 14, dash: tp.Optional[str] = None) -> None:
+             dash: tp.Optional[str] = None) -> None:
         """
         Description:
-            A rounded rectangle.
+            A rectangle, square-cornered as the console's cards and controls are.
 
         Args:
             (1 - 4) x, y, w, h [float]: The position and size.
             (5) fill [string]: A Theme colour token, or 'none'.
             (6) stroke [string]: A Theme colour token for the outline, or None for none.
-            (7) rx [float]: The corner radius.
-            (8) dash [string]: The outline's dash pattern, or None for solid.
+            (7) dash [string]: The outline's dash pattern, or None for solid.
         """
 
         attributes = ' stroke="%s" stroke-width="1.5"' % stroke if stroke else ''
         attributes += ' stroke-dasharray="%s"' % dash if dash else ''
-        self.Add('<rect x="%g" y="%g" width="%g" height="%g" rx="%g" fill="%s"%s/>'
-                 % (x, y, w, h, rx, fill, attributes))
+        self.Add('<rect x="%g" y="%g" width="%g" height="%g" fill="%s"%s/>' % (x, y, w, h, fill, attributes))
 
     def Arrow(self, x1: float, y: float, x2: float) -> None:
         """
@@ -542,7 +540,7 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Blank()
 
     c.Add('<!-- The card: opaque, so the figure reads the same on a light or a dark README. -->')
-    c.Rect(0.75, 0.75, CONST_WIDTH - 1.5, CONST_HEIGHT - 1.5, T.CONST_BG, T.CONST_CARD_BORDER, rx=20)
+    c.Rect(0.75, 0.75, CONST_WIDTH - 1.5, CONST_HEIGHT - 1.5, T.CONST_BG, T.CONST_CARD_BORDER)
     c.Blank()
 
     # The header, as the console's top bar: the lockup, a divider, the JIC mark.
@@ -591,8 +589,8 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Blank()
 
     c.Open('<g id="each-object">', '3. Each object: described and measured')
-    c.Rect(558, y - 20, 290, h + 40, 'none', T.CONST_SCROLLBAR_HANDLE, rx=18, dash='6 6')
-    c.Rect(578, y - 34, 124, 28, T.CONST_BRAND, rx=6)
+    c.Rect(558, y - 20, 290, h + 40, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
+    c.Rect(578, y - 34, 124, 28, T.CONST_BRAND)
     c.Text(640, y - 14, 'each object', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
     c.Card(574, y + 4, 258, 104, 'Describe', ['in words, by a local', 'vision-language model'], icon='text')
     c.Card(574, y + h - 108, 258, 104, 'Measure', ['size in mm, through', 'the calibration'], icon='ruler')
@@ -606,8 +604,8 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Open('<g id="catalogue">', '4. A catalogue mode also recognises its part, checks it and gives each object a verdict')
     # Every object found goes on to these steps: down from Find objects, over, and into Recognise.
     c.Elbow([(389, y + h + 6), (389, y + h + 33), (172, y + h + 33), (172, y_cat - 6)])
-    c.Rect(40, y_cat - 20, 808, h_cat + 68, 'none', T.CONST_SCROLLBAR_HANDLE, rx=18, dash='6 6')
-    c.Rect(214, y_cat - 34, 320, 28, T.CONST_BRAND, rx=6)
+    c.Rect(40, y_cat - 20, 808, h_cat + 68, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
+    c.Rect(214, y_cat - 34, 320, 28, T.CONST_BRAND)
     c.Text(374, y_cat - 14, 'catalogue mode adds, for each object', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
     c.Card(56, y_cat, 232, h_cat, 'Recognise', ['the catalogued part and', 'the side that is up, by', 'its reference images'],
            icon='focus')
@@ -624,7 +622,7 @@ def Draw_Architecture(logo_svg: str) -> str:
                                                         ('Warning', T.CONST_WARN_INK, 612, 82),
                                                         ('Unspecified', T.CONST_DETECTION_INK, 702, 108)]):
         y_chip = y_cat + 62 + 40 * (i // 2)
-        c.Rect(x_chip, y_chip, w_chip, 30, T.CONST_CARD, ink, rx=8)
+        c.Rect(x_chip, y_chip, w_chip, 30, T.CONST_CARD, ink)
         c.Text(x_chip + w_chip / 2, y_chip + 21, verdict, S[2], ink, weight='600', anchor='middle')
     c.Arrow(854, mid_cat, 886)
     # In a catalogue mode the description comes last: it is written with what the checks found.
@@ -643,7 +641,7 @@ def Draw_Architecture(logo_svg: str) -> str:
         c.Text(916, top + 30 + 24 * i, line, S[3], T.CONST_VIEWPORT_TEXT)
     for i, view in enumerate(['Live', 'Trends', 'History', 'Log']):
         x_view, y_view = 916 + 114 * (i % 2), top + 140 + 44 * (i // 2)
-        c.Rect(x_view, y_view, 106, 34, T.CONST_INK_HOVER, T.CONST_BAND_LINE, rx=8)
+        c.Rect(x_view, y_view, 106, 34, T.CONST_INK_HOVER, T.CONST_BAND_LINE)
         c.Text(x_view + 53, y_view + 23, view, S[2], T.CONST_ON_INK, weight='600', anchor='middle')
     c.Close('g')
     c.Blank()
@@ -653,8 +651,8 @@ def Draw_Architecture(logo_svg: str) -> str:
     y_set, h_set = CONST_SET_TOP, 240
     c.Open('<g id="set-up">', 'What sets the stages up: the mode, the station, the calibration, the catalogue item, '
            'the reference')
-    c.Rect(40, y_set, 808, h_set, 'none', T.CONST_SCROLLBAR_HANDLE, rx=18, dash='6 6')
-    c.Rect(60, y_set - 14, 104, 28, T.CONST_BRAND, rx=6)
+    c.Rect(40, y_set, 808, h_set, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
+    c.Rect(60, y_set - 14, 104, 28, T.CONST_BRAND)
     c.Text(112, y_set + 6, 'set up by', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
     for i, (title, lines, icon) in enumerate([('Mode', ['models and prompts,', 'and its station'], 'gear'),
                                               ('Station', ['camera, light, table,', 'and its calibration'], 'station'),
@@ -677,8 +675,7 @@ def Draw_Architecture(logo_svg: str) -> str:
 
     c.Open('<g id="funding-band">', 'The funding band, as in the console: the logos in its order, a hairline, '
            'the EU disclaimer')
-    c.Add('<path d="M0.75 %g H1199.25 V%g A20 20 0 0 1 1179.25 %g H20.75 A20 20 0 0 1 0.75 %g Z" fill="%s"/>'
-          % (CONST_BAND_TOP, CONST_HEIGHT - 20.75, CONST_HEIGHT - 0.75, CONST_HEIGHT - 20.75, T.CONST_BAND))
+    c.Add('<rect x="0.75" y="%g" width="1198.5" height="%g" fill="%s"/>' % (CONST_BAND_TOP, CONST_HEIGHT - 0.75 - CONST_BAND_TOP, T.CONST_BAND))
     # The row is centred like the console's (stretch on both sides); None is its hairline divider.
     row = []
     for name, height in Funding_Row_Cls.LOGOS:

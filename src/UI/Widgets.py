@@ -123,8 +123,7 @@ class Card_Cls(QFrame):
         super().__init__(parent)
         self.setObjectName('card')
         self.setStyleSheet(
-            '#card { background: %s; border: 1px solid %s; border-radius: %dpx; }'
-            % (Style.CONST_CARD, Style.CONST_CARD_BORDER, Style.CONST_RADIUS_CARD)
+            '#card { background: %s; border: 1px solid %s; }' % (Style.CONST_CARD, Style.CONST_CARD_BORDER)
         )
         self.box = QVBoxLayout(self)
         self.box.setContentsMargins(padding, padding, padding, padding)
@@ -180,13 +179,13 @@ class Icon_Cls(QWidget):
             return QRectF(x * s, y * s, w * s, h * s)
 
         if self.__kind == 'camera':
-            p.drawRoundedRect(_Rect(2, 6, 20, 14), 2 * s, 2 * s)
+            p.drawRect(_Rect(2, 6, 20, 14))
             p.drawLine(QPoint(int(9.5 * s), int(6 * s)), QPoint(int(11 * s), int(4 * s)))
             p.drawLine(QPoint(int(14.5 * s), int(6 * s)), QPoint(int(13 * s), int(4 * s)))
             p.drawLine(QPoint(int(11 * s), int(4 * s)), QPoint(int(13 * s), int(4 * s)))
             p.drawEllipse(_Rect(8.4, 9.4, 7.2, 7.2))
         elif self.__kind == 'reading':
-            p.drawRoundedRect(_Rect(4, 4, 16, 16), 1.5 * s, 1.5 * s)
+            p.drawRect(_Rect(4, 4, 16, 16))
             p.drawLine(QPoint(int(12 * s), int(4 * s)), QPoint(int(12 * s), int(20 * s)))
             for y in (9, 12.5):
                 p.drawLine(QPoint(int(7 * s), int(y * s)), QPoint(int(9.5 * s), int(y * s)))
@@ -239,8 +238,7 @@ class Badge_Cls(QLabel):
         else:
             border, bg, fg = Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK_MUTE
         self.setStyleSheet(
-            'border: 1px solid %s; background: %s; color: %s;'
-            'border-radius: 7px; padding: 0 9px;' % (border, bg, fg)
+            'border: 1px solid %s; background: %s; color: %s; padding: 0 9px;' % (border, bg, fg)
         )
 
     def Set_State(self, text: str, level: str) -> None:
@@ -569,7 +567,7 @@ class Viewport_Cls(QWidget):
         p.setRenderHint(QPainter.SmoothPixmapTransform)
 
         path = QPainterPath()
-        path.addRoundedRect(QRectF(self.rect()), 8, 8)
+        path.addRect(QRectF(self.rect()))
         p.setClipPath(path)
         p.fillRect(self.rect(), QColor(Style.CONST_VIEWPORT))
 
@@ -719,8 +717,7 @@ class Tool_Button_Cls(QPushButton):
         # for another state. Nothing competes here today, but the pairing keeps it that way.
         if primary:
             self.setStyleSheet("""
-                QPushButton { background: %(ink)s; border: 1px solid %(ink)s; color: %(on_ink)s;
-                              border-radius: %(radius)dpx; }
+                QPushButton { background: %(ink)s; border: 1px solid %(ink)s; color: %(on_ink)s; }
                 QPushButton:hover:enabled { background: %(hover)s; border-color: %(hover)s;
                                             color: %(on_ink)s; }
                 QPushButton:pressed:enabled { background: %(pressed)s; border-color: %(pressed)s;
@@ -729,11 +726,10 @@ class Tool_Button_Cls(QPushButton):
                                        color: %(off_text)s; }
             """ % {'ink': Style.CONST_INK, 'on_ink': Style.CONST_ON_INK, 'hover': Style.CONST_INK_HOVER,
                    'pressed': Style.CONST_INK_PRESSED, 'off_fill': Style.CONST_PRIMARY_DISABLED_FILL,
-                   'off_text': Style.CONST_PRIMARY_DISABLED_TEXT, 'radius': Style.CONST_RADIUS_BTN})
+                   'off_text': Style.CONST_PRIMARY_DISABLED_TEXT})
         else:
             self.setStyleSheet("""
-                QPushButton { background: %(card)s; border: 1px solid %(border)s; color: %(ink)s;
-                              border-radius: %(radius)dpx; }
+                QPushButton { background: %(card)s; border: 1px solid %(border)s; color: %(ink)s; }
                 QPushButton:hover:enabled { background: %(hover)s; border-color: %(hover_border)s;
                                             color: %(ink)s; }
                 QPushButton:disabled { background: %(card)s; border-color: %(off_border)s;
@@ -741,7 +737,7 @@ class Tool_Button_Cls(QPushButton):
             """ % {'card': Style.CONST_CARD, 'border': Style.CONST_CONTROL_BORDER, 'ink': Style.CONST_INK,
                    'hover': Style.CONST_CONTROL_HOVER, 'hover_border': Style.CONST_CONTROL_HOVER_BORDER,
                    'off_border': Style.CONST_CONTROL_DISABLED_BORDER,
-                   'off_text': Style.CONST_CONTROL_DISABLED_TEXT, 'radius': Style.CONST_RADIUS_BTN})
+                   'off_text': Style.CONST_CONTROL_DISABLED_TEXT})
 
 
 class Segmented_Control_Cls(QWidget):
@@ -806,14 +802,9 @@ class Segmented_Control_Cls(QWidget):
             (1) parameter [string]: The Qt stylesheet.
         """
 
-        radius = Style.CONST_RADIUS_BTN
-        left = radius if index == 0 else 0
-        right = radius if index == total - 1 else 0
         return ("""
             QPushButton { background: %(card)s; border: 1px solid %(border)s; color: %(ink)s;
-                          padding: 0 16px;
-                          border-top-left-radius: %(left)dpx; border-bottom-left-radius: %(left)dpx;
-                          border-top-right-radius: %(right)dpx; border-bottom-right-radius: %(right)dpx; }
+                          padding: 0 16px; }
             QPushButton:!checked:hover:enabled { background: %(hover)s; color: %(ink)s; }
             QPushButton:checked { background: %(ink)s; border-color: %(ink)s; color: %(on_ink)s; }
             QPushButton:checked:hover:enabled { background: %(ink_hover)s; border-color: %(ink_hover)s;
@@ -825,7 +816,7 @@ class Segmented_Control_Cls(QWidget):
         """ % {'card': Style.CONST_CARD, 'border': Style.CONST_CONTROL_BORDER, 'ink': Style.CONST_INK,
                'hover': Style.CONST_CONTROL_HOVER, 'ink_hover': Style.CONST_INK_HOVER,
                'on_ink': Style.CONST_ON_INK, 'off_border': Style.CONST_CONTROL_DISABLED_BORDER,
-               'off_text': Style.CONST_CONTROL_DISABLED_TEXT, 'left': left, 'right': right})
+               'off_text': Style.CONST_CONTROL_DISABLED_TEXT, })
 
     def Set_Selection(self, key: str) -> None:
         """
@@ -938,7 +929,7 @@ class Object_Block_Cls(QWidget):
         """
 
         tint = Style.CONST_LINE if (selected and self.__selectable) else 'transparent'
-        self.setStyleSheet('#objBlock { background: %s; border-radius: 7px; }' % tint)
+        self.setStyleSheet('#objBlock { background: %s; }' % tint)
 
     # << QT OVERRIDE >> #
     def mousePressEvent(self, event: tp.Any) -> None:
@@ -1417,8 +1408,7 @@ class Funding_Row_Cls(Card_Cls):
         # itself, so the block reads as one solid indigo surface on the light page
         # rather than the light violet outline the white cards carry.
         self.setStyleSheet(
-            '#card { background: %s; border: 1px solid %s; border-radius: %dpx; }'
-            % (Style.CONST_BAND, Style.CONST_BAND, Style.CONST_RADIUS_CARD)
+            '#card { background: %s; border: 1px solid %s; }' % (Style.CONST_BAND, Style.CONST_BAND)
         )
         row = QHBoxLayout()
         row.setSpacing(Style.CONST_MARK_GAP)

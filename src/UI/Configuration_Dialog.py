@@ -193,9 +193,9 @@ class Configuration_Dialog_Cls(QDialog):
         self.__list.setTextElideMode(Qt.ElideMiddle)
         self.__list.setIconSize(QSize(CONST_MARK_PX, CONST_MARK_PX))
         self.__list.setStyleSheet(
-            'QListWidget { border: 1px solid %(border)s; border-radius: 8px; padding: 4px; outline: 0;'
+            'QListWidget { border: 1px solid %(border)s; padding: 4px; outline: 0;'
             '              background: %(card)s; color: %(ink)s; }'
-            'QListWidget::item { padding: 7px 6px; border-radius: 6px; color: %(ink)s; }'
+            'QListWidget::item { padding: 7px 6px; color: %(ink)s; }'
             'QListWidget::item:selected { background: %(hover)s; color: %(ink)s; }'
             'QListWidget::item:disabled { color: %(mute)s; }'
             % {'border': Style.CONST_CONTROL_BORDER, 'card': Style.CONST_CARD, 'ink': Style.CONST_INK,
@@ -217,8 +217,8 @@ class Configuration_Dialog_Cls(QDialog):
         # From the palette like every other control: the divider tone for the track, the brand ink
         # for the moving bar — not the platform's default blue.
         self.__progress.setStyleSheet(
-            'QProgressBar { border: none; border-radius: 3px; background: %s; }'
-            'QProgressBar::chunk { border-radius: 3px; background: %s; }'
+            'QProgressBar { border: none; background: %s; }'
+            'QProgressBar::chunk { background: %s; }'
             % (Style.CONST_LINE, Style.CONST_INK))
         self.__progress.hide()
         box.addWidget(self.__progress)

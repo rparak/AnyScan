@@ -158,7 +158,7 @@ class Log_View_Cls(Card_Cls):
         self.__new_indicator.setFont(Font(9, tracking=2))
         self.__new_indicator.setStyleSheet(
             'QPushButton { border: 1px solid %s; background: %s; color: %s;'
-            'border-radius: 12px; padding: 3px 12px; }'
+            'padding: 3px 12px; }'
             'QPushButton:hover { background: %s; color: %s; }'
             % (Style.CONST_CARD_BORDER, Style.CONST_CARD, Style.CONST_INK, Style.CONST_CONTROL_HOVER,
                Style.CONST_INK))

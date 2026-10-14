@@ -3518,3 +3518,18 @@ Tests `test/Configuration/test_core.py` (`test_a_mode_file_without_a_station_fai
 `test_a_mode_file_never_overrides_the_station`), `test/Calibration/test_core.py`
 (`test_images_harness_writes_a_new_calibration_and_prints_the_station_line`,
 `test_a_first_calibration_is_a_new_file_and_the_harness_says_the_line_to_add`, `test_a_removed_flag_says_what_replaced_it`).
+
+## Corners are square, as the brand draws them
+
+No UI element and no rectangle in the architecture diagram has a rounded corner: cards, buttons, segmented controls,
+pills, badges, the viewport, History's thumbnails and image panes, the Log's new-lines pill, Trends' read-out box,
+the Configuration dialog's list and progress bar, scroll areas and their handles, and the camera and reading icons.
+The radius tokens (`Style.CONST_RADIUS_CARD` 18, `CONST_RADIUS_BTN` 11) and every literal radius (3–15 px) are
+removed, not set to 0, so no rule is left to re-round a corner.
+
+**Why.** The JIC Smart Factory guide draws every block, tag and button square, with thin rules (the formats, the
+banner and the poster), and the owner asked for square corners. Removing the radii rather than zeroing them keeps one
+reading of the stylesheets: a radius anywhere is a regression, which a source scan can find.
+
+**Revisit if** the brand guide changes its shapes.
+Tests `test/UI/test_square_corners.py::test_no_ui_corner_is_rounded`, `::test_no_diagram_rectangle_is_rounded`.

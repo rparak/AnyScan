@@ -543,7 +543,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             A header pill's stylesheet: the card fill, the given border and text colour, the pill
-            radius and padding — one definition for the pill's idle and live states. A status colour
+            padding — one definition for the pill's idle and live states. A status colour
             is drawn in its text twin (Style.Status_Text_Color), so the words clear 4.5:1.
 
         Args:
@@ -554,7 +554,7 @@ class AnyScan_Window_Cls(QMainWindow):
             (1) parameter [string]: The Qt stylesheet.
         """
 
-        return ('border: 1px solid %s; background: %s; color: %s; border-radius: 15px; padding: 0 12px;'
+        return ('border: 1px solid %s; background: %s; color: %s; padding: 0 12px;'
                 % (border, Style.CONST_CARD, Style.Status_Text_Color(ink)))
 
     def __Build_Camera_Card(self) -> Card_Cls:
@@ -874,7 +874,7 @@ class AnyScan_Window_Cls(QMainWindow):
         loaded = self.__vision.Models_Loaded and not self.__configuration_loading
         self.__label_model_name.setText(self.__vision.Name if loaded else Style.CONST_NO_VALUE)
         self.__label_model_name.setStyleSheet('color: %s;' % name)
-        self.__pill_model.setStyleSheet('#modelPill { border: 1px %s %s; border-radius: 15px; background: %s; }'
+        self.__pill_model.setStyleSheet('#modelPill { border: 1px %s %s; background: %s; }'
                                         % (line, border, Style.CONST_CARD))
 
     def __Fail(self, message: str) -> None:

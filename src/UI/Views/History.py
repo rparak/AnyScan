@@ -185,7 +185,7 @@ class History_Image_Cls(QWidget):
 
         if self.__pixmap is None or self.__pixmap.isNull():
             path = QPainterPath()
-            path.addRoundedRect(QRectF(self.rect()), 8, 8)
+            path.addRect(QRectF(self.rect()))
             painter.fillPath(path, QColor(Style.CONST_BG))
             painter.setPen(QColor(Style.CONST_INK_MUTE))
             painter.setFont(Font(9.5, mono=True))
@@ -242,7 +242,7 @@ class Thumb_Card_Cls(QFrame):
         self.__thumb.setFixedSize(CONST_THUMB_W, CONST_THUMB_H)
         self.__thumb.setAlignment(Qt.AlignCenter)
         self.__thumb.setWordWrap(True)
-        self.__thumb.setStyleSheet('background: %s; border-radius: 5px; color: %s;'
+        self.__thumb.setStyleSheet('background: %s; color: %s;'
                                    % (Style.CONST_VIEWPORT, Style.CONST_VIEWPORT_TEXT))
         self.__thumb.setText('…')
         column.addWidget(self.__thumb)
@@ -299,7 +299,7 @@ class Thumb_Card_Cls(QFrame):
                 return
         # No thumbnail — a partial set (a failed analysis, or one stopped at close). Marked as an
         # error, not a bland placeholder.
-        self.__thumb.setStyleSheet('background: %s; border-radius: 5px; color: %s;'
+        self.__thumb.setStyleSheet('background: %s; color: %s;'
                                    % (Style.CONST_VIEWPORT, Style.CONST_ERROR_ON_DARK))
         self.__thumb.setText('ANALYSIS\nFAILED')
         self.__thumb.setFont(Font(7.5, QFont.DemiBold, tracking=1))
@@ -317,8 +317,7 @@ class Thumb_Card_Cls(QFrame):
 
         border = (color or Style.CONST_INK) if selected else Style.CONST_CARD_BORDER
         width = 2 if selected else 1
-        self.setStyleSheet('#thumbCard { background: %s; border: %dpx solid %s;'
-                           ' border-radius: 9px; }' % (Style.CONST_CARD, width, border))
+        self.setStyleSheet('#thumbCard { background: %s; border: %dpx solid %s; }' % (Style.CONST_CARD, width, border))
 
     def __Time_Text(self) -> str:
         """
@@ -470,11 +469,11 @@ class History_View_Cls(QWidget):
         self.__info_button.setFixedHeight(30)
         self.__info_button.setStyleSheet(
             'QPushButton { background: %s; border: 1px solid %s; color: %s;'
-            ' padding: 0 14px; border-radius: %dpx; }'
+            ' padding: 0 14px; }'
             'QPushButton:hover:enabled { background: %s; }'
             'QPushButton:checked { background: %s; border-color: %s; color: %s; }'
             'QPushButton:disabled { color: %s; border-color: %s; }'
-            % (Style.CONST_CARD, Style.CONST_CONTROL_BORDER, Style.CONST_INK, Style.CONST_RADIUS_BTN,
+            % (Style.CONST_CARD, Style.CONST_CONTROL_BORDER, Style.CONST_INK,
                Style.CONST_CONTROL_HOVER, Style.CONST_INK, Style.CONST_INK, Style.CONST_ON_INK,
                Style.CONST_CONTROL_DISABLED_TEXT, Style.CONST_CONTROL_DISABLED_BORDER))
         self.__info_button.clicked.connect(self.__Toggle_Info)

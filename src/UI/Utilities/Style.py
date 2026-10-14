@@ -67,8 +67,6 @@ Description:
 CONST_ASSETS = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'App', 'assets'))
 
-CONST_RADIUS_CARD   = 18
-CONST_RADIUS_BTN    = 11
 CONST_GAP           = 16          # gap between cards, everywhere
 CONST_MARK_GAP      = 32          # gap between brand marks and either side of the divider between them
 # The top bar's AnyScan lockup height on a high-density display. On a low-density one Logo_Height grows it until the
@@ -324,11 +322,11 @@ def Scroll_Style(framed: bool) -> str:
         (1) parameter [string]: The Qt stylesheet.
     """
 
-    area = ('QScrollArea { border: 1px solid %s; border-radius: 10px; background: %s; }'
+    area = ('QScrollArea { border: 1px solid %s; background: %s; }'
             % (CONST_LINE, CONST_CARD) if framed else 'QScrollArea { border: none; background: transparent; }')
     return area + """
             QScrollBar:vertical { background: transparent; width: 9px; margin: 6px 3px; }
-            QScrollBar::handle:vertical { background: %s; border-radius: 4px;
+            QScrollBar::handle:vertical { background: %s;
                                           min-height: 30px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
