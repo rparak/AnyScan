@@ -65,10 +65,6 @@ Description:
 # that it is not verified.
 #   Unit [float] (mm)
 CONST_VERIFIED_RADIUS_MM = 46.4
-# The rotations each object's crop is compared in: the crop is turned upright (long side vertical) but
-# not which end is up, nor which side of a square, so all four quarter turns are compared.
-#   Unit [int]
-CONST_CLASSIFY_ROTATIONS = 4
 
 
 def Object_Crop(frame_bgr: tp.Any, det: Detection_Str, cv2: tp.Any, np: tp.Any) -> tp.Any:
@@ -176,7 +172,8 @@ def Reference_Crop(image_bgr: tp.Any, box: tp.Tuple[float, float, float, float])
 def Rotations(crop: tp.Any, cv2: tp.Any) -> tp.List[tp.Any]:
     """
     Description:
-        A crop in its CONST_CLASSIFY_ROTATIONS quarter turns, the unturned one first.
+        A crop in its four quarter turns, the unturned one first: each object's crop is turned upright
+        (long side vertical) but not which end is up, nor which side of a square, so all four are compared.
 
     Args:
         (1) crop [Matrix<uint8> hxwx3]: The crop.
