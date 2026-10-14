@@ -98,7 +98,7 @@ CONST_FILTER_SEGMENTS = (('all', 'All'), ('ok', 'OK'), ('nok', 'NOK'), ('warning
 #   Unit [Dict<string, string>]
 CONST_FILTER_STATES = {'ok': 'OK', 'nok': 'NOK', 'warning': 'Warning', 'unspecified': 'Unspecified'}
 
-# The empty-grid messages, per filter — the NOK one names why it is expected to be empty today.
+# The empty-grid messages, per filter.
 #   Unit [Dict<string, string>]
 CONST_EMPTY_MESSAGES = {
     'all': 'No captures in this run yet. Analyse an image to begin.',
@@ -380,7 +380,7 @@ class History_View_Cls(QWidget):
         # The current application run: History lists ONLY the sets written in it (matched by
         # run id), so earlier runs stay on disk but are not shown.
         self.__run_id = run_id
-        # Whether the configuration in force classifies: the OK/NOK filter shows iff it does. It can
+        # Whether the configuration in force classifies: the verdict filter shows iff it does. It can
         # change only before the run's first CONNECT (Set_Configuration) — before any set of the run
         # exists — so every set listed shares it; each set also names its configuration.
         self.__classification_enabled = classification_enabled
@@ -408,8 +408,8 @@ class History_View_Cls(QWidget):
     def __Build_List_Panel(self) -> Card_Cls:
         """
         Description:
-            The left 'Captures' card: the head with the OK/NOK filter, the retention note, and the
-            scrollable, session-grouped thumbnail grid.
+            The left 'Captures' card: the head, the verdict filter and its counts on their own rows under
+            it, the retention note, and the scrollable, session-grouped thumbnail grid.
 
         Returns:
             (1) parameter [Card_Cls(object)]: The list card.
@@ -759,7 +759,7 @@ class History_View_Cls(QWidget):
     def __Empty_Message(self) -> QLabel:
         """
         Description:
-            The filter-aware empty-grid message (the NOK case names why it is empty today).
+            The filter-aware empty-grid message (CONST_EMPTY_MESSAGES).
 
         Returns:
             (1) parameter [QLabel(object)]: The message label.
@@ -1199,8 +1199,8 @@ class History_View_Cls(QWidget):
         """
         Description:
             The selection-outline colour for a set, decided by how the set was WRITTEN (not the
-            current config): the muted tone for a partial set; the verdict colour (NOK when any
-            object is NOK, else OK) for a set written WITH classification; and the neutral
+            current config): the muted tone for a partial set; the colour of its worst verdict
+            (Capture_Set_Str.Worst_State) for a set written WITH classification; and the neutral
             detection colour for a set written WITHOUT — so a verdict-coloured set and a
             detect-only set read differently, matching their baked-in image colours.
 

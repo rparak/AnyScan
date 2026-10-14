@@ -445,7 +445,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
     """
     Description:
         Chart 1 — the cumulative object count against the analysed-image index. One Total series,
-        plus OK and NOK series when the run classifies. The final Total point equals the status
+        plus one series per verdict (OK, NOK, Warning, Unspecified) when the run classifies. The final Total point equals the status
         bar's OBJECTS DETECTED and the last x equals IMAGES ANALYSED; a failed analysis never
         advances x, because the accumulator is only fed successful analyses.
 
@@ -467,7 +467,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
 
         Args:
             (1) rows [Vector<Trend_Image_Str(object)>]: The per-image trend rows.
-            (2) classification_enabled [bool]: Whether to draw the OK/NOK split.
+            (2) classification_enabled [bool]: Whether to draw the per-verdict series.
         """
 
         self.__rows, self.__classified = rows, classification_enabled
@@ -690,7 +690,7 @@ class Trends_View_Cls(QWidget):
 
     Initialization of the Class:
         Args:
-            (1) classification_enabled [bool]: Whether the run classifies (drives the OK/NOK split
+            (1) classification_enabled [bool]: Whether the run classifies (drives the per-verdict series
                                                and the verdict dot colours).
             (2) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: REQUIRED,
                 keyword-only: where the confidence chart's reference lines are drawn.

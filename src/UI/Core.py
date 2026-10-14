@@ -569,7 +569,7 @@ class AnyScan_Window_Cls(QMainWindow):
         card = Card_Cls()
         head = Card_Head_Cls('camera', 'Camera View', 'No frame')
         self.__frame_badge = head.badge
-        # The view selector (annotated/mask/heatmap) lives in the head, right-aligned: it belongs to
+        # The view selector (annotated/mask/heatmap/similarity) lives in the head, right-aligned: it belongs to
         # the view, not the action row. Hidden until an analysis has produced its renders.
         self.__view_toggle = View_Toggle_Cls()
         self.__view_toggle.setVisible(False)
@@ -1834,7 +1834,7 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__Log_Configuration_Refusal()
             return
         # The window dims behind the dialog so the dialog is the focus. The dialog cannot close while
-        # it loads, and whichever way it closes (Load's own close, CLOSE, the title bar) exec_
+        # it loads, and whichever way it closes (its CLOSE, the title bar) exec_
         # returns here — the finally lifts the dim on every path.
         self.__Set_Dimmed(True)
         try:

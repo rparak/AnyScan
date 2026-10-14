@@ -143,7 +143,7 @@ class Capture_Object_Str:
     Confidence: tp.Optional[int] = None
     # Which fused cue located it ('fastsam' | 'background' | 'both').
     Cue: str = ''
-    # The per-object verdict ('OK' | 'NOK').
+    # The per-object verdict (one of Parameters.Vision.CONST_VERDICTS: 'OK' | 'NOK' | 'Unspecified' | 'Warning').
     Verdict: str = 'OK'
     # The composed description sentence (the shared formatter's output for this object).
     Description: str = ''

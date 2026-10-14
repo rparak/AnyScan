@@ -389,7 +389,7 @@ class Viewport_Cls(QWidget):
             unchanged.
 
         Args:
-            (1) view [string]: 'annotated', 'mask' or 'heatmap'.
+            (1) view [string]: 'annotated', 'mask', 'heatmap' or 'similarity'.
         """
 
         if view != self.__view:
@@ -748,8 +748,8 @@ class Segmented_Control_Cls(QWidget):
     """
     Description:
         The console's ONE segmented control: a row of mutually-exclusive, checkable segments
-        styled as a single pill, so every selector (the Camera View's annotated/mask/heatmap toggle,
-        the header's Live/Trends/History/Log switch) shares one visual language. It emits
+        styled as a single pill, so every selector (the Camera View's annotated/mask/heatmap/similarity
+        toggle, the header's Live/Trends/History/Log switch, History's verdict filter) shares one visual language. It emits
         Segment_Selected with the chosen key only on a USER click; Set_Selection reflects a
         choice programmatically without re-emitting, so restoring a remembered choice never
         loops. The first segment is selected at construction.
@@ -899,7 +899,7 @@ class View_Toggle_Cls(Segmented_Control_Cls):
             remembered view choice when a new analysis completes.
 
         Args:
-            (1) view [string]: 'annotated', 'mask' or 'heatmap'.
+            (1) view [string]: 'annotated', 'mask', 'heatmap' or 'similarity'.
         """
 
         self.Set_Selection(view)
