@@ -53,3 +53,8 @@ env/
 # runs that crashed, kept (newest ten) so running the suite again never deletes one. Local evidence,
 # not committed.
 /test/crash_records/
+
+# The brand's design sources — the JIC Smart Factory style guide, the delivered logos, the poster, and the
+# commercial GT America / GT Super Display fonts, which may not be redistributed. Kept on the owner's machine only;
+# what the application ships is copied from it into App/assets/ (logos) or built from open fonts (App/assets/fonts/).
+/design/
