@@ -133,8 +133,8 @@ class Catalogue_Side_Str:
     """
     Description:
         One side of the catalogue part as a person describes it: what it is called and what it looks
-        like. Its Name is read now (the side sentence of a judged object's description); its Description
-        is validated and waits for the describer (phase D of the catalogue mode).
+        like. Its Name is the side sentence of a judged object's description; its Description fills the
+        describer's prompt (Reporting.Describer_Prompt).
     """
 
     # The side: 'front' or 'back', as its reference image is named.
@@ -151,8 +151,8 @@ class Catalogue_Defect_Str:
     """
     Description:
         One defect the catalogue part can have, as a person describes it: what it is called, the side it is
-        looked for on, what it looks like, and what looks like it but is not. Validated, and read by nothing
-        yet: the stain and hole checks and the describer use it from phases C and D.
+        looked for on, what it looks like, and what looks like it but is not. The describer's prompt lists the
+        defects of the side a part shows (Reporting.Describer_Prompt).
     """
 
     # The defect's name, and the side it is looked for on ('front' or 'back').

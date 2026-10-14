@@ -215,7 +215,7 @@ class Configuration_Str:
     Mode: str = ''
     # The directory the daily station event files are exported to (absolute; it exists and is writable,
     # checked at load). Fixed for the run by the startup configuration: a later mode naming another is
-    # refused (Logger.Station_Events).
+    # refused (UI.Configuration_Dialog).
     #   Unit [string]
     Station_Events_Directory: str = ''
     # The UI identity, the confidence thresholds, and the vision stages' parameters.

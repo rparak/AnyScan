@@ -153,7 +153,7 @@ CONST_BAND_LINE     = '#4a4180'   # dividers on the band
 CONST_BAND_TEXT     = '#b9b2d6'   # lavender text/disclaimer on the band
 
 # The label-mask FILL floors. They live here, not in the renderer, because Theme DERIVES the
-# neutral fill from them (Neutral_Mask_Fill) and the parameters layer must not import the vision
+# neutral fill from them (Neutral_Mask_Colors) and the parameters layer must not import the vision
 # layer. They are stricter than the general distinctness floor because a thin box outline must
 # stand out against the fill it crosses, and the fill must actually be a colour:
 #   - ΔE(box, fill) >= 25: the outline stays clearly visible against its own fill;
@@ -229,7 +229,7 @@ CONST_VERDICT_COLORS = {
 CONST_VERDICT_DEFAULT = 'OK'
 
 # The NEUTRAL object colour, used when a configuration only DETECTS and does not classify
-# (General.Classification.Enabled = false): every object is drawn in this one colour, the box
+# (Configuration_Str.Classifies is false: it is not a catalogue mode): every object is drawn in this one colour, the box
 # and its darker ink twin, because there is no pass/fail to encode.
 #
 # It is deliberately OFF THE INDIGO AXIS — a desaturated cool grey (HSL saturation ~0.10), not a
@@ -268,7 +268,7 @@ CONST_VERDICT_DEFAULT = 'OK'
 CONST_DETECTION_BOX = '#B8BECA'
 CONST_DETECTION_INK = '#5C6270'
 # CONST_DETECTION_COLORS — the (box, ink, fill) triple — is assembled at the END of this module,
-# once Neutral_Mask_Fill (which needs the colour-space helpers below) is defined.
+# once Neutral_Mask_Colors (which needs the colour-space helpers below) is defined.
 
 # The Log-view severity text colours, one named semantic token per level. The log view
 # colours the level field and the message by these (the timestamp stays muted); a level

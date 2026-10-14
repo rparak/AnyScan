@@ -44,7 +44,7 @@ goes through that module's reader. A second parser drifts from the writer silent
 | Describer answer key (`answer_key.json` beside the test frames; the current set has none yet, the previous set's is kept as test data in `test/Vision/Utilities/data/answer_key_1061966.json`) | `Vision.Utilities.Evaluation` (`Load_Answer_Key`; written by hand, confirmed by the owner) |
 
 No module parses YAML for itself; tools in `Example/` go through these readers too
-(`make_reference.py` → `Read_Capture_Set`; `calibrate.py` → `Calibration.Core.Captured_Window`).
+(`make_reference.py` → `Build_Reference_Sidecar`; `calibrate.py` → `Calibration.Core.Captured_Window`).
 
 ## Injected runtimes — in the vision utilities 📄
 

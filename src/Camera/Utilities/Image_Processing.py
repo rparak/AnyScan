@@ -125,7 +125,7 @@ class Process_Image_Cls:
     def __Blur(self, image: np.ndarray, kernel_size: tp.Tuple[int, int] = (5, 5), sigma: float = 1.0) -> np.ndarray:
         """
         Description:
-            Applies a Gaussian blur: the first step Process applies to every captured frame.
+            Applies a Gaussian blur: the first step Apply applies to every captured frame.
 
         Args:
             (1) image [np.ndarray]: Input image.

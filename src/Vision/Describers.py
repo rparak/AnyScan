@@ -35,12 +35,13 @@ Description:
     Initialization of constants.
 
     Stage 4's describer: the model that writes an object's description and the one background
-    sentence. A describer answers one call — Describe(crop, purpose) with purpose 'object' or
-    'background' — and maps the purpose to its own input (Gemma: a prompt from the configuration).
-    The pipeline (Vision.Core) never sees a prompt, so a future model plugs in behind the same
-    interface. The describer loads its runtime lazily (Load), so importing this module pulls no
-    heavy library. (Florence-2, the previous describer, was removed after the comparison over the
-    seven frames of the previous test set, eb00508^ — docs/design-decisions.md.)
+    sentence. A describer answers one call — Describe(crop, purpose, prompt) with purpose 'object' or
+    'background' — and maps the purpose to its own input (Gemma: a prompt from the configuration),
+    unless the pipeline passes a prompt: a catalogue mode's filled Describer.Prompt for a judged part
+    (Reporting.Describer_Prompt). A future model plugs in behind the same interface. The describer
+    loads its runtime lazily (Load), so importing this module pulls no heavy library. (Florence-2, the
+    previous describer, was removed after the comparison over the seven frames of the previous test
+    set, eb00508^ — docs/design-decisions.md.)
 """
 # The two things a describer is asked to describe.
 #   Unit [string]

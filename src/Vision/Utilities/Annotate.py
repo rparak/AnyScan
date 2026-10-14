@@ -149,13 +149,15 @@ def __Scale(shape: tp.Tuple[int, int, int]) -> float:
 def __Luminance(bgr: tp.Tuple[float, float, float]) -> float:
     """
     Description:
-        The relative luminance (0..1) of a BGR colour, for the contrast test.
+        The luma (0..1) of a BGR colour, for the numeral's tone: Rec. 709 weights on the gamma-encoded
+        channels, not WCAG relative luminance (Theme.Relative_Luminance). The two differ on amber (luma
+        0.52, relative luminance 0.28), which this keeps on the dark ink, the better contrast there.
 
     Args:
         (1) bgr [Vector<float> 1x3]: The colour as (B, G, R), 0..255.
 
     Returns:
-        (1) parameter [float]: The relative luminance (0..1).
+        (1) parameter [float]: The luma (0..1).
     """
 
     b, g, r = bgr[0] / 255.0, bgr[1] / 255.0, bgr[2] / 255.0
@@ -217,8 +219,8 @@ def __Draw_Chip(image: tp.Any, x: int, top: int, label: str, chip_bgr: tp.Tuple[
     """
 
     chip_w, chip_h, thickness, pad, th = __Chip_Size(label, font_scale, cv2)
-    # The numeral's tone contrasts the chip's own verdict colour, so it stays legible
-    # (both verdict colours are dark, so the numeral is the light theme card colour).
+    # The numeral's tone contrasts the chip's own verdict colour, so it stays legible: the light card
+    # colour on a dark chip (OK, NOK), the dark ink on a light one (Warning's amber, luma 0.52).
     text_bgr = Hex_To_Bgr(CONST_CARD) if __Luminance(chip_bgr) < 0.5 else Hex_To_Bgr(CONST_INK)
     cv2.rectangle(image, (x, top), (x + chip_w, top + chip_h), chip_bgr, thickness=-1)
     cv2.putText(image, label, (x + pad, top + pad + th), cv2.FONT_HERSHEY_SIMPLEX, font_scale,
@@ -283,9 +285,9 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
     """
     Description:
         The scene with each object marked by its BOUNDING BOX (and, for a measured,
-        non-symmetric object, its rotated rectangle, the box then dashed) and INDEX number
-        ONLY — no mask fill and no contour on the real image, because the mask has its own view and
-        its own file (Draw_Label_Mask). When verdict_colored, the box and chip are the object's
+        non-symmetric object, its rotated rectangle, the box then dashed) and INDEX number, and a
+        judged part's features (__Draw_Features) — no object mask fill and no object contour on the
+        real image, because the mask has its own view and its own file (Draw_Label_Mask). When verdict_colored, the box and chip are the object's
         VERDICT colour (Theme.Verdict_Color) — pass or fail; when not (a configuration that only
         DETECTS), every object is one NEUTRAL colour (Theme.Detection_Color), since there is no
         pass/fail to encode. Only the numeral is a contrasting tone against its chip. Line widths
@@ -298,7 +300,7 @@ def Draw_Annotated(scene_bgr: tp.Any, objects: tp.List[Detection_Str],
         (4) np [module]: The NumPy module, injected by the caller.
         (5) verdict_colored [bool]: True to colour by verdict, False for the neutral colour.
                                     REQUIRED and keyword-only, with no default: the value is
-                                    the configuration's General.Classification.Enabled, and a
+                                    the configuration's Configuration_Str.Classifies, and a
                                     silent default renders one mode for a caller that never read
                                     the config — which is how the harness came to paint verdict
                                     colours on a detect-only run. Every caller states its intent.

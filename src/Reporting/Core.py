@@ -612,7 +612,7 @@ def Reason_Sentence(det: Detection_Str) -> str:
         Why a judged object is not OK, as the one sentence Scene Understanding shows (the owner's rule,
         2026-10-11): each kind of finding a clause — the outline's size ('its length is out of tolerance'), its
         look, the holes (__Hole_Clauses) and the stains ('there are two stains on the machined front') — in that
-        order, joined ('A, b and c.'). Counts in words up to ten. The
+        order, joined ('A, b, and c.'). Counts in words up to ten. The
         measured and expected values are in the log (Part_Lines). A Warning should not be there; an Unspecified
         object could not be judged, and what to do. Empty for an OK part and outside a catalogue mode.
 

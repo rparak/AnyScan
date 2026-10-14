@@ -135,9 +135,9 @@ CONST_CALIBRATION_REFERENCE = ('Calibration', CONST_CALIBRATION_FOLDER, 'Calibra
 CONST_CALIBRATION_FILE_TEMPLATE = 'Calibration_{hardware}_{stamp}.yaml'
 # The acquisition settings the Basler camera cannot start without; each is REQUIRED in
 # Camera.Custom_Cfg so a file missing one fails at load and not deep inside the Basler SDK.
-# They are the ONLY keys it reads (Basler_Cls.__Configure), so Custom_Cfg is a schema like every
-# other block: each value is typed, and any other key is reported as unrecognised — a 'Gamma:'
-# line would otherwise do nothing and say nothing.
+# With the optional pins below they are the ONLY keys it reads (Basler_Cls.__Configure), so Custom_Cfg is
+# a schema like every other block: each value is typed, and any other key is reported as unrecognised —
+# a misspelt key would otherwise do nothing and say nothing.
 #   Unit [Tuple<string>]
 CONST_REQUIRED_CUSTOM_CFG_KEYS = ('Exposure_Time', 'Gain', 'Balance_Ratios', 'Pixel_Format')
 # The kind (see __Check) of each Custom_Cfg setting; Balance_Ratios is a mapping of the channels
@@ -508,7 +508,7 @@ CONST_REMOVED_CLASSIFICATION_PATH = ('General', 'Classification')
 #   Unit [Tuple<string>]
 CONST_CATALOGUE_SIDES = ('front', 'back')
 # A catalogue item's side and defect entries: the keys each may hold, (key, kind, required). A side's Name is
-# read now; the rest waits for the describer (phase D), validated meanwhile.
+# the side sentence's; its Description and the defects fill the describer's prompt (Reporting.Describer_Prompt).
 #   Unit [Tuple<Tuple>]
 CONST_SIDE_KEYS = (('Name', 'text', True), ('Description', 'text', False))
 CONST_DEFECT_KEYS = (('Name', 'text', True), ('Side', 'text', True), ('Looks_Like', 'text', True),
@@ -745,8 +745,8 @@ def Calibration_Fingerprint(K: tp.Any, coefficients: tp.Dict[str, float]) -> str
         What identifies a lens model: a SHA-256 over K and the five distortion coefficients, as
         exact floats. It is computed from the numbers, not the file, so a comment edit does not
         change it, and it can be computed both from a calibration file and from the undistortion
-        record a capture set stores — which is how a reference made from a set says which lens model
-        undistorted it.
+        record the camera keeps of its last frame (Last_Undistortion) — which is how a reference
+        shot through the camera says which lens model undistorted it.
 
     Args:
         (1) K [Matrix<float> 3x3]: The camera matrix.
@@ -1155,8 +1155,8 @@ def __Read_Sides(block: tp.Any, prefix: str, problems: tp.List[str]) -> tp.List[
     """
     Description:
         The item's Sides: exactly CONST_CATALOGUE_SIDES, each a Name (REQUIRED, the side sentence's) and an
-        optional Description — the sides the reference images are of, so a side without a description, or a
-        description of a side without a reference, is refused.
+        optional Description — the sides the reference images are of, so a side missing, or a side without a
+        reference, is refused.
 
     Args:
         (1) block [Any]: The Sides block as read.

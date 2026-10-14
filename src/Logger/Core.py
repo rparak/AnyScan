@@ -1481,7 +1481,7 @@ class Session_Logger_Cls(object):
         """
         Description:
             Close the run: stamp the stop time, close any open session at that time,
-            write the 'Application stopped' line, append the run-summary CSV row, and
+            append the run-summary CSV row, write the 'Application stopped' line, and
             close the file. Idempotent — running it from the try/finally, the atexit
             hook and a signal handler is harmless.
 

@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `7dbab51` (2026-10-11).
+Last reviewed against the code at commit `c335137` (2026-10-14).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -325,7 +325,7 @@ across all connections, and the oldest are evicted first. A failed analysis writ
 
 | File | Holds |
 |---|---|
-| `_raw.png` | The frame as analysed, undistorted when calibrated, unannotated. "Raw" means unannotated, not unprocessed: this is the file a test frame or a background reference is made from. |
+| `_raw.png` | The frame as analysed, undistorted when calibrated, unannotated. "Raw" means unannotated, not unprocessed: this is the file a test frame is made from (a background reference is shot through the camera, `make_reference.py`). |
 | `_distorted.png` | The same frame before undistortion, so a later calibration can re-undistort it. |
 | `_distorted.json` | Its sidecar: marks it distorted and records the undistortion that produced `_raw.png`. |
 | `_annotated.png` | The annotated image, as the Camera View shows it. |

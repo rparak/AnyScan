@@ -41,7 +41,7 @@ Description:
 
     Note:
         The Basler SDK, OpenCV and the project libraries are imported lazily inside
-        _Open/_Grab, never at module level, so the console still starts on a machine
+        _Open, never at module level, so the console still starts on a machine
         with no pylon and this module imports with none of them present.
 """
 # Absolute path to the project's src/ directory (this file lives in src/Camera/),

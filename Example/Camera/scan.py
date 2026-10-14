@@ -65,8 +65,8 @@ def main():
 
         Note:
             The saved frame carries no provenance: nothing records the window, calibration or
-            lighting it was shot under. Do NOT use it as a background reference. References are made
-            from a capture set with Example/Camera/make_reference.py, which writes that record.
+            lighting it was shot under. Do NOT use it as a background reference. References are shot
+            through the camera with Example/Camera/make_reference.py, which writes that record.
 
         Setup:
             Camera Model: Basler a2A1920-51gcPRO GigE Camera

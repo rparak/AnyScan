@@ -548,8 +548,8 @@ class Analysis_Str(object):
     # The verdict severity that drives the badge colour: 'ok' | 'warn' | 'idle'.
     #   Unit [string]
     Verdict_Level: str = 'idle'
-    # The human-readable name of what produced the reading — the describer's task
-    # (Vision.Describers.*.Task_Label, or the fallback's). Empty by default: a reading nothing has
+    # The human-readable name of what produced the reading — the configuration's Identity.Task, or the
+    # fallback's (Vision.Core). Empty by default: a reading nothing has
     # produced names no model.
     #   Unit [string]
     Task: str = ''
