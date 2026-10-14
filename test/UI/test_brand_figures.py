@@ -47,9 +47,6 @@ import Parameters.Theme as Theme
 # Custom Lib.: AnyScan UI — the logo loader the top bar uses
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
-# Custom Lib.: AnyScan UI — the console's funding band, whose logos the diagram must carry
-#   ../UI/Widgets
-from UI.Widgets import Funding_Row_Cls
 
 """
 Description:
@@ -88,9 +85,10 @@ CONST_JIC = os.path.join(CONST_ROOT, 'App', 'assets', 'jic-smart-factory.svg')
 CONST_TEXT_LEFT_UNITS = 152.0
 CONST_LINE_SPLIT_UNITS = 107.5
 CONST_ASSETS = os.path.join(CONST_ROOT, 'App', 'assets')
-# The PNG marks the diagram embeds: the console's funding band.
+# The PNG marks the diagram embeds: its funding band's, the project's, the Ministry's and the EU emblem, which the
+# diagram keeps though the application shows the EU emblem alone (the owner's decision, 2026-10-14).
 #   Unit [List<string>]
-CONST_EMBEDDED_MARKS = [name for name, _ in Funding_Row_Cls.LOGOS if name is not None]
+CONST_EMBEDDED_MARKS = ['edih-digimat-white.png', 'partner-ministry-white.png', 'funder-eu-white.png']
 # The marker comments around the inline logos in the diagram: the AnyScan logo and the JIC Smart Factory logo.
 #   Unit [string]
 CONST_LOGO_BEGIN = '<!-- logo:begin -->'

@@ -3633,3 +3633,21 @@ Tests `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_con
 `test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_its_numeral_colour`,
 `test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`, `test/UI/test_text_contrast.py`,
 `test/UI/test_control_contrast.py`.
+
+## The application shows the EU emblem alone; the diagram's band keeps the project's logos
+
+The band at the foot of the window (`Widgets.Funding_Row_Cls`) shows the EU emblem ("Funded by the European Union")
+and the EU disclaimer side by side in one slim row, and nothing else: the EDIH-DIGIMAT wordmark and the Ministry of
+Industry and Trade's block are no longer shown in the application. The architecture diagram's band
+(`Example/UI/architecture_diagram.py`, `CONST_BAND_LOGOS`) keeps all three logos and the disclaimer, on the purple.
+The README keeps its sentence on the project and its funding.
+
+**Why.** The owner's decision of 2026-10-14, restyling the application to the JIC Smart Factory brand: remove the
+EDIH, Ministry and other logos that are not needed in the application, keep the EU funding notice, and keep the
+diagram's and the README's funding statements as they were. The emblem and its disclaimer are what EU funding asks
+an output to carry. The band stays the white emblem on the purple until the owner supplies the official colour
+emblem for a light band (open, 2026-10-14).
+
+**Revisit if** the funding or its publicity rules change, or the colour emblem is supplied.
+Tests `test/UI/test_funding_band.py::test_the_band_shows_the_eu_emblem_and_its_disclaimer_alone`,
+`test/UI/test_brand_figures.py::test_the_diagram_is_self_contained_and_carries_every_logo`.

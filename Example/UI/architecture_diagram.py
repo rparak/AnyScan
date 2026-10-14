@@ -67,7 +67,8 @@ Description:
     the README shows it through <img>, and an SVG loaded that way never fetches another file:
     the AnyScan logo is copied in byte for byte from images/anyscan-logo.svg, the JIC Smart Factory
     logo from App/assets/, and the funding band's logos are embedded from App/assets/ as base64 PNG data. The band is the
-    console's own (UI.Widgets.Funding_Row_Cls): the same logos, order and disclaimer.
+    project's: the EDIH-DIGIMAT, Ministry and EU logos (CONST_BAND_LOGOS) and the console's disclaimer
+    (UI.Widgets.Funding_Row_Cls), which the application itself shows beside the EU emblem alone.
 
     test/UI/test_brand_figures.py fails when the committed SVG is not this script's output, or
     draws a colour that is not a token.
@@ -164,6 +165,11 @@ CONST_ICON_INSET = 18
 CONST_BAND_TOP = 1072
 CONST_BAND_SCALE = 1.35
 CONST_BAND_GAP = 36
+# The band's logos and their heights, in its order, None for the hairline divider: the project's (EDIH-DIGIMAT),
+# the Ministry of Industry and Trade's and the EU emblem, as the band has carried them (the owner's decision,
+# 2026-10-14: the application shows the EU emblem alone, the diagram keeps all three).
+#   Unit [Vector<Tuple<string, int>>] (asset, px before CONST_BAND_SCALE)
+CONST_BAND_LOGOS = [('edih-digimat-white.png', 20), (None, 0), ('partner-ministry-white.png', 36), ('funder-eu-white.png', 30)]
 # What each band logo is, for screen readers.
 #   Unit [Dictionary<string, string>]
 CONST_BAND_LABELS = {'edih-digimat-white.png': 'EDIH-DIGIMAT',
@@ -671,7 +677,7 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Add('<rect x="0.75" y="%g" width="1198.5" height="%g" fill="%s"/>' % (CONST_BAND_TOP, CONST_HEIGHT - 0.75 - CONST_BAND_TOP, T.CONST_BAND))
     # The row is centred like the console's (stretch on both sides); None is its hairline divider.
     row = []
-    for name, height in Funding_Row_Cls.LOGOS:
+    for name, height in CONST_BAND_LOGOS:
         if name is None:
             row.append((None, 0.0, 30 * CONST_BAND_SCALE))
             continue

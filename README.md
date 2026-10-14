@@ -441,9 +441,9 @@ App/
     anyscan-mark.svg          the mark alone, shown in the empty viewport; built
     anyscan-mark.ico          the window / taskbar icon: the mark on a white square, 16-256 px; built
     jic-smart-factory.svg     the JIC Smart Factory logo beside the AnyScan logo
-    edih-digimat-white.png    project wordmark, funding band
-    partner-ministry-white.png  Ministry of Industry and Trade
-    funder-eu-white.png       Funded by the European Union
+    edih-digimat-white.png    project wordmark, the architecture diagram's funding band
+    partner-ministry-white.png  Ministry of Industry and Trade, the architecture diagram's funding band
+    funder-eu-white.png       Funded by the European Union: the window's funding band and the diagram's
     fonts/                    Public Sans and JetBrains Mono, static, with their OFL licences; built by
                               Example/UI/build_fonts.py
 src/                      Qt-free domain modules + the UI (see "Source layout")
