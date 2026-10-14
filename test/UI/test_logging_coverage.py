@@ -223,7 +223,8 @@ def test_mid_analysis_failure_tags_the_error_and_writes_a_partial_set(qt_app, tm
     # The failure error carries the set id.
     assert '[ERROR  ] the segmenter failed to process the frame (set=20260912-143202_1)' in content
     # A partial set is announced and the raw frame lands in the right session directory.
-    assert '[WARNING] Wrote a partial capture set 20260912-143202_1 for the failed analysis. It holds the raw frame only.' in content
+    assert ('[WARNING] Wrote a partial capture set 20260912-143202_1 for the failed analysis. It has no annotated image, '
+            'mask or object records: only its note and, when raw frames are kept, the frame.') in content
     session = tmp_path / 'captures' / '20260912-143000_s1'
     assert (session / '20260912-143202_1_raw.png').exists()
     txt = (session / '20260912-143202_1_understanding.txt').read_text()

@@ -1549,7 +1549,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             Write the partial capture for an analysis that produced no result — failed, or stopped
-            at close — the raw frame and a note, and log that it is partial. Like the full capture,
+            at close — the frame (when raw frames are kept) and a note, and log that it is partial. Like the full capture,
             a write failure here is caught and logged, never raised, so it cannot mask what ended
             the analysis.
 
@@ -1572,8 +1572,8 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__Log_Error('failed to write partial capture set %s: %s' % (set_id, exc))
             return
         self.__Log_Capture_Side_Effects(created)
-        self.__logger.Log_Warning('Wrote a partial capture set %s for %s. It holds the raw frame only.'
-                                  % (set_id, why))
+        self.__logger.Log_Warning('Wrote a partial capture set %s for %s. It has no annotated image, mask or object '
+                                  'records: only its note and, when raw frames are kept, the frame.' % (set_id, why))
         self.__Log_Capture_Evictions(evicted)
         self.__Refresh_History(evicted)
 
