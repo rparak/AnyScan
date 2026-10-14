@@ -216,7 +216,7 @@ class Badge_Cls(QLabel):
 
     def __init__(self, text: str = 'Idle', parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(text, parent)
-        self.setFont(Font(8, QFont.Bold, mono=True))
+        self.setFont(Font(8, QFont.Bold))
         self.setFixedHeight(24)
         self.Set_Level('idle')
 
@@ -662,7 +662,7 @@ class Viewport_Cls(QWidget):
             p.drawArc(arc, int(-self.__spin * 16), 90 * 16)
 
         p.setPen(Style.Token_Color(Style.CONST_BUSY_INK))
-        p.setFont(Font(9.5, mono=True))
+        p.setFont(Font(9.5))
         text_rect = QRect(0, int(cy + 14), self.width(), 40)
         p.drawText(text_rect, Qt.AlignHCenter | Qt.AlignTop, self.__busy_text)
 
@@ -686,7 +686,7 @@ class Viewport_Cls(QWidget):
         else:
             text_top = cy
         p.setPen(QColor(Style.CONST_VIEWPORT_TEXT))
-        p.setFont(Font(9.5, mono=True))
+        p.setFont(Font(9.5))
         p.drawText(QRect(0, text_top, self.width(), 60), Qt.AlignHCenter | Qt.AlignTop,
                    self.__empty_text)
 

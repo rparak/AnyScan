@@ -188,7 +188,7 @@ class History_Image_Cls(QWidget):
             path.addRect(QRectF(self.rect()))
             painter.fillPath(path, QColor(Style.CONST_BG))
             painter.setPen(QColor(Style.CONST_INK_MUTE))
-            painter.setFont(Font(9.5, mono=True))
+            painter.setFont(Font(9.5))
             painter.drawText(self.rect(), Qt.AlignCenter, self.__message)
             painter.end()
             return

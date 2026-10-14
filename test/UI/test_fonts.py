@@ -25,12 +25,14 @@
 import glob
 import os
 import re
+# Typing (Support for type hints)
+import typing as tp
 # Qt must render headless; set the platform before any QApplication is constructed.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtGui import QFont, QFontInfo, QRawFont
+from PyQt5.QtGui import QFont, QFontInfo, QPainter, QRawFont
 from PyQt5.QtWidgets import QApplication
 # Custom Lib.: AnyScan UI — the font loader
 #   ../UI/Utilities/Style
@@ -126,3 +128,31 @@ def test_each_bundled_family_ships_its_licence() -> None:
         with open(path, 'r', encoding='utf-8') as handle:
             assert 'SIL Open Font License, Version 1.1' in handle.read()
         assert glob.glob(os.path.join(directory, '%s-*.ttf' % family.replace(' ', '')))
+
+
+def test_chips_and_the_empty_camera_view_are_set_in_the_ui_face(qt_app) -> None:
+    """
+    Description:
+        Words are set in the UI face, Public Sans; the monospace face is for machine values (times, sizes, the Log's
+        columns), where fixed-width digits keep columns still. The badge (its 'No frame', 'Idle' and verdict chips) and
+        the empty Camera View's instruction, as painted, resolve to the UI family.
+    """
+
+    from UI.Widgets import Badge_Cls, Viewport_Cls
+    assert QFontInfo(Badge_Cls().font()).family() == Style.FONT_UI
+    viewport = Viewport_Cls()
+    viewport.resize(600, 400)
+    painted = []
+    descriptor = QPainter.__dict__['drawText']
+    draw_text = QPainter.drawText
+
+    def Draw_Text(painter: QPainter, *args: tp.Any) -> tp.Any:
+        painted.append(QFontInfo(painter.font()).family())
+        return draw_text(painter, *args)
+
+    QPainter.drawText = Draw_Text
+    try:
+        viewport.grab()
+    finally:
+        setattr(QPainter, 'drawText', descriptor)
+    assert painted and set(painted) == {Style.FONT_UI}, painted

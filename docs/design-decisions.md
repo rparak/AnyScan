@@ -2250,7 +2250,12 @@ height, and the ink of "n".
 
 For GT Super Display, Newsreader at opsz 72 was closest (x/cap 0.713 against 0.722, width −0.9 %, overlap 0.551),
 ahead of Playfair Display (0.563 overlap, but much finer hairlines) and Fraunces (−13.7 % wide). The owner chose to
-leave the serif out of the application: its largest heading is a 15.5 pt card title. The GT files were only read for
+leave the serif out of the application: its largest heading is a 15.5 pt card title. Words are set in Public Sans and the
+monospace face (JetBrains Mono) only for machine values, times, sizes, the resolution and the Log's columns, where
+fixed-width digits keep a column still. *Corrected 2026-10-14:* the badge's chips ('No frame', 'Idle', the verdicts),
+the empty Camera View's instruction, the busy overlay's status and History's empty-pane message were monospace with no
+recorded reason; they are set in Public Sans
+(`test/UI/test_fonts.py::test_chips_and_the_empty_camera_view_are_set_in_the_ui_face`). The GT files were only read for
 the comparison, from the owner's `design/` folder, which stays out of git.
 
 **Revisit if** the brand's typefaces change, or GT America becomes distributable with the application.
