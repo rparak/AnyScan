@@ -666,7 +666,6 @@ def Report_Lines(report: Calibration_Report_Str) -> tp.List[str]:
                          'capture (blur, movement, glare) - retake or exclude it.'
                          % (view.Name, view.Rms_Px, CONST_CALIB_OUTLIER_RATIO))
     lines.append('[INFO] Overall reprojection RMS: %.3f px' % report.Rms_Px)
-    width, height = report.Image_Size
     lines.append('[INFO] PRINCIPAL POINT: (%.1f, %.1f) px  -  %.1f px from the image centre '
                  '(dx %+.1f, dy %+.1f; %+.1f %% of the width, %+.1f %% of the height)'
                  % (report.K[0, 2], report.K[1, 2], report.Principal_Distance_Px,

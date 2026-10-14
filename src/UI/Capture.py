@@ -220,18 +220,6 @@ class Capture_Set_Str:
     # The newest file mtime in the set, for sorting newest-first.
     Mtime: float = 0.0
 
-    def Is_Nok(self) -> bool:
-        """
-        Description:
-            Whether the set is NOK — any object in it is NOK. A partial set has no objects and
-            is not NOK.
-
-        Returns:
-            (1) parameter [bool]: True when any object's verdict is 'NOK'.
-        """
-
-        return any(obj.Verdict == 'NOK' for obj in self.Objects)
-
     def States(self) -> tp.Set[str]:
         """
         Description:
