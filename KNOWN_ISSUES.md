@@ -31,6 +31,26 @@ sentence), and a bare `except Exception` can mask an unexpected error as a routi
   the remaining `except Exception` clauses in `__Connect`, `Capture`, `__Set_Optional` and
   `__Close` together with a real camera run.
 
+## Basler's grab retries print to the console and never reach the session log
+
+`Basler_Cls.Capture` (`Camera/Basler.py`) retries a failed or incomplete grab up to `max_attempts`
+times (3) and prints each failed attempt to the console (`[WARNING] Attempt n/m ...`). Nothing passes
+the count back to `Basler_Camera_Cls`, so a frame that needed retries and then arrived leaves no line
+in the session log: a run's log cannot show how often grabs were dropped. A grab that fails on every
+attempt is not affected: `Capture` returns None, `_Grab` raises a `Camera_Error_Cls` ("The camera
+returned an empty frame..."), and the failed scan is logged.
+
+A count and a warning, "N frame(s) dropped during capture (retried)", were meant to carry this
+(`Camera_Cls.Last_Capture_Retries`). Nothing ever set the count, so the warning never fired; both
+were removed in `c69b909`.
+
+- **Impact:** low today. Only retried-then-successful grabs are invisible in the log. A cable or
+  camera that starts dropping frames shows on the console alone, which an operator who starts the
+  application from a launcher does not see, and the station event files never record it.
+- **Not fixed here:** reporting it means `Basler_Cls.Capture` returning its attempt count and the
+  camera emitting it through its log sink: a new line the operator reads, so a change of its own,
+  checked with a real camera (the retry path has no automated coverage).
+
 ## The fusion's parameters are validated on one table under one light
 
 This entry used to describe a coverage gate and a mask dilation (`CONST_FILTER_CHANGE_COVERAGE`,
