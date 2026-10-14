@@ -129,7 +129,10 @@ def pytest_collection_modifyitems(config: pytest.Config, items: tp.List[pytest.I
     """
     Description:
         Skip every `slow` test unless --runslow was passed, keeping the weights
-        out of the default run.
+        out of the default run. A test is slow when it carries the marker (on itself, its class or its
+        module), not when 'slow' is merely among its keywords: those also hold its parents' names, the
+        session's included, which is the folder the run starts in, so a checkout in a folder named
+        'slow' would skip every test.
 
     Args:
         (1) config [pytest.Config(object)]: The active pytest configuration.
@@ -141,7 +144,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: tp.List[pytest.I
 
     skip_slow = pytest.mark.skip(reason='needs the model weights; pass --runslow to run.')
     for item in items:
-        if 'slow' in item.keywords:
+        if item.get_closest_marker('slow') is not None:
             item.add_marker(skip_slow)
 
 
