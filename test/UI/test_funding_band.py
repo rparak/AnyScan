@@ -116,7 +116,8 @@ def test_the_band_carries_the_three_traced_logos_and_no_text(shown) -> None:
     """
     Description:
         The band holds exactly three images, in order, each the traced white SVG drawn at its height, the EU emblem at
-        least as tall as every other logo (the EU's visibility rules), and no text: the disclaimer is not in it.
+        least as tall as every other logo (the EU's visibility rules), at the chosen sizes, and no text: the
+        disclaimer is not in it.
     """
 
     _, band = shown
@@ -125,6 +126,9 @@ def test_the_band_carries_the_three_traced_logos_and_no_text(shown) -> None:
     assert [name for name, _ in expected] == ['edih-digimat-white.svg', 'partner-ministry-white.svg', 'funder-eu-white.svg']
     assert [logo.height() for logo in logos] == [height for _, height in expected]
     assert dict(expected)['funder-eu-white.svg'] >= max(height for _, height in expected)
+    # The owner's sizes, balanced by eye: the Ministry's logo nearer the wordmark's presence, its capitals 6.7 px at 1x,
+    # above their 6.4 px legibility floor (44 px).
+    assert [height for _, height in expected] == [24, 46, 46]
     assert [label for label in band.findChildren(QLabel) if label.text()] == []
 
 
@@ -161,7 +165,7 @@ def test_the_logo_group_is_centred_and_the_band_is_as_tall_as_its_logos(shown) -
     """
     Description:
         The logos, the rule among them, are one group centred in the band (within a pixel), so the rule sits left of
-        the middle; the band is as tall as its tallest logo and its padding, at either width.
+        the middle; the band is six motif cells (90 px) at any width, its logos centred in its height.
     """
 
     _, band = shown
@@ -171,7 +175,9 @@ def test_the_logo_group_is_centred_and_the_band_is_as_tall_as_its_logos(shown) -
     assert abs(before - after) <= 1
     rule = [w for w in band.findChildren(QWidget) if w.objectName() == 'hairline'][0]
     assert rule.mapTo(band, QPoint(0, 0)).x() < band.width() / 2
-    assert band.sizeHint().height() == max(height for _, height in Funding_Row_Cls.LOGOS) + 2 * 16 + 2
+    assert band.height() == Funding_Row_Cls.MOTIF_ROWS * Funding_Row_Cls.MOTIF_CELL == 90
+    for logo in band.findChildren(Svg_Image_Cls):
+        assert abs(logo.mapTo(band, QPoint(0, 0)).y() - (band.height() - logo.height()) / 2) <= 1
     assert Style.CONST_BAND_LINE.upper() == '#FFFFFF' and Style.CONST_BAND_LINE_ALPHA <= 0.25
 
 

@@ -149,6 +149,13 @@ CONST_BAND_TEXT     = '#FFFFFF'
 #   Unit [float] (0..1)
 CONST_BAND_LINE_ALPHA = 0.20
 CONST_BAND_TEXT_ALPHA = 0.76
+# The poster's pixel cluster, painted in the empty Camera View's top-right corner (docs/design-decisions.md, "The
+# empty Camera View carries the poster's pixel cluster"): tone on tone, as the funding band's white squares are on the
+# purple, the purple at two low opacities on the view's grey-lilac, so the squares read as a texture in its own hue.
+# Decoration only.
+#   Unit [string] (hex colour), [float] (0..1)
+CONST_CORNER_MOTIF = CONST_INK
+CONST_CORNER_MOTIF_ALPHA = (0.07, 0.12)
 
 # The label-mask FILL floors. They live here, not in the renderer, because Theme DERIVES the
 # neutral fill from them (Neutral_Mask_Colors) and the parameters layer must not import the vision

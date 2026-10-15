@@ -23,7 +23,7 @@
 
 # Custom Lib.: AnyScan UI — the funding band's pixel motif (Qt-free)
 #   ../UI/Utilities/Pixel_Motif
-from UI.Utilities.Pixel_Motif import Motif_Cells
+from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells, CONST_POSTER_CORNER
 
 """
 Description:
@@ -92,3 +92,17 @@ def test_a_wider_band_keeps_every_square_it_had() -> None:
     right = lambda cells, width: {(width - x, y, s) for x, y, s in cells if x >= width / 2}
     assert left(narrow, 1461) == left(wide, CONST_WIDTH)
     assert right(narrow, 1461) == right(wide, CONST_WIDTH)
+
+
+def test_the_corner_cluster_is_the_posters_anchored_at_its_top_right() -> None:
+    """
+    Description:
+        Corner_Cells places the poster's cluster, as read off the poster (6 x 4 cells, 9 filled, 5 of them the deeper
+        tint), with its top-right corner at the given point.
+    """
+
+    assert CONST_POSTER_CORNER == ('....L.', 'L....D', '.D.L.D', '.DD.L.')
+    cells = Corner_Cells(500, 40, 16)
+    assert len(cells) == 9 and sum(strong for _, _, strong in cells) == 5
+    assert max(x for x, _, _ in cells) + 16 == 500 and min(y for _, y, _ in cells) == 40
+    assert (500 - 16, 40 + 16, True) in cells and (500 - 6 * 16, 40 + 16, False) in cells

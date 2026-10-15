@@ -627,8 +627,9 @@ Both hardware-facing parts sit behind an interface, so a replacement touches one
 
 ## Funding
 
-AnyScan was built at JIC within the EDIH-DIGIMAT project. The application's footer carries the project's, the
-Ministry of Industry and Trade's and the EU's logos.
+AnyScan was developed at JIC within the EDIH-DIGIMAT project.
+
+![EDIH-DIGIMAT; Ministry of Industry and Trade of the Czech Republic; Funded by the European Union](images/anyscan-funding.svg)
 
 Funded by the European Union. Views and opinions expressed are however those of the author(s) only and do not
 necessarily reflect those of the European Union or European Commission. Neither the European Union nor the granting

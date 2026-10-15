@@ -43,7 +43,7 @@ from UI.Utilities.Style import Font, Hairline
 from UI.Utilities.Grid_Fit import Fit_Svg
 # Custom Lib.: AnyScan UI — the brand's pixel motif for the funding band (Qt-free)
 #   ../UI/Utilities/Pixel_Motif
-from UI.Utilities.Pixel_Motif import Motif_Cells
+from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells
 # Custom Lib.: AnyScan domain — the confidence thresholds the object list colours numbers by
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str, Heatmap_Str
@@ -295,6 +295,10 @@ class Viewport_Cls(QWidget):
         so the draw rectangle is recomputed on every paint — that maths lives here and
         nowhere else, the single most common source of an image that lands in the wrong place.
     """
+
+    # The cell of the poster's pixel cluster in the empty state's top-right corner.
+    #   Unit [px]
+    CONST_CORNER_CELL = 16
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -675,13 +679,18 @@ class Viewport_Cls(QWidget):
     def __Paint_Empty(self, p: QPainter) -> None:
         """
         Description:
-            The project mark holds the empty state; it disappears the instant a
+            The project mark holds the empty state, with the AnyScan poster's pixel cluster in the
+            top-right corner (UI.Utilities.Pixel_Motif.Corner_Cells); both disappear the instant a
             frame arrives.
 
         Args:
             (1) p [QPainter(object)]: The active painter.
         """
 
+        # The poster's pixel cluster in the top-right corner, decoration only, gone with the empty state.
+        tints = [Style.Token_Color(Style.CONST_CORNER_MOTIF, alpha) for alpha in Style.CONST_CORNER_MOTIF_ALPHA]
+        for x, y, strong in Corner_Cells(self.width(), 0, self.CONST_CORNER_CELL):
+            p.fillRect(x, y, self.CONST_CORNER_CELL, self.CONST_CORNER_CELL, tints[1 if strong else 0])
         cy = self.height() // 2
         if self.__mark.isValid():
             # The mark is rendered as vectors at its drawn size, never scaled from a raster (which blurred it).
@@ -1508,8 +1517,8 @@ class Funding_Row_Cls(Card_Cls):
     LOGOS = [
         ('edih-digimat-white.svg', 24),
         (None, 0),                       # hairline divider
-        ('partner-ministry-white.svg', 56),
-        ('funder-eu-white.svg', 56),
+        ('partner-ministry-white.svg', 46),
+        ('funder-eu-white.svg', 46),
     ]
 
     # The EU disclaimer, word for word, as the architecture diagram's band and the README carry it.
@@ -1524,15 +1533,16 @@ class Funding_Row_Cls(Card_Cls):
     # The vertical rule's length, as a share of the tallest logo.
     #   Unit [ratio]
     DIVIDER_SHARE = 0.75
-    # The clear space kept free of squares around every logo: the EU emblem's protection area, half the flag's height
-    # ("The use of the EU emblem in the context of EU programmes 2021-2027", Protection area), the flag being as tall as
-    # the EU logo.
+    # The clear space kept free of squares around every logo: at least the EU emblem's protection area, half the flag's
+    # height ("The use of the EU emblem in the context of EU programmes 2021-2027", Protection area), the flag as tall
+    # as the EU logo: 23 px at 46 px; the 28 px set for the earlier 56 px emblem is kept.
     #   Unit [px]
     CLEAR_SPACE = 28
-    # The motif: the cell's side (the band's 90 px are six cells), the chance a cell at the band's end is filled, how
+    # The motif: the cell's side and the band's height in cells (90 px), the chance a cell at the band's end is filled, how
     # many cells in it thins to nothing, the share of squares in the stronger tint, and the two tints' opacities.
-    #   Unit [px], [0..1], [cells], [0..1], [0..1]
+    #   Unit [px], [cells], [0..1], [cells], [0..1], [0..1]
     MOTIF_CELL = 15
+    MOTIF_ROWS = 6
     MOTIF_FILL = 0.30
     MOTIF_REACH = 16
     MOTIF_STRONG = 0.4
@@ -1545,6 +1555,9 @@ class Funding_Row_Cls(Card_Cls):
         self.setStyleSheet(
             '#card { background: %s; border: 1px solid %s; }' % (Style.CONST_BAND, Style.CONST_BAND)
         )
+        # The band is six motif cells tall, whatever the logos' heights; they are centred in it.
+        self.setFixedHeight(self.MOTIF_ROWS * self.MOTIF_CELL)
+        self.box.setContentsMargins(16, 0, 16, 0)
         line = Style.Token_Css(Style.CONST_BAND_LINE, Style.CONST_BAND_LINE_ALPHA)
         rule = int(round(self.DIVIDER_SHARE * max(height for _, height in self.LOGOS)))
         # The whole group centred (stretch on both sides); the rule falls where it falls in it, slightly left of the

@@ -76,6 +76,7 @@ CONST_LOGO = os.path.join(CONST_ROOT, 'images', 'anyscan-logo.svg')
 CONST_LOGO_ASSET = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-logo.svg')
 CONST_DIAGRAM = os.path.join(CONST_ROOT, 'images', 'anyscan-architecture.svg')
 CONST_README = os.path.join(CONST_ROOT, 'README.md')
+CONST_FUNDING = os.path.join(CONST_ROOT, 'images', 'anyscan-funding.svg')
 CONST_GENERATOR = os.path.join(CONST_ROOT, 'Example', 'UI', 'architecture_diagram.py')
 CONST_BUILDER = os.path.join(CONST_ROOT, 'Example', 'UI', 'build_logo.py')
 CONST_WORDMARK = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-logo-wordmark.svg')
@@ -411,3 +412,40 @@ def test_the_diagram_icons_are_twelve_by_twelve_pixel_grids() -> None:
     for name, grid in generator.CONST_ICONS.items():
         assert len(grid) == 12 and all(len(row) == 12 and set(row) <= {'#', '.'} for row in grid), name
         assert any('#' in row for row in grid), name
+
+
+def _Generated_Funding() -> str:
+    """
+    Description:
+        The README's funding logo row as the generator writes it now.
+
+    Returns:
+        (1) parameter [string]: The SVG document.
+    """
+
+    spec = importlib.util.spec_from_file_location('architecture_diagram', CONST_GENERATOR)
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    return generator.Draw_Funding_Band()
+
+
+def test_the_readme_funding_row_is_the_generators_and_self_contained() -> None:
+    """
+    Description:
+        images/anyscan-funding.svg is the generator's output (never hand-edited), draws its own purple ground (so it
+        reads on GitHub's light and dark themes), fetches nothing, and inlines the three band logos' outlines; the
+        README shows it in its Funding section, above the EU disclaimer.
+    """
+
+    funding = _Generated_Funding()
+    assert _Read(CONST_FUNDING) == funding, \
+        'images/anyscan-funding.svg is stale or hand-edited; run python Example/UI/architecture_diagram.py'
+    assert '<rect width="1000" height="90" fill="%s"/>' % Theme.CONST_BAND in funding
+    references = CONST_HREF.findall(funding) + CONST_URL.findall(funding)
+    assert [r for r in references if not r.startswith(('#', 'data:'))] == []
+    for name in CONST_EMBEDDED_MARKS:
+        outline = re.search(r' d="([^"]+)"', _Read(os.path.join(CONST_ASSETS, name))).group(1)
+        assert outline in funding, '%s is not inlined' % name
+    readme = _Read(CONST_README)
+    section = readme[readme.index('## Funding'):]
+    assert section.index('(images/anyscan-funding.svg)') < section.index(' '.join(Funding_Row_Cls.DISCLAIMER.split()[:6]))

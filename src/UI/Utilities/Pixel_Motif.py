@@ -29,14 +29,20 @@ Description:
     The brand's pixel motif for the funding band (docs/design-decisions.md, "The funding band carries the brand's pixel
     motif"): small squares on a square grid, as in the JIC Smart Factory style guide and on the AnyScan poster, where
     whole cells are filled singly or in short runs, densest at the format's edge and thinning towards its content (the
-    poster's top-right cluster fills 10 of its 6 x 4 cells, in two tints).
+    poster's top-right cluster fills 9 of its 6 x 4 cells, in two tints).
 
     Motif_Cells lays the cells out for a band: each half of the band is a grid anchored to its own outer edge, so a
     resize adds or removes cells next to the logos and never reshuffles the pattern. A cell is filled where a fixed hash
     of its row and its column from the edge falls under the fill chance at that column, which falls linearly from
     `fill` at the edge to nothing `reach` cells in. No cell touches a keep-out span (each logo with its clear space).
+    Corner_Cells places the AnyScan poster's own corner cluster (CONST_POSTER_CORNER) at a corner of a widget.
+
     Qt-free.
 """
+# The AnyScan poster's top-right cluster (design/Poster AnyScan/AnyScan poster-selection-1.pdf), read cell by cell:
+# 6 x 4 cells anchored to the page's top-right corner, L the lighter periwinkle, D the deeper one, '.' empty.
+#   Unit [Tuple<string>]
+CONST_POSTER_CORNER = ('....L.', 'L....D', '.D.L.D', '.DD.L.')
 
 
 def __Hash(row: int, column: int, side: int, salt: int) -> float:
@@ -95,3 +101,23 @@ def Motif_Cells(width: int, height: int, cell: int, fill: float, reach: int, str
                 if __Hash(row, column, side, 0) < chance:
                     cells.append((x, row * cell, __Hash(row, column, side, 1) < strong))
     return cells
+
+
+def Corner_Cells(right: int, top: int, cell: int) -> tp.List[tp.Tuple[int, int, bool]]:
+    """
+    Description:
+        The poster's corner cluster anchored with its top-right corner at a point.
+
+    Args:
+        (1) right [int]: The cluster's right edge, in logical pixels.
+        (2) top [int]: Its top edge, in logical pixels.
+        (3) cell [int]: The cell's side, in logical pixels.
+
+    Returns:
+        (1) parameter [List<Tuple<int, int, bool>>]: Each filled cell's left x and top y and whether it is the deeper
+                                                     tint.
+    """
+
+    columns = len(CONST_POSTER_CORNER[0])
+    return [(right - (columns - column) * cell, top + row * cell, mark == 'D')
+            for row, line in enumerate(CONST_POSTER_CORNER) for column, mark in enumerate(line) if mark != '.']

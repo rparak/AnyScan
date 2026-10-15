@@ -3656,12 +3656,21 @@ the rule falls slightly left of the band's middle (81 px at 1920 px): the Minist
 wider than the wordmark. The logos are solid white SVGs traced from the white PNGs (*The band's logos are traced
 SVGs*). The rest of the band carries the brand's pixel motif (*The funding band carries the brand's pixel motif*).
 
-Heights: the Ministry's logo and the EU emblem 56 px, the EDIH-DIGIMAT wordmark 24 px. At 56 px the Ministry's
-capitals are 8.2 px, its lion 25 px and the EU's stars 5.5 px at 1x; at the earlier 36/30 px they were 5.3, 16 and
-2.9 px. The EU emblem is at least as tall as every other logo, as the EU's visibility rules ask (it was 30 px against
-the Ministry's 36). The Ministry's lion is white, its field dropped, as Czech ministries show their logo on dark
-grounds; the field with the lion cut out was the alternative shown. The band is 90 px, its logos and their padding,
-at every window width.
+Heights: the Ministry's logo and the EU emblem 46 px, the EDIH-DIGIMAT wordmark 24 px, chosen so the three look
+equal by eye, not by pixel height. The EU logo is the heavy one, its flag a solid white block: at 56 px it carried twice
+the wordmark's ink (6099 px² against 3035); at 46 px it carries 4120, about 1.4×. The Ministry's text sets the floor:
+its capitals are 6.7 px at 1x at 46 px (8.2 at 56, 6.4 at 44, the smallest that still reads). The owner first chose
+44/44/26 (variant B of three, 48/48/24 and 44/44/24 the others); on the renders the Ministry's logo looked noticeably
+smaller than the wordmark, so it grew to 46 px and the wordmark shrank to 24 px. The EU emblem is as tall as the
+Ministry's logo, so it is at least the size of the biggest other logo by height, as the EU's visibility rules ask (it
+was 30 px against the Ministry's 36 before 2026-10-15). The Ministry's lion is white, its field dropped, as Czech
+ministries show their logo on dark grounds; the field with the lion cut out was the alternative shown. The band is six
+motif cells, 90 px, at every window width, whatever the logos' heights; they are centred in it.
+
+The README's Funding section shows the same band as an image, `images/anyscan-funding.svg`, generated with the
+architecture diagram (`Example/UI/architecture_diagram.py`, `Draw_Funding_Band`) from the window's logos, sizes, rule,
+clear space and motif, 1000 × 90 on its own purple, so it reads the same on GitHub's light and dark themes (checked in
+both, rendered in Firefox). GitHub's README column, about 880 px, shows it at 88 %.
 
 The EU disclaimer is **not** in the window's band. The README carries it word for word (*Funding*), and so does the
 architecture diagram's band, which reads the window's logo list (`Funding_Row_Cls.LOGOS`) at 1.35× and keeps the
@@ -3676,7 +3685,8 @@ on one full-width line under a rule; the Ministry's lion was black. The owner ch
 48, 56 or 64 px; rules 28, 20 or 14 %; disclaimer 84, 76 or 70 %). For a few hours that day the disclaimer sat beside
 the logos in the fewest balanced lines that fit (two at 1920 px, three at the minimum width); the owner then removed it
 from the window's band, kept it in the README and the diagram, centred the logo group and gave the band the pixel
-motif. This entry was titled "The funding band is the poster's: …".
+motif. Later that day the Ministry's and the EU's logos went from 56 to 46 px. This
+entry was titled "The funding band is the poster's: …".
 
 **Revisit if** the funding or its publicity rules change (the disclaimer may be required on screen), or official
 vector logos are supplied.
@@ -3693,19 +3703,22 @@ information, and nothing reads it.
 From the sources, measured. The style guide's posters (`design/JIC_SMART-FACTORY_V01.pdf`, the EDIH-DIGIMAT page) fill
 whole cells of a grid 12 cells across the format, tone on tone, 28 % of the cells, mostly singly, some in runs of 2–4.
 The AnyScan poster (`design/Poster AnyScan/AnyScan poster-selection-1.pdf`) has one cluster in its top-right corner:
-cells of 36 pt, anchored to the corner, 10 of 6 × 4 filled, in two periwinkle tints, thinning away from the corner.
+cells of 36 pt, anchored to the corner, 9 of 6 × 4 filled (5 in the deeper tint), in two periwinkle tints,
+thinning away from the corner.
 
 In the band: cells of 15 px (the band's 90 px are six), each half a grid anchored to its own end, so a resize adds or
 removes squares next to the logos and never reshuffles the pattern. A cell at an end is filled with a chance of 30 %,
 falling linearly to nothing 16 cells in, by a fixed hash of its row and column (the same on every machine); 40 % of the
 squares are in the stronger of two tints. The tints are white at 7 % and 12 % (`MOTIF_ALPHA`), tone on tone like the
-guide's. The owner chose this, variant A, over B (42 %, the poster's share, thinning over 24 cells, white at 10 % and
-18 %): 33 squares at both 1920 px and the minimum width, against 66 and 58.
+guide's. The owner chose this, variant A, over B (42 %, thinning over 24 cells, white at 10 % and 18 %; *corrected
+2026-10-15:* offered as "the poster's share", which is 9 of 24 cells, 38 %): 33 squares at both 1920 px and the
+minimum width, against 66 and 58.
 
-No square comes within 28 px of a logo (`CLEAR_SPACE`): the EU emblem's protection area, which "must remain free of
-competing texts, logos, images or any other visual element", drawn in the EU's rules as a distance X around the emblem
-and its statement, measured there as half the flag's height ("The use of the EU emblem in the context of EU programmes
-2021-2027", p. 9), here half of the 56 px flag. It is kept around every logo, not only the EU's. At the window's widths
+No square comes within 28 px of a logo (`CLEAR_SPACE`), at least the EU emblem's protection area, which "must remain
+free of competing texts, logos, images or any other visual element", drawn in the EU's rules as a distance X around the
+emblem and its statement, measured there as half the flag's height ("The use of the EU emblem in the context of EU
+programmes 2021-2027", p. 9): 23 px for the 46 px flag. The 28 px set for the earlier 56 px flag is kept. It is kept
+around every logo, not only the EU's. At the window's widths
 the motif thins out before it reaches that far (the nearest square is 312 px from a logo at 1920 px, 100 px at the
 minimum width, 1497 px at 96 dpi), so the clear space binds
 only on a band narrower than the window allows; the test checks one at 1100 px.
@@ -3714,6 +3727,25 @@ only on a band narrower than the window allows; the test checks one at 1100 px.
 EU flag), or the brand's guide redraws the motif.
 Tests `test/UI/test_funding_band.py::test_the_motif_is_faint_squares_at_both_ends_clear_of_every_logo`,
 `test/UI/test_pixel_motif.py`.
+
+## The empty Camera View carries the poster's pixel cluster
+
+While the Camera View has no frame, its top-right corner carries the AnyScan poster's own pixel cluster: the 6 × 4
+cells of the poster's top-right corner, cell for cell (`UI.Utilities.Pixel_Motif.CONST_POSTER_CORNER`, read off
+`design/Poster AnyScan/AnyScan poster-selection-1.pdf`: 9 filled, 5 of them the deeper tint), anchored to the corner,
+in 16 px cells (`Viewport_Cls.CONST_CORNER_CELL`). It is tone on tone, as the funding band's white squares are on the
+purple: the purple at 7 % and 12 % (`Theme.CONST_CORNER_MOTIF`, `CONST_CORNER_MOTIF_ALPHA`) on the view's grey-lilac,
+a subtle texture in the ground's own hue. It is decoration only and goes with the empty state: the instant a frame is
+shown it is gone, so it never covers an image.
+
+The owner chose the place, variant C, over the header's top-right corner (A: 8 px cells fitted 7 px above the status
+chips, cramped) and the same corner in white (B). C showed the poster's periwinkle tints, `#C2C9FF` and `#B0BAFF`; on
+the render the owner asked for tone on tone instead. The brand's squares are never in the data areas: Scene
+Understanding, the Log, Trends and History.
+
+**Revisit if** the empty state or its ground changes, or the poster is redrawn.
+Tests `test/UI/test_empty_view_motif.py`,
+`test/UI/test_pixel_motif.py::test_the_corner_cluster_is_the_posters_anchored_at_its_top_right`.
 
 ## The band's logos are traced SVGs, not official files
 

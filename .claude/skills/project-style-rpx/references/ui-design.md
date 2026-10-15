@@ -122,6 +122,11 @@ practices followed inconsistently are under **Unsettled**.
   and the EU's logos*); ✅ `test/UI/test_funding_band.py`.
 - Decoration (the band's pixel motif) never enters a logo's clear space, at least the EU emblem's protection area,
   half the flag's height (DD *The funding band carries the brand's pixel motif*); ✅ `test/UI/test_funding_band.py`.
+- The brand's squares appear in two places only, the funding band and the empty Camera View's top-right corner (gone
+  with the empty state), never in a data area: Scene Understanding, the Log, Trends, History (DD *The empty Camera View
+  carries the poster's pixel cluster*); ✅ `test/UI/test_empty_view_motif.py`.
+- The README's funding logo row (`images/anyscan-funding.svg`) is generated with the architecture diagram, never
+  edited by hand; ✅ `test/UI/test_brand_figures.py`.
 
 ## Content type comes from the scale; one content, one size ✅ (content) 📄 (chrome)
 
