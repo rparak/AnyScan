@@ -171,6 +171,12 @@ CONST_GUARD_CLEAN = (r'\b(spotless|unblemished|pristine|flawless|stain-free)\b'
                      r'|\bclean (surface|finish|face|front|back|side|part|plate)\b'
                      r'|\b(surface|finish|face|front|back|side|part|plate) (is|looks|appears) clean\b')
 CONST_GUARD_DEFECT = r'defects?|flaws?|blemish\w*|damage'
+# A stain denied for part of the side only ('while the other face shows no such staining'), which a stain found
+# elsewhere does not contradict: the check gives no region to hold it to. Measured: Gemma wrote it, true, on capture
+# 20261015-131258_s1 frame 6, object 2 (both stains on one half).
+#   Unit [string]
+CONST_GUARD_PART_OF_SIDE = (r'\b(other|rest|remaining|elsewhere|left|right|upper|lower|top|bottom|half|halves|end|ends'
+                            r'|corners?|edges?|sections?|portions?|areas?|regions?)\b')
 # The words read back from a mention, at most CONST_GUARD_REACH of them, stopping at one that starts another
 # phrase ('no scratches near the holes' denies no hole; 'the' stops too, except in 'free of the'): a negator denies
 # the mention ('free of', 'clean of', 'devoid of' as pairs), 'missing' or 'extra' claims a fault, a count word claims
@@ -199,6 +205,16 @@ CONST_GUARD_AFTER_HYPOTHESIS = r'^\W*(?:would|should|could|might|ought|will)\b'
 # a contradiction of a check is asked again once, with the findings restated).
 #   Unit [string]
 CONST_GUARD_NUMBER = 'it states a number'
+# The describer is told the checks' findings as facts, and describes holes and stains only as features it sees: a
+# sentence naming the checks, a verification, a confirmation or a detection ('the automatic check confirmed both
+# countersinks') reads as the describer's own finding, and is treated as a contradiction (asked again once, then
+# left out). The rule the describer is given, last in its prompt (Describer_Prompt), and the words that break it.
+# Measured: told every hole group, Gemma recited the check on 5 of 11 judged parts (2026-10-15, docs/design-decisions.md).
+#   Unit [string]
+CONST_DESCRIBER_CHECKS_RULE = ('Describe holes and stains only as features you see on the part, for example "two '
+                               'stepped holes"; never mention the checks, a verification, a confirmation or a detection.')
+CONST_GUARD_CHECKS = r'\b(?:automatic(?:ally)?|automated|checks?|checked|verif\w*|confirm\w*|detect\w*)\b'
+CONST_GUARD_CHECKS_WHY = 'it refers to the checks'
 
 
 def Clean_Detail(text: str) -> str:
@@ -880,7 +896,9 @@ def Describer_Prompt(det: Detection_Str, Catalogue_Item_Str: Catalogue_Item_Str)
     Description:
         The describer's prompt for a judged part: the item's Describer.Prompt filled with the side up (its
         Name, DINOv2's side), that side's description, that side's defects and what the checks found (Findings).
-        Nothing filled in holds a number: the loader refuses one in the texts, and Findings writes none.
+        Nothing filled in holds a number: the loader refuses one in the texts, and Findings writes none. The rule
+        that holes and stains are described as features seen, never as the checks' (CONST_DESCRIBER_CHECKS_RULE),
+        comes last.
 
     Args:
         (1) det [Detection_Str(object)]: The part, judged.
@@ -898,10 +916,10 @@ def Describer_Prompt(det: Detection_Str, Catalogue_Item_Str: Catalogue_Item_Str)
     defects = ' '.join('%s: %s%s' % (defect.Name.capitalize(), defect.Looks_Like,
                                      ' Not a defect: %s' % defect.Not_A_Defect if defect.Not_A_Defect else '')
                        for defect in item.Defects if defect.Side == det.Catalogue.Side)
-    return ' '.join(item.Describer_Prompt.format(
+    return ' '.join((item.Describer_Prompt.format(
         side=side.Name if side is not None else det.Catalogue.Side_Name,
         side_description=side.Description if side is not None else '',
-        defects=defects or 'None described.', findings=Findings(det)).split())
+        defects=defects or 'None described.', findings=Findings(det)) + ' ' + CONST_DESCRIBER_CHECKS_RULE).split())
 
 
 def Restated_Prompt(prompt: str, det: Detection_Str) -> str:
@@ -1058,7 +1076,7 @@ def __Guard_Clause(clause: str, det: Detection_Str) -> str:
         if match.group('stain'):
             if det.Stains is None:
                 continue
-            if claim in ('denied', 'missing') and det.Stains:
+            if claim in ('denied', 'missing') and det.Stains and not re.search(CONST_GUARD_PART_OF_SIDE, clause, flags):
                 return 'it says there is no stain, which the stain check found'
             if claim in ('there', 'extra') and not det.Stains:
                 return 'it claims a stain, which the stain check did not find'
@@ -1078,7 +1096,9 @@ def Guard_Description(text: str, det: Detection_Str) -> tp.Tuple[str, tp.List[tp
     """
     Description:
         The describer's text on a judged part, with what it may not say taken out, sentence by sentence: a
-        sentence with a digit (CONST_GUARD_NUMBER: a measurement or a count is the checks' to give), and a sentence
+        sentence with a digit (CONST_GUARD_NUMBER: a measurement or a count is the checks' to give), a sentence
+        referring to the checks ('the automatic check confirmed…', CONST_GUARD_CHECKS: the describer describes what it
+        sees, never the checks), and a sentence
         contradicting the hole or the stain check in either direction, read clause by clause and mention by mention
         (__Guard_Clause): holes of a kind claimed there that the check did not find, or a count it did not find;
         holes it found claimed absent; a stain claimed where it found none; the side claimed clean, or free of
@@ -1097,6 +1117,7 @@ def Guard_Description(text: str, det: Detection_Str) -> tp.Tuple[str, tp.List[tp
     kept, dropped = [], []
     for sentence in [part for part in re.split(r'(?<=[.!?])\s+', text.strip()) if part]:
         why = CONST_GUARD_NUMBER if re.search(r'\d', sentence) else ''
+        why = why or (CONST_GUARD_CHECKS_WHY if re.search(CONST_GUARD_CHECKS, sentence, re.IGNORECASE) else '')
         for clause in re.split(r'[,;:()]|\s+(?:but|while|whereas)\s+', sentence):
             why = why or __Guard_Clause(clause, det)
         if why:

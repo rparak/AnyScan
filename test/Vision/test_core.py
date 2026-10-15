@@ -774,6 +774,39 @@ def test_a_contradiction_is_asked_again_once_then_its_sentences_are_left_out(fak
         'It has no holes."', last]
 
 
+def test_a_sentence_referring_to_the_checks_is_asked_again_like_a_contradiction(fake_models, reference_background,
+                                                                                make_synthetic_frame, monkeypatch) -> None:
+    """
+    Description:
+        A judged part's description that names the checks ('The automatic check confirmed both stepped holes.'),
+        though true, is treated as a contradiction: asked again once with the findings restated, and a sentence
+        still naming them left out, the rest kept; the verdict is untouched and each step is an audit warning.
+    """
+
+    import cv2
+    from Reporting.Core import Describer_Prompt, Restated_Prompt
+    _events, _config, _Variant = fake_models
+    naming = 'A metal plate with a shiny face. The automatic check confirmed both stepped holes.'
+    answers = [naming, naming]
+    original = _Fake_Describer_Cls.Describe
+
+    def _Describe(self, image, purpose, prompt=''):
+        caption = original(self, image, purpose, prompt)
+        return answers.pop(0) if purpose == 'object' and answers else caption
+
+    monkeypatch.setattr(_Fake_Describer_Cls, 'Describe', _Describe)
+    _Fake_Segmenter_Cls.crop_holes = [(15.0, 17.5, 6.0), (15.0, 43.1, 6.0), (15.0, 17.5, 12.0), (15.0, 43.1, 12.0)]
+    frame_bgr = make_synthetic_frame(reference_background, [(300, 300, 900, 700)])
+    config = _Catalogue_Mode()
+    pipeline = Vision_Pipeline_Cls(Configuration_Str=config)
+    plate, = pipeline.Analyze(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)).Objects
+    describer = getattr(pipeline, '_Vision_Pipeline_Cls__describer')
+    first = Describer_Prompt(plate, config.Catalogue)
+    assert [prompt for purpose, prompt in zip(describer.purposes, describer.prompts) if purpose == 'object'] == [
+        first, Restated_Prompt(first, plate)]
+    assert plate.Detail == 'A metal plate with a shiny face.' and plate.Verdict == 'OK'
+
+
 def test_a_judged_parts_features_and_similarity_are_on_the_frame(fake_models, reference_background,
                                                                  make_synthetic_frame) -> None:
     """

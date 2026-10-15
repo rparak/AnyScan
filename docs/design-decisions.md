@@ -3308,29 +3308,50 @@ side's own description "Smooth through-holes without countersink", which it echo
   sentence with a digit alone is dropped without asking again. The ask, its answer and each drop are audit warnings.
   The verdict is never touched.
 
-**Measured** on the 10 mounting-plate capture frames (sets `20261015-131258_s1`, `-143622_s1`, `-160433_s1`; 25
-objects, 15 judged), Gemma 4 E4B on the RTX 5070 Ti through MLX:
+**Measured** on the 10 mounting-plate capture frames (sets `20261015-131258_s1`, `-143622_s1`, `-160433_s1`; 22
+objects, 15 judged; *corrected 2026-10-15:* first given as 25), Gemma 4 E4B on the RTX 5070 Ti through MLX:
 - **The new guard on the stored descriptions:** 4 of 15 changed — the four backs with no hole found, each losing the
   "…features through-holes without countersink(s/ing)" sentence; 11 kept word for word. No right claim dropped; each
   dropped sentence also held a right clause ("straight edges … narrow chamfer"). "Near where holes would be" kept.
 - **Live, with the new findings:** the same four contradicted the checks on the first answer (the findings alone did
   not stop the echo); asked again, all four answered without a hole, and nothing was dropped. The other 11: no
-  intervention. All 25 verdicts as stored. The first wording of the ask ("Describe the part again") drew a second
+  intervention. All 22 verdicts as stored. The first wording of the ask ("Describe the part again") drew a second
   paragraph after the first on two parts; "write the description once more, in place of the last one: one short
   flowing paragraph" drew one on all four.
-- **Seen, not fixed:** told every group found, Gemma recites the check on 5 of the 11 ("the automatic check
-  confirmed the presence of both countersinks and both through-holes"): true, but the checklist echo.
+- **Seen:** told every group found, Gemma recited the check on 5 of the 11 ("the automatic check confirmed the
+  presence of both countersinks and both through-holes"): true, but the checklist echo. Fixed below.
+
+*Corrected 2026-10-15 — holes and stains are described as features seen, never as the checks'* (the owner's ruling:
+keep the facts for every part, never let the describer mention the checks). The prompt ends with
+`CONST_DESCRIBER_CHECKS_RULE` ("Describe holes and stains only as features you see on the part, for example 'two
+stepped holes'; never mention the checks, a verification, a confirmation or a detection."), and the guard treats a
+sentence naming them (`CONST_GUARD_CHECKS`: automatic, automated, check, checked, verif…, confirm…, detect…) as a
+contradiction: asked again once, then left out, the verdict untouched. A stain denied for part of the side only
+("while the other face shows no such staining", `CONST_GUARD_PART_OF_SIDE`) is no longer read as the side claimed
+clean: the check gives no region to hold it to. **Measured** live on the same 22 objects (15 judged), Gemma 4 E4B,
+RTX 5070 Ti:
+- **Checks mentioned in the text shown: 0 of 15** (5 of 11 before). No intervention at all: no contradiction on a
+  first answer, the four backs with no hole included (the rule changed those answers too); the six stained fronts
+  still describe their stains. All 22 verdicts as stored.
+- **A false trigger found and fixed:** before the part-of-side exemption, one retry fired on capture
+  `20261015-131258_s1` frame 6, object 2 — "…while the other face shows no such staining", true (both its stains lie
+  on one half). The retry's text passed whole; nothing was lost, but the sentence was right.
+- **What the ask again costs** when it fires: one more describer call plus the guard, forced on each of the 15 judged
+  crops: median 0.71 s, 0.50–1.02 s (first answers 0.61–0.96 s; 575–699 input, 55–123 output tokens). It is part of
+  the object's description time, so of the inference time.
 
 **Revisit if** the describer model or the prompt changes (measure again: contradictions shown, asks again, drops,
 false drops), a check is added (its words join the guard's: `CONST_GUARD_HOLE_KINDS`, `CONST_GUARD_STAIN`), the drops
-show a sentence the operator needed, or the recited checks read as the describer's own finding.
+show a sentence the operator needed, or a sentence naming the checks reaches the panel.
 Tests `test/Reporting/test_core.py` (`::test_the_guard_drops_numbers_and_what_contradicts_a_check` and
 `::test_the_guard_holds_each_mention_to_its_check_in_both_directions`, with Gemma's own sentences;
 `::test_the_findings_say_what_the_checks_found_in_words_without_numbers`;
 `::test_the_restated_prompt_is_the_first_followed_by_the_findings`;
+`::test_the_guard_drops_a_sentence_referring_to_the_checks`;
 `::test_the_describer_prompt_is_the_items_filled_for_the_part`),
 `test/Vision/test_core.py::test_a_judged_part_is_described_with_its_findings_and_guarded`,
 `test/Vision/test_core.py::test_a_contradiction_is_asked_again_once_then_its_sentences_are_left_out`,
+`test/Vision/test_core.py::test_a_sentence_referring_to_the_checks_is_asked_again_like_a_contradiction`,
 `test/Vision/test_describers.py::test_gemma_sends_a_given_prompt_instead_of_the_purposes`,
 `test/Configuration/test_core.py::test_what_the_describer_is_given_holds_no_number`.
 

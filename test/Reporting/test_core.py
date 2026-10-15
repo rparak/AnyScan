@@ -651,8 +651,9 @@ def test_the_describer_prompt_is_the_items_filled_for_the_part() -> None:
     """
     Description:
         A judged part's prompt is the item's Describer.Prompt with its side's name and description, that side's
-        defects only (what they look like and what is not one) and the findings; no placeholder is left and no
-        digit is in it. A Warning, an Unspecified object or an item without a prompt gets '' (the mode's prompt).
+        defects only (what they look like and what is not one) and the findings, then the rule that holes and stains
+        are described as features seen, never as the checks'; no placeholder is left and no digit is in it. A
+        Warning, an Unspecified object or an item without a prompt gets '' (the mode's prompt).
     """
 
     import dataclasses
@@ -670,7 +671,10 @@ def test_the_describer_prompt_is_the_items_filled_for_the_part() -> None:
     det.Stains = []
     assert Describer_Prompt(det, item) == ('Its machined front is up: Shiny milled metal. Defects: Fingerprint: '
                                            'Yellow-brown stains. Not a defect: Small dark dots. An automatic check '
-                                           'found no stain on its machined front. Describe it.')
+                                           'found no stain on its machined front. Describe it. Describe holes and '
+                                           'stains only as features you see on the part, for example "two stepped '
+                                           'holes"; never mention the checks, a verification, a confirmation or a '
+                                           'detection.')
     for verdict in ('Warning', 'Unspecified'):
         assert Describer_Prompt(_Judged(verdict), item) == ''
     assert Describer_Prompt(det, dataclasses.replace(item, Describer_Prompt='')) == ''
@@ -744,6 +748,9 @@ CONST_STEPPED_SENTENCE = ('Two stepped holes are present, each featuring a large
     ('The machined front appears free of any yellow-brown stains or papillary lines.', [1.0], CONST_FRONT_HOLES, True),
     ('The machined front displays yellow-brown to brown stains of irregular shape.', [1.0], CONST_FRONT_HOLES, False),
     ('The machined front displays yellow-brown to brown stains of irregular shape.', [], CONST_FRONT_HOLES, True),
+    ('One of the machined faces displays a yellow-brown stain of irregular shape, while the other face shows no such '
+     'staining.', [1.0], CONST_FRONT_HOLES, False),
+    ('The machined front shows no staining.', [1.0], CONST_FRONT_HOLES, True),
     ('No defects are apparent on this side.', [1.0], CONST_FRONT_HOLES, True),
     ('No defects are apparent on this side.', [], CONST_FRONT_HOLES, False),
     ('No defects are apparent on this side.', None, CONST_BACK_NO_HOLES, True),
@@ -754,6 +761,7 @@ CONST_STEPPED_SENTENCE = ('Two stepped holes are present, each featuring a large
         'no holes, none found', 'a counterbore, none in the part', 'a hypothesis', 'scratches near the holes',
         'a negation in another clause',
         'free of stains, none found', 'free of stains, one found', 'stains, found', 'stains, none found',
+        'no stain on part of the side, one found', 'no stain on the side, one found',
         'no defects, a stain found', 'no defects, none found', 'no defects, holes missing',
         "'not defects', a stain found", 'stainless'])
 def test_the_guard_holds_each_mention_to_its_check_in_both_directions(sentence: str, stains: tp.Any,
@@ -766,7 +774,8 @@ def test_the_guard_holds_each_mention_to_its_check_in_both_directions(sentence: 
         (a kind the side has none of, a count it did not find), holes it found claimed absent, a stain claimed
         where it found none, and the side claimed free of stains or defects where it found a stain or a hole
         missing are dropped; a hypothesis ('where holes would be'), a negation of something else ('no scratches near
-        the holes', 'no scratches, and stepped holes …'), 'not defects' and 'stainless' are not claims, and a
+        the holes', 'no scratches, and stepped holes …'), a stain denied for part of the side only ('the other face
+        shows no such staining': the check gives no region), 'not defects' and 'stainless' are not claims, and a
         sentence agreeing with the checks is kept.
     """
 
@@ -799,3 +808,36 @@ def test_the_restated_prompt_is_the_first_followed_by_the_findings() -> None:
                       % Findings(det))
     assert 'found no through-holes on its unmachined back' in prompt
     assert not any(character.isdigit() for character in prompt)
+
+
+@pytest.mark.parametrize('sentence, dropped', [
+    # Gemma's own sentences (E4B, told every hole group, the mounting plate's capture sets, 2026-10-15).
+    ('The automatic check confirmed the presence of both countersinks and both through-holes on this side.', True),
+    ('The edges are straight and clean, and the machined front is free of any yellow-brown stains, while the automatic '
+     'checks confirm the presence of both countersinks and through-holes.', True),
+    ('The edges are straight and clean with a slight chamfer, and the automatic check found no stains on this side.',
+     True),
+    ('No fingerprint stains were detected on the machined front.', True),
+    ('Both stepped holes are verified as present.', True),
+    ('This surface features two stepped holes along the long axis, each with a large countersink.', False),
+    ('A checkered pattern of fine tool marks covers the face.', False),
+], ids=['confirmed', 'confirm, in a clause', 'found by the check', 'detected', 'verified', 'features seen',
+        'checkered'])
+def test_the_guard_drops_a_sentence_referring_to_the_checks(sentence: str, dropped: bool) -> None:
+    """
+    Description:
+        The describer describes holes and stains as features it sees, never as the checks': a sentence naming the
+        checks, a verification, a confirmation or a detection is dropped, true or not ('the automatic check confirmed
+        both countersinks' on a front where they were found); the same features described as seen are kept, and a
+        word only starting like one ('checkered') is not a reference.
+    """
+
+    from Reporting.Core import Guard_Description, CONST_GUARD_CHECKS_WHY
+    from Parameters.Vision import Stain_Str, Hole_Count_Str
+    det = _Judged('OK')
+    det.Stains = []
+    det.Hole_Counts = [Hole_Count_Str(Name=name, Found=found, Expected=expected)
+                       for name, found, expected in CONST_FRONT_HOLES]
+    kept, drops = Guard_Description('The part is a rectangular metal plate. ' + sentence, det)
+    assert kept == 'The part is a rectangular metal plate.' + ('' if dropped else ' ' + sentence)
+    assert drops == ([(sentence, CONST_GUARD_CHECKS_WHY)] if dropped else [])

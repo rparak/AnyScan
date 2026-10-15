@@ -512,19 +512,22 @@ differently moves the plate's colours; nothing checks that the band still fits.
 
 `Reporting.Guard_Description` drops a describer's sentence that holds a number or contradicts the hole or the stain
 check by reading words: each mention of a hole kind or a stain, in its own clause, and the words just before and after
-it (a negation, a count, "missing", "would be"). On the mounting plate's 10 capture frames (2026-10-15, 15 judged
-parts) it changes exactly the four descriptions that contradicted a check, and the asked-again text of each passes
-whole.
+it (a negation, a count, "missing", "would be"), and a sentence naming the checks ("automatic", "confirmed",
+"verified", "detected"). On the mounting plate's 10 capture frames (2026-10-15, 15 judged parts) it changes exactly the
+four stored descriptions that contradicted a check and the one naming the check; live, with the no-checks rule in the
+prompt, it had nothing to do.
 
 - **Impact:** a contradiction worded unlike those measured can reach the panel (a hole kind it has no word for:
-  "openings", "bores"; a negation more than four words before its noun); a right sentence using a pattern's words
-  can be dropped, and a dropped sentence takes its right clauses with it (the four 2026-10-15 drops each held "The
+  "openings", "bores"; a negation more than four words before its noun; a stain denied with a part-of-side word,
+  "no stains on the front area", which it lets through); a right sentence using a pattern's words can be dropped
+  ("detected" in "no scratches were detected"), and a dropped sentence takes its right clauses with it (the four 2026-10-15 drops each held "The
   plate has straight edges, with some evidence of a narrow chamfer"). Every intervention is in the log with the
   describer's full text. The verdict, State and Reasons never come from the describer.
 - **Not fixed here:** the describer is not asked to decide, so a model judging its text would be one more
   model to trust; the words grow with what is measured.
 - **Pinned by:** `test/Reporting/test_core.py::test_the_guard_drops_numbers_and_what_contradicts_a_check`,
-  `::test_the_guard_holds_each_mention_to_its_check_in_both_directions` (Gemma's own sentences).
+  `::test_the_guard_holds_each_mention_to_its_check_in_both_directions`,
+  `::test_the_guard_drops_a_sentence_referring_to_the_checks` (Gemma's own sentences).
 
 ## A missing hole is not marked when the part shows nothing to place it by
 
