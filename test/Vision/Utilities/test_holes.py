@@ -31,7 +31,7 @@ import numpy as np
 import pytest
 # Custom Lib.: AnyScan — the hole check, the rule that applies it, and the structures they read
 #   ../Vision/Utilities/Holes
-from Vision.Utilities.Holes import Hole_Candidates, Check_Holes
+from Vision.Utilities.Holes import Hole_Candidates, Check_Holes, Seat_Holes, Side_Evidence, Hole_Features
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import Apply_Holes
 #   ../Parameters/Vision
@@ -302,3 +302,70 @@ def test_a_side_with_no_hole_found_places_none_since_its_end_cannot_be_told() ->
     from Vision.Utilities.Holes import Hole_Features
     assert Hole_Features([], CONST_PLATE_FRONT, 40.0, 60.0) == []
     assert Hole_Features([], CONST_PLATE_FRONT[1:], 40.0, 60.0) == []
+
+
+# The mounting plate's back, as the shipped item gives it: its through-holes only.
+CONST_PLATE_BACK = [Catalogue_Hole_Group_Str(Name='through-hole', Diameter_Mm=6.0, Count=2, From_Long_Edge_Mm=15.0,
+                                             From_Short_Edge_Mm=17.5, Pitch_Mm=25.0, Tolerance_Mm=1.5)]
+
+
+def test_a_through_hole_in_its_countersink_is_measured_at_the_countersinks_centre() -> None:
+    """
+    Description:
+        A stepped hole's bore is seen below the top face, and away from the frame centre its opening shifts towards
+        it: on 20261015-170816_17, 60 mm out, a through-hole read 19.04 mm from its short edge against 17.5 ± 1.5 while
+        its countersink, on the top face, read 18.0. Measured at its countersink's centre it passes; its diameter is
+        still its own. A through-hole with no countersink around it (the back) keeps its own centre.
+    """
+
+    shifted = _Holes((15.0, 19.4, 6.1), (15.0, 44.4, 6.1), (15.0, 17.5, 12.2), (15.0, 42.5, 12.2))
+    counts, checks = Check_Holes(shifted, CONST_PLATE_FRONT, 40.0, 60.0)
+    assert [(c.Name, c.Found) for c in counts] == [('countersink', 2), ('through-hole', 2)]
+    assert [(c.Name, round(c.Measured_Mm, 2)) for c in checks if not c.Within] == []
+    assert [round(c.Measured_Mm, 2) for c in checks if c.Name == 'through-hole Ø'] == [6.1, 6.1]
+    seated = Seat_Holes(shifted, CONST_PLATE_FRONT)
+    assert [(h.X_Mm, h.Y_Mm, h.Diameter_Mm) for h in seated[:2]] == [(15.0, 17.5, 6.1), (15.0, 42.5, 6.1)]
+    assert [(h.X_Mm, h.Y_Mm) for h in shifted[:2]] == [(15.0, 19.4), (15.0, 44.4)]
+    alone = _Holes((15.0, 19.4, 6.1), (15.0, 44.4, 6.1))
+    assert Seat_Holes(alone, CONST_PLATE_FRONT) == alone
+    assert [c.Name for c in Check_Holes(alone, CONST_PLATE_BACK, 40.0, 60.0)[1] if not c.Within] == [
+        "through-hole's distance from the short edge"] * 2
+
+
+def test_a_hole_only_one_side_has_shows_that_side() -> None:
+    """
+    Description:
+        The countersinks are the front's alone, so a found one shows the front wherever the part lies; the
+        through-holes are on both sides and show neither, nor does no hole at all (a front missing its countersinks
+        shows no side: absence is never evidence). On the stained front 57-67 mm out DINOv2 chose the back; its
+        countersinks were found on every frame.
+    """
+
+    sides = {'front': CONST_PLATE_FRONT, 'back': CONST_PLATE_BACK}
+    front = _Holes((15.0, 17.5, 6.1), (15.0, 42.5, 6.2), (15.0, 17.5, 12.2), (15.0, 42.5, 12.3))
+    assert Side_Evidence(front, sides, 40.0, 60.0) == ['front']
+    assert Side_Evidence(front[2:3], sides, 40.0, 60.0) == ['front']
+    assert Side_Evidence(front[:2], sides, 40.0, 60.0) == []
+    assert Side_Evidence([], sides, 40.0, 60.0) == []
+
+
+def test_edge_distances_are_from_the_top_face_not_the_side_wall() -> None:
+    """
+    Description:
+        Away from the optical axis the outline takes in the side wall on the edges facing it, so the crop's edge is
+        not the top face's (Vision.Utilities.Classify.Wall_Widths): on 20261015-143626_1, 61.6 mm out, the outline
+        read 41.31 mm across and a countersink-seated through-hole 16.6 mm from that long edge. With the wall left
+        out the distances are the top face's; the marks stay where the holes are on the crop.
+    """
+
+    plate = _Holes((16.8, 17.5, 6.1), (16.8, 42.5, 6.1), (16.8, 17.5, 12.2), (16.8, 42.5, 12.2))
+    walls = (1.8, 0.0, 0.0, 0.0)
+    assert [c.Name for c in Check_Holes(plate, CONST_PLATE_FRONT, 41.8, 60.0)[1] if not c.Within] == [
+        "through-hole's distance from the long edge"] * 2
+    counts, checks = Check_Holes(plate, CONST_PLATE_FRONT, 41.8, 60.0, walls)
+    assert [c.Found for c in counts] == [2, 2] and all(c.Within for c in checks)
+    assert [round(c.Measured_Mm, 2) for c in checks if c.Name == "through-hole's distance from the long edge"] == [15.0] * 2
+    marks = Hole_Features(plate, CONST_PLATE_FRONT, 41.8, 60.0, walls)
+    assert all(f.Passed for f in marks)
+    assert [(round(sum(x for x, _y in f.Corners) / 4, 2), round(sum(y for _x, y in f.Corners) / 4, 2)) for f in marks] == [
+        (16.8, 17.5), (16.8, 42.5), (16.8, 17.5), (16.8, 42.5)]

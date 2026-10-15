@@ -24,6 +24,8 @@
 # System (Default)
 import math
 import itertools
+# Dataclasses (Data Classes)
+import dataclasses
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — the hole, count and dimension-check structures, and the catalogue's groups
@@ -38,8 +40,8 @@ from Vision.Utilities.Dimensions import Check_Dimension
 Description:
     Initialization of constants.
 
-    The catalogue's hole check on a judged part, on the side DINOv2 found up: FastSAM's masks on the part's
-    upright crop (Vision.Utilities.Classify.Object_Crop) become hole candidates — round masks inside the
+    The catalogue's hole check on a judged part, on the side found up (Classify.Decide_Side): FastSAM's masks on
+    the part's upright crop (Vision.Utilities.Classify.Object_Crop) become hole candidates — round masks inside the
     part — and each catalogue group (Checks.Holes.<side>) counts the candidates of its diameter and, for a
     group with positions, near one of them; each counted hole's diameter, edge distances and pitch are then
     checked against the tolerance. Qt-free, OpenCV and NumPy injected.
@@ -48,6 +50,14 @@ Description:
     with 2 countersinks and 2 through-holes, 10 backs with 2 through-holes, 68 in all), and no other round mask
     of a group's size. The crop's edges are the measured outline, so an edge distance is from
     the silhouette.
+
+    A stepped hole's position is its step's: a hole inside a larger hole of another group (a through-hole in its
+    countersink) is seen below the top face, and away from the frame centre its opening shifts towards it (Seat_Holes).
+    Measured on the mounting-plate captures of 2026-10-15 (47 fronts, 4.8-66.6 mm from the frame centre): the
+    through-hole's centre lay 0.12-0.36 mm from its countersink's within 10 mm of the frame centre, 0.8-1.15 mm at 60 mm
+    and 1.30 mm at 66.6 mm, growing with the distance, while every hole stayed round (0.883-0.916) and its diameter
+    within 6.12-6.25 mm. Its short-edge distance read up to 19.37 mm against 17.5 ± 1.5; the countersink's, on the top
+    face, 17.22-18.59 mm at every distance (docs/design-decisions.md).
 """
 
 # The roundness (4·π·area / perimeter²) at and above which a mask is a hole candidate: a disc is 1. Measured on
@@ -129,6 +139,114 @@ def Hole_Candidates(masks: tp.List[tp.Any], mm_per_px: float, cv2: tp.Any, np: t
     return found
 
 
+def __Captures(group: Catalogue_Hole_Group_Str, hole: Hole_Str) -> bool:
+    """
+    Description:
+        Whether a group would count a hole by its diameter: within CONST_HOLE_CAPTURE_TOLERANCES of the group's
+        tolerances of its nominal diameter.
+
+    Args:
+        (1) group [Catalogue_Hole_Group_Str(object)]: The group.
+        (2) hole [Hole_Str(object)]: The hole.
+
+    Returns:
+        (1) parameter [bool]: True when its diameter is the group's.
+    """
+
+    return abs(hole.Diameter_Mm - group.Diameter_Mm) < CONST_HOLE_CAPTURE_TOLERANCES * group.Tolerance_Mm
+
+
+def Seat_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str]) -> tp.List[Hole_Str]:
+    """
+    Description:
+        The candidates as their positions are measured: a hole lying wholly inside a larger candidate that one of the
+        side's groups counts by its diameter (a through-hole in its countersink) is a stepped hole's lower step, so it
+        is measured at that step's centre, the smallest such when there are several; every other hole is unchanged.
+        The step's rim lies on the part's top face. The lower step is seen through it, below the face, and away from
+        the frame centre its opening shifts towards it (the module's description): measured at its own centre, a
+        through-hole 60 mm out read up to 1.9 mm farther from its short edge than its countersink. Its diameter,
+        outline and score stay its own.
+
+    Args:
+        (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
+        (2) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
+
+    Returns:
+        (1) parameter [Vector<Hole_Str(object)>]: The candidates in the same order, each lower step at its step's
+                                                  centre (a copy; the candidates are not changed).
+    """
+
+    steps = [hole for hole in candidates if any(__Captures(group, hole) for group in groups)]
+    seated = []
+    for hole in candidates:
+        around = [step for step in steps if step.Diameter_Mm > hole.Diameter_Mm
+                  and math.hypot(step.X_Mm - hole.X_Mm, step.Y_Mm - hole.Y_Mm) + hole.Diameter_Mm / 2.0
+                  <= step.Diameter_Mm / 2.0]
+        if around:
+            step = min(around, key=lambda other: other.Diameter_Mm)
+            hole = dataclasses.replace(hole, X_Mm=step.X_Mm, Y_Mm=step.Y_Mm)
+        seated.append(hole)
+    return seated
+
+
+def __To_Face(candidates: tp.List[Hole_Str], width_mm: float, height_mm: float,
+              walls: tp.Tuple[float, float, float, float]) -> tp.Tuple[tp.List[Hole_Str], float, float]:
+    """
+    Description:
+        The candidates and the crop's size in the part's top face's frame: the crop's edges are the measured outline,
+        which reaches past the top face by the side wall the camera sees on the edges facing the optical axis
+        (Vision.Utilities.Classify.Wall_Widths), and the catalogue gives every position from the top face's edges.
+
+    Args:
+        (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
+        (2) width_mm [float]: The crop's width.
+        (3) height_mm [float]: The crop's height.
+        (4) walls [Tuple<float> 1x4]: The wall along the crop's left, top, right and bottom edge, in mm.
+
+    Returns:
+        (1) parameter [Tuple]: (the candidates moved, the top face's width, its height), in mm.
+    """
+
+    left, top, right, bottom = walls
+    moved = [dataclasses.replace(hole, X_Mm=hole.X_Mm - left, Y_Mm=hole.Y_Mm - top,
+                                 Outline=[(x - left, y - top) for x, y in hole.Outline]) for hole in candidates]
+    return moved, width_mm - left - right, height_mm - top - bottom
+
+
+def Side_Evidence(candidates: tp.List[Hole_Str], holes_by_side: tp.Dict[str, tp.List[Catalogue_Hole_Group_Str]],
+                  width_mm: float, height_mm: float,
+                  walls: tp.Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)) -> tp.List[str]:
+    """
+    Description:
+        The sides the holes found show to be up: each side with a found hole that its groups count (by diameter and,
+        for a positioned group, position) and no group of another side would. The mounting plate's countersinks are
+        the front's alone, so finding one shows the front, wherever the part lies in the view; its through-holes are
+        on both sides and show neither. Absence is never evidence: a front missing its countersinks shows no side, and
+        the side is then DINOv2's (Vision.Utilities.Classify.Decide_Side).
+
+    Args:
+        (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
+        (2) holes_by_side [Dict<string, Vector<Catalogue_Hole_Group_Str(object)>>]: The catalogue's groups per side.
+        (3) width_mm [float]: The crop's width (the part's short side).
+        (4) height_mm [float]: The crop's height (the part's long side).
+        (5) walls [Tuple<float> 1x4]: The side wall along the crop's left, top, right and bottom edge, in mm
+                                      (Vision.Utilities.Classify.Wall_Widths); none by default.
+
+    Returns:
+        (1) parameter [Vector<string>]: The sides shown, in the catalogue's order; empty when no hole tells.
+    """
+
+    candidates, width_mm, height_mm = __To_Face(candidates, width_mm, height_mm, walls)
+    counted = {}
+    for side, groups in holes_by_side.items():
+        seated = Seat_Holes(candidates, groups)
+        members = [__Members(seated, group, width_mm, height_mm) for group in groups]
+        counted[side] = {index for index, hole in enumerate(seated) if any(hole is member for found in members
+                                                                             for member in found)}
+    return [side for side, own in counted.items()
+            if any(all(index not in others for other, others in counted.items() if other != side) for index in own)]
+
+
 def __Edge_Distances(hole: Hole_Str, width_mm: float, height_mm: float) -> tp.Tuple[float, float]:
     """
     Description:
@@ -165,8 +283,7 @@ def __Members(candidates: tp.List[Hole_Str], group: Catalogue_Hole_Group_Str, wi
     """
 
     tolerance = group.Tolerance_Mm
-    members = [hole for hole in candidates
-               if abs(hole.Diameter_Mm - group.Diameter_Mm) < CONST_HOLE_CAPTURE_TOLERANCES * tolerance]
+    members = [hole for hole in candidates if __Captures(group, hole)]
     if group.From_Long_Edge_Mm:
         gate = math.sqrt(2.0) * tolerance + CONST_HOLE_POSITION_MARGIN_MM
         members = [hole for hole in members
@@ -177,25 +294,31 @@ def __Members(candidates: tp.List[Hole_Str], group: Catalogue_Hole_Group_Str, wi
 
 
 def Check_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str], width_mm: float,
-                height_mm: float) -> tp.Tuple[tp.List[Hole_Count_Str], tp.List[Dimension_Check_Str]]:
+                height_mm: float, walls: tp.Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
+                ) -> tp.Tuple[tp.List[Hole_Count_Str], tp.List[Dimension_Check_Str]]:
     """
     Description:
         Each group's holes among the candidates, counted and checked. A candidate counts in a group when its
         diameter is within CONST_HOLE_CAPTURE_TOLERANCES tolerances of the group's and, for a group with positions,
         its centre lies near one — the expected positions mirrored to all four corners, since the part may lie
         either way round. Each counted hole is then checked: its diameter, and for a positioned group its distance
-        from its nearer long and short edge; and each pair of counted holes about Pitch_Mm apart, their pitch.
+        from its nearer long and short edge; and each pair of counted holes about Pitch_Mm apart, their pitch. A
+        stepped hole's lower step is placed and measured at its step's centre (Seat_Holes), and the edges are the
+        top face's, the side wall the camera sees left out (walls).
 
     Args:
         (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
         (2) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
         (3) width_mm [float]: The crop's width (the part's short side).
         (4) height_mm [float]: The crop's height (the part's long side).
+        (5) walls [Tuple<float> 1x4]: The side wall along the crop's left, top, right and bottom edge, in mm
+                                      (Vision.Utilities.Classify.Wall_Widths); none by default.
 
     Returns:
         (1) parameter [Tuple]: (each group's count, every check), in group order.
     """
 
+    candidates, width_mm, height_mm = __To_Face(Seat_Holes(candidates, groups), width_mm, height_mm, walls)
     counts, checks = [], []
     for group in groups:
         tolerance = group.Tolerance_Mm
@@ -278,23 +401,53 @@ def __Circle(x_mm: float, y_mm: float, diameter_mm: float) -> tp.List[tp.Tuple[f
 
 
 def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str], width_mm: float,
-                  height_mm: float) -> tp.List[Feature_Str]:
+                  height_mm: float, walls: tp.Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
+                  ) -> tp.List[Feature_Str]:
     """
     Description:
         The holes as the frame marks them, on the upright crop (mm): each counted hole with its outline and checks (diameter;
         edge distances for a positioned group; the pitch to a neighbour, on both holes), failed when one fails or
         when its group holds more holes than the part has; and each hole expected but not found, at its position,
         outlined by a circle of its group's diameter (__Missing_Places). The positioned groups are placed first, so
-        an unpositioned group's missing holes can sit at a through-hole that was itself placed, not found.
+        an unpositioned group's missing holes can sit at a through-hole that was itself placed, not found. A stepped
+        hole's lower step is measured and boxed at its step's centre, its outline its own mask's (Seat_Holes); edge
+        distances and missing holes' positions are from the top face's edges (walls), the marks on the crop.
 
     Args:
         (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
         (2) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
         (3) width_mm [float]: The crop's width (the part's short side).
         (4) height_mm [float]: The crop's height (the part's long side).
+        (5) walls [Tuple<float> 1x4]: The side wall along the crop's left, top, right and bottom edge, in mm
+                                      (Vision.Utilities.Classify.Wall_Widths); none by default.
 
     Returns:
-        (1) parameter [Vector<Feature_Str(object)>]: The holes, group by group, the found before the missing.
+        (1) parameter [Vector<Feature_Str(object)>]: The holes, group by group, the found before the missing, on the
+                                                     crop (mm).
+    """
+
+    features = __Face_Features(*__To_Face(Seat_Holes(candidates, groups), width_mm, height_mm, walls), groups)
+    left, top = walls[0], walls[1]
+    for feature in features:
+        feature.Corners = [(x + left, y + top) for x, y in feature.Corners]
+        feature.Outlines = [[(x + left, y + top) for x, y in outline] for outline in feature.Outlines]
+    return features
+
+
+def __Face_Features(candidates: tp.List[Hole_Str], width_mm: float, height_mm: float,
+                    groups: tp.List[Catalogue_Hole_Group_Str]) -> tp.List[Feature_Str]:
+    """
+    Description:
+        Hole_Features in the top face's frame: the holes seated and moved there, the face's size.
+
+    Args:
+        (1) candidates [Vector<Hole_Str(object)>]: The holes, seated, in the top face's frame.
+        (2) width_mm [float]: The top face's width.
+        (3) height_mm [float]: The top face's height.
+        (4) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
+
+    Returns:
+        (1) parameter [Vector<Feature_Str(object)>]: The holes, in the top face's frame (mm).
     """
 
     members = [__Members(candidates, group, width_mm, height_mm) for group in groups]

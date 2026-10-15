@@ -50,7 +50,11 @@ Description:
         (4) anything else                                      -> Warning (not the part)
 
     Then a part judged OK or NOK has its holes checked on the side up (Vision.Utilities.Holes, Apply_Holes):
-    a missing or extra hole, or a hole out of tolerance, makes it NOK.
+    a missing or extra hole, or a hole out of tolerance, makes it NOK; and its stains, on a side that has the
+    check (Apply_Stain). The side up is DINOv2's when its margin tells, or shown by a hole only that side has
+    (Decide_Side); when neither tells, the part is judged on every side and a verdict that differs by side is
+    Unspecified (Settle_Side). Last, a part lying farther from the frame centre than parts were judged on
+    real frames (CONST_JUDGED_RADIUS_MM) is Unspecified (Settle_Radius).
 
     (3) has no lower similarity bound, on purpose: an object of the part's size that does not look like
     it reads NOK, not Warning — in quality control the safer error — and a floor between the blank plate
@@ -65,6 +69,21 @@ Description:
 # that it is not verified.
 #   Unit [float] (mm)
 CONST_VERIFIED_RADIUS_MM = 46.4
+# How far from the frame centre a part was judged on real frames: the farthest centre of a judged mounting plate on
+# the 72 measured frames (the 41 of Data/Images/Test and the 31 of the mounting-plate captures of 2026-10-15),
+# measured with Center_Distance_Mm, 66.62 mm (20261015-170830_19, by the right edge, low), rounded up to the next
+# 0.1 mm. Within it every hole was found round and of its diameter and every stain found, at any distance; side
+# identification and hole positions needed Decide_Side and Holes.Seat_Holes. Beyond it nothing was measured: a part
+# there is Unspecified (KNOWN_ISSUES, *Parts beyond 66.7 mm from the frame centre are not judged*).
+#   Unit [float] (mm)
+CONST_JUDGED_RADIUS_MM = 66.7
+# The margin of DINOv2's best side over the other at and above which it tells the side up. Measured on the same 72
+# frames (2026-10-15): every back -0.455 to -0.554 at any distance (13); fronts +0.50 near the centre, falling with
+# the distance and their stains to +0.004 at 59 mm, and the wrong side, -0.030 to -0.075, on 8 stained fronts 57-67 mm
+# out. 0.265 is midway between the largest wrong margin and the smallest back's. Below it the side is the holes'
+# (Holes.Side_Evidence) or, with none, judged on every side.
+#   Unit [float]
+CONST_SIDE_MARGIN = 0.265
 
 
 def Object_Crop(frame_bgr: tp.Any, det: Detection_Str, cv2: tp.Any, np: tp.Any) -> tp.Any:
@@ -148,6 +167,50 @@ def Crop_To_Frame(det: Detection_Str, points: tp.List[tp.Tuple[float, float]], c
     return [(float(x), float(y)) for x, y in back]
 
 
+def Wall_Widths(det: Detection_Str, K: tp.Any, scale: Scale_Str, thickness_mm: float, cv2: tp.Any,
+                np: tp.Any) -> tp.Tuple[float, float, float, float]:
+    """
+    Description:
+        How far the part's measured outline reaches past its top face along each edge of its upright crop: the side
+        wall the camera sees on the edges facing the optical axis. Under the pinhole model the part's bottom edge
+        projects towards the principal point by its distance from it times thickness / (the camera's distance to the
+        table), so the silhouette there is the bottom edge; an edge facing away shows no wall. Measured on the
+        mounting plate 61.6 mm out (20261015-143626_1): its outline 41.31 mm across against 39.3-40.2 near the
+        centre, this predicting 0.93 mm of it. A hole's edge distance is measured from the top face (Holes.Check_Holes),
+        where the catalogue gives it. Zero for an object cropped by its box (no rectangle to turn).
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, measured.
+        (2) K [Matrix<float> 3x3]: The camera matrix (focal lengths, principal point).
+        (3) scale [Scale_Str(object)]: The scale at the part's top face.
+        (4) thickness_mm [float]: The part's thickness.
+        (5) cv2 [module]: The OpenCV module.
+        (6) np [module]: The NumPy module.
+
+    Returns:
+        (1) parameter [Tuple<float> 1x4]: The wall along the crop's left, top, right and bottom edge, in mm.
+    """
+
+    measurement = det.Measurement
+    if measurement is None or measurement.Symmetric or not measurement.Box_Points:
+        return 0.0, 0.0, 0.0, 0.0
+    _warp, (width, height) = __Upright(det, cv2, np)
+    centre, *middles = Crop_To_Frame(det, [(width / 2.0, height / 2.0), (0.0, height / 2.0), (width / 2.0, 0.0),
+                                           (width, height / 2.0), (width / 2.0, height)], cv2, np)
+    mm_per_px = (scale.Mm_Per_Px_X + scale.Mm_Per_Px_Y) / 2.0
+    focal = (float(K[0][0]) + float(K[1][1])) / 2.0
+    # The camera's distance to the table (the part's bottom face), from the top face's scale: s = Z / f.
+    table_mm = focal * mm_per_px + thickness_mm
+    principal = (float(K[0][2]), float(K[1][2]))
+    walls = []
+    for middle in middles:
+        normal = np.array(middle) - np.array(centre)
+        normal /= max(float(np.linalg.norm(normal)), 1e-9)
+        facing = -float(normal @ (np.array(middle) - np.array(principal)))
+        walls.append(max(0.0, facing) * thickness_mm / table_mm * mm_per_px)
+    return walls[0], walls[1], walls[2], walls[3]
+
+
 def Reference_Crop(image_bgr: tp.Any, box: tp.Tuple[float, float, float, float]) -> tp.Any:
     """
     Description:
@@ -206,6 +269,94 @@ def Best_Match(object_rows: tp.Any, reference_rows: tp.Any, sides: tp.List[str])
     best = scores.max(axis=0)
     index = int(best.argmax())
     return float(best[index]), sides[index]
+
+
+def Side_Similarities(object_rows: tp.Any, reference_rows: tp.Any, sides: tp.List[str]) -> tp.Dict[str, float]:
+    """
+    Description:
+        An object's similarity to each side: the highest cosine between any of its rotations and that side's
+        reference.
+
+    Args:
+        (1) object_rows [Matrix<float> RxD]: The object's rotations, as unit rows.
+        (2) reference_rows [Matrix<float> SxD]: The references, as unit rows, one per side.
+        (3) sides [Vector<string>]: The references' sides, in row order.
+
+    Returns:
+        (1) parameter [Dict<string, float>]: The similarity per side, in the references' order.
+    """
+
+    best = (object_rows @ reference_rows.T).max(axis=0)
+    return {side: float(best[index]) for index, side in enumerate(sides)}
+
+
+def Decide_Side(similarities: tp.Dict[str, float], evidence: tp.List[str]) -> tp.Tuple[str, str]:
+    """
+    Description:
+        The side a part is checked on, and how it was decided. DINOv2's best side tells when its margin over the
+        next is at least CONST_SIDE_MARGIN. A hole only one side has (Holes.Side_Evidence) tells wherever the part
+        lies, so it decides when the margin does not; when DINOv2 tells the other side by its margin, the two
+        conflict. With neither, the side is undecided: DINOv2's best is kept for the report and the part is judged
+        on every side (Settle_Side).
+
+        Measured (CONST_SIDE_MARGIN): DINOv2's margin falls with the distance from the frame centre, and on eight
+        stained fronts 57-67 mm out it chose the back (by at most 0.075), which has neither the countersink check
+        nor the stain check, so a stained front read OK. Their countersinks were found on every one.
+
+    Args:
+        (1) similarities [Dict<string, float>]: The similarity per side (Side_Similarities).
+        (2) evidence [Vector<string>]: The sides the holes show (Holes.Side_Evidence).
+
+    Returns:
+        (1) parameter [Tuple<string> 1x2]: (the side, 'similarity', 'holes', 'conflict' or 'undecided').
+    """
+
+    ranked = sorted(similarities, key=lambda side: -similarities[side])
+    best = ranked[0]
+    margin = similarities[best] - (similarities[ranked[1]] if len(ranked) > 1 else 0.0)
+    told = margin >= CONST_SIDE_MARGIN
+    if len(evidence) == 1:
+        shown = evidence[0]
+        if shown == best and told:
+            return best, 'similarity'
+        return (best, 'conflict') if told else (shown, 'holes')
+    return best, 'similarity' if told else 'undecided'
+
+
+def Settle_Side(det: Detection_Str, verdicts: tp.Dict[str, str], how: str) -> None:
+    """
+    Description:
+        A judged part's verdict once its side is known or not (Decide_Side), in place. Decided ('similarity',
+        'holes'): it stands. Conflicting: Unspecified. Undecided: each side's checks were run on it ('verdicts'); a
+        verdict every side gives stands — an object of the part's shape that does not look like it is NOK on
+        either — and one that differs by side is Unspecified, so a front with the side unknown is never passed for
+        a clean back. A part already Unspecified stays so.
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, judged and checked on its decided side (mutated).
+        (2) verdicts [Dict<string, string>]: Its verdict as each side's checks give it.
+        (3) how [string]: How the side was decided (Decide_Side).
+    """
+
+    det.Catalogue.Side_Evidence = how
+    differs = how == 'conflict' or (how == 'undecided' and len(set(verdicts.values())) > 1)
+    if det.Verdict in ('OK', 'NOK') and differs:
+        det.Verdict, det.Catalogue.Unspecified_Cause = 'Unspecified', 'side'
+
+
+def Settle_Radius(det: Detection_Str) -> None:
+    """
+    Description:
+        A judged part lying farther from the frame centre than parts were judged on real frames
+        (CONST_JUDGED_RADIUS_MM) is Unspecified, in place: its side, holes and stains were not measured there, so
+        an OK would be a guess. Its checks stay on it, so the frame marks what was found.
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, judged (mutated).
+    """
+
+    if det.Verdict in ('OK', 'NOK') and det.Catalogue.Center_Distance_Mm > det.Catalogue.Judged_Radius_Mm:
+        det.Verdict, det.Catalogue.Unspecified_Cause = 'Unspecified', 'radius'
 
 
 def Best_Turn(object_rows: tp.Any, reference_rows: tp.Any, sides: tp.List[str], side: str) -> int:
@@ -319,10 +470,11 @@ def Classify(det: Detection_Str, similarity: float, side: str, Catalogue_Item_St
                                          Identify_Similarity=thresholds.Identify_Similarity,
                                          Area_Ratio=area_ratio, Unspecified_Area_Ratio=thresholds.Unspecified_Area_Ratio,
                                          Center_Distance_Mm=Center_Distance_Mm(det, frame_size, scale),
-                                         Verified_Radius_Mm=CONST_VERIFIED_RADIUS_MM)
+                                         Verified_Radius_Mm=CONST_VERIFIED_RADIUS_MM,
+                                         Judged_Radius_Mm=CONST_JUDGED_RADIUS_MM)
     outline_within = bool(det.Dimension_Checks) and all(check.Within for check in det.Dimension_Checks)
     if area_ratio >= thresholds.Unspecified_Area_Ratio:
-        det.Verdict = 'Unspecified'
+        det.Verdict, det.Catalogue.Unspecified_Cause = 'Unspecified', 'area'
     elif similarity >= thresholds.Identify_Similarity:
         det.Verdict = 'OK' if outline_within else 'NOK'
     elif outline_within:

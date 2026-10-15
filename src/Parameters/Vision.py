@@ -34,8 +34,10 @@ from dataclasses import dataclass, field
 #   Unit [string]
 CONST_SCALE_UNITS = 'mm/px'
 # The four states an object takes in a catalogue mode (Vision.Utilities.Classify): OK — the catalogue part,
-# every check passed; NOK — the catalogue part, a check failed; Unspecified — an area of at least the mode's
-# Unspecified_Area_Ratio times the part's, probably several parts together, not judged; Warning — not the
+# every check passed; NOK — the catalogue part, a check failed; Unspecified — not judged: an area of at least the
+# mode's Unspecified_Area_Ratio times the part's (probably several parts together), a part lying farther from the
+# frame centre than parts were judged on real frames, or one whose side up cannot be told when its verdict depends
+# on it (Catalogue_Result_Str.Unspecified_Cause); Warning — not the
 # catalogue part, found and described but not supposed to be there. A mode without a catalogue judges
 # nothing and every object keeps the default, OK, drawn in the neutral colour.
 #   Unit [Tuple<string>]
@@ -184,7 +186,8 @@ class Catalogue_Result_Str(object):
     """
 
     # The object's highest DINOv2 similarity to the part's reference images (cosine of the class
-    # tokens, over both sides and four rotations), the side that scored it ('front' or 'back'), and
+    # tokens, over both sides and four rotations), the side it is checked on ('front' or 'back': the one that
+    # scored it, unless its holes decided another, Side_Evidence), and
     # the similarity at and above which an object is identified as the part (the mode's).
     #   Unit [float] / [string] / [float]
     Similarity: float = 0.0
@@ -193,16 +196,30 @@ class Catalogue_Result_Str(object):
     # What the catalogue calls that side ('machined front'): the side sentence's words.
     #   Unit [string]
     Side_Name: str = ''
+    # The object's highest similarity to each side's reference, by side, and how the side up was decided
+    # (Vision.Utilities.Classify.Decide_Side): 'similarity' (DINOv2's margin), 'holes' (a hole only that
+    # side has was found), 'undecided' (neither tells; the part was judged on every side) or 'conflict'
+    # (the holes show one side and DINOv2 another, by its margin).
+    #   Unit [Dict<string, float>] / [string]
+    Side_Similarities: tp.Dict[str, float] = field(default_factory=dict)
+    Side_Evidence: str = ''
     # The object's mask area over the part's nominal area (Length_Mm x Width_Mm), both in mm at the
     # part's top face, and the ratio from which an object is Unspecified (the mode's).
     #   Unit [float] / [float]
     Area_Ratio: float = 0.0
     Unspecified_Area_Ratio: float = 0.0
-    # The object's centre's distance from the frame centre, and the distance up to which the size
-    # checks were verified on real frames (Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM).
+    # The object's centre's distance from the frame centre, the distance up to which the size checks
+    # were verified on real frames (Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM), and the one up
+    # to which a part was judged on real frames (CONST_JUDGED_RADIUS_MM).
     #   Unit [float] (mm)
     Center_Distance_Mm: float = 0.0
     Verified_Radius_Mm: float = 0.0
+    Judged_Radius_Mm: float = 0.0
+    # Why an Unspecified object was not judged: 'area' (probably several parts), 'radius' (it lies
+    # beyond Judged_Radius_Mm) or 'side' (which side is up cannot be told, and its verdict depends on
+    # it); '' for any other verdict.
+    #   Unit [string]
+    Unspecified_Cause: str = ''
 
 
 @dataclass

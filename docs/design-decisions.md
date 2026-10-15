@@ -3110,7 +3110,8 @@ said about the part, in a schema phases C and D extend rather than reshape:
   is read on it beyond its nominal value (the plate's symmetry).
 - `Sides` (REQUIRED: exactly `front` and `back`, the reference images' names) — each a `Name` (REQUIRED)
   and a `Description`. The `Name` is read now: a judged part's description gains "It lies with its <Name>
-  up.", from DINOv2's side, never the describer's.
+  up.", from the side the checks used, never the describer's. (*Corrected 2026-10-15:* that side is DINOv2's by
+  its margin, else the holes', *The side up is DINOv2's only by its margin…*.)
 - `Defects` (optional, default none: a part whose defective examples may not exist yet) — each a `Name`,
   the `Side` it is looked for on, what it `Looks_Like` and what is `Not_A_Defect`.
 - `Checks` — what the code measures (`Outline`, `Holes`, `Stain`), kept apart from what a person or
@@ -3141,7 +3142,9 @@ defaults), `test/Reporting/test_core.py::test_a_judged_part_says_which_side_is_u
 ## A judged part's holes are counted where the catalogue puts them, by FastSAM on its upright crop
 
 Decided 2026-10-11 (catalogue phase C), on the owner's rulings. Each part judged OK or NOK has its holes checked
-on the side DINOv2 found up (`Vision.Utilities.Holes`): FastSAM runs again, through the loaded segmenter, on the
+on the side found up (`Vision.Utilities.Holes`; *corrected 2026-10-15:* DINOv2's by its margin, else the
+holes', and a stepped hole measured at its step from the top face's edges, *The side up is DINOv2's only by its
+margin…*): FastSAM runs again, through the loaded segmenter, on the
 part's upright crop; a round mask inside the crop is a hole candidate; each catalogue group (`Checks.Holes.<side>`)
 counts the candidates of its diameter and, when it has positions, near one; each counted hole's diameter, edge
 distances and pitch are checked against the tolerance. A hole missing, extra or out of tolerance makes the part
@@ -4053,3 +4056,77 @@ Tests `test/Reporting/test_core.py::test_a_size_checked_outside_the_verified_zon
 `test/Vision/Utilities/test_classify.py::test_the_verdict_does_not_depend_on_where_the_part_lies`,
 `test/UI/test_reading_view.py::test_a_judged_object_shows_its_verdict_between_label_and_description`,
 `test/UI/test_timing_log.py::test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time`.
+
+## The side up is DINOv2's only by its margin, a hole only one side has decides otherwise, and hole positions are the top face's
+
+Decided 2026-10-15, on the owner's report of capture `20261015-170251_s1`: a fingerprinted front 57–67 mm from the frame
+centre, turned about 30°, read OK with two through-holes marked (frames 16, 21; and frames 2, 5 of the same set), or
+NOK for "through-hole 1.2" (frames 17, 19), never for its stains. Three changes, in `Vision.Utilities.Classify` and
+`Vision.Utilities.Holes`:
+
+1. **The side.** DINOv2's best side holds when its margin over the other is at least `CONST_SIDE_MARGIN` (0.265).
+   Below it, a found hole that only one side's groups count shows that side (`Holes.Side_Evidence`: the mounting
+   plate's countersinks are the front's alone). Against a decisive margin the holes conflict, and the part is
+   Unspecified. With neither, the part is judged on both sides, and a verdict that differs by side is Unspecified
+   (`Decide_Side`, `Settle_Side`). Absence is never evidence: a front missing its countersinks shows no side.
+2. **Hole positions.** A hole inside a larger hole of another group, a through-hole in its countersink, is measured at
+   the step's centre on the top face (`Holes.Seat_Holes`). Every edge distance is taken from the top face's edges,
+   with the side wall the camera sees off the axis left out (`Classify.Wall_Widths`, from the pinhole model: the
+   thickness, K and the top face's scale; no new field).
+3. **The region.** A judged part whose centre lies beyond `CONST_JUDGED_RADIUS_MM` (66.7 mm, the farthest measured) is
+   Unspecified, with its findings still marked (`Settle_Radius`). Each Unspecified reason names its cause
+   (`Catalogue_Result_Str.Unspecified_Cause`).
+
+**Why, measured.** Measured on the 72 mounting-plate frames: the 41 of the test set and the 31 of the captures
+`20261015-131258_s1`, `-143622_s1`, `-160433_s1` and `-170251_s1`. They hold 63 plates, 3.4–66.6 mm out. Each stage was
+recorded through the application's pipeline, by wrapping its functions in `Vision.Core` with no source changed:
+
+- *DINOv2 chose the back; the checks were never wrong.* The fronts' margin over the back falls with the distance and
+  the stains: +0.50 at the centre, +0.10 to +0.15 on stained fronts 16 mm out, +0.004 to +0.10 at 37–56 mm. On all 8
+  stained fronts at 57–67 mm it chose the back (−0.030 to −0.075). Every back read −0.455 to −0.554 at any distance up
+  to 59 mm. Re-running the front's checks on those 8 crops, with the same FastSAM candidates, found both countersinks,
+  both through-holes and both stains (145–157 and 52–63 mm²) on every one. The back has neither the countersink group
+  nor the stain check, so the front read OK. 0.265 is midway between the largest wrong margin (0.075) and the
+  smallest back's (0.455).
+- *Not the light.* The table falls to 0.94 of its centre's brightness at 60–70 mm. The specular front falls further:
+  its median V is 161 at 22 mm and 110 at 67 mm, as the reflected ray leaves the light panel. Yet DINOv2 ignores it:
+  the 22 mm crop darkened ×0.7 kept its margin (+0.272 → +0.267), and the edge crops brightened to the centre's level
+  stayed on the back (−0.048 → −0.042, −0.066 → −0.075). A flat-field from the table would not model the specular drop
+  either. No illumination correction was built. Every hole stayed round (0.883–0.916, threshold 0.83) and of its
+  diameter (6.12–6.25 mm), and the stain band found both stains at every distance (`Stain.py` unchanged).
+- *The crop's border drives it.* Insetting the crop by 25 px flipped all 8 fronts to the front (+0.17 to +0.25). The
+  back reference's crop holds 9.1 % table, the front's 2.1 %, and the edge crops take in the side wall and the table.
+  Identifying on an inset crop was rejected: it lifted the stained fronts' similarity to 0.79–0.82, but dropped a real
+  back 59 mm out (`20261015-160452_2`) from 0.893 to 0.571, below 0.75. Its scuffed long edges, which the back's
+  reference is recognised by, are what the inset cuts away. A right OK would have turned NOK.
+- *The bore is seen at an angle.* The through-hole's centre lay 0.12–0.36 mm from its countersink's within 10 mm of the
+  centre, 0.8–1.15 mm at 60 mm and 1.30 mm at 66.6 mm, towards the axis. Its short-edge distance read 19.04 and
+  19.37 mm (17.5 ± 1.5) on frames 17 and 19. The countersink's, on the top face, read 17.22–18.59 mm at every distance.
+- *The side wall.* Measured at the step, `20261015-143626_1` (61.6 mm out) read 16.5–16.6 mm from its long edge (15 ±
+  1.5): the outline was 41.31 mm across against 39.3–40.2 near the centre. The bore's shift had hidden it before. The
+  wall predicted 0.93 mm, and with it left out the reading is 15.6.
+
+**Before and after**, on the same 72 frames, 214 objects. Of the 204 that were right before, every one is still
+right: all 150 of the test set match `CONST_EXPECTED_VERDICTS`, and the hole-less block of the part's outline stays
+NOK on both sides. Four wrong OKs are now NOK for their stains (frames 2, 5, 16, 21). Four NOKs now give the right
+reason (frames 13, 17, 18, 19): the false through-hole fault is gone and the stains are named. Every plate's side is
+right. After the fix the worst edge distance is 0.60–0.78 mm off nominal in every distance band, down from 1.87 mm at
+66.6 mm. Not measured: the left, top and bottom edges beyond 51 mm, the corners, a clean front beyond 35 mm, and a
+part with a defective stepped hole (KNOWN_ISSUES).
+
+**Given up.** A bore off-centre inside its own countersink is no longer caught by its position (KNOWN_ISSUES, *A bore
+off-centre inside its countersink is not detected*). A stained front by the edge still reads "does not look like the
+part", with a right verdict (KNOWN_ISSUES).
+
+**Revisit if** rig captures at 50–67 mm on the left, top and bottom or in the corners (capture checklist 3d) show a
+side, hole or stain read wrong, or widen `CONST_JUDGED_RADIUS_MM`; an item's sides share every hole group (then only
+the margin and the both-sides rule decide); a part with a defective stepped hole is measured; or the reference images
+are re-shot (the margins change with them).
+Tests `test/integration/test_edge_of_view.py` (frames 1, 16, 17 and 19 of the capture, in `Data/Images/Edge`),
+`test/Vision/Utilities/test_classify.py::test_the_side_is_dinov2s_by_its_margin_else_the_holes`,
+`::test_a_part_whose_side_cannot_be_told_keeps_only_a_verdict_every_side_gives`,
+`::test_a_part_beyond_the_radius_parts_were_judged_to_is_unspecified`,
+`::test_the_side_wall_is_seen_only_on_the_edges_facing_the_optical_axis`,
+`test/Vision/Utilities/test_holes.py::test_a_through_hole_in_its_countersink_is_measured_at_the_countersinks_centre`,
+`::test_a_hole_only_one_side_has_shows_that_side`, `::test_edge_distances_are_from_the_top_face_not_the_side_wall`,
+`test/Reporting/test_core.py::test_an_unspecified_part_says_why_it_was_not_judged_and_what_to_do`.

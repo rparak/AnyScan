@@ -62,7 +62,7 @@ Tolerance_Mm: 1.5
 
 # REQUIRED. The part's two sides, one per reference image (reference_image/<side>.png): each
 # side's Name (REQUIRED: the side sentence, 'It lies with its <Name> up.') and Description
-# (default: empty). The side is DINOv2's, never the describer's.
+# (default: empty). The side is DINOv2's by its margin, else its holes', never the describer's.
 Sides:
   front:
     Name: machined front
@@ -112,7 +112,8 @@ Checks:
   # Pitch_Mm [mm], neighbouring centres (default: not checked); Tolerance_Mm [mm] (default: the item's).
   # A hole counts in a group when its diameter is within twice the tolerance of the group's, so a
   # hole of the wrong size is reported as the wrong size; two groups of one side may not overlap so.
-  # FastSAM finds them on the part's upright crop, the side DINOv2 found up (Vision.Utilities.Holes).
+  # FastSAM finds them on the part's upright crop, the side found up: DINOv2's by its margin, else the side a
+  # group only it has shows (the countersinks show the front; Vision.Utilities.Classify.Decide_Side).
   # Measured on the test set (22 plates, 2026-10-11): countersinks 12.07-12.33, through-holes
   # 6.14-6.25 on the front and 6.46-6.73 on the back (the back's openings are wider than the bore,
   # which reads 6.05-6.26 through them: a chamfer, by the look), pitch 24.38-24.92, from the long

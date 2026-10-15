@@ -396,6 +396,37 @@ def test_each_state_reads_as_the_owner_specified() -> None:
         assert not [line for line in Verdict_Lines(_Judged(verdict)) if 'similarity' in line.lower()], verdict
 
 
+def test_an_unspecified_part_says_why_it_was_not_judged_and_what_to_do() -> None:
+    """
+    Description:
+        An Unspecified object's reason names its cause: its area (several parts, as before); its distance, beyond
+        the radius parts were judged to; or its side, which neither its look (both similarities given) nor its holes
+        tell while its verdict depends on it, or which its holes and its look tell differently. Each says what to do.
+        The log names a side its holes decided.
+    """
+
+    from Reporting.Core import Reason_Sentence, Verdict_Log_Line
+    far = _Judged('Unspecified', distance=74.7)
+    far.Catalogue.Unspecified_Cause, far.Catalogue.Judged_Radius_Mm = 'radius', 66.7
+    assert Reason_Sentence(far) == ('It lies 75 mm from the frame centre, beyond the 67 mm parts were judged to, so '
+                                    'its side, holes and stains cannot be judged there. Move it nearer the centre '
+                                    'and scan again.')
+    told = _Judged('Unspecified')
+    told.Catalogue.Unspecified_Cause, told.Catalogue.Side_Evidence = 'side', 'undecided'
+    told.Catalogue.Side_Similarities = {'front': 0.72, 'back': 0.75}
+    assert Reason_Sentence(told) == ('Which side is up cannot be told from its look (similarity front 0.72, back '
+                                     '0.75) or its holes, and its verdict depends on it, so it cannot be judged. '
+                                     'Move it nearer the centre and scan again.')
+    told.Catalogue.Side_Evidence = 'conflict'
+    assert Reason_Sentence(told) == ('Its holes show one side up and its look the other (similarity front 0.72, back '
+                                     '0.75), so it cannot be judged. Check that it is the part and scan it again '
+                                     'nearer the centre.')
+    assert Reason_Sentence(_Judged('Unspecified', area=2.04)).startswith("Its area is 2.04 times the part's")
+    holes = _Judged('NOK', similarity=0.75)
+    holes.Catalogue.Side_Evidence = 'holes'
+    assert Verdict_Log_Line(0, holes)[1].startswith('Object 1: NOK, front up by its holes, similarity 0.75.')
+
+
 def test_a_nok_has_one_reason_sentence_for_its_outline_and_look() -> None:
     """
     Description:

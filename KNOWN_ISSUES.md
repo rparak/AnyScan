@@ -552,8 +552,11 @@ capture `20261015-143622_s1`, object 3: a back with no holes, NOK, no hole mark.
 The size checks were verified on real frames only out to 46.4 mm from the frame centre
 (`Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM`: the farthest judged mounting plate of the test set, 46.32 mm,
 Image_072). Farther out the side-wall term predicts up to about 1 mm more (README > Limitations), beyond the plates'
-0.73 mm margin to the tolerance. A part there is judged on its size exactly as one at the centre: its distance is
-evidence for the log, not a branch of the rule, so the verdict does not depend on it.
+0.73 mm margin to the tolerance. A part there is judged on its size exactly as one at the centre: this radius is
+evidence for the log, not a branch of the rule. (Beyond 66.7 mm a part is not judged at all: *Parts beyond 66.7 mm
+from the frame centre are not judged…*, below. The 2026-10-15 captures measured plates 50–66.6 mm out at
+59.97–61.27 × 39.89–41.31 mm, within tolerance, the side wall reaching about 1 mm on the edges facing the axis;
+without calipers that is not a verification of the size.)
 
 - **Impact:** an OK or a NOK on size beyond 46.4 mm rests on a size not verified there, and Scene Understanding no
   longer says so (removed 2026-10-15, the owner's ruling: on capture `20261015-160433_s1` the note stood under sizes
@@ -578,3 +581,58 @@ where the motif's purple square is expected) fail. They fail identically on unch
   which may be what does not scale.
 - **Pinned by:** nothing yet.
 
+
+## Parts beyond 66.7 mm from the frame centre are not judged, and beyond 50 mm only the right edge was measured
+
+A judged part whose centre lies more than 66.7 mm from the frame centre (`Vision.Utilities.Classify.CONST_JUDGED_RADIUS_MM`,
+the farthest judged mounting plate measured, 66.62 mm, capture `20261015-170830_19`) is Unspecified: "It lies N mm
+from the frame centre, beyond the 67 mm parts were judged to …". Its holes and stains are still marked. Within it,
+measured 2026-10-15 on 72 frames (the test set and the four mounting-plate capture sets, 63 plates, 3.4–66.6 mm out):
+
+| From the centre | Side identification | Hole detection | Stain detection |
+|---|---|---|---|
+| 0–50 mm | DINOv2 alone right on every plate (margin from +0.067) | every hole found, round 0.883–0.916, Ø 6.07–6.73 mm, edge distances within 0.72 mm | both stains on every stained front |
+| 50–57 mm | DINOv2 right by +0.013 at least; the countersinks decide | the same, within 0.61 mm | the same |
+| 57–67 mm | DINOv2 wrong on 8 of 11 fronts (−0.030 to −0.075); the countersinks right on all | the same, within 0.78 mm, with the stepped hole at its step and the side wall left out | the same, the plate's brightness down to 0.68 of the centre's |
+
+Coverage is lopsided. Beyond 50 mm the measured plates lie on the right edge of the view (x 1466–1574 px, 16 plates)
+and one on the left at 51 mm; none lay in the top or bottom bands (y < 300 or > 900 px) or in a corner, and no clean
+front lay beyond 35 mm. The physics corrected (the bore and the side wall seen off the axis) is radial, but the light is
+not: the table at the corners reads 0.725 (bottom left) to 0.826 (top right) of its centre's brightness.
+
+- **Impact:** a part in a corner (up to 114 mm out) is never judged; one at 50–67 mm on the left, top or bottom is
+  judged on corrections and a band measured only on the right.
+- **Not fixed here:** only rig captures can widen it (docs/capture-checklist.md, 3d: corners, the left, top and bottom
+  edges at 50–67 mm, clean and stained fronts and backs). If the side, holes and stains read right there,
+  `CONST_JUDGED_RADIUS_MM` widens to them.
+- **Pinned by:** `test/Vision/Utilities/test_classify.py::test_a_part_beyond_the_radius_parts_were_judged_to_is_unspecified`,
+  `test/integration/test_edge_of_view.py`.
+
+## A stained front by the edge of the view reads "does not look like the part"
+
+DINOv2's similarity of the fingerprinted front to the front reference falls with its distance from the frame centre:
+0.81–0.89 within 30 mm, 0.67–0.78 at 50–67 mm, mostly below `Identify_Similarity` (0.75). There it is NOK for its stains, with
+its side and holes right, and its reason adds "It has the part's outline but does not look like the part" (captures
+`20261015-170251_s1` frames 12, 13, 15, 18, 19, 20 and `20261015-143622_s1`). The rule is deliberate (an object of the
+part's shape that does not look like it is NOK, docs/design-decisions.md); the clause is the edge's, not the part's.
+
+- **Impact:** the verdict is right; one clause of the reason is not.
+- **Not fixed here:** whether the drop is the stains', the position's or both cannot be told: no clean front lay
+  beyond 35 mm (0.92 there, 0.92–1.00 nearer). Comparing a crop inset from its outline lifted the stained fronts to 0.79–0.82 but
+  dropped a real back 59 mm out to 0.57 (its scuffed long edges are what its reference is recognised by), so the
+  crop is unchanged. Capture checklist 3d's clean fronts at 50–67 mm separate the two.
+- **Pinned by:** nothing; `test/integration/test_edge_of_view.py` pins the verdict and the stains, not this clause.
+
+## A bore off-centre inside its countersink is not detected
+
+A stepped hole's through-hole is measured at its countersink's centre (`Vision.Utilities.Holes.Seat_Holes`), since the
+bore is seen below the top face and away from the axis its opening shifts towards it (0.12–0.36 mm from the
+countersink's centre near the frame centre, 1.30 mm at 66.6 mm). A bore drilled off-centre but still inside its
+countersink is therefore placed at the countersink, and its offset is not checked; before 2026-10-15 a bore 1.5–3 mm
+off near the frame centre failed its edge distance.
+
+- **Impact:** a misplaced stepped hole is caught by its countersink's position; a bore off its own countersink's axis
+  by less than 3 mm (the radii's difference) reads OK.
+- **Not fixed here:** checking the offset against the shift the bore's depth predicts needs that depth, which the
+  catalogue does not give; no part with such a bore was measured. A stepped drill cuts both on one axis.
+- **Pinned by:** `test/Vision/Utilities/test_holes.py::test_a_through_hole_in_its_countersink_is_measured_at_the_countersinks_centre`.

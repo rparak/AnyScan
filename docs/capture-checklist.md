@@ -255,18 +255,26 @@ still judged, and the session log notes that its size check is not verified ther
 from the centre, for example in the corners of the view, would win the zone back: if they read within
 tolerance there, the zone can be widened to them.
 
-Shipped lighting, the mounting-plate mode, clean plates only (no fingerprints), each lying flat:
+Side, holes and stains are judged only out to 66.7 mm (`CONST_JUDGED_RADIUS_MM`, the farthest judged plate
+measured, 2026-10-15); a plate farther out is Unspecified with its findings marked. Beyond 50 mm only the right
+edge of the view was measured (16 plates, one on the left at 51 mm), and no clean front lay beyond 35 mm
+(KNOWN_ISSUES, *Parts beyond 66.7 mm…*). These frames close that; run them through the pipeline as the
+2026-10-15 measurement did (each plate's side, both sides' similarities, its holes and stains).
+
+Shipped lighting, the mounting-plate mode, each plate lying flat:
 
 | Frames | What |
 |---|---|
-| 4 | one plate in each corner of the view, as far out as it fits whole, machined front up |
+| 4 | one plate in each corner of the view, as far out as it fits whole, machined front up, clean |
 | 4 | the same, unmachined back up |
-| 2 | one plate midway along a long edge and one midway along a short edge |
+| 2 | one plate midway along a long edge and one midway along a short edge, clean |
+| 6 | a clean front 50–67 mm out on the left, at the top and at the bottom (two turns each) |
+| 6 | the same with the fingerprinted front, and 3 with a back |
 
 **Record alongside:**
 
-- [ ] each plate's lines in the log: its verdict, its outline's measured sides and, beyond 46.4 mm, its
-      size note, which gives its distance from the frame centre
+- [ ] each plate's lines in the log: its verdict, its side ("by its holes" when they decided it), its outline's
+      measured sides and, beyond 46.4 mm, its size note, which gives its distance from the frame centre
 - [ ] any plate cut by the frame's edge (not usable: its outline is not whole)
 
 ---

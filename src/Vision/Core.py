@@ -24,6 +24,8 @@
 # System (Default)
 import os
 import time
+# Dataclasses (Data Classes)
+import dataclasses
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures, composer, and vision utilities
@@ -62,9 +64,10 @@ from Vision.Utilities.Dimensions import Check_Objects
 from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import (Object_Crop, Reference_Crop, Rotations, Best_Match, Best_Turn, Similarity_Grid,
-                                       Classify, Apply_Holes, Apply_Stain, Crop_To_Frame)
+                                       Classify, Apply_Holes, Apply_Stain, Crop_To_Frame, Side_Similarities, Decide_Side,
+                                       Settle_Side, Settle_Radius, Wall_Widths)
 #   ../Vision/Utilities/Holes
-from Vision.Utilities.Holes import Hole_Candidates, Check_Holes, Hole_Features
+from Vision.Utilities.Holes import Hole_Candidates, Check_Holes, Hole_Features, Side_Evidence
 #   ../Vision/Utilities/Stain
 from Vision.Utilities.Stain import Check_Stain
 #   ../Vision/Utilities/Timing
@@ -963,11 +966,15 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         Description:
             A catalogue mode's judgement, before the objects are described: every object's crop, turned
             upright, in four quarter turns, through DINOv2 in one pass, its best match to the item's
-            references, and its verdict (Vision.Utilities.Classify); then each judged part's checks on the
-            side up, on its upright crop: its holes (FastSAM again, Vision.Utilities.Holes) and its stains
-            (Vision.Utilities.Stain), each found defect making it NOK. The crop's scale is the mean of the two
+            references, and its verdict (Vision.Utilities.Classify); then, for each judged part, its hole
+            candidates on its upright crop (FastSAM again, Vision.Utilities.Holes), the side up from DINOv2's
+            margin or a hole only one side has (Decide_Side), and its checks on that side: its holes and its
+            stains (Vision.Utilities.Stain), each found defect making it NOK. With the side undecided it is also
+            judged on every side, and a verdict that differs by side, or a part beyond the radius parts were
+            judged to, is Unspecified (Settle_Side, Settle_Radius). The crop's scale is the mean of the two
             factors (they differ by 0.17 %). Each judged part's features are taken to the frame and numbered as
-            its parts, and its patches' unlikeness to its matched reference is laid on the frame's similarity map.
+            its parts, and its patches' unlikeness to the reference of the side checked is laid on the frame's
+            similarity map.
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The measured, checked objects (mutated).
@@ -995,37 +1002,45 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         turns = len(crops) // len(objects)
         frame_size = (frame_bgr.shape[1], frame_bgr.shape[0])
         unlike = np.full(frame_bgr.shape[:2], np.nan, dtype=np.float32)
+        item = self.__config.Catalogue
+        mm_per_px = (self.__config.Scale.Mm_Per_Px_X + self.__config.Scale.Mm_Per_Px_Y) / 2.0
+        names = {entry.Side: entry.Name for entry in item.Sides}
         for index, det in enumerate(objects):
             own = rows[index * turns:(index + 1) * turns]
             similarity, side = Best_Match(own, references, self.__reference_sides)
-            Classify(det, similarity, side, self.__config.Catalogue, self.__config.Identification,
-                     self.__config.Scale, frame_size)
+            Classify(det, similarity, side, item, self.__config.Identification, self.__config.Scale, frame_size)
             if det.Verdict not in ('OK', 'NOK'):
                 continue
-            # The similarity overlay (a diagnostic, never a verdict): each patch's unlikeness to the matched
-            # reference, from the identification's own pass, laid on the part's pixels.
+            upright = uprights[index]
+            height_px, width_px = upright.shape[:2]
+            size_mm = (width_px * mm_per_px, height_px * mm_per_px)
+            # Hole positions are the top face's: its outline reaches past it by the side wall seen off the axis.
+            walls = Wall_Widths(det, self.__config.Camera.Calibration.K, self.__config.Scale, item.Thickness_Mm, cv2, np)
+            # A judged part's holes: FastSAM again, on its upright crop, before its side is decided, since a hole only
+            # one side has shows that side (Holes.Side_Evidence). The stain check leaves the holes it finds out.
+            holes = []
+            if item.Holes or item.Stain:
+                masks, scores = self.__segmenter.Segment(upright)
+                holes = Hole_Candidates(masks, mm_per_px, cv2, np, scores=scores)
+            det.Catalogue.Side_Similarities = Side_Similarities(own, references, self.__reference_sides)
+            side, how = Decide_Side(det.Catalogue.Side_Similarities, Side_Evidence(holes, item.Holes, *size_mm, walls))
+            det.Catalogue.Side, det.Catalogue.Side_Name = side, names.get(side, side)
+            # With the side undecided, the part is judged on every side, so a verdict that differs by side is not given.
+            verdicts = {}
+            if how == 'undecided':
+                for other in self.__reference_sides:
+                    trial = dataclasses.replace(det)
+                    self.__Check_Side(trial, other, upright, holes, size_mm, walls, mm_per_px, cv2, np)
+                    verdicts[other] = trial.Verdict
+            features = self.__Check_Side(det, side, upright, holes, size_mm, walls, mm_per_px, cv2, np)
+            Settle_Side(det, verdicts, how)
+            Settle_Radius(det)
+            # The similarity overlay (a diagnostic, never a verdict): each patch's unlikeness to the reference of the
+            # side checked, from the identification's own pass, laid on the part's pixels.
             turn = Best_Turn(own, references, self.__reference_sides, side)
             grid = Similarity_Grid(patches[index * turns + turn],
                                    self.__reference_patches[self.__reference_sides.index(side)], turn, np)
-            self.__Lay_Grid(unlike, grid, det, uprights[index].shape, cv2, np)
-            item, upright = self.__config.Catalogue, uprights[index]
-            mm_per_px = (self.__config.Scale.Mm_Per_Px_X + self.__config.Scale.Mm_Per_Px_Y) / 2.0
-            # A judged part's holes, on the side up: FastSAM again, on its upright crop. The stain check
-            # leaves the holes it finds out, so they run for either.
-            groups, stain = item.Holes.get(side), item.Stain.get(side)
-            holes, features = [], []
-            if groups or stain is not None:
-                masks, scores = self.__segmenter.Segment(upright)
-                holes = Hole_Candidates(masks, mm_per_px, cv2, np, scores=scores)
-            if groups:
-                height_px, width_px = upright.shape[:2]
-                Apply_Holes(det, *Check_Holes(holes, groups, width_px * mm_per_px, height_px * mm_per_px))
-                features += Hole_Features(holes, groups, width_px * mm_per_px, height_px * mm_per_px)
-            # Its stains, on the side up.
-            if stain is not None:
-                Apply_Stain(det, Check_Stain(upright, holes, stain, mm_per_px, cv2, np))
-                features += [Feature_Str(Kind='stain', Name='stain', Passed=False, Corners=found.Corners,
-                                         Outlines=found.Outlines, Area_Mm2=found.Area_Mm2) for found in det.Stains]
+            self.__Lay_Grid(unlike, grid, det, upright.shape, cv2, np)
             # Each feature to the frame (holes and stains are in mm on the crop), numbered as the object's parts.
             scale = 1.0 / mm_per_px
             for number, feature in enumerate(features, 1):
@@ -1035,6 +1050,41 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                                     for outline in feature.Outlines]
             det.Features = features
         return unlike
+
+    def __Check_Side(self, det: Detection_Str, side: str, upright: tp.Any, holes: tp.List[tp.Any],
+                     size_mm: tp.Tuple[float, float], walls: tp.Tuple[float, float, float, float], mm_per_px: float,
+                     cv2: tp.Any, np: tp.Any) -> tp.List[Feature_Str]:
+        """
+        Description:
+            A judged part's checks on one side, in place: its holes against that side's groups (Apply_Holes) and its
+            stains when that side has the check (Apply_Stain), each found defect making it NOK.
+
+        Args:
+            (1) det [Detection_Str(object)]: The part, judged OK or NOK (mutated).
+            (2) side [string]: The side to check it on.
+            (3) upright [Matrix<uint8> hxwx3]: Its upright crop.
+            (4) holes [Vector<Hole_Str(object)>]: The hole candidates found on the crop.
+            (5) size_mm [Tuple<float> 1x2]: The crop's (width, height) in mm.
+            (6) walls [Tuple<float> 1x4]: The side wall along the crop's left, top, right and bottom edge, in mm.
+            (7) mm_per_px [float]: The crop's scale.
+            (8) cv2 [module]: The OpenCV module.
+            (9) np [module]: The NumPy module.
+
+        Returns:
+            (1) parameter [Vector<Feature_Str(object)>]: Its holes and stains on the crop, in mm, unnumbered.
+        """
+
+        item = self.__config.Catalogue
+        groups, stain = item.Holes.get(side), item.Stain.get(side)
+        features = []
+        if groups:
+            Apply_Holes(det, *Check_Holes(holes, groups, *size_mm, walls))
+            features += Hole_Features(holes, groups, *size_mm, walls)
+        if stain is not None:
+            Apply_Stain(det, Check_Stain(upright, holes, stain, mm_per_px, cv2, np))
+            features += [Feature_Str(Kind='stain', Name='stain', Passed=False, Corners=found.Corners,
+                                     Outlines=found.Outlines, Area_Mm2=found.Area_Mm2) for found in det.Stains]
+        return features
 
     @staticmethod
     def __Lay_Grid(unlike: tp.Any, grid: tp.Any, det: Detection_Str, crop_shape: tp.Tuple[int, ...], cv2: tp.Any,

@@ -111,14 +111,23 @@ then composes and measures. The numbers are the ones the README and the mode fil
   otherwise Warning. A size checked more than 46.4 mm from the frame centre is not verified there: the session
   log notes it, Scene Understanding does not, and the verdict does not depend on it
   ([*A catalogue mode identifies by similarity…*](design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok)).
-  A part judged OK or NOK then has its holes checked on the side up: FastSAM on its upright crop, each catalogue
-  group counted near its positions, each hole's diameter, edge distances and pitch within tolerance; a hole
-  missing, extra or out of tolerance makes it NOK
-  ([*A judged part's holes are counted…*](design-decisions.md#a-judged-parts-holes-are-counted-where-the-catalogue-puts-them-by-fastsam-on-its-upright-crop)).
-  On a side with a stain check, a yellow-brown area of 1 mm² or more inside it makes it NOK.
+  A part judged OK or NOK then has its holes found by FastSAM on its upright crop, and its side up decided:
+  DINOv2's side when its margin over the other side is 0.265 or more, otherwise the side shown by a hole only that
+  side has (the mounting plate's countersinks show its front wherever it lies); with neither, the part is judged
+  on both sides and a verdict that differs by side is Unspecified, as is a hole evidence that contradicts a
+  decisive DINOv2. Its holes are checked on that side: each catalogue group counted near its positions, each
+  hole's diameter, edge distances and pitch within tolerance, a stepped hole's position measured at its step's
+  centre and every edge distance from the top face's edges, the side wall seen off the optical axis left out; a
+  hole missing, extra or out of tolerance makes it NOK
+  ([*A judged part's holes are counted…*](design-decisions.md#a-judged-parts-holes-are-counted-where-the-catalogue-puts-them-by-fastsam-on-its-upright-crop),
+  [*The side up is DINOv2's only by its margin…*](design-decisions.md#the-side-up-is-dinov2s-only-by-its-margin-a-hole-only-one-side-has-decides-otherwise-and-hole-positions-are-the-top-faces)).
+  On a side with a stain check, a yellow-brown area of 1 mm² or more inside it makes it NOK. A part whose centre
+  lies more than 66.7 mm from the frame centre, the farthest a judged part was measured, is Unspecified with its
+  findings still marked. An Unspecified object's reason names its cause (several parts, its distance, or its
+  side) and what to do.
   The verdict colours the frame and the mask and sets the badge; its state and reasons are in Scene
-  Understanding, and the log adds the side and the similarity. An OK or NOK part's description gains the
-  side that is up, in the catalogue's words, from DINOv2.
+  Understanding, and the log adds the side ("by its holes" when they decided it) and the similarity. An OK or NOK
+  part's description gains the side that is up, in the catalogue's words.
 
 ## Modes
 
@@ -410,6 +419,7 @@ This section only links. The entries themselves are the record.
   - [*A very harsh cast shadow can be absorbed into a part's component*](../KNOWN_ISSUES.md#a-very-harsh-cast-shadow-can-be-absorbed-into-a-parts-component)
   - [*The confidence status metric is partial — only the FastSAM cue is scored*](../KNOWN_ISSUES.md#the-confidence-status-metric-is-partial--only-the-fastsam-cue-is-scored)
   - [*A killed run never gets its run-summary CSV row*](../KNOWN_ISSUES.md#a-killed-run-never-gets-its-run-summary-csv-row)
+  - [*Parts beyond 66.7 mm from the frame centre are not judged, and beyond 50 mm only the right edge was measured*](../KNOWN_ISSUES.md#parts-beyond-667-mm-from-the-frame-centre-are-not-judged-and-beyond-50-mm-only-the-right-edge-was-measured)
   - and the rest of that file.
 
 ## Verified on hardware, and not yet
@@ -440,6 +450,7 @@ Each row names its evidence. A row with none is not verified.
 | Feature marks on the frame | Off-hardware: rendered and looked at on a front, the dark back and a stained front (Image_055, 056, 080), a synthetic missing hole, synthetic plates turned 135°, 215° and 260°, a synthetic concentric pair at the tolerance limits, and the Camera View at 0.45 scale; not looked at on the rig's screen | `test/Vision/Utilities/test_annotate.py::test_a_chip_sits_outside_its_box_on_the_corner_nearest_the_objects_chip_and_reads_near_level`, `test/integration/test_pipeline.py::test_each_stained_front_shows_its_two_fingerprints_as_two_stains` |
 | Missing-hole marks, white chip numerals, the detect-only purple | Off-hardware, 2026-10-15: rendered and looked at on capture `20261015-143622_s1` (a Warning terminal block, a stained front, a back with no holes) in both modes, and on its front with found holes dropped (SYNTHETIC: one stepped hole, both bores); the back with no holes keeps no mark and says why; not looked at on the rig's screen | `test/Vision/Utilities/test_holes.py::test_through_holes_missing_under_found_countersinks_are_placed_at_their_centres`, `test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note`, `test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_a_white_numeral` |
 | Catalogue hole check on the test set | Off-hardware: every mounting-plate hole within tolerance | `test/integration/test_pipeline.py::test_every_mounting_plate_shows_all_its_holes_within_tolerance` |
+| Side, holes and stains by the edge of the view | Off-hardware, 2026-10-15, on the 72 mounting-plate frames (the test set and the four capture sets): every plate's side right, every hole found and within tolerance, every stain found, plate centres 3.4–66.6 mm from the frame centre; no verdict that was right changed, four wrong OKs and four wrong reasons corrected. Beyond 50 mm only the right edge was covered (16 plates) and one plate on the left (51 mm); the top and bottom bands and the corners not at all | `test/integration/test_edge_of_view.py`; [KNOWN_ISSUES](../KNOWN_ISSUES.md#parts-beyond-667-mm-from-the-frame-centre-are-not-judged-and-beyond-50-mm-only-the-right-edge-was-measured) |
 | Defect detection | **Not built** | README > Limitations |
 
 ## Keeping this file true

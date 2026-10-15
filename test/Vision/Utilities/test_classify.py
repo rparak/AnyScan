@@ -32,7 +32,9 @@ import pytest
 # Custom Lib.: AnyScan — the catalogue verdict rule and the structures it reads
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import (Classify, Object_Crop, Reference_Crop, Rotations, Best_Match, Object_Area_Mm2,
-                                       Center_Distance_Mm, CONST_VERIFIED_RADIUS_MM)
+                                       Center_Distance_Mm, CONST_VERIFIED_RADIUS_MM, CONST_JUDGED_RADIUS_MM,
+                                       CONST_SIDE_MARGIN, Side_Similarities, Decide_Side, Settle_Side, Settle_Radius,
+                                       Wall_Widths)
 #   ../Vision/Utilities/Measure
 from Vision.Utilities.Measure import Measure_Mask
 #   ../Vision/Utilities/Dimensions
@@ -274,3 +276,107 @@ def test_the_similarity_grid_is_the_best_turn_turned_back_upright() -> None:
     assert np.allclose(Similarity_Grid(patches, reference, 0, np), [[0.0, 1.0], [0.0, 0.0]])
     # Turned once clockwise for the match, so turned back counter-clockwise: top-right moves to top-left.
     assert np.allclose(Similarity_Grid(patches, reference, 1, np), [[1.0, 0.0], [0.0, 0.0]])
+
+
+@pytest.mark.parametrize('similarities, evidence, decided', [
+    ({'front': 0.95, 'back': 0.50}, [], ('front', 'similarity')),            # DINOv2 tells by its margin
+    ({'front': 0.50, 'back': 0.99}, [], ('back', 'similarity')),             # a back, 0.49 ahead
+    ({'front': 0.95, 'back': 0.50}, ['front'], ('front', 'similarity')),     # ...and the holes agree
+    ({'front': 0.716, 'back': 0.753}, ['front'], ('front', 'holes')),        # 20261015-170816_17: the back by 0.037
+    ({'front': 0.75, 'back': 0.73}, ['front'], ('front', 'holes')),          # a margin that does not tell
+    ({'front': 0.40, 'back': 0.95}, ['front'], ('back', 'conflict')),        # the holes against a decisive look
+    ({'front': 0.55, 'back': 0.35}, [], ('front', 'undecided')),             # neither tells
+    ({'front': 0.72, 'back': 0.75}, ['front', 'back'], ('back', 'undecided')),  # holes of both sides tell nothing
+], ids=['look', 'look-back', 'both', 'holes-over-look', 'holes-close', 'conflict', 'undecided', 'both-sides-holes'])
+def test_the_side_is_dinov2s_by_its_margin_else_the_holes(similarities: tp.Dict[str, float], evidence: tp.List[str],
+                                                           decided: tp.Tuple[str, str]) -> None:
+    """
+    Description:
+        DINOv2's best side when its margin over the other is at least CONST_SIDE_MARGIN; below it, a hole only one
+        side has decides; against a decisive margin the two conflict; with neither the side is undecided (DINOv2's
+        best kept for the report). On eight stained fronts 57-67 mm out DINOv2 chose the back by 0.030-0.075.
+    """
+
+    assert CONST_SIDE_MARGIN == pytest.approx(0.265)
+    assert Decide_Side(similarities, evidence) == decided
+
+
+@pytest.mark.parametrize('verdict, verdicts, how, settled, cause', [
+    ('OK', {}, 'similarity', 'OK', ''),
+    ('OK', {}, 'holes', 'OK', ''),
+    ('NOK', {}, 'conflict', 'Unspecified', 'side'),
+    ('OK', {'front': 'NOK', 'back': 'OK'}, 'undecided', 'Unspecified', 'side'),      # a front passed for a clean back
+    ('NOK', {'front': 'NOK', 'back': 'NOK'}, 'undecided', 'NOK', ''),                # the hole-less block, NOK either way
+    ('Unspecified', {'front': 'NOK', 'back': 'OK'}, 'undecided', 'Unspecified', 'area'),
+], ids=['decided', 'by-holes', 'conflict', 'differs', 'agrees', 'already-unspecified'])
+def test_a_part_whose_side_cannot_be_told_keeps_only_a_verdict_every_side_gives(
+        verdict: str, verdicts: tp.Dict[str, str], how: str, settled: str, cause: str) -> None:
+    """
+    Description:
+        A decided side's verdict stands; a conflict is Unspecified; an undecided part keeps a verdict every side
+        gives — the hole-less block of the part's outline is NOK on either — and one that differs by side is
+        Unspecified, never a confident OK on the wrong side.
+    """
+
+    det = _Part([(660, 400, 1260, 800)])
+    Classify(det, 0.9, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    det.Verdict = verdict
+    det.Catalogue.Unspecified_Cause = 'area' if verdict == 'Unspecified' else ''
+    Settle_Side(det, verdicts, how)
+    assert (det.Verdict, det.Catalogue.Unspecified_Cause, det.Catalogue.Side_Evidence) == (settled, cause, how)
+
+
+def test_a_part_beyond_the_radius_parts_were_judged_to_is_unspecified() -> None:
+    """
+    Description:
+        A part whose centre lies farther from the frame centre than CONST_JUDGED_RADIUS_MM (66.7 mm, the farthest
+        judged plate measured, 66.62) is Unspecified for its distance, OK or NOK alike; within it, and for a Warning
+        anywhere, the verdict stands. An area-Unspecified object says so.
+    """
+
+    assert CONST_JUDGED_RADIUS_MM == pytest.approx(66.7)
+    far = _Part([(1320, 750, 1920, 1150)])                          # 60 x 40 mm, centre 74.7 mm out
+    Classify(far, 0.95, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    assert (far.Verdict, far.Catalogue.Judged_Radius_Mm) == ('OK', CONST_JUDGED_RADIUS_MM)
+    Settle_Radius(far)
+    assert (far.Verdict, far.Catalogue.Unspecified_Cause) == ('Unspecified', 'radius')
+    near = _Part([(660, 400, 1260, 800)])
+    Classify(near, 0.95, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    Settle_Radius(near)
+    assert (near.Verdict, near.Catalogue.Unspecified_Cause) == ('OK', '')
+    stray = _Part([(1320, 1050, 1720, 1150)])
+    Classify(stray, 0.3, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    Settle_Radius(stray)
+    assert stray.Verdict == 'Warning'
+    merged = _Part([(200, 200, 800, 600), (800, 200, 1400, 600)])
+    Classify(merged, 0.95, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    assert (merged.Verdict, merged.Catalogue.Unspecified_Cause) == ('Unspecified', 'area')
+
+
+def test_side_similarities_take_each_sides_best_rotation() -> None:
+    """
+    Description:
+        Each side's similarity is its reference's highest cosine over the object's rotations, so the margin between
+        the sides compares like with like.
+    """
+
+    rows = np.array([[1.0, 0.0], [0.6, 0.8], [0.0, 1.0], [0.8, 0.6]])
+    references = np.array([[1.0, 0.0], [0.0, 1.0]])
+    assert Side_Similarities(rows, references, ['front', 'back']) == {'front': 1.0, 'back': 1.0}
+    assert Side_Similarities(rows[1:2], references, ['front', 'back']) == {'front': 0.6, 'back': 0.8}
+
+
+def test_the_side_wall_is_seen_only_on_the_edges_facing_the_optical_axis() -> None:
+    """
+    Description:
+        Under the pinhole model a part's bottom edge projects towards the principal point by its distance from it
+        times thickness / (the camera's distance to the table): a plate right of the axis shows its wall on its
+        left edge alone, 340 px from the axis, 340 x 8 / (3541 x 0.1 + 8) x 0.1 = 0.751 mm; a plate over the axis
+        shows none.
+    """
+
+    K = np.array([[3541.0, 0.0, 960.0], [0.0, 3541.0, 600.0], [0.0, 0.0, 1.0]])
+    right = _Part([(1300, 400, 1900, 800)])
+    walls = Wall_Widths(right, K, CONST_SCALE, 8.0, cv2, np)
+    assert sorted(round(wall, 3) for wall in walls) == [0.0, 0.0, 0.0, pytest.approx(0.751, abs=0.002)]
+    assert Wall_Widths(_Part([(660, 400, 1260, 800)]), K, CONST_SCALE, 8.0, cv2, np) == (0.0, 0.0, 0.0, 0.0)

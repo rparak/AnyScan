@@ -27,7 +27,7 @@ import re
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Dimension_Check_Str, Hole_Count_Str
+from Parameters.Vision import Detection_Str, Dimension_Check_Str, Hole_Count_Str, Catalogue_Result_Str
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Item_Str
 #   ../Parameters/Configuration
@@ -634,6 +634,36 @@ def __Hole_Clauses(det: Detection_Str) -> tp.List[str]:
     return clauses
 
 
+def __Unspecified_Sentence(result: Catalogue_Result_Str) -> str:
+    """
+    Description:
+        Why an object was not judged, and what to do, by its cause (Catalogue_Result_Str.Unspecified_Cause): its area
+        (probably several parts), its distance from the frame centre (beyond the radius parts were judged to), or its
+        side (which side is up cannot be told and its verdict depends on it, or its holes and its look show different
+        sides).
+
+    Args:
+        (1) result [Catalogue_Result_Str(object)]: The object's catalogue result, Unspecified.
+
+    Returns:
+        (1) parameter [string]: The sentence.
+    """
+
+    if result.Unspecified_Cause == 'radius':
+        return ('It lies %.0f mm from the frame centre, beyond the %.0f mm parts were judged to, so its side, holes '
+                'and stains cannot be judged there. Move it nearer the centre and scan again.'
+                % (result.Center_Distance_Mm, result.Judged_Radius_Mm))
+    if result.Unspecified_Cause == 'side':
+        looks = ', '.join('%s %.2f' % (side, similarity) for side, similarity in result.Side_Similarities.items())
+        if result.Side_Evidence == 'conflict':
+            return ('Its holes show one side up and its look the other (similarity %s), so it cannot be judged. '
+                    'Check that it is the part and scan it again nearer the centre.' % looks)
+        return ('Which side is up cannot be told from its look (similarity %s) or its holes, and its verdict depends '
+                'on it, so it cannot be judged. Move it nearer the centre and scan again.' % looks)
+    return ("Its area is %.2f times the part's, probably several parts together, so it cannot be judged. "
+            'Separate them and scan again.' % result.Area_Ratio)
+
+
 def Reason_Sentence(det: Detection_Str) -> str:
     """
     Description:
@@ -657,8 +687,7 @@ def Reason_Sentence(det: Detection_Str) -> str:
     if det.Verdict == 'Warning':
         return 'The object should not be on the surface.'
     if det.Verdict == 'Unspecified':
-        return ("Its area is %.2f times the part's, probably several parts together, so it cannot be judged. "
-                'Separate them and scan again.' % result.Area_Ratio)
+        return __Unspecified_Sentence(result)
     clauses = []
     failed = [check.Name for check in det.Dimension_Checks if not check.Within]
     if not det.Dimension_Checks:
@@ -816,8 +845,9 @@ def Side_Sentence(det: Detection_Str) -> str:
     Description:
         The sentence a judged part's description gains: which side is up, in the catalogue's words for it
         ('It lies with its machined front up.'). Only for an object judged the part (OK, NOK): a Warning is
-        not the part, and an Unspecified object is several. The side is DINOv2's (Catalogue_Result_Str.Side),
-        never the describer's: the describer is told it (Describer_Prompt), not asked.
+        not the part, and an Unspecified object was not judged. The side is the one the checks used
+        (Catalogue_Result_Str.Side: DINOv2's by its margin, else its holes'), never the describer's: the describer
+        is told it (Describer_Prompt), not asked.
 
     Args:
         (1) det [Detection_Str(object)]: The object, judged.
@@ -1131,7 +1161,9 @@ def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
     """
     Description:
         An object's verdict as one log line, with what Scene Understanding leaves out: 'Object N: <state>,
-        <side> up, similarity 0.91. Reason: … Note: …' — the side for a judged part, the similarity always —
+        <side> up[ by its holes], similarity 0.91. Reason: … Note: …' — the side for a judged part ('by its
+        holes' when a hole only that side has decided it, Vision.Utilities.Classify.Decide_Side), the
+        similarity always —
         and the level it is logged at: WARNING for an object that should not be there or could not be judged
         (Warning, Unspecified), INFO otherwise — a NOK is a result the station reports, not a fault of the
         application.
@@ -1146,7 +1178,8 @@ def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
 
     result = det.Catalogue
     level = 'WARNING' if det.Verdict in ('Warning', 'Unspecified') else 'INFO'
-    evidence = [det.Verdict] + (['%s up' % result.Side] if det.Verdict in ('OK', 'NOK') else [])
+    side = '%s up%s' % (result.Side, ' by its holes' if result.Side_Evidence == 'holes' else '')
+    evidence = [det.Verdict] + ([side] if det.Verdict in ('OK', 'NOK') else [])
     evidence.append('similarity %.2f' % result.Similarity)
     note = Verdict_Notes(det)
     reason = Reason_Sentence(det)
