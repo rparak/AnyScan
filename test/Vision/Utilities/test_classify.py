@@ -380,3 +380,22 @@ def test_the_side_wall_is_seen_only_on_the_edges_facing_the_optical_axis() -> No
     walls = Wall_Widths(right, K, CONST_SCALE, 8.0, cv2, np)
     assert sorted(round(wall, 3) for wall in walls) == [0.0, 0.0, 0.0, pytest.approx(0.751, abs=0.002)]
     assert Wall_Widths(_Part([(660, 400, 1260, 800)]), K, CONST_SCALE, 8.0, cv2, np) == (0.0, 0.0, 0.0, 0.0)
+
+
+def test_the_crop_view_puts_the_optical_axis_on_the_crop() -> None:
+    """
+    Description:
+        The principal point taken onto a part's upright crop, in mm, and the camera's distance to its top face (the
+        focal length times the top face's scale, 3541 x 0.1 = 354.1 mm): a plate centred on the axis has it at its
+        crop's centre; one right of it, 64 mm away along the plate's long side, has it 64 mm off the centre along the
+        crop's long side.
+    """
+
+    from Vision.Utilities.Classify import Crop_View
+    K = np.array([[3541.0, 0.0, 960.0], [0.0, 3541.0, 600.0], [0.0, 0.0, 1.0]])
+    centred = Crop_View(_Part([(660, 400, 1260, 800)]), K, CONST_SCALE, 8.0, cv2, np)
+    assert (centred.Axis_X_Mm, centred.Axis_Y_Mm) == (pytest.approx(20.0, abs=0.1), pytest.approx(30.0, abs=0.1))
+    assert (centred.Distance_Mm, centred.Thickness_Mm) == (pytest.approx(354.1), 8.0)
+    right = Crop_View(_Part([(1300, 400, 1900, 800)]), K, CONST_SCALE, 8.0, cv2, np)
+    assert right.Axis_X_Mm == pytest.approx(20.0, abs=0.1)
+    assert abs(right.Axis_Y_Mm - 30.0) == pytest.approx(64.0, abs=0.1)

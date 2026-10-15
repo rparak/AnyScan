@@ -3171,7 +3171,8 @@ classical detector was not needed at these scores.
   or deburring. Not measured with a pin gauge. The catalogue's tolerances are unchanged (the owner's ruling):
   every hole is within them, the narrowest margin 0.77 mm (a back through-hole's diameter).
 - **Not checked:** the countersink's centering on its through-hole (0.12-1.05 mm apart in the image, the bore seen
-  at an angle; the catalogue gives no tolerance).
+  at an angle; the catalogue gives no tolerance). (*Corrected 2026-10-15:* checked since, with the camera's shift
+  taken out, *A stepped hole's bore is checked for its offset from its step…*.)
 
 **Revisit if** a part with a hole in the wrong place turns up (then report candidates outside every position), a
 plate's holes are measured with a pin gauge (then the bias has its number), the lighting changes (re-measure the
@@ -4114,8 +4115,9 @@ right. After the fix the worst edge distance is 0.60–0.78 mm off nominal in ev
 66.6 mm. Not measured: the left, top and bottom edges beyond 51 mm, the corners, a clean front beyond 35 mm, and a
 part with a defective stepped hole (KNOWN_ISSUES).
 
-**Given up.** A bore off-centre inside its own countersink is no longer caught by its position (KNOWN_ISSUES, *A bore
-off-centre inside its countersink is not detected*). A stained front by the edge still reads "does not look like the
+**Given up**, then restored. A bore off-centre inside its own countersink was no longer caught by its position; since
+the same day it is checked against its countersink's axis (*A stepped hole's bore is checked for its offset from its
+step…*). A stained front by the edge still reads "does not look like the
 part", with a right verdict (KNOWN_ISSUES).
 
 **Revisit if** rig captures at 50–67 mm on the left, top and bottom or in the corners (capture checklist 3d) show a
@@ -4130,3 +4132,36 @@ Tests `test/integration/test_edge_of_view.py` (frames 1, 16, 17 and 19 of the ca
 `test/Vision/Utilities/test_holes.py::test_a_through_hole_in_its_countersink_is_measured_at_the_countersinks_centre`,
 `::test_a_hole_only_one_side_has_shows_that_side`, `::test_edge_distances_are_from_the_top_face_not_the_side_wall`,
 `test/Reporting/test_core.py::test_an_unspecified_part_says_why_it_was_not_judged_and_what_to_do`.
+
+## A stepped hole's bore is checked for its offset from its step, the camera's shift taken out
+
+Decided 2026-10-15, on the owner's request after the change above: measuring a stepped hole's bore at its
+countersink had stopped catching a bore drilled off its countersink's axis. Each bore inside a step of another group
+(`Holes.Seat_Holes`) now has a check, "<hole>'s offset from its <step>": the distance from its own centre to its step's
+centre, less the shift the camera predicts there, within `CONST_HOLE_CONCENTRICITY_MM` (0.85 mm). Its position stays
+measured at the step (`Holes.__Concentricity`; the view: `Classify.Crop_View`, the principal point taken onto the
+crop and the camera's distance to the top face, no new field).
+
+**The prediction.** What shows of the bore lies between the step's floor and the part's bottom face, so its centre is
+seen at their mean depth, and under the pinhole model a point that deep projects toward the principal point by
+its distance from it times depth / (camera distance + depth). For a 90° countersink the floor is (step Ø − bore Ø) / 2
+deep; for the mounting plate (8 mm thick, 12 and 6 mm) the depth is (8 + 3) / 2 = 5.5 mm. Fitted freely to the
+112 through-holes of every mounting-plate front (the test set and the five capture sets, 4.8–66.6 mm from the frame
+centre), the depth is 5.54 mm. With 5.5 mm the residual offset is 0.204 mm at most, flat with the distance (0.204,
+0.161, 0.111, 0.165 mm at 0–20, 20–40, 40–55, 55–70 mm). The raw offset reached 1.30 mm; with the full thickness as the
+depth it would leave 0.60 mm, and with half of it 0.38 mm.
+
+**The tolerance.** 0.85 mm lies midway between the largest real residual (0.204 mm) and 1.5 mm, the smallest
+off-centre bore to be caught. It was measured by shifting each real through-hole of every front by 1.5, 2, 2.5 and 3 mm
+in 8 directions and checking it with that part's own view: 3,584 of 3,584 cases caught, near the centre (< 30 mm), in
+between and by the edge (≥ 50 mm). Without the check the branch caught 0 of 896 at 1.5 mm, and 41–54 % at 3 mm. A
+bore whose offset and drift together take it out of its countersink (above about 3.05 mm) is no longer a stepped
+hole. It is measured at its own centre and fails as a through-hole not where the catalogue puts it. Every real hole
+passes; no verdict, reason or side changed on the 78 frames (214 objects with capture `20261015-180933_s1`).
+
+**Revisit if** an item's step is a counterbore or a countersink of another angle (its floor's depth is not
+(D − d) / 2: the residuals show it, and the depth then needs the catalogue), the residuals of new captures exceed
+about 0.4 mm, or the catalogue gives a concentricity tolerance (it would replace the constant).
+Tests `test/Vision/Utilities/test_holes.py::test_a_bore_off_its_countersinks_axis_fails_wherever_the_part_lies`,
+`test/Vision/Utilities/test_classify.py::test_the_crop_view_puts_the_optical_axis_on_the_crop`,
+`test/integration/test_edge_of_view.py::test_a_clean_front_by_the_edge_is_ok`.

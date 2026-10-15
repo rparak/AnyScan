@@ -65,7 +65,7 @@ from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import (Object_Crop, Reference_Crop, Rotations, Best_Match, Best_Turn, Similarity_Grid,
                                        Classify, Apply_Holes, Apply_Stain, Crop_To_Frame, Side_Similarities, Decide_Side,
-                                       Settle_Side, Settle_Radius, Wall_Widths)
+                                       Settle_Side, Settle_Radius, Wall_Widths, Crop_View)
 #   ../Vision/Utilities/Holes
 from Vision.Utilities.Holes import Hole_Candidates, Check_Holes, Hole_Features, Side_Evidence
 #   ../Vision/Utilities/Stain
@@ -1016,6 +1016,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             size_mm = (width_px * mm_per_px, height_px * mm_per_px)
             # Hole positions are the top face's: its outline reaches past it by the side wall seen off the axis.
             walls = Wall_Widths(det, self.__config.Camera.Calibration.K, self.__config.Scale, item.Thickness_Mm, cv2, np)
+            # Where the camera's axis meets the crop, so a bore's shift through its step can be predicted.
+            view = Crop_View(det, self.__config.Camera.Calibration.K, self.__config.Scale, item.Thickness_Mm, cv2, np)
             # A judged part's holes: FastSAM again, on its upright crop, before its side is decided, since a hole only
             # one side has shows that side (Holes.Side_Evidence). The stain check leaves the holes it finds out.
             holes = []
@@ -1030,9 +1032,9 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             if how == 'undecided':
                 for other in self.__reference_sides:
                     trial = dataclasses.replace(det)
-                    self.__Check_Side(trial, other, upright, holes, size_mm, walls, mm_per_px, cv2, np)
+                    self.__Check_Side(trial, other, upright, holes, size_mm, (walls, view), mm_per_px, cv2, np)
                     verdicts[other] = trial.Verdict
-            features = self.__Check_Side(det, side, upright, holes, size_mm, walls, mm_per_px, cv2, np)
+            features = self.__Check_Side(det, side, upright, holes, size_mm, (walls, view), mm_per_px, cv2, np)
             Settle_Side(det, verdicts, how)
             Settle_Radius(det)
             # The similarity overlay (a diagnostic, never a verdict): each patch's unlikeness to the reference of the
@@ -1052,8 +1054,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         return unlike
 
     def __Check_Side(self, det: Detection_Str, side: str, upright: tp.Any, holes: tp.List[tp.Any],
-                     size_mm: tp.Tuple[float, float], walls: tp.Tuple[float, float, float, float], mm_per_px: float,
-                     cv2: tp.Any, np: tp.Any) -> tp.List[Feature_Str]:
+                     size_mm: tp.Tuple[float, float], geometry: tp.Tuple[tp.Tuple[float, float, float, float], tp.Any],
+                     mm_per_px: float, cv2: tp.Any, np: tp.Any) -> tp.List[Feature_Str]:
         """
         Description:
             A judged part's checks on one side, in place: its holes against that side's groups (Apply_Holes) and its
@@ -1065,7 +1067,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             (3) upright [Matrix<uint8> hxwx3]: Its upright crop.
             (4) holes [Vector<Hole_Str(object)>]: The hole candidates found on the crop.
             (5) size_mm [Tuple<float> 1x2]: The crop's (width, height) in mm.
-            (6) walls [Tuple<float> 1x4]: The side wall along the crop's left, top, right and bottom edge, in mm.
+            (6) geometry [Tuple]: (the side wall along the crop's left, top, right and bottom edge in mm, Wall_Widths;
+                                  how the camera sees the crop, Crop_View).
             (7) mm_per_px [float]: The crop's scale.
             (8) cv2 [module]: The OpenCV module.
             (9) np [module]: The NumPy module.
@@ -1076,10 +1079,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
 
         item = self.__config.Catalogue
         groups, stain = item.Holes.get(side), item.Stain.get(side)
+        walls, view = geometry
         features = []
         if groups:
-            Apply_Holes(det, *Check_Holes(holes, groups, *size_mm, walls))
-            features += Hole_Features(holes, groups, *size_mm, walls)
+            Apply_Holes(det, *Check_Holes(holes, groups, *size_mm, walls, view))
+            features += Hole_Features(holes, groups, *size_mm, walls, view)
         if stain is not None:
             Apply_Stain(det, Check_Stain(upright, holes, stain, mm_per_px, cv2, np))
             features += [Feature_Str(Kind='stain', Name='stain', Passed=False, Corners=found.Corners,

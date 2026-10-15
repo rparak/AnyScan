@@ -28,7 +28,7 @@ import typing as tp
 # Custom Lib.: AnyScan domain — the detection, scale, catalogue and identification structures
 #   ../Parameters/Vision
 from Parameters.Vision import (Detection_Str, Scale_Str, Catalogue_Result_Str, Hole_Count_Str, Dimension_Check_Str,
-                               Stain_Str)
+                               Stain_Str, Crop_View_Str)
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Item_Str
 #   ../Parameters/Configuration
@@ -209,6 +209,39 @@ def Wall_Widths(det: Detection_Str, K: tp.Any, scale: Scale_Str, thickness_mm: f
         facing = -float(normal @ (np.array(middle) - np.array(principal)))
         walls.append(max(0.0, facing) * thickness_mm / table_mm * mm_per_px)
     return walls[0], walls[1], walls[2], walls[3]
+
+
+def Crop_View(det: Detection_Str, K: tp.Any, scale: Scale_Str, thickness_mm: float, cv2: tp.Any,
+              np: tp.Any) -> Crop_View_Str:
+    """
+    Description:
+        How the camera sees a part's upright crop: the principal point taken onto the crop (through the upright warp,
+        or by the box's offset for an object cropped by its box), in mm, and the camera's distance to the part's top
+        face (focal length times the top face's scale). With it the shift of a feature below the top face towards the
+        axis is predicted (Vision.Utilities.Holes, the concentricity check).
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, measured.
+        (2) K [Matrix<float> 3x3]: The camera matrix (focal lengths, principal point).
+        (3) scale [Scale_Str(object)]: The scale at the part's top face.
+        (4) thickness_mm [float]: The part's thickness.
+        (5) cv2 [module]: The OpenCV module.
+        (6) np [module]: The NumPy module.
+
+    Returns:
+        (1) parameter [Crop_View_Str(object)]: The view.
+    """
+
+    mm_per_px = (scale.Mm_Per_Px_X + scale.Mm_Per_Px_Y) / 2.0
+    principal = (float(K[0][2]), float(K[1][2]))
+    measurement = det.Measurement
+    if measurement is None or measurement.Symmetric or not measurement.Box_Points:
+        axis = (principal[0] - det.Bbox[0], principal[1] - det.Bbox[1])
+    else:
+        warp, _size = __Upright(det, cv2, np)
+        axis = tuple(float(v) for v in cv2.perspectiveTransform(np.float32([[principal]]), warp).reshape(2))
+    return Crop_View_Str(Axis_X_Mm=axis[0] * mm_per_px, Axis_Y_Mm=axis[1] * mm_per_px,
+                         Distance_Mm=(float(K[0][0]) + float(K[1][1])) / 2.0 * mm_per_px, Thickness_Mm=thickness_mm)
 
 
 def Reference_Crop(image_bgr: tp.Any, box: tp.Tuple[float, float, float, float]) -> tp.Any:

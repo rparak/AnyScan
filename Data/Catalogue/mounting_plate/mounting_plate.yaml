@@ -117,8 +117,9 @@ Checks:
   # Measured on the test set (22 plates, 2026-10-11): countersinks 12.07-12.33, through-holes
   # 6.14-6.25 on the front and 6.46-6.73 on the back (the back's openings are wider than the bore,
   # which reads 6.05-6.26 through them: a chamfer, by the look), pitch 24.38-24.92, from the long
-  # edge 14.81-16.08, from the short edge 17.45-18.54 mm. The countersink's centering on its
-  # through-hole is not checked (0.12-1.05 mm apart in the image, the bore seen at an angle).
+  # edge 14.81-16.08, from the short edge 17.45-18.54 mm. A through-hole in its countersink is
+  # placed at the countersink and checked for its offset from it, the camera's shift for a bore
+  # seen at an angle taken out (Vision.Utilities.Holes, within 0.85 mm; real holes 0.204 at most).
   Holes:
     front:
       - Name: countersink

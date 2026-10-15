@@ -31,11 +31,12 @@ import numpy as np
 import pytest
 # Custom Lib.: AnyScan — the hole check, the rule that applies it, and the structures they read
 #   ../Vision/Utilities/Holes
-from Vision.Utilities.Holes import Hole_Candidates, Check_Holes, Seat_Holes, Side_Evidence, Hole_Features
+from Vision.Utilities.Holes import (Hole_Candidates, Check_Holes, Seat_Holes, Side_Evidence, Hole_Features,
+                                    CONST_HOLE_CONCENTRICITY_MM)
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import Apply_Holes
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Hole_Str
+from Parameters.Vision import Detection_Str, Hole_Str, Crop_View_Str
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Hole_Group_Str
 
@@ -369,3 +370,48 @@ def test_edge_distances_are_from_the_top_face_not_the_side_wall() -> None:
     assert all(f.Passed for f in marks)
     assert [(round(sum(x for x, _y in f.Corners) / 4, 2), round(sum(y for _x, y in f.Corners) / 4, 2)) for f in marks] == [
         (16.8, 17.5), (16.8, 42.5), (16.8, 17.5), (16.8, 42.5)]
+
+
+def _Stepped(view: Crop_View_Str, offset: tp.Tuple[float, float] = (0.0, 0.0)) -> tp.List[Hole_Str]:
+    """The front's two stepped holes, each bore seen where the camera puts it (its predicted drift) plus an offset."""
+    holes = []
+    for y in (17.5, 42.5):
+        shift = 5.5 / (view.Distance_Mm + 5.5)
+        x0, y0 = 15.0 + (view.Axis_X_Mm - 15.0) * shift, y + (view.Axis_Y_Mm - y) * shift
+        holes += [Hole_Str(Diameter_Mm=6.1, X_Mm=x0 + offset[0], Y_Mm=y0 + offset[1]), Hole_Str(Diameter_Mm=12.2, X_Mm=15.0, Y_Mm=y)]
+    return holes
+
+
+@pytest.mark.parametrize('axis', [(20.0, 30.0), (-51.0, 30.0)], ids=['centre', 'edge'])
+def test_a_bore_off_its_countersinks_axis_fails_wherever_the_part_lies(axis: tp.Tuple[float, float]) -> None:
+    """
+    Description:
+        A stepped hole's bore is measured at its countersink (Seat_Holes), so its own offset is checked apart: its
+        centre's distance from the countersink's, less the shift the camera predicts there (the bore seen at its
+        mean depth, 5.5 mm, towards the axis), within CONST_HOLE_CONCENTRICITY_MM (0.85: real holes read 0.205 at most).
+        A bore where the camera puts it passes near the centre and 66 mm out (the predicted drift there 1.0 mm); one
+        1.5 or 2 mm off its axis, in any direction, fails its offset; one 2.5 or 3 mm off fails too, by its offset
+        while the bore it shows stays inside its countersink, else (offset and drift beyond 3.05 mm) as a through-hole
+        not where the catalogue puts it. Without the view nothing checks the offset (as before 2026-10-15's second
+        change).
+    """
+
+    view = Crop_View_Str(Axis_X_Mm=axis[0], Axis_Y_Mm=axis[1], Distance_Mm=357.4, Thickness_Mm=8.0)
+    assert CONST_HOLE_CONCENTRICITY_MM == pytest.approx(0.85)
+    counts, checks = Check_Holes(_Stepped(view), CONST_PLATE_FRONT, 40.0, 60.0, view=view)
+    assert [c.Found for c in counts] == [2, 2] and all(c.Within for c in checks)
+    offsets = [c for c in checks if c.Name == "through-hole's offset from its countersink"]
+    assert len(offsets) == 2 and all(c.Measured_Mm < 0.01 for c in offsets)
+    for magnitude in (1.5, 2.0, 2.5, 3.0):
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0.6, -0.8)):
+            holes = _Stepped(view, (magnitude * dx, magnitude * dy))
+            counts, checks = Check_Holes(holes, CONST_PLATE_FRONT, 40.0, 60.0, view=view)
+            failed = [c.Name for c in checks if not c.Within]
+            if magnitude <= 2.0:
+                assert "through-hole's offset from its countersink" in failed, (magnitude, dx, dy)
+            assert failed or any(c.Found != c.Expected for c in counts), (magnitude, dx, dy)
+            marks = Hole_Features(holes, CONST_PLATE_FRONT, 40.0, 60.0, view=view)
+            assert not all(f.Passed for f in marks if f.Name == 'through-hole' and f.Found) or \
+                any(not f.Found for f in marks if f.Name == 'through-hole')
+    unchecked = Check_Holes(_Stepped(view, (1.5, 0.0)), CONST_PLATE_FRONT, 40.0, 60.0)[1]
+    assert all(c.Within for c in unchecked)

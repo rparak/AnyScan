@@ -30,7 +30,7 @@ import dataclasses
 import typing as tp
 # Custom Lib.: AnyScan domain — the hole, count and dimension-check structures, and the catalogue's groups
 #   ../Parameters/Vision
-from Parameters.Vision import Hole_Str, Hole_Count_Str, Dimension_Check_Str, Feature_Str
+from Parameters.Vision import Hole_Str, Hole_Count_Str, Dimension_Check_Str, Feature_Str, Crop_View_Str
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Hole_Group_Str
 #   ../Vision/Utilities/Dimensions
@@ -57,7 +57,8 @@ Description:
     through-hole's centre lay 0.12-0.36 mm from its countersink's within 10 mm of the frame centre, 0.8-1.15 mm at 60 mm
     and 1.30 mm at 66.6 mm, growing with the distance, while every hole stayed round (0.883-0.916) and its diameter
     within 6.12-6.25 mm. Its short-edge distance read up to 19.37 mm against 17.5 ± 1.5; the countersink's, on the top
-    face, 17.22-18.59 mm at every distance (docs/design-decisions.md).
+    face, 17.22-18.59 mm at every distance (docs/design-decisions.md). The bore is then checked for its own offset from
+    its step's axis, the camera's shift predicted from the bore's depth taken out (__Concentricity).
 """
 
 # The roundness (4·π·area / perimeter²) at and above which a mask is a hole candidate: a disc is 1. Measured on
@@ -66,6 +67,12 @@ Description:
 # real hole (0.051 below it): a square feature of a hole's size is not a hole.
 #   Unit [float]
 CONST_HOLE_MIN_CIRCULARITY = 0.83
+# The largest offset of a stepped hole's lower step from its step's axis, once the camera's predicted shift is taken out
+# (__Concentricity). Measured on the 112 through-holes of every mounting-plate front (the test set and the five capture
+# sets, 2026-10-15, 4.8-66.6 mm from the frame centre): 0.204 mm at most, flat with the distance (raw, the offset reached
+# 1.30 mm). 0.85 is midway between that and 1.5 mm, the smallest off-centre bore to be caught.
+#   Unit [float] (mm)
+CONST_HOLE_CONCENTRICITY_MM = 0.85
 # A mask this close to the crop's border is the part's edge or the table, not a hole inside the part.
 #   Unit [int] (px)
 CONST_HOLE_BORDER_PX = 3
@@ -176,17 +183,70 @@ def Seat_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Gro
                                                   centre (a copy; the candidates are not changed).
     """
 
+    return [dataclasses.replace(hole, X_Mm=step.X_Mm, Y_Mm=step.Y_Mm) if step is not None else hole
+            for hole, step in zip(candidates, __Steps(candidates, groups))]
+
+
+def __Steps(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str]) -> tp.List[tp.Optional[Hole_Str]]:
+    """
+    Description:
+        Each candidate's step (Seat_Holes): the smallest larger candidate one of the side's groups counts by its
+        diameter that holds it wholly inside, or None.
+
+    Args:
+        (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
+        (2) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
+
+    Returns:
+        (1) parameter [Vector<Hole_Str(object) or None>]: The step of each candidate, in the same order.
+    """
+
     steps = [hole for hole in candidates if any(__Captures(group, hole) for group in groups)]
-    seated = []
+    found = []
     for hole in candidates:
         around = [step for step in steps if step.Diameter_Mm > hole.Diameter_Mm
                   and math.hypot(step.X_Mm - hole.X_Mm, step.Y_Mm - hole.Y_Mm) + hole.Diameter_Mm / 2.0
                   <= step.Diameter_Mm / 2.0]
-        if around:
-            step = min(around, key=lambda other: other.Diameter_Mm)
-            hole = dataclasses.replace(hole, X_Mm=step.X_Mm, Y_Mm=step.Y_Mm)
-        seated.append(hole)
-    return seated
+        found.append(min(around, key=lambda other: other.Diameter_Mm) if around else None)
+    return found
+
+
+def __Concentricity(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str],
+                    view: tp.Optional[Crop_View_Str]) -> tp.List[tp.Optional[Dimension_Check_Str]]:
+    """
+    Description:
+        Each stepped hole's lower step checked for its offset from its step's axis: its own centre's distance from
+        its step's centre less the shift the camera predicts there, against CONST_HOLE_CONCENTRICITY_MM. The bore is
+        seen through its step: what shows of it lies between the step's floor and the part's bottom face, so its
+        centre is seen at their mean depth, (thickness + floor) / 2, the floor (step's Ø - its own Ø) / 2 deep for
+        a 90° countersink; a point that deep projects towards the principal point by its distance from it times
+        depth / (camera distance + depth) (the pinhole model). For the mounting plate (8 mm, 12 and 6 mm) that is
+        5.5 mm; fitted to the 112 through-holes measured (2026-10-15), 5.54 mm. None for a hole with no step, or
+        without the view (no check).
+
+    Args:
+        (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
+        (2) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
+        (3) view [Crop_View_Str(object) or None]: How the camera sees the crop.
+
+    Returns:
+        (1) parameter [Vector<Dimension_Check_Str(object) or None>]: Each candidate's check, in the same order.
+    """
+
+    checks = []
+    for hole, step in zip(candidates, __Steps(candidates, groups)):
+        own = next((group for group in groups if __Captures(group, hole)), None)
+        outer = next((group for group in groups if step is not None and __Captures(group, step)), None)
+        if view is None or step is None or own is None or outer is None:
+            checks.append(None)
+            continue
+        depth = (view.Thickness_Mm + (outer.Diameter_Mm - own.Diameter_Mm) / 2.0) / 2.0
+        shift = depth / (view.Distance_Mm + depth)
+        drift_x, drift_y = (view.Axis_X_Mm - step.X_Mm) * shift, (view.Axis_Y_Mm - step.Y_Mm) * shift
+        offset = math.hypot(hole.X_Mm - step.X_Mm - drift_x, hole.Y_Mm - step.Y_Mm - drift_y)
+        checks.append(Check_Dimension("%s's offset from its %s" % (own.Name, outer.Name), offset, 0.0,
+                                      CONST_HOLE_CONCENTRICITY_MM))
+    return checks
 
 
 def __To_Face(candidates: tp.List[Hole_Str], width_mm: float, height_mm: float,
@@ -211,6 +271,34 @@ def __To_Face(candidates: tp.List[Hole_Str], width_mm: float, height_mm: float,
     moved = [dataclasses.replace(hole, X_Mm=hole.X_Mm - left, Y_Mm=hole.Y_Mm - top,
                                  Outline=[(x - left, y - top) for x, y in hole.Outline]) for hole in candidates]
     return moved, width_mm - left - right, height_mm - top - bottom
+
+
+def __Prepare(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str], width_mm: float,
+              height_mm: float, walls: tp.Tuple[float, float, float, float],
+              view: tp.Optional[Crop_View_Str]) -> tp.Tuple[tp.List[Hole_Str], tp.Dict[int, Dimension_Check_Str], float,
+                                                           float]:
+    """
+    Description:
+        The candidates as Check_Holes and Hole_Features measure them: seated (Seat_Holes) and moved to the top face's
+        frame (__To_Face), with each stepped hole's concentricity check (__Concentricity) keyed by the moved hole.
+
+    Args:
+        (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
+        (2) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
+        (3) width_mm [float]: The crop's width.
+        (4) height_mm [float]: The crop's height.
+        (5) walls [Tuple<float> 1x4]: The side wall along the crop's left, top, right and bottom edge, in mm.
+        (6) view [Crop_View_Str(object) or None]: How the camera sees the crop.
+
+    Returns:
+        (1) parameter [Tuple]: (the holes moved, {id of a moved hole: its concentricity check}, the top face's width,
+                               its height).
+    """
+
+    moved, width_mm, height_mm = __To_Face(Seat_Holes(candidates, groups), width_mm, height_mm, walls)
+    offsets = {id(hole): check for hole, check in zip(moved, __Concentricity(candidates, groups, view))
+               if check is not None}
+    return moved, offsets, width_mm, height_mm
 
 
 def Side_Evidence(candidates: tp.List[Hole_Str], holes_by_side: tp.Dict[str, tp.List[Catalogue_Hole_Group_Str]],
@@ -294,8 +382,8 @@ def __Members(candidates: tp.List[Hole_Str], group: Catalogue_Hole_Group_Str, wi
 
 
 def Check_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str], width_mm: float,
-                height_mm: float, walls: tp.Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
-                ) -> tp.Tuple[tp.List[Hole_Count_Str], tp.List[Dimension_Check_Str]]:
+                height_mm: float, walls: tp.Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
+                view: tp.Optional[Crop_View_Str] = None) -> tp.Tuple[tp.List[Hole_Count_Str], tp.List[Dimension_Check_Str]]:
     """
     Description:
         Each group's holes among the candidates, counted and checked. A candidate counts in a group when its
@@ -303,8 +391,9 @@ def Check_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Gr
         its centre lies near one — the expected positions mirrored to all four corners, since the part may lie
         either way round. Each counted hole is then checked: its diameter, and for a positioned group its distance
         from its nearer long and short edge; and each pair of counted holes about Pitch_Mm apart, their pitch. A
-        stepped hole's lower step is placed and measured at its step's centre (Seat_Holes), and the edges are the
-        top face's, the side wall the camera sees left out (walls).
+        stepped hole's lower step is placed and measured at its step's centre (Seat_Holes), and checked for its
+        offset from its step's axis with the camera's shift taken out (__Concentricity, with the view); the edges
+        are the top face's, the side wall the camera sees left out (walls).
 
     Args:
         (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
@@ -313,12 +402,14 @@ def Check_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Gr
         (4) height_mm [float]: The crop's height (the part's long side).
         (5) walls [Tuple<float> 1x4]: The side wall along the crop's left, top, right and bottom edge, in mm
                                       (Vision.Utilities.Classify.Wall_Widths); none by default.
+        (6) view [Crop_View_Str(object) or None]: How the camera sees the crop (Vision.Utilities.Classify.Crop_View);
+                                                  None leaves the concentricity unchecked.
 
     Returns:
         (1) parameter [Tuple]: (each group's count, every check), in group order.
     """
 
-    candidates, width_mm, height_mm = __To_Face(Seat_Holes(candidates, groups), width_mm, height_mm, walls)
+    candidates, offsets, width_mm, height_mm = __Prepare(candidates, groups, width_mm, height_mm, walls, view)
     counts, checks = [], []
     for group in groups:
         tolerance = group.Tolerance_Mm
@@ -326,6 +417,7 @@ def Check_Holes(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Gr
         counts.append(Hole_Count_Str(Name=group.Name, Found=len(members), Expected=group.Count))
         for hole in members:
             checks.append(Check_Dimension('%s Ø' % group.Name, hole.Diameter_Mm, group.Diameter_Mm, tolerance))
+            checks += [offsets[id(hole)]] if id(hole) in offsets else []
             if group.From_Long_Edge_Mm:
                 long_edge, short_edge = __Edge_Distances(hole, width_mm, height_mm)
                 checks.append(Check_Dimension("%s's distance from the long edge" % group.Name, long_edge,
@@ -401,8 +493,8 @@ def __Circle(x_mm: float, y_mm: float, diameter_mm: float) -> tp.List[tp.Tuple[f
 
 
 def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str], width_mm: float,
-                  height_mm: float, walls: tp.Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
-                  ) -> tp.List[Feature_Str]:
+                  height_mm: float, walls: tp.Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
+                  view: tp.Optional[Crop_View_Str] = None) -> tp.List[Feature_Str]:
     """
     Description:
         The holes as the frame marks them, on the upright crop (mm): each counted hole with its outline and checks (diameter;
@@ -411,7 +503,8 @@ def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_
         outlined by a circle of its group's diameter (__Missing_Places). The positioned groups are placed first, so
         an unpositioned group's missing holes can sit at a through-hole that was itself placed, not found. A stepped
         hole's lower step is measured and boxed at its step's centre, its outline its own mask's (Seat_Holes); edge
-        distances and missing holes' positions are from the top face's edges (walls), the marks on the crop.
+        distances and missing holes' positions are from the top face's edges (walls), the marks on the crop; with the
+        view, a stepped hole carries its concentricity check (Check_Holes).
 
     Args:
         (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
@@ -420,13 +513,15 @@ def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_
         (4) height_mm [float]: The crop's height (the part's long side).
         (5) walls [Tuple<float> 1x4]: The side wall along the crop's left, top, right and bottom edge, in mm
                                       (Vision.Utilities.Classify.Wall_Widths); none by default.
+        (6) view [Crop_View_Str(object) or None]: How the camera sees the crop; None leaves the concentricity
+                                                  unchecked.
 
     Returns:
         (1) parameter [Vector<Feature_Str(object)>]: The holes, group by group, the found before the missing, on the
                                                      crop (mm).
     """
 
-    features = __Face_Features(*__To_Face(Seat_Holes(candidates, groups), width_mm, height_mm, walls), groups)
+    features = __Face_Features(*__Prepare(candidates, groups, width_mm, height_mm, walls, view), groups)
     left, top = walls[0], walls[1]
     for feature in features:
         feature.Corners = [(x + left, y + top) for x, y in feature.Corners]
@@ -434,17 +529,18 @@ def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_
     return features
 
 
-def __Face_Features(candidates: tp.List[Hole_Str], width_mm: float, height_mm: float,
-                    groups: tp.List[Catalogue_Hole_Group_Str]) -> tp.List[Feature_Str]:
+def __Face_Features(candidates: tp.List[Hole_Str], offsets: tp.Dict[int, Dimension_Check_Str], width_mm: float,
+                    height_mm: float, groups: tp.List[Catalogue_Hole_Group_Str]) -> tp.List[Feature_Str]:
     """
     Description:
         Hole_Features in the top face's frame: the holes seated and moved there, the face's size.
 
     Args:
         (1) candidates [Vector<Hole_Str(object)>]: The holes, seated, in the top face's frame.
-        (2) width_mm [float]: The top face's width.
-        (3) height_mm [float]: The top face's height.
-        (4) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
+        (2) offsets [Dict<int, Dimension_Check_Str(object)>]: Each stepped hole's concentricity check, by id.
+        (3) width_mm [float]: The top face's width.
+        (4) height_mm [float]: The top face's height.
+        (5) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
 
     Returns:
         (1) parameter [Vector<Feature_Str(object)>]: The holes, in the top face's frame (mm).
@@ -459,26 +555,27 @@ def __Face_Features(candidates: tp.List[Hole_Str], width_mm: float, height_mm: f
                 places[group.Name] = __Missing_Places(group, holes, groups, members, placed, width_mm, height_mm)
     features = []
     for group, holes in zip(groups, members):
-        features += __Found_Holes(group, holes, width_mm, height_mm)
+        features += __Found_Holes(group, holes, offsets, width_mm, height_mm)
         features += [Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(x, y, group.Diameter_Mm),
                                  Outlines=[__Circle(x, y, group.Diameter_Mm)], Passed=False, Found=False)
                      for x, y in places[group.Name]]
     return features
 
 
-def __Found_Holes(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], width_mm: float,
-                  height_mm: float) -> tp.List[Feature_Str]:
+def __Found_Holes(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], offsets: tp.Dict[int, Dimension_Check_Str],
+                  width_mm: float, height_mm: float) -> tp.List[Feature_Str]:
     """
     Description:
-        A group's counted holes, each with its outline and checks: its diameter; its edge distances for a
-        positioned group; the pitch to each neighbour at about the group's pitch. A hole fails when one check
-        fails or when its group holds more holes than the part has.
+        A group's counted holes, each with its outline and checks: its diameter; its offset from its step's axis
+        for a stepped hole; its edge distances for a positioned group; the pitch to each neighbour at about the
+        group's pitch. A hole fails when one check fails or when its group holds more holes than the part has.
 
     Args:
         (1) group [Catalogue_Hole_Group_Str(object)]: The group.
         (2) holes [Vector<Hole_Str(object)>]: Its holes (__Members).
-        (3) width_mm [float]: The crop's width (the part's short side).
-        (4) height_mm [float]: The crop's height (the part's long side).
+        (3) offsets [Dict<int, Dimension_Check_Str(object)>]: Each stepped hole's concentricity check, by id.
+        (4) width_mm [float]: The crop's width (the part's short side).
+        (5) height_mm [float]: The crop's height (the part's long side).
 
     Returns:
         (1) parameter [Vector<Feature_Str(object)>]: The holes, in the order given.
@@ -488,6 +585,7 @@ def __Found_Holes(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], wid
     found = []
     for hole in holes:
         checks = [Check_Dimension('%s Ø' % group.Name, hole.Diameter_Mm, group.Diameter_Mm, tolerance)]
+        checks += [offsets[id(hole)]] if id(hole) in offsets else []
         if group.From_Long_Edge_Mm:
             long_edge, short_edge = __Edge_Distances(hole, width_mm, height_mm)
             checks += [Check_Dimension("%s's distance from the long edge" % group.Name, long_edge,

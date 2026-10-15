@@ -108,6 +108,26 @@ class Hole_Str(object):
 
 
 @dataclass
+class Crop_View_Str(object):
+    """
+    Description:
+        How the camera sees a catalogue part's upright crop (Vision.Utilities.Classify.Crop_View): where the
+        optical axis meets the crop's plane and how far the camera is from the part's top face, so the shift of a
+        feature below the face towards the axis can be predicted (Vision.Utilities.Holes, the concentricity check).
+    """
+
+    # The principal point on the crop, in mm from its top-left corner (outside the crop as a rule).
+    #   Unit [float] (mm)
+    Axis_X_Mm: float = 0.0
+    Axis_Y_Mm: float = 0.0
+    # The camera's distance to the part's top face (focal length times the top face's scale), and the part's
+    # thickness.
+    #   Unit [float] (mm)
+    Distance_Mm: float = 0.0
+    Thickness_Mm: float = 0.0
+
+
+@dataclass
 class Stain_Str(object):
     """
     Description:

@@ -117,8 +117,9 @@ then composes and measures. The numbers are the ones the README and the mode fil
   on both sides and a verdict that differs by side is Unspecified, as is a hole evidence that contradicts a
   decisive DINOv2. Its holes are checked on that side: each catalogue group counted near its positions, each
   hole's diameter, edge distances and pitch within tolerance, a stepped hole's position measured at its step's
-  centre and every edge distance from the top face's edges, the side wall seen off the optical axis left out; a
-  hole missing, extra or out of tolerance makes it NOK
+  centre and every edge distance from the top face's edges, the side wall seen off the optical axis left out, and a
+  stepped hole's bore within 0.85 mm of its step's axis once the camera's predicted shift for a bore seen at an angle
+  is taken out; a hole missing, extra or out of tolerance makes it NOK
   ([*A judged part's holes are counted…*](design-decisions.md#a-judged-parts-holes-are-counted-where-the-catalogue-puts-them-by-fastsam-on-its-upright-crop),
   [*The side up is DINOv2's only by its margin…*](design-decisions.md#the-side-up-is-dinov2s-only-by-its-margin-a-hole-only-one-side-has-decides-otherwise-and-hole-positions-are-the-top-faces)).
   On a side with a stain check, a yellow-brown area of 1 mm² or more inside it makes it NOK. A part whose centre

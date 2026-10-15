@@ -622,17 +622,3 @@ part's shape that does not look like it is NOK, docs/design-decisions.md); the c
   dropped a real back 59 mm out to 0.57 (its scuffed long edges are what its reference is recognised by), so the
   crop is unchanged. Capture checklist 3d's clean fronts at 50–67 mm separate the two.
 - **Pinned by:** nothing; `test/integration/test_edge_of_view.py` pins the verdict and the stains, not this clause.
-
-## A bore off-centre inside its countersink is not detected
-
-A stepped hole's through-hole is measured at its countersink's centre (`Vision.Utilities.Holes.Seat_Holes`), since the
-bore is seen below the top face and away from the axis its opening shifts towards it (0.12–0.36 mm from the
-countersink's centre near the frame centre, 1.30 mm at 66.6 mm). A bore drilled off-centre but still inside its
-countersink is therefore placed at the countersink, and its offset is not checked; before 2026-10-15 a bore 1.5–3 mm
-off near the frame centre failed its edge distance.
-
-- **Impact:** a misplaced stepped hole is caught by its countersink's position; a bore off its own countersink's axis
-  by less than 3 mm (the radii's difference) reads OK.
-- **Not fixed here:** checking the offset against the shift the bore's depth predicts needs that depth, which the
-  catalogue does not give; no part with such a bore was measured. A stepped drill cuts both on one axis.
-- **Pinned by:** `test/Vision/Utilities/test_holes.py::test_a_through_hole_in_its_countersink_is_measured_at_the_countersinks_centre`.
