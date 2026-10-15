@@ -3388,8 +3388,10 @@ The label mask has none of it: it shows the segmentation. The parts are saved in
 is drawn, not saved: History shows the saved `_annotated.png`.
 
 - **Where a missing hole goes.** At its catalogue position: every mirrored position for a group that fills them
-  all; for the plate's through-holes, mirrored either way, the pair that holds the holes found and best fits the pitch (none placed with
-  none found); a countersink around a through-hole without one (KNOWN_ISSUES).
+  all; for the plate's through-holes, mirrored either way, the pair that holds the holes found and best fits the
+  pitch, anchored on another group's found holes when none of its own is found (through-holes under found
+  countersinks); a countersink around each through-hole without one, found or placed. With nothing found, none is
+  placed and the note says so (*A missing hole is placed only by a hole found*).
 - **Rendered and looked at** (2026-10-13, second revision): Image_055 (front), Image_056 (dark back), Image_080
   (the two fingerprints as two tinted boxes along the plate, chips 1.5 and 1.6); SYNTHETIC frames: Image_055 with
   one through-hole painted out (inpainted; `Part 1.4 · through-hole: not found at its expected position`, a dashed
@@ -3921,3 +3923,41 @@ Tests `test/UI/test_grid_fit.py` (equal strokes stay equal where rounding each e
 relative path; curves and the lettering left as delivered; both logos' marks on whole pixels at 69, 72, 33 and 35 px),
 `test/UI/test_logo_rendering.py::test_at_1x_the_header_marks_have_no_half_covered_pixel` and the DPR 1 and DPR 2
 vector-identity tests, `test/UI/test_header.py` (the fitted lockup still within 1 device px of the outlined logo).
+
+## A missing hole is placed only by a hole found
+
+The mounting plate's through-holes sit 15 mm from one long edge of a 40 mm plate, so their layout is not centred: on
+the upright crop they lie either 15 or 25 mm from its left edge, depending on which end of the part is up. A missing
+hole is marked where a hole found puts it: a through-hole at the pitch from a through-hole found, or under a
+countersink found; a countersink around a through-hole, found or placed. With no hole of the side found, nothing is
+marked, the verdict stands, and the object's note says so: "The missing through-holes are not marked on the frame:
+with no hole found, which end of the part they belong at cannot be told." (`Reporting.Core.Unplaced_Hole_Note`).
+
+**Why, measured** (2026-10-15). The owner asked to place the holes from the outline, with the end told from the
+reference image of the identified side. The identification already compares each upright crop in four quarter turns
+with that reference (DINOv2, `Classify.Best_Turn`); the turn it picks, read through the reference's own hole side
+(front: left, back: right), predicts the end. Checked against the end the found holes show, on the 21 plates of the
+test set outside the two reference frames and the capture's front (21 plates):
+
+| | plates | cosine margin, turn 0 vs 180° |
+|---|---|---|
+| predicted the right end | 18 | 0.0078–0.0925 |
+| predicted the wrong end (Image_076 front, Image_079 back, capture `20261015-143622_s1` object 2) | 3 | 0.0073, 0.0081, 0.0202 |
+| capture `20261015-143622_s1` object 3 (a back with no holes) | — | 0.0022 |
+
+- The turn is wrong on 3 of 21 plates with every hole in view, and its margins overlap the right ones. A gate above
+  the worst wrong margin (0.025) would place 6 of the 21 (the margin reaches 0.0250 on a seventh), all correctly,
+  but rests on one table, one light and a gap of 0.003 between the worst wrong margin (0.0202) and the next right
+  one (0.0234); the owner ruled it out for now (2026-10-15), to be revisited after more rig captures (KNOWN_ISSUES).
+- Object 3 has the smallest margin of all (0.0022): with no hole, only the back's scuffs could tell the end, and the
+  catalogue says they do not.
+- A countersink found is an anchor, not a guess: its centre lies 0.12–1.05 mm from its through-hole on the test set,
+  inside the 2.62 mm position gate.
+
+**Revisit if** a part's ends can be told apart by something measured (an asymmetric feature, a marking), the
+identification is replaced by one that resolves the turn reliably, or the owner accepts the gate above.
+Tests `test/Vision/Utilities/test_holes.py::test_through_holes_missing_under_found_countersinks_are_placed_at_their_centres`,
+`::test_a_side_with_no_hole_found_places_none_since_its_end_cannot_be_told`,
+`::test_a_plates_missing_holes_are_placed_on_the_side_its_holes_are`,
+`::test_a_missing_holes_outline_is_a_circle_of_its_groups_diameter_at_its_position`,
+`test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note`.

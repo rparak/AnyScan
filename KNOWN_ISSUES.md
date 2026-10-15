@@ -526,12 +526,18 @@ holes) and dropped no right sentence in the final run; the first run dropped one
 
 ## A missing hole is not marked when the part shows nothing to place it by
 
-A hole expected and not found is marked dashed at its position. Where that position depends on the holes
-found, it cannot always be placed. The mounting plate's through-holes sit by one long edge, mirrored either way:
-with none found, either edge could be meant, so none is marked. A countersink is placed around a through-hole
-without one, so with neither found, neither is marked.
+A hole expected and not found is marked dashed where a hole found puts it: at the pitch from a through-hole, under a
+countersink, around a through-hole. The mounting plate's through-holes sit by one long edge, so with no hole of the
+side found, which end of the part they belong at cannot be told from the outline, and none is marked. Seen on
+capture `20261015-143622_s1`, object 3: a back with no holes, NOK, no hole mark.
 
-- **Impact:** a plate missing all its holes shows no hole marks; its reason ("Both through-holes are
-  missing.") and its log lines still say so.
-- **Not fixed here:** guessing an edge would draw a mark that may be wrong; no frame of the test set shows it.
-- **Pinned by:** `test/Vision/Utilities/test_holes.py::test_a_plates_missing_holes_are_placed_on_the_side_its_holes_are`.
+- **Impact:** a plate missing all its holes shows no hole marks; its reason ("Both through-holes are missing.") and
+  its log lines still say so, and its note says why the marks are absent.
+- **Not fixed here:** DINOv2's best turn against the side's reference picked the wrong end on 3 of 21 plates (the test
+  set and this capture's front) with every hole in view (margins up to 0.020, overlapping the right ones), and on object 3 its margin is 0.0022; a
+  mark at a guessed end may be wrong (docs/design-decisions.md, *A missing hole is placed only by a hole found*).
+  A confidence gate on that margin (0.025) was measured on these 21 plates, where it would place 6, all correctly,
+  and was not built (owner's ruling, 2026-10-15): one table, one light, and 0.003 between the worst wrong margin and
+  the next right one. It can be revisited once more rig captures give the margins on more plates.
+- **Pinned by:** `test/Vision/Utilities/test_holes.py::test_a_side_with_no_hole_found_places_none_since_its_end_cannot_be_told`,
+  `test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note`.

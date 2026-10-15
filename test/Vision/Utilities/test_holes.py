@@ -203,15 +203,16 @@ def test_a_plates_missing_holes_are_placed_on_the_side_its_holes_are() -> None:
     """
     Description:
         The mounting plate's through-holes sit by one long edge, mirrored either way: with one found, the missing
-        one is placed at the pitch from it on the same side, not across the plate; its countersink missing too is
-        placed around the through-hole found; with none found nothing is placed, since either side could be meant.
+        one is placed at the pitch from it on the same side, not across the plate; the countersinks missing too are
+        placed around both through-holes, the one found and the one placed (the partial case); with none found nothing
+        is placed, since either side could be meant.
     """
 
     from Vision.Utilities.Holes import Hole_Features
     found = [Hole_Str(Diameter_Mm=6.1, X_Mm=15.0, Y_Mm=17.5)]
     features = Hole_Features(found, CONST_PLATE_FRONT, 40.0, 60.0)
-    assert _Centres(features) == [(15.0, 17.5, False), (15.0, 17.5, True), (15.0, 42.5, False)]
-    assert [f.Name for f in features] == ['countersink', 'through-hole', 'through-hole']
+    assert _Centres(features) == [(15.0, 17.5, False), (15.0, 42.5, False), (15.0, 17.5, True), (15.0, 42.5, False)]
+    assert [f.Name for f in features] == ['countersink', 'countersink', 'through-hole', 'through-hole']
     # By the other long edge (the plate lies the other way round), the missing one is placed there too.
     other = Hole_Features([Hole_Str(Diameter_Mm=6.1, X_Mm=25.0, Y_Mm=17.5)], CONST_PLATE_FRONT[1:], 40.0, 60.0)
     assert _Centres(other) == [(25.0, 17.5, True), (25.0, 42.5, False)]
@@ -251,14 +252,53 @@ def test_a_missing_holes_outline_is_a_circle_of_its_groups_diameter_at_its_posit
     """
     Description:
         A hole expected and not found is outlined by a circle of its group's diameter at its expected position:
-        the through-hole missing at the pitch from the one found (6 mm, at 15, 42.5) and the countersink missing
-        around the through-hole found (12 mm, at 15, 17.5), so the frame draws the hole the part should have.
+        the through-hole missing at the pitch from the one found (6 mm, at 15, 42.5) and the countersinks missing
+        around the through-hole found and the one placed (12 mm, at 15, 17.5 and 15, 42.5), so the frame draws both
+        circles of a stepped hole, as it draws a found one.
     """
 
     from Vision.Utilities.Holes import Hole_Features
     features = Hole_Features([Hole_Str(Diameter_Mm=6.1, X_Mm=15.0, Y_Mm=17.5)], CONST_PLATE_FRONT, 40.0, 60.0)
     missing = [(f.Name, f.Outlines) for f in features if not f.Found]
-    assert [name for name, _ in missing] == ['countersink', 'through-hole']
-    for (_name, (outline,)), (cx, cy, d) in zip(missing, ((15.0, 17.5, 12.0), (15.0, 42.5, 6.0))):
+    assert [name for name, _ in missing] == ['countersink', 'countersink', 'through-hole']
+    for (_name, (outline,)), (cx, cy, d) in zip(missing, ((15.0, 17.5, 12.0), (15.0, 42.5, 12.0), (15.0, 42.5, 6.0))):
         assert len(outline) >= 36
         assert all(np.hypot(x - cx, y - cy) == pytest.approx(d / 2.0) for x, y in outline)
+
+
+def test_through_holes_missing_under_found_countersinks_are_placed_at_their_centres() -> None:
+    """
+    Description:
+        A front whose countersinks are found and whose through-holes are not: the countersinks' centres sit at two of
+        the through-holes' mirrored positions, so they anchor the through-holes, which are placed there (6 mm, at 15,
+        17.5 and 15, 42.5), on the side the countersinks are. With nothing of its own to anchor on, the group once
+        placed none, and a front showing two stepped holes with no bore drew no through-hole mark.
+    """
+
+    from Vision.Utilities.Holes import Hole_Features
+    countersinks = [Hole_Str(Diameter_Mm=12.1, X_Mm=15.3, Y_Mm=17.7), Hole_Str(Diameter_Mm=12.2, X_Mm=15.2, Y_Mm=42.4)]
+    features = Hole_Features(countersinks, CONST_PLATE_FRONT, 40.0, 60.0)
+    missing = [f for f in features if not f.Found]
+    assert [f.Name for f in missing] == ['through-hole', 'through-hole']
+    assert _Centres(missing) == [(15.0, 17.5, False), (15.0, 42.5, False)]
+    for feature, (cx, cy) in zip(missing, ((15.0, 17.5), (15.0, 42.5))):
+        assert all(np.hypot(x - cx, y - cy) == pytest.approx(3.0) for x, y in feature.Outlines[0])
+    # By the other long edge, the other side.
+    turned = [Hole_Str(Diameter_Mm=12.1, X_Mm=24.8, Y_Mm=17.6), Hole_Str(Diameter_Mm=12.2, X_Mm=24.9, Y_Mm=42.3)]
+    assert _Centres([f for f in Hole_Features(turned, CONST_PLATE_FRONT, 40.0, 60.0) if not f.Found]) == \
+        [(25.0, 17.5, False), (25.0, 42.5, False)]
+
+
+def test_a_side_with_no_hole_found_places_none_since_its_end_cannot_be_told() -> None:
+    """
+    Description:
+        A side with no hole of any group found (capture 20261015-143622_s1's object 3, a back with no holes): the
+        through-holes' mirrored positions are not centred on the part, and with nothing found the outline does not
+        say which end is which (DINOv2's best turn against the reference picked the wrong end on 3 of 21 plates
+        (the test set and the capture's front) even with their holes in view; docs/design-decisions.md), so no position is invented. Reporting.Core
+        says so in the object's note.
+    """
+
+    from Vision.Utilities.Holes import Hole_Features
+    assert Hole_Features([], CONST_PLATE_FRONT, 40.0, 60.0) == []
+    assert Hole_Features([], CONST_PLATE_FRONT[1:], 40.0, 60.0) == []

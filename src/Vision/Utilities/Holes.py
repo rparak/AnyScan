@@ -284,11 +284,8 @@ def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_
         The holes as the frame marks them, on the upright crop (mm): each counted hole with its outline and checks (diameter;
         edge distances for a positioned group; the pitch to a neighbour, on both holes), failed when one fails or
         when its group holds more holes than the part has; and each hole expected but not found, at its position,
-        outlined by a circle of its group's diameter.
-        A positioned group's expected positions are all its mirrored positions when it has as many holes, else
-        the set of its size that holds the holes found and best fits its pitch (none placed when it found none).
-        An unpositioned group's missing holes are placed at the centres of other groups' holes it would surround
-        (a countersink at its through-hole), the first ones without one of its own.
+        outlined by a circle of its group's diameter (__Missing_Places). The positioned groups are placed first, so
+        an unpositioned group's missing holes can sit at a through-hole that was itself placed, not found.
 
     Args:
         (1) candidates [Vector<Hole_Str(object)>]: The holes found on the crop.
@@ -301,12 +298,18 @@ def Hole_Features(candidates: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_
     """
 
     members = [__Members(candidates, group, width_mm, height_mm) for group in groups]
+    places = {}
+    for positioned in (True, False):
+        placed = [(x, y) for group in groups if group.Name in places for x, y in places[group.Name]]
+        for group, holes in zip(groups, members):
+            if bool(group.From_Long_Edge_Mm) == positioned:
+                places[group.Name] = __Missing_Places(group, holes, groups, members, placed, width_mm, height_mm)
     features = []
     for group, holes in zip(groups, members):
         features += __Found_Holes(group, holes, width_mm, height_mm)
         features += [Feature_Str(Kind='hole', Name=group.Name, Corners=__Square(x, y, group.Diameter_Mm),
                                  Outlines=[__Circle(x, y, group.Diameter_Mm)], Passed=False, Found=False)
-                     for x, y in __Missing_Places(group, holes, groups, members, width_mm, height_mm)]
+                     for x, y in places[group.Name]]
     return features
 
 
@@ -350,22 +353,30 @@ def __Found_Holes(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], wid
 
 
 def __Missing_Places(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], groups: tp.List[Catalogue_Hole_Group_Str],
-                     members: tp.List[tp.List[Hole_Str]], width_mm: float, height_mm: float) -> tp.List[tp.Tuple[float, float]]:
+                     members: tp.List[tp.List[Hole_Str]], placed: tp.List[tp.Tuple[float, float]], width_mm: float,
+                     height_mm: float) -> tp.List[tp.Tuple[float, float]]:
     """
     Description:
-        Where a group's missing holes are expected (none when it found all it has). A positioned group's are
-        among its mirrored positions: all of them not holding a hole when it has as many holes, else those of
-        the set of its size that holds the holes found and best fits its pitch (none placed when it found none).
+        Where a group's missing holes are expected (none when it found all it has).
+
+        A positioned group's are among its mirrored positions: all of them not holding a hole when it has as many
+        holes, else those of the set of its size that holds the positions it is anchored at and best fits its pitch.
+        It is anchored at the positions holding its own holes or, with none of its own, at those holding another
+        group's found holes (a through-hole at its countersink). With no anchor at all none is placed: the mirrored
+        positions are not centred on the part, and which end of the part is which cannot be told from its outline
+        (docs/design-decisions.md, KNOWN_ISSUES).
+
         An unpositioned group's are the centres of other groups' holes it would surround (a countersink at its
-        through-hole), the first ones without one of its own.
+        through-hole), found or placed, the first ones without one of its own.
 
     Args:
         (1) group [Catalogue_Hole_Group_Str(object)]: The group.
         (2) holes [Vector<Hole_Str(object)>]: Its holes (__Members).
         (3) groups [Vector<Catalogue_Hole_Group_Str(object)>]: The side's groups.
         (4) members [Vector<Vector<Hole_Str(object)>>]: Each group's holes, in groups' order.
-        (5) width_mm [float]: The crop's width (the part's short side).
-        (6) height_mm [float]: The crop's height (the part's long side).
+        (5) placed [Vector<Tuple<float> 1x2>]: The missing holes already placed for the positioned groups, (x, y) in mm.
+        (6) width_mm [float]: The crop's width (the part's short side).
+        (7) height_mm [float]: The crop's height (the part's long side).
 
     Returns:
         (1) parameter [Vector<Tuple<float> 1x2>]: The centres (x, y) in mm.
@@ -374,22 +385,24 @@ def __Missing_Places(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], 
     missing = max(0, group.Count - len(holes))
     if not missing:
         return []
+    others = [(hole.X_Mm, hole.Y_Mm) for other, found in zip(groups, members) if other is not group for hole in found]
     if group.From_Long_Edge_Mm:
         positions = __Positions(group, width_mm, height_mm)
         gate = math.sqrt(2.0) * group.Tolerance_Mm + CONST_HOLE_POSITION_MARGIN_MM
-        taken = [any(math.hypot(hole.X_Mm - x, hole.Y_Mm - y) <= gate for hole in holes) for x, y in positions]
+        own = [any(math.hypot(hole.X_Mm - x, hole.Y_Mm - y) <= gate for hole in holes) for x, y in positions]
         if len(positions) == group.Count:
-            return [position for position, held in zip(positions, taken) if not held]
-        if not holes:
+            return [position for position, held in zip(positions, own) if not held]
+        anchored = own if any(own) else [any(math.hypot(ox - x, oy - y) <= gate for ox, oy in others)
+                                         for x, y in positions]
+        if not any(anchored):
             return []
         fits = [subset for subset in itertools.combinations(range(len(positions)), group.Count)
-                if all(i in subset for i, held in enumerate(taken) if held)]
+                if all(i in subset for i, held in enumerate(anchored) if held)]
         if not fits:
             return []
         best = min(fits, key=lambda subset: sum(abs(math.dist(positions[i], positions[j]) - (group.Pitch_Mm or 0.0))
                                                 for i, j in itertools.combinations(subset, 2)))
-        return [positions[i] for i in best if not taken[i]]
-    centres = [(hole.X_Mm, hole.Y_Mm) for other, found in zip(groups, members) if other is not group for hole in found]
-    return [centre for centre in centres
+        return [positions[i] for i in best if not own[i]]
+    return [centre for centre in others + placed
             if not any(math.hypot(hole.X_Mm - centre[0], hole.Y_Mm - centre[1]) < group.Diameter_Mm / 2.0
                        for hole in holes)][:missing]

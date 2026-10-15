@@ -682,11 +682,56 @@ def Size_Note(det: Detection_Str) -> str:
             % (result.Center_Distance_Mm, result.Verified_Radius_Mm))
 
 
+def Unplaced_Hole_Note(det: Detection_Str) -> str:
+    """
+    Description:
+        The note a part carries when holes it is missing are not marked on the frame: the holes found anchor where the
+        missing ones go, and with none found the outline cannot tell which end of the part they belong at (their
+        layout is not centred), so none is drawn (Vision.Utilities.Holes). The verdict stands; the note explains the
+        missing marks.
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, its holes checked and marked.
+
+    Returns:
+        (1) parameter [string]: The note, or '' when every missing hole is marked.
+    """
+
+    unplaced, total = [], 0
+    for count in det.Hole_Counts:
+        drawn = sum(1 for feature in det.Features if feature.Kind == 'hole' and feature.Name == count.Name
+                    and not feature.Found)
+        left = count.Expected - count.Found - drawn
+        if left > 0:
+            unplaced.append(__Plural(left, count.Name))
+            total += left
+    if not total:
+        return ''
+    return ('The missing %s %s not marked on the frame: with no hole found, which end of the part %s at cannot be '
+            'told.' % (__Join(unplaced), 'is' if total == 1 else 'are', 'it belongs' if total == 1 else 'they belong'))
+
+
+def Verdict_Notes(det: Detection_Str) -> str:
+    """
+    Description:
+        A verdict's notes as one: the size note (Size_Note) and the unplaced-hole note (Unplaced_Hole_Note), each when
+        it applies.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [string]: The notes, or '' when none applies.
+    """
+
+    return ' '.join(note for note in (Size_Note(det), Unplaced_Hole_Note(det)) if note)
+
+
 def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
     """
     Description:
         A catalogue mode's verdict on one object as Scene Understanding shows it: 'State: <state>.', then, when it
-        is not OK, its one 'Reason:' sentence (Reason_Sentence), then the size note when it applies. No
+        is not OK, its one 'Reason:' sentence (Reason_Sentence), then its notes when they apply (Verdict_Notes). No
         similarity and no side here: the similarity is in the log only (Verdict_Log_Line), and the side is in
         the description (Side_Sentence). Empty outside a catalogue mode.
 
@@ -699,7 +744,7 @@ def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
 
     if det.Catalogue is None:
         return []
-    note, reason = Size_Note(det), Reason_Sentence(det)
+    note, reason = Verdict_Notes(det), Reason_Sentence(det)
     return (['State: %s.' % det.Verdict] + (['Reason: %s' % reason] if reason else [])
             + (['Note: %s' % note] if note else []))
 
@@ -851,7 +896,7 @@ def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
     level = 'WARNING' if det.Verdict in ('Warning', 'Unspecified') else 'INFO'
     evidence = [det.Verdict] + (['%s up' % result.Side] if det.Verdict in ('OK', 'NOK') else [])
     evidence.append('similarity %.2f' % result.Similarity)
-    note = Size_Note(det)
+    note = Verdict_Notes(det)
     reason = Reason_Sentence(det)
     words = (['%s.' % ', '.join(evidence)] + (['Reason: %s' % reason] if reason else [])
              + (['Note: %s' % note] if note else []))

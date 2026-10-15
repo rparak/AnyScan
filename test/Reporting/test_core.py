@@ -499,13 +499,16 @@ def test_a_judged_part_says_which_side_is_up_in_the_catalogues_words() -> None:
 
 
 def _Holes(det: Detection_Str, *groups: tp.Tuple[str, int, int, int]) -> Detection_Str:
-    """A judged part's hole groups as (name, found, expected, out of tolerance among the found)."""
+    """A judged part's hole groups as (name, found, expected, out of tolerance among the found), each missing hole
+    marked at its place, as the frame marks it when a hole was found to place it by."""
     from Parameters.Vision import Hole_Count_Str, Feature_Str
     from Vision.Utilities.Dimensions import Check_Dimension
     det.Hole_Counts = [Hole_Count_Str(Name=name, Found=found, Expected=expected) for name, found, expected, _out in groups]
     det.Features = [Feature_Str(Kind='hole', Name=name, Checks=[Check_Dimension('%s Ø' % name, 9.0 if i < out else 6.0,
                                                                                 6.0, 1.5)])
                     for name, found, _expected, out in groups for i in range(found)]
+    det.Features += [Feature_Str(Kind='hole', Name=name, Passed=False, Found=False)
+                     for name, found, expected, _out in groups for _i in range(max(0, expected - found))]
     return det
 
 
@@ -531,6 +534,33 @@ def test_a_nok_names_its_holes_in_one_sentence(groups: tp.Tuple, reason: str) ->
     det = _Holes(_Judged('NOK'), *groups)
     assert Verdict_Lines(det) == ['State: NOK.', 'Reason: ' + reason]
     assert Verdict_Log_Line(0, det)[1].endswith('Reason: ' + reason)
+
+
+def test_missing_holes_not_marked_are_named_in_the_note() -> None:
+    """
+    Description:
+        A part missing holes the frame could not mark (none found to place them by, capture 20261015-143622_s1's
+        object 3) keeps its verdict and reason, and its note says the marks are absent and why, in Scene
+        Understanding and in the log; once marked, the note is gone. Holes drawn for one group do not hide another's
+        unmarked ones.
+    """
+
+    from Reporting.Core import Verdict_Lines, Verdict_Log_Line
+    det = _Holes(_Judged('NOK'), ('through-hole', 0, 2, 0))
+    det.Features = []
+    note = ('Note: The missing through-holes are not marked on the frame: with no hole found, which end of the part '
+            'they belong at cannot be told.')
+    assert Verdict_Lines(det) == ['State: NOK.', 'Reason: Both through-holes are missing.', note]
+    assert Verdict_Log_Line(0, det)[1].endswith('Reason: Both through-holes are missing. ' + note)
+    det = _Holes(_Judged('NOK'), ('countersink', 0, 2, 0), ('through-hole', 0, 2, 0))
+    det.Features = det.Features[:2]
+    assert Verdict_Lines(det)[-1] == ('Note: The missing through-holes are not marked on the frame: with no hole '
+                                      'found, which end of the part they belong at cannot be told.')
+    det.Features = []
+    assert Verdict_Lines(det)[-1] == ('Note: The missing countersinks and through-holes are not marked on the frame: '
+                                      'with no hole found, which end of the part they belong at cannot be told.')
+    assert Verdict_Lines(_Holes(_Judged('NOK'), ('through-hole', 0, 2, 0))) == \
+        ['State: NOK.', 'Reason: Both through-holes are missing.']
 
 
 def test_a_nok_names_its_stains_in_one_sentence() -> None:
