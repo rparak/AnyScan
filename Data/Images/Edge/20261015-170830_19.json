@@ -1,0 +1,18 @@
+{
+ "source": "20261015-170830_19_raw.png of capture set 20261015-170251_s1",
+ "source_sha256": "d4ef8eab431ccb50a4f45bae7cf071843492dadf3d87b655724ddf47e4a506bc",
+ "frame_size": [
+  1920,
+  1200
+ ],
+ "margin_px": 40,
+ "crops": [
+  {
+   "file": "20261015-170830_19_1.png",
+   "offset": [
+    1189,
+    451
+   ]
+  }
+ ]
+}

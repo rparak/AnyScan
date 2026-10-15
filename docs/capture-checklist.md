@@ -257,9 +257,12 @@ tolerance there, the zone can be widened to them.
 
 Side, holes and stains are judged only out to 66.7 mm (`CONST_JUDGED_RADIUS_MM`, the farthest judged plate
 measured, 2026-10-15); a plate farther out is Unspecified with its findings marked. Beyond 50 mm only the right
-edge of the view was measured (16 plates, one on the left at 51 mm), and no clean front lay beyond 35 mm
-(KNOWN_ISSUES, *Parts beyond 66.7 mm…*). These frames close that; run them through the pipeline as the
-2026-10-15 measurement did (each plate's side, both sides' similarities, its holes and stains).
+edge of the view was measured (22 plates, one on the left at 51 mm): capture `20261015-180933_s1`, taken for the
+other edges, holds six fronts on the right (five clean, OK, 58–62.5 mm), and no back lay beyond 59 mm (KNOWN_ISSUES,
+*Parts beyond 66.7 mm…*). The rows below on the left, top and bottom, the backs and the corners are still open; run
+them through the pipeline as the 2026-10-15 measurement did (each plate's side, both sides' similarities, its holes,
+their concentricity readings and its stains), and check the frame position before shooting: x below 400 px for the
+left edge, y below 300 or above 900 px for the top and bottom bands.
 
 Shipped lighting, the mounting-plate mode, each plate lying flat:
 

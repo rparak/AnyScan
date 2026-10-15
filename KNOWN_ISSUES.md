@@ -587,23 +587,26 @@ where the motif's purple square is expected) fail. They fail identically on unch
 A judged part whose centre lies more than 66.7 mm from the frame centre (`Vision.Utilities.Classify.CONST_JUDGED_RADIUS_MM`,
 the farthest judged mounting plate measured, 66.62 mm, capture `20261015-170830_19`) is Unspecified: "It lies N mm
 from the frame centre, beyond the 67 mm parts were judged to …". Its holes and stains are still marked. Within it,
-measured 2026-10-15 on 72 frames (the test set and the four mounting-plate capture sets, 63 plates, 3.4–66.6 mm out):
+measured 2026-10-15 on 78 frames (the test set and the five mounting-plate capture sets, 69 plates, 3.4–66.6 mm out):
 
 | From the centre | Side identification | Hole detection | Stain detection |
 |---|---|---|---|
 | 0–50 mm | DINOv2 alone right on every plate (margin from +0.067) | every hole found, round 0.883–0.916, Ø 6.07–6.73 mm, edge distances within 0.72 mm | both stains on every stained front |
 | 50–57 mm | DINOv2 right by +0.013 at least; the countersinks decide | the same, within 0.61 mm | the same |
-| 57–67 mm | DINOv2 wrong on 8 of 11 fronts (−0.030 to −0.075); the countersinks right on all | the same, within 0.78 mm, with the stepped hole at its step and the side wall left out | the same, the plate's brightness down to 0.68 of the centre's |
+| 57–67 mm | DINOv2 wrong on 9 of 17 fronts (−0.030 to −0.076); the countersinks right on all | the same, within 0.78 mm, with the stepped hole at its step and the side wall left out | the same, the plate's brightness down to 0.68 of the centre's |
 
-Coverage is lopsided. Beyond 50 mm the measured plates lie on the right edge of the view (x 1466–1574 px, 16 plates)
-and one on the left at 51 mm; none lay in the top or bottom bands (y < 300 or > 900 px) or in a corner, and no clean
-front lay beyond 35 mm. The physics corrected (the bore and the side wall seen off the axis) is radial, but the light is
+Coverage is lopsided. Beyond 50 mm the measured plates lie on the right edge of the view (x 1466–1574 px, 22 plates,
+with capture `20261015-180933_s1`'s six fronts at x 1538–1563 px, 58–62.5 mm) and one on the left at 51 mm; none lay in
+the top or bottom bands (y < 300 or > 900 px) or in a corner, and no back lay beyond 59 mm. Clean fronts are measured
+to 62.5 mm (five, all on the right). Every stepped hole's bore lay within 0.205 mm of its countersink's axis once the
+camera's shift was taken out (112 holes). The physics corrected (the bore and the side wall seen off the axis) is radial, but the light is
 not: the table at the corners reads 0.725 (bottom left) to 0.826 (top right) of its centre's brightness.
 
 - **Impact:** a part in a corner (up to 114 mm out) is never judged; one at 50–67 mm on the left, top or bottom is
   judged on corrections and a band measured only on the right.
 - **Not fixed here:** only rig captures can widen it (docs/capture-checklist.md, 3d: corners, the left, top and bottom
-  edges at 50–67 mm, clean and stained fronts and backs). If the side, holes and stains read right there,
+  edges at 50–67 mm, clean and stained fronts and backs). Capture `20261015-180933_s1`, meant for those edges, holds six
+  fronts on the right only (2026-10-15). If the side, holes and stains read right there,
   `CONST_JUDGED_RADIUS_MM` widens to them.
 - **Pinned by:** `test/Vision/Utilities/test_classify.py::test_a_part_beyond_the_radius_parts_were_judged_to_is_unspecified`,
   `test/integration/test_edge_of_view.py`.
@@ -614,11 +617,15 @@ DINOv2's similarity of the fingerprinted front to the front reference falls with
 0.81–0.89 within 30 mm, 0.67–0.78 at 50–67 mm, mostly below `Identify_Similarity` (0.75). There it is NOK for its stains, with
 its side and holes right, and its reason adds "It has the part's outline but does not look like the part" (captures
 `20261015-170251_s1` frames 12, 13, 15, 18, 19, 20 and `20261015-143622_s1`). The rule is deliberate (an object of the
-part's shape that does not look like it is NOK, docs/design-decisions.md); the clause is the edge's, not the part's.
+part's shape that does not look like it is NOK, docs/design-decisions.md).
 
-- **Impact:** the verdict is right; one clause of the reason is not.
-- **Not fixed here:** whether the drop is the stains', the position's or both cannot be told: no clean front lay
-  beyond 35 mm (0.92 there, 0.92–1.00 nearer). Comparing a crop inset from its outline lifted the stained fronts to 0.79–0.82 but
-  dropped a real back 59 mm out to 0.57 (its scuffed long edges are what its reference is recognised by), so the
-  crop is unchanged. Capture checklist 3d's clean fronts at 50–67 mm separate the two.
-- **Pinned by:** nothing; `test/integration/test_edge_of_view.py` pins the verdict and the stains, not this clause.
+The drop below 0.75 is the stains', not the position's (capture `20261015-180933_s1`, 2026-10-15): five clean fronts
+58–62.5 mm out score 0.83–0.87 (0.92–1.00 near the centre) and read OK with no such clause; a stained front at the same
+place scores 0.69. The position takes about 0.1 off a clean front; the stains take the rest.
+
+- **Impact:** the verdict is right; the clause says the stains make the front look unlike its clean reference, which is
+  true, in words written for a foreign object. A clean front by the edge does not get it.
+- **Not fixed here:** nothing to fix in the identification; a separate wording for a judged part whose stains were
+  found could follow, if the owner wants one.
+- **Pinned by:** `test/integration/test_edge_of_view.py::test_a_clean_front_by_the_edge_is_ok` (the clean fronts, no
+  clause); the stained fronts' clause is not pinned.

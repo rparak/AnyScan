@@ -4107,7 +4107,8 @@ recorded through the application's pipeline, by wrapping its functions in `Visio
   1.5): the outline was 41.31 mm across against 39.3–40.2 near the centre. The bore's shift had hidden it before. The
   wall predicted 0.93 mm, and with it left out the reading is 15.6.
 
-**Before and after**, on the same 72 frames, 214 objects. Of the 204 that were right before, every one is still
+**Before and after**, on the same 72 frames, 208 objects (*corrected 2026-10-15:* first written as 214). Of the 204 that
+were right before, every one is still
 right: all 150 of the test set match `CONST_EXPECTED_VERDICTS`, and the hole-less block of the part's outline stays
 NOK on both sides. Four wrong OKs are now NOK for their stains (frames 2, 5, 16, 21). Four NOKs now give the right
 reason (frames 13, 17, 18, 19): the false through-hole fault is gone and the stains are named. Every plate's side is
@@ -4124,7 +4125,8 @@ part", with a right verdict (KNOWN_ISSUES).
 side, hole or stain read wrong, or widen `CONST_JUDGED_RADIUS_MM`; an item's sides share every hole group (then only
 the margin and the both-sides rule decide); a part with a defective stepped hole is measured; or the reference images
 are re-shot (the margins change with them).
-Tests `test/integration/test_edge_of_view.py` (frames 1, 16, 17 and 19 of the capture, in `Data/Images/Edge`),
+Tests `test/integration/test_edge_of_view.py` (frames 1, 16, 17 and 19 of the capture and 1, 2 and 6 of
+`20261015-180933_s1`, stored as crops in `Data/Images/Edge`),
 `test/Vision/Utilities/test_classify.py::test_the_side_is_dinov2s_by_its_margin_else_the_holes`,
 `::test_a_part_whose_side_cannot_be_told_keeps_only_a_verdict_every_side_gives`,
 `::test_a_part_beyond_the_radius_parts_were_judged_to_is_unspecified`,
@@ -4165,3 +4167,23 @@ about 0.4 mm, or the catalogue gives a concentricity tolerance (it would replace
 Tests `test/Vision/Utilities/test_holes.py::test_a_bore_off_its_countersinks_axis_fails_wherever_the_part_lies`,
 `test/Vision/Utilities/test_classify.py::test_the_crop_view_puts_the_optical_axis_on_the_crop`,
 `test/integration/test_edge_of_view.py::test_a_clean_front_by_the_edge_is_ok`.
+
+## The edge-of-view regression frames are stored as crops on the empty-surface reference
+
+Decided 2026-10-15, on the owner's request. `Data/Images/Edge` holds each regression frame as crops around its objects
+(40 px margin) and a manifest: each crop's offset, the frame's size, the source capture frame and its SHA-256. The
+test pastes them onto the mode's empty-surface reference, so every distance from the frame centre and the camera
+geometry are the frame's. Seven frames take 6.7 MB, against 15.3 MB for the four full frames they replace.
+
+**Why it is enough, and where it is not.** On all seven frames, rebuilt from 40 px and from 80 px crops, the side, how
+it was decided, the holes found and passing, the stains found, the verdict and its reason equal the full frame's on
+every object. The measured values do not, by up to 0.79 mm on an outline and 0.60 mm on a hole's edge distance, at
+either margin. The background difference's Otsu threshold is taken over the whole frame. A rebuilt frame has no
+table noise outside its crops (the real frames differ from the reference by 6.4, 2.9 and 12.5 per channel on bare
+table), so the threshold, and with it the mask's edge, moves. The crops pin decisions, never values.
+
+**Revisit if** a test on these frames needs a measured value (then it needs the full frame), the reference is re-shot
+(the rebuilt frames change with it; the decisions were checked against `Image_Background_001`), or the background
+threshold stops depending on the whole frame.
+Tests `test/integration/test_edge_of_view.py::test_the_inventory_names_every_frame_and_crop_of_the_edge_set` and the
+rest of that file.
