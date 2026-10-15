@@ -606,10 +606,10 @@ class Viewport_Cls(QWidget):
     def __Paint_Legend(self, p: QPainter, legend: Heatmap_Str) -> None:
         """
         Description:
-            The heatmap's legend, in the viewport's bottom-left corner on a solid viewport-ink panel: the
+            The heatmap's legend, in the viewport's bottom-left corner on a solid grey-lilac panel (the viewport's colour): the
             title and unit, the colour bar from the scale's low end to its high end (the high end marked
             '≥', since values above it take its colour), and each mark — the threshold applied — as a
-            tick through the bar with its label under it. Painted from the Heatmap_Str alone, so a
+            white tick through the bar with its label under it in the purple. Painted from the Heatmap_Str alone, so a
             heatmap from another source brings its own legend.
 
         Args:
@@ -647,9 +647,7 @@ class Viewport_Cls(QWidget):
             p.fillRect(QRect(x - 1, bar.top() - 3, 2, bar_h + 6), Style.Token_Color(Style.CONST_LEGEND_MARK))
             width = metrics.horizontalAdvance(label)
             left = min(max(x - width // 2, x0), x0 + bar_w - width)
-            p.setPen(Style.Token_Color(Style.CONST_LEGEND_MARK))
             p.drawText(QRect(left, labels_y, width, line), Qt.AlignCenter, label)
-            p.setPen(Style.Token_Color(Style.CONST_VIEWPORT_TEXT))
         p.restore()
 
     def __Paint_Busy(self, p: QPainter) -> None:

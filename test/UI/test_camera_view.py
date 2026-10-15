@@ -302,6 +302,27 @@ def test_the_legend_marks_the_threshold_and_shows_only_on_the_heatmap(qt_app, re
     assert np.array_equal(annotated_60, annotated_again)
 
 
+def test_the_legend_labels_are_the_purple_on_its_grey_lilac_panel(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        The legend's labels under the colour bar (its two ends and the threshold's name) are the purple on the
+        legend's grey-lilac panel, where white read at 1.35:1: the strip they are printed in carries the purple and
+        no white pixel, though the threshold's white tick crosses the bar above it.
+    """
+
+    window = _Scanned_Window(reference_background_path)
+    viewport = _Private(window, '__viewport')
+    _Private(window, '__On_Analysis_Finished')(_Heatmap_Result(window, right=64, marks=((60.0, 'Otsu 60'),)))
+    _Private(window, '__On_View_Toggle')('heatmap')
+    legend = _Legend(_Grab(viewport), viewport)[:, :, 2::-1].astype(int)          # RGB
+    tick = np.nonzero((legend >= 245).all(axis=2).any(axis=1))[0]                # the white tick's rows
+    assert len(tick)                                                             # the tick is still drawn
+    labels = legend[tick.max() + 1:tick.max() + 21]                              # the label line under the bar
+    purple = np.array(Theme.Hex_To_Rgb(Theme.CONST_VIEWPORT_TEXT))
+    assert np.abs(labels - purple).max(axis=2).min() <= 40
+    assert not (labels >= 245).all(axis=2).any()
+
+
 def test_the_heatmap_shows_the_difference_alone_with_no_boxes(qt_app, reference_background_path) -> None:
     """
     Description:

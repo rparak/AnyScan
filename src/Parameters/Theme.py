@@ -137,8 +137,9 @@ CONST_STATUS_TEXT_COLORS = {CONST_OK: CONST_OK_INK, CONST_WARN: CONST_WARN_INK}
 #   Unit [string] (hex colour)
 CONST_VIEWPORT      = '#E1DCE6'
 CONST_VIEWPORT_TEXT = CONST_INK
-# The heatmap legend's threshold marks (the tick through the colour bar and its label): white. They were the busy
-# overlay's white until that overlay became the grey-lilac (2026-10-15), and keep their own colour here.
+# The heatmap legend's threshold tick, drawn through the colour bar: white, which reads across the bar's dark end
+# (cividis). The threshold's label under the bar is on the legend's grey-lilac panel and is CONST_VIEWPORT_TEXT, the
+# purple (6.79:1); it was white there (1.35:1) until 2026-10-15.
 #   Unit [string] (hex colour)
 CONST_LEGEND_MARK   = '#FFFFFF'
 

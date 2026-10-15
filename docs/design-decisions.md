@@ -2810,7 +2810,10 @@ parts merge.
   - `CONST_DIFFERENCE_SCALE_MAX`'s comment records the basis, and that it must be re-checked at the
     side-light session.
 - **The legend marks the threshold applied, named by what set it:** "Otsu 51", or "floor 28" when the
-  floor wins.
+  floor wins. The legend is a grey-lilac panel (the viewport's colour) with its words in the purple (6.79:1), the
+  threshold's name included; the threshold's tick through the colour bar is white (`Theme.CONST_LEGEND_MARK`), which
+  reads across the bar's dark end. *Corrected 2026-10-15:* the threshold's name was white on the panel, 1.35:1, left
+  over from the dark viewport before the brand palette.
 - **Cividis, defined in `Parameters/Theme.py`.** It is held to ΔE ≥ 12 (`CONST_ANNOTATE_MIN_DELTA_E`)
   against the OK and NOK verdict colours (box, ink and fill), the status colours and their text twins, and
   the log and on-dark error colours. Viridis fails that: ΔE 4.2 from the OK ink and 12.0 from `CONST_OK`.
@@ -2839,8 +2842,8 @@ Tests `test/Parameters/test_theme.py` (lightness rises, distinct from the reserv
 `test/Vision/Utilities/test_heatmap.py` (the fixed scale, one value one colour across frames),
 `test/Vision/Utilities/test_segmentation.py::test_the_threshold_applied_is_returned_with_which_one_set_it`,
 `test/Vision/test_core.py::test_the_heatmap_is_the_difference_the_mask_was_thresholded_from`,
-`test/UI/test_camera_view.py` (the painted colours on the fixed scale, the legend's mark and where it
-shows, no boxes, the segment and the remembered choice),
+`test/UI/test_camera_view.py` (the painted colours on the fixed scale, the legend's mark, its labels in the purple and
+where it shows, no boxes, the segment and the remembered choice),
 `test/UI/test_logging_coverage.py::test_the_heatmap_is_never_written_to_the_capture_set`. Each was proven
 by breaking what it names, 14 mutations in all.
 

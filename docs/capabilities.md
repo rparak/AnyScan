@@ -202,7 +202,7 @@ Two cards:
   the neutral grey `#655E6D`, the chip's number white on every chip but Warning's, where it is the purple),
   **Mask** (the label mask: black ground,
   tinted fill, verdict contour; no feature marks), **Heatmap** (the background difference on a fixed 0–128
-  scale, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
+  scale, under a legend naming the threshold applied, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
   never a verdict, on screen only). While the camera connects, a frame is captured or analysed, the view lies
   under its own grey-lilac at 70 %, the frame showing through, with the step in the purple under a pixel icon of
