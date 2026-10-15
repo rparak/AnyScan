@@ -117,8 +117,11 @@ practices followed inconsistently are under **Unsettled**.
 - Every logo is an SVG. A logo supplied only as a raster is traced to a solid SVG, compared with its source by overlay,
   and its file and design-decisions say it is traced, so the official file replaces it when supplied (DD *The band's
   logos are traced SVGs*); ✅ `test/UI/test_funding_band.py`, `test_logo_rendering.py::test_no_logo_is_a_pixmap`.
-- Text that must keep its wording (the EU disclaimer) is never shrunk below 9 pt or clipped to fit: it wraps to the
-  fewest balanced lines, and its height comes from its laid-out lines (DD *The funding band is the poster's*).
+- The EU disclaimer is kept word for word in one place (`Funding_Row_Cls.DISCLAIMER`), carried by the README and the
+  architecture diagram's band, not by the window's band (DD *The funding band carries the project's, the Ministry's
+  and the EU's logos*); ✅ `test/UI/test_funding_band.py`.
+- Decoration (the band's pixel motif) never enters a logo's clear space, at least the EU emblem's protection area,
+  half the flag's height (DD *The funding band carries the brand's pixel motif*); ✅ `test/UI/test_funding_band.py`.
 
 ## Content type comes from the scale; one content, one size ✅ (content) 📄 (chrome)
 

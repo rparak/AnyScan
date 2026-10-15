@@ -3647,45 +3647,73 @@ Tests `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_con
 `test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`, `test/UI/test_text_contrast.py`,
 `test/UI/test_control_contrast.py`.
 
-## The funding band is the poster's: the project's, the Ministry's and the EU's logos in white on the purple
+## The funding band carries the project's, the Ministry's and the EU's logos in white on the purple
 
-The band at the foot of the window (`Widgets.Funding_Row_Cls`) and the architecture diagram's carry the AnyScan
-poster's footer on the solid purple `#640ABA`. In the window it is one row: the EDIH-DIGIMAT wordmark, a rule, the
-Ministry of Industry and Trade's logo, the EU emblem with "Funded by the European Union", a rule and the EU disclaimer
-beside them. The logos are solid white SVGs traced from the white PNGs (*The band's logos are traced SVGs*). The
-rules are white at 20 % (`Theme.CONST_BAND_LINE_ALPHA`), the disclaimer white at 76 % (`CONST_BAND_TEXT_ALPHA`,
-5.72:1), so both stay secondary to the logos. The diagram reads the window's list (`Funding_Row_Cls.LOGOS`) at 1.35×
-and its opacities; its 1200 px leave no room for the disclaimer beside the logos, so there it keeps the poster's
-place, two lines under a rule.
+The band at the foot of the window (`Widgets.Funding_Row_Cls`) is the solid purple `#640ABA` with one centred group of
+logos: the EDIH-DIGIMAT wordmark, a faint vertical rule (white at 20 %, `Theme.CONST_BAND_LINE_ALPHA`), the Ministry of
+Industry and Trade's logo and the EU emblem with "Funded by the European Union". The group is centred as a whole, so
+the rule falls slightly left of the band's middle (81 px at 1920 px): the Ministry's and the EU's logos together are
+wider than the wordmark. The logos are solid white SVGs traced from the white PNGs (*The band's logos are traced
+SVGs*). The rest of the band carries the brand's pixel motif (*The funding band carries the brand's pixel motif*).
 
 Heights: the Ministry's logo and the EU emblem 56 px, the EDIH-DIGIMAT wordmark 24 px. At 56 px the Ministry's
 capitals are 8.2 px, its lion 25 px and the EU's stars 5.5 px at 1x; at the earlier 36/30 px they were 5.3, 16 and
 2.9 px. The EU emblem is at least as tall as every other logo, as the EU's visibility rules ask (it was 30 px against
 the Ministry's 36). The Ministry's lion is white, its field dropped, as Czech ministries show their logo on dark
-grounds; the field with the lion cut out was the alternative shown.
+grounds; the field with the lion cut out was the alternative shown. The band is 90 px, its logos and their padding,
+at every window width.
 
-The disclaimer is kept word for word, at 9 pt (the size hinted at 1x) with a leading of 1.45 em. It takes the width the
-logos leave (`Funding_Row_Cls.Fit_Note`): one line when it fits, otherwise the fewest lines that do, balanced, never
-smaller and never clipped. One line needs a window about 2600 px wide; the station's maximised 1920 px window sets it
-in two lines (766 px wide), the minimum window (1497 px at 96 dpi) in three, 54 px, within the logos' 56. The label
-always reserves those three lines' height (`DISCLAIMER_RESERVED_LINES`), so the band keeps one height while the window
-is resized: 90 px at 96 dpi, set by the logos (it was 140 px at 2x), and 91 px at the tests' 100 dpi, where three lines
-are 57 px. Without the reserve the band grew by a pixel as a narrow window refitted it, shifting the views above it
-between two paints. The label's width is capped, never fixed, so the band never holds the window wider than its
-minimum, and its height is computed from a `QTextDocument` laid out as the label lays it out:
-`QLabel.heightForWidth` kept answering with the height of its first, narrow layout.
+The EU disclaimer is **not** in the window's band. The README carries it word for word (*Funding*), and so does the
+architecture diagram's band, which reads the window's logo list (`Funding_Row_Cls.LOGOS`) at 1.35× and keeps the
+poster's arrangement: the logos, a faint rule and the disclaimer under it in two lines, white at 76 %
+(`CONST_BAND_TEXT_ALPHA`, 5.72:1). The text is kept once, as `Funding_Row_Cls.DISCLAIMER`.
 
 *Corrected 2026-10-14:* earlier the same day this entry was "The application shows the EU emblem alone; the diagram's
 band keeps the project's logos": the window showed the white EU emblem and the disclaimer in one slim row, and a light
 band was to follow with the colour emblem. On the station's screen the owner chose the poster's footer instead.
 *Corrected 2026-10-15:* the band was the PNG logos at 20/36/30 px, solid white rules and the disclaimer in full white
-on one full-width line under a rule; the Ministry's lion was black. The owner chose variant B of three rendered
-(logos 48, 56 or 64 px; rules 28, 20 or 14 %; disclaimer 84, 76 or 70 %), and the disclaimer beside the logos.
+on one full-width line under a rule; the Ministry's lion was black. The owner chose variant B of three rendered (logos
+48, 56 or 64 px; rules 28, 20 or 14 %; disclaimer 84, 76 or 70 %). For a few hours that day the disclaimer sat beside
+the logos in the fewest balanced lines that fit (two at 1920 px, three at the minimum width); the owner then removed it
+from the window's band, kept it in the README and the diagram, centred the logo group and gave the band the pixel
+motif. This entry was titled "The funding band is the poster's: …".
 
-**Revisit if** the funding or its publicity rules change, official vector logos are supplied, or the window's minimum
-width shrinks below what three lines need beside the logos.
+**Revisit if** the funding or its publicity rules change (the disclaimer may be required on screen), or official
+vector logos are supplied.
 Tests `test/UI/test_funding_band.py`,
 `test/UI/test_brand_figures.py::test_the_diagram_is_self_contained_and_carries_every_logo`.
+
+## The funding band carries the brand's pixel motif
+
+The band's free space carries the JIC Smart Factory brand's pixel motif: small white squares on a square grid, whole
+cells filled singly or in short runs, densest at the band's two ends and thinning towards the logos
+(`UI.Utilities.Pixel_Motif.Motif_Cells`, drawn by `Funding_Row_Cls.paintEvent`). It is decorative only: it carries no
+information, and nothing reads it.
+
+From the sources, measured. The style guide's posters (`design/JIC_SMART-FACTORY_V01.pdf`, the EDIH-DIGIMAT page) fill
+whole cells of a grid 12 cells across the format, tone on tone, 28 % of the cells, mostly singly, some in runs of 2–4.
+The AnyScan poster (`design/Poster AnyScan/AnyScan poster-selection-1.pdf`) has one cluster in its top-right corner:
+cells of 36 pt, anchored to the corner, 10 of 6 × 4 filled, in two periwinkle tints, thinning away from the corner.
+
+In the band: cells of 15 px (the band's 90 px are six), each half a grid anchored to its own end, so a resize adds or
+removes squares next to the logos and never reshuffles the pattern. A cell at an end is filled with a chance of 30 %,
+falling linearly to nothing 16 cells in, by a fixed hash of its row and column (the same on every machine); 40 % of the
+squares are in the stronger of two tints. The tints are white at 7 % and 12 % (`MOTIF_ALPHA`), tone on tone like the
+guide's. The owner chose this, variant A, over B (42 %, the poster's share, thinning over 24 cells, white at 10 % and
+18 %): 33 squares at both 1920 px and the minimum width, against 66 and 58.
+
+No square comes within 28 px of a logo (`CLEAR_SPACE`): the EU emblem's protection area, which "must remain free of
+competing texts, logos, images or any other visual element", drawn in the EU's rules as a distance X around the emblem
+and its statement, measured there as half the flag's height ("The use of the EU emblem in the context of EU programmes
+2021-2027", p. 9), here half of the 56 px flag. It is kept around every logo, not only the EU's. At the window's widths
+the motif thins out before it reaches that far (the nearest square is 312 px from a logo at 1920 px, 100 px at the
+minimum width, 1497 px at 96 dpi), so the clear space binds
+only on a band narrower than the window allows; the test checks one at 1100 px.
+
+**Revisit if** the band's height or the logo heights change (the cell is a sixth of the band; the clear space half the
+EU flag), or the brand's guide redraws the motif.
+Tests `test/UI/test_funding_band.py::test_the_motif_is_faint_squares_at_both_ends_clear_of_every_logo`,
+`test/UI/test_pixel_motif.py`.
 
 ## The band's logos are traced SVGs, not official files
 

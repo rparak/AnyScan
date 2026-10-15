@@ -29,8 +29,8 @@ import re
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QByteArray, pyqtSignal
-from PyQt5.QtGui import (QColor, QFont, QFontInfo, QFontMetrics, QFontMetricsF, QImage, QPainter, QPainterPath, QPen,
-                         QPixmap, QPaintEvent, QResizeEvent, QTextDocument)
+from PyQt5.QtGui import (QColor, QFont, QFontMetrics, QFontMetricsF, QImage, QPainter, QPainterPath, QPen,
+                         QPixmap, QPaintEvent)
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup,
                              QVBoxLayout, QHBoxLayout, QSizePolicy, QApplication)
@@ -41,6 +41,9 @@ from UI.Utilities.Style import Font, Hairline
 # Custom Lib.: AnyScan UI — a logo's mark grid-fitted for a 1x display (Qt-free)
 #   ../UI/Utilities/Grid_Fit
 from UI.Utilities.Grid_Fit import Fit_Svg
+# Custom Lib.: AnyScan UI — the brand's pixel motif for the funding band (Qt-free)
+#   ../UI/Utilities/Pixel_Motif
+from UI.Utilities.Pixel_Motif import Motif_Cells
 # Custom Lib.: AnyScan domain — the confidence thresholds the object list colours numbers by
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str, Heatmap_Str
@@ -1490,18 +1493,16 @@ class Logo_Lockup_Cls(QWidget):
 class Funding_Row_Cls(Card_Cls):
     """
     Description:
-        The project and funding obligation, as part of the product, as on the AnyScan poster's footer: a solid purple
-        band carrying, in one row, the EDIH-DIGIMAT wordmark, a rule, the Ministry of Industry and Trade's logo, the
-        EU emblem with "Funded by the European Union", a rule and the EU disclaimer. The logos are solid white SVGs
-        traced from the white PNGs (no official vector files exist; docs/design-decisions.md, "The band's logos are
-        traced SVGs"), rendered as vectors at paint time; the Ministry's lion is white without its field, as Czech
-        ministries show their logo on dark grounds. The Ministry's and the EU's logos share one height, so the EU
-        emblem is at least the size of the biggest other logo, as the EU's visibility rules ask, and their small parts
-        read at 1x (the lion, the stars, the Ministry's capitals). The rules and the disclaimer are white at an
-        opacity, so they stay secondary to the logos. The disclaimer, never below 9 pt and never clipped, takes the
-        width the logos leave: on one line when it fits, otherwise in the fewest balanced lines that do (Fit_Note).
-        Its box reserves the height of the lines it takes at the window's minimum width, so the band, as tall as its
-        logos or that, keeps one height while the window is resized.
+        The project and funding obligation, as part of the product: a solid purple band with its logos centred as one
+        group, the EDIH-DIGIMAT wordmark, a faint vertical rule, and the Ministry of Industry and Trade's logo with the
+        EU emblem and "Funded by the European Union". The logos are solid white SVGs traced
+        from the white PNGs (no official vector files exist; docs/design-decisions.md, "The band's logos are traced
+        SVGs"), rendered as vectors at paint time; the Ministry's lion is white without its field, as Czech ministries
+        show their logo on dark grounds. The EU emblem is as tall as the Ministry's logo, so it is at least the size of
+        the biggest other logo, as the EU's visibility rules ask. The rest of the band carries the brand's pixel motif
+        (UI.Utilities.Pixel_Motif), white squares at a low opacity, decorative only, clustered at the band's two ends;
+        no square comes within the EU emblem's protection area of any logo (CLEAR_SPACE). The EU disclaimer is not in
+        the window's band: the README and the architecture diagram's band carry it (DISCLAIMER).
     """
 
     LOGOS = [
@@ -1511,6 +1512,8 @@ class Funding_Row_Cls(Card_Cls):
         ('funder-eu-white.svg', 56),
     ]
 
+    # The EU disclaimer, word for word, as the architecture diagram's band and the README carry it.
+    #   Unit [string]
     DISCLAIMER = (
         'Funded by the European Union. Views and opinions expressed are however those '
         'of the author(s) only and do not necessarily reflect those of the European '
@@ -1518,17 +1521,22 @@ class Funding_Row_Cls(Card_Cls):
         'authority can be held responsible for them.'
     )
 
-    # The disclaimer's type: its size and its line height, in multiples of the font's size.
-    #   Unit [pt], [em]
-    DISCLAIMER_SIZE = 9.0
-    DISCLAIMER_LEADING = 1.45
-    # The lines the disclaimer's box always reserves: the most it takes at the window's minimum width, so the band's
-    # height does not change while the window is resized (it would shift the views above it by a pixel or two).
-    #   Unit [int]
-    DISCLAIMER_RESERVED_LINES = 3
-    # The vertical rules' length, as a share of the tallest logo.
+    # The vertical rule's length, as a share of the tallest logo.
     #   Unit [ratio]
     DIVIDER_SHARE = 0.75
+    # The clear space kept free of squares around every logo: the EU emblem's protection area, half the flag's height
+    # ("The use of the EU emblem in the context of EU programmes 2021-2027", Protection area), the flag being as tall as
+    # the EU logo.
+    #   Unit [px]
+    CLEAR_SPACE = 28
+    # The motif: the cell's side (the band's 90 px are six cells), the chance a cell at the band's end is filled, how
+    # many cells in it thins to nothing, the share of squares in the stronger tint, and the two tints' opacities.
+    #   Unit [px], [0..1], [cells], [0..1], [0..1]
+    MOTIF_CELL = 15
+    MOTIF_FILL = 0.30
+    MOTIF_REACH = 16
+    MOTIF_STRONG = 0.4
+    MOTIF_ALPHA = (0.07, 0.12)
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(padding=16, parent=parent)
@@ -1539,6 +1547,8 @@ class Funding_Row_Cls(Card_Cls):
         )
         line = Style.Token_Css(Style.CONST_BAND_LINE, Style.CONST_BAND_LINE_ALPHA)
         rule = int(round(self.DIVIDER_SHARE * max(height for _, height in self.LOGOS)))
+        # The whole group centred (stretch on both sides); the rule falls where it falls in it, slightly left of the
+        # band's middle, as the Ministry's and the EU's logos together are wider than the EDIH-DIGIMAT wordmark.
         row = QHBoxLayout()
         row.setSpacing(Style.CONST_MARK_GAP)
         row.addStretch(1)
@@ -1548,102 +1558,27 @@ class Funding_Row_Cls(Card_Cls):
                 continue
             # The traced outlines are curves: nothing in them is grid-fitted (mark_right 0).
             row.addWidget(Svg_Image_Cls(name, height, 0.0))
-        row.addWidget(Hairline(vertical=True, length=rule, color=line))
-
-        # Qt's proportional line height is a share of the font's own line spacing (1.5 em for Public Sans), not of
-        # its size, so the leading in em is converted.
-        font = Font(self.DISCLAIMER_SIZE)
-        leading = self.DISCLAIMER_LEADING * QFontInfo(font).pixelSize() / QFontMetricsF(font).lineSpacing()
-        self.__html = '<div style="line-height: %d%%;">%s</div>' % (int(round(100 * leading)), self.DISCLAIMER)
-        self.note = QLabel()
-        self.note.setObjectName('fundingNote')
-        self.note.setTextFormat(Qt.RichText)
-        self.note.setText(self.__html)
-        self.note.setFont(font)
-        self.note.setWordWrap(True)
-        self.note.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.note.setStyleSheet('color: %s;' % Style.Token_Css(Style.CONST_BAND_TEXT, Style.CONST_BAND_TEXT_ALPHA))
-        # Its width is capped by Fit_Note, never set by its text: the band must not hold the window wider than its
-        # minimum. Its stretch outweighs the side stretches', so it takes the free width up to that cap and the
-        # stretches share only what is left, keeping the row centred.
-        self.note.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
-        self.note.setMinimumWidth(1)
-        row.addWidget(self.note, 1000)
         row.addStretch(1)
         self.box.addLayout(row)
 
-        # << PRIVATE >> #
-        self.__row = row
-        self.__reserved = self.__Layout(1 << 16, '<br>'.join(['x'] * self.DISCLAIMER_RESERVED_LINES))[1]
-        # Fitted first as if on one line: a fit at the unshown widget's default width would ask for many lines, and
-        # the window, sized to that, would not shrink back. The first resize fits it to the band's real width.
-        self.Fit_Note(1 << 16)
-
-    def __Layout(self, width: int, text: tp.Optional[str] = None) -> tp.Tuple[int, int]:
-        """
-        Description:
-            The disclaimer laid out at a width, as the label lays it out: the number of lines it breaks into and the
-            height they take. QLabel.heightForWidth is not used: once the label has been laid out narrow, it keeps
-            answering with that height.
-
-        Args:
-            (1) width [int]: The text's width, in logical pixels.
-            (2) text [string]: Other text set in the disclaimer's style (rich text), or None for the disclaimer.
-
-        Returns:
-            (1) parameter [Tuple<int, int>]: The line count and the height, in logical pixels.
-        """
-
-        document = QTextDocument()
-        document.setDocumentMargin(0)
-        document.setDefaultFont(self.note.font())
-        document.setHtml(self.__html if text is None else self.__html.replace(self.DISCLAIMER, text))
-        document.setTextWidth(width)
-        height = int(math.ceil(document.size().height()))  # lays the document out, so its lines can be counted
-        block, lines = document.begin(), 0
-        while block.isValid():
-            lines += block.layout().lineCount()
-            block = block.next()
-        return lines, height
-
-    def Fit_Note(self, band_width: int) -> None:
-        """
-        Description:
-            Fit the disclaimer into the width the logos leave in a band of a width: on one line when it fits, otherwise
-            in the fewest lines that do, each as wide as the text's run over that many lines (balanced, not a long
-            line and a short one); then fix its height to its lines, so it is never clipped.
-
-        Args:
-            (1) band_width [int]: The band's width, in logical pixels.
-        """
-
-        left, _, right, _ = self.box.getContentsMargins()
-        others = [self.__row.itemAt(i).widget() for i in range(self.__row.count())]
-        others = [w for w in others if w is not None and w is not self.note]
-        available = band_width - left - right - sum(w.width() for w in others) - self.__row.spacing() * len(others)
-        available = max(1, available)
-        run = int(math.ceil(QFontMetricsF(self.note.font()).horizontalAdvance(self.DISCLAIMER)))
-        lines = 1
-        while True:
-            width = min(available, int(math.ceil(run / lines)))
-            while width < available and self.__Layout(width)[0] > lines:
-                width = min(available, width + 4)
-            if self.__Layout(width)[0] <= lines or width <= 1:
-                break
-            lines += 1
-        self.note.setMaximumWidth(width)
-        self.note.setFixedHeight(max(self.__Layout(width)[1], self.__reserved))
-
     # << QT OVERRIDE >> #
-    def resizeEvent(self, event: QResizeEvent) -> None:
+    def paintEvent(self, event: QPaintEvent) -> None:
         """
         Description:
-            Re-fit the disclaimer to the band's new width.
+            Paint the purple band, then the pixel motif on it, clear of every logo by CLEAR_SPACE.
 
         Args:
-            (1) event [QResizeEvent(object)]: The resize event.
+            (1) event [QPaintEvent(object)]: The paint event.
         """
 
-        super().resizeEvent(event)
-        if event.size().width() != event.oldSize().width():
-            self.Fit_Note(event.size().width())
+        super().paintEvent(event)
+        keep_out = []
+        for logo in self.findChildren(Svg_Image_Cls):
+            left = logo.mapTo(self, QPoint(0, 0)).x()
+            keep_out.append((left - self.CLEAR_SPACE, left + logo.width() + self.CLEAR_SPACE))
+        painter = QPainter(self)
+        colors = [Style.Token_Color(Style.CONST_BAND_LINE, alpha) for alpha in self.MOTIF_ALPHA]
+        for x, y, strong in Motif_Cells(self.width(), self.height(), self.MOTIF_CELL, self.MOTIF_FILL,
+                                        self.MOTIF_REACH, self.MOTIF_STRONG, keep_out):
+            painter.fillRect(x, y, self.MOTIF_CELL, self.MOTIF_CELL, colors[1 if strong else 0])
+        painter.end()

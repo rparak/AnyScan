@@ -625,6 +625,15 @@ Both hardware-facing parts sit behind an interface, so a replacement touches one
   composer (`src/Reporting/Core.py`), so swapping the model never changes how
   the console talks.
 
+## Funding
+
+AnyScan was built at JIC within the EDIH-DIGIMAT project. The application's footer carries the project's, the
+Ministry of Industry and Trade's and the EU's logos.
+
+Funded by the European Union. Views and opinions expressed are however those of the author(s) only and do not
+necessarily reflect those of the European Union or European Commission. Neither the European Union nor the granting
+authority can be held responsible for them.
+
 ## Licence note
 
 The models are presented as the configuration's model set (`Identity.Model_Set`, shipped as

@@ -89,12 +89,13 @@ CONST_GRAPHIC_FLOOR = 3.0
 #   Unit [string]
 CONST_DOT = '●'
 # One text of every style the 2026-09-29 audit flagged that is a label or painted text, so the walk is
-# known to have reached each of them (docs/design-decisions.md, "Text clears 4.5:1 ...").
+# known to have reached each of them (docs/design-decisions.md, "Text clears 4.5:1 ..."). The funding band's
+# disclaimer left the window on 2026-10-15 (its band carries logos only).
 #   Unit [Tuple<string>]
 CONST_FLAGGED_TEXTS = (
     'Configuration not loaded.', 'Loading configuration', 'Configuration loaded.', 'Camera offline', 'Camera live',
     'No frame', 'Idle', 'Connect a camera and scan a frame', 'CAMERA', 'Disconnected', 'Models not loaded',
-    'Connected', 'Ready', 'Funded by the European Union', 'Cumulative objects', 'No analyses in this run yet.',
+    'Connected', 'Ready', 'Cumulative objects', 'No analyses in this run yet.',
     'Rolling window', 'No captures in this run yet.', 'Select a capture set.', 'lines', 'Connection sessionA',
     '10:00:00', 'objects', 'Annotated', 'Mask', 'ANALYSIS\nFAILED', 'found by background subtraction',
     'Note from the composer.')

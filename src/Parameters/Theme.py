@@ -138,14 +138,14 @@ CONST_STATUS_TEXT_COLORS = {CONST_OK: CONST_OK_INK, CONST_WARN: CONST_WARN_INK}
 CONST_VIEWPORT      = '#E1DCE6'
 CONST_VIEWPORT_TEXT = CONST_INK
 
-# The funding band (at the foot of the window, and the architecture diagram's band, as on the poster's footer): the
-# purple, carrying the white institutional logos, white rules and the disclaimer in white (9.15:1).
+# The funding band (at the foot of the window, and the architecture diagram's band): the purple, carrying the white
+# institutional logos, white rules, the window's pixel motif in white, and the diagram's disclaimer in white (9.15:1).
 #   Unit [string] (hex colour)
 CONST_BAND          = CONST_INK
 CONST_BAND_LINE     = '#FFFFFF'
 CONST_BAND_TEXT     = '#FFFFFF'
-# The band's rules and its disclaimer are white at an opacity, so the rules are a whisper and the disclaimer stays
-# secondary to the logos (the logos are solid white).
+# The band's rules and the diagram's disclaimer are white at an opacity, so the rules are a whisper and the
+# disclaimer stays secondary to the logos (the logos are solid white).
 #   Unit [float] (0..1)
 CONST_BAND_LINE_ALPHA = 0.20
 CONST_BAND_TEXT_ALPHA = 0.76
