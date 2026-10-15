@@ -541,3 +541,17 @@ capture `20261015-143622_s1`, object 3: a back with no holes, NOK, no hole mark.
   the next right one. It can be revisited once more rig captures give the margins on more plates.
 - **Pinned by:** `test/Vision/Utilities/test_holes.py::test_a_side_with_no_hole_found_places_none_since_its_end_cannot_be_told`,
   `test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note`.
+
+## Four UI tests fail when the suite is run at DPR 2
+
+Run with `QT_SCALE_FACTOR=2`, `test/UI/test_brand_figures.py::test_the_wordmark_and_the_mark_are_the_logos_own`
+("the wordmark draws where the logo's tagline is") and the three cases of
+`test/UI/test_funding_band.py::test_the_motif_is_faint_squares_at_both_ends_clear_of_every_logo` (a white pixel
+where the motif's purple square is expected) fail. They fail identically on unchanged main (`870a53c`, measured
+2026-10-15); the default run is at DPR 1, where they pass, and the DPR 2 checks that exist run on 2×2 blocks.
+
+- **Impact:** none on the DPR 1 run or the station; a DPR 2 run of the whole suite is red.
+- **Not fixed here:** recorded on the way, without its cause measured; the tests read pixels at fixed positions,
+  which may be what does not scale.
+- **Pinned by:** nothing yet.
+
