@@ -198,10 +198,10 @@ Two cards:
   only dashed feature marks); a stain as its box with its pixels tinted; each feature numbered on a smaller chip
   (`3.1`, the number of its `Part` line in the Log) on the corner of its box nearest the object's chip, turned with
   that box and never more than 45° off level, never over another chip; each object's box and chip are its state's
-  colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified and every object of a detect-only mode
-  the neutral grey `#655E6D`, the chip's number white on every chip but Warning's, where it is the purple; a missing
-  hole is placed by the holes found, a countersink's through-hole by the countersink, and a countersink around its
-  through-hole, found or placed),
+  colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified the neutral grey `#655E6D`, and every
+  object of a detect-only mode (Segment Anything) the logo purple `#640ABA`; the chip's number is plain
+  white on every chip, in every state and mode; a missing hole is placed by the holes found, a countersink's
+  through-hole by the countersink, and a countersink around its through-hole, found or placed),
   **Mask** (the label mask: black ground,
   tinted fill, verdict contour; no feature marks), **Heatmap** (the background difference on a fixed 0–128
   scale, under a legend naming the threshold applied, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
@@ -434,7 +434,7 @@ Each row names its evidence. A row with none is not verified.
 | Catalogue stain check on the test set | Off-hardware: the five fingerprinted fronts caught, each as its two fingerprints (two regions, largest 149–158 mm²), every clean front clean | the same test; `test/Vision/Utilities/test_stain.py` |
 | Describer told the findings, guarded | Off-hardware, Gemma 4 E4B on 24 judged parts: every contradiction it wrote dropped and logged, no digit | [design-decisions](design-decisions.md#the-describer-is-told-what-the-checks-found-never-a-number-and-its-contradictions-are-dropped-and-logged) |
 | Feature marks on the frame | Off-hardware: rendered and looked at on a front, the dark back and a stained front (Image_055, 056, 080), a synthetic missing hole, synthetic plates turned 135°, 215° and 260°, a synthetic concentric pair at the tolerance limits, and the Camera View at 0.45 scale; not looked at on the rig's screen | `test/Vision/Utilities/test_annotate.py::test_a_chip_sits_outside_its_box_on_the_corner_nearest_the_objects_chip_and_reads_near_level`, `test/integration/test_pipeline.py::test_each_stained_front_shows_its_two_fingerprints_as_two_stains` |
-| Missing-hole marks | Off-hardware, 2026-10-15: rendered and looked at on capture `20261015-143622_s1` (a back with no holes keeps no mark and says why) and on its front with found holes dropped (SYNTHETIC: one stepped hole, both bores); not looked at on the rig's screen | `test/Vision/Utilities/test_holes.py::test_through_holes_missing_under_found_countersinks_are_placed_at_their_centres`, `test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note` |
+| Missing-hole marks, white chip numerals, the detect-only purple | Off-hardware, 2026-10-15: rendered and looked at on capture `20261015-143622_s1` (a Warning terminal block, a stained front, a back with no holes) in both modes, and on its front with found holes dropped (SYNTHETIC: one stepped hole, both bores); the back with no holes keeps no mark and says why; not looked at on the rig's screen | `test/Vision/Utilities/test_holes.py::test_through_holes_missing_under_found_countersinks_are_placed_at_their_centres`, `test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note`, `test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_a_white_numeral` |
 | Catalogue hole check on the test set | Off-hardware: every mounting-plate hole within tolerance | `test/integration/test_pipeline.py::test_every_mounting_plate_shows_all_its_holes_within_tolerance` |
 | Defect detection | **Not built** | README > Limitations |
 

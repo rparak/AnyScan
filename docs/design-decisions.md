@@ -369,9 +369,9 @@ deliberate, shippable state — the config is ready for a classifier that does n
 **Enabled** shows verdict state: the Captures OK/NOK filter, verdict colours on annotations, and
 the verdict per object wherever object detail is shown. **Disabled** removes all of it — the
 filter is not there (removed, not disabled, so nothing on screen implies a feature this
-configuration lacks), objects are annotated in a single neutral colour (`Theme.Detection_Color`,
-a distinct token from the verdict colours — 'detected, not judged'), and the UI speaks only of
-detected objects.
+configuration lacks), objects are annotated in a single colour (`Theme.Detection_Color`; since
+2026-10-15 the logo purple, which equals the OK colour and is accepted because no verdict is shown,
+*Every chip carries a white numeral*), and the UI speaks only of detected objects.
 
 The flag is read **once**, through the one configuration layer
 (`Camera.Utilities.Configuration.Read_Classification_Enabled`), with the single default living in
@@ -3602,7 +3602,8 @@ Tests `test/UI/test_square_corners.py::test_no_ui_corner_is_rounded`, `::test_no
 The console, the frame's marks and the architecture diagram take their colours from the JIC Smart Factory guide
 (`Parameters/Theme.py`): the purple `#640ABA` for all text, outlines, the selected segment and the OK verdict; the
 grey-lilac `#E1DCE6` for rules, the control hover, the viewport and the neutral's word ground; its text twin `#655E6D`
-for the neutral (Unspecified, detect-only); the
+for the neutral (Unspecified; since 2026-10-15 the detect-only box is the logo purple, *Every chip carries a white
+numeral*); the
 periwinkle `#C2C9FF` for a pressed button, the scroll handle and the OK verdict's word ground; and from the wider
 JIC palette in the same guide the orange-red `#FF6540` (NOK), the amber `#FFC226` (Warning) and the green
 `#3DBE4C` (system health only). One purple: the owner dropped the poster's dark purple `#2D0557` everywhere, the
@@ -3611,9 +3612,9 @@ for words are derived in each colour's hue at L\* 41 (6.2:1 on white, 4.6:1 on t
 `#FFEF85` is decoration and is no token.
 
 - **On the frame.** OK is the purple, as the poster marks a detected part; NOK the orange-red, as it marks a defect;
-  Warning the amber; Unspecified and every object of a detect-only mode the neutral `#655E6D`. A chip is filled with
-  its box's colour, as on the poster, with a white numeral on every chip but Warning's, where it is the purple
-  (*Every chip carries a white numeral, but Warning's*). The box stays the
+  Warning the amber; Unspecified the neutral `#655E6D`; every object of a detect-only mode the logo purple `#640ABA`.
+  A chip is filled with its box's colour, as on the poster, with a plain white numeral on every chip (*Every chip
+  carries a white numeral*). The box stays the
   dashed axis-aligned box around the solid rotated outline of a measured part; corner brackets (the AnyScan mark's
   motif) were rendered and not chosen.
 - **Words on a verdict.** The badge and the diagram's verdict labels set the purple on the verdict's ground where it
@@ -3653,53 +3654,60 @@ rust-stained metal `#999298` (61), a stain `#786354` (44).
 **Revisit if** the brand guide changes, the work surface or the parts change (the table above is one table under one
 light), or the owner wants the frame's marks to clear 3:1 on bright metal (the outline is the measured lever).
 Tests `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`,
-`::test_every_chip_numeral_is_white_but_the_recorded_exceptions`, `::test_the_palette_keeps_the_brands_rules`,
+`::test_every_chip_numeral_is_white`, `::test_the_palette_keeps_the_brands_rules`,
 `::test_label_mask_fill_is_a_visible_tint_of_its_box`, `::test_every_catalogue_state_has_its_colour`,
-`test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_its_numeral_colour`,
+`test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_a_white_numeral`,
 `test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`, `test/UI/test_text_contrast.py`,
 `test/UI/test_control_contrast.py`.
 
-## Every chip carries a white numeral, but Warning's
+## Every chip carries a white numeral
 
-A chip on the frame is filled with its box's colour and carries its number in white, in every state and in both
-modes: on the OK purple 9.15:1, on the neutral 6.22:1, on the NOK orange-red 2.92:1. Two exceptions are the owner's,
-recorded and pinned:
+A chip on the frame is filled with its box's colour and carries its number in plain white, in every state and every
+mode, an object's chip and a feature's alike: on the OK purple 9.15:1, on Unspecified's `#655E6D` 6.22:1, on the NOK
+orange-red 2.92:1 and on Warning's amber 1.62:1. The two below 4.5:1 are the owner's accepted exceptions for these
+short bold numerals (NOK since 2026-10-14, Warning since 2026-10-15). No chip has its own numeral colour and none a
+rim (`Theme.CONST_CHIP_NUMERAL`).
 
-- **White on the NOK orange-red, 2.92:1**, below 4.5:1, accepted for these short bold numerals (since 2026-10-14).
-- **The purple on Warning's amber, 5.66:1: the one chip without a white numeral.** The owner kept the JIC amber
-  `#FFC226` for the Warning box and chip because it reads on the frames (4.3:1 on the table, 7.0:1 on the dark
-  plate). White on it is 1.62:1; the owner chose the purple numeral over accepting that.
+**History.** Until 2026-10-15 Warning's chip carried the purple numeral (5.66:1), the one chip without white; the
+owner asked for white everywhere. A white numeral over a 1 px rim in the chip's dark twin (`#7C5B00` on the amber:
+white on it 6.26:1, it on the amber 3.88:1) was built and rendered beside the plain one; the owner chose the plain
+numeral, and the rim was removed. (Building it showed that OpenCV 5.0's `putText` draws every thickness from 2 up
+alike, so a rim has to be grown from the drawn numeral's pixels, not drawn as a wider stroke.)
 
-The neutral (Unspecified, and every object of a detect-only mode such as Segment Anything) moved from the
-grey-lilac `#E1DCE6`, which could carry only a purple numeral (white 1.35:1), to its text twin `#655E6D`, the
-purple's hue at chroma 10 and L\* 41: one colour for the box, the chip, the words on the card and the Trends dot.
-`Theme.Chip_Numeral_Color` returns white for every chip but those in `CONST_CHIP_NUMERAL_EXCEPTIONS`.
+**The detect-only box: the logo purple** (the owner's choice, 2026-10-15). Segment Anything draws every object in
+one box colour, `CONST_DETECTION_BOX = CONST_LOGO_INK` (`#640ABA`), with the plain white numeral (9.15:1). It is the
+OK verdict's colour, accepted because a detect-only mode shows no verdict at all, so nothing there can be read as a
+pass; the neutral stays distinct from the verdicts within a catalogue mode, where Unspecified keeps `#655E6D`
+(`CONST_UNSPECIFIED_BOX`, ΔE 87 / 80 / 95 from OK / NOK / Warning), split off from the token the two had shared. The
+label mask's neutral pair is derived from `#655E6D`, unchanged, in both modes. Measured for the detect-only box
+(capture `20261015-143622_s1`, the table median `#176550`; the metals from *The palette is the JIC Smart Factory
+brand's*; WCAG ratio, ΔE76), each with a plain white numeral:
 
-**Why, measured** (2026-10-15; per-pixel WCAG ratio and ΔE76, medians, on frames 055–080, 41 objects of the
-Mounting Plate mode; colour vision deficiency simulated after Machado, Oliveira and Fernandes, 2009, at full
-severity). Three dark pairs for Warning and the neutral were rendered at 1x in the Camera View before the owner
-chose:
+| Detect-only box | white numeral | table | aluminium | rust-stained | steel |
+|---|---|---|---|---|---|
+| **logo purple `#640ABA` (chosen)** | 9.15 | 1.31, ΔE 120.7 | 3.53, 97.8 | 3.02, 96.8 | 2.32, 97.1 |
+| periwinkle `#C2C9FF` | 1.60 | 4.34, 66.5 | 1.62, 29.1 | 1.89, 32.9 | 2.45, 39.2 |
+| grey-lilac `#E1DCE6` (empty-view grey) | 1.35 | 5.17, 60.6 | 1.92, 22.3 | 2.25, 27.2 | 2.92, 35.0 |
+| `#97929B` (grey, white at 3:1) | 3.04 | 2.29, 40.4 | 1.17, 4.9 | 1.00, 1.8 | 1.29, 8.5 |
+| `#655E6D` (until 2026-10-15) | 6.22 | 1.12, 37.0 | 2.40, 25.6 | 2.05, 21.1 | 1.58, 14.9 |
 
-| Pair (Warning, neutral) | white numeral | NOK–Warning ΔE, protan / deutan |
-|---|---|---|
-| ochre `#A37300`, `#7E7982` | 4.19, 4.25 | 16 / 14 |
-| text twins `#7C5B00`, `#655E6D` | 6.26, 6.22 | 17 / 26 |
-| bronze `#7F4B00`, slate `#5E6A7A` | 7.22, 5.50 | 20 / 30 |
+- The purple reads on the table by hue (1.31:1, ΔE 120.7), as the OK purple does in a catalogue mode, and is the
+  strongest of the five on the metals.
+- The grey-lilac and the periwinkle read best on the table but carry a white numeral at 1.35:1 and 1.60:1; a grey dark
+  enough for white sits at the metal's own lightness (`#97929B`, under the ΔE 12 floor on all three metals).
+- History's set outline for a detect-only set stays the neutral ink `#655E6D`, so a detect-only set and an all-OK set
+  still read differently there.
 
-- No amber dark enough for a white numeral gets far from the NOK orange-red under protanopia: 16–24 across every
-  amber searched, against 47 for the light amber. The light amber's distance is its lightness, which white rules
-  out. This is why the owner kept the amber and took the purple numeral on it.
-- The neutral `#655E6D` reads on the table by hue (1.1:1, ΔE 36), as the OK purple does (1.3:1). Its weak surface is
-  mid-grey metal (ΔE 17), grey on grey, as the grey-lilac's was bright aluminium (ΔE 23). It is ≥ ΔE 80 from OK,
-  NOK and Warning, and ≥ ΔE 50 from them under protanopia and deuteranopia.
-- On the label mask the neutral keeps its derived outline (*The label mask is black ground, tinted fill, verdict
-  contour*), white on its chips (4.1:1).
-
-**Revisit if** the Warning or NOK colour changes (each exception is pinned at its ratio), or the owner wants Warning
-dark enough for white (then the protanopia distance to NOK above is the cost).
-Tests `test/Parameters/test_theme.py::test_every_chip_numeral_is_white_but_the_recorded_exceptions`,
+**Revisit if** a box colour changes (each ratio is pinned), a numeral is misread on the rig's screen, or a detect-only
+frame is mistaken for a judged one.
+Tests `test/Parameters/test_theme.py::test_every_chip_numeral_is_white`,
+`::test_the_detect_only_box_is_the_logo_purple_and_unspecified_keeps_its_own`,
+`::test_neutral_detection_colour_is_distinct_and_near_achromatic` (Unspecified, within a catalogue mode),
+`test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`,
 `::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline`, `::test_the_palette_keeps_the_brands_rules`,
-`test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_its_numeral_colour`.
+`test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_a_white_numeral`,
+`test/UI/test_history.py::test_detect_only_sets_have_no_filter_and_a_neutral_outline` (History's set outline stays the
+ink `#655E6D`).
 
 ## The funding band carries the project's, the Ministry's and the EU's logos in white on the purple
 

@@ -1201,7 +1201,9 @@ class History_View_Cls(QWidget):
             current config): the muted tone for a partial set; the colour of its worst verdict
             (Capture_Set_Str.Worst_State) for a set written WITH classification; and the neutral
             detection colour for a set written WITHOUT — so a verdict-coloured set and a
-            detect-only set read differently, matching their baked-in image colours.
+            detect-only set read differently, matching their baked-in image colours. The neutral is
+            its ink (#655E6D): the detect-only box is the viewport's own grey-lilac, which would not
+            show against it.
 
         Args:
             (1) cap [Capture_Set_Str(object)]: The set.
@@ -1214,7 +1216,7 @@ class History_View_Cls(QWidget):
             return Style.CONST_INK_MUTE
         if cap.Classification:
             return Verdict_Color(cap.Worst_State())[0]
-        return Detection_Color()[0]
+        return Detection_Color()[1]
 
     # << QT OVERRIDE >> #
     def keyPressEvent(self, event: tp.Any) -> None:

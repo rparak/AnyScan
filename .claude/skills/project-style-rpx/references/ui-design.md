@@ -27,25 +27,28 @@ practices followed inconsistently are under **Unsettled**.
 
 - The verdict colours are fixed tokens from the JIC Smart Factory palette: OK the purple `#640ABA`, NOK the
   orange-red `#FF6540` (DD *The fail marker is the JIC orange-red*), Warning the amber `#FFC226`, Unspecified
-  the neutral `#655E6D`. A detect-only run draws that one neutral colour, distinct in hue from OK (DD
-  *Classification is a per-configuration switch*). One purple: no darker shade of it exists in the theme (DD
+  the neutral `#655E6D`, distinct from OK, NOK and Warning (ΔE ≥ 80): within a catalogue mode the neutral never
+  shares a verdict's colour. A detect-only run (Segment Anything) draws every object in one colour, the logo purple
+  `#640ABA` (`CONST_DETECTION_BOX = CONST_LOGO_INK`, white numeral 9.15:1; table 1.31:1 at ΔE 121, aluminium 3.53:1,
+  rust-stained metal 3.02:1, steel 2.32:1). It equals OK, the owner's ruling of 2026-10-15: that mode shows no verdict
+  (DD *Every chip carries a white numeral*). One purple: no darker shade of it exists in the theme (DD
   *The palette is the JIC Smart Factory brand's*).
 - The box, the chip and the mask outline are drawn in the verdict colour itself, unshifted, on any
   background. A colour is never lightened, darkened or rotated to gain contrast against a frame.
-- Legibility comes from the foreground: a chip is its box's colour and its numeral is
-  `Theme.Chip_Numeral_Color`'s — white on every chip but Warning's amber, where it is the purple. White on the NOK
-  orange-red (2.92:1) is the owner's one recorded exception to 4.5:1, and the purple on Warning the one exception to
-  white (DD *Every chip carries a white numeral, but Warning's*). There is no casing or outline around a
-  chip or a mark (the owner's ruling, kept after an outline was measured).
+- Legibility comes from the foreground: a chip is its box's colour and its numeral is plain white
+  (`Theme.CONST_CHIP_NUMERAL`) on every chip, in every state and mode. White on the NOK orange-red (2.92:1) and on
+  Warning's amber (1.62:1) are the owner's recorded exceptions to 4.5:1 (DD *Every chip carries a white numeral*).
+  There is no casing or outline around a chip, a mark or a numeral (the owner's ruling, kept after an outline and a
+  numeral rim were measured).
 - Words on a verdict (the badge, the diagram's labels) are the purple on `Theme.Label_Ground`: the verdict's
   colour where the purple clears 4.5:1 on it, the poster's tint of it otherwise.
 - The label-mask fill is a tint that keeps its box's hue (within 5°, at ≥ 40 % of its chroma), so the
   silhouette and its outline read as one object (DD *The label mask is black ground, tinted fill,
   verdict contour*).
 - ✅ `test/Vision/Utilities/test_annotate.py::test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour`,
-  `::test_each_chip_is_its_box_colour_with_its_numeral_colour`,
+  `::test_each_chip_is_its_box_colour_with_a_white_numeral`,
   `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box`,
-  `::test_verdict_colour_comes_from_the_one_constant`, `::test_every_chip_numeral_is_white_but_the_recorded_exceptions`,
+  `::test_verdict_colour_comes_from_the_one_constant`, `::test_every_chip_numeral_is_white`,
   `::test_the_palette_keeps_the_brands_rules`.
 
 ## Severity is never carried by colour alone ✅
@@ -58,7 +61,9 @@ practices followed inconsistently are under **Unsettled**.
 - Detect-only versus classified is carried by wording as well as colour: a detect-only run shows no
   OK / NOK words at all, only detected objects.
 - ✅ `test/UI/test_log_view.py::test_level_field_weight_ramps_with_severity`,
-  `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`.
+  `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`,
+  `test/Parameters/test_theme.py::test_the_detect_only_box_is_the_logo_purple_and_unspecified_keeps_its_own`,
+  `::test_neutral_detection_colour_is_distinct_and_near_achromatic`.
 
 ## Controls: every state clears 4.5:1, measured; disabled speaks through its fill ✅
 

@@ -244,29 +244,34 @@ CONST_OK_LABEL_GROUND = '#C2C9FF'
 CONST_NOK_LABEL_GROUND = '#FFD9D0'
 CONST_DETECTION_LABEL_GROUND = '#E1DCE6'
 
-# The numeral on a chip on the frame (an object's and a feature's), filled with its verdict's box as on the poster:
-# white, in every state and both modes (docs/design-decisions.md, "Every chip carries a white numeral, but
-# Warning's"): on the purple 9.15:1, on the neutral 6.22:1, and on the orange-red 2.92:1, the owner's deliberate
-# exception for these short bold numerals. Warning's amber is too light for white (1.62:1) and is kept for how it
-# reads on the frames, so its chip alone keeps the purple numeral (5.66:1): CONST_CHIP_NUMERAL_EXCEPTIONS, keyed by
-# the chip's colour.
-#   Unit [string] (hex colour) / [Dict<string, string>] (chip colour -> numeral colour)
+# The numeral on a chip on the frame (an object's and a feature's), filled with its box as on the poster: white, plain,
+# on every chip, in every state and every mode (docs/design-decisions.md, "Every chip carries a white numeral"): on the
+# purple 9.15:1, on Unspecified's #655E6D 6.22:1, on the orange-red 2.92:1 and on Warning's amber 1.62:1, the owner's
+# accepted exceptions for these short bold numerals.
+#   Unit [string] (hex colour)
 CONST_CHIP_NUMERAL = '#FFFFFF'
-CONST_CHIP_NUMERAL_EXCEPTIONS = {CONST_WARNING_BOX: CONST_INK}
 
-# The NEUTRAL object colour, used when a configuration only DETECTS and does not classify
-# (Configuration_Str.Classifies is false: it is not a catalogue mode), and for Unspecified: every object is drawn in
-# this one colour, because there is no pass/fail to encode. It is the grey-lilac's text twin, the purple's hue at
-# chroma 10 and L* 41, one colour for the box, the chip, its words on the white card (6.22:1) and Trends: dark
-# enough to carry the chip's white numeral (6.22:1), near-achromatic, far from the purple OK (ΔE 87), the NOK
-# (ΔE 80) and Warning (ΔE 95), so a judged set and an unjudged one never share a hue. Drawn into the frame, it is
-# measured against the real surfaces at the project's distinctness floor (ΔE 12): ΔE 17 against mid-grey metal (its
-# worst case, grey on grey), 28 against bright aluminium, 24 against the dark plate, 36 against the table. It
-# replaced the grey-lilac #E1DCE6 itself (2026-10-15), which could carry only a purple numeral (1.35:1 for white).
+# The NEUTRAL colours: no pass/fail to encode. Two boxes, one ink:
 #
-# THE LABEL MASK USES ITS OWN, DERIVED NEUTRAL PAIR — outline and fill — not this box: on the mask the outline sits on
-# the fill and on black, and this box is 3.4:1 on black, under the mask's 4.5:1 floor. Neutral_Mask_Colors derives
-# the pair in this box's own hue and chroma:
+#   CONST_DETECTION_BOX — every object's box and chip when a configuration only DETECTS and does not classify
+#   (Configuration_Str.Classifies is false, as in Segment Anything): the logo purple, the owner's choice of 2026-10-15
+#   over #655E6D, which all but vanished on the green table (1.12:1, capture 20261015-143622_s1, table median #176550).
+#   It is the OK verdict's colour, accepted because a detect-only mode shows no verdict at all; the requirement that
+#   the neutral be distinct from the verdicts holds within a catalogue mode, for Unspecified. Measured: white numeral
+#   9.15:1; table 1.31:1 (ΔE 120.7, it reads by hue), aluminium 3.53:1, rust-stained metal 3.02:1, steel 2.32:1.
+#
+#   CONST_UNSPECIFIED_BOX — Unspecified in a catalogue mode (probably several parts, not judged): the ink itself,
+#   unchanged, distinct from OK, NOK and Warning (ΔE 87, 80, 95) and dark enough for a plain white numeral (6.22:1).
+#
+#   CONST_DETECTION_INK — the neutral's words on the white card (6.22:1) and the Trends dot: the grey-lilac's text
+#   twin, the purple's hue at chroma 10 and L* 41, near-achromatic, far from the purple OK (ΔE 87), the NOK (ΔE 80)
+#   and Warning (ΔE 95), so a judged set and an unjudged one never share a hue. Drawn into the frame (as Unspecified),
+#   it is ΔE 17 from mid-grey metal (its worst case, grey on grey), 28 from bright aluminium, 24 from the dark plate,
+#   36 from the table.
+#
+# THE LABEL MASK USES ITS OWN, DERIVED NEUTRAL PAIR — outline and fill — not a frame box: on the mask the outline sits
+# on the fill and on black, and the ink is 3.4:1 on black, under the mask's 4.5:1 floor. Neutral_Mask_Colors derives
+# the pair in the ink's own hue and chroma:
 #     fill     L* 80.81 (#CEC6D7) — as light as the fill/white floor allows: for chroma C*, ΔE to white >= 21 needs
 #                                   L* <= 100 - sqrt(21² - C*²) = 81.31, less the 0.5 margin. The floor is 21, not
 #                                   25, on purpose — see CONST_MASK_FILL_MIN_WHITE_DELTA_E;
@@ -275,7 +280,8 @@ CONST_CHIP_NUMERAL_EXCEPTIONS = {CONST_WARNING_BOX: CONST_INK}
 # The window closes only if the FLOORS change (not the box), and then Theme raises at import naming it.
 #   Unit [string] (hex colour)
 CONST_DETECTION_INK = '#655E6D'
-CONST_DETECTION_BOX = CONST_DETECTION_INK
+CONST_DETECTION_BOX = CONST_LOGO_INK
+CONST_UNSPECIFIED_BOX = CONST_DETECTION_INK
 # CONST_DETECTION_COLORS — the (box, ink, fill) triple — is assembled at the END of this module,
 # once Neutral_Mask_Colors (which needs the colour-space helpers below) is defined.
 
@@ -665,25 +671,7 @@ def Mask_Outline_Color(verdict: str) -> str:
     """
 
     box = Verdict_Color(verdict)[0]
-    return Detection_Mask_Outline() if box == CONST_DETECTION_BOX else box
-
-
-def Chip_Numeral_Color(chip_hex: str) -> str:
-    """
-    Description:
-        The numeral colour on a chip filled with a box colour: CONST_CHIP_NUMERAL (white) on every chip, the label
-        mask's neutral outline included (4.1:1), except a chip in CONST_CHIP_NUMERAL_EXCEPTIONS: Warning's amber, which
-        keeps the purple.
-
-    Args:
-        (1) chip_hex [string]: The chip's colour as '#rrggbb'.
-
-    Returns:
-        (1) parameter [string]: The numeral colour.
-    """
-
-    exceptions = {chip.lower(): numeral for chip, numeral in CONST_CHIP_NUMERAL_EXCEPTIONS.items()}
-    return exceptions.get(chip_hex.lower(), CONST_CHIP_NUMERAL)
+    return Detection_Mask_Outline() if box == CONST_UNSPECIFIED_BOX else box
 
 
 def Label_Ground(verdict: str) -> str:
@@ -725,8 +713,8 @@ def Detection_Mask_Outline() -> str:
     """
     Description:
         The neutral OUTLINE for the label mask, derived with the mask fill by Neutral_Mask_Colors in the
-        frame box's (Detection_Color()[0]) hue and chroma. On the mask the outline sits on the fill and on
-        black, so it is placed for those two; the frame's box keeps its own lightness for the white numeral.
+        neutral ink's (Detection_Color()[1], Unspecified's box) hue and chroma. On the mask the outline sits on the
+        fill and on black, so it is placed for those two; the frame's boxes keep their own lightness.
 
     Returns:
         (1) parameter [string]: The mask outline colour as '#rrggbb'.
@@ -739,10 +727,10 @@ def Detection_Mask_Outline() -> str:
 # DERIVED by Neutral_Mask_Colors (defined above). A pair that cannot clear every floor raises at
 # import — loudly — instead of shipping a mask that breaks one.
 #   Unit [string] (hex colour) / [Tuple<string> 1x3] (box, ink, fill)
-CONST_DETECTION_MASK_OUTLINE, CONST_DETECTION_MASK_FILL = Neutral_Mask_Colors(CONST_DETECTION_BOX)
+CONST_DETECTION_MASK_OUTLINE, CONST_DETECTION_MASK_FILL = Neutral_Mask_Colors(CONST_DETECTION_INK)
 CONST_DETECTION_COLORS = (CONST_DETECTION_BOX, CONST_DETECTION_INK, CONST_DETECTION_MASK_FILL)
-# Unspecified is not judged, so it takes the neutral colour (see CONST_VERDICT_COLORS).
-CONST_VERDICT_COLORS['Unspecified'] = CONST_DETECTION_COLORS
+# Unspecified is not judged, so it takes the neutral ink and mask fill, with its own box (see CONST_UNSPECIFIED_BOX).
+CONST_VERDICT_COLORS['Unspecified'] = (CONST_UNSPECIFIED_BOX, CONST_DETECTION_INK, CONST_DETECTION_MASK_FILL)
 # The Camera View's heatmap colours: cividis (Nuñez, Anderton & Renslow, 2018), 17 anchors taken from
 # matplotlib's map at equal steps and expanded to 256 colours in L*a*b* (Heatmap_Colors). Cividis, not
 # viridis: viridis passed ΔE 4.2 from the previous OK verdict's ink and 12.0 from the previous status green;

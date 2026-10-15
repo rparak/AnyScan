@@ -320,51 +320,28 @@ def test_seg_falls_back_to_the_bbox_for_a_maskless_object() -> None:
 def test_verdict_colored_false_draws_one_neutral_colour_not_verdicts() -> None:
     """
     Description:
-        When classification is off (verdict_colored=False), every object — OK or NOK — is drawn in
-        the ONE neutral detection colour, and no verdict colour marks an object: the NOK orange-red
-        appears nowhere, and the purple, which is the OK verdict's and the console's ink, only as the
-        numerals on the neutral chips beside each object's top-left corner, never on a box. With it
-        on, the NOK object is drawn in the verdict orange-red.
+        When classification is off (verdict_colored=False, Segment Anything), every object — OK or NOK — is drawn in
+        the ONE detect-only colour, the logo purple, so no object's colour depends on a verdict: the NOK orange-red
+        appears nowhere, and both objects' bottom edges are the purple. With it on, the NOK object is drawn in the
+        verdict orange-red.
     """
 
-    neutral = tuple(Theme.Hex_To_Bgr(Theme.CONST_DETECTION_COLORS[0]))
+    purple = tuple(Theme.Hex_To_Bgr('#640ABA'))
     nok = tuple(Theme.Hex_To_Bgr(Theme.CONST_VERDICT_COLORS['NOK'][0]))
-    ok = tuple(Theme.Hex_To_Bgr(Theme.CONST_VERDICT_COLORS['OK'][0]))
     objects = [__Object(40, 60, 80, 'OK'), __Object(200, 300, 100, 'NOK')]
 
     def _Has(image, bgr):
         return bool((image == np.array(bgr, np.uint8)).all(axis=2).any())
 
-    # Off: neutral present; neither verdict colour present.
     plain = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), 30, np.uint8), objects,
                                     cv2, np, verdict_colored=False)
-    assert _Has(plain, neutral)
     assert not _Has(plain, nok)
-    rows, columns = np.nonzero((plain == np.array(ok, np.uint8)).all(axis=2))
-    corners = [(det.Bbox[0], det.Bbox[1]) for det in objects]
-    assert all(any(abs(x - cx) <= 40 and abs(y - cy) <= 40 for cx, cy in corners) for y, x in zip(rows, columns)), \
-        'the purple marks a box, not only a chip numeral'
     for x, y, w, h in (det.Bbox for det in objects):
-        assert tuple(int(c) for c in plain[y + h, x + w // 2]) == neutral        # the bottom edge is the neutral
+        assert tuple(int(c) for c in plain[y + h, x + w // 2]) == purple        # the bottom edge is the purple
 
-    # On: the NOK object is drawn in the verdict orange-red; the neutral colour is not used.
     verdicted = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), 30, np.uint8), objects,
                                         cv2, np, verdict_colored=True)
     assert _Has(verdicted, nok)
-    assert not _Has(verdicted, neutral)
-
-
-def test_neutral_detection_colour_is_a_distinct_token_from_the_verdicts() -> None:
-    """
-    Description:
-        The neutral detection colour is its own token, not an alias of the OK verdict colour — the
-        two mean different things and must be free to diverge.
-    """
-
-    assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['OK']
-    assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['NOK']
-    assert Theme.Detection_Color() == Theme.CONST_DETECTION_COLORS
-
 
 def test_the_catalogue_states_render_in_their_colours_on_both_images() -> None:
     """
@@ -581,22 +558,54 @@ def test_a_concentric_pair_at_the_tolerance_limits_has_its_chips_apart_each_on_i
     assert not np.array_equal(__Render([countersink, __Hole('1.9', 400, 400, 37)]), annotated)
 
 
-def test_each_chip_is_its_box_colour_with_its_numeral_colour() -> None:
+def test_each_chip_is_its_box_colour_with_a_white_numeral() -> None:
     """
     Description:
-        On the annotated frame each object's chip is filled with its verdict's box colour, as on the poster, and its
-        numeral is drawn in Theme.Chip_Numeral_Color for that chip: white on OK, NOK and Unspecified, the purple on
-        Warning. Read in the rendered pixels of the chip, which sits above each box's top-left corner.
+        On the annotated frame each object's chip is filled with its box colour, as on the poster, and carries a plain
+        white numeral in every state and both modes: no other colour is drawn in it (no rim, and not the purple numeral
+        Warning once had). Read in the rendered pixels of the chip, which sits above each box's top-left corner: every
+        pixel is the box colour, white, or a blend on the line between them.
     """
 
-    verdicts = ('OK', 'NOK', 'Warning', 'Unspecified')
-    objects = [__Object(150, 40 + 140 * i, size=80, verdict=verdict) for i, verdict in enumerate(verdicts)]
-    annotated = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8), objects, cv2, np,
-                                        verdict_colored=True)
-    for det in objects:
-        x, y, _, _ = det.Bbox
-        chip = annotated[y - 30:y, x:x + 30]
-        box = Theme.Verdict_Color(det.Verdict)[0]
-        numeral = Theme.Chip_Numeral_Color(box)
-        assert __Has_Bgr(chip, Theme.Hex_To_Bgr(box)), det.Verdict
-        assert __Has_Bgr(chip, Theme.Hex_To_Bgr(numeral)), det.Verdict
+    boxes = {'OK': '#640ABA', 'NOK': '#FF6540', 'Warning': '#FFC226', 'Unspecified': '#655E6D'}
+    objects = [__Object(150, 40 + 140 * i, size=80, verdict=verdict) for i, verdict in enumerate(boxes)]
+    for verdict_colored in (True, False):
+        annotated = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8), objects, cv2, np,
+                                            verdict_colored=verdict_colored)
+        for det in objects:
+            x, y, _, _ = det.Bbox
+            box = Theme.Hex_To_Bgr(boxes[det.Verdict] if verdict_colored else Theme.Detection_Color()[0])
+            chip_w, chip_h = __Chip_Extent(annotated, x, y, box)
+            chip = annotated[y - chip_h:y, x:x + chip_w].reshape(-1, 3).astype(float)
+            assert __Has_Bgr(annotated[y - chip_h:y, x:x + chip_w], box), det.Verdict
+            assert __Has_Bgr(annotated[y - chip_h:y, x:x + chip_w], (255, 255, 255)), det.Verdict
+            # Each pixel on the segment from the box colour to white: no third colour.
+            direction = np.array([255.0, 255.0, 255.0]) - np.array(box, float)
+            t = np.clip(((chip - box) @ direction) / (direction @ direction), 0.0, 1.0)
+            off = np.abs(chip - (np.array(box, float) + t[:, None] * direction)).max(axis=1)
+            assert off.max() <= 2.0, (det.Verdict, verdict_colored, off.max())
+
+
+def __Chip_Extent(image: np.ndarray, x: int, y: int, box: tp.Tuple[int, int, int]) -> tp.Tuple[int, int]:
+    """
+    Description:
+        The width and height of an object's chip, the run of its box colour along the chip's top row and up its left
+        column from the box's top-left corner.
+
+    Args:
+        (1) image [Matrix<uint8> HxWx3]: The annotated frame.
+        (2) x, y [int]: The box's top-left corner.
+        (3) box [Vector<int> 1x3]: The chip colour (BGR).
+
+    Returns:
+        (1) parameter [Tuple<int> 1x2]: (width, height) in px.
+    """
+
+    colour = np.array(box, np.uint8)
+    height = 0
+    while y - height - 1 >= 0 and (image[y - height - 1, x] == colour).all():
+        height += 1
+    width = 0
+    while x + width < image.shape[1] and (image[y - height, x + width] == colour).all():
+        width += 1
+    return width, height

@@ -80,43 +80,29 @@ def test_hex_conversions_match_opencv_order() -> None:
 def test_neutral_detection_colour_is_distinct_and_near_achromatic() -> None:
     """
     Description:
-        The neutral detection colour ('detected, not judged') must be visibly different from the
-        OK verdict colour, not a quieter shade of it — otherwise a detect-only set and an all-OK
-        classified set look the same and the per-set flag distinction cannot be seen. It is a
-        distinct token, well separated from OK in perceptual distance, near-achromatic (a
-        low-saturation grey-lilac, where OK is the saturated purple), and calm — far from the loud
-        NOK orange-red. Because the box is drawn INTO the frame, it must also clear the project's
-        distinctness floor against the real annotation surfaces — and its worst case, having no
-        hue to lean on, is grey-on-grey against bright machined steel.
+        Within a catalogue mode, the neutral ('not judged', Unspecified) must be visibly different from every verdict,
+        not a quieter shade of one: Unspecified #655E6D is its own token, near-achromatic where OK is the saturated
+        purple, far from OK, NOK and Warning, and, drawn into the frame, clear of the project's distinctness floor
+        against its worst surface, grey on grey against bright machined steel. The detect-only box (Segment
+        Anything) is outside this rule: that mode shows no verdict, and its box is the logo purple
+        (test_the_detect_only_box_is_the_logo_purple_and_unspecified_keeps_its_own).
     """
 
     import colorsys
+    from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
 
-    neutral = Theme.CONST_DETECTION_COLORS[0]
-    ok = Theme.CONST_VERDICT_COLORS['OK'][0]
-    nok = Theme.CONST_VERDICT_COLORS['NOK'][0]
+    unspecified = Theme.Verdict_Color('Unspecified')[0]
+    assert unspecified == '#655E6D'
+    for verdict, floor in (('OK', 60.0), ('NOK', 60.0), ('Warning', 60.0)):
+        assert Theme.Verdict_Color(verdict)[0] != unspecified
+        assert Theme.Delta_E(unspecified, Theme.Verdict_Color(verdict)[0]) > floor, verdict
 
-    # A distinct token, not an alias.
-    assert Theme.CONST_DETECTION_COLORS != Theme.CONST_VERDICT_COLORS['OK']
-    assert Theme.Detection_Color() == Theme.CONST_DETECTION_COLORS
-
-    # Clearly separated from OK (ΔE 107 between the grey-lilac and the purple).
-    assert Theme.Delta_E(neutral, ok) > 46
-    # Near-achromatic: a low-saturation grey, not a saturated purple like OK.
     def _Saturation(hex_color: str) -> float:
         r, g, b = (v / 255.0 for v in Theme.Hex_To_Rgb(hex_color))
         return colorsys.rgb_to_hls(r, g, b)[2]
-    assert _Saturation(neutral) < 0.20 < _Saturation(ok)
-    # Still calm, and far from the loud NOK.
-    assert Theme.Delta_E(neutral, nok) > 60
-
-    # Drawn into the frame, so it must clear the distinctness floor against the real annotation
-    # surfaces. The worst case is grey-on-grey against bright machined steel (sets 003/005),
-    # where the earlier #949AA6 sat at the steel's own lightness and collapsed under the floor.
-    from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
+    assert _Saturation(unspecified) < 0.20 < _Saturation(Theme.Verdict_Color('OK')[0])
     bright_steel = '#808083'  # ~(128,128,131), the machined-steel surface in sets 003/005
-    assert Theme.Delta_E(neutral, bright_steel) > CONST_ANNOTATE_MIN_DELTA_E
-
+    assert Theme.Delta_E(unspecified, bright_steel) > CONST_ANNOTATE_MIN_DELTA_E
 
 def test_label_mask_fill_is_a_visible_tint_of_its_box() -> None:
     """
@@ -163,9 +149,10 @@ def test_neutral_mask_pair_is_derived_light_fill_and_darker_outline() -> None:
     """
     Description:
         The label mask's neutral pair is DERIVED (Neutral_Mask_Colors), not hand-set: a LIGHT fill
-        and its own outline, darker than the fill, in the neutral box's hue and chroma. The frame's box
-        keeps its own lightness for the chip's white numeral; on the mask the outline only meets the fill
-        and the black ground, where that box would miss the 4.5:1 floor. The test states the two
+        and its own outline, darker than the fill, in the neutral ink's hue and chroma (Unspecified's
+        box, unchanged when the detect-only box moved to the grey-lilac). That box keeps its own lightness
+        for the chip's white numeral; on the mask the outline only meets the fill and the black ground,
+        where that box would miss the 4.5:1 floor. The test states the two
         bounds and asserts the pair's placement against them with the margin:
           - fill: as light as the fill/white floor allows (L* <= 81.31 for this chroma at the
             floor of 21), placed at that bound less the 0.5 margin — never back to a dark fill;
@@ -173,10 +160,10 @@ def test_neutral_mask_pair_is_derived_light_fill_and_darker_outline() -> None:
             bound and at least 25 + 0.5 below the fill.
     """
 
-    box = Theme.CONST_DETECTION_BOX
+    box = Theme.CONST_DETECTION_INK                                 # derived from the ink (Unspecified's box)
     outline, fill = Theme.Neutral_Mask_Colors(box)
     assert (outline, fill) == (Theme.Detection_Mask_Outline(), Theme.Detection_Color()[2])
-    assert Theme.Detection_Color()[0] == box                        # the frame box is unchanged
+    assert Theme.Verdict_Color('Unspecified')[0] == box             # the frame box is unchanged
 
     outline_lower, fill_upper = Theme.Neutral_Mask_Bounds(box)
     margin = Theme.CONST_MASK_FILL_WINDOW_MARGIN
@@ -205,7 +192,7 @@ def test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_floors() ->
     """
 
     lighter = Theme.Neutral_Mask_Colors('#C4CAD6')
-    for outline, fill in (lighter, Theme.Neutral_Mask_Colors(Theme.CONST_DETECTION_BOX)):
+    for outline, fill in (lighter, Theme.Neutral_Mask_Colors(Theme.CONST_DETECTION_INK)):
         assert Theme.Delta_E(outline, fill) >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E
         assert Theme.Delta_E(fill, '#FFFFFF') >= Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E
         assert Theme.Ground_Contrast(outline) >= Theme.CONST_MASK_FILL_MIN_GROUND_CONTRAST
@@ -214,7 +201,7 @@ def test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_floors() ->
     try:
         Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E = previous + 6.0
         with pytest.raises(ValueError, match='No valid neutral mask pair'):
-            Theme.Neutral_Mask_Colors(Theme.CONST_DETECTION_BOX)
+            Theme.Neutral_Mask_Colors(Theme.CONST_DETECTION_INK)
     finally:
         Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E = previous
 
@@ -278,7 +265,7 @@ def test_every_catalogue_state_has_its_colour() -> None:
     Description:
         Each of the four states a catalogue mode gives has a colour triple: OK the purple and NOK the orange-red;
         Warning the JIC amber with the status amber's text twin (the one place amber marks an object); Unspecified the neutral
-        detection colour, since it is not judged — and on the label mask the neutral's derived outline, as for
+        ink as its box, with the neutral's words and mask fill, since it is not judged — and on the label mask the neutral's derived outline, as for
         a detect-only object, while the judged states keep their box. The four boxes stay ΔE >= 12 apart.
     """
 
@@ -286,7 +273,7 @@ def test_every_catalogue_state_has_its_colour() -> None:
     from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
     assert set(Theme.CONST_VERDICT_COLORS) == set(CONST_VERDICTS)
     assert Theme.Verdict_Color('Warning')[:2] == (Theme.CONST_WARNING_BOX, Theme.CONST_WARN_INK)
-    assert Theme.Verdict_Color('Unspecified') == Theme.Detection_Color()
+    assert Theme.Verdict_Color('Unspecified') == (Theme.CONST_UNSPECIFIED_BOX,) + Theme.Detection_Color()[1:]
     assert Theme.Mask_Outline_Color('Unspecified') == Theme.Detection_Mask_Outline()
     assert [Theme.Mask_Outline_Color(v) for v in ('OK', 'NOK', 'Warning')] == \
         [Theme.Verdict_Color(v)[0] for v in ('OK', 'NOK', 'Warning')]
@@ -294,29 +281,42 @@ def test_every_catalogue_state_has_its_colour() -> None:
     assert min(Theme.Delta_E(a, b) for i, a in enumerate(boxes) for b in boxes[i + 1:]) >= CONST_ANNOTATE_MIN_DELTA_E
 
 
-def test_every_chip_numeral_is_white_but_the_recorded_exceptions() -> None:
+def test_every_chip_numeral_is_white() -> None:
     """
     Description:
-        A chip on the frame is filled with its verdict's box (or the neutral, detect-only) and carries its numeral in
-        Chip_Numeral_Color: white on every chip, at >= 4.5:1, except the owner's two recorded exceptions
-        (docs/design-decisions.md), each pinned at its numeral and ratio so a change to either colour has to revisit
-        it: white on the NOK orange-red at 2.92:1, and the purple on Warning's amber at 5.66:1, the amber being too
-        light for white.
+        A chip on the frame is filled with its box (a verdict's, or the detect-only neutral) and its numeral is plain
+        white on every one (docs/design-decisions.md, "Every chip carries a white numeral"): no per-chip exception and
+        no rim. The ratios are pinned so a change to a box colour revisits them: the purple 9.15:1, Unspecified's
+        #655E6D 6.22:1, and the owner's accepted exceptions, the NOK orange-red 2.92:1 and Warning's amber 1.62:1.
     """
 
-    exceptions = {'NOK': ('#FFFFFF', 2.92), 'Warning': (Theme.CONST_INK, 5.66)}
-    for verdict in ('OK', 'NOK', 'Warning', 'Unspecified'):
-        chip = Theme.Verdict_Color(verdict)[0]
-        numeral = Theme.Chip_Numeral_Color(chip)
-        ratio = Theme.Contrast_Ratio(numeral, chip)
-        if verdict in exceptions:
-            assert (numeral, round(ratio, 2)) == exceptions[verdict], (verdict, numeral, ratio)
-        else:
-            assert numeral == '#FFFFFF' and ratio >= 4.5, (verdict, numeral, ratio)
-    assert Theme.Chip_Numeral_Color(Theme.Detection_Color()[0]) == '#FFFFFF'
-    assert Theme.Chip_Numeral_Color(Theme.Detection_Mask_Outline()) == '#FFFFFF'
+    assert Theme.CONST_CHIP_NUMERAL == '#FFFFFF'
+    for verdict, ratio in (('OK', 9.15), ('NOK', 2.92), ('Warning', 1.62), ('Unspecified', 6.22)):
+        assert round(Theme.Contrast_Ratio('#FFFFFF', Theme.Verdict_Color(verdict)[0]), 2) == ratio, verdict
+    assert not any(hasattr(Theme, name) for name in ('CONST_CHIP_NUMERAL_EXCEPTIONS', 'CONST_CHIP_NUMERAL_OUTLINES',
+                                                       'Chip_Numeral_Color', 'Chip_Numeral_Outline'))
 
 
+def test_the_detect_only_box_is_the_logo_purple_and_unspecified_keeps_its_own() -> None:
+    """
+    Description:
+        The detect-only box and chip (Segment Anything) are the logo purple, the token itself (the owner's choice of
+        2026-10-15): #655E6D all but vanished on the green table (1.12:1, capture 20261015-143622_s1, table median
+        #176550), and the grey-lilac #E1DCE6 tried before it carried a white numeral at 1.35:1. The purple carries it at
+        9.15:1 and reads on the table by hue (ΔE 120.7). It equals the OK colour, accepted because a detect-only mode
+        shows no verdict. Unspecified, which shared the detect-only token, keeps #655E6D, split off as its own; the
+        neutral words and the label mask's derived pair keep theirs.
+    """
+
+    table = '#176550'
+    box = Theme.Detection_Color()[0]
+    assert box == Theme.CONST_DETECTION_BOX == Theme.CONST_LOGO_INK == '#640ABA'
+    assert round(Theme.Contrast_Ratio('#FFFFFF', box), 2) == 9.15
+    assert round(Theme.Contrast_Ratio(box, table), 2) == 1.31 and round(Theme.Delta_E(box, table), 1) == 120.7
+    assert Theme.Verdict_Color('Unspecified')[0] == Theme.CONST_UNSPECIFIED_BOX == '#655E6D'
+    assert Theme.Detection_Color()[1] == '#655E6D'
+    assert (Theme.Detection_Mask_Outline(), Theme.Detection_Color()[2]) == ('#817A8A', '#CEC6D7')
+    assert Theme.Mask_Outline_Color('Unspecified') == '#817A8A'
 def test_the_palette_keeps_the_brands_rules() -> None:
     """
     Description:

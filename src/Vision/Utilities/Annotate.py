@@ -28,7 +28,7 @@ import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
 from Parameters.Theme import (Verdict_Color, Detection_Color, Detection_Mask_Outline, Mask_Outline_Color,
-                              Hex_To_Bgr, Chip_Numeral_Color)
+                              Hex_To_Bgr, CONST_CHIP_NUMERAL)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -105,7 +105,7 @@ CONST_ANNOTATE_CHIP_PAD = 6       # padding (px, at font scale 1) around the num
 # The perceptual distinctness floor (CIE76 ΔE) for the annotation colours: the minimum
 # distance at which two colours read as different marks rather than a near-repeat. The renderer
 # does not read it: it is the CONTRACT the annotation colours must meet — a box against its own
-# fill, the neutral detection colour against the surfaces it is drawn on — enforced by
+# fill, Unspecified's neutral against the surfaces it is drawn on — enforced by
 # test/Parameters/test_theme.py::test_neutral_detection_colour_is_distinct_and_near_achromatic.
 # It lives beside the renderer it constrains, not in the test, so the two cannot drift apart.
 #   Unit [float]
@@ -189,8 +189,7 @@ def __Draw_Chip(image: tp.Any, x: int, top: int, label: str, chip_bgr: tp.Tuple[
     """
     Description:
         A chip at (x, top): a filled rectangle in chip_bgr, the box's own colour as on the poster, with the numeral in
-        the colour Theme.Chip_Numeral_Color gives that chip (white on every chip but Warning's amber, which keeps the
-        purple).
+        white (Theme.CONST_CHIP_NUMERAL), plain, on every chip.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
@@ -202,10 +201,9 @@ def __Draw_Chip(image: tp.Any, x: int, top: int, label: str, chip_bgr: tp.Tuple[
     """
 
     chip_w, chip_h, thickness, pad, th = __Chip_Size(label, font_scale, cv2)
-    text_bgr = Hex_To_Bgr(Chip_Numeral_Color('#%02X%02X%02X' % (chip_bgr[2], chip_bgr[1], chip_bgr[0])))
     cv2.rectangle(image, (x, top), (x + chip_w, top + chip_h), chip_bgr, thickness=-1)
     cv2.putText(image, label, (x + pad, top + pad + th), cv2.FONT_HERSHEY_SIMPLEX, font_scale,
-                text_bgr, thickness, cv2.LINE_AA)
+                Hex_To_Bgr(CONST_CHIP_NUMERAL), thickness, cv2.LINE_AA)
 
 
 def __Index_Chip_Rect(bbox: tp.Tuple[int, int, int, int], index: int, scale: float,
@@ -245,7 +243,7 @@ def __Draw_Index_Chip(image: tp.Any, bbox: tp.Tuple[int, int, int, int], index: 
         from the numeral's text extent plus a small padding, seated flush against the
         box's top-left corner so it reads as a tab; when the box is too near the top of
         the frame for the tab to sit above it, the chip flips INSIDE the box rather than
-        clipping off-frame (__Index_Chip_Rect). The numeral's colour is Theme.Chip_Numeral_Color's for the chip.
+        clipping off-frame (__Index_Chip_Rect). The numeral is white (__Draw_Chip).
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).

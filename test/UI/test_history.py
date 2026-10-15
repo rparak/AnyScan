@@ -215,7 +215,7 @@ def test_detect_only_sets_have_no_filter_and_a_neutral_outline(qt_app, tmp_path)
         selection outline is the neutral detection colour, not a verdict colour.
     """
 
-    from Parameters.Theme import Detection_Color, Verdict_Color
+    from Parameters.Theme import Verdict_Color
 
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set1', classification=False)
@@ -224,7 +224,7 @@ def test_detect_only_sets_have_no_filter_and_a_neutral_outline(qt_app, tmp_path)
     view.Refresh()
     assert not _Private(view, '__filter').isVisibleTo(view)   # the filter is removed
     outline = _Outline_Rgb(view)
-    assert outline == _Rgb(Detection_Color()[0])
+    assert outline == _Rgb('#655E6D')                       # the neutral ink, not the viewport-grey box
     assert outline != _Rgb(Verdict_Color('OK')[0])
     view.close()
 
