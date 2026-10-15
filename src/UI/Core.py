@@ -925,7 +925,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__worker_running = True
         self.__connecting = True
         self.__showing_error = False
-        self.__viewport.Start_Busy('Connecting to camera…')
+        self.__viewport.Start_Busy('Connecting to camera…', 'camera')
         self.__Sync_Controls()
 
         self.__conn_thread = QThread(self)
@@ -1071,7 +1071,7 @@ class AnyScan_Window_Cls(QMainWindow):
             self.__logger.Log_Scan_Started()
 
         try:
-            self.__viewport.Set_Busy('Capturing frame…')
+            self.__viewport.Set_Busy('Capturing frame…', 'camera')
             self.__frame = self.__camera.Capture()
             self.__frame_distorted = self.__camera.Last_Distorted_Frame
             self.__frame_undistortion = self.__camera.Last_Undistortion
@@ -1108,7 +1108,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             Hand the analysis to a worker on its own thread and drive the animated
-            indicator. Nothing blocks the GUI thread, so the arc turns throughout.
+            indicator. Nothing blocks the GUI thread, so the pixel icon steps throughout.
         """
 
         if self.__frame is None:
@@ -1136,7 +1136,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # the duration, and two Analyze presses in quick succession cannot leave the view
         # showing a mix of two runs.
         self.__viewport.Clear_Views()
-        self.__viewport.Start_Busy('Preparing…')
+        self.__viewport.Start_Busy('Preparing…', 'magnifier')
         self.__Sync_Controls()
 
         self.__thread = QThread(self)

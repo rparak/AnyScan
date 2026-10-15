@@ -44,11 +44,11 @@ from Parameters.Theme import (                                             # noq
     CONST_CONTROL_HOVER_BORDER, CONST_INK_HOVER, CONST_INK_PRESSED, CONST_ON_INK,
     CONST_CONTROL_DISABLED_TEXT, CONST_CONTROL_DISABLED_BORDER, CONST_PRIMARY_DISABLED_FILL,
     CONST_PRIMARY_DISABLED_TEXT, CONST_SCRIM, CONST_SCRIM_ALPHA, Hex_To_Rgb, CONST_OK, CONST_OK_INK,
-    CONST_BUSY_SCRIM, CONST_BUSY_SCRIM_ALPHA, CONST_BUSY_INK, CONST_BUSY_TRACK, CONST_BUSY_TRACK_ALPHA,
+    CONST_BUSY_SCRIM, CONST_BUSY_SCRIM_ALPHA, CONST_BUSY_INK, CONST_BUSY_DIM_ALPHA,
     CONST_THUMB_HIGHLIGHT, CONST_THUMB_HIGHLIGHT_FILL_ALPHA, CONST_TOPBAR_DIVIDER, CONST_SCROLLBAR_HANDLE,
     CONST_OK_BORDER, CONST_WARN, CONST_WARN_INK, CONST_CONTROL_PRESSED, Label_Ground,
     CONST_OK_LABEL_GROUND, CONST_NOK_LABEL_GROUND, CONST_WARNING_BOX,
-    CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_BAND,
+    CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_LEGEND_MARK, CONST_BAND,
     CONST_BAND_LINE, CONST_BAND_TEXT, CONST_BAND_LINE_ALPHA, CONST_BAND_TEXT_ALPHA, CONST_CORNER_MOTIF,
     CONST_CORNER_MOTIF_ALPHA, CONST_LOGO_INK,
     CONST_LOG_WARNING, CONST_LOG_ERROR, Log_Level_Color, Status_Text_Color, Heatmap_Colors)
@@ -84,10 +84,10 @@ CONST_LOW_DENSITY_DPR = 1.5
 #   Unit [float] (point size)
 CONST_TYPE_FLOOR_LOW_DENSITY = 9.0
 
-# Busy-indicator animation, driven by a QTimer in the viewport while the worker
-# runs. Kept here so the whole console's tunable values live in one place.
-CONST_BUSY_TICK_MS  = 33          # ~30 fps repaint
-CONST_BUSY_SPIN_DEG = 6           # arc rotation per tick
+# Busy-indicator animation, driven by a QTimer in the viewport while the worker runs: one tick per step of the
+# pixel icon (UI.Utilities.Pixel_Motif.Busy_Cells), which repaints only then. Kept here so the whole console's
+# tunable values live in one place.
+CONST_BUSY_TICK_MS  = 120         # a task icon steps every few ticks (Pixel_Motif.CONST_BUSY_ICONS)
 
 # What an empty value slot shows. It is a placeholder, not prose: the em dash
 # stays out of sentences and out of labels, and appears only where a number or a

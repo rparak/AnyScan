@@ -36,6 +36,7 @@ Description:
     of its row and its column from the edge falls under the fill chance at that column, which falls linearly from
     `fill` at the edge to nothing `reach` cells in. No cell touches a keep-out span (each logo with its clear space).
     Corner_Cells places the AnyScan poster's own corner cluster (CONST_POSTER_CORNER) at a corner of a widget.
+    Busy_Cells gives the cells of the busy overlay's pixel icons (CONST_BUSY_ICONS) at an animation tick.
 
     Qt-free.
 """
@@ -121,3 +122,48 @@ def Corner_Cells(right: int, top: int, cell: int) -> tp.List[tp.Tuple[int, int, 
     columns = len(CONST_POSTER_CORNER[0])
     return [(right - (columns - column) * cell, top + row * cell, mark == 'D')
             for row, line in enumerate(CONST_POSTER_CORNER) for column, mark in enumerate(line) if mark != '.']
+
+
+# The busy overlay's pixel icons (docs/design-decisions.md, "The busy overlay is the Camera View's grey-lilac"), in the
+# brand's style: whole cells on a square grid. A task icon is drawn row by row: '#' a cell always lit, a digit d a cell
+# lit only on step d - 1 of the icon's cycle (dim otherwise), '.' empty. The camera (connecting, capturing) blinks its
+# lens; the magnifier (preparing, analysing) moves a glint across its lens.
+#   Unit [Dict<string, Tuple<Tuple<string>, int, int>>] (rows, steps in a cycle, ticks per step)
+CONST_BUSY_ICONS = {
+    'camera': (('...###.....',
+                '###########',
+                '####...####',
+                '###.....###',
+                '###..1..###',
+                '###.....###',
+                '####...####',
+                '###########'), 2, 5),
+    'magnifier': (('.#####....',
+                   '#.....#...',
+                   '#.1...#...',
+                   '#..2..#...',
+                   '#...3.#...',
+                   '#.....#...',
+                   '.#####....',
+                   '......##..',
+                   '.......##.',
+                   '........##'), 4, 3)}
+def Busy_Cells(kind: str, tick: int, dim: float) -> tp.List[tp.Tuple[int, int, float]]:
+    """
+    Description:
+        The cells of a task's busy icon (a key of CONST_BUSY_ICONS) at an animation tick, each with its opacity: a '#'
+        cell always lit, a digit cell lit only on its step of the icon's cycle and dim otherwise.
+
+    Args:
+        (1) kind [string]: The task's icon, a key of CONST_BUSY_ICONS ('camera', 'magnifier').
+        (2) tick [int]: The animation tick (0 for a static icon).
+        (3) dim [float]: The opacity of an unlit cell.
+
+    Returns:
+        (1) parameter [List<Tuple<int, int, float>>]: Each cell's column, row and opacity (0..1).
+    """
+
+    rows, steps, ticks_per_step = CONST_BUSY_ICONS[kind]
+    step = (tick // ticks_per_step) % steps
+    return [(column, row, 1.0 if mark == '#' or int(mark) - 1 == step else dim)
+            for row, line in enumerate(rows) for column, mark in enumerate(line) if mark != '.']

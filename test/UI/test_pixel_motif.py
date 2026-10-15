@@ -23,7 +23,7 @@
 
 # Custom Lib.: AnyScan UI — the funding band's pixel motif (Qt-free)
 #   ../UI/Utilities/Pixel_Motif
-from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells, CONST_POSTER_CORNER
+from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells, Busy_Cells, CONST_POSTER_CORNER, CONST_BUSY_ICONS
 
 """
 Description:
@@ -106,3 +106,29 @@ def test_the_corner_cluster_is_the_posters_anchored_at_its_top_right() -> None:
     assert len(cells) == 9 and sum(strong for _, _, strong in cells) == 5
     assert max(x for x, _, _ in cells) + 16 == 500 and min(y for _, y, _ in cells) == 40
     assert (500 - 16, 40 + 16, True) in cells and (500 - 6 * 16, 40 + 16, False) in cells
+
+
+def test_a_busy_icon_animates_only_its_step_cells() -> None:
+    """
+    Description:
+        A task's busy icon keeps every solid cell lit at every tick and lights a step cell only on its own step: the
+        camera's lens is lit for 5 ticks and dim for the next 5, and the magnifier's glint crosses its lens over three
+        steps of 3 ticks each, then rests for one.
+    """
+
+    def Lit(kind: str, tick: int) -> set:
+        return {(column, row) for column, row, alpha in Busy_Cells(kind, tick, 0.2) if alpha == 1.0}
+
+    for kind, (rows, _steps, _ticks) in CONST_BUSY_ICONS.items():
+        solid = {(column, row) for row, line in enumerate(rows) for column, mark in enumerate(line) if mark == '#'}
+        everything = {(column, row) for row, line in enumerate(rows) for column, mark in enumerate(line) if mark != '.'}
+        for tick in range(24):
+            assert solid <= Lit(kind, tick), (kind, tick)
+            assert {(column, row) for column, row, _ in Busy_Cells(kind, tick, 0.2)} == everything
+    lens = (5, 4)
+    assert [lens in Lit('camera', tick) for tick in (0, 4, 5, 9, 10)] == [True, True, False, False, True]
+    glint = {1: (2, 2), 2: (3, 3), 3: (4, 4)}
+    for tick, expected in ((0, glint[1]), (3, glint[2]), (6, glint[3])):
+        assert Lit('magnifier', tick) - {(c, r) for r, line in enumerate(CONST_BUSY_ICONS['magnifier'][0])
+                                         for c, mark in enumerate(line) if mark == '#'} == {expected}, tick
+    assert not set(glint.values()) & Lit('magnifier', 9)                       # the fourth step rests

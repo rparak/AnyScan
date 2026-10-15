@@ -43,7 +43,7 @@ from UI.Utilities.Style import Font, Hairline
 from UI.Utilities.Grid_Fit import Fit_Svg
 # Custom Lib.: AnyScan UI — the brand's pixel motif for the funding band (Qt-free)
 #   ../UI/Utilities/Pixel_Motif
-from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells
+from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells, Busy_Cells
 # Custom Lib.: AnyScan domain — the confidence thresholds the object list colours numbers by
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str, Heatmap_Str
@@ -299,6 +299,9 @@ class Viewport_Cls(QWidget):
     # The cell of the poster's pixel cluster in the empty state's top-right corner.
     #   Unit [px]
     CONST_CORNER_CELL = 16
+    # The cell of the busy overlay's pixel icon: the 11-cell camera is 55 px wide, the 10-cell magnifier 50 px.
+    #   Unit [px]
+    CONST_BUSY_CELL = 5
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -320,13 +323,14 @@ class Viewport_Cls(QWidget):
         self.__legend = None
         self.__similarity = None
         self.__similarity_legend = None
-        # Busy overlay. __busy shows the scrim and step text; __animated adds the
-        # turning arc, driven by __timer, which runs ONLY while the analysis worker
-        # is busy — a timer left running repaints a static screen forever.
+        # Busy overlay. __busy shows the scrim, the step text and the pixel icon of the task (__icon, a key of
+        # Pixel_Motif.CONST_BUSY_ICONS); __animated steps the icon, driven by __timer, which runs ONLY while a
+        # worker is busy — a timer left running repaints a static screen forever.
         self.__busy = False
         self.__busy_text = ''
+        self.__icon = 'magnifier'
         self.__animated = False
-        self.__spin = 0.0
+        self.__tick = 0
         self.__timer = QTimer(self)
         self.__timer.setInterval(Style.CONST_BUSY_TICK_MS)
         self.__timer.timeout.connect(self.__Tick)
@@ -475,38 +479,43 @@ class Viewport_Cls(QWidget):
             self.__empty_text = text
             self.update()
 
-    def Set_Busy(self, text: str) -> None:
+    def Set_Busy(self, text: str, icon: str = 'camera') -> None:
         """
         Description:
             A static overlay for the short, GUI-thread step (the scan). No
-            animation is possible: the GUI thread is about to block, so a spinner
-            would freeze mid-turn. processEvents forces the text to paint first.
+            animation is possible: the GUI thread is about to block, so an animated
+            icon would freeze mid-step. processEvents forces the text to paint first.
 
         Args:
             (1) text [string]: The step text (empty clears the overlay).
+            (2) icon [string]: The task's pixel icon, a key of Pixel_Motif.CONST_BUSY_ICONS.
         """
 
         self.__busy = bool(text)
         self.__busy_text = text
+        self.__icon = icon
+        self.__tick = 0
         self.__animated = False
         self.__timer.stop()
         self.update()
         QApplication.processEvents()
 
-    def Start_Busy(self, text: str) -> None:
+    def Start_Busy(self, text: str, icon: str) -> None:
         """
         Description:
-            The animated overlay for the threaded analysis; the worker runs off the
-            GUI thread, so the timer's repaints are free to turn the arc.
+            The animated overlay for a threaded step (connecting, analysing); the worker runs off the
+            GUI thread, so the timer's repaints are free to step the icon.
 
         Args:
             (1) text [string]: The initial step text.
+            (2) icon [string]: The task's pixel icon, a key of Pixel_Motif.CONST_BUSY_ICONS.
         """
 
         self.__busy = True
         self.__busy_text = text
+        self.__icon = icon
         self.__animated = True
-        self.__spin = 0.0
+        self.__tick = 0
         if not self.__timer.isActive():
             self.__timer.start()
         self.update()
@@ -538,10 +547,10 @@ class Viewport_Cls(QWidget):
     def __Tick(self) -> None:
         """
         Description:
-            Advance the spinner arc one step and repaint. Driven by the timer.
+            Advance the pixel icon one tick and repaint. Driven by the timer.
         """
 
-        self.__spin = (self.__spin + Style.CONST_BUSY_SPIN_DEG) % 360.0
+        self.__tick += 1
         self.update()
 
     def __Draw_Rect(self) -> QRect:
@@ -635,10 +644,10 @@ class Viewport_Cls(QWidget):
         span = float(legend.High - legend.Low)
         for value, label in legend.Marks:
             x = bar.left() + round(min(max((value - legend.Low) / span, 0.0), 1.0) * (bar_w - 1))
-            p.fillRect(QRect(x - 1, bar.top() - 3, 2, bar_h + 6), Style.Token_Color(Style.CONST_BUSY_INK))
+            p.fillRect(QRect(x - 1, bar.top() - 3, 2, bar_h + 6), Style.Token_Color(Style.CONST_LEGEND_MARK))
             width = metrics.horizontalAdvance(label)
             left = min(max(x - width // 2, x0), x0 + bar_w - width)
-            p.setPen(Style.Token_Color(Style.CONST_BUSY_INK))
+            p.setPen(Style.Token_Color(Style.CONST_LEGEND_MARK))
             p.drawText(QRect(left, labels_y, width, line), Qt.AlignCenter, label)
             p.setPen(Style.Token_Color(Style.CONST_VIEWPORT_TEXT))
         p.restore()
@@ -646,30 +655,29 @@ class Viewport_Cls(QWidget):
     def __Paint_Busy(self, p: QPainter) -> None:
         """
         Description:
-            Dim the viewport, turn an arc (only while animated), and print the step
-            underneath.
+            Lay the view's grey-lilac over the frame, so it shows through faintly, draw the task's pixel icon
+            (stepped only while animated) and print the step under it, both in the purple directly on the overlay.
 
         Args:
             (1) p [QPainter(object)]: The active painter.
         """
 
         p.fillRect(self.rect(), Style.Token_Color(Style.CONST_BUSY_SCRIM, Style.CONST_BUSY_SCRIM_ALPHA))
-        cx, cy = self.width() / 2.0, self.height() / 2.0
+        cx, cy = self.width() // 2, self.height() // 2
 
-        if self.__animated:
-            radius = 22
-            arc = QRectF(cx - radius, cy - radius - 16, radius * 2, radius * 2)
-            track = QPen(Style.Token_Color(Style.CONST_BUSY_TRACK, Style.CONST_BUSY_TRACK_ALPHA), 3)
-            track.setCapStyle(Qt.RoundCap)
-            p.setPen(track)
-            p.setBrush(Qt.NoBrush)
-            p.drawArc(arc, 0, 360 * 16)
-            head = QPen(Style.Token_Color(Style.CONST_BUSY_INK), 3)
-            head.setCapStyle(Qt.RoundCap)
-            p.setPen(head)
-            # Qt angles are 1/16 degree, counter-clockwise; negate to turn the usual
-            # clockwise direction. A 90-degree sweep reads as a spinner.
-            p.drawArc(arc, int(-self.__spin * 16), 90 * 16)
+        # The icon's cells, whole logical pixels so every square stays crisp, centred above the text with its
+        # bottom 6 px above the view's centre.
+        cell = self.CONST_BUSY_CELL
+        cells = Busy_Cells(self.__icon, self.__tick, Style.CONST_BUSY_DIM_ALPHA)
+        columns = max(column for column, _, _ in cells) + 1
+        rows = max(row for _, row, _ in cells) + 1
+        left = cx - columns * cell // 2
+        top = cy - 6 - rows * cell
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, False)
+        for column, row, alpha in cells:
+            p.fillRect(left + column * cell, top + row * cell, cell, cell, Style.Token_Color(Style.CONST_BUSY_INK, alpha))
+        p.restore()
 
         p.setPen(Style.Token_Color(Style.CONST_BUSY_INK))
         p.setFont(Font(9.5))
@@ -681,7 +689,7 @@ class Viewport_Cls(QWidget):
         Description:
             The project mark holds the empty state, with the AnyScan poster's pixel cluster in the
             top-right corner (UI.Utilities.Pixel_Motif.Corner_Cells); both disappear the instant a
-            frame arrives.
+            frame arrives. While busy, only the cluster is painted: the busy overlay names the step.
 
         Args:
             (1) p [QPainter(object)]: The active painter.
@@ -691,6 +699,10 @@ class Viewport_Cls(QWidget):
         tints = [Style.Token_Color(Style.CONST_CORNER_MOTIF, alpha) for alpha in Style.CONST_CORNER_MOTIF_ALPHA]
         for x, y, strong in Corner_Cells(self.width(), 0, self.CONST_CORNER_CELL):
             p.fillRect(x, y, self.CONST_CORNER_CELL, self.CONST_CORNER_CELL, tints[1 if strong else 0])
+        # While busy (connecting), the overlay's icon and step take the mark's and the instruction's place: through
+        # the translucent overlay they would sit under the step's words.
+        if self.__busy:
+            return
         cy = self.height() // 2
         if self.__mark.isValid():
             # The mark is rendered as vectors at its drawn size, never scaled from a raster (which blurred it).

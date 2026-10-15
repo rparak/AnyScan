@@ -204,7 +204,9 @@ Two cards:
   tinted fill, verdict contour; no feature marks), **Heatmap** (the background difference on a fixed 0–128
   scale, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
-  never a verdict, on screen only).
+  never a verdict, on screen only). While the camera connects, a frame is captured or analysed, the view lies
+  under its own grey-lilac at 70 %, the frame showing through, with the step in the purple under a pixel icon of
+  the task: a camera while connecting and capturing, a magnifier while analysing.
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
   each object adds `State: …`, one `Reason: …` sentence summing up why it is not OK (counts in words up to

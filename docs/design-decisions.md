@@ -3796,6 +3796,35 @@ Understanding, the Log, Trends and History.
 Tests `test/UI/test_empty_view_motif.py`,
 `test/UI/test_pixel_motif.py::test_the_corner_cluster_is_the_posters_anchored_at_its_top_right`.
 
+## The busy overlay is the Camera View's grey-lilac, with a pixel icon for each task
+
+While the camera connects, a frame is captured or a frame is analysed, the Camera View lays its own grey-lilac
+`#E1DCE6` over the frame at 70 % (`Theme.CONST_BUSY_SCRIM`, `CONST_BUSY_SCRIM_ALPHA`), so the frame shows through
+faintly and the view reads as the empty Camera View. The step's words and a pixel icon are the purple `#640ABA`,
+directly on the overlay with nothing behind them. It replaced the purple at 62 % under white words and a white
+spinner (2026-10-15).
+
+- **The icon names the task**, in the brand's pixel style: whole 5 px cells on a grid
+  (`UI.Utilities.Pixel_Motif.CONST_BUSY_ICONS`, `Busy_Cells`). A camera while connecting and capturing blinks its
+  lens (600 ms); a magnifier while preparing and analysing moves a glint across its lens (360 ms a step, then a
+  rest). Unlit cells are the purple at 18 %. The capture runs on the GUI thread, so its camera stays still. The
+  owner chose this, variant B, over a pixel loader whose 3 × 3 squares lit in turn (A), from 1x renders of the
+  window and animated captures of both.
+- **Over the empty view** (connecting), the empty state's mark and instruction are not painted: through the
+  overlay they sat under the step's words. Its corner cluster stays.
+- **The words are below 4.5:1 over dark frames, by the owner's choice.** Measured over all 41 test frames, the
+  purple on the grey-lilac at 70 % blended over each pixel as Qt blends (in sRGB): 4.43:1 over the table's median,
+  4.76:1 at the median of the frame's centre where the words sit, 3.72:1 over the darkest pixel there (a shadow,
+  `#0C2627`), 3.30:1 over black, 7.21:1 over the lightest pixel. 4.5:1 everywhere in the centre needs 78 %, and
+  over black 82 %; 62 %, the owner's first choice, gave 3.92:1 over the table. The owner chose 70 % so the frame
+  shows through.
+
+**Revisit if** the busy words must clear 4.5:1 everywhere (78 % in the frame's centre), the work surface gets
+darker, or a new busy task needs its own icon.
+Tests `test/UI/test_busy_overlay.py` (the overlay's blend, the icon cell for cell above the step, the steps with the
+timer, the empty view under it), `test/UI/test_pixel_motif.py::test_a_busy_icon_animates_only_its_step_cells`,
+`test/UI/test_paint_smoke.py`.
+
 ## The band's logos are traced SVGs, not official files
 
 No vector version of the band's three logos exists, so `App/assets/edih-digimat-white.svg`,

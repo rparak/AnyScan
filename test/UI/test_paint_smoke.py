@@ -194,7 +194,7 @@ def _Qimage(value: tp.Tuple[int, int, int], size: tp.Tuple[int, int] = (320, 200
 def test_viewport_paints_every_state(qt_app, paint_errors) -> None:
     """
     Description:
-        The viewport paints its empty state, a frame, the busy overlay with its spinner (removed
+        The viewport paints its empty state, a frame, the busy overlay with its pixel icon (removed
         again when busy stops), and the annotated and mask renders — each visibly different.
     """
 
@@ -209,7 +209,7 @@ def test_viewport_paints_every_state(qt_app, paint_errors) -> None:
     frame = _Grab(viewport)
     assert not np.array_equal(frame, empty)
 
-    viewport.Start_Busy('Analysing…')
+    viewport.Start_Busy('Analysing…', 'magnifier')
     busy = _Grab(viewport)
     assert not np.array_equal(busy, frame)
     viewport.Stop_Busy()

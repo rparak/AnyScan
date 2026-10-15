@@ -88,15 +88,15 @@ CONST_PRIMARY_DISABLED_TEXT   = CONST_CONTROL_DISABLED_TEXT
 #   Unit [string] (hex colour) / [float] (opacity 0..1)
 CONST_SCRIM       = CONST_INK
 CONST_SCRIM_ALPHA = 0.16
-# The busy overlay laid over the Live view while a frame is analysed: the scrim's purple, far heavier
-# (the frame underneath is being worked on, not merely in the background), a white spinner head
-# and status text, and the spinner's track in white at low opacity.
+# The busy overlay laid over the Camera View while the camera connects, a frame is captured or analysed: the view's
+# own grey-lilac at 70 %, so the frame shows through faintly and the view reads as the empty Camera View, with the
+# step's words and the pixel icon in the purple directly on it (docs/design-decisions.md, "The busy overlay is the
+# Camera View's grey-lilac"). The icon's unlit cells are the purple at a low opacity.
 #   Unit [string] (hex colour) / [float] (opacity 0..1)
-CONST_BUSY_SCRIM       = CONST_INK
-CONST_BUSY_SCRIM_ALPHA = 0.62
-CONST_BUSY_INK         = '#FFFFFF'
-CONST_BUSY_TRACK       = '#FFFFFF'
-CONST_BUSY_TRACK_ALPHA = 0.157
+CONST_BUSY_SCRIM       = '#E1DCE6'
+CONST_BUSY_SCRIM_ALPHA = 0.70
+CONST_BUSY_INK         = CONST_INK
+CONST_BUSY_DIM_ALPHA   = 0.18
 # The highlight over the selected object on a History thumbnail: a white outline and a faint white
 # wash, readable on any frame (0.176 -> 45 of 255).
 #   Unit [string] (hex colour) / [float] (opacity 0..1)
@@ -137,6 +137,10 @@ CONST_STATUS_TEXT_COLORS = {CONST_OK: CONST_OK_INK, CONST_WARN: CONST_WARN_INK}
 #   Unit [string] (hex colour)
 CONST_VIEWPORT      = '#E1DCE6'
 CONST_VIEWPORT_TEXT = CONST_INK
+# The heatmap legend's threshold marks (the tick through the colour bar and its label): white. They were the busy
+# overlay's white until that overlay became the grey-lilac (2026-10-15), and keep their own colour here.
+#   Unit [string] (hex colour)
+CONST_LEGEND_MARK   = '#FFFFFF'
 
 # The funding band (at the foot of the window, and the architecture diagram's band): the purple, carrying the white
 # institutional logos, white rules, the window's pixel motif in white, and the diagram's disclaimer in white (9.15:1).
