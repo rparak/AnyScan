@@ -55,12 +55,16 @@ def qt_app() -> QApplication:
 
 
 def _Pixels(viewport: Viewport_Cls) -> np.ndarray:
-    """The viewport as painted, RGB, in logical pixels (the tests run at DPR 1 here)."""
+    """
+    The viewport as painted, RGB, one pixel per logical pixel: at a DPR of n the grab holds n x n device pixels for
+    each, and the top-left one is taken (the fills sit on whole logical pixels, so each block is one colour).
+    """
     image = viewport.grab().toImage().convertToFormat(QImage.Format_RGB32)
+    ratio = max(1, round(image.devicePixelRatio()))
     pointer = image.constBits()
     pointer.setsize(image.byteCount())
     array = np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)
-    return array[:, :image.width(), 2::-1].astype(int)
+    return array[::ratio, :image.width():ratio, 2::-1].astype(int)
 
 
 def _Hex(token: str) -> np.ndarray:
