@@ -134,7 +134,7 @@ def test_label_mask_fill_is_a_visible_tint_of_its_box() -> None:
     """
 
     # The pair that actually meets on the mask: a verdict box over its fill, and for detect-only
-    # the mask's own darker neutral outline over the neutral fill (the frame's box never sits on it).
+    # the mask's own derived neutral outline over the neutral fill (the frame's box never sits on it).
     triples = {'OK': Theme.CONST_VERDICT_COLORS['OK'], 'NOK': Theme.CONST_VERDICT_COLORS['NOK'],
                'Warning': Theme.CONST_VERDICT_COLORS['Warning'],
                'neutral': (Theme.Detection_Mask_Outline(), None, Theme.Detection_Color()[2]),
@@ -163,11 +163,11 @@ def test_neutral_mask_pair_is_derived_light_fill_and_darker_outline() -> None:
     """
     Description:
         The label mask's neutral pair is DERIVED (Neutral_Mask_Colors), not hand-set: a LIGHT fill
-        and its own darker outline, in the neutral box's hue and chroma. The frame's box keeps its
-        lightness for the table and the parts; on the mask the outline only meets the fill and the
-        black ground, so it is darker, which frees the fill to go light. The test states the two
+        and its own outline, darker than the fill, in the neutral box's hue and chroma. The frame's box
+        keeps its own lightness for the chip's white numeral; on the mask the outline only meets the fill
+        and the black ground, where that box would miss the 4.5:1 floor. The test states the two
         bounds and asserts the pair's placement against them with the margin:
-          - fill: as light as the fill/white floor allows (L* <= 79.74 for this chroma at the
+          - fill: as light as the fill/white floor allows (L* <= 81.31 for this chroma at the
             floor of 21), placed at that bound less the 0.5 margin — never back to a dark fill;
           - outline: inside [48.88 (4.5:1 on black), fill L* - 25], at least 0.5 from the lower
             bound and at least 25 + 0.5 below the fill.
@@ -180,14 +180,14 @@ def test_neutral_mask_pair_is_derived_light_fill_and_darker_outline() -> None:
 
     outline_lower, fill_upper = Theme.Neutral_Mask_Bounds(box)
     margin = Theme.CONST_MASK_FILL_WINDOW_MARGIN
-    assert (round(outline_lower, 2), round(fill_upper, 2)) == (48.88, 79.74)   # stated in Theme
+    assert (round(outline_lower, 2), round(fill_upper, 2)) == (48.88, 81.31)   # stated in Theme
     outline_l, fill_l = Theme.Lch_Of(outline)[0], Theme.Lch_Of(fill)[0]
     assert abs(fill_l - (fill_upper - margin)) < 0.3                # the lightest allowed fill
     assert fill_l >= 79.0                                           # light — the L* ~80 fill
     assert outline_l >= outline_lower + margin, (outline_l, outline_lower)
     assert fill_l - outline_l >= Theme.CONST_MASK_FILL_MIN_BOX_DELTA_E + margin, (fill_l, outline_l)
-    assert outline_l < Theme.Lch_Of(box)[0]                         # darker than the frame's box
     assert Theme.Ground_Contrast(outline) >= Theme.CONST_MASK_FILL_MIN_GROUND_CONTRAST
+    assert Theme.Ground_Contrast(box) < Theme.CONST_MASK_FILL_MIN_GROUND_CONTRAST  # why the mask has its own
 
     box_l, box_c, box_h = Theme.Lch_Of(box)
     for colour in (outline, fill):                                  # the box's own hue and chroma
@@ -278,7 +278,7 @@ def test_every_catalogue_state_has_its_colour() -> None:
     Description:
         Each of the four states a catalogue mode gives has a colour triple: OK the purple and NOK the orange-red;
         Warning the JIC amber with the status amber's text twin (the one place amber marks an object); Unspecified the neutral
-        detection colour, since it is not judged — and on the label mask the neutral's darker outline, as for
+        detection colour, since it is not judged — and on the label mask the neutral's derived outline, as for
         a detect-only object, while the judged states keep their box. The four boxes stay ΔE >= 12 apart.
     """
 
@@ -294,23 +294,27 @@ def test_every_catalogue_state_has_its_colour() -> None:
     assert min(Theme.Delta_E(a, b) for i, a in enumerate(boxes) for b in boxes[i + 1:]) >= CONST_ANNOTATE_MIN_DELTA_E
 
 
-def test_chip_numerals_clear_4_5_but_the_one_nok_exception() -> None:
+def test_every_chip_numeral_is_white_but_the_recorded_exceptions() -> None:
     """
     Description:
-        A chip on the frame is filled with its verdict's box and carries its numeral in Chip_Numeral_Color: white on the
-        OK purple, the purple on Warning's amber and on the neutral, each >= 4.5:1. White on the NOK orange-red is the
-        owner's one deliberate exception for these short bold numerals, at 2.92:1 (docs/design-decisions.md); it is
-        pinned at that value, so a change to the NOK colour or its numeral has to revisit the exception.
+        A chip on the frame is filled with its verdict's box (or the neutral, detect-only) and carries its numeral in
+        Chip_Numeral_Color: white on every chip, at >= 4.5:1, except the owner's two recorded exceptions
+        (docs/design-decisions.md), each pinned at its numeral and ratio so a change to either colour has to revisit
+        it: white on the NOK orange-red at 2.92:1, and the purple on Warning's amber at 5.66:1, the amber being too
+        light for white.
     """
 
-    exceptions = {'NOK': 2.92}
+    exceptions = {'NOK': ('#FFFFFF', 2.92), 'Warning': (Theme.CONST_INK, 5.66)}
     for verdict in ('OK', 'NOK', 'Warning', 'Unspecified'):
         chip = Theme.Verdict_Color(verdict)[0]
-        ratio = Theme.Contrast_Ratio(Theme.Chip_Numeral_Color(chip), chip)
+        numeral = Theme.Chip_Numeral_Color(chip)
+        ratio = Theme.Contrast_Ratio(numeral, chip)
         if verdict in exceptions:
-            assert Theme.Chip_Numeral_Color(chip) == '#FFFFFF' and round(ratio, 2) == exceptions[verdict], (verdict, ratio)
+            assert (numeral, round(ratio, 2)) == exceptions[verdict], (verdict, numeral, ratio)
         else:
-            assert ratio >= 4.5, (verdict, ratio)
+            assert numeral == '#FFFFFF' and ratio >= 4.5, (verdict, numeral, ratio)
+    assert Theme.Chip_Numeral_Color(Theme.Detection_Color()[0]) == '#FFFFFF'
+    assert Theme.Chip_Numeral_Color(Theme.Detection_Mask_Outline()) == '#FFFFFF'
 
 
 def test_the_palette_keeps_the_brands_rules() -> None:

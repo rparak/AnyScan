@@ -197,7 +197,10 @@ Two cards:
   outline, solid; a hole expected and not found as its box and a circle of the catalogue's diameter, dashed (the
   only dashed feature marks); a stain as its box with its pixels tinted; each feature numbered on a smaller chip
   (`3.1`, the number of its `Part` line in the Log) on the corner of its box nearest the object's chip, turned with
-  that box and never more than 45° off level, never over another chip), **Mask** (the label mask: black ground,
+  that box and never more than 45° off level, never over another chip; each object's box and chip are its state's
+  colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified and every object of a detect-only mode
+  the neutral grey `#655E6D`, the chip's number white on every chip but Warning's, where it is the purple),
+  **Mask** (the label mask: black ground,
   tinted fill, verdict contour; no feature marks), **Heatmap** (the background difference on a fixed 0–128
   scale, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,

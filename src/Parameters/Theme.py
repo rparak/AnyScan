@@ -195,18 +195,20 @@ CONST_MASK_FILL_WINDOW_MARGIN = 0.5
 #   white). NOK is the JIC orange-red #FF6540, as the poster marks a defect; its ink is its hue at L* 41 (6.23:1).
 #   Warning (not the catalogue part, 2026-10-11) is the JIC amber #FFC226 with its ink at L* 41 (6.26:1).
 #   UNSPECIFIED (probably several parts, not judged) is the neutral detection colour, assembled at the end of this
-#   module (CONST_DETECTION_COLORS); on the label mask its outline is the mask's own darker neutral.
+#   module (CONST_DETECTION_COLORS); on the label mask its outline is the mask's own derived neutral.
 #
 #   Measured on the test frames (2026-10-14; per-pixel WCAG ratio, median, against the surfaces under the marks:
 #   the table L* 38, bright aluminium 66, the dark rusted plate 25, rust-stained metal 61):
 #       OK       table 1.3  aluminium 3.5  dark plate 1.3  rust-stained 3.0   (reads on the table by hue, ΔE 119)
 #       NOK      table 2.4  aluminium 1.2  dark plate 3.9  rust-stained 1.2   (reads on metal by hue, ΔE 76)
 #       Warning  table 4.3  aluminium 1.6  dark plate 7.0  rust-stained 1.9
+#       Neutral  table 1.1  aluminium 2.4  dark plate 1.8  mid-grey metal 1.3   (2026-10-15, frames 055-080; reads
+#                                                                               by hue on the table, ΔE 36)
 #   No single colour can reach 3:1 against both the dark plate and the aluminium (it would need relative
 #   luminance >= 0.227 and <= 0.085). An outline under the marks lifts them on bright metal (to 3.5:1 in this
 #   purple); the owner chose by eye, from renders of these frames, to draw none (docs/design-decisions.md).
-#   The four boxes are >= ΔE 44 apart (NOK-Warning ΔE 27 under deuteranopia, where the words and the chips'
-#   numerals carry the difference).
+#   The four boxes are >= ΔE 58 apart (NOK-Warning ΔE 27 under deuteranopia, where the words carry the
+#   difference).
 #
 #   The FILL is a tint of the box in its own hue (within 5°, at >= 40 % of its chroma), so silhouette and contour
 #   read as one object, built in LCh at L* 56-72 against the CONST_MASK_FILL_* floors:
@@ -228,41 +230,47 @@ CONST_VERDICT_COLORS = {
 CONST_VERDICT_DEFAULT = 'OK'
 
 # The ground a verdict's WORDS sit on (the status badge, the diagram's verdict labels): the box colour where the
-# purple reads at >= 4.5:1 on it (Warning 5.66:1, Unspecified 6.79:1), else the poster's tint of it: the part
-# tag's periwinkle for OK (the purple box under purple words would be one colour; 5.71:1) and the defect tag's
-# #FFD9D0 for NOK (7.01:1; the purple on the solid orange-red is 3.13:1).
+# purple reads at >= 4.5:1 on it (Warning 5.66:1), else the poster's tint of it: the part tag's periwinkle for OK
+# (the purple box under purple words would be one colour; 5.71:1), the defect tag's #FFD9D0 for NOK (7.01:1; the
+# purple on the solid orange-red is 3.13:1) and the brand's grey-lilac for the neutral (6.79:1; the purple on the
+# dark neutral box is 1.47:1).
 #   Unit [string] (hex colour)
 CONST_OK_LABEL_GROUND = '#C2C9FF'
 CONST_NOK_LABEL_GROUND = '#FFD9D0'
+CONST_DETECTION_LABEL_GROUND = '#E1DCE6'
 
 # The numeral on a chip on the frame (an object's and a feature's), filled with its verdict's box as on the poster:
-# white on the solid purple (9.15:1) and on the solid orange-red (2.92:1: the owner's deliberate exception for these
-# short bold numerals, the only text below 4.5:1, docs/design-decisions.md), the purple on Warning's amber (5.66:1)
-# and on the neutral (6.79:1). Keyed by the chip's colour, so a detect-only run's neutral chip reads the same.
-#   Unit [string] (hex colour)
-CONST_CHIP_NUMERAL_ON_DARK = '#FFFFFF'
+# white, in every state and both modes (docs/design-decisions.md, "Every chip carries a white numeral, but
+# Warning's"): on the purple 9.15:1, on the neutral 6.22:1, and on the orange-red 2.92:1, the owner's deliberate
+# exception for these short bold numerals. Warning's amber is too light for white (1.62:1) and is kept for how it
+# reads on the frames, so its chip alone keeps the purple numeral (5.66:1): CONST_CHIP_NUMERAL_EXCEPTIONS, keyed by
+# the chip's colour.
+#   Unit [string] (hex colour) / [Dict<string, string>] (chip colour -> numeral colour)
+CONST_CHIP_NUMERAL = '#FFFFFF'
+CONST_CHIP_NUMERAL_EXCEPTIONS = {CONST_WARNING_BOX: CONST_INK}
 
 # The NEUTRAL object colour, used when a configuration only DETECTS and does not classify
 # (Configuration_Str.Classifies is false: it is not a catalogue mode), and for Unspecified: every object is drawn in
-# this one colour, because there is no pass/fail to encode. It is the brand's grey-lilac, near-achromatic (chroma
-# 5.5), far from the purple OK (ΔE 107) and the loud NOK (ΔE 80), so a judged set and an unjudged one never share a
-# hue. Drawn into the frame, it is measured against the real surfaces at the project's distinctness floor (ΔE 12):
-# ΔE 22 against bright aluminium (its worst case, grey on grey), 35 against the bright steel of the previous set,
-# 60 against the table, 64 against the dark plate. Its ink, the purple's hue at chroma 10 and L* 41, is for text on
-# the white card (6.22:1).
+# this one colour, because there is no pass/fail to encode. It is the grey-lilac's text twin, the purple's hue at
+# chroma 10 and L* 41, one colour for the box, the chip, its words on the white card (6.22:1) and Trends: dark
+# enough to carry the chip's white numeral (6.22:1), near-achromatic, far from the purple OK (ΔE 87), the NOK
+# (ΔE 80) and Warning (ΔE 95), so a judged set and an unjudged one never share a hue. Drawn into the frame, it is
+# measured against the real surfaces at the project's distinctness floor (ΔE 12): ΔE 17 against mid-grey metal (its
+# worst case, grey on grey), 28 against bright aluminium, 24 against the dark plate, 36 against the table. It
+# replaced the grey-lilac #E1DCE6 itself (2026-10-15), which could carry only a purple numeral (1.35:1 for white).
 #
-# THE LABEL MASK USES ITS OWN, DERIVED NEUTRAL PAIR — outline and fill — not this box: on the mask the outline only
-# sits on the fill and on black, so it can be darker, which frees the fill to go light. Neutral_Mask_Colors derives
+# THE LABEL MASK USES ITS OWN, DERIVED NEUTRAL PAIR — outline and fill — not this box: on the mask the outline sits on
+# the fill and on black, and this box is 3.4:1 on black, under the mask's 4.5:1 floor. Neutral_Mask_Colors derives
 # the pair in this box's own hue and chroma:
-#     fill     L* 79.09 (#C7C2CC) — as light as the fill/white floor allows: for chroma C*, ΔE to white >= 21 needs
-#                                   L* <= 100 - sqrt(21² - C*²) = 79.74, less the 0.5 margin. The floor is 21, not
+#     fill     L* 80.81 (#CEC6D7) — as light as the fill/white floor allows: for chroma C*, ΔE to white >= 21 needs
+#                                   L* <= 100 - sqrt(21² - C*²) = 81.31, less the 0.5 margin. The floor is 21, not
 #                                   25, on purpose — see CONST_MASK_FILL_MIN_WHITE_DELTA_E;
-#     outline  L* 51.52 (#7E7982) — the midpoint of [48.88 (4.5:1 against the black ground), fill L* - 25];
-#     measured ΔE(outline, fill) 27.6, ΔE(fill, white) 21.7, fill 12.0:1 and outline 4.9:1 on black.
+#     outline  L* 52.37 (#817A8A) — the midpoint of [48.88 (4.5:1 against the black ground), fill L* - 25];
+#     measured ΔE(outline, fill) 28.7, ΔE(fill, white) 21.3, fill 12.7:1 and outline 5.1:1 on black.
 # The window closes only if the FLOORS change (not the box), and then Theme raises at import naming it.
 #   Unit [string] (hex colour)
-CONST_DETECTION_BOX = '#E1DCE6'
 CONST_DETECTION_INK = '#655E6D'
+CONST_DETECTION_BOX = CONST_DETECTION_INK
 # CONST_DETECTION_COLORS — the (box, ink, fill) triple — is assembled at the END of this module,
 # once Neutral_Mask_Colors (which needs the colour-space helpers below) is defined.
 
@@ -641,8 +649,8 @@ def Mask_Outline_Color(verdict: str) -> str:
     """
     Description:
         The outline a judged object takes on the LABEL MASK: its verdict box, except for a verdict drawn
-        in the neutral colour (Unspecified), which takes the mask's own darker neutral outline — the
-        neutral box would all but vanish on the neutral fill (Detection_Mask_Outline).
+        in the neutral colour (Unspecified), which takes the mask's own derived neutral outline — the
+        neutral box is under the mask's floor on the black ground (Detection_Mask_Outline).
 
     Args:
         (1) verdict [string]: The verdict.
@@ -658,10 +666,9 @@ def Mask_Outline_Color(verdict: str) -> str:
 def Chip_Numeral_Color(chip_hex: str) -> str:
     """
     Description:
-        The numeral colour on a chip filled with a box colour: CONST_CHIP_NUMERAL_ON_DARK on the OK purple, on the NOK
-        orange-red (the owner's exception, 2.92:1) and on the label mask's darker neutral outline (4.2:1, white as it
-        was there before the brand palette; the purple would be 2.1:1), the purple on Warning's amber and the
-        neutral box.
+        The numeral colour on a chip filled with a box colour: CONST_CHIP_NUMERAL (white) on every chip, the label
+        mask's neutral outline included (4.1:1), except a chip in CONST_CHIP_NUMERAL_EXCEPTIONS: Warning's amber, which
+        keeps the purple.
 
     Args:
         (1) chip_hex [string]: The chip's colour as '#rrggbb'.
@@ -670,15 +677,16 @@ def Chip_Numeral_Color(chip_hex: str) -> str:
         (1) parameter [string]: The numeral colour.
     """
 
-    dark = {CONST_VERDICT_COLORS['OK'][0].lower(), CONST_VERDICT_COLORS['NOK'][0].lower(), Detection_Mask_Outline().lower()}
-    return CONST_CHIP_NUMERAL_ON_DARK if chip_hex.lower() in dark else CONST_INK
+    exceptions = {chip.lower(): numeral for chip, numeral in CONST_CHIP_NUMERAL_EXCEPTIONS.items()}
+    return exceptions.get(chip_hex.lower(), CONST_CHIP_NUMERAL)
 
 
 def Label_Ground(verdict: str) -> str:
     """
     Description:
         The ground a verdict's words sit on (the status badge, the diagram's verdict labels): the poster's tint for OK
-        and NOK, the box colour for the others, where the purple words clear 4.5:1.
+        and NOK, the grey-lilac for the neutral (Unspecified), and Warning's amber box, where the purple words clear
+        4.5:1.
 
     Args:
         (1) verdict [string]: The verdict.
@@ -687,7 +695,8 @@ def Label_Ground(verdict: str) -> str:
         (1) parameter [string]: The ground colour as '#rrggbb'.
     """
 
-    return {'OK': CONST_OK_LABEL_GROUND, 'NOK': CONST_NOK_LABEL_GROUND}.get(verdict, Verdict_Color(verdict)[0])
+    grounds = {'OK': CONST_OK_LABEL_GROUND, 'NOK': CONST_NOK_LABEL_GROUND, 'Unspecified': CONST_DETECTION_LABEL_GROUND}
+    return grounds.get(verdict, Verdict_Color(verdict)[0])
 
 
 def Detection_Color() -> tp.Tuple[str, str, str]:
@@ -697,7 +706,7 @@ def Detection_Color() -> tp.Tuple[str, str, str]:
         configuration only detects (classification off), so every object is one neutral colour.
         From the ONE CONST_DETECTION_COLORS definition, a distinct token from the verdict colours
         ('detected, not judged', never a pass/fail). The fill is the label mask's neutral fill,
-        DERIVED with its own darker outline (Neutral_Mask_Colors, Detection_Mask_Outline), never
+        DERIVED with its own outline (Neutral_Mask_Colors, Detection_Mask_Outline), never
         hand-set.
 
     Returns:
@@ -710,10 +719,9 @@ def Detection_Color() -> tp.Tuple[str, str, str]:
 def Detection_Mask_Outline() -> str:
     """
     Description:
-        The neutral OUTLINE for the label mask — a darker shade of the neutral than the frame's box
-        (Detection_Color()[0]), derived with the mask fill by Neutral_Mask_Colors. On the mask the
-        outline only sits on the fill and on black, so it can be dark enough to leave the fill
-        light; the frame's box keeps its own lightness for the table and the parts.
+        The neutral OUTLINE for the label mask, derived with the mask fill by Neutral_Mask_Colors in the
+        frame box's (Detection_Color()[0]) hue and chroma. On the mask the outline sits on the fill and on
+        black, so it is placed for those two; the frame's box keeps its own lightness for the white numeral.
 
     Returns:
         (1) parameter [string]: The mask outline colour as '#rrggbb'.

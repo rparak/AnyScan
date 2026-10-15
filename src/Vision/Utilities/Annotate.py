@@ -189,8 +189,8 @@ def __Draw_Chip(image: tp.Any, x: int, top: int, label: str, chip_bgr: tp.Tuple[
     """
     Description:
         A chip at (x, top): a filled rectangle in chip_bgr, the box's own colour as on the poster, with the numeral in
-        the colour Theme.Chip_Numeral_Color gives that chip (white on the OK purple and the NOK orange-red, the purple on
-        the amber and the neutral).
+        the colour Theme.Chip_Numeral_Color gives that chip (white on every chip but Warning's amber, which keeps the
+        purple).
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The image to draw on (mutated).
@@ -612,7 +612,7 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
         Draw each object's bounding box and index chip on the image given — the same boxes and
         labels in the same places for the annotated frame and the label mask. The colour is each
         object's verdict colour (verdict_colored), or the neutral colour the caller passes: the
-        frame's box on the annotated frame, and the mask's own darker outline on the label mask,
+        frame's box on the annotated frame, and the mask's own derived outline on the label mask,
         where the outline sits only on the fill and on black and so must stand off a LIGHT fill.
 
     Args:
@@ -626,7 +626,7 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
                                  (solid), demoting its axis-aligned box to a thin dashed line. The
                                  Camera View's annotated frame does; the label mask does not.
         (8) on_mask [bool]: The image is the label mask: a verdict drawn in the neutral colour
-                            (Unspecified) takes the mask's darker neutral outline (Mask_Outline_Color).
+                            (Unspecified) takes the mask's derived neutral outline (Mask_Outline_Color).
     """
 
     box_w = max(1, int(round(CONST_ANNOTATE_BOX_W * scale)))
@@ -704,8 +704,8 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
         mask_image[det.Mask.astype(bool)] = fill_bgr
 
     # Then the same boxes and index chips as the annotated view, in the verdict colour — or, when
-    # classification is off, in the mask's own darker neutral outline, which stays clear of the
-    # light neutral fill (the frame's lighter box would all but vanish on it).
+    # classification is off, in the mask's own derived neutral outline, which stays clear of the
+    # light neutral fill and reads on the black ground (the frame's box is 3.4:1 on black).
     __Draw_Boxes(mask_image, objects, scale, cv2, verdict_colored, Detection_Mask_Outline(), on_mask=True)
     return mask_image
 

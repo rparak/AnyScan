@@ -371,7 +371,7 @@ def test_the_catalogue_states_render_in_their_colours_on_both_images() -> None:
     Description:
         A Warning object is drawn in the amber box on the frame and on the mask, filled with the amber
         tint; an Unspecified one in the neutral box on the frame, and on the mask filled with the neutral
-        fill and outlined in the mask's darker neutral — the neutral box would vanish on that fill.
+        fill and outlined in the mask's derived neutral — the neutral box misses the floor on the black ground.
     """
 
     scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)
@@ -585,8 +585,8 @@ def test_each_chip_is_its_box_colour_with_its_numeral_colour() -> None:
     """
     Description:
         On the annotated frame each object's chip is filled with its verdict's box colour, as on the poster, and its
-        numeral is drawn in Theme.Chip_Numeral_Color for that chip: white on OK and NOK, the purple on Warning and
-        Unspecified. Read in the rendered pixels of the chip, which sits above each box's top-left corner.
+        numeral is drawn in Theme.Chip_Numeral_Color for that chip: white on OK, NOK and Unspecified, the purple on
+        Warning. Read in the rendered pixels of the chip, which sits above each box's top-left corner.
     """
 
     verdicts = ('OK', 'NOK', 'Warning', 'Unspecified')

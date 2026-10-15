@@ -27,14 +27,15 @@ practices followed inconsistently are under **Unsettled**.
 
 - The verdict colours are fixed tokens from the JIC Smart Factory palette: OK the purple `#640ABA`, NOK the
   orange-red `#FF6540` (DD *The fail marker is the JIC orange-red*), Warning the amber `#FFC226`, Unspecified
-  the neutral grey-lilac `#E1DCE6`. A detect-only run draws one neutral colour, distinct in hue from OK (DD
+  the neutral `#655E6D`. A detect-only run draws that one neutral colour, distinct in hue from OK (DD
   *Classification is a per-configuration switch*). One purple: no darker shade of it exists in the theme (DD
   *The palette is the JIC Smart Factory brand's*).
 - The box, the chip and the mask outline are drawn in the verdict colour itself, unshifted, on any
   background. A colour is never lightened, darkened or rotated to gain contrast against a frame.
 - Legibility comes from the foreground: a chip is its box's colour and its numeral is
-  `Theme.Chip_Numeral_Color`'s — white on OK and NOK, the purple on Warning and Unspecified. White on the NOK
-  orange-red (2.92:1) is the owner's one recorded exception to 4.5:1. There is no casing or outline around a
+  `Theme.Chip_Numeral_Color`'s — white on every chip but Warning's amber, where it is the purple. White on the NOK
+  orange-red (2.92:1) is the owner's one recorded exception to 4.5:1, and the purple on Warning the one exception to
+  white (DD *Every chip carries a white numeral, but Warning's*). There is no casing or outline around a
   chip or a mark (the owner's ruling, kept after an outline was measured).
 - Words on a verdict (the badge, the diagram's labels) are the purple on `Theme.Label_Ground`: the verdict's
   colour where the purple clears 4.5:1 on it, the poster's tint of it otherwise.
@@ -44,7 +45,7 @@ practices followed inconsistently are under **Unsettled**.
 - ✅ `test/Vision/Utilities/test_annotate.py::test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour`,
   `::test_each_chip_is_its_box_colour_with_its_numeral_colour`,
   `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box`,
-  `::test_verdict_colour_comes_from_the_one_constant`, `::test_chip_numerals_clear_4_5_but_the_one_nok_exception`,
+  `::test_verdict_colour_comes_from_the_one_constant`, `::test_every_chip_numeral_is_white_but_the_recorded_exceptions`,
   `::test_the_palette_keeps_the_brands_rules`.
 
 ## Severity is never carried by colour alone ✅
