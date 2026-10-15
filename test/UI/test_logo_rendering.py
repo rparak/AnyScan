@@ -109,7 +109,8 @@ def _Pixels(image: QImage) -> np.ndarray:
 
 
 def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, opacity: float = 1.0,
-                      mark_right: tp.Optional[float] = None) -> tp.Tuple[np.ndarray, np.ndarray]:
+                      mark_right: tp.Optional[float] = None,
+                      ground: tp.Optional[str] = None) -> tp.Tuple[np.ndarray, np.ndarray]:
     """
     Description:
         A region of a shown widget as the window draws it, and the SVG asset rendered directly into an image of the same
@@ -122,6 +123,7 @@ def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, 
         (4) name [string]: The SVG asset.
         (5) opacity [float]: The opacity the widget draws it at.
         (6) mark_right [float]: For a logo grid-fitted at DPR 1, its mark's right edge (viewBox units); None otherwise.
+        (7) ground [string]: The ground colour, as '#rrggbb'; None reads it from the widget's top-right corner.
 
     Returns:
         (1) parameter [Tuple<Matrix, Matrix>]: (drawn, direct) RGB pixels.
@@ -129,8 +131,10 @@ def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, 
 
     grab = window.grab(QRect(widget.mapTo(window, rect.topLeft()), rect.size()))
     drawn = _Pixels(grab.toImage())
-    ground = window.grab(QRect(widget.mapTo(window, QPoint(widget.width() - 2, 1)), QSize(1, 1)))
-    ground = _Pixels(ground.toImage())[0, 0]
+    if ground is None:
+        ground = _Pixels(window.grab(QRect(widget.mapTo(window, QPoint(widget.width() - 2, 1)), QSize(1, 1))).toImage())[0, 0]
+    else:
+        ground = [int(ground[i:i + 2], 16) for i in (1, 3, 5)]
     image = QImage(drawn.shape[1], drawn.shape[0], QImage.Format_RGB32)
     image.fill(QColor(*[int(c) for c in ground]))
     painter = QPainter(image)
@@ -213,16 +217,32 @@ def test_at_1x_the_header_marks_have_no_half_covered_pixel(qt_app, window) -> No
         assert half == 0, '%d half-covered pixels in %s' % (half, widget.objectName() or type(widget).__name__)
 
 
-def test_only_the_funding_bands_raster_logos_are_pixmaps(window) -> None:
+def test_the_funding_bands_logos_are_rendered_as_vectors_at_their_size(window) -> None:
     """
     Description:
-        No label in the window shows a pixmap but the funding band's three logos, which exist only as PNG: an SVG logo
-        set on a label as a pixmap would be a raster again.
+        Each of the funding band's three logos, traced SVGs, is its SVG rendered directly at its device size on the
+        band's purple, within CONST_TOLERANCE.
+    """
+
+    band = window.findChild(Widgets.Funding_Row_Cls)
+    logos = [w for w in band.findChildren(Widgets.Svg_Image_Cls)]
+    names = [name for name, _ in Widgets.Funding_Row_Cls.LOGOS if name is not None]
+    assert len(logos) == len(names) == 3
+    for widget, name in zip(sorted(logos, key=lambda w: w.mapTo(band, QPoint(0, 0)).x()), names):
+        drawn, direct = _Drawn_And_Direct(window, widget, QRect(0, 0, widget.width(), widget.height()), name,
+                                          ground=Style.CONST_BAND)
+        assert np.abs(drawn - direct).max() <= CONST_TOLERANCE, name
+
+
+def test_no_logo_is_a_pixmap(window) -> None:
+    """
+    Description:
+        No label in the window shows a pixmap: every logo is an SVG rendered at paint time, and one set on a label as a
+        pixmap would be a raster again.
     """
 
     pixmapped = [label for label in window.findChildren(QLabel) if label.pixmap() is not None and not label.pixmap().isNull()]
-    band = window.findChild(Widgets.Funding_Row_Cls)
-    assert len(pixmapped) == 3 and all(band.isAncestorOf(label) for label in pixmapped)
+    assert pixmapped == []
 
 
 def test_the_logos_are_checked_again_at_dpr_2(qt_app, project_root) -> None:
@@ -241,5 +261,6 @@ def test_the_logos_are_checked_again_at_dpr_2(qt_app, project_root) -> None:
     for passed in ('test_the_anyscan_logo_is_rendered_as_vectors_at_its_size',
                    'test_the_jic_logo_is_rendered_as_vectors_at_its_size',
                    'test_the_empty_camera_view_mark_is_rendered_as_vectors_at_its_size',
-                   'test_only_the_funding_bands_raster_logos_are_pixmaps'):
+                   'test_the_funding_bands_logos_are_rendered_as_vectors_at_their_size',
+                   'test_no_logo_is_a_pixmap'):
         assert 'PASSED test/UI/test_logo_rendering.py::%s' % passed in report, report[-3000:]

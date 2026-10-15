@@ -144,6 +144,11 @@ CONST_VIEWPORT_TEXT = CONST_INK
 CONST_BAND          = CONST_INK
 CONST_BAND_LINE     = '#FFFFFF'
 CONST_BAND_TEXT     = '#FFFFFF'
+# The band's rules and its disclaimer are white at an opacity, so the rules are a whisper and the disclaimer stays
+# secondary to the logos (the logos are solid white).
+#   Unit [float] (0..1)
+CONST_BAND_LINE_ALPHA = 0.20
+CONST_BAND_TEXT_ALPHA = 0.76
 
 # The label-mask FILL floors. They live here, not in the renderer, because Theme DERIVES the
 # neutral fill from them (Neutral_Mask_Colors) and the parameters layer must not import the vision

@@ -49,7 +49,7 @@ from Parameters.Theme import (                                             # noq
     CONST_OK_BORDER, CONST_WARN, CONST_WARN_INK, CONST_CONTROL_PRESSED, Label_Ground,
     CONST_OK_LABEL_GROUND, CONST_NOK_LABEL_GROUND, CONST_WARNING_BOX,
     CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_BAND,
-    CONST_BAND_LINE, CONST_BAND_TEXT, CONST_LOGO_INK,
+    CONST_BAND_LINE, CONST_BAND_TEXT, CONST_BAND_LINE_ALPHA, CONST_BAND_TEXT_ALPHA, CONST_LOGO_INK,
     CONST_LOG_WARNING, CONST_LOG_ERROR, Log_Level_Color, Status_Text_Color, Heatmap_Colors)
 
 """
@@ -195,8 +195,24 @@ def Scrim_Color() -> str:
         (1) parameter [string]: The colour as 'rgba(r, g, b, a)'.
     """
 
-    r, g, b = Hex_To_Rgb(CONST_SCRIM)
-    return 'rgba(%d, %d, %d, %d)' % (r, g, b, int(round(255 * CONST_SCRIM_ALPHA)))
+    return Token_Css(CONST_SCRIM, CONST_SCRIM_ALPHA)
+
+
+def Token_Css(hex_color: str, alpha: float) -> str:
+    """
+    Description:
+        A theme token at an opacity, as a stylesheet colour.
+
+    Args:
+        (1) hex_color [string]: The token, as '#rrggbb'.
+        (2) alpha [float]: The opacity, 0..1.
+
+    Returns:
+        (1) parameter [string]: The colour as 'rgba(r, g, b, a)', a in 0..255.
+    """
+
+    r, g, b = Hex_To_Rgb(hex_color)
+    return 'rgba(%d, %d, %d, %d)' % (r, g, b, int(round(255 * alpha)))
 
 
 def Token_Color(hex_color: str, alpha: float = 1.0) -> QColor:
@@ -384,41 +400,14 @@ def App_Icon() -> QIcon:
     return QIcon(ico) if os.path.isfile(ico) else QIcon()
 
 
-def Load_Logo(name: str, height: int) -> QPixmap:
-    """
-    Description:
-        Load a logo and scale it for the display it will actually be drawn on.
-        Scaling to height * devicePixelRatio and tagging the pixmap with that ratio
-        hands Qt the pixels it needs and it draws them one to one, so the logo is
-        crisp on a 125% or 150% display.
-
-    Args:
-        (1) name [string]: The asset filename under App/assets/.
-        (2) height [int]: The target logical height in pixels.
-
-    Returns:
-        (1) parameter [QPixmap(object)]: The scaled pixmap (null if the file is missing).
-    """
-
-    pix = QPixmap(os.path.join(CONST_ASSETS, name))
-    if pix.isNull():
-        return pix
-    app = QApplication.instance()
-    dpr = app.devicePixelRatio() if app else 1.0
-    dpr = max(1.0, float(dpr))
-    scaled = pix.scaledToHeight(int(round(height * dpr)), Qt.SmoothTransformation)
-    scaled.setDevicePixelRatio(dpr)
-    return scaled
-
-
 def Load_Svg(name: str, height: int) -> QPixmap:
     """
     Description:
         Rasterize an SVG asset for the display it will actually be drawn on.
         A vector lockup drawn at height * devicePixelRatio and tagged with that
         ratio hands Qt exactly the pixels it needs, so the wordmark stays crisp on a
-        125% or 150% display — the same DPI handling as Load_Logo, but the source is
-        rendered rather than scaled, which keeps the type sharp at any size.
+        125% or 150% display: the source is rendered rather than scaled, which keeps
+        the type sharp at any size.
 
     Args:
         (1) name [string]: The .svg asset filename under App/assets/.

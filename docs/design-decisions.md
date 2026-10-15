@@ -3649,25 +3649,71 @@ Tests `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_con
 
 ## The funding band is the poster's: the project's, the Ministry's and the EU's logos in white on the purple
 
-The band at the foot of the window (`Widgets.Funding_Row_Cls`) and the architecture diagram's are one band, as on the
-AnyScan poster's footer: on the solid purple `#640ABA`, the EDIH-DIGIMAT wordmark, a white rule, the Ministry of
-Industry and Trade's logo and the EU emblem with "Funded by the European Union", then a white rule and the EU
-disclaimer, all in white (9.15:1). The diagram reads the window's list (`Funding_Row_Cls.LOGOS`).
+The band at the foot of the window (`Widgets.Funding_Row_Cls`) and the architecture diagram's carry the AnyScan
+poster's footer on the solid purple `#640ABA`. In the window it is one row: the EDIH-DIGIMAT wordmark, a rule, the
+Ministry of Industry and Trade's logo, the EU emblem with "Funded by the European Union", a rule and the EU disclaimer
+beside them. The logos are solid white SVGs traced from the white PNGs (*The band's logos are traced SVGs*). The
+rules are white at 20 % (`Theme.CONST_BAND_LINE_ALPHA`), the disclaimer white at 76 % (`CONST_BAND_TEXT_ALPHA`,
+5.72:1), so both stay secondary to the logos. The diagram reads the window's list (`Funding_Row_Cls.LOGOS`) at 1.35×
+and its opacities; its 1200 px leave no room for the disclaimer beside the logos, so there it keeps the poster's
+place, two lines under a rule.
 
-The logos are their white (reverse) versions, `App/assets/*-white.png`, the ones the band has carried since
-2026-09-17. The EDIH-DIGIMAT wordmark and the EU emblem are all white. **The Ministry's logo has no all-white version
-in the repository's history:** its white file keeps the coat of arms as a white field with the black Czech lion (8 %
-of its ink is dark), beside white text, as the earlier colour file kept the red-and-white shield. The earlier colour EU
-file (deleted 2026-09-17) read "Co-funded by the European Union"; the white one and the disclaimer read "Funded by".
+Heights: the Ministry's logo and the EU emblem 56 px, the EDIH-DIGIMAT wordmark 24 px. At 56 px the Ministry's
+capitals are 8.2 px, its lion 25 px and the EU's stars 5.5 px at 1x; at the earlier 36/30 px they were 5.3, 16 and
+2.9 px. The EU emblem is at least as tall as every other logo, as the EU's visibility rules ask (it was 30 px against
+the Ministry's 36). The Ministry's lion is white, its field dropped, as Czech ministries show their logo on dark
+grounds; the field with the lion cut out was the alternative shown.
+
+The disclaimer is kept word for word, at 9 pt (the size hinted at 1x) with a leading of 1.45 em. It takes the width the
+logos leave (`Funding_Row_Cls.Fit_Note`): one line when it fits, otherwise the fewest lines that do, balanced, never
+smaller and never clipped. One line needs a window about 2600 px wide; the station's maximised 1920 px window sets it
+in two lines (766 px wide), the minimum window (1497 px at 96 dpi) in three, 54 px, within the logos' 56. The label
+always reserves those three lines' height (`DISCLAIMER_RESERVED_LINES`), so the band keeps one height while the window
+is resized: 90 px at 96 dpi, set by the logos (it was 140 px at 2x), and 91 px at the tests' 100 dpi, where three lines
+are 57 px. Without the reserve the band grew by a pixel as a narrow window refitted it, shifting the views above it
+between two paints. The label's width is capped, never fixed, so the band never holds the window wider than its
+minimum, and its height is computed from a `QTextDocument` laid out as the label lays it out:
+`QLabel.heightForWidth` kept answering with the height of its first, narrow layout.
 
 *Corrected 2026-10-14:* earlier the same day this entry was "The application shows the EU emblem alone; the diagram's
 band keeps the project's logos": the window showed the white EU emblem and the disclaimer in one slim row, and a light
 band was to follow with the colour emblem. On the station's screen the owner chose the poster's footer instead.
+*Corrected 2026-10-15:* the band was the PNG logos at 20/36/30 px, solid white rules and the disclaimer in full white
+on one full-width line under a rule; the Ministry's lion was black. The owner chose variant B of three rendered
+(logos 48, 56 or 64 px; rules 28, 20 or 14 %; disclaimer 84, 76 or 70 %), and the disclaimer beside the logos.
 
-**Revisit if** the funding or its publicity rules change, or vector (SVG) versions of the three logos are supplied:
-they are the window's only raster logos, drawn scaled down 8–26 times from their PNGs.
-Tests `test/UI/test_funding_band.py::test_the_band_carries_the_three_logos_and_the_disclaimer_in_white`,
+**Revisit if** the funding or its publicity rules change, official vector logos are supplied, or the window's minimum
+width shrinks below what three lines need beside the logos.
+Tests `test/UI/test_funding_band.py`,
 `test/UI/test_brand_figures.py::test_the_diagram_is_self_contained_and_carries_every_logo`.
+
+## The band's logos are traced SVGs, not official files
+
+No vector version of the band's three logos exists, so `App/assets/edih-digimat-white.svg`,
+`partner-ministry-white.svg` and `funder-eu-white.svg` were **traced** on 2026-10-15 from the white PNGs the band
+carried since 2026-09-17 (deleted the same day; they are in this repository's history before that commit). Each is one
+solid white path, and each file says it was traced and is not an official vector file. Replace them when official
+files are supplied.
+
+How: each PNG's ink coverage (its alpha; for the Ministry, inside the coat of arms' field, the lion's darkness, so the
+lion becomes the ink and the field is dropped) was enlarged by bicubic interpolation (4× for EDIH-DIGIMAT, 2× for the
+Ministry, 1× for the 3889 px EU file), thresholded at half and traced with potrace (the potracer port, alphamax 1.0,
+opticurve, tolerance 0.2), outside the repository; potrace is not a dependency.
+
+Measured: each SVG rendered at its PNG's size and overlaid on it.
+
+| Logo | PNG | Overlap (IoU) | Pixels that differ | Edge offset mean / max | At 40 px tall, mean / max difference |
+|---|---|---|---|---|---|
+| EDIH-DIGIMAT | 1920 × 158 | 0.996 | 0.39 % of the ink | 0.05 / 1.0 px | 0.5 % / 13 % of a pixel |
+| Funded by the EU | 3889 × 789 | 0.998 | 0.22 % | 0.09 / 2.2 px | 0.4 % / 12 % |
+| Ministry, white lion | 2421 × 937 | 0.988 | 1.25 % | 0.10 / 1.4 px | 0.5 % / 11 % |
+
+Every differing pixel is on an edge; no stroke, star, letter or claw is gained or lost.
+
+**Revisit if** official SVG or EPS versions are supplied (replace the files and this entry), or a logo is updated by
+its owner.
+Tests `test/UI/test_funding_band.py::test_each_logo_file_is_one_white_outline_that_says_it_is_traced`,
+`test/UI/test_logo_rendering.py::test_the_funding_bands_logos_are_rendered_as_vectors_at_their_size`.
 
 ## Logos are rendered as vectors at paint time
 
@@ -3675,7 +3721,8 @@ Every SVG logo the window shows is rendered by a `QSvgRenderer` into the widget'
 AnyScan lockup's mark and wordmark (`Widgets.Logo_Lockup_Cls`), the JIC Smart Factory logo (`Widgets.Svg_Image_Cls`)
 and the mark in the empty Camera View (`Viewport_Cls`). The vectors land on the device pixels they are drawn on, at
 any device pixel ratio, and no logo is a pixmap scaled to fit. A pixmap of a logo is rendered only to measure its ink
-(`Style.Ink_Insets`), never drawn. The funding band's three logos exist only as PNG and stay pixmaps.
+(`Style.Ink_Insets`), never drawn. *Corrected 2026-10-15:* the funding band's three logos, then PNG pixmaps, are
+traced SVGs drawn the same way (*The band's logos are traced SVGs*), and no label in the window shows a pixmap.
 
 **Why.** On the station's 1x display the logos looked blurred. Measured offscreen (the share of a logo's ink pixels at
 full contrast, as the window draws it, against the same SVG rendered directly at the drawn device size):
@@ -3694,7 +3741,7 @@ logos' own geometry: their edges fall between pixels at these sizes (the AnyScan
 0.63 of their ink at full contrast). *Followed up 2026-10-14:* on a 1x display the two header logos' marks are now
 grid-fitted (*The header logos are grid-fitted on a 1x display*).
 
-**Revisit if** a logo is added (render it through `Svg_Image_Cls`), or the band's logos become available as SVG.
+**Revisit if** a logo is added (render it through `Svg_Image_Cls`).
 Tests `test/UI/test_logo_rendering.py` (each SVG logo against a direct render, at DPR 1 and again at DPR 2; the
 previous pixmap code fails every one), `test/UI/test_header.py`.
 

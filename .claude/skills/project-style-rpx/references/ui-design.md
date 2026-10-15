@@ -114,6 +114,11 @@ practices followed inconsistently are under **Unsettled**.
 - ✅ `test/UI/test_logo_rendering.py` compares each drawn logo with a direct render at DPR 1 and DPR 2.
 - On a 1x display the header logos' marks are grid-fitted to whole pixels (`UI.Utilities.Grid_Fit`), the lettering left
   as delivered (DD *The header logos are grid-fitted on a 1x display*); ✅ `test/UI/test_grid_fit.py`.
+- Every logo is an SVG. A logo supplied only as a raster is traced to a solid SVG, compared with its source by overlay,
+  and its file and design-decisions say it is traced, so the official file replaces it when supplied (DD *The band's
+  logos are traced SVGs*); ✅ `test/UI/test_funding_band.py`, `test_logo_rendering.py::test_no_logo_is_a_pixmap`.
+- Text that must keep its wording (the EU disclaimer) is never shrunk below 9 pt or clipped to fit: it wraps to the
+  fewest balanced lines, and its height comes from its laid-out lines (DD *The funding band is the poster's*).
 
 ## Content type comes from the scale; one content, one size ✅ (content) 📄 (chrome)
 

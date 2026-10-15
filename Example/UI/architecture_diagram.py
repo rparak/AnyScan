@@ -25,7 +25,6 @@
 import sys
 import os
 import argparse
-import base64
 import re
 # Resolve the project folder from this file's own location (Example/UI -> ..), so the script
 # runs the same whether launched from Example/UI/ or the repo root.
@@ -66,8 +65,8 @@ Description:
     figure moves with the theme instead of drifting from it. The SVG is self-contained, because
     the README shows it through <img>, and an SVG loaded that way never fetches another file:
     the AnyScan logo is copied in byte for byte from images/anyscan-logo.svg, the JIC Smart Factory
-    logo from App/assets/, and the funding band's logos are embedded from App/assets/ as base64 PNG data. The band is the
-    console's own (UI.Widgets.Funding_Row_Cls): the same logos, order and disclaimer.
+    logo from App/assets/, and the funding band's traced logos are inlined from App/assets/. The band is the
+    console's own (UI.Widgets.Funding_Row_Cls): the same logos, heights (scaled), order, opacities and disclaimer.
 
     test/UI/test_brand_figures.py fails when the committed SVG is not this script's output, or
     draws a colour that is not a token.
@@ -97,7 +96,7 @@ CONST_JIC_END = '<!-- jic:end -->'
 # it at 0.75).
 #   Unit [px]
 CONST_WIDTH = 1200
-CONST_HEIGHT = 1226
+CONST_HEIGHT = 1255
 # The header's logo: its top-left corner and its scale (logo units -> diagram units). The divider and
 # the JIC mark follow the top bar's rule (UI/Core.py): Style.CONST_MARK_GAP from ink to divider and
 # from divider to ink, scaled from the bar's Style.CONST_LOGO_HEIGHT px lockup to this logo's height.
@@ -165,11 +164,14 @@ CONST_ICON_INSET = 16
 CONST_BAND_TOP = 1072
 CONST_BAND_SCALE = 1.35
 CONST_BAND_GAP = 36
+# The band's inner space: above the logos, and from the logos to the rule under them.
+#   Unit [px]
+CONST_BAND_PAD = 20
 # What each band logo is, for screen readers.
 #   Unit [Dictionary<string, string>]
-CONST_BAND_LABELS = {'edih-digimat-white.png': 'EDIH-DIGIMAT',
-                     'partner-ministry-white.png': 'Ministry of Industry and Trade of the Czech Republic',
-                     'funder-eu-white.png': 'Funded by the European Union'}
+CONST_BAND_LABELS = {'edih-digimat-white.svg': 'EDIH-DIGIMAT',
+                     'partner-ministry-white.svg': 'Ministry of Industry and Trade of the Czech Republic',
+                     'funder-eu-white.svg': 'Funded by the European Union'}
 # The console's type scale (Style.CONST_TYPE_SCALE, in points) at 1.4x, so the smallest step
 # used still renders at about 12 px at README width.
 #   Unit [Vector<float>]
@@ -275,7 +277,7 @@ class Svg_Writer_Cls(object):
         return '\n'.join(self.__lines) + '\n'
 
     def Text(self, x: float, y: float, text: str, size: float, fill: str, weight: tp.Optional[str] = None,
-             anchor: tp.Optional[str] = None, spacing: tp.Optional[str] = None) -> None:
+             anchor: tp.Optional[str] = None, spacing: tp.Optional[str] = None, opacity: float = 1.0) -> None:
         """
         Description:
             One line of text in the UI face.
@@ -288,11 +290,13 @@ class Svg_Writer_Cls(object):
             (6) weight [string]: The font weight, or None for regular.
             (7) anchor [string]: 'middle' or 'end', or None for start.
             (8) spacing [string]: The letter spacing, or None.
+            (9) opacity [float]: The fill's opacity, 0..1.
         """
 
         attributes = ''.join([' font-weight="%s"' % weight if weight else '',
                               ' text-anchor="%s"' % anchor if anchor else '',
-                              ' letter-spacing="%s"' % spacing if spacing else ''])
+                              ' letter-spacing="%s"' % spacing if spacing else '',
+                              ' fill-opacity="%g"' % opacity if opacity != 1.0 else ''])
         self.Add('<text x="%g" y="%g" font-size="%g" fill="%s"%s>%s</text>'
                  % (x, y, size, fill, attributes, escape(text)))
 
@@ -371,23 +375,21 @@ class Svg_Writer_Cls(object):
         self.Add('<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="1.5" stroke-dasharray="4 5"/>'
                  % (x, y1, x, y2, Theme.CONST_INK_MUTE))
 
-    def Image(self, x: float, y: float, h: float, path: str, label: str) -> None:
+    def Svg_Logo(self, x: float, y: float, h: float, path: str, label: str) -> None:
         """
         Description:
-            A PNG mark embedded as base64 data, drawn at a height with its own aspect ratio.
+            An SVG logo inlined as a nested <svg>, drawn at a height with its viewBox's aspect ratio.
 
         Args:
-            (1 - 2) x, y [float]: The top-left corner.
+            (1) x, y [float]: The top-left corner.
             (3) h [float]: The drawn height.
-            (4) path [string]: The PNG file.
-            (5) label [string]: What the mark is, for screen readers.
+            (4) path [string]: The SVG file.
+            (5) label [string]: What the logo is, for screen readers.
         """
 
-        w, h_px = Png_Size(path)
-        with open(path, 'rb') as handle:
-            data = base64.b64encode(handle.read()).decode('ascii')
-        self.Add('<image x="%g" y="%g" width="%g" height="%g" aria-label="%s" href="data:image/png;base64,%s"/>'
-                 % (x, y, round(h * w / h_px, 1), h, escape(label), data))
+        w, h_box = Svg_Size(path)
+        self.Raw(Svg_Body(path).replace('<svg ', '<svg x="%g" y="%g" width="%g" height="%g" role="img" aria-label="%s" '
+                                        % (x, y, round(h * w / h_box, 1), h, escape(label)), 1))
 
     def Card(self, x: float, y: float, w: float, h: float, title: str, lines: tp.List[str],
              icon: tp.Optional[str] = None) -> None:
@@ -430,21 +432,38 @@ def Icon_Top(baseline: float) -> float:
     return baseline - 8 - CONST_ICON_SIZE / 2
 
 
-def Png_Size(path: str) -> tp.Tuple[int, int]:
+def Svg_Body(path: str) -> str:
     """
     Description:
-        A PNG's pixel size, read from its IHDR chunk (no imaging library needed).
+        An SVG file's <svg> element without its XML declaration, comments, or its own width and height, for inlining.
 
     Args:
-        (1) path [string]: The PNG file.
+        (1) path [string]: The SVG file.
 
     Returns:
-        (1) parameter [Tuple<int> 1x2]: (width, height) in pixels.
+        (1) parameter [string]: The markup.
     """
 
-    with open(path, 'rb') as handle:
-        head = handle.read(24)
-    return int.from_bytes(head[16:20], 'big'), int.from_bytes(head[20:24], 'big')
+    with open(path, 'r', encoding='utf-8') as handle:
+        svg = handle.read()
+    svg = re.sub(r'<\?xml[^>]*>\s*|<!--.*?-->\s*', '', svg, flags=re.S)
+    return re.sub(r'(<svg [^>]*?) width="[^"]*" height="[^"]*"', r'\1', svg, count=1).strip()
+
+
+def Svg_Size(path: str) -> tp.Tuple[float, float]:
+    """
+    Description:
+        An SVG file's viewBox size.
+
+    Args:
+        (1) path [string]: The SVG file.
+
+    Returns:
+        (1) parameter [Tuple<float> 1x2]: (width, height) in viewBox units.
+    """
+
+    _, _, w, h = (float(v) for v in re.search(r'viewBox="([^"]+)"', Svg_Body(path)).group(1).split())
+    return w, h
 
 
 def Split_In_Two(text: str) -> tp.List[str]:
@@ -667,31 +686,36 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Close('g')
     c.Blank()
 
-    c.Open('<g id="funding-band">', 'The funding band, as in the console: the logos in its order, a hairline, '
+    c.Open('<g id="funding-band">', 'The funding band, as in the console: the logos in its order, faint rules, '
            'the EU disclaimer')
     c.Add('<rect x="0.75" y="%g" width="1198.5" height="%g" fill="%s"/>' % (CONST_BAND_TOP, CONST_HEIGHT - 0.75 - CONST_BAND_TOP, T.CONST_BAND))
-    # The row is centred like the console's (stretch on both sides); None is its hairline divider.
+    # The row is centred like the console's (stretch on both sides); None is its hairline divider. The console sets
+    # the disclaimer beside the logos; the diagram's 1200 px leave no room for it there, so it keeps the poster's
+    # place, under a rule.
+    tallest = max(height for _, height in Funding_Row_Cls.LOGOS) * CONST_BAND_SCALE
     row = []
     for name, height in Funding_Row_Cls.LOGOS:
         if name is None:
-            row.append((None, 0.0, 30 * CONST_BAND_SCALE))
+            row.append((None, 0.0, Funding_Row_Cls.DIVIDER_SHARE * tallest))
             continue
-        w, h_px = Png_Size(os.path.join(CONST_ASSETS_FOLDER, name))
-        row.append((name, height * CONST_BAND_SCALE * w / h_px, height * CONST_BAND_SCALE))
+        w, h_box = Svg_Size(os.path.join(CONST_ASSETS_FOLDER, name))
+        row.append((name, height * CONST_BAND_SCALE * w / h_box, height * CONST_BAND_SCALE))
     x = (CONST_WIDTH - sum(w for _, w, _ in row) - CONST_BAND_GAP * (len(row) - 1)) / 2
-    y_row = CONST_BAND_TOP + 44
+    y_row = CONST_BAND_TOP + CONST_BAND_PAD + tallest / 2
     for name, w, h in row:
         if name is None:
-            c.Add('<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="1.5"/>'
-                  % (x, y_row - h / 2, x, y_row + h / 2, T.CONST_BAND_LINE))
+            c.Add('<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-opacity="%g" stroke-width="1.5"/>'
+                  % (x, round(y_row - h / 2, 1), x, round(y_row + h / 2, 1), T.CONST_BAND_LINE, T.CONST_BAND_LINE_ALPHA))
         else:
-            c.Image(round(x, 1), round(y_row - h / 2, 1), round(h, 1), os.path.join(CONST_ASSETS_FOLDER, name),
-                    CONST_BAND_LABELS[name])
+            c.Svg_Logo(round(x, 1), round(y_row - h / 2, 1), round(h, 1), os.path.join(CONST_ASSETS_FOLDER, name),
+                       CONST_BAND_LABELS[name])
         x += w + CONST_BAND_GAP
-    c.Add('<line x1="40" y1="%g" x2="1160" y2="%g" stroke="%s" stroke-width="1"/>'
-          % (CONST_BAND_TOP + 92, CONST_BAND_TOP + 92, T.CONST_BAND_LINE))
+    y_rule = round(y_row + tallest / 2 + CONST_BAND_PAD, 1)
+    c.Add('<line x1="40" y1="%g" x2="1160" y2="%g" stroke="%s" stroke-opacity="%g" stroke-width="1"/>'
+          % (y_rule, y_rule, T.CONST_BAND_LINE, T.CONST_BAND_LINE_ALPHA))
     for i, line in enumerate(Split_In_Two(Funding_Row_Cls.DISCLAIMER)):
-        c.Text(CONST_WIDTH / 2, CONST_BAND_TOP + 118 + 21 * i, line, S[1], T.CONST_BAND_TEXT, anchor='middle')
+        c.Text(CONST_WIDTH / 2, round(y_rule + 26 + 21 * i, 1), line, S[1], T.CONST_BAND_TEXT, anchor='middle',
+               opacity=T.CONST_BAND_TEXT_ALPHA)
     c.Close('g')
     c.Close('svg')
     return c.Markup()

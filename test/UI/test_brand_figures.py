@@ -22,7 +22,6 @@
 ## =========================================================================== ##
 
 # System (Default)
-import base64
 import importlib.util
 import os
 import re
@@ -88,7 +87,7 @@ CONST_JIC = os.path.join(CONST_ROOT, 'App', 'assets', 'jic-smart-factory.svg')
 CONST_TEXT_LEFT_UNITS = 152.0
 CONST_LINE_SPLIT_UNITS = 107.5
 CONST_ASSETS = os.path.join(CONST_ROOT, 'App', 'assets')
-# The PNG marks the diagram embeds: the console's funding band's.
+# The traced SVG logos the diagram inlines: the console's funding band's.
 #   Unit [List<string>]
 CONST_EMBEDDED_MARKS = [name for name, _ in Funding_Row_Cls.LOGOS if name is not None]
 # The marker comments around the inline logos in the diagram: the AnyScan logo and the JIC Smart Factory logo.
@@ -318,7 +317,7 @@ def test_the_diagram_is_self_contained_and_carries_every_logo() -> None:
         The README shows the diagram through <img>, which fetches nothing: a linked file, an @import or
         a <link> would draw nothing, with no error. So every href and url() the generator writes is a
         #fragment or a data: URI, and every logo is inside the file — the AnyScan logo and the JIC Smart Factory
-        logo inlined, and each logo of the console's funding band as the asset's own bytes in a PNG data URI.
+        logo inlined, and each logo of the console's funding band, a traced SVG, inlined with its own outline.
     """
 
     diagram = _Generated()
@@ -330,9 +329,9 @@ def test_the_diagram_is_self_contained_and_carries_every_logo() -> None:
     jic = re.sub(r'<\?xml[^>]*>\s*', '', _Read(CONST_JIC)).strip()
     assert jic.split('<svg ', 1)[1] in diagram, 'the JIC Smart Factory logo is not inlined'
     for name in CONST_EMBEDDED_MARKS:
-        with open(os.path.join(CONST_ASSETS, name), 'rb') as handle:
-            uri = 'data:image/png;base64,' + base64.b64encode(handle.read()).decode('ascii')
-        assert uri in diagram, '%s is not embedded as a data URI' % name
+        with open(os.path.join(CONST_ASSETS, name), 'r', encoding='utf-8') as handle:
+            outline = re.search(r' d="([^"]+)"', handle.read()).group(1)
+        assert outline in diagram, '%s is not inlined' % name
 
 
 def test_the_readme_shows_the_diagram() -> None:
