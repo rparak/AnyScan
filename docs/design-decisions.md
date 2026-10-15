@@ -3284,13 +3284,53 @@ mounting plate*):
 has not seen can pass, and a correct sentence using a pattern's words can be dropped (logged either way:
 KNOWN_ISSUES).
 
-**Revisit if** the describer model or the prompt changes (measure again: contradictions shown, drops, false
-drops), a check is added (its claims join `CONST_GUARD_CLAIMS`), or the drops show a sentence the operator
-needed.
-Tests `test/Reporting/test_core.py` (`::test_the_guard_drops_numbers_and_what_contradicts_a_check`, with
-Gemma's own sentences; `::test_the_findings_say_what_the_checks_found_in_words_without_numbers`;
+
+*Corrected 2026-10-15 — the guard reads each mention, the describer is told every hole group, and is asked again
+once.* On capture `20261015-160433_s1`, object 1 (an unmachined back, NOK: no through-hole found) Gemma wrote "…and
+features through-holes without countersinks", and the guard kept it. **The cause:** it judged a check per sentence,
+on one flag (any hole group off), with two patterns — a fault word ("missing", "extra") near "hole", or a count or
+"each" before it. A bare plural presence ("features through-holes") matched neither, so nothing was claimed; and the
+negation was the sentence's ("without" belonged to the countersinks), so even a match would have read the
+through-holes as denied. Gemma had been told "found fewer through-holes than the part has", never "none", beside the
+side's own description "Smooth through-holes without countersink", which it echoed. Now:
+- **The guard** (`Guard_Description`, `__Guard_Clause`) splits each sentence into clauses and reads each mention of a
+  hole kind (`CONST_GUARD_HOLE_KINDS`: countersink or stepped hole, counterbore, through-hole, plain hole) or a stain
+  with the words just before it (a negator, "free of", a count, "each", "missing", "extra"; stopping at a word that
+  starts another phrase) and after it ("are absent", "are missing", "in each corner", "would be"). It drops a sentence
+  claiming holes of a kind the check did not find (a kind the side has none of included), a count other than it
+  found, holes it found absent, a stain it did not find, or the side clean or free of stains or defects where it
+  found a stain (or, for "no defects", a hole group off). "Stainless" is not a stain.
+- **The findings** name every hole group in words, found or not, no digit: "found no through-holes on its
+  unmachined back", "found both countersinks and both through-holes on its machined front", "only one", "all the",
+  "more … than the part has".
+- **Asked again once.** A text contradicting a check is described once more, its prompt followed by the findings
+  restated (`Restated_Prompt`, `Vision.Core.__Guard`); a sentence still contradicting is dropped, the rest kept. A
+  sentence with a digit alone is dropped without asking again. The ask, its answer and each drop are audit warnings.
+  The verdict is never touched.
+
+**Measured** on the 10 mounting-plate capture frames (sets `20261015-131258_s1`, `-143622_s1`, `-160433_s1`; 25
+objects, 15 judged), Gemma 4 E4B on the RTX 5070 Ti through MLX:
+- **The new guard on the stored descriptions:** 4 of 15 changed — the four backs with no hole found, each losing the
+  "…features through-holes without countersink(s/ing)" sentence; 11 kept word for word. No right claim dropped; each
+  dropped sentence also held a right clause ("straight edges … narrow chamfer"). "Near where holes would be" kept.
+- **Live, with the new findings:** the same four contradicted the checks on the first answer (the findings alone did
+  not stop the echo); asked again, all four answered without a hole, and nothing was dropped. The other 11: no
+  intervention. All 25 verdicts as stored. The first wording of the ask ("Describe the part again") drew a second
+  paragraph after the first on two parts; "write the description once more, in place of the last one: one short
+  flowing paragraph" drew one on all four.
+- **Seen, not fixed:** told every group found, Gemma recites the check on 5 of the 11 ("the automatic check
+  confirmed the presence of both countersinks and both through-holes"): true, but the checklist echo.
+
+**Revisit if** the describer model or the prompt changes (measure again: contradictions shown, asks again, drops,
+false drops), a check is added (its words join the guard's: `CONST_GUARD_HOLE_KINDS`, `CONST_GUARD_STAIN`), the drops
+show a sentence the operator needed, or the recited checks read as the describer's own finding.
+Tests `test/Reporting/test_core.py` (`::test_the_guard_drops_numbers_and_what_contradicts_a_check` and
+`::test_the_guard_holds_each_mention_to_its_check_in_both_directions`, with Gemma's own sentences;
+`::test_the_findings_say_what_the_checks_found_in_words_without_numbers`;
+`::test_the_restated_prompt_is_the_first_followed_by_the_findings`;
 `::test_the_describer_prompt_is_the_items_filled_for_the_part`),
 `test/Vision/test_core.py::test_a_judged_part_is_described_with_its_findings_and_guarded`,
+`test/Vision/test_core.py::test_a_contradiction_is_asked_again_once_then_its_sentences_are_left_out`,
 `test/Vision/test_describers.py::test_gemma_sends_a_given_prompt_instead_of_the_purposes`,
 `test/Configuration/test_core.py::test_what_the_describer_is_given_holds_no_number`.
 

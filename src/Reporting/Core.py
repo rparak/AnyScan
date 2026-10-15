@@ -27,7 +27,7 @@ import re
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Dimension_Check_Str
+from Parameters.Vision import Detection_Str, Dimension_Check_Str, Hole_Count_Str
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Item_Str
 #   ../Parameters/Configuration
@@ -144,19 +144,61 @@ CONST_SIZE_DECIMALS = 2
 CONST_COUNT_WORDS = ('no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten')
 
 
-# The describer guard's claims (Guard_Description), per check: a pattern claiming its defect, and one claiming
-# its absence outright; a sentence that also negates ('no', 'not', 'without', 'free of') claims the defect absent.
-# Words, not judgement: a sentence is dropped only when it says what a check contradicts, and every drop is logged.
-#   Unit [Dict<string, Tuple<string> 1x2>] / [string]
-CONST_GUARD_CLAIMS = {
-    'stain': (r'\b(stain\w*|fingerprint\w*|smudge\w*|smear\w*|discolou?r\w*)',
-              r'\b(spotless|unblemished|pristine|flawless|stain-free)\b'
-              r'|\bclean (surface|finish|face|front|back|side|part|plate)\b|\b(surface|finish|face|part|plate) (is|looks|appears) clean\b'),
-    'hole': (r'\b(missing|extra|absent)\b[^.]*\bholes?\b|\bholes?\b[^.]*\b(missing|absent)\b',
-             r'\b(one|two|three|four|five|six|seven|eight|nine|ten|both|pair|each|every|all)\b[^.]*\bholes?\b'
-             r'|\bholes?\b[^.]*\b(each|every|both|all) (of the )?corners?\b'),
-}
-CONST_GUARD_NEGATION = r"\b(no|not|without|free of|free from|clean of|none)\b|n't\b"
+# The describer guard (Guard_Description) reads, clause by clause, each mention of what a check decides — a hole
+# of a kind, a stain — and what the words round it claim: there (with a count, 'two', 'both', or all of them,
+# 'each'), not there ('no', 'without', 'free of' just before it; 'are absent' after it), missing or extra. A claim
+# the check that ran does not bear out drops its sentence, and every drop is logged. Words, not judgement
+# (KNOWN_ISSUES). Read per mention, not per sentence: 'features through-holes without countersinks' claims the
+# through-holes there and the countersinks not; read as one negated sentence it let a back with no hole found
+# keep its through-holes (capture 20261015-160433_s1, 2026-10-15).
+# The hole kinds, each named as the catalogue's hole group it is held to: a stepped hole is its countersink; a
+# kind no group of the side has (a counterbore on the plate, a countersink on its back) is one the check found
+# none of; '' is a plain hole, held to the largest group (a hole is a position: the plate's groups are
+# concentric). Matched in this order, so a stepped hole is not also read as a plain one.
+#   Unit [Tuple<Tuple<string> 1x2>]
+CONST_GUARD_HOLE_KINDS = (
+    ('countersink', r'stepped[- ]holes?|counter-?sunk[- ]holes?|counter-?sinks?|counter-?sinking|counter-?sunk'),
+    ('counterbore', r'counter-?bor(?:e|es|ed|ing)(?:[- ]holes?)?'),
+    ('through-hole', r'through[- ]?holes?'),
+    ('', r'holes?'),
+)
+# A stain mention ('stainless' is a material, not a stain); a side claimed clean outright; a defect denied
+# outright ('no defects', 'free of flaws'), which claims the side free of the stains and the holes' faults alike
+# (only a word before it denies it: 'they are not defects' is the catalogue's own 'not a defect').
+#   Unit [string]
+CONST_GUARD_STAIN = r'stain(?!less)\w*|fingerprint\w*|smudge\w*|smear\w*|discolou?r\w*'
+CONST_GUARD_CLEAN = (r'\b(spotless|unblemished|pristine|flawless|stain-free)\b'
+                     r'|\bclean (surface|finish|face|front|back|side|part|plate)\b'
+                     r'|\b(surface|finish|face|front|back|side|part|plate) (is|looks|appears) clean\b')
+CONST_GUARD_DEFECT = r'defects?|flaws?|blemish\w*|damage'
+# The words read back from a mention, at most CONST_GUARD_REACH of them, stopping at one that starts another
+# phrase ('no scratches near the holes' denies no hole; 'the' stops too, except in 'free of the'): a negator denies
+# the mention ('free of', 'clean of', 'devoid of' as pairs), 'missing' or 'extra' claims a fault, a count word claims
+# that many ('both' and 'pair' two), and 'each', 'every', 'all' claim every hole of the group. A defect is denied by a
+# strict negator only.
+#   Unit [int] / [Tuple<string>]
+CONST_GUARD_REACH = 4
+CONST_GUARD_NEGATORS = ('no', 'not', 'without', 'none', 'nor', 'neither', 'never', 'lack', 'lacks', 'lacking')
+CONST_GUARD_DEFECT_NEGATORS = ('no', 'without', 'none')
+CONST_GUARD_DENY_PAIRS = (('free', 'of'), ('free', 'from'), ('clean', 'of'), ('devoid', 'of'))
+CONST_GUARD_MISSING = ('missing', 'absent')
+CONST_GUARD_EXTRA = ('extra', 'additional', 'surplus')
+CONST_GUARD_ALL = ('each', 'every', 'all')
+CONST_GUARD_STOPS = ('the', 'near', 'around', 'at', 'on', 'in', 'by', 'beside', 'between', 'along', 'across', 'above',
+                     'below', 'under', 'over', 'to', 'toward', 'towards', 'with', 'into', 'where', 'which', 'that', 'is',
+                     'are', 'was', 'were', 'be', 'been', 'has', 'have', 'had', 'shows', 'show', 'features', 'feature',
+                     'displays', 'exhibits', 'surrounding', 'than')
+# After a mention, in its clause: a denial ('are absent', 'is not visible'), a fault ('are missing'), every hole
+# ('in each corner'), or a hypothesis that claims nothing ('where holes would be').
+#   Unit [string]
+CONST_GUARD_AFTER_DENIED = r'^\W*(?:\w+\W+){0,2}?(?:is|are|was|were|appears?|seems?|remains?)\s+(?:not|absent|nowhere)\b'
+CONST_GUARD_AFTER_MISSING = r'^\W*(?:\w+\W+){0,2}?(?:is|are|was|were|appears?|seems?)\s+missing\b'
+CONST_GUARD_AFTER_ALL = r'^[^,;:]*?\b(?:in|at|near|by)\s+(?:each|every|all|both)\s+(?:of\s+the\s+)?(?:corners?|ends?|halves|half)\b'
+CONST_GUARD_AFTER_HYPOTHESIS = r'^\W*(?:would|should|could|might|ought|will)\b'
+# The guard's reason for a sentence with a digit, which is dropped without asking the describer again (Vision.Core:
+# a contradiction of a check is asked again once, with the findings restated).
+#   Unit [string]
+CONST_GUARD_NUMBER = 'it states a number'
 
 
 def Clean_Detail(text: str) -> str:
@@ -773,13 +815,39 @@ def Side_Sentence(det: Detection_Str) -> str:
     return 'It lies with its %s up.' % det.Catalogue.Side_Name
 
 
+def __Hole_Fact(count: Hole_Count_Str) -> str:
+    """
+    Description:
+        What the hole check found of one group, as the describer is told it: in words, no digit, never the number
+        the part should have ('no through-holes', 'both countersinks', 'all the through-holes', 'only one
+        through-hole', 'more through-holes than the part has').
+
+    Args:
+        (1) count [Hole_Count_Str(object)]: The group's count.
+
+    Returns:
+        (1) parameter [string]: The phrase.
+    """
+
+    name, found, expected = count.Name, count.Found, count.Expected
+    if found > expected:
+        return 'more %ss than the part has' % name
+    if found == 0:
+        return 'no %ss' % name
+    if found == expected:
+        return 'the %s' % name if expected == 1 else 'both %ss' % name if expected == 2 else 'all the %ss' % name
+    return 'only %s' % (__Plural(found, CONST_COUNT_WORDS[found] + ' ' + name) if found < len(CONST_COUNT_WORDS)
+                        else 'some %ss' % name)
+
+
 def Findings(det: Detection_Str) -> str:
     """
     Description:
         What the checks found on a judged part, for the describer to locate and describe: facts in words and
-        without a number (the describer is given none), one sentence per check that ran — the stains, the holes,
-        the outline and the look. It does not say OK or NOK: the describer describes,
-        the checks decide.
+        without a digit or a measurement (the describer is given none), one sentence per check that ran — the
+        stains, the holes (every group, found or not: 'found no through-holes on its unmachined back', 'found both
+        countersinks and both through-holes on its machined front'), the outline and the look. It does not say OK
+        or NOK: the describer describes, the checks decide.
 
     Args:
         (1) det [Detection_Str(object)]: The part, judged.
@@ -795,11 +863,9 @@ def Findings(det: Detection_Str) -> str:
     if det.Stains is not None:
         found.append('An automatic check found yellow-brown stains on its %s; describe them and where they are.'
                      % side if det.Stains else 'An automatic check found no stain on its %s.' % side)
-    for count in det.Hole_Counts:
-        if count.Found < count.Expected:
-            found.append('An automatic check found fewer %ss than the part has.' % count.Name)
-        elif count.Found > count.Expected:
-            found.append('An automatic check found more %ss than the part has.' % count.Name)
+    if det.Hole_Counts:
+        found.append('An automatic check found %s on its %s.' % (__Join([__Hole_Fact(count) for count in det.Hole_Counts]),
+                                                                side))
     if any(not check.Within for check in det.Hole_Checks):
         found.append('An automatic check found a hole out of tolerance.')
     if any(not check.Within for check in det.Dimension_Checks):
@@ -838,15 +904,186 @@ def Describer_Prompt(det: Detection_Str, Catalogue_Item_Str: Catalogue_Item_Str)
         defects=defects or 'None described.', findings=Findings(det)).split())
 
 
+def Restated_Prompt(prompt: str, det: Detection_Str) -> str:
+    """
+    Description:
+        The prompt the describer is asked once more with when its text contradicted a check (Vision.Core): the first
+        prompt, then the checks' findings restated as the facts its description must not contradict. No number,
+        as in the first.
+
+    Args:
+        (1) prompt [string]: The first prompt (Describer_Prompt).
+        (2) det [Detection_Str(object)]: The part, judged.
+
+    Returns:
+        (1) parameter [string]: The prompt.
+    """
+
+    return ' '.join(('%s Your last description contradicted the automatic checks, and the checks are right. What they '
+                     'found: %s Write the description once more, in place of the last one: one short flowing paragraph that says '
+                     'nothing these findings contradict.'
+                     % (prompt, Findings(det))).split())
+
+
+def __Guard_Words(text: str) -> tp.List[str]:
+    """
+    Description:
+        A text's words, lower case, hyphens and apostrophes kept inside a word ('yellow-brown', "isn't").
+
+    Args:
+        (1) text [string]: The text.
+
+    Returns:
+        (1) parameter [Vector<string>]: The words.
+    """
+
+    return re.findall(r"[a-z]+(?:[-'][a-z]+)*", text.lower())
+
+
+def __Guard_Before(words: tp.List[str], negators: tp.Tuple[str, ...]) -> tp.Tuple[str, tp.Optional[int]]:
+    """
+    Description:
+        What the words just before a mention claim of it, read back at most CONST_GUARD_REACH words and stopping at a
+        word that starts another phrase: 'denied' (a negator, or a pair like 'free of'), 'missing', 'extra' or
+        'there'; and the count claimed, the nearest count word ('two'; 'both', 'pair' two; 'each', 'every', 'all'
+        -1, every one of the group).
+
+    Args:
+        (1) words [Vector<string>]: The clause's words before the mention.
+        (2) negators [Tuple<string>]: The words that deny it.
+
+    Returns:
+        (1) parameter [Tuple<string, int or None>]: The claim, and the count or None.
+    """
+
+    count = None
+    for back in range(1, min(CONST_GUARD_REACH, len(words)) + 1):
+        word, before = words[-back], words[-back - 1] if back < len(words) else ''
+        if word in negators or ('not' in negators and word.endswith("n't")) or (before, word) in CONST_GUARD_DENY_PAIRS:
+            return 'denied', count
+        if word in CONST_GUARD_MISSING:
+            return 'missing', count
+        if word in CONST_GUARD_EXTRA:
+            return 'extra', count
+        if count is None and word in CONST_COUNT_WORDS[1:]:
+            count = CONST_COUNT_WORDS.index(word)
+        elif count is None and word in ('both', 'pair'):
+            count = 2
+        elif count is None and word in CONST_GUARD_ALL:
+            count = -1
+        if word in CONST_GUARD_STOPS and not (word == 'the' and before in ('of', 'from')):
+            break
+    return 'there', count
+
+
+def __Guard_Hole(kind: str, claim: str, count: tp.Optional[int], det: Detection_Str) -> str:
+    """
+    Description:
+        Whether one hole mention contradicts the hole check: holes of the kind claimed there when it found none,
+        a count other than it found, every one when it found fewer or more; claimed absent when it found some;
+        claimed missing when it found them all; claimed extra when it found no more than the part has.
+
+    Args:
+        (1) kind [string]: The hole group the mention is held to ('' for a plain hole: the largest group).
+        (2) claim [string]: 'there', 'denied', 'missing' or 'extra' (__Guard_Before).
+        (3) count [int or None]: The count claimed, -1 for every one, None for none.
+        (4) det [Detection_Str(object)]: The part, its holes checked.
+
+    Returns:
+        (1) parameter [string]: Why it contradicts the check, or '' when it does not.
+    """
+
+    groups = {group.Name: group for group in det.Hole_Counts}
+    if kind:
+        found, expected = (groups[kind].Found, groups[kind].Expected) if kind in groups else (0, 0)
+    else:
+        found, expected = max(group.Found for group in groups.values()), max(group.Expected for group in groups.values())
+    noun = kind or 'hole'
+    if claim == 'denied' and found:
+        return 'it says there are no %ss, which the hole check found' % noun
+    if claim == 'missing' and found >= expected:
+        return 'it says %ss are missing, which the hole check did not find' % noun
+    if claim == 'extra' and found <= expected:
+        return 'it says there are extra %ss, which the hole check did not find' % noun
+    if claim != 'there':
+        return ''
+    if not found:
+        return 'it claims %ss, which the hole check did not find' % noun
+    if count == -1 and found != expected:
+        return 'it claims every %s, and the hole check found %d of %d' % (noun, found, expected)
+    if count is not None and count > 0 and count != found:
+        return 'it claims %s %s, and the hole check found %d' % (CONST_COUNT_WORDS[count], __Plural(count, noun), found)
+    return ''
+
+
+def __Guard_Clause(clause: str, det: Detection_Str) -> str:
+    """
+    Description:
+        Whether one clause contradicts the hole or the stain check, mention by mention (CONST_GUARD_HOLE_KINDS,
+        CONST_GUARD_STAIN, CONST_GUARD_DEFECT): each mention's claim read from the words before it and after it
+        (__Guard_Before, CONST_GUARD_AFTER_*), a mention in a hypothesis ('where holes would be') claiming nothing.
+        A check that did not run (no hole group on the side; no stain check) is not held against.
+
+    Args:
+        (1) clause [string]: The clause.
+        (2) det [Detection_Str(object)]: The part, judged, with its checks.
+
+    Returns:
+        (1) parameter [string]: Why it contradicts a check, or '' when it does not.
+    """
+
+    flags = re.IGNORECASE
+    holes_failed = any(group.Found != group.Expected for group in det.Hole_Counts)
+    patterns = ['(?P<hole%d>%s)' % (index, pattern) for index, (_kind, pattern) in enumerate(CONST_GUARD_HOLE_KINDS)]
+    mentions = r'\b(?:%s|(?P<stain>%s)|(?P<defect>%s))\b' % ('|'.join(patterns), CONST_GUARD_STAIN, CONST_GUARD_DEFECT)
+    for match in re.finditer(mentions, clause, flags):
+        words, after = __Guard_Words(clause[:match.start()]), clause[match.end():]
+        if re.search(CONST_GUARD_AFTER_HYPOTHESIS, after, flags):
+            continue
+        if match.group('defect'):
+            if __Guard_Before(words, CONST_GUARD_DEFECT_NEGATORS)[0] != 'denied':
+                continue
+            if det.Stains:
+                return 'it says there is no defect, and the stain check found a stain'
+            if holes_failed:
+                return 'it says there is no defect, and the hole check found holes missing or extra'
+            continue
+        claim, count = __Guard_Before(words, CONST_GUARD_NEGATORS)
+        if claim == 'there' and re.search(CONST_GUARD_AFTER_DENIED, after, flags):
+            claim = 'denied'
+        elif claim == 'there' and re.search(CONST_GUARD_AFTER_MISSING, after, flags):
+            claim = 'missing'
+        elif claim == 'there' and count is None and re.search(CONST_GUARD_AFTER_ALL, after, flags):
+            count = -1
+        if match.group('stain'):
+            if det.Stains is None:
+                continue
+            if claim in ('denied', 'missing') and det.Stains:
+                return 'it says there is no stain, which the stain check found'
+            if claim in ('there', 'extra') and not det.Stains:
+                return 'it claims a stain, which the stain check did not find'
+            continue
+        if not det.Hole_Counts:
+            continue
+        kind = next(kind for index, (kind, _pattern) in enumerate(CONST_GUARD_HOLE_KINDS) if match.group('hole%d' % index))
+        why = __Guard_Hole(kind, claim, count, det)
+        if why:
+            return why
+    if det.Stains and re.search(CONST_GUARD_CLEAN, clause, flags):
+        return 'it says the side is clean, and the stain check found a stain'
+    return ''
+
+
 def Guard_Description(text: str, det: Detection_Str) -> tp.Tuple[str, tp.List[tp.Tuple[str, str]]]:
     """
     Description:
         The describer's text on a judged part, with what it may not say taken out, sentence by sentence: a
-        sentence with a number (a measurement or a count is the checks' to give; the describer was given
-        none), and a sentence contradicting a check that ran — its defect claimed when the check found none, or
-        claimed absent when it found one (CONST_GUARD_CLAIMS: stains, the holes; a sentence negating the defect,
-        'no stains', claims it absent; a count of holes claims them all there). The describer confirms and
-        describes; it never decides.
+        sentence with a digit (CONST_GUARD_NUMBER: a measurement or a count is the checks' to give), and a sentence
+        contradicting the hole or the stain check in either direction, read clause by clause and mention by mention
+        (__Guard_Clause): holes of a kind claimed there that the check did not find, or a count it did not find;
+        holes it found claimed absent; a stain claimed where it found none; the side claimed clean, or free of
+        stains or defects, where it found one. The describer confirms and describes; it never decides, and the
+        verdict is never changed here.
 
     Args:
         (1) text [string]: The describer's text.
@@ -857,21 +1094,11 @@ def Guard_Description(text: str, det: Detection_Str) -> tp.Tuple[str, tp.List[tp
                                                                     why.
     """
 
-    checks = {'stain': (det.Stains is not None, bool(det.Stains)),
-              'hole': (bool(det.Hole_Counts), any(count.Found != count.Expected for count in det.Hole_Counts))}
     kept, dropped = [], []
     for sentence in [part for part in re.split(r'(?<=[.!?])\s+', text.strip()) if part]:
-        why = 'it states a number' if re.search(r'\d', sentence) else ''
-        for check, (defect, absent) in CONST_GUARD_CLAIMS.items():
-            ran, found = checks[check]
-            if why or not ran:
-                continue
-            claims_defect = re.search(defect, sentence, re.IGNORECASE) is not None
-            negated = re.search(CONST_GUARD_NEGATION, sentence, re.IGNORECASE) is not None
-            if found and (re.search(absent, sentence, re.IGNORECASE) is not None or (claims_defect and negated)):
-                why = 'it says there is no %s defect, which the %s check found' % (check, check)
-            elif not found and claims_defect and not negated:
-                why = 'it claims a %s defect, which the %s check did not find' % (check, check)
+        why = CONST_GUARD_NUMBER if re.search(r'\d', sentence) else ''
+        for clause in re.split(r'[,;:()]|\s+(?:but|while|whereas)\s+', sentence):
+            why = why or __Guard_Clause(clause, det)
         if why:
             dropped.append((sentence, why))
         else:

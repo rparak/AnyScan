@@ -36,6 +36,7 @@ from Parameters.Vision import (Detection_Str, Analysis_Str, Heatmap_Str, Load_Ti
 from Parameters.Configuration import Configuration_Str
 #   ../Reporting/Core
 from Reporting.Core import (Compose, Verdict, Background_Sentence, Side_Sentence, Describer_Prompt, Guard_Description,
+                            Restated_Prompt, CONST_GUARD_NUMBER,
                             CONST_EMPTY_SCENE_EXPLANATION, CONST_BACKGROUND_FALLBACK)
 #   ../Vision/Utilities/Segmentation
 from Vision.Utilities.Segmentation import Background_Difference, Foreground_Mask, CONST_DIFFERENCE_SCALE_MAX
@@ -1086,7 +1087,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             for it (Reporting.Describer_Prompt: its side, that side's description and defects, what the checks
             found, no number), and the describer's text then goes through the guard
             (Reporting.Guard_Description): a sentence with a number or contradicting a check is dropped, and
-            each drop is an audit record with the describer's full text.
+            each drop is an audit record with the describer's full text. A text contradicting a check is first asked
+            for once more, with the findings restated (__Guard); the verdict is never changed.
 
         Args:
             (1) objects [Vector<Detection_Str(object)>]: The stage-3 objects (mutated).
@@ -1144,16 +1146,57 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                 det.Detail = self.__describer.Describe(enhanced, CONST_PURPOSE_OBJECT, prompt)
                 describe_s, tokens = time.perf_counter() - started, self.__describer.Last_Tokens
                 if catalogue is not None and det.Verdict in ('OK', 'NOK'):
-                    full = det.Detail
-                    det.Detail, dropped = Guard_Description(full, det)
-                    for sentence, why in dropped:
-                        audit.append(('warning', 'Object %d: the describer\'s sentence "%s" was left out: %s. '
-                                                 'Its full text: "%s"' % (i + 1, sentence, why, full)))
+                    det.Detail, retry_tokens = self.__Guard(det, i, enhanced, prompt, audit)
+                    describe_s = time.perf_counter() - started
+                    if tokens is not None and retry_tokens is not None:
+                        tokens = (tokens[0] + retry_tokens[0], tokens[1] + retry_tokens[1])
                 det.Label = Condense_Label(det.Detail)
             times.append((crop_s, describe_s, tokens))
         if progress_cb:
             progress_cb(total, total)
         return times, audit
+
+    def __Guard(self, det: Detection_Str, index: int, enhanced: tp.Any, prompt: str,
+                audit: tp.List[tp.Tuple[str, str]]) -> tp.Tuple[str, tp.Optional[tp.Tuple[int, int]]]:
+        """
+        Description:
+            A judged part's description through the guard (Reporting.Guard_Description). When it contradicts the hole
+            or the stain check, the describer is asked once more, its prompt followed by the findings restated
+            (Reporting.Restated_Prompt), and the second text is guarded in turn; a sentence still contradicting a
+            check, or stating a number, is left out, the rest kept. A sentence with a number alone is left out
+            without asking again. Every intervention is an audit warning: the ask again with the sentences that
+            caused it, and each sentence left out with the describer's full text. The verdict is never touched.
+
+        Args:
+            (1) det [Detection_Str(object)]: The part, judged and described (det.Detail holds the first text).
+            (2) index [int]: Its 0-based position, for the audit.
+            (3) enhanced [Matrix<uint8> hxwx3]: The crop the describer was given.
+            (4) prompt [string]: The prompt it was given (Reporting.Describer_Prompt).
+            (5) audit [Vector<Tuple<string> 1x2>]: The audit records (mutated).
+
+        Returns:
+            (1) parameter [Tuple<string, Tuple<int> 1x2 or None>]: The description kept, and the second answer's
+                                                                   (input, output) tokens, or None when not asked again.
+        """
+
+        full = det.Detail
+        kept, dropped = Guard_Description(full, det)
+        contradictions = [(sentence, why) for sentence, why in dropped if why != CONST_GUARD_NUMBER]
+        tokens = None
+        if contradictions and prompt:
+            audit.append(('warning', 'Object %d: the describer contradicted the checks (%s); asked once more with the '
+                                     'findings restated. Its text: "%s"'
+                          % (index + 1, '; '.join('"%s": %s' % pair for pair in contradictions), full)))
+            full = self.__describer.Describe(enhanced, CONST_PURPOSE_OBJECT, Restated_Prompt(prompt, det))
+            tokens = self.__describer.Last_Tokens
+            kept, dropped = Guard_Description(full, det)
+            if not dropped:
+                audit.append(('warning', 'Object %d: the describer\'s second text agrees with the checks: "%s"'
+                              % (index + 1, full)))
+        for sentence, why in dropped:
+            audit.append(('warning', 'Object %d: the describer\'s sentence "%s" was left out: %s. '
+                                     'Its full text: "%s"' % (index + 1, sentence, why, full)))
+        return kept, tokens
 
     def __Compose_Result(self, objects: tp.List[Detection_Str],
                          t0: float, raw_mask_count: int, background_sentence: str,

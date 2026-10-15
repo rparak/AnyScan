@@ -611,7 +611,9 @@ def test_the_findings_say_what_the_checks_found_in_words_without_numbers() -> No
     """
     Description:
         What the describer is told of a judged part: one sentence per check that ran, in words and without a digit
-        — stains found or none, a hole group short or over, an outline out of tolerance — and nothing for a Warning or an Unspecified object.
+        — stains found or none, what each hole group's check found ('no through-holes', 'only one countersink',
+        'both', 'all the', 'more … than the part has'), never the number the part should have, an outline out of
+        tolerance — and nothing for a Warning or an Unspecified object.
     """
 
     from Reporting.Core import Findings
@@ -623,14 +625,24 @@ def test_the_findings_say_what_the_checks_found_in_words_without_numbers() -> No
     det.Hole_Counts = [Hole_Count_Str(Name='countersink', Found=1, Expected=2),
                        Hole_Count_Str(Name='through-hole', Found=3, Expected=2)]
     assert Findings(det) == ('An automatic check found yellow-brown stains on its machined front; describe them and '
-                             'where they are. An automatic check found fewer countersinks than the part has. An '
-                             'automatic check found more through-holes than the part has. An automatic check found '
-                             'its outline out of tolerance.')
+                             'where they are. An automatic check found only one countersink and more through-holes '
+                             'than the part has on its machined front. An automatic check found its outline out of '
+                             'tolerance.')
     det = _Judged('OK')
     det.Catalogue.Side_Name = 'machined front'
     det.Stains = []
-    assert Findings(det) == 'An automatic check found no stain on its machined front.'
+    det.Hole_Counts = [Hole_Count_Str(Name='countersink', Found=2, Expected=2),
+                       Hole_Count_Str(Name='through-hole', Found=2, Expected=2)]
+    assert Findings(det) == ('An automatic check found no stain on its machined front. An automatic check found both '
+                             'countersinks and both through-holes on its machined front.')
     assert not any(character.isdigit() for character in Findings(det))
+    # The back of capture 20261015-160433_s1, object 1: no hole found is said as such, not as 'fewer'.
+    det = _Judged('NOK')
+    det.Catalogue.Side_Name = 'unmachined back'
+    det.Hole_Counts = [Hole_Count_Str(Name='through-hole', Found=0, Expected=2)]
+    assert Findings(det) == 'An automatic check found no through-holes on its unmachined back.'
+    det.Hole_Counts = [Hole_Count_Str(Name='through-hole', Found=4, Expected=4)]
+    assert Findings(det) == 'An automatic check found all the through-holes on its unmachined back.'
     for verdict in ('Warning', 'Unspecified'):
         assert Findings(_Judged(verdict)) == ''
 
@@ -699,3 +711,91 @@ def test_the_guard_drops_numbers_and_what_contradicts_a_check(sentence: str, sta
     kept, drops = Guard_Description('The part is a square metal plate. ' + sentence, det)
     assert kept == 'The part is a square metal plate.' + ('' if dropped else ' ' + sentence)
     assert [text for text, _why in drops] == ([sentence] if dropped else [])
+
+
+# Gemma's own sentences (E4B, the mounting plate's capture sets, 2026-10-15), and their cases. Holes: the side's
+# groups as (name, found, expected); the front has countersinks and through-holes, the back through-holes only.
+CONST_FRONT_HOLES = [('countersink', 2, 2), ('through-hole', 2, 2)]
+CONST_BACK_HOLES = [('through-hole', 2, 2)]
+CONST_BACK_NO_HOLES = [('through-hole', 0, 2)]
+CONST_BACK_HOLES_SENTENCE = ('The plate has straight edges, with some evidence of a narrow chamfer, and features '
+                             'through-holes without countersinks.')
+CONST_TWO_HOLES_SENTENCE = 'It features two through-holes, each circular and fitted with a bright green interior.'
+CONST_STEPPED_SENTENCE = ('Two stepped holes are present, each featuring a large countersink surrounding a smaller '
+                          'through-hole.')
+
+
+@pytest.mark.parametrize('sentence, stains, holes, dropped', [
+    (CONST_BACK_HOLES_SENTENCE, None, CONST_BACK_NO_HOLES, True),
+    (CONST_BACK_HOLES_SENTENCE, None, CONST_BACK_HOLES, False),
+    (CONST_TWO_HOLES_SENTENCE, None, CONST_BACK_HOLES, False),
+    (CONST_TWO_HOLES_SENTENCE, None, [('through-hole', 1, 2)], True),
+    (CONST_TWO_HOLES_SENTENCE, None, CONST_BACK_NO_HOLES, True),
+    (CONST_STEPPED_SENTENCE, None, CONST_FRONT_HOLES, False),
+    (CONST_STEPPED_SENTENCE, None, CONST_BACK_HOLES, True),
+    ('The plate has no holes.', None, CONST_BACK_HOLES, True),
+    ('The plate has no holes.', None, CONST_BACK_NO_HOLES, False),
+    ('It has a counterbore at one end.', None, CONST_FRONT_HOLES, True),
+    ('Along these long edges there are whitish spots, a little more near where holes would be.', None,
+     CONST_BACK_NO_HOLES, False),
+    ('There are no scratches near the holes.', None, CONST_BACK_HOLES, False),
+    ('There are no scratches, and stepped holes sit along one edge.', None, CONST_FRONT_HOLES, False),
+    ('The machined front appears free of any yellow-brown stains or papillary lines.', [], CONST_FRONT_HOLES, False),
+    ('The machined front appears free of any yellow-brown stains or papillary lines.', [1.0], CONST_FRONT_HOLES, True),
+    ('The machined front displays yellow-brown to brown stains of irregular shape.', [1.0], CONST_FRONT_HOLES, False),
+    ('The machined front displays yellow-brown to brown stains of irregular shape.', [], CONST_FRONT_HOLES, True),
+    ('No defects are apparent on this side.', [1.0], CONST_FRONT_HOLES, True),
+    ('No defects are apparent on this side.', [], CONST_FRONT_HOLES, False),
+    ('No defects are apparent on this side.', None, CONST_BACK_NO_HOLES, True),
+    ('The scuffed spots are not defects.', [1.0], CONST_FRONT_HOLES, False),
+    ('It is made of stainless steel.', [], CONST_FRONT_HOLES, False),
+], ids=['through-holes, none found', 'through-holes, both found', 'two, two found', 'two, one found',
+        'two, none found', 'stepped holes on the front', 'stepped holes on the back', 'no holes, both found',
+        'no holes, none found', 'a counterbore, none in the part', 'a hypothesis', 'scratches near the holes',
+        'a negation in another clause',
+        'free of stains, none found', 'free of stains, one found', 'stains, found', 'stains, none found',
+        'no defects, a stain found', 'no defects, none found', 'no defects, holes missing',
+        "'not defects', a stain found", 'stainless'])
+def test_the_guard_holds_each_mention_to_its_check_in_both_directions(sentence: str, stains: tp.Any,
+                                                                      holes: tp.List[tp.Tuple[str, int, int]],
+                                                                      dropped: bool) -> None:
+    """
+    Description:
+        The guard reads each mention in its own clause, so a sentence claiming one kind of hole there and another
+        absent ('through-holes without countersinks') is held to both: holes the check did not find claimed there
+        (a kind the side has none of, a count it did not find), holes it found claimed absent, a stain claimed
+        where it found none, and the side claimed free of stains or defects where it found a stain or a hole
+        missing are dropped; a hypothesis ('where holes would be'), a negation of something else ('no scratches near
+        the holes', 'no scratches, and stepped holes …'), 'not defects' and 'stainless' are not claims, and a
+        sentence agreeing with the checks is kept.
+    """
+
+    from Reporting.Core import Guard_Description
+    from Parameters.Vision import Stain_Str, Hole_Count_Str
+    det = _Judged('NOK')
+    det.Stains = [Stain_Str(Area_Mm2=area) for area in stains] if stains is not None else None
+    det.Hole_Counts = [Hole_Count_Str(Name=name, Found=found, Expected=expected) for name, found, expected in holes]
+    kept, drops = Guard_Description('The part is a rectangular metal plate. ' + sentence, det)
+    assert kept == 'The part is a rectangular metal plate.' + ('' if dropped else ' ' + sentence)
+    assert [text for text, _why in drops] == ([sentence] if dropped else [])
+
+
+def test_the_restated_prompt_is_the_first_followed_by_the_findings() -> None:
+    """
+    Description:
+        The describer is asked again with its first prompt, then the checks' findings restated as facts it must not
+        contradict — in words, no digit.
+    """
+
+    from Reporting.Core import Restated_Prompt, Findings
+    from Parameters.Vision import Hole_Count_Str
+    det = _Judged('NOK')
+    det.Catalogue.Side_Name = 'unmachined back'
+    det.Hole_Counts = [Hole_Count_Str(Name='through-hole', Found=0, Expected=2)]
+    prompt = Restated_Prompt('Describe the part.', det)
+    assert prompt == ('Describe the part. Your last description contradicted the automatic checks, and the checks are '
+                      'right. What they found: %s Write the description once more, in place of the last one: one short flowing '
+                      'paragraph that says nothing these findings contradict.'
+                      % Findings(det))
+    assert 'found no through-holes on its unmachined back' in prompt
+    assert not any(character.isdigit() for character in prompt)

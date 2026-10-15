@@ -510,19 +510,21 @@ differently moves the plate's colours; nothing checks that the band still fits.
 
 ## The describer guard reads words, so a paraphrase can pass and a right sentence can go
 
-`Reporting.Guard_Description` drops a describer's sentence that holds a number or contradicts a check by matching
-patterns (a stain word with or without a negation, a hole count, "each corner"). It caught every contradiction
-Gemma wrote on the 24 judged parts measured on 2026-10-11 (five, all "holes in each corner" on parts missing
-holes) and dropped no right sentence in the final run; the first run dropped one
-("clean of any staining", fixed).
+`Reporting.Guard_Description` drops a describer's sentence that holds a number or contradicts the hole or the stain
+check by reading words: each mention of a hole kind or a stain, in its own clause, and the words just before and after
+it (a negation, a count, "missing", "would be"). On the mounting plate's 10 capture frames (2026-10-15, 15 judged
+parts) it changes exactly the four descriptions that contradicted a check, and the asked-again text of each passes
+whole.
 
-- **Impact:** a contradiction worded unlike those measured can reach the panel; a right sentence using a
-  pattern's words can be dropped. Every drop is in the log with the describer's full text. The verdict, State
-  and Reasons never come from the describer.
+- **Impact:** a contradiction worded unlike those measured can reach the panel (a hole kind it has no word for:
+  "openings", "bores"; a negation more than four words before its noun); a right sentence using a pattern's words
+  can be dropped, and a dropped sentence takes its right clauses with it (the four 2026-10-15 drops each held "The
+  plate has straight edges, with some evidence of a narrow chamfer"). Every intervention is in the log with the
+  describer's full text. The verdict, State and Reasons never come from the describer.
 - **Not fixed here:** the describer is not asked to decide, so a model judging its text would be one more
-  model to trust; the patterns grow with what is measured.
-- **Pinned by:** `test/Reporting/test_core.py::test_the_guard_drops_numbers_and_what_contradicts_a_check`
-  (Gemma's own sentences).
+  model to trust; the words grow with what is measured.
+- **Pinned by:** `test/Reporting/test_core.py::test_the_guard_drops_numbers_and_what_contradicts_a_check`,
+  `::test_the_guard_holds_each_mention_to_its_check_in_both_directions` (Gemma's own sentences).
 
 ## A missing hole is not marked when the part shows nothing to place it by
 

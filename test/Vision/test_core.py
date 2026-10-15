@@ -727,6 +727,53 @@ def test_a_judged_part_is_described_with_its_findings_and_guarded(fake_models, r
     assert [level for level, message in result.Audit if 'describer' in message] == ['warning']
 
 
+@pytest.mark.parametrize('second, kept, last', [
+    ('A metal plate with a shiny face. It has no holes.', 'A metal plate with a shiny face.',
+     'Object 1: the describer\'s sentence "It has no holes." was left out: it says there are no holes, which the hole '
+     'check found. Its full text: "A metal plate with a shiny face. It has no holes."'),
+    ('A metal plate with two stepped holes.', 'A metal plate with two stepped holes.',
+     'Object 1: the describer\'s second text agrees with the checks: "A metal plate with two stepped holes."'),
+], ids=['still contradicting', 'agreeing'])
+def test_a_contradiction_is_asked_again_once_then_its_sentences_are_left_out(fake_models, reference_background,
+                                                                            make_synthetic_frame, monkeypatch,
+                                                                            second: str, kept: str, last: str) -> None:
+    """
+    Description:
+        A judged part whose description contradicts a check (here 'no holes' on a front whose four holes were found)
+        is described once more, its prompt followed by the findings restated (Reporting.Restated_Prompt), and the
+        second text is guarded in turn: a sentence still contradicting is left out and the rest kept, an agreeing
+        text kept whole. Never a third ask; the verdict is untouched; each intervention is an audit warning.
+    """
+
+    import cv2
+    from Reporting.Core import Describer_Prompt, Restated_Prompt
+    _events, _config, _Variant = fake_models
+    answers = ['A metal plate with a shiny face. It has no holes.', second]
+    original = _Fake_Describer_Cls.Describe
+
+    def _Describe(self, image, purpose, prompt=''):
+        caption = original(self, image, purpose, prompt)
+        return answers.pop(0) if purpose == 'object' and answers else caption
+
+    monkeypatch.setattr(_Fake_Describer_Cls, 'Describe', _Describe)
+    _Fake_Segmenter_Cls.crop_holes = [(15.0, 17.5, 6.0), (15.0, 43.1, 6.0), (15.0, 17.5, 12.0), (15.0, 43.1, 12.0)]
+    frame_bgr = make_synthetic_frame(reference_background, [(300, 300, 900, 700)])
+    config = _Catalogue_Mode()
+    pipeline = Vision_Pipeline_Cls(Configuration_Str=config)
+    result = pipeline.Analyze(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+    plate, = result.Objects
+    describer = getattr(pipeline, '_Vision_Pipeline_Cls__describer')
+    first = Describer_Prompt(plate, config.Catalogue)
+    assert [prompt for purpose, prompt in zip(describer.purposes, describer.prompts) if purpose == 'object'] == [
+        first, Restated_Prompt(first, plate)]
+    assert plate.Detail == kept and plate.Verdict == 'OK'
+    audit = [message for level, message in result.Audit if 'describer' in message]
+    assert audit == [
+        'Object 1: the describer contradicted the checks ("It has no holes.": it says there are no holes, which the '
+        'hole check found); asked once more with the findings restated. Its text: "A metal plate with a shiny face. '
+        'It has no holes."', last]
+
+
 def test_a_judged_parts_features_and_similarity_are_on_the_frame(fake_models, reference_background,
                                                                  make_synthetic_frame) -> None:
     """

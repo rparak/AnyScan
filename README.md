@@ -314,8 +314,9 @@ What a catalogue mode does not check, it cannot fail:
   DINOv2: the fingerprints show, but so does glare, and missing holes do not.
   No verdict reads it.
 - **The describer's words are guarded, not trusted.** In a catalogue mode it is told what the checks found
-  and given no number; a sentence with a number or contradicting a check is dropped and logged, by word
-  patterns (KNOWN_ISSUES). The verdict and its reasons never come from it.
+  and given no number; a description contradicting the hole or the stain check is asked for once more, and a
+  sentence still contradicting, or with a number, is dropped and logged, by reading words (KNOWN_ISSUES). The
+  verdict and its reasons never come from it.
 
 Verified on the 41 test frames only (2026-10-11), with every hole within tolerance.
 
