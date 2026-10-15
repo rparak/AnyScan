@@ -664,8 +664,11 @@ def Part_Lines(index: int, det: Detection_Str) -> tp.List[str]:
 def Size_Note(det: Detection_Str) -> str:
     """
     Description:
-        The note a part judged on its size carries when it lies beyond the radius the size checks were
-        verified to: its distance and the radius. The verdict stands; the note explains it.
+        The note a part judged on its size carries in the log (Verdict_Log_Line) when it lies beyond the radius the
+        size checks were verified to: its distance and the radius. Not in Scene Understanding (Verdict_Lines): a size
+        right for the part read there as one in doubt, the operator cannot act on it, and the verdict does not
+        depend on it (KNOWN_ISSUES, *Sizes beyond 46.4 mm from the frame centre are unverified*). The log keeps it
+        for the rig captures that widen the radius (docs/capture-checklist.md).
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -714,8 +717,8 @@ def Unplaced_Hole_Note(det: Detection_Str) -> str:
 def Verdict_Notes(det: Detection_Str) -> str:
     """
     Description:
-        A verdict's notes as one: the size note (Size_Note) and the unplaced-hole note (Unplaced_Hole_Note), each when
-        it applies.
+        A verdict's notes as the log gives them (Verdict_Log_Line): the size note (Size_Note) and the unplaced-hole
+        note (Unplaced_Hole_Note), each when it applies. Scene Understanding gives the unplaced-hole note only.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -731,9 +734,10 @@ def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
     """
     Description:
         A catalogue mode's verdict on one object as Scene Understanding shows it: 'State: <state>.', then, when it
-        is not OK, its one 'Reason:' sentence (Reason_Sentence), then its notes when they apply (Verdict_Notes). No
-        similarity and no side here: the similarity is in the log only (Verdict_Log_Line), and the side is in
-        the description (Side_Sentence). Empty outside a catalogue mode.
+        is not OK, its one 'Reason:' sentence (Reason_Sentence), then the unplaced-hole note when it applies
+        (Unplaced_Hole_Note). No similarity, no side and no size note here: the similarity and the size note are in
+        the log only (Verdict_Log_Line), and the side is in the description (Side_Sentence). Empty outside a
+        catalogue mode.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -744,7 +748,7 @@ def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
 
     if det.Catalogue is None:
         return []
-    note, reason = Verdict_Notes(det), Reason_Sentence(det)
+    note, reason = Unplaced_Hole_Note(det), Reason_Sentence(det)
     return (['State: %s.' % det.Verdict] + (['Reason: %s' % reason] if reason else [])
             + (['Note: %s' % note] if note else []))
 

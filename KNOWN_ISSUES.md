@@ -542,6 +542,24 @@ capture `20261015-143622_s1`, object 3: a back with no holes, NOK, no hole mark.
 - **Pinned by:** `test/Vision/Utilities/test_holes.py::test_a_side_with_no_hole_found_places_none_since_its_end_cannot_be_told`,
   `test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note`.
 
+## Sizes beyond 46.4 mm from the frame centre are unverified
+
+The size checks were verified on real frames only out to 46.4 mm from the frame centre
+(`Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM`: the farthest judged mounting plate of the test set, 46.32 mm,
+Image_072). Farther out the side-wall term predicts up to about 1 mm more (README > Limitations), beyond the plates'
+0.73 mm margin to the tolerance. A part there is judged on its size exactly as one at the centre: its distance is
+evidence for the log, not a branch of the rule, so the verdict does not depend on it.
+
+- **Impact:** an OK or a NOK on size beyond 46.4 mm rests on a size not verified there, and Scene Understanding no
+  longer says so (removed 2026-10-15, the owner's ruling: on capture `20261015-160433_s1` the note stood under sizes
+  that match the plate, 61.28 × 39.75 mm at 51 mm and 60.60 × 40.57 mm at 59 mm, and misled the operator). The
+  session log's verdict line still gives the distance and the radius.
+- **Not fixed here:** only rig captures can verify it: mounting plates in the corners of the view and along its
+  edges (docs/capture-checklist.md, 3d). If they read within tolerance there, `CONST_VERIFIED_RADIUS_MM` widens to
+  them.
+- **Pinned by:** `test/Vision/Utilities/test_classify.py::test_the_verdict_does_not_depend_on_where_the_part_lies`,
+  `test/Reporting/test_core.py::test_a_size_checked_outside_the_verified_zone_is_noted_in_the_log_only`.
+
 ## Four UI tests fail when the suite is run at DPR 2
 
 Run with `QT_SCALE_FACTOR=2`, `test/UI/test_brand_figures.py::test_the_wordmark_and_the_mark_are_the_logos_own`

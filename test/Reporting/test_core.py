@@ -418,21 +418,22 @@ def test_a_nok_has_one_reason_sentence_for_its_outline_and_look() -> None:
 
 
 @pytest.mark.parametrize('verdict', ['OK', 'NOK'])
-def test_a_size_checked_outside_the_verified_zone_says_so(verdict: str) -> None:
+def test_a_size_checked_outside_the_verified_zone_is_noted_in_the_log_only(verdict: str) -> None:
     """
     Description:
-        A part judged on its size beyond the radius the size checks were verified to carries a note giving its
-        distance and the radius — the verdict stands (a NOK stays NOK), the note explains it. Inside the
-        radius, and on an object not judged by size, there is no note.
+        A part judged on its size beyond the radius the size checks were verified to has no size note in Scene
+        Understanding — a size right for the part read there as one in doubt (capture 20261015-160433_s1:
+        61.28 x 39.75 mm, 51 mm out) — and its state is unchanged; the log line keeps the note with the distance
+        and the radius, for the rig captures that widen it.
     """
 
-    from Reporting.Core import Verdict_Lines
+    from Reporting.Core import Verdict_Lines, Verdict_Log_Line
     note = 'Note: The size check is not verified here: 82 mm from the frame centre, verified to 74 mm.'
-    lines = Verdict_Lines(_Judged(verdict, distance=82.2))
-    assert lines[0] == 'State: %s.' % verdict and lines[-1] == note
-    unverified = 'Note: The size check is not verified here'
-    assert not [line for line in Verdict_Lines(_Judged(verdict, distance=74.3)) if line.startswith(unverified)]
-    assert not [line for line in Verdict_Lines(_Judged('Warning', distance=82.2)) if line.startswith(unverified)]
+    outside, inside = Verdict_Lines(_Judged(verdict, distance=82.2)), Verdict_Lines(_Judged(verdict, distance=30.0))
+    assert outside == inside and outside[0] == 'State: %s.' % verdict
+    assert not [line for line in outside if 'verified' in line or 'frame centre' in line]
+    assert Verdict_Log_Line(0, _Judged(verdict, distance=82.2))[1].endswith(note)
+    assert 'Note:' not in Verdict_Log_Line(0, _Judged(verdict, distance=30.0))[1]
 
 
 def test_the_verdict_reaches_the_file_and_the_log_keeps_the_similarity() -> None:

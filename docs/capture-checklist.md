@@ -251,7 +251,7 @@ subtraction is only meaningful against a reference lit the same way.
 
 The size checks are verified only out to 46.4 mm from the frame centre: the farthest judged mounting
 plate of the test set (`Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM`). A plate farther out is
-still judged, but its size check carries a note that it is not verified there. Mounting plates placed far
+still judged, and the session log notes that its size check is not verified there. Mounting plates placed far
 from the centre, for example in the corners of the view, would win the zone back: if they read within
 tolerance there, the zone can be widened to them.
 

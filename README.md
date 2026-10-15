@@ -276,7 +276,8 @@ part is within a stated tolerance does not, except where the catalogue bullet be
   60 × 40 (tolerance ±1.5), with their centres up to 46.3 mm from the frame centre. **Not verified:** the
   parts were not calipered, so "within" means consistent with nominal, not a measured truth. **Not
   measured:** a plate farther from the frame centre than 46.4 mm, where the side-wall term above predicts up
-  to about 1 mm more, beyond the plates' 0.73 mm margin; a size checked there carries a note.
+  to about 1 mm more, beyond the plates' 0.73 mm margin; a size checked there is noted in the session log, not on
+  screen, and judged as anywhere else (KNOWN_ISSUES).
 - Sizes are shown to 0.01 mm as a formatting choice: one pixel is about 0.10 mm, and the error above
   is up to about 1.5 mm, so the second decimal — and the first — says nothing about accuracy.
 

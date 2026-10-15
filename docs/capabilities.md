@@ -108,8 +108,8 @@ then composes and measures. The numbers are the ones the README and the mode fil
   with the item's front and back reference images by DINOv2 base: the best similarity and the side. Then
   the rule: Unspecified when its area is 1.7× the part's or more; the part when the similarity is 0.75 or
   more (OK if its outline is within tolerance, else NOK); the part and NOK when only its outline matches;
-  otherwise Warning. A size checked more than 46.4 mm from the frame centre carries a note that it is not
-  verified there
+  otherwise Warning. A size checked more than 46.4 mm from the frame centre is not verified there: the session
+  log notes it, Scene Understanding does not, and the verdict does not depend on it
   ([*A catalogue mode identifies by similarity…*](design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok)).
   A part judged OK or NOK then has its holes checked on the side up: FastSAM on its upright crop, each catalogue
   group counted near its positions, each hole's diameter, edge distances and pitch within tolerance; a hole
@@ -213,9 +213,9 @@ Two cards:
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
   each object adds `State: …`, one `Reason: …` sentence summing up why it is not OK (counts in words up to
   ten: "One of two through-holes is missing, and there are two stains on the machined front."), and a note when
-  its size was checked outside the verified zone, and when missing holes are not marked on the frame (no hole found
-  to place them by: which end of the part they belong at cannot be told). The measured and expected values, part by part
-  (Part 2.3 · …), and the similarity are in the log. The badge states the worst verdict, in the purple on its verdict's ground: `NOK · n of m` (the orange-red's
+  missing holes are not marked on the frame (no hole found to place them by: which end of the part they belong at
+  cannot be told). The measured and expected values, part by part (Part 2.3 · …), the similarity and, beyond the
+  verified zone, the size note are in the log. The badge states the worst verdict, in the purple on its verdict's ground: `NOK · n of m` (the orange-red's
   tint), `Not judged · n` and `Foreign object · n` (the amber), `All OK · n` (the periwinkle); outside a catalogue
   mode, `n found`.
 

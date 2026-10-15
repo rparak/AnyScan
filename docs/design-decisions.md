@@ -3004,7 +3004,8 @@ is flagged as a failed part, never passed or ignored), and the thin threshold is
 - **The size checks' verified zone.** Every judged mounting plate on the test set lies within 46.32 mm of the
   frame centre (Image_072, measured the way the check measures). Beyond `CONST_VERIFIED_RADIUS_MM` (46.4) an OK
   or NOK judged on its size carries the note "the size check is not verified here", with its distance. The
-  verdict stands: a NOK stays NOK, the note explains it (the owner's ruling). *Corrected 2026-10-13:* it was
+  verdict stands: a NOK stays NOK, the note explains it (the owner's ruling). *Corrected 2026-10-15:* the note is
+  in the session log only, no longer in Scene Understanding (*The size note is in the log only…*). *Corrected 2026-10-13:* it was
   74.3 mm, measured on more parts than the mounting plates (*The catalogue holds only the mounting plate*).
   Plates captured farther out, in the corners of the view, would widen it (capture checklist).
 - **Where the verdict shows.** The frame and the mask (Warning in the status amber — the one place amber marks
@@ -3468,7 +3469,7 @@ removed code (its last commit is `4865eee`).
   0.75), as they were labelled before; no verdict on any frame changed.
 - **The verified zone dropped to 46.4 mm**, from 74.3, because only mounting plates remain as evidence: the
   farthest judged plate's centre is 46.32 mm from the frame centre (Image_072). A size checked beyond it carries
-  the note; the verdict stands.
+  the note (in the log only since 2026-10-15); the verdict stands.
 - **Older capture sets still load.** A set recorded in the removed mode names its configuration and keeps its
   parts; the reader ignores the text fields this version no longer writes, and History shows it.
 
@@ -3969,3 +3970,25 @@ Tests `test/Vision/Utilities/test_holes.py::test_through_holes_missing_under_fou
 `::test_a_plates_missing_holes_are_placed_on_the_side_its_holes_are`,
 `::test_a_missing_holes_outline_is_a_circle_of_its_groups_diameter_at_its_position`,
 `test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note`.
+
+## The size note is in the log only, not in Scene Understanding
+
+Decided 2026-10-15, on the owner's request. A part judged on its size beyond `CONST_VERIFIED_RADIUS_MM` (46.4 mm
+from the frame centre) no longer carries "The size check is not verified here: N mm from the frame centre, verified
+to 46 mm" in Scene Understanding (`Reporting.Verdict_Lines` gives the unplaced-hole note only). The session log's
+verdict line keeps it (`Reporting.Verdict_Log_Line`, `Verdict_Notes`, `Size_Note`), with the distance the rig
+captures that widen the zone need (capture checklist, 3d). The size check and the verdict rule are unchanged.
+
+**Why.** On capture `20261015-160433_s1` the note stood under two plates whose sizes match the part (61.28 × 39.75 mm
+at 51 mm, 60.60 × 40.57 mm at 59 mm, nominal 60 × 40 ± 1.5): the operator read a right size as one in doubt, and
+could not act on it. The note never changed a verdict: `Classify` sets OK or NOK from the area, the similarity and
+the outline checks, and the distance only fills `Catalogue_Result_Str.Center_Distance_Mm` for the note. That the
+size is unverified out there stays recorded (KNOWN_ISSUES, *Sizes beyond 46.4 mm from the frame centre are
+unverified*), not shown.
+
+**Revisit if** rig captures in the corners and along the edges widen the verified zone (then the log's note moves
+out with it), or a part beyond it is found misjudged on its size (then the operator needs to see it again).
+Tests `test/Reporting/test_core.py::test_a_size_checked_outside_the_verified_zone_is_noted_in_the_log_only`,
+`test/Vision/Utilities/test_classify.py::test_the_verdict_does_not_depend_on_where_the_part_lies`,
+`test/UI/test_reading_view.py::test_a_judged_object_shows_its_verdict_between_label_and_description`,
+`test/UI/test_timing_log.py::test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time`.

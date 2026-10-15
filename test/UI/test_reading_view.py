@@ -273,7 +273,7 @@ def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app,
     """
     Description:
         In a catalogue mode each object block shows its verdict lines (Reporting.Verdict_Lines) — the state
-        word first, then the reasons and the size note — between the label line and the description, as
+        word first, then the reasons (no size note: it is in the log only) — between the label line and the description, as
         plain text in the ink, weighted above the description. An object with no verdict (Segment
         Anything) keeps its two-level block.
     """
@@ -294,8 +294,7 @@ def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app,
     assert first.count() == 3 and second.count() == 2
     verdict = first.itemAt(1).widget()
     assert verdict.text() == '\n'.join(Verdict_Lines(judged))
-    assert verdict.text() == ('State: NOK.\nReason: Its length is out of tolerance.\n'
-                              'Note: The size check is not verified here: 80 mm from the frame centre, verified to 74 mm.')
+    assert verdict.text() == 'State: NOK.\nReason: Its length is out of tolerance.'
     assert verdict.textFormat() == Qt.PlainText and verdict.font().weight() > first.itemAt(2).widget().font().weight()
     assert first.itemAt(2).widget().text() == 'A machined plate.'
 

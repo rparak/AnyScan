@@ -103,6 +103,28 @@ def test_the_verdict_follows_the_rule(rects: tp.List[tp.Tuple[int, int, int, int
     assert (det.Catalogue.Similarity, det.Catalogue.Side) == (similarity, 'front')
 
 
+@pytest.mark.parametrize('rects, verdict', [
+    ([(660, 400, 1260, 800)], 'OK'),                                # 60 x 40 mm
+    ([(660, 400, 1300, 800)], 'NOK'),                               # 64 x 40 mm, too long
+], ids=['ok', 'nok-size'])
+def test_the_verdict_does_not_depend_on_where_the_part_lies(rects: tp.List[tp.Tuple[int, int, int, int]],
+                                                            verdict: str) -> None:
+    """
+    Description:
+        A part's size is checked, and its verdict given, the same at the frame centre and beyond the radius the size
+        checks were verified to (CONST_VERIFIED_RADIUS_MM): the distance is evidence for the log, never a branch of
+        the rule.
+    """
+
+    shift = (-560, -330)                                            # 64 to 69 mm out at 0.1 mm/px
+    centred = _Part(rects)
+    outside = _Part([(x0 + shift[0], y0 + shift[1], x1 + shift[0], y1 + shift[1]) for x0, y0, x1, y1 in rects])
+    for det in (centred, outside):
+        Classify(det, 0.9, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    assert centred.Catalogue.Center_Distance_Mm < CONST_VERIFIED_RADIUS_MM < outside.Catalogue.Center_Distance_Mm
+    assert centred.Verdict == outside.Verdict == verdict
+
+
 def test_the_evidence_is_kept_with_the_thresholds_it_was_judged_by() -> None:
     """
     Description:
