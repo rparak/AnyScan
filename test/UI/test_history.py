@@ -756,3 +756,23 @@ def test_a_set_recorded_in_a_mode_that_no_longer_ships_loads_and_shows(qt_app, t
     assert _Private(view, '__banner').isHidden()
     assert _Private(view, '__object_list').box.count() == 3
     assert _Private(view, '__meta_configuration').text() == data['configuration']
+
+
+def test_each_state_filter_carries_its_states_frame_colour(qt_app, tmp_path) -> None:
+    """
+    Description:
+        Each state's segment of History's filter carries a swatch in exactly that state's frame colour, as the Trends
+        legend and the Camera View's marks (OK #640ABA, NOK #FF6540, Outside area #FFC226, Foreign object #B4A6BE,
+        Unspecified #33A3FF), edged in its hue's dark shade; All carries none.
+    """
+
+    from Parameters.Theme import Chart_Edge
+    view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
+    buttons = {button.text(): button for button in _Private(view, '__filter').findChildren(QPushButton)}
+    assert buttons['All'].icon().isNull()
+    for label, colour in (('OK', '#640ABA'), ('NOK', '#FF6540'), ('Outside area', '#FFC226'), ('Foreign object', '#B4A6BE'),
+                          ('Unspecified', '#33A3FF')):
+        image = buttons[label].icon().pixmap(20, 20).toImage()
+        centre = QColor(image.pixel(image.width() // 2, image.height() // 2)).name()
+        rim = QColor(image.pixel(1, image.height() // 2)).name()
+        assert (centre, rim) == (colour.lower(), Chart_Edge(colour).lower()), label

@@ -45,7 +45,7 @@ from UI.Utilities.Style import (Font, Rgb_To_Qimage, Bgr_To_Qimage,
 #   ../UI/Widgets
 from UI.Widgets import (Card_Cls, Card_Head_Cls, Icon_Cls, Viewport_Cls, Tool_Button_Cls,
                         View_Toggle_Cls, Segmented_Control_Cls, Object_List_Cls,
-                        Status_Strip_Cls, Funding_Row_Cls, Logo_Lockup_Cls, Svg_Image_Cls, Meta_Row, Badge_Cls)
+                        Status_Strip_Cls, Funding_Row_Cls, Logo_Lockup_Cls, Svg_Image_Cls, Meta_Row)
 #   ../UI/Views/History
 from UI.Views.History import History_View_Cls
 from UI.Views.Trends import Trends_View_Cls
@@ -324,9 +324,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__view_toggle = None
         self.__status = None
         self.__frame_badge = None
-        self.__stage_badge = None
-        # The second verdict badge, shown only when the Warnings are of both kinds (outside the area, foreign).
-        self.__stage_badge_second = None
+        # The reading's verdict badges, one per state that needs the operator (Badge_Row_Cls, Reporting.Badges).
+        self.__stage_badges = None
         self.__pill_camera = None
         self.__reading_empty = None
         self.__reading_lead = None
@@ -622,11 +621,8 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         card = Card_Cls()
-        head = Card_Head_Cls('reading', 'Scene Understanding', 'Idle')
-        self.__stage_badge = head.badge
-        self.__stage_badge_second = Badge_Cls('')
-        self.__stage_badge_second.hide()
-        head.box.addWidget(self.__stage_badge_second)
+        head = Card_Head_Cls('reading', 'Scene Understanding', badge_row=True)
+        self.__stage_badges = head.badges
         card.box.addWidget(head)
 
         body = QWidget()
@@ -904,8 +900,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         self.__showing_error = True
-        self.__stage_badge.Set_State('Error', 'warn')
-        self.__stage_badge_second.hide()
+        self.__stage_badges.Set_Badges([('Error', 'warn')])
         self.__reading_empty.setText(message)
         self.__reading_empty.show()
         self.__reading_lead.hide()
@@ -1639,11 +1634,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__view_toggle.Set_Segment_Enabled('heatmap', heatmap is not None)
         self.__view_toggle.Set_Segment_Enabled('similarity', similarity is not None)
         self.__view_toggle.Set_View(view)
-        self.__stage_badge.Set_State(result.Verdict, result.Verdict_Level)
-        # One badge per Warning kind there: a part outside the area and a foreign object are never counted as one.
-        if len(result.Badges) > 1:
-            self.__stage_badge_second.Set_State(*result.Badges[1])
-        self.__stage_badge_second.setVisible(len(result.Badges) > 1)
+        # Every state that needs the operator gets its own badge, all at once (Reporting.Badges).
+        self.__stage_badges.Set_Badges(result.Badges or [(result.Verdict, result.Verdict_Level)])
 
         self.__meta_task.setText(result.Task)
         self.__meta_latency.setText(self.CONST_LATENCY_FORMAT % result.Latency_Ms)
@@ -1807,8 +1799,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__reading_lead.hide()
         self.__reading_note.hide()
         self.__object_list.Set_Objects([])
-        self.__stage_badge.Set_State('Idle', 'idle')
-        self.__stage_badge_second.hide()
+        self.__stage_badges.Set_Badges([('Idle', 'idle')])
         self.__meta_task.setText(Style.CONST_NO_VALUE)
         self.__meta_latency.setText(Style.CONST_NO_VALUE)
         self.__meta_confidence.setText(Style.CONST_NO_VALUE)

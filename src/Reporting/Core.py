@@ -358,12 +358,12 @@ def Badges(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.List[
         The verdict badges' wording and severity levels. The level drives each badge's colour, returned separately so
         the interface never parses the wording to decide how to paint it.
 
-        In a catalogue mode (the objects carry catalogue evidence) the badges state the worst verdict, so none is
-        green while anything on the surface is not OK: any NOK ('NOK · 2 of 5', level 'fail'), else any Unspecified
-        ('Not judged · 1', 'unspecified'), else the Warnings, one badge per kind there: 'Outside the area · 2' (level
-        'warn', the amber) and 'Foreign object · 3' (level 'foreign', the grey), never one badge counting both; else
-        every object OK ('All OK · 2', 'ok'). The word carries the state as well as the colour. Outside a catalogue
-        mode, one badge: low confidence, or what was found.
+        In a catalogue mode (the objects carry catalogue evidence) one badge for every state there that needs the
+        operator, all at once, so a part to move is never hidden behind a NOK (the owner's ruling, 2026-10-16), in this
+        order: 'NOK · 2 of 5' (level 'fail'), 'Outside the area · 1' ('warn', the amber), 'Foreign object · 3'
+        ('foreign', the grey), 'Not judged · 1' ('unspecified', the blue); with none of them, 'All OK · 2' ('ok'). The
+        word carries the state as well as the colour. Outside a catalogue mode, one badge: low confidence, or what was
+        found.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects.
@@ -378,13 +378,11 @@ def Badges(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.List[
         return [('Empty', 'idle')]
     if any(o.Catalogue is not None for o in objects):
         states = [Shown_State(o) for o in objects]
-        if states.count('NOK'):
-            return [('NOK · %d of %d' % (states.count('NOK'), len(objects)), 'fail')]
-        if states.count('Unspecified'):
-            return [('Not judged · %d' % states.count('Unspecified'), 'unspecified')]
-        badges = [('%s · %d' % (word, states.count(state)), level)
-                  for state, word, level in (('Outside', 'Outside the area', 'warn'),
-                                             ('Foreign', 'Foreign object', 'foreign')) if states.count(state)]
+        badges = [(text % states.count(state), level)
+                  for state, text, level in (('NOK', 'NOK · %%d of %d' % len(objects), 'fail'),
+                                             ('Outside', 'Outside the area · %d', 'warn'),
+                                             ('Foreign', 'Foreign object · %d', 'foreign'),
+                                             ('Unspecified', 'Not judged · %d', 'unspecified')) if states.count(state)]
         return badges or [('All OK · %d' % len(objects), 'ok')]
     scored = [o.Confidence for o in objects if o.Confidence is not None]
     if scored and min(scored) < threshold:
@@ -395,7 +393,8 @@ def Badges(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.List[
 def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tuple[str, str]:
     """
     Description:
-        The first verdict badge's wording and level (Badges): the one the session log and a single-badge reader take.
+        The first verdict badge's wording and level (Badges): the one the session log and a single-badge reader take,
+        NOK when there is one.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects.

@@ -53,7 +53,7 @@ from Parameters.Theme import (                                             # noq
     CONST_WARN_BORDER, CONST_VIEWPORT, CONST_VIEWPORT_TEXT, CONST_LEGEND_MARK, CONST_BAND,
     CONST_BAND_LINE, CONST_BAND_TEXT, CONST_BAND_LINE_ALPHA, CONST_BAND_TEXT_ALPHA, CONST_CORNER_MOTIF,
     CONST_CORNER_MOTIF_ALPHA, CONST_LOGO_INK,
-    CONST_LOG_WARNING, CONST_LOG_ERROR, Log_Level_Color, Status_Text_Color, Heatmap_Colors)
+    CONST_LOG_WARNING, CONST_LOG_ERROR, Log_Level_Color, Status_Text_Color, Heatmap_Colors, Chart_Edge, State_Color)
 
 """
 Description:

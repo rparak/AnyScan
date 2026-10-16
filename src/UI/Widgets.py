@@ -28,11 +28,11 @@ import re
 # Typing (Support for type hints)
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QByteArray, pyqtSignal
-from PyQt5.QtGui import (QColor, QFont, QFontMetrics, QFontMetricsF, QImage, QPainter, QPainterPath, QPen,
+from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QByteArray, QSize, pyqtSignal
+from PyQt5.QtGui import (QColor, QFont, QFontMetrics, QFontMetricsF, QIcon, QImage, QPainter, QPainterPath, QPen,
                          QPixmap, QPaintEvent)
 from PyQt5.QtSvg import QSvgRenderer
-from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup,
+from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup, QLayout,
                              QVBoxLayout, QHBoxLayout, QSizePolicy, QApplication)
 # Custom Lib.: AnyScan UI — design tokens and style helpers
 #   ../UI/Utilities/Style
@@ -65,6 +65,9 @@ Description:
 # three quarters of its colour, measured on the offscreen render, 2026-10-16).
 #   Unit [px] (logical)
 CONST_INSPECTION_AREA_W = 1
+# A state swatch's side (Swatch_Icon), as the Trends legend's.
+#   Unit [px] (logical)
+CONST_SWATCH_PX = 10
 
 
 def Digit_Variants(text: str) -> tp.List[str]:
@@ -122,6 +125,33 @@ def Meta_Row(parent_layout: QVBoxLayout, key: str, *, compact: bool, mono: bool 
     line.addWidget(value)
     parent_layout.addWidget(row)
     return value
+
+
+def Swatch_Icon(color: str) -> QIcon:
+    """
+    Description:
+        A state's swatch as an icon, as the Trends legend draws it: a CONST_SWATCH_PX square in the state's frame colour,
+        edged in its hue's dark shade (Theme.Chart_Edge), so a light colour reads on the white card and on the purple of
+        a selected segment alike.
+
+    Args:
+        (1) color [string]: The state's colour token, as '#rrggbb'.
+
+    Returns:
+        (1) parameter [QIcon(object)]: The icon.
+    """
+
+    ratio = 2
+    pixmap = QPixmap(CONST_SWATCH_PX * ratio, CONST_SWATCH_PX * ratio)
+    pixmap.setDevicePixelRatio(ratio)
+    pixmap.fill(Qt.transparent)
+    p = QPainter(pixmap)
+    p.setRenderHint(QPainter.Antialiasing, True)
+    p.setBrush(Style.Token_Color(color))
+    p.setPen(QPen(Style.Token_Color(Style.Chart_Edge(color)), 1.25))
+    p.drawRect(QRectF(0.625, 0.625, CONST_SWATCH_PX - 1.25, CONST_SWATCH_PX - 1.25))
+    p.end()
+    return QIcon(pixmap)
 
 
 def Paint_Inspection_Area(p: QPainter, draw_rect: QRectF, frame_size: tp.Tuple[int, int],
@@ -304,15 +334,309 @@ class Badge_Cls(QLabel):
         self.Set_Level(level)
 
 
+class Flow_Layout_Cls(QLayout):
+    """
+    Description:
+        A layout that places its widgets in a row, right-aligned, and wraps them onto the next row when the row is too
+        narrow, each row as tall as its tallest widget: the reading card's badge row (Badge_Row_Cls), whose badges must
+        all show however narrow the card is.
+
+    Initialization of the Class:
+        Args:
+            (1) spacing [int]: The gap between widgets, across and down, in pixels.
+            (2) parent [QWidget(object) or None]: The widget it lays out.
+
+        Example:
+            Initialization:
+                # Initialization of the class.
+                Cls = Flow_Layout_Cls(6, widget)
+
+            Features:
+                # Add a widget; it is placed on the next paint.
+                Cls.addWidget(badge)
+    """
+
+    def __init__(self, spacing: int, parent: tp.Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setSpacing(spacing)
+
+        # << PRIVATE >> #
+        self.__items = []
+
+    # << QT OVERRIDE >> #
+    def addItem(self, item: tp.Any) -> None:
+        """
+        Description:
+            Take an item (Qt calls it for addWidget).
+
+        Args:
+            (1) item [QLayoutItem(object)]: The item.
+        """
+
+        self.__items.append(item)
+
+    # << QT OVERRIDE >> #
+    def count(self) -> int:
+        """
+        Description:
+            How many items it holds.
+
+        Returns:
+            (1) parameter [int]: The count.
+        """
+
+        return len(self.__items)
+
+    # << QT OVERRIDE >> #
+    def itemAt(self, index: int) -> tp.Any:
+        """
+        Description:
+            The item at an index, or None.
+
+        Args:
+            (1) index [int]: The index.
+
+        Returns:
+            (1) parameter [QLayoutItem(object) or None]: The item.
+        """
+
+        return self.__items[index] if 0 <= index < len(self.__items) else None
+
+    # << QT OVERRIDE >> #
+    def takeAt(self, index: int) -> tp.Any:
+        """
+        Description:
+            Remove and return the item at an index, or None.
+
+        Args:
+            (1) index [int]: The index.
+
+        Returns:
+            (1) parameter [QLayoutItem(object) or None]: The item.
+        """
+
+        return self.__items.pop(index) if 0 <= index < len(self.__items) else None
+
+    # << QT OVERRIDE >> #
+    def expandingDirections(self) -> tp.Any:
+        """
+        Description:
+            It does not grow beyond its rows.
+
+        Returns:
+            (1) parameter [Qt.Orientations]: None.
+        """
+
+        return Qt.Orientations(0)
+
+    # << QT OVERRIDE >> #
+    def hasHeightForWidth(self) -> bool:
+        """
+        Description:
+            Its height depends on its width: narrower, more rows.
+
+        Returns:
+            (1) parameter [bool]: True.
+        """
+
+        return True
+
+    # << QT OVERRIDE >> #
+    def heightForWidth(self, width: int) -> int:
+        """
+        Description:
+            The height its rows take at a width.
+
+        Args:
+            (1) width [int]: The width.
+
+        Returns:
+            (1) parameter [int]: The height.
+        """
+
+        return self.__Arrange(QRect(0, 0, width, 0), place=False)
+
+    # << QT OVERRIDE >> #
+    def setGeometry(self, rect: QRect) -> None:
+        """
+        Description:
+            Place its widgets in the rectangle it is given.
+
+        Args:
+            (1) rect [QRect(object)]: The rectangle.
+        """
+
+        super().setGeometry(rect)
+        self.__Arrange(rect, place=True)
+
+    # << QT OVERRIDE >> #
+    def sizeHint(self) -> QSize:
+        """
+        Description:
+            All its visible widgets in one row.
+
+        Returns:
+            (1) parameter [QSize(object)]: The size.
+        """
+
+        shown = [item.sizeHint() for item in self.__items if not item.isEmpty()]
+        if not shown:
+            return QSize(0, 0)
+        return QSize(sum(size.width() for size in shown) + self.spacing() * (len(shown) - 1),
+                     max(size.height() for size in shown))
+
+    # << QT OVERRIDE >> #
+    def minimumSize(self) -> QSize:
+        """
+        Description:
+            Its widest widget: below that nothing more can wrap.
+
+        Returns:
+            (1) parameter [QSize(object)]: The size.
+        """
+
+        shown = [item.minimumSize() for item in self.__items if not item.isEmpty()]
+        return QSize(max((size.width() for size in shown), default=0), max((size.height() for size in shown), default=0))
+
+    def __Arrange(self, rect: QRect, place: bool) -> int:
+        """
+        Description:
+            Lay the visible widgets out in right-aligned rows within the rectangle's width, placing them when asked.
+
+        Args:
+            (1) rect [QRect(object)]: The rectangle.
+            (2) place [bool]: Whether to set the widgets' geometry, or only measure.
+
+        Returns:
+            (1) parameter [int]: The height taken.
+        """
+
+        gap = self.spacing()
+        rows, row, row_width = [], [], 0
+        for item in [item for item in self.__items if not item.isEmpty()]:
+            width = item.sizeHint().width()
+            if row and row_width + gap + width > rect.width():
+                rows.append((row, row_width))
+                row, row_width = [], 0
+            row_width += (gap if row else 0) + width
+            row.append(item)
+        if row:
+            rows.append((row, row_width))
+        y = rect.y()
+        for items, width in rows:
+            height = max(item.sizeHint().height() for item in items)
+            x = rect.x() + max(0, rect.width() - width)
+            for item in items:
+                size = item.sizeHint()
+                if place:
+                    item.setGeometry(QRect(QPoint(x, y + (height - size.height()) // 2), size))
+                x += size.width() + gap
+            y += height + gap
+        return max(0, y - rect.y() - gap) if rows else 0
+
+
+class Badge_Row_Cls(QWidget):
+    """
+    Description:
+        The reading card's verdict badges, one per state that needs the operator (Reporting.Badges), side by side and
+        right-aligned in the card's head, wrapping onto a second row when the card is too narrow for them all
+        (Flow_Layout_Cls), so none is ever clipped or hidden behind another.
+
+    Initialization of the Class:
+        Args:
+            (1) parent [QWidget(object) or None]: The parent.
+
+        Example:
+            Initialization:
+                # Initialization of the class.
+                Cls = Badge_Row_Cls()
+
+            Features:
+                # Show the badges of a reading.
+                Cls.Set_Badges([('NOK · 1 of 3', 'fail'), ('Outside the area · 1', 'warn')])
+    """
+
+    def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.__layout = Flow_Layout_Cls(6, self)
+        policy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
+        # << PRIVATE >> #
+        self.__badges = []
+        self.Set_Badges([('Idle', 'idle')])
+
+    def Set_Badges(self, badges: tp.List[tp.Tuple[str, str]]) -> None:
+        """
+        Description:
+            Show these badges, in order, and hide any left from a reading that had more.
+
+        Args:
+            (1) badges [Vector<Tuple<string> 1x2>]: The (wording, level) pairs.
+        """
+
+        while len(self.__badges) < len(badges):
+            badge = Badge_Cls('')
+            self.__layout.addWidget(badge)
+            self.__badges.append(badge)
+        for index, badge in enumerate(self.__badges):
+            if index < len(badges):
+                badge.Set_State(*badges[index])
+            badge.setVisible(index < len(badges))
+        self.__layout.invalidate()
+        self.updateGeometry()
+
+    def Badges(self) -> tp.List[Badge_Cls]:
+        """
+        Description:
+            The badges shown now, in order.
+
+        Returns:
+            (1) parameter [Vector<Badge_Cls(object)>]: The badges.
+        """
+
+        return [badge for badge in self.__badges if not badge.isHidden()]
+
+    # << QT OVERRIDE >> #
+    def hasHeightForWidth(self) -> bool:
+        """
+        Description:
+            Its height follows its width (its rows wrap).
+
+        Returns:
+            (1) parameter [bool]: True.
+        """
+
+        return True
+
+    # << QT OVERRIDE >> #
+    def heightForWidth(self, width: int) -> int:
+        """
+        Description:
+            The height its rows take at a width.
+
+        Args:
+            (1) width [int]: The width.
+
+        Returns:
+            (1) parameter [int]: The height.
+        """
+
+        return self.__layout.heightForWidth(width)
+
+
 class Card_Head_Cls(QWidget):
     """
     Description:
-        A card head: icon, title, spacer, and at most one badge. Exposes `badge`
-        (the Badge_Cls, or None) so the window can drive it.
+        A card head: icon, title, spacer, and at most one badge; or, with badge_row, a row of badges taking all the
+        width the title leaves (Badge_Row_Cls), wrapping only when that is not enough. Exposes `badge` (the Badge_Cls,
+        or None) and `badges` (the Badge_Row_Cls, or None) so the window can drive them.
     """
 
     def __init__(self, icon_kind: str, title: str, badge_text: tp.Optional[str] = None,
-                 parent: tp.Optional[QWidget] = None) -> None:
+                 parent: tp.Optional[QWidget] = None, badge_row: bool = False) -> None:
         super().__init__(parent)
         # `box` is exposed so the window can add a right-aligned control (e.g. the
         # Camera View's view toggle) into the head after the badge.
@@ -324,8 +648,12 @@ class Card_Head_Cls(QWidget):
         label.setFont(Font(15.5, QFont.Bold, tracking=-2))
         label.setStyleSheet('color: %s;' % Style.CONST_INK)
         self.box.addWidget(label)
+        self.badge, self.badges = None, None
+        if badge_row:
+            self.badges = Badge_Row_Cls()
+            self.box.addWidget(self.badges, 1)
+            return
         self.box.addStretch(1)
-        self.badge = None
         if badge_text is not None:
             self.badge = Badge_Cls(badge_text)
             self.box.addWidget(self.badge)
@@ -933,6 +1261,19 @@ class Segmented_Control_Cls(QWidget):
         button = self.__buttons.get(key)
         if button is not None and not button.isChecked():
             button.setChecked(True)
+
+    def Set_Segment_Icon(self, key: str, icon: QIcon) -> None:
+        """
+        Description:
+            Give one segment an icon before its label (History's state filter: each state's swatch, Swatch_Icon).
+
+        Args:
+            (1) key [string]: The segment key.
+            (2) icon [QIcon(object)]: The icon.
+        """
+
+        self.__buttons[key].setIcon(icon)
+        self.__buttons[key].setIconSize(QSize(CONST_SWATCH_PX, CONST_SWATCH_PX))
 
     def Set_Segment_Enabled(self, key: str, enabled: bool) -> None:
         """

@@ -230,16 +230,19 @@ CONST_WARNING_BOX = '#FFC226'
 # green table at 1.03:1): 2.39:1 on the table (median #236A56), its white numeral 2.68:1 (an accepted exception, as the
 # orange-red's and the amber's), and against the other frame colours the OK purple 3.41:1 (ΔE 74.9), the NOK orange-red
 # 1.09:1 (ΔE 118.9), the Warning amber 1.66:1 (ΔE 133.5), the foreign grey #B4A6BE 1.17:1 (ΔE 45.1), the area amber
-# #FFD880 1.97:1 (ΔE 105.0). Its ink is its hue at L* 41 (6.11:1 on white); its mask fill #748DB1 in its hue (ΔE 33.3
-# from the box, 47.3 from white, 6.19:1 on black, at 0.40 of its chroma).
+# #FFD880 1.97:1 (ΔE 105.0). Its mask fill #748DB1 in its hue (ΔE 33.3 from the box, 47.3 from white, 6.19:1 on black,
+# at 0.40 of its chroma).
 CONST_UNSPECIFIED_BOX = '#33A3FF'
-CONST_UNSPECIFIED_INK = '#0065A9'
 CONST_UNSPECIFIED_MASK_FILL = '#748DB1'
+# ONE COLOUR PER STATE (the owner's rule, 2026-10-16): a state's 'ink', its colour in the charts, the legends and the
+# History filter, is its frame box itself, so the operator learns one colour per state; the darker chart variants
+# (#BA260B, #7C5B00, #4F4952, #0065A9) are gone. A light one reads on the white card by a thicker line and markers edged
+# in its hue's dark shade (Chart_Edge). (CONST_WARN_INK stays the status pill's and the log's amber text, no verdict's.)
 CONST_VERDICT_COLORS = {
     'OK':  (CONST_INK, CONST_INK, '#CC9EF1'),              # pass
-    'NOK': (CONST_NOK_BOX, '#BA260B', '#CD7157'),          # fail
-    'Warning': (CONST_WARNING_BOX, CONST_WARN_INK, '#B28508'),   # not the catalogue part, or outside the area
-    'Unspecified': (CONST_UNSPECIFIED_BOX, CONST_UNSPECIFIED_INK, CONST_UNSPECIFIED_MASK_FILL),   # not judged
+    'NOK': (CONST_NOK_BOX, CONST_NOK_BOX, '#CD7157'),      # fail
+    'Warning': (CONST_WARNING_BOX, CONST_WARNING_BOX, '#B28508'),   # a part outside the area (or an older Warning)
+    'Unspecified': (CONST_UNSPECIFIED_BOX, CONST_UNSPECIFIED_BOX, CONST_UNSPECIFIED_MASK_FILL),   # not judged
 }
 # The verdict a detection carries until classification sets one.
 #   Unit [string]
@@ -284,13 +287,11 @@ CONST_INSPECTION_AREA_EMPTY = CONST_INK
 # (the Warning amber's white numeral is 1.62:1, the owner's accepted exception).
 #   Unit [string] (hex colour)
 CONST_FOREIGN_BOX = CONST_CONTROL_DISABLED_TEXT
-# The foreign object's words and chart line on the white card (the Trends series, its dots): the grey's hue at L* 32,
-# chroma 6 (8.72:1 on white), the darkest shade that stays the grey family and farthest from the other series (ΔE 23.8
-# from the Total line, 39 from Unspecified's, 54 from the amber's); and the ground of its badge, where the purple words
-# clear 4.5:1 (5.23:1; the grey box itself gives 3.98:1). Its label-mask pair is derived like the detect-only neutral's
-# (CONST_FOREIGN_MASK_OUTLINE, CONST_FOREIGN_MASK_FILL, at the end of this module).
+# The ground of the foreign object's badge, where the purple words clear 4.5:1 (5.23:1; the grey box itself gives
+# 3.98:1). In the charts and the History filter it is the grey box itself (one colour per state, CONST_VERDICT_COLORS).
+# Its label-mask pair is derived like the detect-only neutral's (CONST_FOREIGN_MASK_OUTLINE, CONST_FOREIGN_MASK_FILL,
+# at the end of this module).
 #   Unit [string] (hex colour)
-CONST_FOREIGN_INK = '#4F4952'
 CONST_FOREIGN_LABEL_GROUND = '#CAC0D3'
 
 # The NEUTRAL colours: no pass/fail to encode. Two boxes, one ink:
@@ -677,13 +678,43 @@ def Neutral_Mask_Colors(box_hex: str) -> tp.Tuple[str, str]:
     return (outline, fill)
 
 
+# The lightness of a chart marker's edge (Chart_Edge): a darker shade of the marker's own hue, so a state's light frame
+# colour (the amber 1.62:1, the grey 2.30:1, the blue 2.68:1, the orange-red 2.92:1 on white) is drawn as itself on the
+# white card and still reads, its edge at L* 25 clearing 11:1 there (11.02-11.20:1 for the five states).
+#   Unit [float] (CIE L*)
+CONST_CHART_EDGE_LIGHTNESS = 25.0
+
+
+def Chart_Edge(hex_color: str) -> str:
+    """
+    Description:
+        The thin edge a chart marker or legend swatch of a colour is drawn with on the white card: its own hue at
+        CONST_CHART_EDGE_LIGHTNESS, at the largest chroma up to its own that stays in the sRGB gamut with the hue kept.
+
+    Args:
+        (1) hex_color [string]: The marker's colour, as '#rrggbb'.
+
+    Returns:
+        (1) parameter [string]: The edge colour as '#rrggbb'.
+    """
+
+    _lightness, chroma, hue = Lch_Of(hex_color)
+    angle = math.radians(hue)
+    for step in range(int(chroma), -1, -1):
+        edge = __Lab_To_Hex(CONST_CHART_EDGE_LIGHTNESS, step * math.cos(angle), step * math.sin(angle))
+        _l, edge_chroma, edge_hue = Lch_Of(edge)
+        if abs(edge_chroma - step) < 1.0 and (step == 0 or abs((edge_hue - hue + 180.0) % 360.0 - 180.0) < 3.0):
+            return edge
+    return __Lab_To_Hex(CONST_CHART_EDGE_LIGHTNESS, 0.0, 0.0)
+
+
 def State_Color(state: str) -> tp.Tuple[str, str, str]:
     """
     Description:
         The (box, ink, fill) triple of a SHOWN state: a verdict's (Verdict_Color), and a catalogue Warning's two kinds,
         'Outside' (a part outside the inspection area: the Warning amber, unchanged) and 'Foreign' (a foreign object:
-        the foreign grey, its ink and its derived mask fill). A plain 'Warning' (an older record that did not store
-        its kind) keeps the amber.
+        the foreign grey and its derived mask fill). The ink is the box: one colour per state, in every view. A plain
+        'Warning' (an older record that did not store its kind) keeps the amber.
 
     Args:
         (1) state [string]: 'OK', 'NOK', 'Unspecified', 'Warning', 'Outside' or 'Foreign'.
@@ -693,7 +724,7 @@ def State_Color(state: str) -> tp.Tuple[str, str, str]:
     """
 
     if state == 'Foreign':
-        return CONST_FOREIGN_BOX, CONST_FOREIGN_INK, CONST_FOREIGN_MASK_FILL
+        return CONST_FOREIGN_BOX, CONST_FOREIGN_BOX, CONST_FOREIGN_MASK_FILL
     return Verdict_Color('Warning' if state == 'Outside' else state)
 
 

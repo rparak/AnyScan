@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QFrame, QPushButton, QVBoxLayout, 
 import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline
 #   ../UI/Widgets
-from UI.Widgets import Card_Cls, Card_Head_Cls, Segmented_Control_Cls, Object_List_Cls, Meta_Row
+from UI.Widgets import Card_Cls, Card_Head_Cls, Segmented_Control_Cls, Object_List_Cls, Meta_Row, Swatch_Icon
 # Custom Lib.: AnyScan — the Qt-free capture-set reader (the view never re-reads or parses)
 #   ../UI/Capture
 from UI.Capture import Discover_Capture_Sets, CONST_CAPTURE_RETENTION_SETS
@@ -99,6 +99,10 @@ CONST_FILTER_SEGMENTS = (('all', 'All'), ('ok', 'OK'), ('nok', 'NOK'), ('outside
 #   Unit [Dict<string, Tuple<string>>]
 CONST_FILTER_STATES = {'ok': ('OK',), 'nok': ('NOK',), 'outside': ('Outside', 'Warning'),
                        'foreign': ('Foreign', 'Warning'), 'unspecified': ('Unspecified',)}
+
+# The state each filter segment's swatch shows, in its frame colour (Theme.State_Color).
+#   Unit [Dict<string, string>]
+CONST_FILTER_SWATCHES = {'ok': 'OK', 'nok': 'NOK', 'outside': 'Outside', 'foreign': 'Foreign', 'unspecified': 'Unspecified'}
 
 # The empty-grid messages, per filter.
 #   Unit [Dict<string, string>]
@@ -420,6 +424,9 @@ class History_View_Cls(QWidget):
         card = Card_Cls()
         head = Card_Head_Cls('reading', 'Captures')
         self.__filter = Segmented_Control_Cls(CONST_FILTER_SEGMENTS)
+        # Each state's segment carries its swatch in the state's frame colour, as the Trends legend does.
+        for key, state in CONST_FILTER_SWATCHES.items():
+            self.__filter.Set_Segment_Icon(key, Swatch_Icon(State_Color(state)[0]))
         self.__filter.Segment_Selected.connect(lambda _key: self.__Rebuild_List())
         card.box.addWidget(head)
         # The filter on its own row under the title, and each state's count on a line under it: five states do

@@ -331,23 +331,35 @@ def test_the_badge_paints_each_verdict_level_legibly(qt_app, level: str, ground:
     assert Contrast_Ratio(getattr(Style, ink), getattr(Style, ground)) >= 4.5
 
 
-def test_the_two_warning_kinds_show_two_badges(qt_app, reference_background_path) -> None:
+def test_every_badge_shows_at_once_and_wraps_rather_than_clip(qt_app, reference_background_path) -> None:
     """
     Description:
-        A reading whose Warnings are of both kinds shows two badges side by side, 'Outside the area · n' on the amber
-        and 'Foreign object · n' on the grey, never one counting both; a reading with one badge hides the second, and the
-        idle state hides it again.
+        A reading with every state that needs the operator shows four badges in the reading card's head, in order —
+        NOK, Outside the area (the amber), Foreign object (the grey), Not judged (the blue) — none hidden behind another;
+        in a head too narrow for one row they wrap onto a second, right-aligned, each wholly inside the row and none
+        overlapping; a later reading with one badge shows only it.
     """
 
     import UI.Utilities.Style as Style
+    badges = [('NOK · 1 of 5', 'fail'), ('Outside the area · 1', 'warn'), ('Foreign object · 1', 'foreign'),
+              ('Not judged · 1', 'unspecified')]
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=[_Object('A plate.'), _Object('A washer.')], Background='A surface.',
-                                       Verdict='Outside the area · 1', Verdict_Level='warn', Task='caption',
-                                       Badges=[('Outside the area · 1', 'warn'), ('Foreign object · 1', 'foreign')]))
-    first, second = _Private(window, '__stage_badge'), _Private(window, '__stage_badge_second')
-    assert (first.text(), second.text(), second.isVisibleTo(window)) == ('Outside the area · 1', 'Foreign object · 1', True)
-    assert Style.CONST_WARNING_BOX in first.styleSheet() and Style.CONST_FOREIGN_LABEL_GROUND in second.styleSheet()
+                                       Verdict=badges[0][0], Verdict_Level=badges[0][1], Task='caption', Badges=badges))
+    row = _Private(window, '__stage_badges')
+    shown = row.Badges()
+    assert [badge.text() for badge in shown] == [text for text, _level in badges]
+    grounds = (Style.CONST_NOK_LABEL_GROUND, Style.CONST_WARNING_BOX, Style.CONST_FOREIGN_LABEL_GROUND,
+               Style.CONST_UNSPECIFIED_LABEL_GROUND)
+    assert all(ground in badge.styleSheet() for badge, ground in zip(shown, grounds))
+    for width in (900, 330, 190):
+        row.resize(width, row.heightForWidth(width))
+        row.layout().setGeometry(row.rect())
+        boxes = [badge.geometry() for badge in shown]
+        assert all(row.rect().contains(box) for box in boxes), width
+        assert not any(a.intersects(b) for i, a in enumerate(boxes) for b in boxes[i + 1:]), width
+        assert (len({box.top() for box in boxes}) > 1) == (width < sum(b.width() for b in boxes) + 18), width
     _Private(window, '__On_Analysis_Finished')(Analysis_Str(Objects=[_Object('A plate.')], Background='A surface.',
                                                              Verdict='All OK · 1', Verdict_Level='ok', Task='caption',
                                                              Badges=[('All OK · 1', 'ok')]))
-    assert (first.text(), second.isVisibleTo(window)) == ('All OK · 1', False)
+    assert [badge.text() for badge in row.Badges()] == ['All OK · 1']

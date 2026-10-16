@@ -248,14 +248,16 @@ Two cards:
   missing holes are not marked on the frame (no hole found to place them by: which end of the part they belong at
   cannot be told). The measured and expected values, part by part (Part 2.3 · …), the similarity and, beyond the
   verified zone, the size note are in the log. The badge states the worst verdict, in the purple on its verdict's ground: `NOK · n of m` (the orange-red's
-  tint), `Not judged · n` (the blue's tint), for Warnings one badge per kind there, `Outside the area · n` (the
-  amber) and `Foreign object · n` (the grey), `All OK · n` (the periwinkle); outside a catalogue
+  tint), `Outside the area · n` (the amber), `Foreign object · n` (the grey) and `Not judged · n` (the blue's tint),
+  each shown when present, all at once, wrapping onto a second row in a narrow card; `All OK · n` (the periwinkle)
+  when none is; outside a catalogue
   mode, `n found`.
 
 ### Trends
 
 Two charts of the current run: **Detected objects** (cumulative; in a catalogue mode also per verdict —
-OK, NOK, Outside area, Foreign object and Unspecified, which add up to the total) and **Confidence** (per-object scores, the
+OK, NOK, Outside area, Foreign object and Unspecified, which add up to the total, each in its frame mark's own colour
+on a thicker line with dark-edged markers) and **Confidence** (per-object scores, each dot its state's colour, dark-edged; the
 frame mean and the running run mean; the warning threshold's dashed line in the neutral mid ink, so a
 Warning object's amber dot is not read as part of it). Both read one accumulator, so the last point and
 the status strip agree.
@@ -266,7 +268,7 @@ A browser of the current run's capture sets: thumbnails grouped by connection, t
 set's Annotated and Mask side by side, its record, and an **Info** panel holding the reading as it
 stood at analysis time. A failed analysis shows its raw frame under a failure banner. Earlier runs'
 sets stay on disk but are not listed. In a catalogue run a filter lists the sets by state — All, OK, NOK,
-Outside area, Foreign object, Unspecified, each with its count — a set under every state its objects took (an
+Outside area, Foreign object, Unspecified, each with its count and its state's colour swatch — a set under every state its objects took (an
 older set's Warning, whose kind was not recorded, under both kinds), and each card is outlined in its worst
 state's colour (a part outside the area amber, a foreign object grey).
 

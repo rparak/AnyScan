@@ -25,11 +25,29 @@ practices followed inconsistently are under **Unsettled**.
 
 ## A verdict colour never changes; its foreground carries legibility ✅
 
+- **One colour per state, in every view** (the owner's rule, 2026-10-16): a state's frame mark in the Camera View, its
+  Trends series, legend swatch and confidence dots, its History filter swatch and set outline are the same token, so the
+  operator learns one colour per state: OK `#640ABA`, NOK `#FF6540`, Outside area `#FFC226`, Foreign object `#B4A6BE`,
+  Unspecified `#33A3FF` (`Theme.State_Color`, whose ink is its box). No darker chart variant exists. On the white card
+  a light state reads by a 3 px line (`CONST_STATE_LINE_W`) and markers and swatches edged at 1.25 px in its hue's dark
+  shade at L* 25 (`Theme.Chart_Edge`, 11.0-11.2:1 on white). Every colour of a catalogue mode:
+
+  | Use | Token | Value | On white (edge) |
+  |---|---|---|---|
+  | OK | `CONST_INK` | `#640ABA` | 9.15:1 (`#5300A3`, 11.07:1) |
+  | NOK | `CONST_NOK_BOX` | `#FF6540` | 2.92:1 (`#7A0E00`, 11.11:1) |
+  | Outside area (Warning) | `CONST_WARNING_BOX` | `#FFC226` | 1.62:1 (`#4D3800`, 11.16:1) |
+  | Foreign object (Warning) | `CONST_FOREIGN_BOX` | `#B4A6BE` | 2.30:1 (`#42374B`, 11.17:1) |
+  | Unspecified | `CONST_UNSPECIFIED_BOX` | `#33A3FF` | 2.68:1 (`#003E6C`, 11.02:1) |
+  | Trends Total (no state) | `CONST_INK_MUTE` | `#6F5783` | 6.24:1 |
+  | Badge grounds | OK `#C2C9FF`, NOK `#FFD9D0`, Outside `#FFC226`, Foreign `#CAC0D3`, Unspecified `#C6E4FF` | | purple words ≥ 5.2:1 |
+  | Mask fills | OK `#CC9EF1`, NOK `#CD7157`, Outside `#B28508`, Foreign `#DBCCE5` (outline `#897C93`), Unspecified `#748DB1` | | |
+  | Inspection area | `CONST_INSPECTION_AREA` / `_EMPTY` | `#FFD880` on images / `#640ABA` on the empty view | 4.71:1 on the table / 6.79:1 on `#E1DCE6` |
+
 - The verdict colours are fixed tokens from the JIC Smart Factory palette: OK the purple `#640ABA`, NOK the
   orange-red `#FF6540` (DD *The fail marker is the JIC orange-red*), Warning the amber `#FFC226`, and Unspecified
   the sky blue `#33A3FF` (`Theme.CONST_UNSPECIFIED_BOX`, the owner's choice of 2026-10-16), a verdict colour outside
-  the brand palette like NOK and Warning, with its own text twin `#0065A9` (its hue at L* 41, 6.11:1 on white), mask
-  fill `#748DB1` and badge ground `#C6E4FF`: 2.39:1 on the table, its white numeral 2.68:1 (an accepted exception like
+  the brand palette like NOK and Warning, with its own mask fill `#748DB1` and badge ground `#C6E4FF`: 2.39:1 on the table, its white numeral 2.68:1 (an accepted exception like
   the orange-red's and the amber's), ΔE ≥ 74 from OK, NOK and Warning, 45 from the foreign grey, 105 from the area's
   amber (DD *Unspecified is a sky blue, a verdict colour outside the brand palette*). The neutral ink `#655E6D` is no
   verdict's colour: it marks only a detect-only mode's words and dots, its derived mask pair and History's outline of
@@ -47,9 +65,8 @@ practices followed inconsistently are under **Unsettled**.
   3.63 / 1.77 / 3.52:1, `#B4A6BE` (the disabled label's token) 2.80 / 2.30 / 2.71:1, `#A396AE` 2.30 / 2.79 /
   2.23:1, the owner choosing by eye (DD *A catalogue mode judges only inside the inspection area*). On the label mask
   a foreign object takes the grey's derived pair, outline `#897C93` and fill `#DBCCE5` (`Theme.CONST_FOREIGN_MASK_*`,
-  derived as the detect-only neutral's), and a part outside the area the amber's; its chart line and words are the
-  grey's dark shade `#4F4952` (8.72:1 on white, ΔE 23.8 from the Total line) and its badge ground `#CAC0D3` (the purple
-  5.23:1). A Warning is everywhere shown by its kind, never as one Warning (DD *A Warning is shown, counted and recorded
+  derived as the detect-only neutral's), and a part outside the area the amber's; its badge ground is `#CAC0D3` (the
+  purple 5.23:1). A Warning is everywhere shown by its kind, never as one Warning (DD *A Warning is shown, counted and recorded
   by its kind*).
 - The inspection area's line (`UI.Widgets.Paint_Inspection_Area`, 1 px, solid, square corners, no fill, on screen
   only) is the amber `Theme.CONST_INSPECTION_AREA` `#FFD880` over a camera image (4.71:1 on the table, 1.18:1 against

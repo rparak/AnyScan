@@ -259,19 +259,19 @@ def test_every_catalogue_state_has_its_colour() -> None:
     """
     Description:
         Each of the four states a catalogue mode gives has a colour triple: OK the purple and NOK the orange-red;
-        Warning the JIC amber with the status amber's text twin (the one place amber marks an object); Unspecified the
-        sky blue with its own text twin (its hue at L* 41, readable on the white card and as a Trends line) and mask
-        fill; on the label mask every state keeps its box as the outline. The four boxes stay ΔE >= 12 apart.
+        Warning the JIC amber; Unspecified the sky blue with its own mask fill; each state's ink, its colour in the
+        charts, the legends and the History filter, is its box itself (one colour per state, the owner's rule of
+        2026-10-16), the foreign object's too; on the label mask every state keeps its box as the outline. The four
+        boxes stay ΔE >= 12 apart.
     """
 
     from Parameters.Vision import CONST_VERDICTS
     from Vision.Utilities.Annotate import CONST_ANNOTATE_MIN_DELTA_E
     assert set(Theme.CONST_VERDICT_COLORS) == set(CONST_VERDICTS)
-    assert Theme.Verdict_Color('Warning')[:2] == (Theme.CONST_WARNING_BOX, Theme.CONST_WARN_INK)
-    assert Theme.Verdict_Color('Unspecified') == ('#33A3FF', '#0065A9', '#748DB1')
-    ink = Theme.Verdict_Color('Unspecified')[1]
-    assert Theme.Contrast_Ratio(ink, '#FFFFFF') >= 4.5 and round(Theme.Lch_Of(ink)[0]) == 41
-    assert abs(Theme.Lch_Of(ink)[2] - Theme.Lch_Of('#33A3FF')[2]) < 3.0
+    assert Theme.Verdict_Color('Unspecified') == ('#33A3FF', '#33A3FF', '#748DB1')
+    expected = {'OK': '#640ABA', 'NOK': '#FF6540', 'Outside': '#FFC226', 'Warning': '#FFC226', 'Foreign': '#B4A6BE',
+                'Unspecified': '#33A3FF'}
+    assert {state: Theme.State_Color(state)[:2] for state in expected} == {state: (c, c) for state, c in expected.items()}
     assert [Theme.Mask_Outline_Color(v) for v in CONST_VERDICTS] == [Theme.Verdict_Color(v)[0] for v in CONST_VERDICTS]
     assert Theme.Label_Ground('Unspecified') == Theme.CONST_UNSPECIFIED_LABEL_GROUND == '#C6E4FF'
     assert Theme.Contrast_Ratio(Theme.CONST_INK, Theme.Label_Ground('Unspecified')) >= 4.5
@@ -320,8 +320,10 @@ def test_the_palette_keeps_the_brands_rules() -> None:
     Description:
         The palette's rules from the JIC Smart Factory brief: the guide's yellow (#FFEF85 and its two tints) is
         decoration and is no token, so it marks no status and no defect; no object is marked in the JIC green, which
-        would sit in the green table's hue (every verdict box and fill >= ΔE 40 from it); and a verdict's words clear
-        4.5:1 on the ground they sit on (Label_Ground: the badge, the diagram's labels).
+        would sit in the green table's hue (every verdict box and fill >= ΔE 40 from it); a verdict's words clear
+        4.5:1 on the ground they sit on (Label_Ground: the badge, the diagram's labels); and, one colour per state (the
+        owner's rule of 2026-10-16), a verdict's colour on the white card is its box itself, read there by its markers'
+        dark edge, which clears 4.5:1.
     """
 
     tokens = {value.upper() for name, value in vars(Theme).items() if name.startswith('CONST_') and isinstance(value, str)}
@@ -331,4 +333,4 @@ def test_the_palette_keeps_the_brands_rules() -> None:
         box, ink, fill = Theme.Verdict_Color(verdict)
         assert min(Theme.Delta_E(box, green), Theme.Delta_E(fill, green)) >= 40, verdict
         assert Theme.Contrast_Ratio(Theme.CONST_INK, Theme.Label_Ground(verdict)) >= 4.5, verdict
-        assert Theme.Contrast_Ratio(ink, Theme.CONST_CARD) >= 4.5, verdict
+        assert ink == box and Theme.Contrast_Ratio(Theme.Chart_Edge(ink), Theme.CONST_CARD) >= 4.5, verdict

@@ -37,7 +37,7 @@ from UI.Widgets import Card_Cls, Card_Head_Cls
 #   ../Reporting/Trends
 from Reporting.Trends import Nice_Ticks, Value_To_Pixel, Nearest_Index, Thin_Label_Indices
 #   ../Parameters/Theme
-from Parameters.Theme import Verdict_Color, State_Color, Detection_Color
+from Parameters.Theme import State_Color, Detection_Color, Chart_Edge
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str
 #   ../Parameters/General — the one default for the classification flag
@@ -70,8 +70,15 @@ CONST_X_LABEL_PX = 46
 # The scored-object dot radius, and the jitter spread as a fraction of the column spacing, so a
 # frame's several dots fan out horizontally instead of stacking into one.
 #   Unit [float]
-CONST_DOT_RADIUS = 3.0
+CONST_DOT_RADIUS = 3.5
 CONST_JITTER_FRACTION = 0.55
+# A state series' line width, its markers' radius, and the width of the dark edge round every state marker, dot and
+# legend swatch (Theme.Chart_Edge): the states are drawn in their frame colours, some light on the white card, so the
+# line is thicker than the Total's 2 px and each marker carries an edge in its own hue's dark shade.
+#   Unit [float] (px)
+CONST_STATE_LINE_W = 3.0
+CONST_STATE_MARKER_RADIUS = 4.0
+CONST_EDGE_W = 1.25
 # The minimum column spacing (px) at which the object chart still draws a marker per image.
 #   Unit [float]
 CONST_MARKER_MIN_SPACING = 10.0
@@ -83,22 +90,22 @@ CONST_CHART_MIN_HEIGHT = 240
 def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
     """
     Description:
-        The objects chart's per-verdict series when the run classifies, as (label, Trend_Image_Str attribute,
-        colour): OK, NOK, the Warnings by kind — the parts outside the inspection area ('Outside area', the amber's
-        twin) and the foreign objects ('Foreign object', the grey's dark shade) — and the Unspecified ones,
-        so the five add up to the total, each in its state's text twin (State_Color()[1]): the boxes are
-        frame colours, and the orange-red, the amber, the blue and the grey are too light for a line on the white
-        card (2.92:1, 1.62:1, 2.68:1, 2.30:1), where the twins are 6.1-8.7:1 and the purple 9.15:1. The total is the
-        muted purple-grey, since the OK line is the purple.
+        The objects chart's per-state series when the run classifies, as (label, Trend_Image_Str attribute,
+        colour): OK, NOK, the Warnings by kind — the parts outside the inspection area ('Outside area') and the
+        foreign objects ('Foreign object') — and the Unspecified ones, so the five add up to the total, each in
+        exactly its frame mark's colour (State_Color()[0], the owner's rule of 2026-10-16: one colour per state, learnt
+        once). The light ones (the amber 1.62:1, the grey 2.30:1, the blue 2.68:1, the orange-red 2.92:1 on white) read
+        on the white card by a thicker line (CONST_STATE_LINE_W) and markers edged in their hue's dark shade
+        (Theme.Chart_Edge, 11:1). The total is the muted purple-grey, since the OK line is the purple.
 
     Returns:
         (1) parameter [Vector<Tuple<string> 1x3>]: The series, in legend order.
     """
 
-    return [('OK', 'Cumulative_Ok', Verdict_Color('OK')[1]), ('NOK', 'Cumulative_Nok', Verdict_Color('NOK')[1]),
-            ('Outside area', 'Cumulative_Outside', State_Color('Outside')[1]),
-            ('Foreign object', 'Cumulative_Foreign', State_Color('Foreign')[1]),
-            ('Unspecified', 'Cumulative_Unspecified', Verdict_Color('Unspecified')[1])]
+    return [('OK', 'Cumulative_Ok', State_Color('OK')[0]), ('NOK', 'Cumulative_Nok', State_Color('NOK')[0]),
+            ('Outside area', 'Cumulative_Outside', State_Color('Outside')[0]),
+            ('Foreign object', 'Cumulative_Foreign', State_Color('Foreign')[0]),
+            ('Unspecified', 'Cumulative_Unspecified', State_Color('Unspecified')[0])]
 
 
 class Chart_Base_Cls(QWidget):
@@ -373,7 +380,7 @@ class Chart_Base_Cls(QWidget):
         y = rect.top() - 24
         for (label, color), width in zip(self._legend, widths):
             painter.setBrush(QBrush(QColor(color)))
-            painter.setPen(Qt.NoPen)
+            painter.setPen(QPen(QColor(Chart_Edge(color)), CONST_EDGE_W))
             painter.drawRect(QRectF(x, y + 2, swatch, swatch))
             painter.setPen(QColor(Style.CONST_INK_SOFT))
             painter.drawText(QRectF(x + swatch + 5, y - 1, width, 14),
@@ -501,11 +508,11 @@ class Objects_Chart_Cls(Chart_Base_Cls):
             (2) rect [QRectF]: The plot rectangle.
         """
 
-        series = [('Cumulative_Total', Style.CONST_INK_MUTE)]
+        series = [('Cumulative_Total', Style.CONST_INK_MUTE, False)]
         if self.__classified:
-            series += [(attr, color) for _label, attr, color in _Verdict_Series()]
-        for attr, color in series:
-            painter.setPen(QPen(QColor(color), 2))
+            series += [(attr, color, True) for _label, attr, color in _Verdict_Series()]
+        for attr, color, state in series:
+            painter.setPen(QPen(QColor(color), CONST_STATE_LINE_W if state else 2))
             previous = None
             for row in self.__rows:
                 point = QPointF(self._Px_X(row.Index, rect), self._Px_Y(getattr(row, attr), rect))
@@ -517,10 +524,11 @@ class Objects_Chart_Cls(Chart_Base_Cls):
             if rect.width() / max(1, len(self.__rows)) < CONST_MARKER_MIN_SPACING:
                 continue
             painter.setBrush(QBrush(QColor(color)))
-            painter.setPen(Qt.NoPen)
+            painter.setPen(QPen(QColor(Chart_Edge(color)), CONST_EDGE_W) if state else Qt.NoPen)
             for row in self.__rows:
                 point = QPointF(self._Px_X(row.Index, rect), self._Px_Y(getattr(row, attr), rect))
-                painter.drawEllipse(point, 2.5, 2.5)
+                radius = CONST_STATE_MARKER_RADIUS if state else 2.5
+                painter.drawEllipse(point, radius, radius)
 
     def _Hover_Lines(self, index: int) -> tp.List[tp.Tuple[str, str]]:
         """
@@ -615,19 +623,19 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
             painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
         # The scored-object dots, jittered horizontally within their column.
         spacing = rect.width() / max(1, len(self.__rows))
-        # On the white card every dot is its verdict's text twin, and the neutral dot the detection's: the boxes are
-        # tuned to be drawn on the green frame and some would all but vanish here.
+        # On the white card every dot is its state's frame colour edged in its hue's dark shade, and the neutral dot the
+        # detection's ink.
         neutral = Detection_Color()[1]
-        painter.setPen(Qt.NoPen)
         for row in self.__rows:
             count = len(row.Objects)
             for position, obj in enumerate(row.Objects):
                 offset = 0.0 if count == 1 else ((position - (count - 1) / 2.0)
                                                  * (spacing * CONST_JITTER_FRACTION) / count)
-                color = State_Color(obj.Verdict)[1] if self.__classified else neutral
+                color = State_Color(obj.Verdict)[0] if self.__classified else neutral
                 dot = QColor(color)
-                dot.setAlpha(200)
+                dot.setAlpha(220)
                 painter.setBrush(QBrush(dot))
+                painter.setPen(QPen(QColor(Chart_Edge(color)), CONST_EDGE_W) if self.__classified else Qt.NoPen)
                 painter.drawEllipse(QPointF(self._Px_X(row.Index, rect) + offset,
                                             self._Px_Y(obj.Confidence, rect)),
                                     CONST_DOT_RADIUS, CONST_DOT_RADIUS)

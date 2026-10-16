@@ -3688,7 +3688,7 @@ for words are derived in each colour's hue at L\* 41 (6.2:1 on white, 4.6:1 on t
   reads at ≥ 4.5:1 (Warning's amber) and on a tint of it otherwise: the part tag's periwinkle for OK (5.71:1), the
   defect tag's `#FFD9D0` for NOK (7.01:1; the purple on the solid orange-red is 3.13:1) and the grey-lilac for the
   neutral (6.79:1; the purple on `#655E6D` is 1.47:1). Trends draws each verdict's series in its text twin (the boxes are under 3:1 as lines on white) and the
-  total in the muted purple-grey, since OK is the purple.
+  total in the muted purple-grey, since OK is the purple. *Corrected 2026-10-16:* the charts, legends and History filter now use each state's frame colour itself (*Each state has one colour in every view*).
 
 **Why, measured.** Per-pixel WCAG ratio on the test frames (055, 062, 063, 065, 072, 074, 076, 080; 60,000 pixels
 per surface; plate interiors from each object's own mask, eroded 7 px; the table outside the dilated masks). Median
@@ -4300,7 +4300,7 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_f
 `::test_an_object_without_a_mask_is_never_inside_the_area`,
 `test/Reporting/test_core.py::test_a_part_outside_the_inspection_area_only_says_to_move_it_inside`,
 `::test_a_part_nok_on_every_side_gives_what_its_readings_share_else_each_with_its_side`,
-`::test_the_badge_states_the_worst_verdict`,
+`::test_the_badges_show_every_state_that_needs_the_operator`,
 `test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
 `test/UI/test_inspection_area.py`, `test/Configuration/test_core.py::test_an_inspection_area_too_small_for_the_part_fails_the_load`,
 `test/integration/test_edge_of_view.py` (frames 2, 6, 14 and 21 of `20261016-070531_s1` added as crops),
@@ -4354,7 +4354,7 @@ Tests `test/Vision/Utilities/test_classify.py::test_an_object_resembles_the_part
 `::test_the_colour_and_extent_cues_read_the_mask`,
 `test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
 `test/Reporting/test_core.py::test_a_part_outside_the_inspection_area_only_says_to_move_it_inside`,
-`::test_the_badge_states_the_worst_verdict`,
+`::test_the_badges_show_every_state_that_needs_the_operator`,
 `test/integration/test_edge_of_view.py::test_the_red_block_is_a_foreign_object_wherever_it_lies` (frames 1, 2, 4 and 5 of
 `20261016-111250_s1` as crops), `::test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber`.
 
@@ -4419,7 +4419,7 @@ Everywhere Unspecified is drawn it takes the blue through the theme's tokens: th
 (`Mask_Outline_Color` now returns every verdict's box, the neutral special case gone) and filled with its own tint
 `#748DB1`; the status badge, `Not judged · n` on its own level `'unspecified'` and its own ground `#C6E4FF`
 (`CONST_UNSPECIFIED_LABEL_GROUND`; it was Warning's amber); the Trends series and its legend in its
-text twin `#0065A9` (`CONST_UNSPECIFIED_INK`); History's outline of a set whose worst state is Unspecified; the
+text twin `#0065A9` (`CONST_UNSPECIFIED_INK`; *corrected 2026-10-16:* the blue itself, the twin removed); History's outline of a set whose worst state is Unspecified; the
 README's architecture diagram, regenerated.
 
 **Measured** (WCAG ratio, ΔE76): on the table (median `#236A56`) 2.39:1 (ΔE 69.8); its white numeral 2.68:1, an
@@ -4444,7 +4444,7 @@ Tests `test/Parameters/test_theme.py::test_unspecified_is_a_blue_distinct_from_e
 `::test_label_mask_fill_is_a_visible_tint_of_its_box`,
 `test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`,
 `::test_each_chip_is_its_box_colour_with_a_white_numeral`,
-`test/Reporting/test_core.py::test_the_badge_states_the_worst_verdict`,
+`test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
 `test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`,
 `test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output`.
 
@@ -4459,17 +4459,20 @@ else 'Foreign'), and everything that counts or shows Warnings now uses it:
    an older set without it reads as a plain Warning, unchanged (`Capture_Object_Str.Warning_Kind` empty).
 2. **Trends.** The single Warning series is two: `Outside area` in the amber's twin `#7C5B00` and `Foreign object` in
    the grey's dark shade `#4F4952` (`Theme.CONST_FOREIGN_INK`), the five state series adding up to the total; each
-   confidence dot takes its state's colour (`Theme.State_Color`).
+   confidence dot takes its state's colour (`Theme.State_Color`). *Corrected 2026-10-16:* both in their frame colours,
+   `#FFC226` and `#B4A6BE` (*Each state has one colour in every view*).
 3. **History.** The Warning filter is two, Outside area and Foreign object, each with its count; a set written before
    the kind was recorded is listed under both, so no set drops out of a filter it matched; a set's outline is its
    worst state's colour, a part outside the area amber (an older plain Warning too), a foreign object grey.
 4. **The badges.** One badge per Warning kind there (`Reporting.Badges`): `Outside the area · n` on the amber (level
    `warn`) and `Foreign object · n` on `#CAC0D3` (level `foreign`), never one badge counting both; the window shows the
-   second beside the first. NOK and Not judged still take the badge alone, as the worst state.
+   second beside the first. NOK and Not judged still take the badge alone, as the worst state. *Corrected 2026-10-16:*
+   every state that needs the operator now has its badge at once, NOK beside the others (*Each state has one colour in
+   every view*).
 5. **The mask.** A foreign object is filled `#DBCCE5` and outlined `#897C93`, the grey's pair derived as the
    detect-only neutral's (`Neutral_Mask_Colors`); a part outside the area keeps the amber's.
 
-**Measured.** The Trends series on the white card, and against each other (ΔE76, lowest pair first): Total `#6F5783`
+**Measured** (superseded 2026-10-16 by the frame colours, *Each state has one colour in every view*). The Trends series on the white card, and against each other (ΔE76, lowest pair first): Total `#6F5783`
 6.24:1, OK `#640ABA` 9.15:1, NOK `#BA260B` 6.23:1, Outside area `#7C5B00` 6.26:1, Foreign object `#4F4952` 8.72:1,
 Unspecified `#0065A9` 6.11:1; Foreign–Total ΔE 23.8, Unspecified–Total 28.2, Foreign–Unspecified 40.1, NOK–Outside 50.5,
 Outside–Foreign 53.9, every other pair above 68. The foreign line is the grey's hue at L* 32, chroma 6, the shade
@@ -4483,11 +4486,51 @@ grey box itself 3.98:1).
 
 **Revisit if** a third kind of Warning appears; an older record's plain Warning is better shown under neither kind; or
 the two badges crowd the reading card's head on the rig's screen.
-Tests `test/Reporting/test_core.py::test_the_badge_states_the_worst_verdict`,
+Tests `test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
 `test/Reporting/test_trends.py::test_a_warning_or_unspecified_object_is_counted_but_neither_ok_nor_nok`,
 `test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_both_warning_kinds_and_unspecified`,
 `test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
 `::test_a_warning_records_its_kind_and_an_older_set_reads_as_a_plain_warning`,
-`test/UI/test_reading_view.py::test_the_two_warning_kinds_show_two_badges`,
+`test/UI/test_reading_view.py::test_every_badge_shows_at_once_and_wraps_rather_than_clip`,
 `::test_the_badge_paints_each_verdict_level_legibly`,
 `test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`.
+
+## Each state has one colour in every view
+
+Decided 2026-10-16, on the owner's rig test. Every view draws a catalogue state in exactly its frame mark's colour, so the
+operator learns one colour per state: the Camera View's marks, the Trends series, legend swatches and confidence dots,
+the History filter's swatches and set outlines: OK `#640ABA`, NOK `#FF6540`, Outside area `#FFC226`, Foreign object
+`#B4A6BE`, Unspecified `#33A3FF` (`Theme.State_Color`; a state's ink is its box). The darker chart variants `#BA260B`,
+`#7C5B00`, `#4F4952` and `#0065A9` are gone from every chart, legend and filter (`CONST_UNSPECIFIED_INK` and
+`CONST_FOREIGN_INK` removed; `CONST_WARN_INK` stays the status pill's and the log's amber text, no state's). On the white
+card the light ones are drawn as themselves on a 3 px line (`Trends.CONST_STATE_LINE_W`; the Total keeps 2 px) with
+markers of radius 4, dots and legend swatches edged at 1.25 px in their own hue's dark shade at L* 25 (`Theme.Chart_Edge`).
+And every badge that needs the operator shows at once, so a part to move is never hidden behind a NOK: NOK, Outside the
+area, Foreign object and Not judged, in that order (`Reporting.Badges`), in a row that wraps right-aligned onto a second
+line when the reading card's head is too narrow (`UI.Widgets.Badge_Row_Cls`, `Flow_Layout_Cls`).
+
+**Measured.** On the white card, each series without and with its edge: OK 9.15:1 (edge `#5300A3` 11.07:1), NOK 2.92:1
+(`#7A0E00` 11.11:1), Outside area 1.62:1 (`#4D3800` 11.16:1), Foreign object 2.30:1 (`#42374B` 11.17:1), Unspecified
+2.68:1 (`#003E6C` 11.02:1); the Total `#6F5783` 6.24:1. Between the series (ΔE76): Foreign object–Total 32.2, Foreign
+object–Unspecified 45.1, Unspecified–Total 45.2, NOK–Outside area 58.1, every other pair 68 or more. Rendered and looked
+at: the Trends view after 14 real scans of mixed results (the test set and the rig's captures), every state but
+Unspecified present, none occurring on these frames. The badge row in the window at 1920 × 1080, 1720 × 1020 and the
+window's minimum, 1575 × 1054 (it does not shrink further; a 1366 × 768 screen does not hold it, a limit older than this
+branch): four badges wrap onto two right-aligned rows at every size, three fit one row from 1720 wide.
+
+**The branch's colours,** recorded together (`.claude/skills/project-style-rpx/references/ui-design.md` has the table):
+the inspection area `#FFD880` on camera images and the purple `#640ABA` on the empty view (*A catalogue mode judges only
+inside the inspection area*); the foreign grey `#B4A6BE` with its badge ground `#CAC0D3` and mask pair `#DBCCE5` /
+`#897C93` (*A foreign object is told by what it is…*, *A Warning is shown, counted and recorded by its kind*); the
+Unspecified blue `#33A3FF` with its badge ground `#C6E4FF` and mask fill `#748DB1` (*Unspecified is a sky blue…*); the
+judged part's outline in the size check's colour (*A judged part's marks each carry their own check*); the chart edges
+above.
+
+**Revisit if** a light state's line is lost on the rig's screen despite its width and edges (the amber line itself is
+1.62:1), or the Foreign object and Total series (ΔE 32.2) are confused there.
+Tests `test/Parameters/test_theme.py::test_every_catalogue_state_has_its_colour`, `::test_the_palette_keeps_the_brands_rules`,
+`test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_both_warning_kinds_and_unspecified`,
+`::test_the_confidence_dots_take_their_states_frame_colour_with_a_dark_edge`,
+`test/UI/test_history.py::test_each_state_filter_carries_its_states_frame_colour`,
+`test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
+`test/UI/test_reading_view.py::test_every_badge_shows_at_once_and_wraps_rather_than_clip`.
