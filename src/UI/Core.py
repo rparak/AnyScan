@@ -45,7 +45,7 @@ from UI.Utilities.Style import (Font, Rgb_To_Qimage, Bgr_To_Qimage,
                                 Hairline)
 #   ../UI/Widgets
 from UI.Widgets import (Card_Cls, Card_Head_Cls, Icon_Cls, Viewport_Cls, Tool_Button_Cls,
-                        View_Toggle_Cls, Segmented_Control_Cls, Object_List_Cls,
+                        View_Toggle_Cls, Segmented_Control_Cls, Object_List_Cls, State_Marker_Cls,
                         Status_Strip_Cls, Funding_Row_Cls, Logo_Lockup_Cls, Svg_Image_Cls, Meta_Row)
 #   ../UI/Views/History
 from UI.Views.History import History_View_Cls
@@ -616,6 +616,11 @@ class AnyScan_Window_Cls(QMainWindow):
         card = Card_Cls()
         head = Card_Head_Cls('camera', 'Camera View', 'No frame')
         self.__frame_badge = head.badge
+        # The state marker (LIVE PREVIEW, SCANNING…, ANALYZING…) sits after the title: the view names its state in
+        # its head, and nothing but the analysis grid is drawn over the frame.
+        self.__state_marker = State_Marker_Cls()
+        head.box.insertWidget(2, self.__state_marker)
+        head.box.insertSpacing(2, 6)
         # The view selector (annotated/mask/heatmap/similarity) lives in the head, right-aligned: it belongs to
         # the view, not the action row. Hidden until an analysis has produced its renders.
         self.__view_toggle = View_Toggle_Cls()
@@ -624,6 +629,7 @@ class AnyScan_Window_Cls(QMainWindow):
         card.box.addWidget(head)
 
         self.__viewport = Viewport_Cls()
+        self.__viewport.Marker_Changed.connect(self.__state_marker.Set_State)
         # A catalogue mode's inspection area from the start, so the empty view already shows where to place parts.
         self.__viewport.Set_Inspection_Area(self.__Inspection_Area(self.__config))
         card.box.addWidget(self.__viewport, 1)
@@ -1481,7 +1487,10 @@ class AnyScan_Window_Cls(QMainWindow):
         # the duration, and two Analyze presses in quick succession cannot leave the view
         # showing a mix of two runs.
         self.__viewport.Clear_Views()
-        self.__viewport.Start_Busy('Preparing…', 'magnifier')
+        # The analysis grid sweeps the frame, never a cover over it; ANALYZING… is the head's marker, and the step the
+        # head's badge, as a scan's is.
+        self.__viewport.Start_Analysis()
+        self.__frame_badge.setText('Preparing…')
         self.__Sync_Controls()
 
         self.__thread = QThread(self)
@@ -1504,10 +1513,21 @@ class AnyScan_Window_Cls(QMainWindow):
 
         self.__thread.start()
 
+    def __Stop_Analysis_View(self) -> None:
+        """
+        Description:
+            An analysis has ended, whichever way: stop its grid and any busy overlay a close laid, and give the
+            Camera View's badge back to the frame, before the slot paints the result or the failure.
+        """
+
+        self.__viewport.Stop_Analysis()
+        self.__viewport.Stop_Busy()
+        self.__frame_badge.setText(self.__Frame_Badge_Text())
+
     def __On_Analysis_Progress(self, done: int, total: int) -> None:
         """
         Description:
-            Update the busy step line as each object is read.
+            Update the step on the Camera View's badge as each object is read.
 
         Args:
             (1) done [int]: The number completed.
@@ -1519,20 +1539,20 @@ class AnyScan_Window_Cls(QMainWindow):
             return
         # `done` is the number completed; the one being read is done + 1.
         current = min(done + 1, total)
-        self.__viewport.Set_Busy_Text('Analysing object %d of %d…' % (current, total))
+        self.__frame_badge.setText('Analysing object %d of %d…' % (current, total))
 
     def __On_Analysis_Stage(self, text: str) -> None:
         """
         Description:
-            Show the analysis's phase on the busy line — unless a close is stopping it, when the
-            line keeps saying so.
+            Show the analysis's phase on the Camera View's badge — unless a close is stopping it, when the
+            busy line says so.
 
         Args:
             (1) text [string]: The phase ('Segmenting…', 'Describing…').
         """
 
         if not self.__closing:
-            self.__viewport.Set_Busy_Text(text)
+            self.__frame_badge.setText(text)
 
     def __On_Analysis_Stopped(self, done: int, total: int) -> None:
         """
@@ -1550,7 +1570,7 @@ class AnyScan_Window_Cls(QMainWindow):
         Join_Worker_Thread(self.__thread)                   # before the references go: Join_Worker_Thread
         self.__thread = None
         self.__worker = None
-        self.__viewport.Stop_Busy()
+        self.__Stop_Analysis_View()
         set_id = self.__current_set_id
         if self.__logger is not None:
             self.__logger.Log_Analysis_Stopped(self.__session_analyses, done, total, set_id)
@@ -1590,6 +1610,9 @@ class AnyScan_Window_Cls(QMainWindow):
         else:
             self.__worker.Request_Stop()
             text = 'Stopping the analysis, then closing… Close again to quit now.'
+            # The grid gives way to the busy overlay, which names the wait as a close's does during a scan.
+            self.__viewport.Stop_Analysis()
+            self.__viewport.Start_Busy(text, 'magnifier')
             line = ('Close requested during analysis %d: it stops before its next object, then the window '
                     'closes.' % self.__session_analyses)
         self.__viewport.Set_Busy_Text(text)
@@ -1639,7 +1662,7 @@ class AnyScan_Window_Cls(QMainWindow):
         Join_Worker_Thread(self.__thread)                   # before the references go: Join_Worker_Thread
         self.__thread = None
         self.__worker = None
-        self.__viewport.Stop_Busy()
+        self.__Stop_Analysis_View()
 
         # Render the two views once, in BGR, then share them: the viewport shows them and
         # the capture writer writes them, so the on-screen and on-disk images are identical.
@@ -1882,7 +1905,7 @@ class AnyScan_Window_Cls(QMainWindow):
         Join_Worker_Thread(self.__thread)                   # before the references go: Join_Worker_Thread
         self.__thread = None
         self.__worker = None
-        self.__viewport.Stop_Busy()
+        self.__Stop_Analysis_View()
         set_id = self.__current_set_id
         if self.__logger is not None:
             # The error belongs to THIS analysis, so it carries the set id — the raw frame

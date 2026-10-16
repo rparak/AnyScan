@@ -3908,7 +3908,10 @@ spinner (2026-10-15).
   2026-10-16:* the scan runs on a worker now (*The live preview is a worker that drops frames…*), so its camera blinks
   as the connect's does; the overlay is never shown over the live preview. *Corrected again 2026-10-16:* a scan no
   longer lays the overlay over the view at all; it shows its fresh frames under the same camera icon in a corner
-  marker (*SCAN drops the previous result the moment it is pressed…*). The
+  marker (*SCAN drops the previous result the moment it is pressed…*). *Corrected 2026-10-16, a third time:* an
+  analysis no longer lays the overlay either: a decorative grid sweeps the frame instead (*ANALYZE sweeps a decorative
+  pixel grid over the frame…*). The overlay is left for CONNECT and for a close waiting for a scan or an analysis to
+  end, whose words say so. The
   owner chose this, variant B, over a pixel loader whose 3 × 3 squares lit in turn (A), from 1x renders of the
   window and animated captures of both.
 - **Over the empty view** (connecting), the empty state's mark and instruction are not painted: through the
@@ -4612,7 +4615,9 @@ Tests `test/Camera/test_stillness.py`, `test/Camera/test_preview.py::test_a_scan
 
 Decided 2026-10-16, on the owner's request. PREVIEW, among the action buttons before SCAN (named so beside the header's
 Live tab), shows the table live in the Camera View with the inspection area on it (`Paint_Inspection_Area`, the same
-call as on a scanned frame) and `●  LIVE PREVIEW` in white on the purple (9.15:1). Preview frames are processed and
+call as on a scanned frame) and `●  LIVE PREVIEW` in white on the purple (9.15:1). *Corrected 2026-10-16:* the marker
+was drawn in the view's top-left corner; it is in the Camera View's head now (*ANALYZE sweeps a decorative pixel grid
+over the frame, and the Camera View's head names its state*). Preview frames are processed and
 undistorted as a scan's, so the area lies where the scan will judge. The owner's choices: ANALYZE is disabled while the
 preview runs, so nobody analyses a frame other than the one in view; PREVIEW toggles, stopping it shows the last scanned
 frame and its result again; a scan refused for movement is a WARNING with a `Moving` badge, not an error, and brings the
@@ -4692,6 +4697,8 @@ with a *Scanning* badge; the head's badge says *Scanning…*. While the scan wai
 each fresh frame the check grabs (`Capture_Still`'s frame callback, `Scan_Worker_Cls` handing them on through the
 preview's one-frame mailbox, `Frame_Mailbox_Cls`) under a corner marker: the busy overlay's camera icon, its lens
 blinking, and `SCANNING…` in white on the purple (`Viewport_Cls.Start_Live('scan')`), with no scrim over the image.
+*Corrected 2026-10-16:* the marker is in the Camera View's head now, not in the image's corner (*ANALYZE sweeps a
+decorative pixel grid over the frame, and the Camera View's head names its state*).
 The scan ends on the new scanned frame. Refused for movement, it leaves its last fresh frame on screen with the
 *Moving* message (the head's badge *Not scanned*; ANALYZE has no frame) and resumes the preview when it came from
 it; stopping that preview shows the same fresh frame. The previous result never comes back. PREVIEW pressed again
@@ -4716,3 +4723,66 @@ Tests `test/UI/test_preview.py::test_scan_after_analyze_never_shows_the_old_resu
 `::test_preview_again_leaves_the_last_result_and_stopping_it_brings_the_result_back`,
 `::test_the_header_pill_says_connected_and_live_means_only_the_preview`,
 `test/Camera/test_preview.py::test_the_scan_hands_on_every_frame_its_check_grabs`.
+
+## ANALYZE sweeps a decorative pixel grid over the frame, and the Camera View's head names its state
+
+Decided 2026-10-16, on the owner's request, from a reference animation (a GIF, studied frame by frame and not kept in
+the repository: a 1.8 s loop at 20 fps whose band crosses the image in about ten frames, about 0.5 s). While an
+analysis runs on its worker, the Camera View sweeps a grid over the frame instead of laying the busy overlay over it
+(`Viewport_Cls.Start_Analysis` / `Stop_Analysis`):
+
+- **The wave** (`UI.Utilities.Pixel_Motif.Grid_Shape`, `Wave_Diagonals`): 48 square cells across the frame (40 px on
+  the 1920 px frame, about 24 px on the rig's screen), lit along a band of diagonals (30 % of them) that enters at the
+  top-left corner, crosses the frame in 0.5 s, fades behind in two steps (55 % and 25 %, 8 % of the diagonals each) and
+  leaves at the bottom-right; the frame then rests clean for 0.25 s, and the 977 ms loop repeats until the analysis
+  ends. Repainted every 40 ms (`Style.CONST_GRID_TICK_MS`).
+- **The look** (`Theme.CONST_GRID_*`): 1 px lines in the periwinkle `#C2C9FF` at 55 %, each cell filled inside them
+  with the purple's light tint `#CC9EF1` (the OK mask fill) at 30 %. Square cells, no gradient within a cell,
+  translucent everywhere: a pixel keeps at least 40 % of the frame (a line), a cell's fill 70 %. The purple itself at
+  22 % was tried first and read slate-blue on the green table, not light.
+- **Decoration, independent of the frame.** Every lit cell looks the same, over a part or the table. Only the frame's
+  size enters the drawing. *An earlier version of the same day tinted the cells over objects more strongly, from
+  stage 1's foreground mask against the cached reference (4.7 ms, outside the analysis's time); the owner removed it,
+  with every reference to the background difference, so the grid cannot be read as a detection.*
+- **It stops at once.** The slot that takes the result, the failure or a close's stop stops the grid before it paints
+  (`__Stop_Analysis_View`), so the next paint is the result or the bare frame; a close during an analysis lays the busy
+  overlay with its stopping sentence instead. The analysis's step (*Segmenting…*, *Analysing object 3 of 8…*) moved
+  from the overlay to the head's badge, as a scan's *Scanning…* is.
+- **On screen only.** The grid is painted over the frame in `paintEvent`, never into an image: the view holds a copy of
+  the frame (`Rgb_To_Qimage`), and the capture set is written from the frame array and `Render_Views`.
+
+**The head names the state.** LIVE PREVIEW, SCANNING… and ANALYZING… were — the first two — drawn in the image's
+top-left corner. All three are now one widget in the Camera View's head, after the title (`UI.Widgets.State_Marker_Cls`,
+fed by `Viewport_Cls.Marker_Changed`): white on the purple (9.15:1), one size for the three (the widest's, 145 x 28 px),
+the busy overlay's camera icon (its lens blinking) for the scan and its magnifier (the glint stepping) for the analysis.
+Nothing but the analysis grid is drawn over the frame; the empty view's instruction and the busy overlay (CONNECT, a
+close) are not over an image.
+
+**Cost, measured** on the development machine (RTX 5070 Ti, the real window on xcb at 1920 x 1080, a test frame through
+`File_Camera_Cls`, runs alternating with the grid and without any animation, the inference time from the log):
+
+| Frame, mode | Analysis, grid / none (median) | GUI thread's CPU over the analysis, grid / none |
+|---|---|---|
+| Image_055 (1 part), Segment Anything, 8 + 8 runs | 713 / 706 ms | 150 / 140 ms |
+| Image_055 (1 part), Mounting Plate, 8 + 8 runs | 720 / 712 ms | 190 / 179 ms |
+| Image_065 (8 parts), Segment Anything, 5 + 5 runs | 5354 / 5300 ms (+1.0 %) | 239 / 168 ms (1.3 % of a core) |
+
+Most of the GUI thread's time without the grid is the result's own rendering and capture write (one pause of about
+160 ms when the result is taken, with or without the grid). A grid tick paints in 0.2 ms (the frame is scaled to its
+draw rectangle once per analysis, as `paintEvent` draws it, and each fade step is one clipped draw of a grid layer
+rendered once); what remains is the repaint itself, so a tick repaints only the cells the wave covered or covers
+(+54 ms on Image_065, against +75 ms with whole-view repaints). The busy overlay it replaces, stepping every 120 ms,
+measured the same as the day's earlier grid (715 against 710 ms, Image_055). Not measured on the rig's machine or screen.
+
+**Rejected.** Tinting the cells over objects (above: the owner's call). A 3.6 s or 6 s loop, tried first as "calm":
+analyses here take 0.7-3 s, so a single-part analysis showed only the wave's first corner; the owner set 0.5 s per
+crossing, as the reference. A marker in the image's corner: it covers the frame being judged.
+
+**Revisit if** the operator finds the sweep distracting on the rig's screen (capture-checklist § 5, step 6), the
+repaints cost more on the rig's machine, or the head has no room for the marker beside the view selector.
+Tests `test/UI/test_analysis_grid.py` (the same drawing over two different frames, no state label inside the image, the
+start, the stop on success and on failure, the logger's images, one marker in the head for the three states),
+`test/UI/test_pixel_motif.py::test_the_wave_crosses_from_the_top_left_in_half_a_second_fades_behind_and_repeats`,
+`::test_the_grid_is_square_cells_across_the_frame`,
+`test/UI/test_preview.py::test_the_preview_shows_the_table_live_with_the_area_and_the_live_marker`,
+`::test_the_scan_shows_its_fresh_frames_under_the_scanning_marker_without_a_scrim`.

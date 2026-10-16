@@ -30,7 +30,7 @@ import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QByteArray, QSize, pyqtSignal
 from PyQt5.QtGui import (QColor, QFont, QFontMetrics, QFontMetricsF, QIcon, QImage, QPainter, QPainterPath, QPen,
-                         QPixmap, QPaintEvent)
+                         QPixmap, QPaintEvent, QRegion)
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import (QWidget, QFrame, QLabel, QPushButton, QButtonGroup, QLayout,
                              QVBoxLayout, QHBoxLayout, QSizePolicy)
@@ -43,7 +43,7 @@ from UI.Utilities.Style import Font, Hairline
 from UI.Utilities.Grid_Fit import Fit_Svg
 # Custom Lib.: AnyScan UI — the brand's pixel motif for the funding band (Qt-free)
 #   ../UI/Utilities/Pixel_Motif
-from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells, Busy_Cells
+from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells, Busy_Cells, Grid_Shape, Wave_Diagonals
 # Custom Lib.: AnyScan domain — the confidence thresholds the object list colours numbers by
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str, Heatmap_Str
@@ -627,6 +627,174 @@ class Badge_Row_Cls(QWidget):
         return self.__layout.heightForWidth(width)
 
 
+class State_Marker_Cls(QWidget):
+    """
+    Description:
+        The Camera View's state marker, in the view's head after its title: what the view shows while it is not a
+        scanned frame or a result — LIVE PREVIEW, SCANNING… (with the busy overlay's camera icon, its lens blinking) or
+        ANALYZING… (with its magnifier, the glint stepping) — in white on a solid purple block, the brand's
+        filled-button pairing (Tool_Button_Cls's primary hover, 9.15:1). One widget for the three, so they share their
+        place, size and style, and nothing of them is ever drawn inside the image. Hidden when there is no state to
+        mark; its icon's timer runs only while an icon shows.
+    """
+
+    # Each state's words and pixel icon (a key of Pixel_Motif.CONST_BUSY_ICONS, or None).
+    #   Unit [Dict<string, Tuple<string, string or None>>]
+    CONST_STATES = {'preview': ('●  LIVE PREVIEW', None),
+                    'scan': ('SCANNING…', 'camera'),
+                    'analysis': ('ANALYZING…', 'magnifier')}
+    # The icon's cell, and the block's padding round the icon and the words.
+    #   Unit [px]
+    CONST_ICON_CELL = 2
+    CONST_PAD_X = 12
+    CONST_PAD_Y = 6
+    # The gap between the icon and the words.
+    #   Unit [px]
+    CONST_ICON_GAP = 10
+
+    def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+
+        # << PRIVATE >> #
+        self.__state = ''
+        self.__tick = 0
+        self.__timer = QTimer(self)
+        self.__timer.setInterval(Style.CONST_BUSY_TICK_MS)
+        self.__timer.timeout.connect(self.__Tick)
+        self.__font = Font(9.5, QFont.DemiBold, tracking=6)
+        # One size for the three, the widest's, so the block keeps its place and size from one state to the next.
+        self.setFixedSize(max(self.__Width(state) for state in self.CONST_STATES),
+                          QFontMetrics(self.__font).height() + 2 * self.CONST_PAD_Y)
+        self.setVisible(False)
+
+    def Set_State(self, state: str) -> None:
+        """
+        Description:
+            Mark a state ('preview', 'scan' or 'analysis', a key of CONST_STATES), or none (''): the marker shows at
+            its width, its icon (if any) stepping from its first step, or hides.
+
+        Args:
+            (1) state [string]: The state, or ''.
+        """
+
+        if state == self.__state:
+            return
+        self.__state = state
+        self.__tick = 0
+        if state and self.CONST_STATES[state][1] is not None:
+            self.__timer.start()
+        else:
+            self.__timer.stop()
+        self.setVisible(bool(state))
+        self.update()
+
+    def State(self) -> str:
+        """
+        Description:
+            The state marked now, or ''.
+
+        Returns:
+            (1) parameter [string]: The state.
+        """
+
+        return self.__state
+
+    def Text(self) -> str:
+        """
+        Description:
+            The words the marker shows, or '' when it is hidden.
+
+        Returns:
+            (1) parameter [string]: The words.
+        """
+
+        return self.CONST_STATES[self.__state][0] if self.__state else ''
+
+    def __Cells(self, state: str) -> tp.List[tp.Tuple[int, int, float]]:
+        """
+        Description:
+            A state's icon cells at the current tick (Pixel_Motif.Busy_Cells), or none.
+
+        Args:
+            (1) state [string]: The state, or ''.
+
+        Returns:
+            (1) parameter [List<Tuple<int, int, float>>]: Each cell's column, row and opacity.
+        """
+
+        icon = self.CONST_STATES[state][1] if state else None
+        return Busy_Cells(icon, self.__tick, Style.CONST_BUSY_DIM_ALPHA) if icon is not None else []
+
+    def __Icon_Width(self, state: str) -> int:
+        """
+        Description:
+            The width a state's icon takes with its gap before the words, 0 with no icon.
+
+        Args:
+            (1) state [string]: The state, or ''.
+
+        Returns:
+            (1) parameter [int]: The width in px.
+        """
+
+        cells = self.__Cells(state)
+        return (max(column for column, _, _ in cells) + 1) * self.CONST_ICON_CELL + self.CONST_ICON_GAP if cells else 0
+
+    def __Width(self, state: str) -> int:
+        """
+        Description:
+            The block's width for a state's icon and words.
+
+        Args:
+            (1) state [string]: The state.
+
+        Returns:
+            (1) parameter [int]: The width in px.
+        """
+
+        words = QFontMetrics(self.__font).horizontalAdvance(self.CONST_STATES[state][0])
+        return self.__Icon_Width(state) + words + 2 * self.CONST_PAD_X
+
+    def __Tick(self) -> None:
+        """
+        Description:
+            Step the icon and repaint. Driven by the timer.
+        """
+
+        self.__tick += 1
+        self.update()
+
+    # << QT OVERRIDE >> #
+    def paintEvent(self, event: QPaintEvent) -> None:
+        """
+        Description:
+            The purple block, the icon's cells in white (unlit cells at the busy overlay's dim opacity) and the words.
+
+        Args:
+            (1) event [QPaintEvent(object)]: Unused: the whole marker is repainted.
+        """
+
+        if not self.__state:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, False)
+        rect = self.rect()
+        p.fillRect(rect, Style.Token_Color(Style.CONST_INK))
+        cells = self.__Cells(self.__state)
+        cell = self.CONST_ICON_CELL
+        p.setFont(self.__font)
+        p.setPen(Style.Token_Color(Style.CONST_ON_INK))
+        # The icon and the words together are centred in the block, which is as wide as the widest state's.
+        spare = (rect.width() - self.__Width(self.__state)) // 2
+        if cells:
+            rows = max(row for _, row, _ in cells) + 1
+            left, top = spare + self.CONST_PAD_X, (rect.height() - rows * cell) // 2
+            for column, row, alpha in cells:
+                p.fillRect(left + column * cell, top + row * cell, cell, cell, Style.Token_Color(Style.CONST_ON_INK, alpha))
+        p.drawText(rect.adjusted(spare + self.__Icon_Width(self.__state), 0, -spare, 0), Qt.AlignCenter, self.Text())
+        p.end()
+
+
 class Card_Head_Cls(QWidget):
     """
     Description:
@@ -663,7 +831,7 @@ class Viewport_Cls(QWidget):
     """
     Description:
         The camera image, with the analysis renders (boxes already drawn in by Render_Views),
-        the heatmap legend and the busy overlay. The image is letterboxed inside the widget,
+        the heatmap legend, the analysis grid and the busy overlay. The image is letterboxed inside the widget,
         so the draw rectangle is recomputed on every paint — that maths lives here and
         nowhere else, the single most common source of an image that lands in the wrong place.
     """
@@ -674,15 +842,10 @@ class Viewport_Cls(QWidget):
     # The cell of the busy overlay's pixel icon: the 11-cell camera is 55 px wide, the 10-cell magnifier 50 px.
     #   Unit [px]
     CONST_BUSY_CELL = 5
-    # The live preview's marker: its text, and its inset from the view's top-left corner.
-    CONST_LIVE_TEXT = '●  LIVE PREVIEW'
-    # The scan's marker while it shows the fresh frames its stillness check grabs: the busy overlay's camera icon,
-    # in cells of CONST_SCAN_ICON_CELL, beside its text, in the same purple block as the preview's.
-    CONST_SCAN_TEXT = 'SCANNING…'
-    #   Unit [px]
-    CONST_SCAN_ICON_CELL = 2
-    #   Unit [px]
-    CONST_LIVE_MARGIN = 12
+
+    # What the view shows changed to another state marker's ('preview', 'scan', 'analysis' or '' for none, as
+    # Marker_Kind): the Camera View's head shows the marker (State_Marker_Cls), never the view itself.
+    Marker_Changed = pyqtSignal(str)
 
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -725,6 +888,19 @@ class Viewport_Cls(QWidget):
         self.__live = None
         # What the live frames are: 'preview' (PREVIEW) or 'scan' (the fresh frames a scan's stillness check grabs).
         self.__live_kind = 'preview'
+        # The analysis grid (Start_Analysis to Stop_Analysis): whether it sweeps, its own tick and timer, and its layer —
+        # the whole grid, lines and fills, rendered once for a draw rectangle and only clipped to the wave on each tick.
+        self.__analysing = False
+        self.__grid_tick = 0
+        self.__grid_timer = QTimer(self)
+        self.__grid_timer.setInterval(Style.CONST_GRID_TICK_MS)
+        self.__grid_timer.timeout.connect(self.__Grid_Tick)
+        self.__grid_layer = None
+        self.__grid_key = None
+        # The frame under the grid, scaled to its draw rectangle once: a tick then copies it instead of scaling the
+        # full frame again (2.9 ms a paint at 1152 x 720, which slowed the analysis on its worker by 17 ms in 700).
+        self.__frame_pixmap = None
+        self.__frame_key = None
         self.__mark = QSvgRenderer(os.path.join(Style.CONST_ASSETS, 'anyscan-mark.svg'))
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -747,10 +923,9 @@ class Viewport_Cls(QWidget):
     def Start_Live(self, kind: str = 'preview') -> None:
         """
         Description:
-            Show live frames: the marker at once, each frame as Show_Live hands it over. For the preview the
-            marker is LIVE PREVIEW, and the scanned frame and its renders stay held, unpainted, until Stop_Live.
-            For a scan it is the camera icon, stepping with the busy timer, and SCANNING… — over the image's
-            corner, never a scrim over the image.
+            Show live frames, each as Show_Live hands it over, and name them at once (Marker_Changed): LIVE PREVIEW
+            for the preview, whose scanned frame and renders stay held, unpainted, until Stop_Live; SCANNING… for a
+            scan's fresh frames — never a scrim over the image, nor a marker in it.
 
         Args:
             (1) kind [string]: 'preview' or 'scan'.
@@ -759,10 +934,8 @@ class Viewport_Cls(QWidget):
         self.__live_on = True
         self.__live_kind = kind
         self.__live = None
-        if kind == 'scan':
-            self.__tick = 0
-            self.__timer.start()
         self.update()
+        self.Marker_Changed.emit(self.Marker_Kind())
 
     def Show_Live(self, image: QImage) -> None:
         """
@@ -786,9 +959,8 @@ class Viewport_Cls(QWidget):
 
         self.__live_on = False
         self.__live = None
-        if not self.__busy:
-            self.__timer.stop()
         self.update()
+        self.Marker_Changed.emit(self.Marker_Kind())
 
     def Live_Kind(self) -> str:
         """
@@ -800,6 +972,20 @@ class Viewport_Cls(QWidget):
         """
 
         return self.__live_kind if self.__live_on else ''
+
+    def Marker_Kind(self) -> str:
+        """
+        Description:
+            Which state the Camera View's head marks now: the live frames' kind ('preview', 'scan'), 'analysis' while
+            the analysis grid sweeps, or '' for none.
+
+        Returns:
+            (1) parameter [string]: The kind, or ''.
+        """
+
+        if self.__live_on:
+            return self.__live_kind
+        return 'analysis' if self.__analysing else ''
 
     def Is_Live(self) -> bool:
         """
@@ -965,11 +1151,72 @@ class Viewport_Cls(QWidget):
             self.__empty_text = text
             self.update()
 
+    def Start_Analysis(self) -> None:
+        """
+        Description:
+            Sweep the analysis grid over the frame, looping until Stop_Analysis, and mark the state ANALYZING… in the
+            Camera View's head (Marker_Changed). Decoration: the grid is the same over any frame, and it is painted
+            over the frame on screen, never into it. The analysis runs on its worker meanwhile, so the grid's repaints
+            are free to step.
+        """
+
+        self.__analysing = True
+        self.__grid_tick = 0
+        self.__grid_layer = None
+        self.__frame_pixmap = None
+        self.__grid_timer.start()
+        self.update()
+        self.Marker_Changed.emit(self.Marker_Kind())
+
+    def Stop_Analysis(self) -> None:
+        """
+        Description:
+            Stop the analysis grid and its marker at once: the next paint shows the frame (or the result) clean.
+        """
+
+        self.__analysing = False
+        self.__grid_timer.stop()
+        self.__grid_layer = None
+        self.__frame_pixmap = None
+        self.update()
+        self.Marker_Changed.emit(self.Marker_Kind())
+
+    def Is_Analysing(self) -> bool:
+        """
+        Description:
+            Whether the analysis grid sweeps the frame.
+
+        Returns:
+            (1) parameter [bool]: True between Start_Analysis and Stop_Analysis.
+        """
+
+        return self.__analysing
+
+    def __Grid_Tick(self) -> None:
+        """
+        Description:
+            Advance the analysis grid's wave one tick and repaint. Driven by its timer.
+        """
+
+        # Only the cells the wave covered last tick or covers now are repainted: the rest of the view is unchanged,
+        # and a whole-view repaint 25 times a second cost the analysis on its worker about 1.4 %.
+        before = self.__Wave_Regions(self.__grid_tick)
+        self.__grid_tick += 1
+        after = self.__Wave_Regions(self.__grid_tick)
+        if before is None or after is None:
+            self.update()
+            return
+        dirty = QRegion()
+        for region, _opacity in before + after:
+            dirty += region
+        if not dirty.isEmpty():
+            self.update(dirty)
+
     def Start_Busy(self, text: str, icon: str) -> None:
         """
         Description:
-            The animated overlay for a threaded step (connecting, scanning, analysing); the worker runs off the
-            GUI thread, so the timer's repaints are free to step the icon.
+            The animated overlay for a threaded step (connecting, a close waiting for a scan or an analysis); the
+            worker runs off the GUI thread, so the timer's repaints are free to step the icon.
 
         Args:
             (1) text [string]: The initial step text.
@@ -1006,8 +1253,7 @@ class Viewport_Cls(QWidget):
         self.__busy = False
         self.__busy_text = ''
         self.__animated = False
-        if not (self.__live_on and self.__live_kind == 'scan'):
-            self.__timer.stop()
+        self.__timer.stop()
         self.update()
 
     def __Tick(self) -> None:
@@ -1058,8 +1304,9 @@ class Viewport_Cls(QWidget):
         Description:
             Paint the dark surface, the letterboxed frame (the boxes are in its render), a catalogue mode's
             inspection area over the empty state, the live frame, the scanned frame and the annotated result (never
-            the mask, the heatmap or the similarity view), the heatmap's legend when it shows, the LIVE marker while
-            the preview is on, and any busy overlay on top.
+            the mask, the heatmap or the similarity view), the heatmap's legend when it shows, the analysis grid over
+            the frame while an analysis runs, and any busy overlay on top. No state marker: the Camera View's head
+            carries it (Marker_Changed).
         """
 
         p = QPainter(self)
@@ -1078,7 +1325,11 @@ class Viewport_Cls(QWidget):
                 Paint_Inspection_Area(p, QRectF(self.__Letterbox(*self.__area[0])), *self.__area,
                                       Style.CONST_INSPECTION_AREA_EMPTY)
         else:
-            p.drawImage(self.__Draw_Rect(), displayed)
+            grid = self.__analysing and not self.__live_on
+            if grid:
+                p.drawPixmap(self.__Draw_Rect().topLeft(), self.__Scaled_Frame(displayed))
+            else:
+                p.drawImage(self.__Draw_Rect(), displayed)
             if self.__area is not None and (displayed is self.__image or displayed is self.__annotated
                                             or displayed is self.__live):
                 Paint_Inspection_Area(p, QRectF(self.__Draw_Rect()), *self.__area)
@@ -1086,47 +1337,142 @@ class Viewport_Cls(QWidget):
                 self.__Paint_Legend(p, self.__legend)
             elif displayed is self.__similarity and self.__similarity_legend is not None:
                 self.__Paint_Legend(p, self.__similarity_legend)
+            if grid:
+                self.__Paint_Grid(p, displayed)
 
-        if self.__live_on:
-            self.__Paint_Live_Marker(p)
         if self.__busy:
             self.__Paint_Busy(p)
         p.end()
 
-    def __Paint_Live_Marker(self, p: QPainter) -> None:
+    def __Scaled_Frame(self, displayed: QImage) -> QPixmap:
         """
         Description:
-            The live frames' marker in the view's top-left corner, in white on a solid purple block, the brand's
-            filled-button pairing (Tool_Button_Cls's primary hover), so the operator never takes live frames for
-            the scanned frame: LIVE PREVIEW for the preview; for a scan, the busy overlay's camera icon (its lens
-            blinking with the timer) and SCANNING….
+            The image under the analysis grid, scaled smoothly to its draw rectangle at the screen's density and kept
+            until the rectangle or the image changes, so the grid's ticks copy it rather than scale it again.
+
+        Args:
+            (1) displayed [QImage(object)]: The image painted.
+
+        Returns:
+            (1) parameter [QPixmap(object)]: It, scaled, at the draw rectangle's size.
+        """
+
+        rect = self.__Draw_Rect()
+        ratio = self.devicePixelRatioF()
+        key = (rect.width(), rect.height(), displayed.cacheKey(), ratio)
+        if self.__frame_pixmap is None or self.__frame_key != key:
+            # Drawn exactly as paintEvent draws it without the grid (drawImage, the same hints), so the frame does not
+            # change when the grid starts or stops; QImage.scaled averages differently, by up to 44 levels.
+            pixmap = QPixmap(round(rect.width() * ratio), round(rect.height() * ratio))
+            pixmap.setDevicePixelRatio(ratio)
+            q = QPainter(pixmap)
+            q.setRenderHint(QPainter.Antialiasing)
+            q.setRenderHint(QPainter.SmoothPixmapTransform)
+            q.drawImage(QRect(0, 0, rect.width(), rect.height()), displayed)
+            q.end()
+            self.__frame_pixmap, self.__frame_key = pixmap, key
+        return self.__frame_pixmap
+
+    def __Grid_Layer(self, rect: QRect, displayed: QImage) -> tp.Tuple[QPixmap, tp.List[int], tp.List[int]]:
+        """
+        Description:
+            The analysis grid over a draw rectangle, rendered once and kept until the rectangle changes: 1 px lines on
+            every cell's top and left edge and on the grid's right and bottom edge, in the periwinkle, and every cell
+            filled inside its lines in the one light translucent purple. The cell edges sit on whole pixels, so every
+            line stays one crisp colour. Only the frame's size enters it, never its pixels.
+
+        Args:
+            (1) rect [QRect(object)]: The image's draw rectangle.
+            (2) displayed [QImage(object)]: The image painted in it, whose size the grid is laid on.
+
+        Returns:
+            (1) parameter [QPixmap(object)]: The layer, the draw rectangle's size.
+            (2) parameter [List<int>]: The columns' left edges and the grid's right edge, relative to the rectangle.
+            (3) parameter [List<int>]: The rows' top edges and the grid's bottom edge, likewise.
+        """
+
+        key = (rect.width(), rect.height(), displayed.width(), displayed.height(), self.devicePixelRatioF())
+        if self.__grid_layer is not None and self.__grid_key == key:
+            return self.__grid_layer
+        columns, rows, cell = Grid_Shape(displayed.width(), displayed.height(), Style.CONST_GRID_COLUMNS)
+        scale = rect.width() / float(displayed.width())
+        xs = [min(round(column * cell * scale), rect.width() - 1) for column in range(columns + 1)]
+        ys = [min(round(row * cell * scale), rect.height() - 1) for row in range(rows + 1)]
+        ratio = self.devicePixelRatioF()
+        layer = QPixmap(round(rect.width() * ratio), round(rect.height() * ratio))
+        layer.setDevicePixelRatio(ratio)
+        layer.fill(Qt.transparent)
+        q = QPainter(layer)
+        q.setCompositionMode(QPainter.CompositionMode_Source)
+        fill = Style.Token_Color(Style.CONST_GRID_FILL, Style.CONST_GRID_FILL_ALPHA)
+        for row in range(rows):
+            for column in range(columns):
+                q.fillRect(xs[column] + 1, ys[row] + 1, xs[column + 1] - xs[column] - 1, ys[row + 1] - ys[row] - 1,
+                           fill)
+        line = Style.Token_Color(Style.CONST_GRID_LINE, Style.CONST_GRID_LINE_ALPHA)
+        for x in xs:
+            q.fillRect(x, 0, 1, ys[-1] + 1, line)
+        for y in ys:
+            q.fillRect(0, y, xs[-1] + 1, 1, line)
+        q.end()
+        self.__grid_layer, self.__grid_key = (layer, xs, ys), key
+        return self.__grid_layer
+
+    def __Paint_Grid(self, p: QPainter, displayed: QImage) -> None:
+        """
+        Description:
+            The analysis grid's wave over the frame: the grid layer drawn once for the lit band and once for each fade
+            step behind it at that step's opacity, each clipped to its cells (__Wave_Regions). A tick costs three
+            clipped draws, never a draw per cell, so the GUI thread stays free while the analysis works.
 
         Args:
             (1) p [QPainter(object)]: The active painter.
+            (2) displayed [QImage(object)]: The image painted under the grid.
         """
 
-        scanning = self.__live_kind == 'scan'
-        text = self.CONST_SCAN_TEXT if scanning else self.CONST_LIVE_TEXT
-        font = Font(9.5, QFont.DemiBold, tracking=6)
-        metrics = QFontMetrics(font)
-        pad_x, pad_y = 12, 6
-        cell = self.CONST_SCAN_ICON_CELL
-        cells = Busy_Cells('camera', self.__tick, Style.CONST_BUSY_DIM_ALPHA) if scanning else []
-        icon_w = (max(column for column, _, _ in cells) + 1) * cell + 10 if cells else 0
-        rect = QRect(self.CONST_LIVE_MARGIN, self.CONST_LIVE_MARGIN,
-                     icon_w + metrics.horizontalAdvance(text) + pad_x * 2, metrics.height() + pad_y * 2)
+        rect = self.__Draw_Rect()
+        if rect.width() < 2 or rect.height() < 2:
+            return
+        layer, _xs, _ys = self.__Grid_Layer(rect, displayed)
         p.save()
-        p.setRenderHint(QPainter.Antialiasing, False)
-        p.fillRect(rect, Style.Token_Color(Style.CONST_INK))
-        if cells:
-            rows = max(row for _, row, _ in cells) + 1
-            left, top = rect.left() + pad_x, rect.top() + (rect.height() - rows * cell) // 2
-            for column, row, alpha in cells:
-                p.fillRect(left + column * cell, top + row * cell, cell, cell, Style.Token_Color(Style.CONST_ON_INK, alpha))
-        p.setFont(font)
-        p.setPen(Style.Token_Color(Style.CONST_ON_INK))
-        p.drawText(rect.adjusted(icon_w, 0, 0, 0), Qt.AlignCenter, text)
+        for region, opacity in self.__Wave_Regions(self.__grid_tick):
+            p.setClipRegion(region)
+            p.setOpacity(opacity)
+            p.drawPixmap(rect.topLeft(), layer)
         p.restore()
+
+    def __Wave_Regions(self, tick: int) -> tp.Optional[tp.List[tp.Tuple[QRegion, float]]]:
+        """
+        Description:
+            Where the wave lies on the view at a tick, step by step with each step's opacity: a staircase of whole cells
+            along the step's diagonals (Wave_Diagonals), with the right and bottom line of its last cells; each step
+            leaves out what a brighter one covers (the band's closing lines are the next step's first lines). None
+            before the grid has been laid on a frame.
+
+        Args:
+            (1) tick [int]: The grid's tick.
+
+        Returns:
+            (1) parameter [List<Tuple<QRegion(object), float>> or None]: Each step's region and opacity, or None.
+        """
+
+        if self.__grid_layer is None:
+            return None
+        rect = self.__Draw_Rect()
+        _layer, xs, ys = self.__grid_layer
+        columns, rows = len(xs) - 1, len(ys) - 1
+        drawn, regions = QRegion(), []
+        for first, after, opacity in Wave_Diagonals(columns, rows, tick * Style.CONST_GRID_TICK_MS):
+            region = QRegion()
+            for row in range(rows):
+                left, right = max(first - row, 0), min(after - row, columns)
+                if left < right:
+                    region += QRegion(rect.left() + xs[left], rect.top() + ys[row], xs[right] - xs[left] + 1,
+                                      ys[row + 1] - ys[row] + 1)
+            region -= drawn
+            drawn += region
+            regions.append((region, opacity))
+        return regions
 
     def __Paint_Legend(self, p: QPainter, legend: Heatmap_Str) -> None:
         """

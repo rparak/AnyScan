@@ -21,6 +21,8 @@
 # File Name: ../UI/Utilities/Pixel_Motif.py
 ## =========================================================================== ##
 
+# System (Default)
+import math
 # Typing (Support for type hints)
 import typing as tp
 
@@ -36,7 +38,8 @@ Description:
     of its row and its column from the edge falls under the fill chance at that column, which falls linearly from
     `fill` at the edge to nothing `reach` cells in. No cell touches a keep-out span (each logo with its clear space).
     Corner_Cells places the AnyScan poster's own corner cluster (CONST_POSTER_CORNER) at a corner of a widget.
-    Busy_Cells gives the cells of the busy overlay's pixel icons (CONST_BUSY_ICONS) at an animation tick.
+    Busy_Cells gives the cells of the busy overlay's pixel icons (CONST_BUSY_ICONS) at an animation tick, and
+    Grid_Shape and Wave_Diagonals lay out the analysis grid and its wave (CONST_WAVE_*).
 
     Qt-free.
 """
@@ -125,9 +128,10 @@ def Corner_Cells(right: int, top: int, cell: int) -> tp.List[tp.Tuple[int, int, 
 
 
 # The busy overlay's pixel icons (docs/design-decisions.md, "The busy overlay is the Camera View's grey-lilac"), in the
-# brand's style: whole cells on a square grid. A task icon is drawn row by row: '#' a cell always lit, a digit d a cell
-# lit only on step d - 1 of the icon's cycle (dim otherwise), '.' empty. The camera (connecting, capturing) blinks its
-# lens; the magnifier (preparing, analysing) moves a glint across its lens.
+# brand's style: whole cells on a square grid, also drawn small in the Camera View head's state marker. A task icon is
+# drawn row by row: '#' a cell always lit, a digit d a cell lit only on step d - 1 of the icon's cycle (dim otherwise),
+# '.' empty. The camera (connecting, scanning) blinks its lens; the magnifier (analysing, a close stopping an analysis)
+# moves a glint across its lens.
 #   Unit [Dict<string, Tuple<Tuple<string>, int, int>>] (rows, steps in a cycle, ticks per step)
 CONST_BUSY_ICONS = {
     'camera': (('...###.....',
@@ -167,3 +171,77 @@ def Busy_Cells(kind: str, tick: int, dim: float) -> tp.List[tp.Tuple[int, int, f
     step = (tick // ticks_per_step) % steps
     return [(column, row, 1.0 if mark == '#' or int(mark) - 1 == step else dim)
             for row, line in enumerate(rows) for column, mark in enumerate(line) if mark != '.']
+
+
+# The analysis grid's wave (docs/design-decisions.md, "ANALYZE sweeps a decorative pixel grid over the frame"): square
+# cells on the frame, lit along a band of diagonals that enters at the top-left corner and leaves at the bottom-right,
+# fading behind it in steps, then a short rest on the clean frame, as in the reference animation. Decoration only: it
+# never depends on the frame. The band and each fade step are fractions of the grid's diagonals, so the wave looks the
+# same on any frame. The front crosses the frame (its first to its last diagonal) in CONST_WAVE_CROSS_MS, as the
+# reference's does (about ten 50 ms frames); band and fade then leave at the same speed, and the frame rests clean for
+# CONST_WAVE_REST_MS: a loop of about 1 s, repeated while the analysis runs.
+#   Unit [float] (fraction of the diagonals) / [Tuple<float>] (opacity of each fade step, 0..1) / [int] (ms)
+CONST_WAVE_BAND = 0.30
+CONST_WAVE_FADE_STEP = 0.08
+CONST_WAVE_FADE = (0.55, 0.25)
+CONST_WAVE_CROSS_MS = 500
+CONST_WAVE_REST_MS = 250
+
+
+def Grid_Shape(width: int, height: int, columns: int) -> tp.Tuple[int, int, float]:
+    """
+    Description:
+        The analysis grid laid over a frame: `columns` square cells across, as many rows as cover its height (the last
+        row cut by the frame's bottom edge when the height is not a whole number of cells).
+
+    Args:
+        (1) width [int]: The frame's width.
+        (2) height [int]: The frame's height.
+        (3) columns [int]: The cells across.
+
+    Returns:
+        (1) parameter [int]: The columns.
+        (2) parameter [int]: The rows.
+        (3) parameter [float]: A cell's side, in the frame's pixels.
+    """
+
+    cell = width / float(columns)
+    return columns, max(1, math.ceil(height / cell - 1e-9)), cell
+
+
+def Wave_Diagonals(columns: int, rows: int, elapsed_ms: int) -> tp.List[tp.Tuple[int, int, float]]:
+    """
+    Description:
+        The diagonals (column + row) of the analysis grid lit a time into the animation, as ranges with their opacity:
+        the wave's front moves one grid's worth of diagonals per CONST_WAVE_CROSS_MS; a cell lights when the front
+        reaches its diagonal, stays fully lit for CONST_WAVE_BAND of the diagonals, then fades through
+        CONST_WAVE_FADE, CONST_WAVE_FADE_STEP of the diagonals each, and goes out. Once the last fade step has left the
+        grid nothing is lit for CONST_WAVE_REST_MS, and the loop starts again.
+
+    Args:
+        (1) columns [int]: The grid's columns.
+        (2) rows [int]: The grid's rows.
+        (3) elapsed_ms [int]: The time since the animation started.
+
+    Returns:
+        (1) parameter [List<Tuple<int, int, float>>]: Each lit range's first diagonal, the diagonal after its last
+            (clipped to the grid's) and opacity (0..1): the band first, then each fade step; empty ranges left out.
+    """
+
+    diagonals = columns + rows - 1
+    band = max(1, round(CONST_WAVE_BAND * diagonals))
+    step = max(1, round(CONST_WAVE_FADE_STEP * diagonals))
+    travel = diagonals + band + step * len(CONST_WAVE_FADE)
+    # The time the front takes to run until the last fade step has left the grid, at one grid per CONST_WAVE_CROSS_MS,
+    # in whole milliseconds, so every loop is the same.
+    sweep_ms = round(travel * CONST_WAVE_CROSS_MS / float(diagonals))
+    elapsed = elapsed_ms % (sweep_ms + CONST_WAVE_REST_MS)
+    if elapsed >= sweep_ms:
+        return []
+    front = int(elapsed * diagonals / CONST_WAVE_CROSS_MS)
+    ranges = [(front - band + 1, front + 1, 1.0)]
+    for index, opacity in enumerate(CONST_WAVE_FADE):
+        after = front - band - step * index + 1
+        ranges.append((after - step, after, opacity))
+    return [(max(first, 0), min(after, diagonals), opacity) for first, after, opacity in ranges
+            if max(first, 0) < min(after, diagonals)]

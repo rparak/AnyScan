@@ -23,7 +23,8 @@
 
 # Custom Lib.: AnyScan UI — the funding band's pixel motif (Qt-free)
 #   ../UI/Utilities/Pixel_Motif
-from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells, Busy_Cells, CONST_POSTER_CORNER, CONST_BUSY_ICONS
+from UI.Utilities.Pixel_Motif import (Motif_Cells, Corner_Cells, Busy_Cells, Grid_Shape, Wave_Diagonals, CONST_POSTER_CORNER,
+                                     CONST_BUSY_ICONS, CONST_WAVE_CROSS_MS, CONST_WAVE_REST_MS)
 
 """
 Description:
@@ -132,3 +133,43 @@ def test_a_busy_icon_animates_only_its_step_cells() -> None:
         assert Lit('magnifier', tick) - {(c, r) for r, line in enumerate(CONST_BUSY_ICONS['magnifier'][0])
                                          for c, mark in enumerate(line) if mark == '#'} == {expected}, tick
     assert not set(glint.values()) & Lit('magnifier', 9)                       # the fourth step rests
+
+
+def test_the_grid_is_square_cells_across_the_frame() -> None:
+    """
+    Description:
+        The analysis grid over the station's 1920 x 1200 frame is 48 x 30 cells of 40 px; a frame whose height is no
+        whole number of cells gets one more row, cut by its bottom edge.
+    """
+
+    assert Grid_Shape(1920, 1200, 48) == (48, 30, 40.0)
+    assert Grid_Shape(1920, 1210, 48) == (48, 31, 40.0)
+
+
+def test_the_wave_crosses_from_the_top_left_in_half_a_second_fades_behind_and_repeats() -> None:
+    """
+    Description:
+        The wave starts at the top-left cell (diagonal 0), its front reaches the last diagonal after the crossing time
+        (about 0.5 s), every lit range lies on the grid, the band is lit fully and the steps behind it fade in turn;
+        once the fade has left the grid the frame rests clean for the rest time, and then the loop starts again, the
+        same as at its start.
+    """
+
+    columns, rows = 48, 30
+    diagonals = columns + rows - 1
+    assert 400 <= CONST_WAVE_CROSS_MS <= 600
+    assert Wave_Diagonals(columns, rows, 0) == [(0, 1, 1.0)]
+    band = Wave_Diagonals(columns, rows, CONST_WAVE_CROSS_MS)
+    assert band[0][1] == diagonals and band[0][2] == 1.0
+    opacities = [opacity for _, _, opacity in band]
+    assert opacities == sorted(opacities, reverse=True) and len(set(opacities)) == len(opacities) >= 3
+    for elapsed in range(0, 2000, 20):
+        for first, after, opacity in Wave_Diagonals(columns, rows, elapsed):
+            assert 0 <= first < after <= diagonals and 0 < opacity <= 1.0
+    # The first empty time after the crossing starts the rest; after it the loop repeats.
+    rest = next(t for t in range(CONST_WAVE_CROSS_MS, 3000) if not Wave_Diagonals(columns, rows, t))
+    assert all(not Wave_Diagonals(columns, rows, t) for t in range(rest, rest + CONST_WAVE_REST_MS - 1))
+    period = next(t for t in range(rest, rest + 2 * CONST_WAVE_REST_MS) if Wave_Diagonals(columns, rows, t))
+    assert period <= 1200
+    for elapsed in range(0, 1000, 20):
+        assert Wave_Diagonals(columns, rows, elapsed + period) == Wave_Diagonals(columns, rows, elapsed + 0)

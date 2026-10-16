@@ -323,7 +323,7 @@ the second at each step.
 - [ ] any loss not detected at all — stop and report it: then the camera reads connected after the
       cable is gone, and a Scan reports a capture error instead of the loss
 
-6. Repeat 1–3 with the live preview running (PREVIEW pressed, the view showing *LIVE PREVIEW*). The preview must
+6. Repeat 1–3 with the live preview running (PREVIEW pressed, the Camera View's head showing *LIVE PREVIEW*). The preview must
    stop, the Camera cell read *Disconnected* and the reading panel *The live preview stopped. The camera is no
    longer reachable…*, with the same ERROR in the log; CONNECT must then work, and PREVIEW must start again.
 
@@ -339,7 +339,7 @@ noise on this camera; the refusal itself is tested only on scripted and syntheti
 **Conditions.** Configuration loaded, CONNECT done, a part on the table.
 
 1. Press PREVIEW, then wave a hand over the table and press SCAN while it moves. While it waits the view must show
-   the table moving under *SCANNING…*. The reading must then say *Something is moving in the view…* with a *Moving*
+   the table moving, with *SCANNING…* in the Camera View's head. The reading must then say *Something is moving in the view…* with a *Moving*
    badge, the log a WARNING with the same sentence, and the preview must come back. The System cell must not count
    an error.
 2. Hold the hand still in view and press SCAN: the scan must take the frame (a hand held still is still).
@@ -348,6 +348,11 @@ noise on this camera; the refusal itself is tested only on scripted and syntheti
 5. SCAN and ANALYZE a part, move it, and SCAN again — once with the preview off, once with it on. The moment SCAN is
    pressed the old frame, its outlines and its reading must be gone (the reading *Scanning…*); the new frame must
    follow. Stop the preview with PREVIEW after an ANALYZE: the analysed result must come back.
+6. ANALYZE a scanned frame with several parts, standing at the operator's place. The grid must sweep the frame from
+   the top-left about once a second, the same over the parts as over the table, with the parts still visible under
+   it, *ANALYZING…* in the head, nothing in the image's corner; it must stop the moment the result appears. Note
+   whether it reads calmly on the rig's screen or distracts (docs/design-decisions.md, *ANALYZE sweeps a decorative
+   pixel grid over the frame…*).
 
 **Record alongside:**
 

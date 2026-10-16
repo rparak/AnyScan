@@ -59,7 +59,7 @@ Description:
     The live preview in the window: the state machine of PREVIEW with CONNECT, DISCONNECT, SCAN, ANALYZE, CLEAR and
     CONFIGURATION; the preview's worker (frames dropped, never queued; the GUI thread never waits for the camera);
     the scan's stillness check as the operator meets it; and what the view shows — the table live, the inspection
-    area on it and the LIVE marker, read from the grabbed pixels. The camera is a scripted stream backend (no
+    area on it and the state marker in the view's head, read from the grabbed pixels. The camera is a scripted stream backend (no
     hardware) whose frames carry, in their first pixel, the number of the stream that delivered them, so a test can
     tell a preview frame from a scan frame. Headless (offscreen); no model weights.
 """
@@ -337,9 +337,9 @@ def test_the_preview_shows_the_table_live_with_the_area_and_the_live_marker(qt_a
     """
     Description:
         PREVIEW paints the camera's frames as they come: the view shows the table, the station's inspection area on
-        it in the amber (the same overlay as on a scanned frame), and the LIVE marker — white on the solid brand
-        purple, a pair that clears 4.5:1 — in its top-left corner, all read from the grabbed pixels. No busy overlay
-        covers the live view, and the badge gives the frame rate.
+        it in the amber (the same overlay as on a scanned frame), and the head's state marker reads LIVE PREVIEW —
+        white on the solid brand purple, a pair that clears 4.5:1 — while the view's corner shows only the table, all
+        read from the grabbed pixels. No busy overlay covers the live view, and the badge gives the frame rate.
     """
 
     window, _, _ = _Window(tmp_path, _Live_Camera_Cls())
@@ -352,15 +352,17 @@ def test_the_preview_shows_the_table_live_with_the_area_and_the_live_marker(qt_a
     assert line[top:bottom + 1, right - 1:right + 2].any(axis=1).mean() > 0.98
     table = (np.abs(pixels[(top + bottom) // 2, (left + right) // 2].astype(int) - CONST_TABLE[::-1]) <= 3).all()
     assert table, 'the live frame is not what the view paints'
-    margin = viewport.CONST_LIVE_MARGIN
-    block = pixels[margin + 1:margin + 20, margin + 1:margin + 60]
+    assert not _Is(pixels[:40, :200], Theme.CONST_INK, 2).any(), 'a marker is drawn in the view'
+    marker = _Private(window, '__state_marker')
+    block = _Grab(marker)
+    assert marker.isVisible() and marker.Text() == '●  LIVE PREVIEW'
     assert _Is(block, Theme.CONST_INK, 2).mean() > 0.6 and _Is(block, Theme.CONST_ON_INK, 2).any()
     assert Theme.Contrast_Ratio(Theme.CONST_INK, Theme.CONST_ON_INK) >= 4.5
     assert not getattr(viewport, '_Viewport_Cls__busy') and not getattr(viewport, '_Viewport_Cls__timer').isActive()
     assert _Private(window, '__frame_badge').text().startswith('Live · ')
     _Private(window, '__button_preview').click()
     _Pump(lambda: _Private(window, '__preview_thread') is None)
-    assert not _Is(_Grab(viewport)[margin + 1:margin + 20, margin + 1:margin + 60], Theme.CONST_INK, 2).any()
+    assert not marker.isVisible() and marker.State() == ''
     window.close()
 
 
@@ -747,9 +749,9 @@ def test_the_scan_shows_its_fresh_frames_under_the_scanning_marker_without_a_scr
     """
     Description:
         While the scan waits for a still scene, the view paints the fresh frames as they come: the table at its own
-        colour (no busy scrim over it, no busy overlay), with the inspection area, and in the corner the SCANNING
-        marker — the busy overlay's camera icon and the word in white on the purple block. The badge says
-        Scanning….
+        colour (no busy scrim over it, no busy overlay, nothing in its corner), with the inspection area, and the
+        head's state marker reads SCANNING… — the busy overlay's camera icon and the word in white on the purple
+        block. The badge says Scanning….
     """
 
     camera = _Live_Camera_Cls(delay=0.2)
@@ -765,8 +767,10 @@ def test_the_scan_shows_its_fresh_frames_under_the_scanning_marker_without_a_scr
     centre = pixels[(top + bottom) // 2 + 150, (left + right) // 2 + 300]
     assert (np.abs(centre.astype(int) - CONST_TABLE[::-1]) <= 3).all(), 'the fresh frame is covered'
     assert _Is(pixels, Theme.CONST_INSPECTION_AREA)[top - 1:top + 2, left:right + 1].any(axis=0).mean() > 0.98
-    margin = viewport.CONST_LIVE_MARGIN
-    block = pixels[margin + 1:margin + 26, margin + 1:margin + 140]
+    assert not _Is(pixels[:40, :200], Theme.CONST_INK, 2).any(), 'a marker is drawn in the view'
+    marker = _Private(window, '__state_marker')
+    assert marker.isVisible() and marker.Text() == 'SCANNING…'
+    block = _Grab(marker)
     assert _Is(block, Theme.CONST_INK, 2).mean() > 0.5
     # The icon first: its 11 cells of 2 px make an unbroken run of white columns, which no letter makes.
     white = np.flatnonzero(_Is(block, Theme.CONST_ON_INK, 2).any(axis=0))

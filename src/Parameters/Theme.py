@@ -88,7 +88,7 @@ CONST_PRIMARY_DISABLED_TEXT   = CONST_CONTROL_DISABLED_TEXT
 #   Unit [string] (hex colour) / [float] (opacity 0..1)
 CONST_SCRIM       = CONST_INK
 CONST_SCRIM_ALPHA = 0.16
-# The busy overlay laid over the Camera View while the camera connects, a frame is captured or analysed: the view's
+# The busy overlay laid over the Camera View while the camera connects or a close waits for a worker: the view's
 # own grey-lilac at 70 %, so the frame shows through faintly and the view reads as the empty Camera View, with the
 # step's words and the pixel icon in the purple directly on it (docs/design-decisions.md, "The busy overlay is the
 # Camera View's grey-lilac"). The icon's unlit cells are the purple at a low opacity.
@@ -97,6 +97,15 @@ CONST_BUSY_SCRIM       = '#E1DCE6'
 CONST_BUSY_SCRIM_ALPHA = 0.70
 CONST_BUSY_INK         = CONST_INK
 CONST_BUSY_DIM_ALPHA   = 0.18
+# The analysis grid swept over the frame while ANALYZE runs (docs/design-decisions.md, "ANALYZE sweeps a decorative
+# pixel grid over the frame"): decoration, the same in every cell. Each lit cell is a light translucent purple inside 1 px
+# lines in the brand's periwinkle, so the frame being analysed always shows through; the fade behind the wave draws
+# them at lower opacities (UI.Utilities.Pixel_Motif.CONST_WAVE_FADE).
+#   Unit [string] (hex colour) / [float] (opacity 0..1)
+CONST_GRID_LINE         = '#C2C9FF'
+CONST_GRID_LINE_ALPHA   = 0.55
+CONST_GRID_FILL         = '#CC9EF1'
+CONST_GRID_FILL_ALPHA   = 0.30
 # The highlight over the selected object on a History thumbnail: a white outline and a faint white
 # wash, readable on any frame (0.176 -> 45 of 255).
 #   Unit [string] (hex colour) / [float] (opacity 0..1)

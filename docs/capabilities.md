@@ -244,15 +244,20 @@ Two cards:
   feature marks), **Heatmap** (the background difference on a fixed 0–128
   scale, under a legend naming the threshold applied, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
-  never a verdict, on screen only). While the camera connects, a frame is captured or analysed, the view lies
-  under its own grey-lilac at 70 %, the frame showing through, with the step in the purple under a pixel icon of
-  the task: a camera while connecting, a magnifier while analysing; never during the live preview or a scan. A
-  **scan** shows the fresh frames its stillness check grabs as they come, under the busy overlay's camera icon and
-  `SCANNING…` in white on a purple block in the view's top-left corner (no scrim), with *Scanning…* in the head's
-  badge and in Scene Understanding.
-  The **live preview** (PREVIEW) paints the camera's frames as they come, with `●  LIVE PREVIEW` in white on a
-  purple block in the view's top-left corner and `Live · n fps` in the head's badge; the view selector hides while it
-  runs. In a catalogue mode the
+  never a verdict, on screen only). While the camera connects (CONNECT), and while a close waits for a scan or an
+  analysis to end, the view lies under its own grey-lilac at 70 %, the frame showing through, with the step in the
+  purple under a pixel icon of the task (a camera, or a magnifier for the analysis's close). While an **analysis**
+  runs, a decorative grid of square cells sweeps the frame in a diagonal wave from the top-left corner — thin
+  periwinkle lines, every lit cell the same light translucent purple over parts and table alike, fading behind the
+  band — crossing the frame in about 0.5 s and repeating about once a second until the analysis ends or fails, when
+  it stops at once and the result (or the bare frame) shows; it is on screen only, never in a saved image, and the
+  analysis's step (*Segmenting…*, *Analysing object 3 of 8…*) is in the head's badge. A **scan** shows the fresh
+  frames its stillness check grabs as they come (no scrim), with *Scanning…* in the head's badge and in Scene
+  Understanding. The **live preview** (PREVIEW) paints the camera's frames as they come, with `Live · n fps` in the
+  head's badge; the view selector hides while it runs. The view names these three states in its head, after the
+  title, in one white-on-purple marker of one size: `●  LIVE PREVIEW`, `SCANNING…` with the camera pixel icon (its
+  lens blinking), `ANALYZING…` with the magnifier (its glint stepping). Nothing but the analysis grid is drawn over
+  the frame. In a catalogue mode the
   **inspection area** is drawn as a thin solid line, square-cornered and unfilled, in the purple over the empty view
   and in a light amber over the live preview, the scanned frame and the Annotated render (not the Mask, Heatmap or
   Similarity), on screen only: the saved images never carry it. Segment Anything shows none.

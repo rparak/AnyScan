@@ -45,6 +45,7 @@ from Parameters.Theme import (                                             # noq
     CONST_CONTROL_DISABLED_TEXT, CONST_CONTROL_DISABLED_BORDER, CONST_PRIMARY_DISABLED_FILL,
     CONST_PRIMARY_DISABLED_TEXT, CONST_SCRIM, CONST_SCRIM_ALPHA, Hex_To_Rgb, CONST_OK, CONST_OK_INK,
     CONST_BUSY_SCRIM, CONST_BUSY_SCRIM_ALPHA, CONST_BUSY_INK, CONST_BUSY_DIM_ALPHA,
+    CONST_GRID_LINE, CONST_GRID_LINE_ALPHA, CONST_GRID_FILL, CONST_GRID_FILL_ALPHA,
     CONST_THUMB_HIGHLIGHT, CONST_THUMB_HIGHLIGHT_FILL_ALPHA, CONST_TOPBAR_DIVIDER, CONST_SCROLLBAR_HANDLE,
     CONST_OK_BORDER, CONST_WARN, CONST_WARN_INK, CONST_CONTROL_PRESSED, Label_Ground,
     CONST_OK_LABEL_GROUND, CONST_NOK_LABEL_GROUND, CONST_UNSPECIFIED_LABEL_GROUND, CONST_WARNING_BOX,
@@ -90,6 +91,12 @@ CONST_TYPE_FLOOR_LOW_DENSITY = 9.0
 # pixel icon (UI.Utilities.Pixel_Motif.Busy_Cells), which repaints only then. Kept here so the whole console's
 # tunable values live in one place.
 CONST_BUSY_TICK_MS  = 120         # a task icon steps every few ticks (Pixel_Motif.CONST_BUSY_ICONS)
+# The analysis grid (Viewport_Cls.Start_Analysis): a repaint every 40 ms, 25 a second, the reference animation's rate
+# (20) or a little above, so its 0.5 s crossing takes a dozen steps. The frame is cut into CONST_GRID_COLUMNS square
+# cells across (40 px each on a 1920 px frame, about 24 px on the rig's screen), finer than the parts.
+#   Unit [int] (ms) / [int] (cells)
+CONST_GRID_TICK_MS  = 40
+CONST_GRID_COLUMNS  = 48
 
 # What an empty value slot shows. It is a placeholder, not prose: the em dash
 # stays out of sentences and out of labels, and appears only where a number or a

@@ -144,6 +144,23 @@ practices followed inconsistently are under **Unsettled**.
   span and painted text against the ground grabbed under it (which must be a theme token); disabled text is
   exempt. Buttons are measured by `test_control_contrast.py`.
 
+## The Camera View names its state in its head; nothing but the analysis grid lies over the frame ✅
+
+- What the view shows while it is not a scanned frame or a result is named in the Camera View's head, after the
+  title, by one marker (`UI.Widgets.State_Marker_Cls`): `●  LIVE PREVIEW`, `SCANNING…` with the camera pixel icon,
+  `ANALYZING…` with the magnifier — white on the purple, one place and one size for the three. A new state the view
+  must name joins `CONST_STATES`; it is never painted into the view (DD *ANALYZE sweeps a decorative pixel grid over
+  the frame…*).
+- The analysis grid is the only thing drawn over a frame while it is being worked on, and it is decoration: the same
+  drawing over any frame, translucent in every pixel (at least 40 % of the frame shows), square cells, a light tint
+  of the purple (`#CC9EF1`) inside periwinkle lines, faded in steps, never a gradient inside a cell. It never says
+  anything about the frame: no cell is tinted by what lies under it.
+- An animation repaints only while it runs and only what changes: its timer stops when it ends, and a tick repaints
+  the cells the wave covered or covers, not the whole view.
+- ✅ `test/UI/test_analysis_grid.py::test_the_grid_is_the_same_drawing_over_two_different_frames`,
+  `::test_no_state_label_is_drawn_inside_the_image`, `::test_the_three_states_share_one_marker_in_the_head`,
+  `::test_the_grid_stops_when_the_analysis_ends`.
+
 ## A density-dependent style asks the one density check 📄
 
 - `Style.Is_Low_Density(widget)` (device pixel ratio below `CONST_LOW_DENSITY_DPR`, 1.5) is the only place
