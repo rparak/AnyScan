@@ -142,3 +142,34 @@ def test_scan_path_displays_frame(qt_app, reference_background_path, reference_s
 
     _Private(window, '__On_Disconnect_Button_Clicked')()
     assert not _Private(window, '__camera').Connected
+
+
+def test_every_action_label_keeps_its_room_at_the_minimum_width(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        At the window's minimum width the seven action buttons share the camera card's row, and each label keeps at
+        least 6 px between its ink and the button's border on either side — read from the rendered buttons (the
+        label's pixels are those of its text colour), not from their sizes. Without a floor on the buttons' width
+        CONFIGURATION's label touched its border.
+    """
+
+    import numpy as np
+    from PyQt5.QtGui import QImage
+    window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
+    window.show()
+    window.resize(window.minimumSizeHint().width(), 900)
+    qt_app.processEvents()
+    for name in ('configuration', 'connect', 'disconnect', 'preview', 'scan', 'analyze', 'clear'):
+        button = _Private(window, '__button_' + name)
+        image = button.grab().toImage().convertToFormat(QImage.Format_RGB32)
+        pointer = image.constBits()
+        pointer.setsize(image.byteCount())
+        pixels = np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)[:, :image.width(), :3]
+        ink = button.palette().color(button.foregroundRole())
+        middle = pixels[image.height() // 3: 2 * image.height() // 3, 2:-2].astype(int)
+        label = (np.abs(middle - np.array([ink.blue(), ink.green(), ink.red()])) <= 40).all(axis=2).any(axis=0)
+        columns = np.flatnonzero(label)
+        assert columns.size, '%s shows no label' % button.text()
+        left, right = columns[0] + 2, image.width() - 3 - (columns[-1] + 2)
+        assert min(left, right) >= 6, '%s: %d px left, %d px right of its label' % (button.text(), left, right)
+    window.close()

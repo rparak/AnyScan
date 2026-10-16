@@ -1195,11 +1195,18 @@ class Tool_Button_Cls(QPushButton):
         pressed. A plain button fills grey-lilac when hovered and periwinkle when pressed.
     """
 
+    # The least room left and right of the label.
+    #   Unit [px]
+    CONST_LABEL_PAD = 10
+
     def __init__(self, text: str, primary: bool = False,
                  parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(text, parent)
         self.setFont(Font(9.5, QFont.DemiBold, tracking=6))
         self.setFixedHeight(48)
+        # Never narrower than the label with CONST_LABEL_PAD on each side: seven buttons share the camera card's row,
+        # and at the window's minimum width the longest label (CONFIGURATION) would otherwise touch its border.
+        self.setMinimumWidth(self.fontMetrics().horizontalAdvance(text) + 2 * self.CONST_LABEL_PAD)
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         # Every state rule names its fill AND its label, as in Segmented_Control_Cls: Qt picks a
