@@ -342,7 +342,7 @@ def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tupl
 
         In a catalogue mode (the objects carry catalogue evidence) the badge states the worst verdict, so it
         is never green while anything on the surface is not OK: any NOK ('NOK · 2 of 5', level 'fail'), else
-        any Unspecified ('Not judged · 1', 'warn'), else any Warning ('Foreign object · 3' when none resembles the
+        any Unspecified ('Not judged · 1', 'unspecified', on Unspecified's own ground), else any Warning ('Foreign object · 3' when none resembles the
         part, 'Outside the area · 2' when all do and so lie outside the inspection area, 'Warning · 3' when both kinds
         are there; 'warn'), else
         every object OK ('All OK · 2', 'ok'). The word carries the state as well as the colour.
@@ -353,7 +353,7 @@ def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tupl
 
     Returns:
         (1) parameter [Tuple<string> 1x2]: The (wording, level) pair, where level
-                                           is 'fail' | 'ok' | 'warn' | 'idle'.
+                                           is 'fail' | 'ok' | 'warn' | 'unspecified' | 'idle'.
     """
 
     if not objects:
@@ -363,7 +363,7 @@ def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tupl
         if count['NOK']:
             return 'NOK · %d of %d' % (count['NOK'], len(objects)), 'fail'
         if count['Unspecified']:
-            return 'Not judged · %d' % count['Unspecified'], 'warn'
+            return 'Not judged · %d' % count['Unspecified'], 'unspecified'
         if count['Warning']:
             outside = sum(o.Verdict == 'Warning' and o.Catalogue is not None and o.Catalogue.Resembles
                           for o in objects)

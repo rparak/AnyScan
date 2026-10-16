@@ -491,7 +491,7 @@ def test_the_verdict_reaches_the_file_and_the_log_keeps_the_similarity() -> None
     (['OK', 'Warning-outside', 'Warning-outside'], ('Outside the area · 2', 'warn')),
     (['OK', 'Warning', 'Warning-outside'], ('Warning · 2', 'warn')),
     (['OK', 'Warning-far', 'Warning'], ('Foreign object · 2', 'warn')),
-    (['OK', 'Warning', 'Unspecified'], ('Not judged · 1', 'warn')),
+    (['OK', 'Warning', 'Unspecified'], ('Not judged · 1', 'unspecified')),
     (['OK', 'NOK', 'Unspecified', 'Warning', 'NOK'], ('NOK · 2 of 5', 'fail')),
 ], ids=['all ok', 'warning', 'outside', 'foreign and outside', 'foreign outside the area', 'unspecified over warning',
         'nok over all'])
@@ -499,7 +499,7 @@ def test_the_badge_states_the_worst_verdict(verdicts: tp.List[str], badge: tp.Tu
     """
     Description:
         In a catalogue mode the badge is never green while anything on the surface is not OK: any NOK (the
-        'fail' level), else any Unspecified, else any Warning (both 'warn'), else all OK ('ok') — each in words
+        'fail' level), else any Unspecified (its own 'unspecified' level), else any Warning ('warn'), else all OK ('ok') — each in words
         as well as colour. The Warnings are named by kind: foreign objects (not resembling the part), parts outside
         the inspection area, or 'Warning' when both kinds are there. Outside a catalogue mode it still counts what
         was found.

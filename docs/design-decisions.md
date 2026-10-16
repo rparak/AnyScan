@@ -3678,7 +3678,8 @@ for words are derived in each colour's hue at L\* 41 (6.2:1 on white, 4.6:1 on t
 `#FFEF85` is decoration and is no token.
 
 - **On the frame.** OK is the purple, as the poster marks a detected part; NOK the orange-red, as it marks a defect;
-  Warning the amber; Unspecified the neutral `#655E6D`; every object of a detect-only mode the logo purple `#640ABA`.
+  Warning the amber; Unspecified the neutral `#655E6D` (*corrected 2026-10-16:* the sky blue `#33A3FF`, *Unspecified
+  is a sky blue, a verdict colour outside the brand palette*); every object of a detect-only mode the logo purple `#640ABA`.
   A chip is filled with its box's colour, as on the poster, with a plain white numeral on every chip (*Every chip
   carries a white numeral*). The box stays the
   dashed axis-aligned box around the solid rotated outline of a measured part; corner brackets (the AnyScan mark's
@@ -3745,7 +3746,8 @@ one box colour, `CONST_DETECTION_BOX = CONST_LOGO_INK` (`#640ABA`), with the pla
 OK verdict's colour, accepted because a detect-only mode shows no verdict at all, so nothing there can be read as a
 pass; the neutral stays distinct from the verdicts within a catalogue mode, where Unspecified keeps `#655E6D`
 (`CONST_UNSPECIFIED_BOX`, ΔE 87 / 80 / 95 from OK / NOK / Warning), split off from the token the two had shared. The
-label mask's neutral pair is derived from `#655E6D`, unchanged, in both modes. Measured for the detect-only box
+label mask's neutral pair is derived from `#655E6D`, unchanged, in both modes. *Corrected 2026-10-16:* Unspecified is
+now the sky blue `#33A3FF` with its own ink and mask fill; `#655E6D` and its derived pair stay the detect-only mode's. Measured for the detect-only box
 (capture `20261015-143622_s1`, the table median `#176550`; the metals from *The palette is the JIC Smart Factory
 brand's*; WCAG ratio, ΔE76), each with a plain white numeral:
 
@@ -4404,3 +4406,42 @@ Tests `test/Vision/test_core.py::test_a_part_outside_the_area_is_not_checked_and
 `test/integration/test_edge_of_view.py::test_a_plate_by_the_edge_is_outside_the_area_and_not_checked`,
 `::test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber`,
 `test/integration/test_pipeline.py::test_a_plate_outside_the_area_is_not_checked`.
+
+## Unspecified is a sky blue, a verdict colour outside the brand palette
+
+Decided 2026-10-16, on the owner's request: Unspecified (not judged: probably several parts, or a side that cannot be
+told) is the sky blue `#33A3FF` (`Theme.CONST_UNSPECIFIED_BOX`), outside the brand palette like the NOK orange-red and
+the Warning amber, replacing the neutral `#655E6D`, which read 1.03:1 on the green table and all but vanished there.
+Everywhere Unspecified is drawn it takes the blue through the theme's tokens: the outline, the outer box, the chip
+(white numeral) and any feature mark on the frame (`Verdict_Color`); the label mask, outlined in the blue
+(`Mask_Outline_Color` now returns every verdict's box, the neutral special case gone) and filled with its own tint
+`#748DB1`; the status badge, `Not judged · n` on its own level `'unspecified'` and its own ground `#C6E4FF`
+(`CONST_UNSPECIFIED_LABEL_GROUND`; it was Warning's amber); the Trends series and its legend in its
+text twin `#0065A9` (`CONST_UNSPECIFIED_INK`); History's outline of a set whose worst state is Unspecified; the
+README's architecture diagram, regenerated.
+
+**Measured** (WCAG ratio, ΔE76): on the table (median `#236A56`) 2.39:1 (ΔE 69.8); its white numeral 2.68:1, an
+accepted exception like the orange-red's 2.92 and the amber's 1.62; against the OK purple `#640ABA` 3.41:1 (ΔE 74.9),
+the NOK `#FF6540` 1.09:1 (ΔE 118.9), the Warning amber `#FFC226` 1.66:1 (ΔE 133.5), the foreign grey `#B4A6BE` 1.17:1
+(ΔE 45.1), the area's amber `#FFD880` 1.97:1 (ΔE 105.0); the old `#655E6D` 2.32:1 (ΔE 52.9). Its text twin is its hue
+at L* 41 (6.11:1 on white), as the NOK and Warning inks are; the mask fill in its hue at 0.40 of its chroma clears every
+floor (ΔE 33.3 from the box, 47.3 from white, 6.19:1 on black); the badge ground carries the purple words at 6.95:1 and
+lies ΔE 18.5 from OK's periwinkle ground (the badge's words tell them apart too).
+
+**Kept, not a verdict:** the neutral ink `#655E6D` (`CONST_DETECTION_INK`) stays where it never meant Unspecified: a
+detect-only mode's per-object dots in Trends (`UI.Views.Trends`), History's outline of a detect-only set
+(`UI.Views.History`), and the label mask's derived neutral pair for a detect-only mode, outline `#817A8A` and fill
+`#CEC6D7` (`Neutral_Mask_Colors`). The grey-lilac badge ground it had (`CONST_DETECTION_LABEL_GROUND`) is removed,
+unused.
+
+**Revisit if** a capture shows the blue lost on a surface it lies on (it reads by hue on the table, ΔE 69.8), or an
+operator reads it as OK's periwinkle on the badge.
+Tests `test/Parameters/test_theme.py::test_unspecified_is_a_blue_distinct_from_every_frame_colour`,
+`::test_every_catalogue_state_has_its_colour`, `::test_every_chip_numeral_is_white`,
+`::test_the_detect_only_box_is_the_logo_purple_and_unspecified_keeps_its_own`,
+`::test_label_mask_fill_is_a_visible_tint_of_its_box`,
+`test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`,
+`::test_each_chip_is_its_box_colour_with_a_white_numeral`,
+`test/Reporting/test_core.py::test_the_badge_states_the_worst_verdict`,
+`test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`,
+`test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output`.

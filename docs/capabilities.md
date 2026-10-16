@@ -226,7 +226,7 @@ Two cards:
   the amber, on the frame only; a judged part's solid rotated outline carries its size check alone (orange-red only
   when out of tolerance, purple otherwise, though the part is NOK for a stain, a hole or its look), its dashed outer
   box and chip its verdict; otherwise each object's box and chip are its state's
-  colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified the neutral grey `#655E6D`, and every
+  colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified the sky blue `#33A3FF`, and every
   object of a detect-only mode (Segment Anything) the logo purple `#640ABA`; the chip's number is plain
   white on every chip, in every state and mode; a missing hole is placed by the holes found, a countersink's
   through-hole by the countersink, and a countersink around its through-hole, found or placed),
@@ -247,8 +247,8 @@ Two cards:
   missing holes are not marked on the frame (no hole found to place them by: which end of the part they belong at
   cannot be told). The measured and expected values, part by part (Part 2.3 · …), the similarity and, beyond the
   verified zone, the size note are in the log. The badge states the worst verdict, in the purple on its verdict's ground: `NOK · n of m` (the orange-red's
-  tint), `Not judged · n` and, for Warnings, `Foreign object · n`, `Outside the area · n` or `Warning · n` when
-  both kinds are there (the amber), `All OK · n` (the periwinkle); outside a catalogue
+  tint), `Not judged · n` (the blue's tint), for Warnings `Foreign object · n`, `Outside the area · n` or
+  `Warning · n` when both kinds are there (the amber), `All OK · n` (the periwinkle); outside a catalogue
   mode, `n found`.
 
 ### Trends

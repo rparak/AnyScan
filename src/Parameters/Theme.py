@@ -225,10 +225,21 @@ CONST_MASK_FILL_WINDOW_MARGIN = 0.5
 #   Unit [string] (hex colour) / [Dict<string, Tuple<string> 1x3>] (box, ink, fill)
 CONST_NOK_BOX = '#FF6540'
 CONST_WARNING_BOX = '#FFC226'
+# UNSPECIFIED (not judged: probably several parts, or a side that cannot be told) is a sky blue outside the brand
+# palette, like NOK and Warning (the owner's choice of 2026-10-16, replacing the neutral #655E6D, which vanished on the
+# green table at 1.03:1): 2.39:1 on the table (median #236A56), its white numeral 2.68:1 (an accepted exception, as the
+# orange-red's and the amber's), and against the other frame colours the OK purple 3.41:1 (ΔE 74.9), the NOK orange-red
+# 1.09:1 (ΔE 118.9), the Warning amber 1.66:1 (ΔE 133.5), the foreign grey #B4A6BE 1.17:1 (ΔE 45.1), the area amber
+# #FFD880 1.97:1 (ΔE 105.0). Its ink is its hue at L* 41 (6.11:1 on white); its mask fill #748DB1 in its hue (ΔE 33.3
+# from the box, 47.3 from white, 6.19:1 on black, at 0.40 of its chroma).
+CONST_UNSPECIFIED_BOX = '#33A3FF'
+CONST_UNSPECIFIED_INK = '#0065A9'
+CONST_UNSPECIFIED_MASK_FILL = '#748DB1'
 CONST_VERDICT_COLORS = {
     'OK':  (CONST_INK, CONST_INK, '#CC9EF1'),              # pass
     'NOK': (CONST_NOK_BOX, '#BA260B', '#CD7157'),          # fail
-    'Warning': (CONST_WARNING_BOX, CONST_WARN_INK, '#B28508'),   # not the catalogue part
+    'Warning': (CONST_WARNING_BOX, CONST_WARN_INK, '#B28508'),   # not the catalogue part, or outside the area
+    'Unspecified': (CONST_UNSPECIFIED_BOX, CONST_UNSPECIFIED_INK, CONST_UNSPECIFIED_MASK_FILL),   # not judged
 }
 # The verdict a detection carries until classification sets one.
 #   Unit [string]
@@ -237,16 +248,16 @@ CONST_VERDICT_DEFAULT = 'OK'
 # The ground a verdict's WORDS sit on (the status badge, the diagram's verdict labels): the box colour where the
 # purple reads at >= 4.5:1 on it (Warning 5.66:1), else the poster's tint of it: the part tag's periwinkle for OK
 # (the purple box under purple words would be one colour; 5.71:1), the defect tag's #FFD9D0 for NOK (7.01:1; the
-# purple on the solid orange-red is 3.13:1) and the brand's grey-lilac for the neutral (6.79:1; the purple on the
-# dark neutral box is 1.47:1).
+# purple on the solid orange-red is 3.13:1), a light tint of Unspecified's blue (#C6E4FF, 6.95:1; the purple on the
+# blue box is 3.41:1; ΔE 18.5 from OK's periwinkle, the badge's words telling them apart too).
 #   Unit [string] (hex colour)
 CONST_OK_LABEL_GROUND = '#C2C9FF'
 CONST_NOK_LABEL_GROUND = '#FFD9D0'
-CONST_DETECTION_LABEL_GROUND = '#E1DCE6'
+CONST_UNSPECIFIED_LABEL_GROUND = '#C6E4FF'
 
 # The numeral on a chip on the frame (an object's and a feature's), filled with its box as on the poster: white, plain,
 # on every chip, in every state and every mode (docs/design-decisions.md, "Every chip carries a white numeral"): on the
-# purple 9.15:1, on Unspecified's #655E6D 6.22:1, on the orange-red 2.92:1 and on Warning's amber 1.62:1, the owner's
+# purple 9.15:1, on the orange-red 2.92:1, on Unspecified's blue 2.68:1 and on Warning's amber 1.62:1, the owner's
 # accepted exceptions for these short bold numerals.
 #   Unit [string] (hex colour)
 CONST_CHIP_NUMERAL = '#FFFFFF'
@@ -283,14 +294,13 @@ CONST_FOREIGN_BOX = CONST_CONTROL_DISABLED_TEXT
 #   the neutral be distinct from the verdicts holds within a catalogue mode, for Unspecified. Measured: white numeral
 #   9.15:1; table 1.31:1 (ΔE 120.7, it reads by hue), aluminium 3.53:1, rust-stained metal 3.02:1, steel 2.32:1.
 #
-#   CONST_UNSPECIFIED_BOX — Unspecified in a catalogue mode (probably several parts, not judged): the ink itself,
-#   unchanged, distinct from OK, NOK and Warning (ΔE 87, 80, 95) and dark enough for a plain white numeral (6.22:1).
+#   (Unspecified had the ink itself as its box until 2026-10-16; it is now a verdict colour of its own, the blue
+#   CONST_UNSPECIFIED_BOX above.)
 #
 #   CONST_DETECTION_INK — the neutral's words on the white card (6.22:1) and the Trends dot: the grey-lilac's text
 #   twin, the purple's hue at chroma 10 and L* 41, near-achromatic, far from the purple OK (ΔE 87), the NOK (ΔE 80)
-#   and Warning (ΔE 95), so a judged set and an unjudged one never share a hue. Drawn into the frame (as Unspecified),
-#   it is ΔE 17 from mid-grey metal (its worst case, grey on grey), 28 from bright aluminium, 24 from the dark plate,
-#   36 from the table.
+#   and Warning (ΔE 95), so a judged set and an unjudged one never share a hue. It is no verdict's colour: it marks a
+#   detect-only mode's words, its Trends series and History's outline of a detect-only set.
 #
 # THE LABEL MASK USES ITS OWN, DERIVED NEUTRAL PAIR — outline and fill — not a frame box: on the mask the outline sits
 # on the fill and on black, and the ink is 3.4:1 on black, under the mask's 4.5:1 floor. Neutral_Mask_Colors derives
@@ -304,7 +314,6 @@ CONST_FOREIGN_BOX = CONST_CONTROL_DISABLED_TEXT
 #   Unit [string] (hex colour)
 CONST_DETECTION_INK = '#655E6D'
 CONST_DETECTION_BOX = CONST_LOGO_INK
-CONST_UNSPECIFIED_BOX = CONST_DETECTION_INK
 # CONST_DETECTION_COLORS — the (box, ink, fill) triple — is assembled at the END of this module,
 # once Neutral_Mask_Colors (which needs the colour-space helpers below) is defined.
 
@@ -682,9 +691,9 @@ def Verdict_Color(verdict: str) -> tp.Tuple[str, str, str]:
 def Mask_Outline_Color(verdict: str) -> str:
     """
     Description:
-        The outline a judged object takes on the LABEL MASK: its verdict box, except for a verdict drawn
-        in the neutral colour (Unspecified), which takes the mask's own derived neutral outline — the
-        neutral box is under the mask's floor on the black ground (Detection_Mask_Outline).
+        The outline a judged object takes on the LABEL MASK: its verdict box, which clears the mask's floor on the
+        black ground for every verdict (a detect-only mode's objects take the mask's own derived neutral outline,
+        Detection_Mask_Outline, passed by the renderer).
 
     Args:
         (1) verdict [string]: The verdict.
@@ -693,15 +702,14 @@ def Mask_Outline_Color(verdict: str) -> str:
         (1) parameter [string]: The outline colour as '#rrggbb'.
     """
 
-    box = Verdict_Color(verdict)[0]
-    return Detection_Mask_Outline() if box == CONST_UNSPECIFIED_BOX else box
+    return Verdict_Color(verdict)[0]
 
 
 def Label_Ground(verdict: str) -> str:
     """
     Description:
         The ground a verdict's words sit on (the status badge, the diagram's verdict labels): the poster's tint for OK
-        and NOK, the grey-lilac for the neutral (Unspecified), and Warning's amber box, where the purple words clear
+        and NOK, a light tint of the blue for Unspecified, and Warning's amber box, where the purple words clear
         4.5:1.
 
     Args:
@@ -711,7 +719,7 @@ def Label_Ground(verdict: str) -> str:
         (1) parameter [string]: The ground colour as '#rrggbb'.
     """
 
-    grounds = {'OK': CONST_OK_LABEL_GROUND, 'NOK': CONST_NOK_LABEL_GROUND, 'Unspecified': CONST_DETECTION_LABEL_GROUND}
+    grounds = {'OK': CONST_OK_LABEL_GROUND, 'NOK': CONST_NOK_LABEL_GROUND, 'Unspecified': CONST_UNSPECIFIED_LABEL_GROUND}
     return grounds.get(verdict, Verdict_Color(verdict)[0])
 
 
@@ -752,8 +760,6 @@ def Detection_Mask_Outline() -> str:
 #   Unit [string] (hex colour) / [Tuple<string> 1x3] (box, ink, fill)
 CONST_DETECTION_MASK_OUTLINE, CONST_DETECTION_MASK_FILL = Neutral_Mask_Colors(CONST_DETECTION_INK)
 CONST_DETECTION_COLORS = (CONST_DETECTION_BOX, CONST_DETECTION_INK, CONST_DETECTION_MASK_FILL)
-# Unspecified is not judged, so it takes the neutral ink and mask fill, with its own box (see CONST_UNSPECIFIED_BOX).
-CONST_VERDICT_COLORS['Unspecified'] = (CONST_UNSPECIFIED_BOX, CONST_DETECTION_INK, CONST_DETECTION_MASK_FILL)
 # The Camera View's heatmap colours: cividis (Nuñez, Anderton & Renslow, 2018), 17 anchors taken from
 # matplotlib's map at equal steps and expanded to 256 colours in L*a*b* (Heatmap_Colors). Cividis, not
 # viridis: viridis passed ΔE 4.2 from the previous OK verdict's ink and 12.0 from the previous status green;

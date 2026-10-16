@@ -596,7 +596,7 @@ class Analysis_Str(object):
     # The verdict-badge wording (e.g. 'Empty', '1 found', 'Low confidence').
     #   Unit [string]
     Verdict: str = 'Idle'
-    # The verdict severity that drives the badge colour: 'ok' | 'warn' | 'idle'.
+    # The verdict severity that drives the badge colour: 'ok' | 'warn' | 'fail' | 'unspecified' | 'idle'.
     #   Unit [string]
     Verdict_Level: str = 'idle'
     # The human-readable name of what produced the reading — the configuration's Identity.Task, or the

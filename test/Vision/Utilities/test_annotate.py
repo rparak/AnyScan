@@ -347,8 +347,8 @@ def test_the_catalogue_states_render_in_their_colours_on_both_images() -> None:
     """
     Description:
         A Warning object is drawn in the amber box on the frame and on the mask, filled with the amber
-        tint; an Unspecified one in the neutral box on the frame, and on the mask filled with the neutral
-        fill and outlined in the mask's derived neutral — the neutral box misses the floor on the black ground.
+        tint; an Unspecified one in the blue #33A3FF on the frame, and on the mask outlined in the same blue and filled
+        with its own tint, the old neutral nowhere.
     """
 
     scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)
@@ -356,14 +356,15 @@ def test_the_catalogue_states_render_in_their_colours_on_both_images() -> None:
     annotated = Annotate.Draw_Annotated(scene, objects, cv2, np, verdict_colored=True)
     mask = Annotate.Draw_Label_Mask(objects, scene.shape, cv2, np, verdict_colored=True)
     warn_box, _, warn_fill = Theme.Verdict_Color('Warning')
-    neutral_box, _, neutral_fill = Theme.Verdict_Color('Unspecified')
+    blue, _, blue_fill = Theme.Verdict_Color('Unspecified')
+    assert (blue, blue_fill) == ('#33A3FF', '#748DB1')
 
     assert __Has_Bgr(annotated, Theme.Hex_To_Bgr(warn_box)) and __Has_Bgr(mask, Theme.Hex_To_Bgr(warn_box))
     assert tuple(int(c) for c in mask[70, 70]) == Theme.Hex_To_Bgr(warn_fill)
-    assert __Has_Bgr(annotated, Theme.Hex_To_Bgr(neutral_box))
-    assert tuple(int(c) for c in mask[240, 340]) == Theme.Hex_To_Bgr(neutral_fill)
-    assert __Has_Bgr(mask, Theme.Hex_To_Bgr(Theme.Detection_Mask_Outline()))
-    assert not __Has_Bgr(mask, Theme.Hex_To_Bgr(neutral_box))
+    assert __Has_Bgr(annotated, Theme.Hex_To_Bgr(blue)) and __Has_Bgr(mask, Theme.Hex_To_Bgr(blue))
+    assert tuple(int(c) for c in mask[240, 340]) == Theme.Hex_To_Bgr(blue_fill)
+    for old in ('#655E6D', Theme.Detection_Mask_Outline(), Theme.Detection_Color()[2]):
+        assert not __Has_Bgr(annotated, Theme.Hex_To_Bgr(old)) and not __Has_Bgr(mask, Theme.Hex_To_Bgr(old)), old
 
 
 def __Circle(cx: float, cy: float, r: float) -> tp.List[tp.Tuple[float, float]]:
@@ -567,7 +568,7 @@ def test_each_chip_is_its_box_colour_with_a_white_numeral() -> None:
         pixel is the box colour, white, or a blend on the line between them.
     """
 
-    boxes = {'OK': '#640ABA', 'NOK': '#FF6540', 'Warning': '#FFC226', 'Unspecified': '#655E6D'}
+    boxes = {'OK': '#640ABA', 'NOK': '#FF6540', 'Warning': '#FFC226', 'Unspecified': '#33A3FF'}
     objects = [__Object(150, 40 + 140 * i, size=80, verdict=verdict) for i, verdict in enumerate(boxes)]
     for verdict_colored in (True, False):
         annotated = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8), objects, cv2, np,

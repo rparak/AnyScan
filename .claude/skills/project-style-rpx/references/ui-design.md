@@ -26,9 +26,14 @@ practices followed inconsistently are under **Unsettled**.
 ## A verdict colour never changes; its foreground carries legibility ✅
 
 - The verdict colours are fixed tokens from the JIC Smart Factory palette: OK the purple `#640ABA`, NOK the
-  orange-red `#FF6540` (DD *The fail marker is the JIC orange-red*), Warning the amber `#FFC226`, Unspecified
-  the neutral `#655E6D`, distinct from OK, NOK and Warning (ΔE ≥ 80): within a catalogue mode the neutral never
-  shares a verdict's colour. A detect-only run (Segment Anything) draws every object in one colour, the logo purple
+  orange-red `#FF6540` (DD *The fail marker is the JIC orange-red*), Warning the amber `#FFC226`, and Unspecified
+  the sky blue `#33A3FF` (`Theme.CONST_UNSPECIFIED_BOX`, the owner's choice of 2026-10-16), a verdict colour outside
+  the brand palette like NOK and Warning, with its own text twin `#0065A9` (its hue at L* 41, 6.11:1 on white), mask
+  fill `#748DB1` and badge ground `#C6E4FF`: 2.39:1 on the table, its white numeral 2.68:1 (an accepted exception like
+  the orange-red's and the amber's), ΔE ≥ 74 from OK, NOK and Warning, 45 from the foreign grey, 105 from the area's
+  amber (DD *Unspecified is a sky blue, a verdict colour outside the brand palette*). The neutral ink `#655E6D` is no
+  verdict's colour: it marks only a detect-only mode's words and dots, its derived mask pair and History's outline of
+  a detect-only set. A detect-only run (Segment Anything) draws every object in one colour, the logo purple
   `#640ABA` (`CONST_DETECTION_BOX = CONST_LOGO_INK`, white numeral 9.15:1; table 1.31:1 at ΔE 121, aluminium 3.53:1,
   rust-stained metal 3.02:1, steel 2.32:1). It equals OK, the owner's ruling of 2026-10-15: that mode shows no verdict
   (DD *Every chip carries a white numeral*). One purple: no darker shade of it exists in the theme (DD

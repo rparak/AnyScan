@@ -132,7 +132,7 @@
     <text x="720" y="629" font-size="16.1" fill="#640ABA" font-weight="700" text-anchor="middle">NOK</text>
     <rect x="612" y="648" width="82" height="30" fill="#FFC226"/>
     <text x="653" y="669" font-size="16.1" fill="#640ABA" font-weight="700" text-anchor="middle">Warning</text>
-    <rect x="702" y="648" width="108" height="30" fill="#E1DCE6"/>
+    <rect x="702" y="648" width="108" height="30" fill="#C6E4FF"/>
     <text x="756" y="669" font-size="16.1" fill="#640ABA" font-weight="700" text-anchor="middle">Unspecified</text>
     <line x1="854" y1="621" x2="886" y2="621" stroke="#640ABA" stroke-width="2.5" stroke-linecap="round" marker-end="url(#arch-tip)"/>
     <text x="832" y="728" font-size="16.1" fill="#6F5783" text-anchor="end">In this mode each object is described after its verdict.</text>

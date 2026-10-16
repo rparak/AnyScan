@@ -301,12 +301,13 @@ def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app,
 
 @pytest.mark.parametrize('level, ground, ink', [('fail', 'CONST_NOK_LABEL_GROUND', 'CONST_INK'),
                                                 ('warn', 'CONST_WARNING_BOX', 'CONST_INK'),
-                                                ('ok', 'CONST_OK_LABEL_GROUND', 'CONST_INK')])
+                                                ('ok', 'CONST_OK_LABEL_GROUND', 'CONST_INK'),
+                                                ('unspecified', 'CONST_UNSPECIFIED_LABEL_GROUND', 'CONST_INK')])
 def test_the_badge_paints_each_verdict_level_legibly(qt_app, level: str, ground: str, ink: str) -> None:
     """
     Description:
         The status badge, rendered: a NOK paints the 'fail' level — the purple on the orange-red's tint, as the
-        poster's defect tag — and the warning and OK levels their own grounds; on each, the darkest painted text
+        poster's defect tag — and the warning, OK and Unspecified (the blue's tint) levels their own grounds; on each, the darkest painted text
         clears 4.5:1 against the ground actually painted, and the ground is the level's token, so a NOK can never
         show another verdict's colour.
     """
