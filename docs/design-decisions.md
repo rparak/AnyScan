@@ -3532,6 +3532,9 @@ its objects took; a card is outlined in its worst state's colour (the status bad
 Warning, OK). The confidence chart's warning-threshold line is drawn in the neutral mid ink instead of the amber
 a Warning object's dot takes; the error line keeps its deep red, which no verdict uses.
 
+*Corrected 2026-10-16:* the filter is All, OK, NOK, Warning again, three states, a Warning of any kind (an older set's
+Unspecified object included) under Warning; the worst-state order is NOK, Warning, OK (*Three states for the operator, a Warning with its kind*).
+
 **Revisit if** a fifth state is added, or the threshold lines need telling apart by more than their dash.
 Tests `test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
 `::test_a_set_is_outlined_in_its_worst_state`,
@@ -3785,8 +3788,8 @@ brand's*; WCAG ratio, ΔE76), each with a plain white numeral:
 **Revisit if** a box colour changes (each ratio is pinned), a numeral is misread on the rig's screen, or a detect-only
 frame is mistaken for a judged one.
 Tests `test/Parameters/test_theme.py::test_every_chip_numeral_is_white`,
-`::test_the_detect_only_box_is_the_logo_purple_and_unspecified_keeps_its_own`,
-`::test_neutral_detection_colour_is_distinct_and_near_achromatic` (Unspecified, within a catalogue mode),
+`::test_the_detect_only_box_is_the_logo_purple`,
+`::test_neutral_detection_colour_is_distinct_and_near_achromatic`,
 `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`,
 `::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline`, `::test_the_palette_keeps_the_brands_rules`,
 `test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_a_white_numeral`,
@@ -4160,7 +4163,9 @@ Tests `test/integration/test_edge_of_view.py` (frames 1, 16, 17 and 19 of the ca
 `::test_the_side_wall_is_seen_only_on_the_edges_facing_the_optical_axis`,
 `test/Vision/Utilities/test_holes.py::test_a_through_hole_in_its_countersink_is_measured_at_the_countersinks_centre`,
 `::test_a_hole_only_one_side_has_shows_that_side`, `::test_edge_distances_are_from_the_top_face_not_the_side_wall`,
-`test/Reporting/test_core.py::test_an_unspecified_part_says_why_it_was_not_judged_and_what_to_do`.
+`test/Reporting/test_core.py::test_a_warning_on_the_part_says_why_it_was_not_judged_and_what_to_do` (*corrected
+2026-10-16:* a part whose sides disagree is a Warning, side unclear, and one whose holes and look disagree a Warning,
+side mismatch, no longer Unspecified (*Three states for the operator, a Warning with its kind*)).
 
 ## A stepped hole's bore is checked for its offset from its step, the camera's shift taken out
 
@@ -4326,12 +4331,17 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_f
 `test/Reporting/test_core.py::test_a_part_outside_the_inspection_area_only_says_to_move_it_inside`,
 `::test_a_part_nok_on_every_side_gives_what_its_readings_share_else_each_with_its_side`,
 `::test_the_badges_show_every_state_that_needs_the_operator`,
-`test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
+`test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`,
 `test/UI/test_inspection_area.py`, `test/Configuration/test_core.py::test_an_inspection_area_too_small_for_the_part_fails_the_load`,
 `test/integration/test_edge_of_view.py` (frames 2, 6, 14 and 21 of `20261016-070531_s1` added as crops),
 `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`.
 
 ## A foreign object is told by what it is, not where it lies
+
+*Corrected 2026-10-16:* what an object is still decides its kind and its reason, unchanged, but no longer its colour: a
+foreign object is drawn in the amber like every Warning, the grey `#B4A6BE` retired as a verdict colour; it reads
+`State: Warning – Foreign object` and is recorded as `warning_kind` `foreign`, and the badge counts it in
+`Warning · n` (*Three states for the operator, a Warning with its kind*).
 
 Decided 2026-10-16, on the owner's rig test (capture `20261016-111250_s1`): the red block, cut by the frame's top border,
 was drawn in the amber of a part outside the inspection area, though DINOv2 had not found it like the plate. The cause:
@@ -4377,7 +4387,7 @@ scores 0.657 or more outside the area; or the catalogue item changes (the satura
 metal under this light, and the similarity threshold its references').
 Tests `test/Vision/Utilities/test_classify.py::test_an_object_resembles_the_part_by_the_rule_or_outside_by_every_position_free_cue`,
 `::test_the_colour_and_extent_cues_read_the_mask`,
-`test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
+`test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`,
 `test/Reporting/test_core.py::test_a_part_outside_the_inspection_area_only_says_to_move_it_inside`,
 `::test_the_badges_show_every_state_that_needs_the_operator`,
 `test/integration/test_edge_of_view.py::test_the_red_block_is_a_foreign_object_wherever_it_lies` (frames 1, 2, 4 and 5 of
@@ -4390,9 +4400,9 @@ one colour: its dashed axis-aligned outer box and its chip carry the verdict (th
 is NOK for any reason, the purple `#640ABA` when OK); its solid rotated outline carries the size check alone, the
 orange-red only when the outline is out of tolerance and the purple whenever it is within, though the part is NOK for a
 stain, a hole, a missing hole or its look (`Annotate.__Outline_Color`). Its feature marks keep their own colours: a
-stain and a missing hole the orange-red, a hole the orange-red only when it fails its check. Warnings (the amber of a
-part outside the area, the grey of a foreign object) and Unspecified objects keep their single colour, and the label
-mask keeps the verdict colour.
+stain and a missing hole the orange-red, a hole the orange-red only when it fails its check. Warnings keep their single
+colour, and the label mask keeps the verdict colour. *Corrected 2026-10-16:* every Warning is the amber, whatever its
+kind, and none has feature marks, a part whose side could not be told included (*Three states for the operator, a Warning with its kind*).
 
 **Why.** The frame then says which check failed: a NOK plate with its stains marked and a purple outline was NOK for
 the stains, not its size, where an all-orange part read as wrong in every respect.
@@ -4436,6 +4446,10 @@ Tests `test/Vision/test_core.py::test_a_part_outside_the_area_is_not_checked_and
 
 ## Unspecified is a sky blue, a verdict colour outside the brand palette
 
+*Superseded 2026-10-16* (*Three states for the operator, a Warning with its kind*): Unspecified is no longer a state. Its causes are Warnings of their own kinds, drawn in
+the amber, and the blue `#33A3FF`, its badge ground `#C6E4FF` and its mask fill `#748DB1` are removed from the theme.
+The entry is kept for the measurements and for reading older records.
+
 Decided 2026-10-16, on the owner's request: Unspecified (not judged: probably several parts, or a side that cannot be
 told) is the sky blue `#33A3FF` (`Theme.CONST_UNSPECIFIED_BOX`), outside the brand palette like the NOK orange-red and
 the Warning amber, replacing the neutral `#655E6D`, which read 1.03:1 on the green table and all but vanished there.
@@ -4463,9 +4477,9 @@ unused.
 
 **Revisit if** a capture shows the blue lost on a surface it lies on (it reads by hue on the table, ΔE 69.8), or an
 operator reads it as OK's periwinkle on the badge.
-Tests `test/Parameters/test_theme.py::test_unspecified_is_a_blue_distinct_from_every_frame_colour`,
+Tests `test/Parameters/test_theme.py::test_every_warning_is_the_amber_and_the_retired_state_colours_are_gone`,
 `::test_every_catalogue_state_has_its_colour`, `::test_every_chip_numeral_is_white`,
-`::test_the_detect_only_box_is_the_logo_purple_and_unspecified_keeps_its_own`,
+`::test_the_detect_only_box_is_the_logo_purple`,
 `::test_label_mask_fill_is_a_visible_tint_of_its_box`,
 `test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`,
 `::test_each_chip_is_its_box_colour_with_a_white_numeral`,
@@ -4474,6 +4488,11 @@ Tests `test/Parameters/test_theme.py::test_unspecified_is_a_blue_distinct_from_e
 `test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output`.
 
 ## A Warning is shown, counted and recorded by its kind
+
+*Superseded 2026-10-16, except the record* (*Three states for the operator, a Warning with its kind*): a Warning is shown, counted, charted and filtered as one state, in
+the amber, its kind told in words (`State: Warning – <kind>`); only point 1, the `warning_kind` in the record, stands,
+extended with the new kinds. `Reporting.Shown_State`, `Theme.State_Color`, the foreign badge ground and mask pair and the
+History kind filters are removed.
 
 Decided 2026-10-16, on the owner's request: the two kinds of Warning, a part outside the inspection area and a
 foreign object, could not be told apart once a reading was counted, charted or stored. Each object's shown state is
@@ -4512,15 +4531,18 @@ grey box itself 3.98:1).
 **Revisit if** a third kind of Warning appears; an older record's plain Warning is better shown under neither kind; or
 the two badges crowd the reading card's head on the rig's screen.
 Tests `test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
-`test/Reporting/test_trends.py::test_a_warning_or_unspecified_object_is_counted_but_neither_ok_nor_nok`,
-`test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_both_warning_kinds_and_unspecified`,
+`test/Reporting/test_trends.py::test_every_warning_is_counted_as_one_state_but_neither_ok_nor_nok`,
+`test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
 `test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
-`::test_a_warning_records_its_kind_and_an_older_set_reads_as_a_plain_warning`,
+`::test_a_warning_records_its_kind_and_an_older_set_reads_into_the_three_states`,
 `test/UI/test_reading_view.py::test_every_badge_shows_at_once_and_wraps_rather_than_clip`,
 `::test_the_badge_paints_each_verdict_level_legibly`,
-`test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`.
+`test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`.
 
 ## Each state has one colour in every view
+
+*Corrected 2026-10-16:* the rule stands with three states, OK `#640ABA`, NOK `#FF6540` and Warning `#FFC226`
+(`Theme.Verdict_Color`); the badges are `NOK · n` and `Warning · n`, or `All OK` (*Three states for the operator, a Warning with its kind*).
 
 Decided 2026-10-16, on the owner's rig test. Every view draws a catalogue state in exactly its frame mark's colour, so the
 operator learns one colour per state: the Camera View's marks, the Trends series, legend swatches and confidence dots,
@@ -4554,7 +4576,7 @@ above.
 **Revisit if** a light state's line is lost on the rig's screen despite its width and edges (the amber line itself is
 1.62:1), or the Foreign object and Total series (ΔE 32.2) are confused there.
 Tests `test/Parameters/test_theme.py::test_every_catalogue_state_has_its_colour`, `::test_the_palette_keeps_the_brands_rules`,
-`test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_both_warning_kinds_and_unspecified`,
+`test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
 `::test_the_confidence_dots_take_their_states_frame_colour_with_a_dark_edge`,
 `test/UI/test_history.py::test_each_state_filter_carries_its_states_frame_colour`,
 `test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
@@ -4786,3 +4808,82 @@ start, the stop on success and on failure, the logger's images, one marker in th
 `::test_the_grid_is_square_cells_across_the_frame`,
 `test/UI/test_preview.py::test_the_preview_shows_the_table_live_with_the_area_and_the_live_marker`,
 `::test_the_scan_shows_its_fresh_frames_under_the_scanning_marker_without_a_scrim`.
+
+## Three states for the operator, a Warning with its kind
+
+Decided 2026-10-16, on the owner's request: a catalogue mode shows the operator three states, OK, NOK and Warning
+(`Parameters.Vision.CONST_VERDICTS`). Warning is one family with a kind (`Catalogue_Result_Str.Warning_Kind`,
+`CONST_WARNING_KINDS`), and the kind is told in words, never in colour. Unspecified had three causes in the code, and
+each is now a kind of its own with the action the operator takes:
+
+| Kind (`warning_kind`) | Operator's name | Cause in the code | Action in its reason |
+|---|---|---|---|
+| `outside` | Outside area | a part (it resembles the plate) whose outline leaves the inspection area (`Settle_Area`) | move it fully inside the area and scan again |
+| `foreign` | Foreign object | not the part: rule step 4 inside the area, or outside it without the plate's cues (`Classify`, `Settle_Area`) | remove it from the surface |
+| `several_parts` | Several parts | was Unspecified, cause `area`: an area of `Unspecified_Area_Ratio` (1.7) times the part's or more, parts touching or lying close together found as one object (`Classify`) | separate the parts and scan again |
+| `side_unknown` | Side unclear | was Unspecified, cause `side`, `undecided`: neither DINOv2's margin nor a hole tells the side, and the per-side readings disagree (`Settle_Side`) | move it nearer the centre and scan again |
+| `side_mismatch` | Side mismatch | was Unspecified, cause `side`, `conflict`: a hole only one side has shows that side, and DINOv2 tells the other by its margin (`Settle_Side`) | check that it is the part and scan it again nearer the centre |
+
+Everywhere the operator meets it:
+
+- **Frame and Mask.** Every Warning is the amber `#FFC226` with the white numeral, its rotated outline, dashed outer box
+  and chip; on the mask the amber outline and its fill `#B28508`. No Warning has feature marks: the rule a part outside
+  the area had is now every Warning's (`Annotate.__Draw_Features` draws only OK and NOK parts' marks). A part whose side
+  could not be told was checked and keeps its features in the record and its readings for the reason, only undrawn.
+- **Scene Understanding.** `State: Warning – <kind>` (`Reporting.State_Word`; OK and NOK keep `State: OK.` and
+  `State: NOK.`), then its reason with the action (`Reporting.__Warning_Sentence`); the log line leads with the same
+  state, at WARNING.
+- **Badges.** One per state present: `NOK · n` (`fail`) and `Warning · n` (`warn`, every kind counted together), or
+  `All OK` (`ok`). The levels `foreign` and `unspecified` are gone; a badge given either paints the idle card.
+- **Trends.** OK, NOK and Warning (plus Total), adding up to the total; each confidence dot its verdict's colour.
+- **History.** Filters All, OK, NOK, Warning; a set is outlined in its worst state, NOK then Warning then OK.
+- **Retired colours.** The foreign grey `#B4A6BE` (badge `#CAC0D3`, mask `#DBCCE5` / `#897C93`) and the Unspecified blue
+  `#33A3FF` (badge `#C6E4FF`, mask `#748DB1`) are removed as tokens from the frame, the mask, the badges, Trends and
+  History (`Theme.State_Color` and the `CONST_FOREIGN_*` and `CONST_UNSPECIFIED_*` tokens with them). **Kept, not a
+  verdict:** `#B4A6BE` stays the disabled control's label (`CONST_CONTROL_DISABLED_TEXT`, `CONST_PRIMARY_DISABLED_TEXT`);
+  `#33A3FF` has no other use and is gone.
+
+**The record.** Each catalogue Warning's object in `_objects.json` carries `verdict: "Warning"` and its
+`warning_kind`, the five kinds above, so the kinds can be analysed later. Older records read into the three states
+without loss (`UI.Capture.__Read_State`): a plain Warning without a kind as a Warning with none; the earlier `outside`
+and `foreign` as written; an `Unspecified` object as a Warning of kind `unspecified` (its cause was never recorded);
+any other kind string as written. The run-summary CSV and the station event file carry no verdicts and are unchanged.
+
+**Measured**, before (`main` at `464defd`) and after, the same 87 frames through the application's pipeline in the
+mounting-plate mode (fallback describer): the 41 of `Data/Images/Test`, the 15 rebuilt edge frames of
+`Data/Images/Edge` and the 31 raw frames of the rig's captures on disk, 231 objects. No OK or NOK changed (42 OK, 36
+NOK). Every other object took its kind one to one: 136 foreign objects (`foreign`), 16 parts outside the area
+(`outside`) and the one Unspecified object, two plates touching in capture `20261016-161110_2` (area 1.99 times the
+part's), `several_parts`. No frame gave a side Unspecified, so `side_unknown` and `side_mismatch` are pinned by unit
+tests only. Rendered and looked at, from the window itself: capture `20261016-174059_6` (OK, NOK, Outside area,
+Foreign object; badges `NOK · 1` and `Warning · 2`) and `20261016-161110_2` (`State: Warning – Several parts`), the
+Annotated and Mask views, Scene Understanding and the Trends chart.
+
+**Given up.** The colour no longer tells a part to move from an object to remove; the words do. A part whose side
+could not be told no longer shows the holes and stains its checks found; its reason says what to do.
+
+**Not changed.** Segment Anything (no verdicts). The configuration field keeps its name, `Unspecified_Area_Ratio`, and
+the shipped mode file's comment still names Unspecified, to leave the mode files alone.
+
+**Revisit if** an operator needs a Warning's kind at a glance on the frame (a kind letter on the chip, not a colour);
+a fourth kind of Warning appears (it needs a name and an action, never a colour); or the mode file is next edited (then
+the ratio's name and comment follow the kind).
+Tests `test/Vision/Utilities/test_classify.py::test_the_verdict_follows_the_rule`,
+`::test_a_part_whose_side_cannot_be_told_keeps_only_a_verdict_every_side_gives`,
+`::test_only_an_object_wholly_inside_the_inspection_area_is_judged`,
+`test/Reporting/test_core.py::test_each_state_reads_as_the_owner_specified`,
+`::test_a_warning_on_the_part_says_why_it_was_not_judged_and_what_to_do`,
+`::test_the_badges_show_every_state_that_needs_the_operator`,
+`test/Reporting/test_trends.py::test_every_warning_is_counted_as_one_state_but_neither_ok_nor_nok`,
+`test/Parameters/test_theme.py::test_every_warning_is_the_amber_and_the_retired_state_colours_are_gone`,
+`::test_every_catalogue_state_has_its_colour`,
+`test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`,
+`::test_a_warning_shows_only_its_outline_outer_box_and_chip`,
+`test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`,
+`::test_every_badge_shows_at_once_and_wraps_rather_than_clip`,
+`test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
+`::test_the_confidence_dots_take_their_states_frame_colour_with_a_dark_edge`,
+`test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
+`::test_a_warning_records_its_kind_and_an_older_set_reads_into_the_three_states`,
+`::test_a_set_is_outlined_in_its_worst_state`, `::test_each_state_filter_carries_its_states_frame_colour`,
+`test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (slow).

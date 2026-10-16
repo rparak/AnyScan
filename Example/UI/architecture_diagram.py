@@ -549,7 +549,8 @@ def Draw_Architecture(logo_svg: str) -> str:
           'one outside is told apart as a part or a foreign object by similarity, size and colour. A judged part is '
           'checked on the side that is up, told by its references or else by its countersinks: its size, its '
           'holes, each bore centred in its countersink with the view angle corrected, and its stains. Each object '
-          'then gets a state: OK, NOK, Outside area, Foreign object or Unspecified. In a catalogue mode each object '
+          'then gets a state: OK, NOK or Warning, a Warning with its kind: outside the area, a foreign object, several '
+          'parts, or a side unclear or mismatched. In a catalogue mode each object '
           'is described after its state, told what the checks found, and a sentence that contradicts them is '
           'dropped. The stages are set up by the mode (models and prompts), which names its station (camera, '
           'light, table and inspection area). The station names its calibration (undistortion and mm per pixel) '
@@ -654,19 +655,20 @@ def Draw_Architecture(logo_svg: str) -> str:
                                             'centred in its countersink', '(view angle corrected)', 'and stains'],
            icon='checklist')
     c.Arrow(612, mid_cat, 640)
-    # The five states, each a label in the purple on its state's ground, as the console's badges and History's filter.
-    h_states = 42 + 4 * 40 - 10
+    # The three states, each a label in the purple on its state's ground, as the console's badges and History's filter,
+    # and under Warning the kinds Scene Understanding names (Parameters.Vision.CONST_WARNING_KINDS).
+    kinds = ['a kind: outside area,', 'foreign object,', 'several parts,', 'side unclear or', 'side mismatch']
+    h_states = 42 + 2 * 40 + 22 * len(kinds) - 6
     top_states = y_cat + (h_cat - h_states) / 2
     c.Rect(646, y_cat, 186, h_cat, T.CONST_CARD, T.CONST_CARD_BORDER)
     c.Text(670, top_states + 22, 'State', S[6], T.CONST_INK, weight='700')
     c.Icon(832 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top_states + 22), 'badge', T.CONST_INK_SOFT)
-    for state, ground, x_chip, row, w_chip in [('OK', 'OK', 670, 0, 64), ('NOK', 'NOK', 742, 0, 72),
-                                               ('Outside area', 'Warning', 670, 1, 122),
-                                               ('Foreign object', 'Foreign', 670, 2, 136),
-                                               ('Unspecified', 'Unspecified', 670, 3, 116)]:
+    for state, x_chip, row, w_chip in [('OK', 670, 0, 64), ('NOK', 742, 0, 72), ('Warning', 670, 1, 98)]:
         y_chip = top_states + 42 + 40 * row
-        c.Rect(x_chip, y_chip, w_chip, 30, T.Label_Ground(ground))
+        c.Rect(x_chip, y_chip, w_chip, 30, T.Label_Ground(state))
         c.Text(x_chip + w_chip / 2, y_chip + 21, state, S[2], T.CONST_INK, weight='700', anchor='middle')
+    for i, line in enumerate(kinds):
+        c.Text(670, top_states + 42 + 2 * 40 + 14 + 22 * i, line, S[2], T.CONST_INK_SOFT)
     c.Arrow(854, mid_cat, 886)
     # In a catalogue mode the description comes last: it is written with what the checks found, and held to it.
     for i, line in enumerate(['In this mode each object is described after its state, told what the checks found,',

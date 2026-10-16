@@ -650,9 +650,10 @@ The most cut plate measured, a stained front 88.5 mm out with a corner off the r
 scored 0.668, 0.011 above the threshold. A plate with less of it in view (only a corner) was never measured and may
 score under it.
 
-- **Impact:** such a plate would be drawn grey and told "It is not the part … remove it from the surface" instead of
-  amber and "move it fully inside the area"; its verdict is a Warning either way, and the operator moves it either
-  way.
+- **Impact:** such a plate would read `State: Warning – Foreign object` and be told "It is not the part … remove it
+  from the surface" instead of `Warning – Outside area` and "move it fully inside the area", and be recorded with
+  `warning_kind` `foreign`; it is drawn in the amber either way (one colour for every Warning since 2026-10-16), its
+  verdict is a Warning either way, and the operator moves it either way.
 - **Not fixed here:** only captures can tell: plates cut by each border with less and less of them in view
   (docs/capture-checklist.md, 3d), and foreign objects of the plate's grey cut by it.
 - **Pinned by:** `test/Vision/Utilities/test_classify.py::test_an_object_resembles_the_part_by_the_rule_or_outside_by_every_position_free_cue`

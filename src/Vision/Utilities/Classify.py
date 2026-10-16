@@ -28,7 +28,7 @@ import typing as tp
 # Custom Lib.: AnyScan domain — the detection, scale, catalogue and identification structures
 #   ../Parameters/Vision
 from Parameters.Vision import (Detection_Str, Scale_Str, Catalogue_Result_Str, Hole_Count_Str, Dimension_Check_Str,
-                               Stain_Str, Crop_View_Str)
+                               Stain_Str, Crop_View_Str, CONST_PART_WARNING_KINDS)
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Item_Str
 #   ../Parameters/Configuration
@@ -43,18 +43,19 @@ Description:
     and NumPy injected. The rule, in order (docs/design-decisions.md, "A catalogue mode identifies by
     similarity, and an object of the part's shape that does not look like it is NOK"):
 
-        (1) area >= Unspecified_Area_Ratio x the part's      -> Unspecified (probably several parts)
+        (1) area >= Unspecified_Area_Ratio x the part's      -> Warning, several parts (touching or close)
         (2) similarity >= Identify_Similarity                  -> the part: OK when every dimension
                                                                   check passes, else NOK
         (3) outline within the part's tolerance (below (2))    -> the part, NOK: its shape, not its look
-        (4) anything else                                      -> Warning (not the part)
+        (4) anything else                                      -> Warning, a foreign object (not the part)
 
     Then a part judged OK or NOK has its holes checked on the side up (Vision.Utilities.Holes, Apply_Holes):
     a missing or extra hole, or a hole out of tolerance, makes it NOK; and its stains, on a side that has the
     check (Apply_Stain). The side up is DINOv2's when its margin tells, or shown by a hole only that side has
-    (Decide_Side); when neither tells, the part is judged on every side and a verdict that differs by side is
-    Unspecified (Settle_Side). Last, any object whose outline leaves the station's inspection area (a rectangle
-    inset from the frame's edges, Inspection_Area_Px) is a Warning, never judged (Settle_Area); a part identified
+    (Decide_Side); when neither tells, the part is judged on every side and a verdict that differs by side is a
+    Warning, its side unclear, as is one whose holes and look show different sides, a side mismatch (Settle_Side).
+    Last, any object whose outline leaves the station's inspection area (a rectangle inset from the frame's edges,
+    Inspection_Area_Px) is a Warning, never judged (Settle_Area), outside the area or foreign; a part identified
     there is not checked. Whether an object resembles the part (Resembles_Part) is told apart from
     where it lies: an object the rule identified does, and outside the area, where a cut or far plate scores lower,
     an object that resembles it by its similarity, colour and visible extent; any other is a foreign object.
@@ -369,10 +370,10 @@ def Settle_Side(det: Detection_Str, verdicts: tp.Dict[str, str], how: str) -> No
     """
     Description:
         A judged part's verdict once its side is known or not (Decide_Side), in place. Decided ('similarity',
-        'holes'): it stands. Conflicting: Unspecified. Undecided: each side's checks were run on it ('verdicts'); a
-        verdict every side gives stands — an object of the part's shape that does not look like it is NOK on
-        either — and one that differs by side is Unspecified, so a front with the side unknown is never passed for
-        a clean back. A part already Unspecified stays so.
+        'holes'): it stands. Conflicting: a Warning, 'side_mismatch'. Undecided: each side's checks were run on it
+        ('verdicts'); a verdict every side gives stands — an object of the part's shape that does not look like it
+        is NOK on either — and one that differs by side is a Warning, 'side_unknown', so a front with the side
+        unknown is never passed for a clean back. A part already a Warning stays so.
 
     Args:
         (1) det [Detection_Str(object)]: The part, judged and checked on its decided side (mutated).
@@ -381,9 +382,12 @@ def Settle_Side(det: Detection_Str, verdicts: tp.Dict[str, str], how: str) -> No
     """
 
     det.Catalogue.Side_Evidence = how
-    differs = how == 'conflict' or (how == 'undecided' and len(set(verdicts.values())) > 1)
-    if det.Verdict in ('OK', 'NOK') and differs:
-        det.Verdict, det.Catalogue.Unspecified_Cause = 'Unspecified', 'side'
+    if det.Verdict not in ('OK', 'NOK'):
+        return
+    if how == 'conflict':
+        det.Verdict, det.Catalogue.Warning_Kind = 'Warning', 'side_mismatch'
+    elif how == 'undecided' and len(set(verdicts.values())) > 1:
+        det.Verdict, det.Catalogue.Warning_Kind = 'Warning', 'side_unknown'
 
 
 def Inspection_Area_Px(frame_size: tp.Tuple[int, int], scale: Scale_Str, long_edge_inset_mm: float,
@@ -488,11 +492,11 @@ def Resembles_Part(det: Detection_Str, saturation: float, extent_mm: float, Cata
     """
     Description:
         Whether an object resembles the catalogue part, in place (det.Catalogue.Resembles, with the cues read): one the
-        verdict rule identified (OK, NOK, Unspecified) does; one it did not, outside the inspection area, where a cut or
-        far plate scores lower than the rule's similarity, does when every position-free cue says so: its similarity
-        at least CONST_OUTSIDE_SIMILARITY, its mean saturation at most CONST_PART_MAX_SATURATION and its visible
-        extent at most the part's diagonal plus its outline tolerance. Inside the area an object the rule did not
-        identify never does. Holes are not a cue: a foreign object can have one (the red block's countersink).
+        verdict rule identified (OK, NOK, a Warning of a kind in CONST_PART_WARNING_KINDS) does; one it did not,
+        outside the inspection area, where a cut or far plate scores lower than the rule's similarity, does when every
+        position-free cue says so: its similarity at least CONST_OUTSIDE_SIMILARITY, its mean saturation at most
+        CONST_PART_MAX_SATURATION and its visible extent at most the part's diagonal plus its outline tolerance. Inside
+        the area an object the rule did not identify never does. Holes are not a cue: a foreign object can have one (the red block's countersink).
 
     Args:
         (1) det [Detection_Str(object)]: The object, classified, its Outside_Area set (mutated).
@@ -504,7 +508,7 @@ def Resembles_Part(det: Detection_Str, saturation: float, extent_mm: float, Cata
     result = det.Catalogue
     result.Saturation, result.Extent_Mm = saturation, extent_mm
     outline = Catalogue_Item_Str.Outline
-    if det.Verdict in ('OK', 'NOK', 'Unspecified'):
+    if det.Verdict in ('OK', 'NOK') or result.Warning_Kind in CONST_PART_WARNING_KINDS:
         result.Resembles = True
         return
     result.Resembles = (result.Outside_Area and result.Similarity >= CONST_OUTSIDE_SIMILARITY
@@ -517,16 +521,17 @@ def Settle_Area(det: Detection_Str, inside: bool) -> None:
     Description:
         An object's verdict once where it lies is known, in place: one whose outline leaves the inspection area is a
         Warning, whatever it was, since the final verdict is given only inside the area, and no check runs on it
-        (Vision.Core). Inside the area the verdict stands.
+        (Vision.Core): 'outside' when it resembles the part (Resembles_Part, run first), else 'foreign'. Inside the
+        area the verdict stands.
 
     Args:
-        (1) det [Detection_Str(object)]: The object, classified (mutated).
+        (1) det [Detection_Str(object)]: The object, classified, its Resembles set (mutated).
         (2) inside [bool]: Whether its outline lies inside the area (Inside_Area).
     """
 
     det.Catalogue.Outside_Area = not inside
     if not inside:
-        det.Verdict, det.Catalogue.Unspecified_Cause = 'Warning', ''
+        det.Verdict, det.Catalogue.Warning_Kind = 'Warning', 'outside' if det.Catalogue.Resembles else 'foreign'
 
 
 def Best_Turn(object_rows: tp.Any, reference_rows: tp.Any, sides: tp.List[str], side: str) -> int:
@@ -643,13 +648,13 @@ def Classify(det: Detection_Str, similarity: float, side: str, Catalogue_Item_St
                                          Verified_Radius_Mm=CONST_VERIFIED_RADIUS_MM)
     outline_within = bool(det.Dimension_Checks) and all(check.Within for check in det.Dimension_Checks)
     if area_ratio >= thresholds.Unspecified_Area_Ratio:
-        det.Verdict, det.Catalogue.Unspecified_Cause = 'Unspecified', 'area'
+        det.Verdict, det.Catalogue.Warning_Kind = 'Warning', 'several_parts'
     elif similarity >= thresholds.Identify_Similarity:
         det.Verdict = 'OK' if outline_within else 'NOK'
     elif outline_within:
         det.Verdict = 'NOK'
     else:
-        det.Verdict = 'Warning'
+        det.Verdict, det.Catalogue.Warning_Kind = 'Warning', 'foreign'
 
 
 def Apply_Holes(det: Detection_Str, counts: tp.List[Hole_Count_Str], checks: tp.List[Dimension_Check_Str]) -> None:

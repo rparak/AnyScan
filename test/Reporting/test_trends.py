@@ -263,27 +263,28 @@ def test_x_labels_thin_onto_round_numbers_without_overlap() -> None:
         assert all(b - a >= step / 2.0 for a, b in zip(numbers, numbers[1:])), numbers
 
 
-def test_a_warning_or_unspecified_object_is_counted_but_neither_ok_nor_nok() -> None:
+def test_every_warning_is_counted_as_one_state_but_neither_ok_nor_nok() -> None:
     """
     Description:
-        A catalogue mode's Warnings, counted by kind, the parts outside the inspection area and the foreign objects, and
-        its Unspecified (not judged) objects count in the total but in neither the OK nor the NOK series — an object that
-        is not judged did not pass — and in series of their own, so the five add up to the total; each dot keeps its
-        shown state for its colour.
+        A catalogue mode's Warnings, of every kind (outside the area, a foreign object, several parts, a side unclear),
+        count in the total but in neither the OK nor the NOK series — an object that is not judged did not pass — and
+        in the one Warning series, so the three add up to the total and no series is left for a kind; each dot keeps
+        its verdict for its colour.
     """
 
     from Parameters.Vision import Catalogue_Result_Str
-    outside, foreign = _Det(0.9, 'Warning'), _Det(0.9, 'Warning')
-    outside.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=True)
-    foreign.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=False)
+    kinds = ('outside', 'foreign', 'several_parts', 'side_unknown')
+    warnings = [_Det(0.9, 'Warning') for _kind in kinds]
+    for det, kind in zip(warnings, kinds):
+        det.Catalogue = Catalogue_Result_Str(Warning_Kind=kind)
     acc = Trends_Accumulator_Cls()
-    acc.Add_Analysis([_Det(0.9, 'OK'), outside, foreign, _Det(0.9, 'Unspecified'), _Det(0.9, 'NOK')])
+    acc.Add_Analysis([_Det(0.9, 'OK')] + warnings + [_Det(0.9, 'NOK')])
     last = acc.Images()[-1]
-    assert (last.Cumulative_Total, last.Cumulative_Ok, last.Cumulative_Nok) == (5, 1, 1)
-    assert (last.Cumulative_Outside, last.Cumulative_Foreign, last.Cumulative_Unspecified) == (1, 1, 1)
-    assert [obj.Verdict for obj in last.Objects] == ['OK', 'Outside', 'Foreign', 'Unspecified', 'NOK']
-    acc.Add_Analysis([foreign] * 2)
+    assert (last.Cumulative_Total, last.Cumulative_Ok, last.Cumulative_Nok, last.Cumulative_Warning) == (6, 1, 1, 4)
+    assert [obj.Verdict for obj in last.Objects] == ['OK', 'Warning', 'Warning', 'Warning', 'Warning', 'NOK']
+    acc.Add_Analysis(warnings[:2])
     last = acc.Images()[-1]
-    assert (last.Foreign, last.Cumulative_Foreign, last.Cumulative_Outside) == (2, 3, 1)
-    assert (last.Cumulative_Ok + last.Cumulative_Nok + last.Cumulative_Outside + last.Cumulative_Foreign
-            + last.Cumulative_Unspecified) == last.Cumulative_Total
+    assert (last.Warning, last.Cumulative_Warning) == (2, 6)
+    assert last.Cumulative_Ok + last.Cumulative_Nok + last.Cumulative_Warning == last.Cumulative_Total
+    assert not any(hasattr(last, name) for name in ('Outside', 'Foreign', 'Unspecified', 'Cumulative_Outside',
+                                                     'Cumulative_Foreign', 'Cumulative_Unspecified'))

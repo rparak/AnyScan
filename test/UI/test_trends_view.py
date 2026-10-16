@@ -166,45 +166,44 @@ def test_clear_empties_the_charts_with_the_aggregates(qt_app, reference_backgrou
     assert _Private(window, '__status').images.Value() == '0'
 
 
-def test_a_catalogue_run_charts_ok_nok_both_warning_kinds_and_unspecified(qt_app, tmp_path) -> None:
+def test_a_catalogue_run_charts_ok_nok_and_warning(qt_app, tmp_path) -> None:
     """
     Description:
-        In a catalogue mode the objects chart draws a series per state beside the total — OK and NOK, the Warnings by
-        kind, 'Outside area' and 'Foreign object', and the Unspecified ones — named in its legend and its hover, so the
-        parts outside the area and the foreign objects are counted apart; rendered, every state's series paints exactly
-        its frame mark's colour (the owner's rule: one colour per state), its markers edged in its hue's dark shade, and
-        no darker chart variant appears. Segment Anything charts the total alone.
+        In a catalogue mode the objects chart draws a series per state beside the total — OK, NOK and Warning, every
+        kind of Warning in the one series — named in its legend and its hover, so the three add up to the total;
+        rendered, every state's series paints exactly its frame mark's colour (the owner's rule: one colour per state),
+        its markers edged in its hue's dark shade, and neither the retired grey and blue nor a darker chart variant
+        appears. Segment Anything charts the total alone.
     """
 
     from Reporting.Trends import Trends_Accumulator_Cls
     from UI.Views.Trends import Objects_Chart_Cls
     from PyQt5.QtGui import QColor
-    from Parameters.Theme import State_Color, Chart_Edge
+    from Parameters.Theme import Verdict_Color, Chart_Edge
     from Parameters.Vision import Catalogue_Result_Str
-    objects = [Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=0.9, Verdict=verdict)
-               for verdict in ('OK', 'Warning', 'Warning', 'NOK', 'Unspecified', 'Warning')]
-    for det, resembles in zip(objects[1:3] + objects[5:], (True, False, False)):
-        det.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=resembles)
+    objects = [Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=0.9, Verdict=verdict.partition('-')[0],
+                             Catalogue=Catalogue_Result_Str(Warning_Kind=verdict.partition('-')[2]))
+               for verdict in ('OK', 'Warning-outside', 'Warning-foreign', 'NOK', 'Warning-several_parts',
+                               'Warning-side_unknown')]
     acc = Trends_Accumulator_Cls()
     acc.Add_Analysis(objects)
     chart = Objects_Chart_Cls()
     chart.resize(600, 300)
     chart.Set_Data(acc.Images(), True)
-    assert [label for label, _color in chart._legend] == ['Total', 'OK', 'NOK', 'Outside area', 'Foreign object',
-                                                         'Unspecified']
-    assert chart._Hover_Lines(0)[-1][0] == 'OK 1 · NOK 1 · Outside area 1 · Foreign object 2 · Unspecified 1'
+    assert [label for label, _color in chart._legend] == ['Total', 'OK', 'NOK', 'Warning']
+    assert chart._Hover_Lines(0)[-1][0] == 'OK 1 · NOK 1 · Warning 4'
     image = chart.grab().toImage()
     painted = {image.pixelColor(x, y).name() for x in range(image.width()) for y in range(image.height())}
-    for state in ('OK', 'NOK', 'Outside', 'Foreign', 'Unspecified'):
-        assert State_Color(state)[0].lower() in painted, state                    # the frame mark's colour itself
-        assert Chart_Edge(State_Color(state)[0]).lower() in painted, state        # its markers' dark edge
-    for darker in ('#7C5B00', '#4F4952', '#0065A9', '#BA260B'):                   # no darker chart variant left
-        assert darker.lower() not in painted, darker
-    assert dict(chart._legend)['Foreign object'] == '#B4A6BE' and dict(chart._legend)['Outside area'] == '#FFC226'
-    # The marker itself is edged: round the Foreign object point (image 1, two objects) its hue's dark shade is painted.
+    for state in ('OK', 'NOK', 'Warning'):
+        assert Verdict_Color(state)[0].lower() in painted, state                  # the frame mark's colour itself
+        assert Chart_Edge(Verdict_Color(state)[0]).lower() in painted, state      # its markers' dark edge
+    for retired in ('#B4A6BE', '#33A3FF', '#42374B', '#003E6C', '#7C5B00', '#4F4952', '#0065A9', '#BA260B'):
+        assert retired.lower() not in painted, retired
+    assert dict(chart._legend)['Warning'] == '#FFC226'
+    # The marker itself is edged: round the Warning point (image 1, four objects) its hue's dark shade is painted.
     rect = chart._Plot_Rect()
-    cx, cy = chart._Px_X(1.0, rect), chart._Px_Y(2.0, rect)
-    edge = QColor(Chart_Edge(State_Color('Foreign')[0]))
+    cx, cy = chart._Px_X(1.0, rect), chart._Px_Y(4.0, rect)
+    edge = QColor(Chart_Edge(Verdict_Color('Warning')[0]))
     ring = [image.pixelColor(int(round(cx + 4 * dx)), int(round(cy + 4 * dy)))
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (0.7, 0.7), (-0.7, 0.7), (0.7, -0.7), (-0.7, -0.7))]
     assert any(max(abs(c.red() - edge.red()), abs(c.green() - edge.green()), abs(c.blue() - edge.blue())) <= 40
@@ -244,19 +243,18 @@ def test_the_warning_threshold_line_is_not_the_warning_verdicts_amber(qt_app, re
 def test_the_confidence_dots_take_their_states_frame_colour_with_a_dark_edge(qt_app) -> None:
     """
     Description:
-        In a catalogue run each object's confidence dot is drawn in exactly its state's frame colour — a part outside the
-        area the amber, a foreign object the grey, Unspecified the blue — edged in its hue's dark shade, as the series and
-        the frame marks; no darker chart variant is painted.
+        In a catalogue run each object's confidence dot is drawn in exactly its state's frame colour — every Warning, of
+        any kind, the amber — edged in its hue's dark shade, as the series and the frame marks; neither the retired
+        grey and blue nor a darker chart variant is painted.
     """
 
     from Reporting.Trends import Trends_Accumulator_Cls
     from UI.Views.Trends import Confidence_Chart_Cls
-    from Parameters.Theme import State_Color, Chart_Edge
+    from Parameters.Theme import Verdict_Color, Chart_Edge
     from Parameters.Vision import Catalogue_Result_Str, Confidence_Thresholds_Str
-    objects = [Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=score, Verdict=verdict)
-               for score, verdict in ((0.95, 'Warning'), (0.55, 'Warning'), (0.25, 'Unspecified'))]
-    objects[0].Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=True)
-    objects[1].Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=False)
+    objects = [Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=score, Verdict='Warning',
+                             Catalogue=Catalogue_Result_Str(Warning_Kind=kind))
+               for score, kind in ((0.95, 'outside'), (0.55, 'foreign'), (0.25, 'several_parts'))]
     acc = Trends_Accumulator_Cls()
     acc.Add_Analysis(objects)
     chart = Confidence_Chart_Cls()
@@ -269,7 +267,6 @@ def test_the_confidence_dots_take_their_states_frame_colour_with_a_dark_edge(qt_
         target = tuple(int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
         return any(max(abs(a - b) for a, b in zip(pixel, target)) <= tolerance for pixel in pixels)
 
-    for state in ('Outside', 'Foreign', 'Unspecified'):
-        assert Near(State_Color(state)[0], 24) and Near(Chart_Edge(State_Color(state)[0]), 10), state
-    for darker in ('#7C5B00', '#4F4952', '#0065A9'):
-        assert not Near(darker, 2), darker
+    assert Near(Verdict_Color('Warning')[0], 24) and Near(Chart_Edge(Verdict_Color('Warning')[0]), 10)
+    for retired in ('#B4A6BE', '#33A3FF', '#42374B', '#003E6C', '#7C5B00', '#4F4952', '#0065A9'):
+        assert not Near(retired, 2), retired

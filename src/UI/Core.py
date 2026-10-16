@@ -222,7 +222,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # Whether the camera has connected in this run: from then on configuration is fixed, and
         # it stays fixed through DISCONNECT — changing it means restarting the application.
         self.__has_connected = False
-        # Whether it classifies (a catalogue mode: OK / NOK / Unspecified / Warning) or only detects: it
+        # Whether it classifies (a catalogue mode: OK / NOK / Warning) or only detects: it
         # governs what LIVE produces — the
         # annotation colours (verdict vs one neutral colour) and the flag recorded on each new
         # capture set. It does NOT govern how History renders a set, which reads how each set was
@@ -1696,7 +1696,7 @@ class AnyScan_Window_Cls(QMainWindow):
                                                       describe_ms=times.Describe_Ms, tokens=tokens)
                 else:
                     self.__logger.Log_Object_Detected(det.Label, confidence, det.Bbox)
-                # A catalogue mode's verdict on it, with its reason: Warning and Unspecified at WARNING; then a judged
+                # A catalogue mode's verdict on it, with its reason: a Warning, with its kind, at WARNING; then a judged
                 # part's evidence, part by part, each measured value with what was expected.
                 if det.Catalogue is not None:
                     level, line = Verdict_Log_Line(index, det)

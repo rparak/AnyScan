@@ -85,11 +85,12 @@ def _Write_Full(writer, session_id, set_id, classification=False, run_id='', tas
     from Parameters.Vision import Catalogue_Result_Str
     objects = _Objects()
     for det, verdict in zip(objects, verdicts):
-        # 'Warning-outside' / 'Warning-foreign': a catalogue Warning of that kind, recorded; a plain 'Warning' has no
-        # catalogue evidence, so no kind is recorded, as in a set written before 2026-10-16.
-        det.Verdict = verdict.split('-')[0]
-        if '-' in verdict:
-            det.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=verdict.endswith('-outside'))
+        # 'Warning-<kind>': a catalogue Warning of that kind, recorded; a plain 'Warning' has no catalogue evidence, so
+        # no kind is recorded, and 'Unspecified' is written as given: the records of a set written before 2026-10-16.
+        det.Verdict, _dash, kind = verdict.partition('-')
+        if kind:
+            det.Catalogue = Catalogue_Result_Str(Warning_Kind=kind, Outside_Area=kind == 'outside',
+                                                 Resembles=kind != 'foreign')
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
                                   task, 1180, 91, '', classification, run_id, scale=None,
                                   configuration='Config_Test_Mode_A.yaml',
@@ -141,68 +142,95 @@ def _Settle(app, milliseconds: int = 300) -> None:
 def test_each_state_filter_lists_every_set_holding_that_state(qt_app, tmp_path) -> None:
     """
     Description:
-        For sets written WITH classification the filter is shown, one segment per state and each state's count
-        under it, and a set is listed under every state its objects took: OK, NOK, Outside area, Foreign object and
-        Unspecified each show exactly the sets holding one, the two Warning kinds apart. A set written before the kind was
-        recorded (a plain Warning) is listed under both kinds. A state no set holds shows a message saying so, not a
-        blank panel.
+        For sets written WITH classification the filter is shown, one segment per state — All, OK, NOK, Warning — and
+        each state's count under it, and a set is listed under every state its objects took: a Warning of any kind is
+        listed under Warning, and so are an older set's plain Warning and its Unspecified object. A state no set holds
+        shows a message saying so, not a blank panel.
     """
 
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set_ok', classification=True)
     _Write_Full(writer, 'sessionA', 'set_nok', classification=True, verdicts=('OK', 'NOK'))
     _Write_Full(writer, 'sessionA', 'set_outside', classification=True, verdicts=('Warning-outside', 'Warning-outside'))
-    _Write_Full(writer, 'sessionA', 'set_foreign', classification=True, verdicts=('OK', 'Warning-foreign'))
+    _Write_Full(writer, 'sessionA', 'set_kinds', classification=True, verdicts=('OK', 'Warning-several_parts'))
     _Write_Full(writer, 'sessionA', 'set_older', classification=True, verdicts=('Warning', 'OK'))
+    _Write_Full(writer, 'sessionA', 'set_unspecified', classification=True, verdicts=('Unspecified', 'OK'))
 
     view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     shown = lambda: sorted(card.Cap().Set_Id for card in _Private(view, '__cards'))
     assert _Private(view, '__filter').isVisibleTo(view)   # a classified run -> filter present
-    assert shown() == ['set_foreign', 'set_nok', 'set_ok', 'set_older', 'set_outside']
+    assert len(shown()) == 6
     labels = [button.text() for button in _Private(view, '__filter').findChildren(QPushButton)]
-    assert labels == ['All', 'OK', 'NOK', 'Outside area', 'Foreign object', 'Unspecified']
-    assert _Private(view, '__counts').text() == \
-        'OK 4  ·  NOK 1  ·  Outside area 2  ·  Foreign object 2  ·  Unspecified 0'
-    for key, expected in (('ok', ['set_foreign', 'set_nok', 'set_ok', 'set_older']), ('nok', ['set_nok']),
-                          ('outside', ['set_older', 'set_outside']), ('foreign', ['set_foreign', 'set_older'])):
+    assert labels == ['All', 'OK', 'NOK', 'Warning']
+    assert _Private(view, '__counts').text() == 'OK 5  ·  NOK 1  ·  Warning 4'
+    for key, expected in (('ok', ['set_kinds', 'set_nok', 'set_ok', 'set_older', 'set_unspecified']), ('nok', ['set_nok']),
+                          ('warning', ['set_kinds', 'set_older', 'set_outside', 'set_unspecified'])):
         _Set_Filter(view, key)
         assert shown() == expected, key
-    _Set_Filter(view, 'unspecified')
-    assert shown() == []
-    assert _Private(view, '__list_box').itemAt(0).widget().text() == 'No object that could not be judged in this run.'
     _Set_Filter(view, 'all')
-    assert len(_Private(view, '__cards')) == 5            # restored
+    assert len(_Private(view, '__cards')) == 6            # restored
+    view.close()
+    clean = tmp_path / 'clean'
+    _Write_Full(Capture_Writer_Cls(str(clean)), 'sessionA', 'set_ok', classification=True)
+    view = History_View_Cls(str(clean), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
+    view.Refresh()
+    _Set_Filter(view, 'warning')
+    assert shown() == []
+    assert _Private(view, '__list_box').itemAt(0).widget().text() == 'No Warning in this run.'
+    view.close()
 
 
-def test_a_warning_records_its_kind_and_an_older_set_reads_as_a_plain_warning(qt_app, tmp_path) -> None:
+def test_a_warning_records_its_kind_and_an_older_set_reads_into_the_three_states(qt_app, tmp_path) -> None:
     """
     Description:
-        Each Warning object's record carries its kind ('warning_kind': 'outside' or 'foreign'), read back with the set; an
-        older record without it reads as a plain Warning, unchanged. A set's outline is painted in its worst state's
-        colour: a part outside the area amber, a foreign object grey, an older plain Warning amber as before.
+        Each Warning object's record carries the verdict 'Warning' and its kind ('warning_kind': outside, foreign,
+        several_parts, side_unknown or side_mismatch), read back with the set, so the kinds can be analysed later.
+        Older records read into the three states without loss: a plain Warning without a kind as a Warning with none,
+        the earlier outside and foreign kinds as written, an Unspecified object as a Warning of kind 'unspecified', and
+        a kind this version does not know kept as written. Every set holding a Warning, of any kind, is outlined in the
+        amber; one holding a NOK in the orange-red.
     """
 
     import json
-    from Parameters.Theme import State_Color
+    from Parameters.Theme import Verdict_Color
+    from Parameters.Vision import CONST_WARNING_KINDS
+    from UI.Capture import Read_Capture_Set
     writer = Capture_Writer_Cls(str(tmp_path))
-    _Write_Full(writer, 'sessionA', 'set_outside', classification=True, verdicts=('Warning-outside', 'OK'))
-    _Write_Full(writer, 'sessionA', 'set_foreign', classification=True, verdicts=('Warning-foreign', 'OK'))
+    kinds = [kind for kind, _name in CONST_WARNING_KINDS]
+    for kind in kinds:
+        _Write_Full(writer, 'sessionA', 'set_' + kind, classification=True, verdicts=('Warning-' + kind, 'OK'))
     _Write_Full(writer, 'sessionA', 'set_older', classification=True, verdicts=('Warning', 'OK'))
-    records = {name: json.load(open(os.path.join(str(tmp_path), 'sessionA', name + '_objects.json')))['objects']
-               for name in ('set_outside', 'set_foreign', 'set_older')}
-    assert [record.get('warning_kind') for record in records['set_outside']] == ['outside', None]
-    assert [record.get('warning_kind') for record in records['set_foreign']] == ['foreign', None]
-    assert 'warning_kind' not in records['set_older'][0]
+    _Write_Full(writer, 'sessionA', 'set_unspecified', classification=True, verdicts=('Unspecified', 'NOK'))
+    _Write_Full(writer, 'sessionA', 'set_later', classification=True, verdicts=('Warning-outside', 'OK'))
+    session = os.path.join(str(tmp_path), 'sessionA')
+    records = {name: json.load(open(os.path.join(session, name + '_objects.json')))['objects']
+               for name in ['set_' + kind for kind in kinds] + ['set_older', 'set_unspecified']}
+    for kind in kinds:
+        assert [(record['verdict'], record.get('warning_kind')) for record in records['set_' + kind]] == \
+            [('Warning', kind), ('OK', None)], kind
+    assert 'warning_kind' not in records['set_older'][0] and records['set_unspecified'][0]['verdict'] == 'Unspecified'
+    later = os.path.join(session, 'set_later_objects.json')
+    data = json.load(open(later))
+    data['objects'][0]['warning_kind'] = 'glare'
+    json.dump(data, open(later, 'w'))
+    read = {name: [(obj.Verdict, obj.Warning_Kind) for obj in Read_Capture_Set(session, 'sessionA', name).Objects]
+            for name in ['set_' + kind for kind in kinds] + ['set_older', 'set_unspecified', 'set_later']}
+    for kind in kinds:
+        assert read['set_' + kind] == [('Warning', kind), ('OK', '')], kind
+    assert (read['set_older'], read['set_unspecified'], read['set_later']) == \
+        ([('Warning', ''), ('OK', '')], [('Warning', 'unspecified'), ('NOK', '')], [('Warning', 'glare'), ('OK', '')])
     view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     sets = {cap.Set_Id: cap for cap in _Private(view, '__sets')}
-    assert (sets['set_outside'].Worst_State(), sets['set_foreign'].Worst_State(), sets['set_older'].Worst_State()) == \
-        ('Outside', 'Foreign', 'Warning')
-    for name, state in (('set_outside', 'Outside'), ('set_foreign', 'Foreign'), ('set_older', 'Warning')):
+    assert {name: cap.Worst_State() for name, cap in sets.items()} == \
+        {name: 'NOK' if name == 'set_unspecified' else 'Warning' for name in sets}
+    for name in ('set_foreign', 'set_side_unknown', 'set_older', 'set_unspecified'):
         setattr(view, '_History_View_Cls__selected_id', name)
         view.Refresh()
-        assert _Outline_Rgb(view) == tuple(int(State_Color(state)[0][i:i + 2], 16) for i in (1, 3, 5)), name
+        assert _Outline_Rgb(view) == _Rgb(Verdict_Color(sets[name].Worst_State())[0]), name
+    assert _Rgb(Verdict_Color('Warning')[0]) == _Rgb('#FFC226')
+    view.close()
 
 
 def test_selecting_a_full_set_renders_the_object_list(qt_app, tmp_path) -> None:
@@ -293,12 +321,15 @@ def test_a_set_is_outlined_in_its_worst_state(qt_app, tmp_path) -> None:
     """
     Description:
         A classified set's card is outlined in its worst verdict's colour, in the status badge's order: a NOK
-        beside an OK is NOK, an Unspecified object beside an OK is the neutral colour, a Warning the amber.
+        beside an OK or a Warning is NOK; a Warning of any kind beside an OK, an older set's Unspecified object
+        too, is the amber.
     """
 
     from Parameters.Theme import Verdict_Color
-    for verdicts, worst in ((('OK', 'NOK'), 'NOK'), (('OK', 'Unspecified'), 'Unspecified'), (('OK', 'Warning'), 'Warning')):
-        root = tmp_path / worst
+    for name, verdicts, worst in (('nok', ('OK', 'NOK'), 'NOK'), ('unspecified', ('OK', 'Unspecified'), 'Warning'),
+                                  ('warning', ('OK', 'Warning-side_mismatch'), 'Warning'),
+                                  ('both', ('Warning-several_parts', 'NOK'), 'NOK')):
+        root = tmp_path / name
         _Write_Full(Capture_Writer_Cls(str(root)), 'sessionA', 'set', classification=True, verdicts=verdicts)
         view = History_View_Cls(str(root), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
         view.Refresh()
@@ -762,16 +793,15 @@ def test_each_state_filter_carries_its_states_frame_colour(qt_app, tmp_path) -> 
     """
     Description:
         Each state's segment of History's filter carries a swatch in exactly that state's frame colour, as the Trends
-        legend and the Camera View's marks (OK #640ABA, NOK #FF6540, Outside area #FFC226, Foreign object #B4A6BE,
-        Unspecified #33A3FF), edged in its hue's dark shade; All carries none.
+        legend and the Camera View's marks (OK #640ABA, NOK #FF6540, Warning #FFC226, every kind), edged in its hue's
+        dark shade; All carries none, and there are no other segments.
     """
 
     from Parameters.Theme import Chart_Edge
     view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     buttons = {button.text(): button for button in _Private(view, '__filter').findChildren(QPushButton)}
-    assert buttons['All'].icon().isNull()
-    for label, colour in (('OK', '#640ABA'), ('NOK', '#FF6540'), ('Outside area', '#FFC226'), ('Foreign object', '#B4A6BE'),
-                          ('Unspecified', '#33A3FF')):
+    assert buttons['All'].icon().isNull() and sorted(buttons) == ['All', 'NOK', 'OK', 'Warning']
+    for label, colour in (('OK', '#640ABA'), ('NOK', '#FF6540'), ('Warning', '#FFC226')):
         image = buttons[label].icon().pixmap(20, 20).toImage()
         centre = QColor(image.pixel(image.width() // 2, image.height() // 2)).name()
         rim = QColor(image.pixel(1, image.height() // 2)).name()

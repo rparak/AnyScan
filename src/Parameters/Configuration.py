@@ -173,8 +173,9 @@ class Identification_Parameters_Str:
     # the 50 x 50 square plates 0.23-0.43. docs/design-decisions.md has the rule.
     #   Unit [float]
     Identify_Similarity: float = 0.75
-    # The area, as a multiple of the part's nominal area, from which an object is Unspecified (probably
-    # several parts together) and not judged. The request's value.
+    # The area, as a multiple of the part's nominal area, from which an object is a Warning, several parts (touching
+    # or lying close together), and not judged; named for Unspecified, the state it gave until 2026-10-16. The
+    # request's value.
     #   Unit [float]
     Unspecified_Area_Ratio: float = 1.7
 
@@ -278,7 +279,7 @@ class Configuration_Str:
     def Classifies(self) -> bool:
         """
         Description:
-            Whether this configuration judges objects (OK / NOK / Unspecified / Warning) and shows the
+            Whether this configuration judges objects (OK / NOK / Warning) and shows the
             verdict UI: exactly when it is a catalogue mode. The switch that once said so,
             General.Classification.Enabled, is removed (docs/design-decisions.md).
 

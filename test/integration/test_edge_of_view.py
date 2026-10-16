@@ -49,7 +49,7 @@ Description:
     block, a real back 58 mm out). Three of capture 20261015-180933_s1: the stained front again (DINOv2's margin
     -0.076, the widest wrong one measured) and two clean fronts 60 mm out, where DINOv2 tells the front by less than
     its margin and the countersinks decide. Four of the rig's capture 20261016-111250_s1, the red block inside the area
-    and cut by its top border, which must stay a foreign object (grey) there. Four of capture 20261016-070531_s1: the stained front cut by the right
+    and cut by its top border, which must stay a foreign object there. Four of capture 20261016-070531_s1: the stained front cut by the right
     border and failing identification (frame 2, similarity 0.738, its outline cut to 61.56 mm), cut by it and still
     identified by its outline (frame 6), whole but over the top and right edges of the inspection area (frame 14, read
     Unspecified 71 mm out by the radius rule this replaced), and a clean front inside the area 56 mm out (frame 21).
@@ -193,10 +193,9 @@ def test_a_plate_by_the_edge_is_outside_the_area_and_not_checked(name: str, requ
         Frame 6 of 20261016-070531_s1 is cut by the frame's border and still identified by its outline.
     """
 
-    from Vision.Utilities.Annotate import Foreign
     (det,) = _Objects(name, require_weights, monkeypatch)
-    assert (det.Verdict, det.Catalogue.Outside_Area, det.Catalogue.Resembles, Foreign(det)) == ('Warning', True, True,
-                                                                                              False)
+    assert (det.Verdict, det.Catalogue.Outside_Area, det.Catalogue.Resembles, det.Catalogue.Warning_Kind) == \
+        ('Warning', True, True, 'outside')
     assert (det.Features, det.Hole_Counts, det.Hole_Checks, det.Stains) == ([], [], [], None)
     assert Reason_Sentence(det) == CONST_OUTSIDE
 
@@ -228,7 +227,7 @@ def test_a_cut_plate_that_fails_identification_is_outside_the_area_with_no_marks
     """
 
     (det,) = _Objects('20261016-070547_2', require_weights, monkeypatch)
-    assert (det.Verdict, det.Catalogue.Outside_Area) == ('Warning', True)
+    assert (det.Verdict, det.Catalogue.Outside_Area, det.Catalogue.Warning_Kind) == ('Warning', True, 'outside')
     assert det.Catalogue.Similarity < det.Catalogue.Identify_Similarity
     assert Reason_Sentence(det) == CONST_OUTSIDE
     assert (det.Features, det.Hole_Counts, det.Stains) == ([], [], None)
@@ -276,18 +275,17 @@ def test_the_red_block_is_a_foreign_object_wherever_it_lies(name: str, require_w
     """
     Description:
         The red block does not resemble the mounting plate, inside the inspection area or cut by the frame's top border:
-        it is a Warning drawn as a foreign object (Annotate.Foreign, the grey), never as a part outside the area (the
-        amber), with no marks. Inside the area it should not be on the surface; outside it, it is named as a foreign
-        object to remove, not a part to move. Its colour rules it out (mean saturation above 100, every plate 40 at
-        most) even where its similarity would not.
+        it is a Warning of kind 'foreign', never a part outside the area ('outside'), with no marks. Inside the area it
+        should not be on the surface; outside it, it is named as a foreign object to remove, not a part to move. Its
+        colour rules it out (mean saturation above 100, every plate 40 at most) even where its similarity would not.
     """
 
-    from Vision.Utilities.Annotate import Foreign
     (block,) = [det for det in _Objects(name, require_weights, monkeypatch) if det.Catalogue.Saturation > 100.0]
-    assert (block.Verdict, block.Catalogue.Resembles, Foreign(block), block.Features) == ('Warning', False, True, [])
+    assert (block.Verdict, block.Catalogue.Resembles, block.Catalogue.Warning_Kind, block.Features) == \
+        ('Warning', False, 'foreign', [])
     assert Reason_Sentence(block) == ('It is not the part and lies outside the inspection area: remove it from the '
                                       'surface.' if block.Catalogue.Outside_Area else
-                                      'The object should not be on the surface.')
+                                      'It is not the part, so it should not be there: remove it from the surface.')
     assert block.Catalogue.Outside_Area == (name != '20261016-111254_1')
 
 
@@ -296,13 +294,12 @@ def test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber(requi
     """
     Description:
         On the rig's frame 5 the stained front lies over the area's top edge beside the cut red block: it resembles the
-        part (identified, similarity 0.750), so it is the amber part outside the area, never grey, and not checked: its
+        part (identified, similarity 0.750), so it is a Warning of kind 'outside', never 'foreign', and not checked: its
         stains are neither marked nor named.
     """
 
-    from Vision.Utilities.Annotate import Foreign
     objects = _Objects('20261016-111340_5', require_weights, monkeypatch)
     (plate,) = [det for det in objects if det.Catalogue.Saturation <= 100.0]
-    assert (plate.Verdict, plate.Catalogue.Outside_Area, plate.Catalogue.Resembles, Foreign(plate)) == \
-        ('Warning', True, True, False)
+    assert (plate.Verdict, plate.Catalogue.Outside_Area, plate.Catalogue.Resembles, plate.Catalogue.Warning_Kind) == \
+        ('Warning', True, True, 'outside')
     assert (Reason_Sentence(plate), plate.Features, plate.Stains) == (CONST_OUTSIDE, [], None)

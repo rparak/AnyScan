@@ -615,7 +615,8 @@ def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference
         Through a real Analyze (stand-in models, the real stages around them, the stand-in identifier
         matching by size, the stand-in segmenter drawing the plate's front holes on its crop): a part of the
         plate's size and look, its holes where the catalogue puts them, is OK, its side the reference it
-        matched; a small part is a Warning and is not hole-checked; and the catalogue checks' time is carried
+        matched; a small part is a Warning, a foreign object, and is not hole-checked, the badge counting it with
+        every Warning ('Warning · 1'); and the catalogue checks' time is carried
         beside the measurement's. The rule's every branch is pinned in test_classify and test_holes; this pins
         that Analyze applies them to every object.
     """
@@ -634,7 +635,7 @@ def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference
     assert plate.Catalogue is not None and small.Catalogue is not None
     assert plate.Catalogue.Identify_Similarity == 0.75 and plate.Catalogue.Unspecified_Area_Ratio == 1.7
     assert plate.Catalogue.Side in ('front', 'back')
-    assert small.Verdict == 'Warning'
+    assert (small.Verdict, small.Catalogue.Warning_Kind) == ('Warning', 'foreign')
     assert plate.Catalogue.Similarity == 1.0 and small.Catalogue.Similarity == 0.0
     assert plate.Verdict == 'OK' and [c.Within for c in plate.Dimension_Checks] == [True, True]
     assert [(c.Name, c.Found, c.Expected) for c in plate.Hole_Counts] == [('countersink', 2, 2), ('through-hole', 2, 2)]
@@ -646,8 +647,8 @@ def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference
     assert plate.Catalogue.Side_Name in ('machined front', 'unmachined back')
     assert 'It lies with its' not in small.Sentence
     # The badge states the worst verdict, recomposed after the verdicts: a Warning beside an OK part.
-    assert (result.Verdict, result.Verdict_Level) == ('Foreign object · 1', 'foreign')
-    assert result.Badges == [('Foreign object · 1', 'foreign')]
+    assert (result.Verdict, result.Verdict_Level) == ('Warning · 1', 'warn')
+    assert result.Badges == [('Warning · 1', 'warn')]
     assert result.Timing.Identification_Ms is not None
 
 
@@ -858,6 +859,7 @@ def test_a_part_outside_the_area_is_not_checked_and_described_without_holes_or_s
     result = pipeline.Analyze(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
     plate, = result.Objects
     assert (plate.Verdict, plate.Catalogue.Outside_Area, plate.Catalogue.Resembles) == ('Warning', True, True)
+    assert plate.Catalogue.Warning_Kind == 'outside'
     assert (plate.Features, plate.Hole_Counts, plate.Hole_Checks, plate.Stains) == ([], [], [], None)
     assert all(shape[0] >= 1200 for shape in _Private_Segmenter(pipeline).segmented)       # the frame only, no crop
     assert Reason_Sentence(plate) == ('It lies outside the inspection area, so it is not judged: move it fully inside '

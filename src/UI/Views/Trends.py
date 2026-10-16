@@ -37,7 +37,7 @@ from UI.Widgets import Card_Cls, Card_Head_Cls
 #   ../Reporting/Trends
 from Reporting.Trends import Nice_Ticks, Value_To_Pixel, Nearest_Index, Thin_Label_Indices
 #   ../Parameters/Theme
-from Parameters.Theme import State_Color, Detection_Color, Chart_Edge
+from Parameters.Theme import Verdict_Color, Detection_Color, Chart_Edge
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str
 #   ../Parameters/General — the one default for the classification flag
@@ -91,10 +91,9 @@ def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
     """
     Description:
         The objects chart's per-state series when the run classifies, as (label, Trend_Image_Str attribute,
-        colour): OK, NOK, the Warnings by kind — the parts outside the inspection area ('Outside area') and the
-        foreign objects ('Foreign object') — and the Unspecified ones, so the five add up to the total, each in
-        exactly its frame mark's colour (State_Color()[0], the owner's rule of 2026-10-16: one colour per state, learnt
-        once). The light ones (the amber 1.62:1, the grey 2.30:1, the blue 2.68:1, the orange-red 2.92:1 on white) read
+        colour): OK, NOK and Warning (every kind), so the three add up to the total, each in exactly its frame mark's
+        colour (Verdict_Color()[0], the owner's rule of 2026-10-16: one colour per state, learnt once). The light ones
+        (the amber 1.62:1, the orange-red 2.92:1 on white) read
         on the white card by a thicker line (CONST_STATE_LINE_W) and markers edged in their hue's dark shade
         (Theme.Chart_Edge, 11:1). The total is the muted purple-grey, since the OK line is the purple.
 
@@ -102,10 +101,8 @@ def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
         (1) parameter [Vector<Tuple<string> 1x3>]: The series, in legend order.
     """
 
-    return [('OK', 'Cumulative_Ok', State_Color('OK')[0]), ('NOK', 'Cumulative_Nok', State_Color('NOK')[0]),
-            ('Outside area', 'Cumulative_Outside', State_Color('Outside')[0]),
-            ('Foreign object', 'Cumulative_Foreign', State_Color('Foreign')[0]),
-            ('Unspecified', 'Cumulative_Unspecified', State_Color('Unspecified')[0])]
+    return [('OK', 'Cumulative_Ok', Verdict_Color('OK')[0]), ('NOK', 'Cumulative_Nok', Verdict_Color('NOK')[0]),
+            ('Warning', 'Cumulative_Warning', Verdict_Color('Warning')[0])]
 
 
 class Chart_Base_Cls(QWidget):
@@ -456,7 +453,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
     """
     Description:
         Chart 1 — the cumulative object count against the analysed-image index. One Total series,
-        plus one series per state (OK, NOK, Outside area, Foreign object, Unspecified) when the run classifies. The
+        plus one series per state (OK, NOK, Warning) when the run classifies. The
         final Total point equals the status bar's OBJECTS DETECTED and the last x equals IMAGES ANALYSED; a failed analysis never
         advances x, because the accumulator is only fed successful analyses.
 
@@ -631,7 +628,7 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
             for position, obj in enumerate(row.Objects):
                 offset = 0.0 if count == 1 else ((position - (count - 1) / 2.0)
                                                  * (spacing * CONST_JITTER_FRACTION) / count)
-                color = State_Color(obj.Verdict)[0] if self.__classified else neutral
+                color = Verdict_Color(obj.Verdict)[0] if self.__classified else neutral
                 dot = QColor(color)
                 dot.setAlpha(220)
                 painter.setBrush(QBrush(dot))

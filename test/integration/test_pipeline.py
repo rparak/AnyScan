@@ -119,11 +119,12 @@ def _Warnings(n: int) -> tp.Tuple[str, ...]:
 
 # The states an object can take in the catalogue mode.
 #   Unit [Tuple<string>]
-CONST_STATES = ('OK', 'NOK', 'Unspecified', 'Warning')
+CONST_STATES = ('OK', 'NOK', 'Warning')
 # Each frame's expected verdicts in the mounting-plate mode, in no particular order. Labelled by eye from the
 # frames, on the owner's rulings (2026-10-11): the 'aluminium plate' (front, clean) and the 'dark rusted plate'
 # (back) are OK; the 'rust-stained plate' (front, brown fingerprint stains) is NOK; every other object, the
-# 50 x 50 square plates among them, is a Warning. No frame shows two plates touching, so none is Unspecified.
+# 50 x 50 square plates among them, is a Warning. No frame shows two plates touching, so none is a Warning of kind
+# several parts.
 # Every plate here is nominal in size (no calipers; the owner's ruling: a part within tolerance reads OK), so no
 # NOK is a size. Since 2026-10-16 a part is judged only wholly inside the station's inspection area: Image_062's clean
 # front (20.8 mm out, its long side upright) reaches into the band along the top edge, so it is a Warning, not
@@ -491,14 +492,16 @@ def test_each_frame_gets_its_expected_verdicts(name: str, require_weights, monke
     """
     Description:
         Through the application's pipeline (FastSAM and DINOv2 on the CPU, the model-free describer) in the
-        mounting-plate mode, every frame's objects take exactly the labelled states — OK, NOK, Unspecified,
-        Warning, counted, since the labels are in no particular order. The reference frames are in the run like
+        mounting-plate mode, every frame's objects take exactly the labelled states — OK, NOK, Warning, counted,
+        since the labels are in no particular order — and every Warning carries a kind the record knows. The reference frames are in the run like
         any other; the harness reports them apart. Slow because it runs both models; missing weights fail it
         under --runslow.
     """
 
     objects = _Catalogue_Objects(name, require_weights, monkeypatch)
     assert collections.Counter(det.Verdict for det in objects) == collections.Counter(CONST_EXPECTED_VERDICTS[name])
+    from Parameters.Vision import CONST_WARNING_KINDS
+    assert all(det.Catalogue.Warning_Kind in dict(CONST_WARNING_KINDS) for det in objects if det.Verdict == 'Warning')
 
 
 def _Catalogue_Objects(name: str, require_weights, monkeypatch) -> tp.List[tp.Any]:

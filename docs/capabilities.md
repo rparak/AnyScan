@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `1d489e7` (2026-10-16).
+Last reviewed against the code at commit `464defd` (2026-10-16).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -107,16 +107,16 @@ then composes and measures. The numbers are the ones the README and the mode fil
   length, the shorter against the width, each within the tolerance.
 - **Identification and verdict** (catalogue modes only). Each object's crop, turned upright, is compared
   with the item's front and back reference images by DINOv2 base: the best similarity and the side. Then
-  the rule: Unspecified when its area is 1.7× the part's or more; the part when the similarity is 0.75 or
-  more (OK if its outline is within tolerance, else NOK); the part and NOK when only its outline matches;
-  otherwise Warning. A size checked more than 46.4 mm from the frame centre is not verified there: the session
+  the rule: a Warning, several parts, when its area is 1.7× the part's or more; the part when the similarity is
+  0.75 or more (OK if its outline is within tolerance, else NOK); the part and NOK when only its outline matches;
+  otherwise a Warning, a foreign object. A size checked more than 46.4 mm from the frame centre is not verified there: the session
   log notes it, Scene Understanding does not, and the verdict does not depend on it
   ([*A catalogue mode identifies by similarity…*](design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok)).
   A part judged OK or NOK then has its holes found by FastSAM on its upright crop, and its side up decided:
   DINOv2's side when its margin over the other side is 0.265 or more, otherwise the side shown by a hole only that
   side has (the mounting plate's countersinks show its front wherever it lies); with neither, the part is judged
-  on both sides and a verdict that differs by side is Unspecified, as is a hole evidence that contradicts a
-  decisive DINOv2; NOK on both sides, its reason gives what both readings share, or, with nothing shared, each
+  on both sides and a verdict that differs by side is a Warning, side unclear, and a hole evidence that contradicts
+  a decisive DINOv2 a Warning, side mismatch; NOK on both sides, its reason gives what both readings share, or, with nothing shared, each
   reading's findings with its side named. Its holes are checked on that side: each catalogue group counted near its positions, each
   hole's diameter, edge distances and pitch within tolerance, a stepped hole's position measured at its step's
   centre and every edge distance from the top face's edges, the side wall seen off the optical axis left out, and a
@@ -135,7 +135,13 @@ then composes and measures. The numbers are the ones the README and the mode fil
   whose similarity (0.657 or more), colour (mean saturation 76 or less) and visible extent (73.6 mm or less) all
   resemble the plate. A foreign object outside the area is told to be removed, not moved; no marks
   ([*A catalogue mode judges only inside the inspection area*](design-decisions.md#a-catalogue-mode-judges-only-inside-the-inspection-area)).
-  An Unspecified object's reason names its cause (several parts, or its side) and what to do.
+  **Three states.** Every object is OK, NOK or Warning, and a Warning carries one of five kinds, each with the
+  operator's action in its reason: *Outside area* (move it fully inside the area and scan again), *Foreign object*
+  (remove it from the surface), *Several parts* (its area 1.7× the part's or more, parts touching or lying close
+  together: separate the parts and scan again), *Side unclear* (neither look nor holes tell the side and the
+  verdict depends on it: move it nearer the centre and scan again) and *Side mismatch* (holes and look show
+  different sides: check that it is the part and scan it again nearer the centre)
+  ([*Three states for the operator, a Warning with its kind*](design-decisions.md#three-states-for-the-operator-a-warning-with-its-kind)).
   The verdict colours the frame and the mask and sets the badge; its state and reasons are in Scene
   Understanding, and the log adds the side ("by its holes" when they decided it) and the similarity. An OK or NOK
   part's description gains the side that is up, in the catalogue's words.
@@ -165,7 +171,7 @@ it names. The modes shipped today:
   ([*A catalogue item is the single tracked source…*](design-decisions.md#a-catalogue-item-is-the-single-tracked-source-for-its-part-and-its-descriptions-wait-for-the-describer), corrected). It identifies the item and its
   side, checks the outline, the holes and stains by their colour
   ([*A judged part's stains…*](design-decisions.md#a-judged-parts-stains-are-a-colour-band-on-its-upright-crop-from-1-mm²)),
-  and gives every object one of four states, each NOK with its reasons. It then describes a judged part
+  and gives every object one of three states, each NOK with its reasons and each Warning with its kind. It then describes a judged part
   with what the checks found, every hole group in words ("no through-holes", "both countersinks"), never a
   number, and told to describe holes and stains only as features it sees, never the checks. A description
   contradicting the hole or the stain check either way (holes claimed that were not found, found holes denied, a
@@ -230,17 +236,16 @@ Two cards:
   only dashed feature marks); a stain as its box with its pixels tinted; each feature numbered on a smaller chip
   (`3.1`, the number of its `Part` line in the Log) on the corner of its box nearest the object's chip, turned with
   that box and never more than 45° off level, never over another chip; a part identified outside the inspection
-  area has only its outline, outer box and chip, in the amber, no feature mark; a foreign object (a Warning
-  that does not resemble the part, wherever it lies) has its outline, box and chip in a grey-lilac grey instead of
-  the amber, on the frame only; a judged part's solid rotated outline carries its size check alone (orange-red only
+  area, and every other Warning whatever its kind, has only its outline, outer box and chip, in the amber with the
+  white numeral, no feature mark; a judged part's solid rotated outline carries its size check alone (orange-red only
   when out of tolerance, purple otherwise, though the part is NOK for a stain, a hole or its look), its dashed outer
   box and chip its verdict; otherwise each object's box and chip are its state's
-  colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified the sky blue `#33A3FF`, and every
+  colour, OK the purple, NOK the orange-red, Warning the amber `#FFC226`, and every
   object of a detect-only mode (Segment Anything) the logo purple `#640ABA`; the chip's number is plain
   white on every chip, in every state and mode; a missing hole is placed by the holes found, a countersink's
   through-hole by the countersink, and a countersink around its through-hole, found or placed),
   **Mask** (the label mask: black ground,
-  tinted fill, verdict contour, a foreign object in the grey's pair and a part outside the area in the amber's; no
+  tinted fill, verdict contour, every Warning in the amber's pair; no
   feature marks), **Heatmap** (the background difference on a fixed 0–128
   scale, under a legend naming the threshold applied, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
@@ -263,20 +268,20 @@ Two cards:
   Similarity), on screen only: the saved images never carry it. Segment Anything shows none.
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
-  each object adds `State: …`, one `Reason: …` sentence summing up why it is not OK (counts in words up to
+  each object adds `State: OK.`, `State: NOK.` or `State: Warning – <kind>` (`State: Warning – Outside area`), one
+  `Reason: …` sentence summing up why it is not OK, a Warning's with what to do (counts in words up to
   ten: "One of two through-holes is missing, and there are two stains on the machined front."), and a note when
   missing holes are not marked on the frame (no hole found to place them by: which end of the part they belong at
   cannot be told). The measured and expected values, part by part (Part 2.3 · …), the similarity and, beyond the
-  verified zone, the size note are in the log. The badge states the worst verdict, in the purple on its verdict's ground: `NOK · n of m` (the orange-red's
-  tint), `Outside the area · n` (the amber), `Foreign object · n` (the grey) and `Not judged · n` (the blue's tint),
-  each shown when present, all at once, wrapping onto a second row in a narrow card; `All OK · n` (the periwinkle)
-  when none is; outside a catalogue
+  verified zone, the size note are in the log. One badge per state present, in the purple on its state's ground:
+  `NOK · n` (the orange-red's tint) and `Warning · n` (the amber, every kind counted together), both at once,
+  wrapping onto a second row in a narrow card; `All OK` (the periwinkle) when neither is; outside a catalogue
   mode, `n found`.
 
 ### Trends
 
 Two charts of the current run: **Detected objects** (cumulative; in a catalogue mode also per verdict —
-OK, NOK, Outside area, Foreign object and Unspecified, which add up to the total, each in its frame mark's own colour
+OK, NOK and Warning, which add up to the total, each in its frame mark's own colour
 on a thicker line with dark-edged markers) and **Confidence** (per-object scores, each dot its state's colour, dark-edged; the
 frame mean and the running run mean; the warning threshold's dashed line in the neutral mid ink, so a
 Warning object's amber dot is not read as part of it). Both read one accumulator, so the last point and
@@ -288,9 +293,9 @@ A browser of the current run's capture sets: thumbnails grouped by connection, t
 set's Annotated and Mask side by side, its record, and an **Info** panel holding the reading as it
 stood at analysis time. A failed analysis shows its raw frame under a failure banner. Earlier runs'
 sets stay on disk but are not listed. In a catalogue run a filter lists the sets by state — All, OK, NOK,
-Outside area, Foreign object, Unspecified, each with its count and its state's colour swatch — a set under every state its objects took (an
-older set's Warning, whose kind was not recorded, under both kinds), and each card is outlined in its worst
-state's colour (a part outside the area amber, a foreign object grey).
+Warning, each with its count and its state's colour swatch — a set under every state its objects took (a Warning
+of any kind, an older set's Unspecified object included, under Warning), and each card is outlined in its worst
+state's colour (NOK, then Warning, then OK).
 
 ### Log
 
@@ -400,7 +405,7 @@ across all connections, and the oldest are evicted first. A failed analysis writ
 | `_understanding.txt` | The Scene Understanding text, for people. Nothing parses it. |
 | `.txt` | YOLO box records, one line per object. The ids are per-frame indices, not classes. |
 | `_seg.txt` | YOLO segmentation polygons (outer contour only). |
-| `_objects.json` | The machine-readable record: per object and per set, with the configuration, the station and calibration file names (from 2026-10-13; older sets read them as empty), reference, camera, lens and lighting; a judged part's features as its `parts` (number, kind, pass, box, checks, area, text, score), an additive field older sets load without; a Warning's kind as its `warning_kind` (`outside` or `foreign`, from 2026-10-16; an older set's Warning reads as a plain Warning). |
+| `_objects.json` | The machine-readable record: per object and per set, with the configuration, the station and calibration file names (from 2026-10-13; older sets read them as empty), reference, camera, lens and lighting; a judged part's features as its `parts` (number, kind, pass, box, checks, area, text, score), an additive field older sets load without; a Warning's kind as its `warning_kind` (`outside`, `foreign`, `several_parts`, `side_unknown` or `side_mismatch`; `outside` and `foreign` since 2026-10-16, the other three since the three states). An older set reads into the three states without loss: a Warning without a kind as a plain Warning, an `Unspecified` object as a Warning of kind `unspecified`, any kind as written. |
 
 **Run-summary CSV** — `logger/log_<Hardware>.csv`, one row per application run, shared by every mode
 on that hardware. A file of an older format is renamed aside, never appended to.

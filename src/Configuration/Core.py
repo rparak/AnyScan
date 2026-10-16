@@ -1545,7 +1545,7 @@ def __Check_Identification(Configuration_Str: Configuration_Str, resolution: tp.
     Description:
         A catalogue mode's identification, against the rest of the configuration: the DINOv2 path resolved
         (the model itself is checked when it loads, like the others); an Unspecified ratio above 1, since at
-        1 or below the part itself would be Unspecified; and each reference image the camera window's size,
+        1 or below the part itself would be a Warning, several parts; and each reference image the camera window's size,
         since the part's box in it is in that window's pixels and the reference is cropped from it as a
         frame is.
 
@@ -2301,7 +2301,7 @@ def Config_Loaded_Log_Line(Configuration_Str: Configuration_Str) -> str:
     """
 
     if Configuration_Str.Classifies:
-        state = ('enabled — catalogue item %s (%s): each object is OK, NOK, Unspecified or Warning'
+        state = ('enabled — catalogue item %s (%s): each object is OK, NOK or Warning'
                  % (Configuration_Str.Catalogue.Display_Name, Configuration_Str.Catalogue.Name))
     else:
         state = 'disabled — the UI shows detected objects only, no verdicts'

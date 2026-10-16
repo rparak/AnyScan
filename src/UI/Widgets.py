@@ -287,8 +287,7 @@ class Badge_Cls(QLabel):
     """
     Description:
         The verdict badge, coloured by meaning, as the poster's tags are: the purple words on the OK verdict's
-        ground (the periwinkle), on the NOK verdict's (the orange-red's tint), on Unspecified's (the blue's tint) or on
-        Warning's amber, and muted
+        ground (the periwinkle), on the NOK verdict's (the orange-red's tint) or on Warning's amber, and muted
         on the card otherwise (Style.Label_Ground: the words clear 4.5:1 on every ground).
     """
 
@@ -301,16 +300,15 @@ class Badge_Cls(QLabel):
     def Set_Level(self, level: str) -> None:
         """
         Description:
-            Repaint the badge for a severity level ('ok' | 'warn' | 'fail' | 'unspecified' | 'foreign' | anything else):
-            the ground of the OK, Warning (a part outside the area), NOK, Unspecified or foreign-object state ('fail' is a
-            catalogue mode's NOK, 'unspecified' its objects not judged, 'foreign' its foreign objects, the grey), the idle
-            card otherwise.
+            Repaint the badge for a severity level ('ok' | 'warn' | 'fail' | anything else): the ground of the OK,
+            Warning or NOK state ('fail' is a catalogue mode's NOK, 'warn' its Warnings of every kind, or a detect-only
+            reading's low confidence), the idle card otherwise.
 
         Args:
             (1) level [string]: The severity level.
         """
 
-        verdict = {'ok': 'OK', 'warn': 'Warning', 'fail': 'NOK', 'unspecified': 'Unspecified', 'foreign': 'Foreign'}.get(level)
+        verdict = {'ok': 'OK', 'warn': 'Warning', 'fail': 'NOK'}.get(level)
         if verdict is not None:
             bg = Style.Label_Ground(verdict)
             border, fg = bg, Style.CONST_INK

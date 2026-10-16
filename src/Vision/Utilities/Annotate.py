@@ -28,8 +28,7 @@ import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
 from Parameters.Theme import (Verdict_Color, Detection_Color, Detection_Mask_Outline, Mask_Outline_Color,
-                              Hex_To_Bgr, CONST_CHIP_NUMERAL, CONST_FOREIGN_BOX, CONST_FOREIGN_MASK_OUTLINE,
-                              CONST_FOREIGN_MASK_FILL)
+                              Hex_To_Bgr, CONST_CHIP_NUMERAL)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -106,7 +105,7 @@ CONST_ANNOTATE_CHIP_PAD = 6       # padding (px, at font scale 1) around the num
 # The perceptual distinctness floor (CIE76 ΔE) for the annotation colours: the minimum
 # distance at which two colours read as different marks rather than a near-repeat. The renderer
 # does not read it: it is the CONTRACT the annotation colours must meet — a box against its own
-# fill, Unspecified's neutral against the surfaces it is drawn on — enforced by
+# fill, the neutral against the surfaces it is drawn on — enforced by
 # test/Parameters/test_theme.py::test_neutral_detection_colour_is_distinct_and_near_achromatic.
 # It lives beside the renderer it constrains, not in the test, so the two cannot drift apart.
 #   Unit [float]
@@ -310,7 +309,9 @@ def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float
         - a stain: its box solid, and its pixels under a tint of the fail colour, so its shape shows.
 
         Each feature then carries its part number ('3.1', the log's Part) on a chip like the object's, smaller,
-        belonging to its box and turned with it (__Draw_Feature_Chip).
+        belonging to its box and turned with it (__Draw_Feature_Chip). Only a part judged OK or NOK has its features
+        drawn: a Warning shows its outline, outer box and chip alone, whatever its kind, though a part whose side
+        could not be told was checked and keeps its features in the record.
 
     Args:
         (1) image [Matrix<uint8> HxWx3]: The annotated frame (mutated).
@@ -320,6 +321,7 @@ def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float
         (5) np [module]: The NumPy module, injected by the caller.
     """
 
+    objects = [det for det in objects if det.Verdict in ('OK', 'NOK')]
     if not any(det.Features for det in objects):
         return
     passed, failed = Hex_To_Bgr(Verdict_Color('OK')[0]), Hex_To_Bgr(Verdict_Color('NOK')[0])
@@ -603,30 +605,13 @@ def __Draw_Dashed_Line(image: tp.Any, start: tp.Tuple[float, float], end: tp.Tup
         position = stop + gap
 
 
-def Foreign(det: Detection_Str) -> bool:
-    """
-    Description:
-        Whether an object is foreign in a catalogue mode: a Warning that does not resemble the catalogue part
-        (Catalogue_Result_Str.Resembles), wherever it lies, inside the inspection area or outside it, cut or not; so
-        not supposed to be on the surface at all, told on the frame from a part that only lies outside the area.
-
-    Args:
-        (1) det [Detection_Str(object)]: The object.
-
-    Returns:
-        (1) parameter [bool]: True for a foreign object.
-    """
-
-    return det.Verdict == 'Warning' and det.Catalogue is not None and not det.Catalogue.Resembles
-
-
 def __Outline_Color(det: Detection_Str) -> str:
     """
     Description:
         The colour of an object's solid rotated outline on the annotated frame. For a judged part (OK, NOK) it carries
         its own check, the size: the fail colour when the outline is out of tolerance, the pass colour when it is within,
         whatever else made the part NOK (a stain, a hole, a missing hole, its look), which the outer box and the chip
-        carry. Any other object (a Warning, amber or grey; an Unspecified one) is drawn in one colour, its box's.
+        carry. Any other object (a Warning, of any kind) is drawn in one colour, its box's: the amber.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -637,7 +622,7 @@ def __Outline_Color(det: Detection_Str) -> str:
 
     if det.Verdict in ('OK', 'NOK') and det.Catalogue is not None and det.Dimension_Checks:
         return Verdict_Color('OK' if all(check.Within for check in det.Dimension_Checks) else 'NOK')[0]
-    return CONST_FOREIGN_BOX if Foreign(det) else Verdict_Color(det.Verdict)[0]
+    return Verdict_Color(det.Verdict)[0]
 
 
 def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
@@ -661,11 +646,8 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
         (7) draw_rotated [bool]: Also draw each measured, non-symmetric object's rotated rectangle
                                  (solid), demoting its axis-aligned box to a thin dashed line. The
                                  Camera View's annotated frame does; the label mask does not.
-        (8) on_mask [bool]: The image is the label mask: a verdict drawn in the neutral colour
-                            (Unspecified) takes the mask's derived neutral outline (Mask_Outline_Color). On the
-                            frame a foreign object (Foreign) takes the foreign grey (CONST_FOREIGN_BOX), its
-                            outline, box and chip; on the mask its derived outline (CONST_FOREIGN_MASK_OUTLINE).
-                            On the frame a judged
+        (8) on_mask [bool]: The image is the label mask: each verdict takes its mask outline
+                            (Mask_Outline_Color), every Warning the amber whatever its kind. On the frame a judged
                             part (OK, NOK) colours its marks by their own check: the dashed outer box and the chip
                             by the verdict, the solid rotated outline by the size check alone (__Outline_Color).
     """
@@ -676,8 +658,7 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
     neutral_bgr = Hex_To_Bgr(neutral_hex)
     for i, det in enumerate(objects):
         x, y, w, h = det.Bbox
-        outline = ((CONST_FOREIGN_MASK_OUTLINE if Foreign(det) else Mask_Outline_Color(det.Verdict)) if on_mask
-                   else CONST_FOREIGN_BOX if Foreign(det) else Verdict_Color(det.Verdict)[0])
+        outline = Mask_Outline_Color(det.Verdict) if on_mask else Verdict_Color(det.Verdict)[0]
         color_bgr = Hex_To_Bgr(outline) if verdict_colored else neutral_bgr
         part_bgr = Hex_To_Bgr(__Outline_Color(det)) if verdict_colored and not on_mask else color_bgr
         measurement = det.Measurement
@@ -716,9 +697,8 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
         lightness to stand clear of a light fill — implying no verdict nobody made. Each
         object is filled from its OWN component mask, so two parts that sit close but do not
         touch stay separate shapes; two parts that TOUCH are already one component here
-        (Fuse_Objects), so they render as one shape — see KNOWN_ISSUES.md. A foreign object is filled and outlined
-        with the foreign grey's derived mask pair (Theme.CONST_FOREIGN_MASK_FILL, CONST_FOREIGN_MASK_OUTLINE), as on the
-        frame it is the grey and not the amber of a part outside the inspection area.
+        (Fuse_Objects), so they render as one shape — see KNOWN_ISSUES.md. Every Warning, whatever its kind, is filled
+        and outlined in the amber's pair, as on the frame.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
@@ -745,7 +725,7 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
     for det in objects:
         if det.Mask is None:
             continue
-        fill = CONST_FOREIGN_MASK_FILL if Foreign(det) else Verdict_Color(det.Verdict)[2]
+        fill = Verdict_Color(det.Verdict)[2]
         fill_bgr = Hex_To_Bgr(fill) if verdict_colored else neutral_fill
         mask_image[det.Mask.astype(bool)] = fill_bgr
 

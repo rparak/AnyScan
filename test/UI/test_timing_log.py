@@ -476,7 +476,7 @@ def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_a
     """
     Description:
         In a catalogue mode the window logs each object's verdict on the line after its detection, as
-        Reporting writes it — a Warning and an Unspecified object at WARNING, OK and NOK at INFO, the size
+        Reporting writes it — a Warning, with its kind, at WARNING, OK and NOK at INFO, the size
         note included — and the timing line says how long identification took, outside the inference time.
         Segment Anything's timing line is unchanged (test_the_logged_numbers_add_up_to_the_logged_total).
     """
@@ -494,7 +494,8 @@ def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_a
                                                Check_Dimension('width', 40.0, 40.0, 1.5)],
                              Catalogue=Catalogue_Result_Str(Similarity=similarity, Side='front', Identify_Similarity=0.75,
                                                             Area_Ratio=1.0, Unspecified_Area_Ratio=1.7,
-                                                            Center_Distance_Mm=distance, Verified_Radius_Mm=74.3))
+                                                            Center_Distance_Mm=distance, Verified_Radius_Mm=74.3,
+                                                            Warning_Kind='foreign' if verdict == 'Warning' else ''))
 
     objects = [_Judged('NOK', 0.9, 80.0), _Judged('Warning', 0.3, 10.0)]
     timing = Timing_Str(Total_Ms=100, Stages=[('segmentation', 100)], Other_Ms=0, Measurement_Ms=3,
@@ -510,6 +511,8 @@ def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_a
     assert _Message(verdicts[0]) == ('Object 1: NOK, front up, similarity 0.90. Reason: Its length is out of tolerance. '
                                      'Note: The size check is not verified here: 80 mm from the frame centre, verified '
                                      'to 74 mm.')
+    assert _Message(verdicts[1]) == ('Object 2: Warning – Foreign object, similarity 0.30. Reason: It is not the part, '
+                                     'so it should not be there: remove it from the surface.')
     # Below a judged part's verdict, its evidence: the measured values with what was expected (Part_Lines).
     assert _Message(lines[lines.index(verdicts[0]) + 1]) == (
         'Object 1 · outline: length 62.00 mm, expected 60.00 ± 1.50 mm: OUT OF TOLERANCE; width 40.00 mm, expected '

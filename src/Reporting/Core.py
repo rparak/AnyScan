@@ -27,7 +27,8 @@ import re
 import typing as tp
 # Custom Lib.: AnyScan domain — data structures
 #   ../Parameters/Vision
-from Parameters.Vision import Detection_Str, Dimension_Check_Str, Hole_Count_Str, Catalogue_Result_Str
+from Parameters.Vision import (Detection_Str, Dimension_Check_Str, Hole_Count_Str, Catalogue_Result_Str,
+                               CONST_WARNING_KINDS)
 #   ../Parameters/Catalogue
 from Parameters.Catalogue import Catalogue_Item_Str
 #   ../Parameters/Configuration
@@ -333,23 +334,37 @@ def Scene_Note(objects: tp.List[Detection_Str], caption: str = '') -> str:
     return ' '.join(parts)
 
 
-def Shown_State(det: Detection_Str) -> str:
+def Warning_Kind_Name(kind: str) -> str:
     """
     Description:
-        The state an object is shown and counted as: its verdict, except that a catalogue mode's Warning is one of its
-        two kinds, 'Outside' (a part outside the inspection area, Catalogue_Result_Str.Resembles) or 'Foreign' (a
-        foreign object). Recorded with each object (UI.Capture, 'warning_kind'), so History and Trends tell them apart.
+        A Warning kind's name as the operator reads it (Parameters.Vision.CONST_WARNING_KINDS: 'outside' is
+        'Outside area', 'several_parts' 'Several parts', ...).
+
+    Args:
+        (1) kind [string]: The kind, as recorded ('warning_kind').
+
+    Returns:
+        (1) parameter [string]: The name; '' for no kind or one this version does not know.
+    """
+
+    return dict(CONST_WARNING_KINDS).get(kind, '')
+
+
+def State_Word(det: Detection_Str) -> str:
+    """
+    Description:
+        An object's state as Scene Understanding and the log name it: its verdict, a catalogue Warning with its kind
+        ('Warning – Outside area').
 
     Args:
         (1) det [Detection_Str(object)]: The object.
 
     Returns:
-        (1) parameter [string]: 'OK', 'NOK', 'Unspecified', 'Outside', 'Foreign', or 'Warning' outside a catalogue mode.
+        (1) parameter [string]: The state.
     """
 
-    if det.Verdict == 'Warning' and det.Catalogue is not None:
-        return 'Outside' if det.Catalogue.Resembles else 'Foreign'
-    return det.Verdict
+    name = Warning_Kind_Name(det.Catalogue.Warning_Kind) if det.Catalogue is not None else ''
+    return '%s – %s' % (det.Verdict, name) if det.Verdict == 'Warning' and name else det.Verdict
 
 
 def Badges(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.List[tp.Tuple[str, str]]:
@@ -358,12 +373,11 @@ def Badges(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.List[
         The verdict badges' wording and severity levels. The level drives each badge's colour, returned separately so
         the interface never parses the wording to decide how to paint it.
 
-        In a catalogue mode (the objects carry catalogue evidence) one badge for every state there that needs the
-        operator, all at once, so a part to move is never hidden behind a NOK (the owner's ruling, 2026-10-16), in this
-        order: 'NOK · 2 of 5' (level 'fail'), 'Outside the area · 1' ('warn', the amber), 'Foreign object · 3'
-        ('foreign', the grey), 'Not judged · 1' ('unspecified', the blue); with none of them, 'All OK · 2' ('ok'). The
-        word carries the state as well as the colour. Outside a catalogue mode, one badge: low confidence, or what was
-        found.
+        In a catalogue mode (the objects carry catalogue evidence) one badge per state present that needs the operator,
+        all at once, so a Warning is never hidden behind a NOK (the owner's ruling, 2026-10-16), in this order:
+        'NOK · 2' (level 'fail'), 'Warning · 3' ('warn', the amber, every kind counted together); with neither,
+        'All OK' ('ok'). The word carries the state as well as the colour. Outside a catalogue mode, one badge: low
+        confidence, or what was found.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects.
@@ -371,19 +385,16 @@ def Badges(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.List[
 
     Returns:
         (1) parameter [Vector<Tuple<string> 1x2>]: The (wording, level) pairs, at least one; level is 'fail' | 'ok' |
-                                                   'warn' | 'foreign' | 'unspecified' | 'idle'.
+                                                   'warn' | 'idle'.
     """
 
     if not objects:
         return [('Empty', 'idle')]
     if any(o.Catalogue is not None for o in objects):
-        states = [Shown_State(o) for o in objects]
-        badges = [(text % states.count(state), level)
-                  for state, text, level in (('NOK', 'NOK · %%d of %d' % len(objects), 'fail'),
-                                             ('Outside', 'Outside the area · %d', 'warn'),
-                                             ('Foreign', 'Foreign object · %d', 'foreign'),
-                                             ('Unspecified', 'Not judged · %d', 'unspecified')) if states.count(state)]
-        return badges or [('All OK · %d' % len(objects), 'ok')]
+        verdicts = [o.Verdict for o in objects]
+        badges = [('%s · %d' % (state, verdicts.count(state)), level)
+                  for state, level in (('NOK', 'fail'), ('Warning', 'warn')) if state in verdicts]
+        return badges or [('All OK', 'ok')]
     scored = [o.Confidence for o in objects if o.Confidence is not None]
     if scored and min(scored) < threshold:
         return [('Low confidence', 'warn')]
@@ -677,29 +688,35 @@ def __Hole_Clauses(det: Detection_Str) -> tp.List[str]:
     return clauses
 
 
-def __Unspecified_Sentence(result: Catalogue_Result_Str) -> str:
+def __Warning_Sentence(result: Catalogue_Result_Str) -> str:
     """
     Description:
-        Why an object was not judged, and what to do, by its cause (Catalogue_Result_Str.Unspecified_Cause): its area
-        (probably several parts) or its side (which side is up cannot be told and its verdict depends on it, or its
-        holes and its look show different sides).
+        Why a Warning was not judged, and what the operator does, by its kind (Catalogue_Result_Str.Warning_Kind): a part
+        outside the inspection area, to move inside; a foreign object, to remove; several parts found as one, to
+        separate; a side that cannot be told, or that its holes and its look disagree on, to scan nearer the centre.
 
     Args:
-        (1) result [Catalogue_Result_Str(object)]: The object's catalogue result, Unspecified.
+        (1) result [Catalogue_Result_Str(object)]: The object's catalogue result, a Warning.
 
     Returns:
         (1) parameter [string]: The sentence.
     """
 
-    if result.Unspecified_Cause == 'side':
-        looks = ', '.join('%s %.2f' % (side, similarity) for side, similarity in result.Side_Similarities.items())
-        if result.Side_Evidence == 'conflict':
-            return ('Its holes show one side up and its look the other (similarity %s), so it cannot be judged. '
-                    'Check that it is the part and scan it again nearer the centre.' % looks)
+    looks = ', '.join('%s %.2f' % (side, similarity) for side, similarity in result.Side_Similarities.items())
+    if result.Warning_Kind == 'outside':
+        return 'It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.'
+    if result.Warning_Kind == 'several_parts':
+        return ("Its area is %.2f times the part's, probably several parts touching or lying close together, so it "
+                'cannot be judged: separate the parts and scan again.' % result.Area_Ratio)
+    if result.Warning_Kind == 'side_mismatch':
+        return ('Its holes show one side up and its look the other (similarity %s), so it cannot be judged: check '
+                'that it is the part and scan it again nearer the centre.' % looks)
+    if result.Warning_Kind == 'side_unknown':
         return ('Which side is up cannot be told from its look (similarity %s) or its holes, and its verdict depends '
-                'on it, so it cannot be judged. Move it nearer the centre and scan again.' % looks)
-    return ("Its area is %.2f times the part's, probably several parts together, so it cannot be judged. "
-            'Separate them and scan again.' % result.Area_Ratio)
+                'on it, so it cannot be judged: move it nearer the centre and scan again.' % looks)
+    if result.Outside_Area:
+        return 'It is not the part and lies outside the inspection area: remove it from the surface.'
+    return 'It is not the part, so it should not be there: remove it from the surface.'
 
 
 def Outside_Part(det: Detection_Str) -> bool:
@@ -717,7 +734,7 @@ def Outside_Part(det: Detection_Str) -> bool:
     """
 
     result = det.Catalogue
-    return result is not None and det.Verdict == 'Warning' and result.Outside_Area and result.Resembles
+    return result is not None and det.Verdict == 'Warning' and result.Warning_Kind == 'outside'
 
 
 def __Finding_Clauses(det: Detection_Str, side_name: str) -> tp.List[str]:
@@ -775,10 +792,9 @@ def Reason_Sentence(det: Detection_Str) -> str:
         order, joined ('A, b, and c.'). Counts in words up to ten. The
         measured and expected values are in the log (Part_Lines). A part whose side could not be told, NOK on every
         side, gives what its readings share; with nothing shared, each reading's clauses with its side named
-        ('Read with its machined front up, …; read with its unmachined back up, ….'). A Warning that resembles the
-        part lies outside the inspection area: it says so and what to do, nothing else, as no check ran on it; one
-        that does not is a foreign object, to remove, wherever it lies; an Unspecified
-        object could not be judged, and what to do. Empty for an OK part and outside a catalogue mode.
+        ('Read with its machined front up, …; read with its unmachined back up, ….'). A Warning says why it was not
+        judged and what the operator does, by its kind (__Warning_Sentence), nothing else, as no check ran on it or
+        its checks could not be trusted. Empty for an OK part and outside a catalogue mode.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -791,12 +807,7 @@ def Reason_Sentence(det: Detection_Str) -> str:
     if result is None or det.Verdict == 'OK':
         return ''
     if det.Verdict == 'Warning':
-        if not result.Resembles:
-            return ('It is not the part and lies outside the inspection area: remove it from the surface.'
-                    if result.Outside_Area else 'The object should not be on the surface.')
-        return 'It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.'
-    if det.Verdict == 'Unspecified':
-        return __Unspecified_Sentence(result)
+        return __Warning_Sentence(result)
     clauses = __Finding_Clauses(det, result.Side_Name)
     readings = {name: __Finding_Clauses(reading, name) for name, reading in result.Side_Readings.items()}
     if result.Side_Evidence == 'undecided' and len(readings) > 1:
@@ -926,8 +937,9 @@ def Verdict_Notes(det: Detection_Str) -> str:
 def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
     """
     Description:
-        A catalogue mode's verdict on one object as Scene Understanding shows it: 'State: <state>.', then, when it
-        is not OK, its one 'Reason:' sentence (Reason_Sentence), then the unplaced-hole note when it applies
+        A catalogue mode's verdict on one object as Scene Understanding shows it: 'State: OK.', 'State: NOK.' or
+        'State: Warning – <kind>' (State_Word, as the owner wrote it), then, when it is not OK, its one 'Reason:'
+        sentence with the operator's action for a Warning (Reason_Sentence), then the unplaced-hole note when it applies
         (Unplaced_Hole_Note). No similarity, no side and no size note here: the similarity and the size note are in
         the log only (Verdict_Log_Line), and the side is in the description (Side_Sentence). Empty outside a
         catalogue mode.
@@ -942,7 +954,8 @@ def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
     if det.Catalogue is None:
         return []
     note, reason = Unplaced_Hole_Note(det), Reason_Sentence(det)
-    return (['State: %s.' % det.Verdict] + (['Reason: %s' % reason] if reason else [])
+    state = State_Word(det)
+    return (['State: %s' % state + ('' if det.Verdict == 'Warning' else '.')] + (['Reason: %s' % reason] if reason else [])
             + (['Note: %s' % note] if note else []))
 
 
@@ -950,8 +963,8 @@ def Side_Sentence(det: Detection_Str) -> str:
     """
     Description:
         The sentence a judged part's description gains: which side is up, in the catalogue's words for it
-        ('It lies with its machined front up.'). Only for an object judged the part (OK, NOK): a Warning is
-        not the part, and an Unspecified object was not judged. The side is the one the checks used
+        ('It lies with its machined front up.'). Only for an object judged the part (OK, NOK): a Warning was
+        not judged. The side is the one the checks used
         (Catalogue_Result_Str.Side: DINOv2's by its margin, else its holes'), never the describer's: the describer
         is told it (Describer_Prompt), not asked.
 
@@ -1281,7 +1294,7 @@ def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
         holes' when a hole only that side has decided it, Vision.Utilities.Classify.Decide_Side), the
         similarity always —
         and the level it is logged at: WARNING for an object that should not be there or could not be judged
-        (Warning, Unspecified), INFO otherwise — a NOK is a result the station reports, not a fault of the
+        (a Warning, with its kind), INFO otherwise — a NOK is a result the station reports, not a fault of the
         application.
 
     Args:
@@ -1293,9 +1306,9 @@ def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
     """
 
     result = det.Catalogue
-    level = 'WARNING' if det.Verdict in ('Warning', 'Unspecified') else 'INFO'
+    level = 'WARNING' if det.Verdict == 'Warning' else 'INFO'
     side = '%s up%s' % (result.Side, ' by its holes' if result.Side_Evidence == 'holes' else '')
-    evidence = [det.Verdict] + ([side] if det.Verdict in ('OK', 'NOK') else [])
+    evidence = [State_Word(det)] + ([side] if det.Verdict in ('OK', 'NOK') else [])
     evidence.append('similarity %.2f' % result.Similarity)
     if det.Verdict == 'Warning' and result.Outside_Area:
         evidence.append('outside the inspection area, %s the part (saturation %.0f, extent %.1f mm)'

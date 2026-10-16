@@ -27,47 +27,42 @@ practices followed inconsistently are under **Unsettled**.
 
 - **One colour per state, in every view** (the owner's rule, 2026-10-16): a state's frame mark in the Camera View, its
   Trends series, legend swatch and confidence dots, its History filter swatch and set outline are the same token, so the
-  operator learns one colour per state: OK `#640ABA`, NOK `#FF6540`, Outside area `#FFC226`, Foreign object `#B4A6BE`,
-  Unspecified `#33A3FF` (`Theme.State_Color`, whose ink is its box). No darker chart variant exists. On the white card
-  a light state reads by a 3 px line (`CONST_STATE_LINE_W`) and markers and swatches edged at 1.25 px in its hue's dark
-  shade at L* 25 (`Theme.Chart_Edge`, 11.0-11.2:1 on white). Every colour of a catalogue mode:
+  operator learns one colour per state. There are three states (the owner's rule, 2026-10-16): OK `#640ABA`, NOK
+  `#FF6540` and Warning `#FFC226`, every Warning whatever its kind (`Theme.Verdict_Color`, whose ink is its box). No
+  darker chart variant exists. On the white card a light state reads by a 3 px line (`CONST_STATE_LINE_W`) and markers
+  and swatches edged at 1.25 px in its hue's dark shade at L* 25 (`Theme.Chart_Edge`, 11.07-11.16:1 on white). Every
+  colour of a catalogue mode:
 
   | Use | Token | Value | On white (edge) |
   |---|---|---|---|
   | OK | `CONST_INK` | `#640ABA` | 9.15:1 (`#5300A3`, 11.07:1) |
   | NOK | `CONST_NOK_BOX` | `#FF6540` | 2.92:1 (`#7A0E00`, 11.11:1) |
-  | Outside area (Warning) | `CONST_WARNING_BOX` | `#FFC226` | 1.62:1 (`#4D3800`, 11.16:1) |
-  | Foreign object (Warning) | `CONST_FOREIGN_BOX` | `#B4A6BE` | 2.30:1 (`#42374B`, 11.17:1) |
-  | Unspecified | `CONST_UNSPECIFIED_BOX` | `#33A3FF` | 2.68:1 (`#003E6C`, 11.02:1) |
+  | Warning (every kind) | `CONST_WARNING_BOX` | `#FFC226` | 1.62:1 (`#4D3800`, 11.16:1) |
   | Trends Total (no state) | `CONST_INK_MUTE` | `#6F5783` | 6.24:1 |
-  | Badge grounds | OK `#C2C9FF`, NOK `#FFD9D0`, Outside `#FFC226`, Foreign `#CAC0D3`, Unspecified `#C6E4FF` | | purple words ≥ 5.2:1 |
-  | Mask fills | OK `#CC9EF1`, NOK `#CD7157`, Outside `#B28508`, Foreign `#DBCCE5` (outline `#897C93`), Unspecified `#748DB1` | | |
+  | Badge grounds | OK `#C2C9FF`, NOK `#FFD9D0`, Warning `#FFC226` | | purple words ≥ 5.66:1 |
+  | Mask fills | OK `#CC9EF1`, NOK `#CD7157`, Warning `#B28508` (outline the amber) | | |
+
+  Retired as verdict colours on 2026-10-16: the foreign object's grey `#B4A6BE` (badge `#CAC0D3`, mask `#DBCCE5` /
+  `#897C93`) and Unspecified's blue `#33A3FF` (badge `#C6E4FF`, mask `#748DB1`). The grey stays only as the disabled
+  label's token (`CONST_CONTROL_DISABLED_TEXT`, `CONST_PRIMARY_DISABLED_TEXT`), never a state's; the blue is no
+  token at all (DD *Three states for the operator, a Warning with its kind*).
   | Inspection area | `CONST_INSPECTION_AREA` / `_EMPTY` | `#FFD880` on images / `#640ABA` on the empty view | 4.71:1 on the table / 6.79:1 on `#E1DCE6` |
 
 - The verdict colours are fixed tokens from the JIC Smart Factory palette: OK the purple `#640ABA`, NOK the
-  orange-red `#FF6540` (DD *The fail marker is the JIC orange-red*), Warning the amber `#FFC226`, and Unspecified
-  the sky blue `#33A3FF` (`Theme.CONST_UNSPECIFIED_BOX`, the owner's choice of 2026-10-16), a verdict colour outside
-  the brand palette like NOK and Warning, with its own mask fill `#748DB1` and badge ground `#C6E4FF`: 2.39:1 on the table, its white numeral 2.68:1 (an accepted exception like
-  the orange-red's and the amber's), ΔE ≥ 74 from OK, NOK and Warning, 45 from the foreign grey, 105 from the area's
-  amber (DD *Unspecified is a sky blue, a verdict colour outside the brand palette*). The neutral ink `#655E6D` is no
+  orange-red `#FF6540` (DD *The fail marker is the JIC orange-red*) and Warning the amber `#FFC226`, its white
+  numeral 1.62:1, the owner's accepted exception. The neutral ink `#655E6D` is no
   verdict's colour: it marks only a detect-only mode's words and dots, its derived mask pair and History's outline of
   a detect-only set. A detect-only run (Segment Anything) draws every object in one colour, the logo purple
   `#640ABA` (`CONST_DETECTION_BOX = CONST_LOGO_INK`, white numeral 9.15:1; table 1.31:1 at ΔE 121, aluminium 3.53:1,
   rust-stained metal 3.02:1, steel 2.32:1). It equals OK, the owner's ruling of 2026-10-15: that mode shows no verdict
   (DD *Every chip carries a white numeral*). One purple: no darker shade of it exists in the theme (DD
   *The palette is the JIC Smart Factory brand's*).
-- A Warning has two looks on the frame, never on the mask: a catalogued part that only lies outside the
-  inspection area keeps the amber, its rotated outline, dashed outer box and chip only, with no feature mark, since
-  no check runs on it (DD *A part outside the inspection area is not checked*); a **foreign object** (a Warning that does not resemble the part, wherever it
-  lies, cut by the border or not: `Catalogue_Result_Str.Resembles`) is drawn, outline, box and chip, in a grey of the
-  brand's grey-lilac family, `Theme.CONST_FOREIGN_BOX`, with the white numeral (`Annotate.Foreign`). The colour
-  follows what the object is, never only where it lies. Candidates against the table #236A56 / white / #655E6D: `#C9BFD2`
-  3.63 / 1.77 / 3.52:1, `#B4A6BE` (the disabled label's token) 2.80 / 2.30 / 2.71:1, `#A396AE` 2.30 / 2.79 /
-  2.23:1, the owner choosing by eye (DD *A catalogue mode judges only inside the inspection area*). On the label mask
-  a foreign object takes the grey's derived pair, outline `#897C93` and fill `#DBCCE5` (`Theme.CONST_FOREIGN_MASK_*`,
-  derived as the detect-only neutral's), and a part outside the area the amber's; its badge ground is `#CAC0D3` (the
-  purple 5.23:1). A Warning is everywhere shown by its kind, never as one Warning (DD *A Warning is shown, counted and recorded
-  by its kind*).
+- Every Warning has one look, whatever its kind (outside the area, a foreign object, several parts, side unclear, side
+  mismatch): its rotated outline, dashed outer box and chip in the amber with the white numeral, filled and outlined in
+  the amber's pair on the mask, and no feature mark, though a part whose side could not be told was checked and keeps
+  its features in the record (`Annotate.__Draw_Features` draws only OK and NOK parts' marks). The kind is told in
+  words, never in colour: `State: Warning – <kind>` in Scene Understanding, the `warning_kind` in the record (DD
+  *Three states for the operator, a Warning with its kind*).
 - The inspection area's line (`UI.Widgets.Paint_Inspection_Area`, 1 px, solid, square corners, no fill, on screen
   only) is the amber `Theme.CONST_INSPECTION_AREA` `#FFD880` over a camera image (4.71:1 on the table, 1.18:1 against
   the Warning amber, told from a Warning frame by its 1 px against the frame's 2 px) and the purple
@@ -75,8 +70,7 @@ practices followed inconsistently are under **Unsettled**.
   (1.01:1; the purple 6.79:1). The owner's choice of 2026-10-16 from renders.
 - A judged part (OK, NOK) colours its marks by their own check on the frame: the dashed outer box and the chip
   carry the verdict, the solid rotated outline the size check alone (orange-red only when out of tolerance), and each
-  feature mark its own check (DD *A judged part's marks each carry their own check*). Warnings and Unspecified
-  objects keep one colour.
+  feature mark its own check (DD *A judged part's marks each carry their own check*). A Warning keeps one colour.
 - The box, the chip and the mask outline are drawn in the verdict colour itself, unshifted, on any
   background. A colour is never lightened, darkened or rotated to gain contrast against a frame.
 - Legibility comes from the foreground: a chip is its box's colour and its numeral is plain white
@@ -91,7 +85,8 @@ practices followed inconsistently are under **Unsettled**.
   verdict contour*).
 - ✅ `test/Vision/Utilities/test_annotate.py::test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour`,
   `::test_each_chip_is_its_box_colour_with_a_white_numeral`,
-  `::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
+  `::test_the_catalogue_states_render_in_their_colours_on_both_images`,
+  `::test_a_warning_shows_only_its_outline_outer_box_and_chip`,
   `::test_a_judged_parts_outline_carries_its_size_and_its_outer_box_and_chip_its_verdict`,
   `test/UI/test_inspection_area.py::test_the_area_is_drawn_on_the_empty_view_the_scanned_frame_and_the_annotated_result_only`,
   `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box`,
@@ -109,7 +104,8 @@ practices followed inconsistently are under **Unsettled**.
   OK / NOK words at all, only detected objects.
 - ✅ `test/UI/test_log_view.py::test_level_field_weight_ramps_with_severity`,
   `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`,
-  `test/Parameters/test_theme.py::test_the_detect_only_box_is_the_logo_purple_and_unspecified_keeps_its_own`,
+  `test/Parameters/test_theme.py::test_the_detect_only_box_is_the_logo_purple`,
+  `::test_every_warning_is_the_amber_and_the_retired_state_colours_are_gone`,
   `::test_neutral_detection_colour_is_distinct_and_near_achromatic`.
 
 ## Controls: every state clears 4.5:1, measured; disabled speaks through its fill ✅

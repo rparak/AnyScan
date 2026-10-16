@@ -973,8 +973,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             candidates on its upright crop (FastSAM again, Vision.Utilities.Holes), the side up from DINOv2's
             margin or a hole only one side has (Decide_Side), and its checks on that side: its holes and its
             stains (Vision.Utilities.Stain), each found defect making it NOK. With the side undecided it is also
-            judged on every side, each side's reading kept, and a verdict that differs by side is Unspecified
-            (Settle_Side). Any object whose outline leaves the station's inspection area is a Warning
+            judged on every side, each side's reading kept, and a verdict that differs by side is a Warning, its
+            side unclear (Settle_Side). Any object whose outline leaves the station's inspection area is a Warning
             (Settle_Area), and no check runs on it, so it has no features; whether it resembles the part is kept
             apart from where it lies (Resembles_Part), so a foreign object is told from a part that only lies
             outside the area. The crop's scale is the mean of the two

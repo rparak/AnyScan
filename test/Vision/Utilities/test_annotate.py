@@ -346,24 +346,33 @@ def test_verdict_colored_false_draws_one_neutral_colour_not_verdicts() -> None:
 def test_the_catalogue_states_render_in_their_colours_on_both_images() -> None:
     """
     Description:
-        A Warning object is drawn in the amber box on the frame and on the mask, filled with the amber
-        tint; an Unspecified one in the blue #33A3FF on the frame, and on the mask outlined in the same blue and filled
-        with its own tint, the old neutral nowhere.
+        Every Warning, whatever its kind (outside the area, a foreign object, several parts, its side unclear, a side
+        mismatch), is drawn in the amber on the frame and on the mask — its box and chip, its mask outline and the
+        amber's own fill — with the white numeral on its chip; the retired foreign grey #B4A6BE and Unspecified blue
+        #33A3FF, their mask pairs and the old neutral are drawn nowhere.
     """
 
+    from Parameters.Vision import Catalogue_Result_Str, CONST_WARNING_KINDS
     scene = np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8)
-    objects = [__Object(40, 40, verdict='Warning'), __Object(200, 300, verdict='Unspecified')]
+    objects = []
+    for n, (kind, _name) in enumerate(CONST_WARNING_KINDS):
+        det = __Object(60 + 160 * (n // 3), 30 + 190 * (n % 3), verdict='Warning')
+        det.Catalogue = Catalogue_Result_Str(Warning_Kind=kind, Outside_Area=kind == 'outside',
+                                             Resembles=kind != 'foreign')
+        objects.append(det)
     annotated = Annotate.Draw_Annotated(scene, objects, cv2, np, verdict_colored=True)
     mask = Annotate.Draw_Label_Mask(objects, scene.shape, cv2, np, verdict_colored=True)
-    warn_box, _, warn_fill = Theme.Verdict_Color('Warning')
-    blue, _, blue_fill = Theme.Verdict_Color('Unspecified')
-    assert (blue, blue_fill) == ('#33A3FF', '#748DB1')
-
-    assert __Has_Bgr(annotated, Theme.Hex_To_Bgr(warn_box)) and __Has_Bgr(mask, Theme.Hex_To_Bgr(warn_box))
-    assert tuple(int(c) for c in mask[70, 70]) == Theme.Hex_To_Bgr(warn_fill)
-    assert __Has_Bgr(annotated, Theme.Hex_To_Bgr(blue)) and __Has_Bgr(mask, Theme.Hex_To_Bgr(blue))
-    assert tuple(int(c) for c in mask[240, 340]) == Theme.Hex_To_Bgr(blue_fill)
-    for old in ('#655E6D', Theme.Detection_Mask_Outline(), Theme.Detection_Color()[2]):
+    amber, _, amber_fill = Theme.Verdict_Color('Warning')
+    assert (amber, amber_fill) == ('#FFC226', '#B28508')
+    for det in objects:
+        x, y, w, h = det.Bbox
+        region = (slice(max(0, y - 40), y + h + 4), slice(x - 4, x + w + 4))
+        assert __Has_Bgr(annotated[region], Theme.Hex_To_Bgr(amber)), det.Catalogue.Warning_Kind
+        assert __Has_Bgr(annotated[y - 30:y, x:x + 30], (255, 255, 255)), det.Catalogue.Warning_Kind
+        assert __Has_Bgr(mask[region], Theme.Hex_To_Bgr(amber)), det.Catalogue.Warning_Kind
+        assert tuple(int(c) for c in mask[y + h // 2, x + w // 2]) == Theme.Hex_To_Bgr(amber_fill), det.Catalogue.Warning_Kind
+    for old in ('#B4A6BE', '#33A3FF', '#748DB1', '#DBCCE5', '#897C93', '#655E6D', Theme.Detection_Mask_Outline(),
+                Theme.Detection_Color()[2]):
         assert not __Has_Bgr(annotated, Theme.Hex_To_Bgr(old)) and not __Has_Bgr(mask, Theme.Hex_To_Bgr(old)), old
 
 
@@ -568,7 +577,7 @@ def test_each_chip_is_its_box_colour_with_a_white_numeral() -> None:
         pixel is the box colour, white, or a blend on the line between them.
     """
 
-    boxes = {'OK': '#640ABA', 'NOK': '#FF6540', 'Warning': '#FFC226', 'Unspecified': '#33A3FF'}
+    boxes = {'OK': '#640ABA', 'NOK': '#FF6540', 'Warning': '#FFC226'}
     objects = [__Object(150, 40 + 140 * i, size=80, verdict=verdict) for i, verdict in enumerate(boxes)]
     for verdict_colored in (True, False):
         annotated = Annotate.Draw_Annotated(np.full((CONST_H, CONST_W, 3), (70, 150, 70), np.uint8), objects, cv2, np,
@@ -610,44 +619,6 @@ def __Chip_Extent(image: np.ndarray, x: int, y: int, box: tp.Tuple[int, int, int
     while x + width < image.shape[1] and (image[y - height, x + width] == colour).all():
         width += 1
     return width, height
-
-
-def test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame() -> None:
-    """
-    Description:
-        On the annotated frame a foreign object (a Warning that does not resemble the part, so not supposed to be on the
-        surface) has its box and chip in the foreign grey with the white numeral, and no amber, inside the inspection
-        area or outside it; a part that resembles the part and only lies outside the area keeps the Warning amber, and
-        no grey. The label mask matches the frame: a foreign object filled and outlined with the grey's derived pair
-        (#DBCCE5, #897C93), a part outside the area with the amber's, never one fill for both.
-    """
-
-    from Parameters.Vision import Catalogue_Result_Str
-    grey, amber = Theme.Hex_To_Bgr(Theme.CONST_FOREIGN_BOX), Theme.Hex_To_Bgr(Theme.Verdict_Color('Warning')[0])
-    foreign, outside = __Object(150, 30, size=120, verdict='Warning'), __Object(150, 230, size=120, verdict='Warning')
-    foreign_outside = __Object(150, 430, size=120, verdict='Warning')
-    foreign.Catalogue = Catalogue_Result_Str(Outside_Area=False, Resembles=False)
-    outside.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=True)
-    foreign_outside.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=False)
-    scene = np.full((CONST_H, CONST_W, 3), (86, 106, 35), np.uint8)
-    annotated = Annotate.Draw_Annotated(scene, [foreign, outside, foreign_outside], cv2, np, verdict_colored=True)
-    left, middle, right = annotated[:, :200], annotated[:, 200:400], annotated[:, 400:]
-    assert __Has_Bgr(left, grey) and not __Has_Bgr(left, amber)
-    assert __Has_Bgr(middle, amber) and not __Has_Bgr(middle, grey)
-    assert __Has_Bgr(right, grey) and not __Has_Bgr(right, amber)
-    chip = annotated[150 - 40:150, 30:70]
-    assert __Has_Bgr(chip, grey) and __Has_Bgr(chip, (255, 255, 255))
-    mask = Annotate.Draw_Label_Mask([foreign, outside, foreign_outside], (CONST_H, CONST_W, 3), cv2, np,
-                                    verdict_colored=True)
-    grey_fill, grey_outline = (Theme.Hex_To_Bgr(Theme.CONST_FOREIGN_MASK_FILL),
-                               Theme.Hex_To_Bgr(Theme.CONST_FOREIGN_MASK_OUTLINE))
-    amber_fill = Theme.Hex_To_Bgr(Theme.Verdict_Color('Warning')[2])
-    assert (Theme.CONST_FOREIGN_MASK_FILL, Theme.CONST_FOREIGN_MASK_OUTLINE) == ('#DBCCE5', '#897C93')
-    for region in (mask[:, :200], mask[:, 400:]):
-        assert tuple(int(c) for c in region[210, 90]) == grey_fill                   # inside each foreign object
-        assert __Has_Bgr(region, grey_outline) and not __Has_Bgr(region, amber) and not __Has_Bgr(region, amber_fill)
-    assert tuple(int(c) for c in mask[210, 290]) == amber_fill and __Has_Bgr(mask[:, 200:400], amber)
-    assert not __Has_Bgr(mask[:, 200:400], grey_fill)
 
 
 def __Judged_Plate(verdict: str, length_px: int, similarity: float, stains: int = 0) -> Detection_Str:
@@ -731,3 +702,34 @@ def test_a_judged_parts_outline_carries_its_size_and_its_outer_box_and_chip_its_
         assert (on_ok > 0.2, on_nok > 0.2) == tuple(bool(v) for v in want[outer]), (case, 'outer box', on_ok, on_nok)
     chip = image[max(0, y - 30):y, x:x + 25]
     assert __Has_Bgr(chip, Theme.Hex_To_Bgr(Theme.Verdict_Color(outer)[0])), (case, 'chip')
+
+
+@pytest.mark.parametrize('kind', ['side_unknown', 'side_mismatch', 'several_parts'])
+def test_a_warning_shows_only_its_outline_outer_box_and_chip(kind: str) -> None:
+    """
+    Description:
+        A Warning on the part shows its rotated outline, its outer box and its chip, all in the amber, and no feature
+        mark, whatever its kind: a part whose side could not be told was checked and keeps its stains in its record,
+        but none of them is drawn — no stain tint, no feature box, no feature chip in the pass or fail colour. The same
+        plate judged NOK shows them, so the rendering, not the plate, makes the difference.
+    """
+
+    from Parameters.Vision import Catalogue_Result_Str
+    ok, nok = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0]), Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
+    amber = Theme.Hex_To_Bgr(Theme.Verdict_Color('Warning')[0])
+    scene = np.full((800, 1200, 3), (86, 106, 35), np.uint8)
+    judged = __Judged_Plate('NOK', 600, 0.95, stains=2)
+    assert __Near(Annotate.Draw_Annotated(scene, [judged], cv2, np, verdict_colored=True)[395:425, 555:645], nok, 30).any()
+    warning = __Judged_Plate('Warning', 600, 0.95, stains=2)
+    warning.Catalogue = Catalogue_Result_Str(Similarity=0.95, Identify_Similarity=0.75, Resembles=True, Warning_Kind=kind)
+    image = Annotate.Draw_Annotated(scene, [warning], cv2, np, verdict_colored=True)
+    assert len(warning.Features) == 2
+    assert not __Near(image, nok, 30).any() and not __Near(image, ok, 30).any()
+    assert (image[395:425, 555:645] == scene[395:425, 555:645]).all()        # the stains' place, untouched
+    corners = warning.Measurement.Box_Points
+    for k in range(4):
+        assert __Edge_Colours(image, corners[k], corners[(k + 1) % 4], [amber])[0] > 0.9, (kind, 'outline', k)
+    x, y, w, h = warning.Bbox
+    assert __Edge_Colours(image, (x, y), (x + w, y), [amber])[0] > 0.2, (kind, 'outer box')
+    assert __Has_Bgr(image[max(0, y - 30):y, x:x + 25], amber) and __Has_Bgr(image[max(0, y - 30):y, x:x + 25],
+                                                                            (255, 255, 255))

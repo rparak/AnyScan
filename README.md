@@ -5,7 +5,7 @@
 One script, `run.py`, reproducing the approved AnyScan design as a desktop
 application. Built at JIC within the EDIH-DIGIMAT project.
 
-![AnyScan architecture: in every mode the camera shows a live preview, then takes a fresh frame once nothing moves, two cues, fused, find every object, and each object is described in words and measured in mm. The desktop app shows Live, Trends, History and Log. A catalogue mode adds, for each object found, recognising the catalogued part, the inspection area (only a part wholly inside is judged, one outside is a part or a foreign object by similarity, size and colour), the checks on the side that is up (size, holes with each bore centred in its countersink, stains) and a state: OK, NOK, Outside area, Foreign object or Unspecified. It describes each object after its state and drops a sentence that contradicts the checks. The mode names the station, the station the calibration, and the catalogue item and empty-surface reference set the stages up too. Every analysis is recorded, with the session log, a run summary and the daily station events](images/anyscan-architecture.svg)
+![AnyScan architecture: in every mode the camera shows a live preview, then takes a fresh frame once nothing moves, two cues, fused, find every object, and each object is described in words and measured in mm. The desktop app shows Live, Trends, History and Log. A catalogue mode adds, for each object found, recognising the catalogued part, the inspection area (only a part wholly inside is judged, one outside is a part or a foreign object by similarity, size and colour), the checks on the side that is up (size, holes with each bore centred in its countersink, stains) and a state: OK, NOK or Warning, a Warning with its kind. It describes each object after its state and drops a sentence that contradicts the checks. The mode names the station, the station the calibration, and the catalogue item and empty-surface reference set the stages up too. Every analysis is recorded, with the session log, a run summary and the daily station events](images/anyscan-architecture.svg)
 
 The diagram shows how a frame becomes a reading in both modes, at the top level. Two independent cues are
 fused, so an object is kept if **either** one finds it. [Detection logic](#detection-logic)
@@ -466,9 +466,9 @@ with what the checks found:
   recognition ........................ Identifier.Dino_Identifier_Cls, Classify.Best_Match
            |  each object's upright crop, turned, against the     + Classify.Classify
            |  item's reference image of each side (DINOv2). The
-           |  rule: area >= Unspecified_Area_Ratio x the part's -> Unspecified;
+           |  rule: area >= Unspecified_Area_Ratio x the part's -> Warning, several parts;
            |  similarity >= Identify_Similarity -> OK, or NOK if the outline fails;
-           |  else the outline alone within tolerance -> NOK; else Warning
+           |  else the outline alone within tolerance -> NOK; else Warning, foreign object
            v
   inspection area .................... Classify.Inspection_Area_Px, Inside_Area,
            |  the frame inset by the station's            Resembles_Part, Settle_Area
@@ -478,15 +478,16 @@ with what the checks found:
            |  where it lies: by similarity (>= 0.657), colour (mean
            |  saturation <= 76.3) and size (its visible extent no
            |  larger than the part's diagonal plus its tolerance) a
-           |  Warning is a part outside the area, else a foreign object
+           |  Warning is outside area, else foreign object
            v                       (OK or NOK and inside only)
   side up ............................ Holes.Hole_Candidates, Classify.Decide_Side
            |  FastSAM again on the upright crop for holes. The   + Holes.Side_Evidence
            |  side is DINOv2's best when its margin over the next
            |  is >= 0.265, else the side a hole only it has shows
            |  (the countersinks show the front). Undecided, the
-           |  part is checked on every side; a conflict or sides
-           |  that disagree -> Unspecified (Classify.Settle_Side)
+           |  part is checked on every side; sides that disagree
+           |  -> Warning, side unclear; holes against look -> Warning,
+           |  side mismatch (Classify.Settle_Side)
            v
   holes .............................. Holes.Check_Holes -> Classify.Apply_Holes
            |  each group's count near its positions, diameter,
@@ -500,8 +501,9 @@ with what the checks found:
            |  the item's colour band inside the part, its edge and
            |  holes left out; a region of 1 mm² or more makes it NOK
            v
-  state .............................. Reporting.Shown_State, Reporting.Badges
-           |  OK, NOK, Outside area, Foreign object or Unspecified
+  state .............................. Reporting.State_Word, Reporting.Badges
+           |  OK, NOK or Warning – <kind>, the kind recorded
+           |  (warning_kind) and its action in the reason
            v
   (4) description, held to the checks  Reporting.Describer_Prompt, Guard_Description
            |  the prompt carries the side, its defects and what the

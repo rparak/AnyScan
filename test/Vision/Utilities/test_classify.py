@@ -49,7 +49,7 @@ from Parameters.Configuration import Identification_Parameters_Str
 
 """
 Description:
-    The catalogue mode's verdict rule, one branch per test — Unspecified by area, identified by
+    The catalogue mode's verdict rule, one branch per test — a Warning, several parts, by area, identified by
     similarity (OK, or NOK on a dimension), identified by outline below the similarity (NOK, with no
     lower bound), Warning — and the geometry it rests on: the crop turned upright, the reference cut out
     by its box, the best match and its side, the area and the distance from the frame centre. Synthetic
@@ -77,32 +77,32 @@ def _Part(rects: tp.List[tp.Tuple[int, int, int, int]]) -> Detection_Str:
     return det
 
 
-@pytest.mark.parametrize('rects, similarity, verdict', [
-    ([(660, 400, 1260, 800)], 0.95, 'OK'),                          # 60 x 40 mm, looks like it
-    ([(660, 400, 1260, 800)], 0.75, 'OK'),                          # ...at the threshold itself
-    ([(660, 400, 1300, 800)], 0.95, 'NOK'),                         # 64 x 40 mm: identified, too long
-    ([(660, 400, 1260, 800)], 0.74, 'NOK'),                         # its outline, not its look
-    ([(660, 400, 1260, 800)], 0.0, 'NOK'),                          # ...with no lower bound on the look
-    ([(660, 400, 1060, 500)], 0.40, 'Warning'),                     # 40 x 10 mm, does not look like it
-    ([(660, 400, 1300, 800)], 0.74, 'Warning'),                     # neither its look nor its outline
-    ([(200, 200, 800, 600), (800, 200, 1400, 600)], 0.95, 'Unspecified'),   # two plates side by side, 2.0x
-    ([(200, 200, 800, 600), (800, 200, 1400, 600)], 0.10, 'Unspecified'),   # area decides first
-], ids=['ok', 'ok-at-threshold', 'nok-size', 'nok-look', 'nok-no-floor', 'warning', 'warning-wrong-size', 'unspecified',
-        'unspecified-first'])
+@pytest.mark.parametrize('rects, similarity, verdict, kind', [
+    ([(660, 400, 1260, 800)], 0.95, 'OK', ''),                      # 60 x 40 mm, looks like it
+    ([(660, 400, 1260, 800)], 0.75, 'OK', ''),                      # ...at the threshold itself
+    ([(660, 400, 1300, 800)], 0.95, 'NOK', ''),                     # 64 x 40 mm: identified, too long
+    ([(660, 400, 1260, 800)], 0.74, 'NOK', ''),                     # its outline, not its look
+    ([(660, 400, 1260, 800)], 0.0, 'NOK', ''),                      # ...with no lower bound on the look
+    ([(660, 400, 1060, 500)], 0.40, 'Warning', 'foreign'),          # 40 x 10 mm, does not look like it
+    ([(660, 400, 1300, 800)], 0.74, 'Warning', 'foreign'),          # neither its look nor its outline
+    ([(200, 200, 800, 600), (800, 200, 1400, 600)], 0.95, 'Warning', 'several_parts'),   # two plates side by side, 2.0x
+    ([(200, 200, 800, 600), (800, 200, 1400, 600)], 0.10, 'Warning', 'several_parts'),   # area decides first
+], ids=['ok', 'ok-at-threshold', 'nok-size', 'nok-look', 'nok-no-floor', 'warning', 'warning-wrong-size',
+        'several-parts', 'several-parts-first'])
 def test_the_verdict_follows_the_rule(rects: tp.List[tp.Tuple[int, int, int, int]], similarity: float,
-                                      verdict: str) -> None:
+                                      verdict: str, kind: str) -> None:
     """
     Description:
-        Each branch, in order: an area of 1.7 x the part's or more is Unspecified whatever it looks like;
-        a similarity of 0.75 or more is the part, OK when its outline is within tolerance and NOK when not;
+        Each branch, in order: an area of 1.7 x the part's or more is a Warning, several parts, whatever it looks
+        like; a similarity of 0.75 or more is the part, OK when its outline is within tolerance and NOK when not;
         below 0.75 an object with the part's outline is still the part, and NOK — at any similarity, even
         0, the owner's ruling (a same-sized foreign object reads NOK, the safer error); anything else is a
-        Warning.
+        Warning, a foreign object.
     """
 
     det = _Part(rects)
     Classify(det, similarity, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
-    assert det.Verdict == verdict
+    assert (det.Verdict, det.Catalogue.Warning_Kind) == (verdict, kind)
     assert (det.Catalogue.Similarity, det.Catalogue.Side) == (similarity, 'front')
 
 
@@ -302,29 +302,28 @@ def test_the_side_is_dinov2s_by_its_margin_else_the_holes(similarities: tp.Dict[
     assert Decide_Side(similarities, evidence) == decided
 
 
-@pytest.mark.parametrize('verdict, verdicts, how, settled, cause', [
-    ('OK', {}, 'similarity', 'OK', ''),
-    ('OK', {}, 'holes', 'OK', ''),
-    ('NOK', {}, 'conflict', 'Unspecified', 'side'),
-    ('OK', {'front': 'NOK', 'back': 'OK'}, 'undecided', 'Unspecified', 'side'),      # a front passed for a clean back
-    ('NOK', {'front': 'NOK', 'back': 'NOK'}, 'undecided', 'NOK', ''),                # the hole-less block, NOK either way
-    ('Unspecified', {'front': 'NOK', 'back': 'OK'}, 'undecided', 'Unspecified', 'area'),
-], ids=['decided', 'by-holes', 'conflict', 'differs', 'agrees', 'already-unspecified'])
+@pytest.mark.parametrize('verdict, kind, verdicts, how, settled, settled_kind', [
+    ('OK', '', {}, 'similarity', 'OK', ''),
+    ('OK', '', {}, 'holes', 'OK', ''),
+    ('NOK', '', {}, 'conflict', 'Warning', 'side_mismatch'),
+    ('OK', '', {'front': 'NOK', 'back': 'OK'}, 'undecided', 'Warning', 'side_unknown'),   # a front passed for a clean back
+    ('NOK', '', {'front': 'NOK', 'back': 'NOK'}, 'undecided', 'NOK', ''),                 # the hole-less block, NOK either way
+    ('Warning', 'several_parts', {'front': 'NOK', 'back': 'OK'}, 'undecided', 'Warning', 'several_parts'),
+], ids=['decided', 'by-holes', 'conflict', 'differs', 'agrees', 'already-a-warning'])
 def test_a_part_whose_side_cannot_be_told_keeps_only_a_verdict_every_side_gives(
-        verdict: str, verdicts: tp.Dict[str, str], how: str, settled: str, cause: str) -> None:
+        verdict: str, kind: str, verdicts: tp.Dict[str, str], how: str, settled: str, settled_kind: str) -> None:
     """
     Description:
-        A decided side's verdict stands; a conflict is Unspecified; an undecided part keeps a verdict every side
-        gives — the hole-less block of the part's outline is NOK on either — and one that differs by side is
-        Unspecified, never a confident OK on the wrong side.
+        A decided side's verdict stands; a conflict is a Warning, a side mismatch; an undecided part keeps a verdict
+        every side gives — the hole-less block of the part's outline is NOK on either — and one that differs by side
+        is a Warning, its side unclear, never a confident OK on the wrong side. A Warning keeps its kind.
     """
 
     det = _Part([(660, 400, 1260, 800)])
     Classify(det, 0.9, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
-    det.Verdict = verdict
-    det.Catalogue.Unspecified_Cause = 'area' if verdict == 'Unspecified' else ''
+    det.Verdict, det.Catalogue.Warning_Kind = verdict, kind
     Settle_Side(det, verdicts, how)
-    assert (det.Verdict, det.Catalogue.Unspecified_Cause, det.Catalogue.Side_Evidence) == (settled, cause, how)
+    assert (det.Verdict, det.Catalogue.Warning_Kind, det.Catalogue.Side_Evidence) == (settled, settled_kind, how)
 
 
 def test_the_inspection_area_is_the_frame_inset_by_the_stations_insets() -> None:
@@ -340,41 +339,45 @@ def test_the_inspection_area_is_the_frame_inset_by_the_stations_insets() -> None
         pytest.approx((130.0, 50.0, 1789.0, 1149.0))
 
 
-@pytest.mark.parametrize('rects, similarity, before, after, outside', [
-    ([(660, 400, 1260, 800)], 0.95, 'OK', 'OK', False),                     # in the middle
-    ([(130, 100, 730, 500)], 0.95, 'OK', 'OK', False),                      # on the area's top-left corner
-    ([(1190, 700, 1790, 1100)], 0.95, 'OK', 'OK', False),                   # on its bottom-right corner
-    ([(129, 400, 729, 800)], 0.95, 'OK', 'Warning', True),                  # one column over the left edge
-    ([(660, 99, 1260, 499)], 0.95, 'OK', 'Warning', True),                  # one row over the top edge
-    ([(0, 400, 600, 800)], 0.95, 'OK', 'Warning', True),                    # cut by the frame's border
-    ([(1320, 750, 1920, 1150)], 0.95, 'OK', 'Warning', True),               # by the corner, 74.7 mm out
-    ([(1200, 400, 1840, 800)], 0.95, 'NOK', 'Warning', True),               # a NOK is not given there either
-    ([(1500, 400, 1900, 500)], 0.30, 'Warning', 'Warning', True),           # a foreign object outside
-    ([(1300, 200, 1900, 600), (1300, 600, 1900, 1000)], 0.95, 'Unspecified', 'Warning', True),  # two plates outside
+@pytest.mark.parametrize('rects, similarity, before, after, kind, outside', [
+    ([(660, 400, 1260, 800)], 0.95, 'OK', 'OK', '', False),                      # in the middle
+    ([(130, 100, 730, 500)], 0.95, 'OK', 'OK', '', False),                       # on the area's top-left corner
+    ([(1190, 700, 1790, 1100)], 0.95, 'OK', 'OK', '', False),                    # on its bottom-right corner
+    ([(129, 400, 729, 800)], 0.95, 'OK', 'Warning', 'outside', True),            # one column over the left edge
+    ([(660, 99, 1260, 499)], 0.95, 'OK', 'Warning', 'outside', True),            # one row over the top edge
+    ([(0, 400, 600, 800)], 0.95, 'OK', 'Warning', 'outside', True),              # cut by the frame's border
+    ([(1320, 750, 1920, 1150)], 0.95, 'OK', 'Warning', 'outside', True),         # by the corner, 74.7 mm out
+    ([(1200, 400, 1840, 800)], 0.95, 'NOK', 'Warning', 'outside', True),         # a NOK is not given there either
+    ([(1500, 400, 1900, 500)], 0.30, 'Warning', 'Warning', 'foreign', True),     # a foreign object outside
+    ([(1300, 200, 1900, 600), (1300, 600, 1900, 1000)], 0.95, 'Warning', 'Warning', 'outside', True),  # two plates outside
 ], ids=['middle', 'top-left-corner', 'bottom-right-corner', 'left-edge', 'top-edge', 'border-cut', 'corner',
         'nok-outside', 'foreign-outside', 'merged-outside'])
 def test_only_an_object_wholly_inside_the_inspection_area_is_judged(
-        rects: tp.List[tp.Tuple[int, int, int, int]], similarity: float, before: str, after: str, outside: bool) -> None:
+        rects: tp.List[tp.Tuple[int, int, int, int]], similarity: float, before: str, after: str, kind: str,
+        outside: bool) -> None:
     """
     Description:
         An object whose mask lies wholly inside the area keeps its verdict, to the area's last pixel; one with a single
         column or row of its mask outside it, cut by the frame's border, or in a corner of the view, is a Warning
-        whatever it was (OK, NOK, a foreign object's Warning, two plates' Unspecified), its Unspecified cause cleared,
-        and says it lies outside.
+        whatever it was (OK, NOK, a foreign object's Warning, two plates' Warning, several parts) and says it lies
+        outside: of kind 'outside' when it resembles the part (Resembles_Part, run first as in the pipeline, on a
+        plate's colour and extent), else 'foreign'.
     """
 
     det = _Part(rects)
     Classify(det, similarity, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
     assert det.Verdict == before
-    Settle_Area(det, Inside_Area(det, Inspection_Area_Px(CONST_FRAME, CONST_SCALE, 10.0, 13.0), np))
-    assert (det.Verdict, det.Catalogue.Outside_Area) == (after, outside)
-    assert det.Catalogue.Unspecified_Cause == ('area' if after == 'Unspecified' else '')
+    inside = Inside_Area(det, Inspection_Area_Px(CONST_FRAME, CONST_SCALE, 10.0, 13.0), np)
+    det.Catalogue.Outside_Area = not inside
+    Resembles_Part(det, 30.0, 70.0, CONST_ITEM)
+    Settle_Area(det, inside)
+    assert (det.Verdict, det.Catalogue.Warning_Kind, det.Catalogue.Outside_Area) == (after, kind, outside)
 
 
 @pytest.mark.parametrize('verdict, outside, similarity, saturation, extent, resembles', [
     ('OK', False, 0.95, 30.0, 70.0, True),          # identified by the rule
     ('NOK', True, 0.10, 200.0, 99.0, True),         # identified (by its outline) outside: the cues are not asked
-    ('Unspecified', False, 0.95, 30.0, 140.0, True),  # several parts
+    ('Warning-several_parts', False, 0.95, 30.0, 140.0, True),  # several parts
     ('Warning', False, 0.70, 30.0, 70.0, False),    # inside the area the rule alone identifies
     ('Warning', True, 0.668, 39.6, 66.7, True),     # the most cut plate measured (20261016-070632_8)
     ('Warning', True, 0.645, 129.3, 44.5, False),   # the red block cut by the border (20261016-111333_4)
@@ -397,7 +400,8 @@ def test_an_object_resembles_the_part_by_the_rule_or_outside_by_every_position_f
     assert (CONST_OUTSIDE_SIMILARITY, CONST_PART_MAX_SATURATION) == (pytest.approx(0.657), pytest.approx(76.3))
     det = _Part([(660, 400, 1260, 800)])
     Classify(det, similarity, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
-    det.Verdict, det.Catalogue.Outside_Area = verdict, outside
+    det.Verdict, det.Catalogue.Outside_Area = verdict.split('-')[0], outside
+    det.Catalogue.Warning_Kind = verdict.split('-')[1] if '-' in verdict else ''
     Resembles_Part(det, saturation, extent, CONST_ITEM)
     assert (det.Catalogue.Resembles, det.Catalogue.Saturation, det.Catalogue.Extent_Mm) == (resembles, saturation, extent)
 

@@ -33,15 +33,25 @@ from dataclasses import dataclass, field
 # number can always be traced to the scale and direction that produced it.
 #   Unit [string]
 CONST_SCALE_UNITS = 'mm/px'
-# The four states an object takes in a catalogue mode (Vision.Utilities.Classify): OK — the catalogue part,
-# every check passed; NOK — the catalogue part, a check failed; Unspecified — not judged: an area of at least the
-# mode's Unspecified_Area_Ratio times the part's (probably several parts together), or a part whose side up cannot
-# be told when its verdict depends on it (Catalogue_Result_Str.Unspecified_Cause); Warning — not judged: not the
-# catalogue part, found and described but not supposed to be there, or any object whose outline leaves the
-# station's inspection area (Catalogue_Result_Str.Outside_Area). A mode without a catalogue judges
-# nothing and every object keeps the default, OK, drawn in the neutral colour.
+# The three states an object takes in a catalogue mode (Vision.Utilities.Classify): OK — the catalogue part, every
+# check passed; NOK — the catalogue part, a check failed; Warning — not judged, for one of the reasons in
+# CONST_WARNING_KINDS (Catalogue_Result_Str.Warning_Kind). A mode without a catalogue judges nothing and every object
+# keeps the default, OK, drawn in the neutral colour.
 #   Unit [Tuple<string>]
-CONST_VERDICTS = ('OK', 'NOK', 'Unspecified', 'Warning')
+CONST_VERDICTS = ('OK', 'NOK', 'Warning')
+# A Warning's kinds, as (the record's 'warning_kind', the name the operator reads), in the order they are listed:
+# 'outside', a part whose outline leaves the station's inspection area (Catalogue_Result_Str.Outside_Area, Resembles);
+# 'foreign', an object that is not the part, wherever it lies; 'several_parts', an area of at least the mode's
+# Unspecified_Area_Ratio times the part's (parts touching or lying close together, found as one object);
+# 'side_unknown', a part whose side up neither its look nor its holes tell, read differently on each side;
+# 'side_mismatch', a part whose holes show one side up and its look the other. Each kind's action is in its reason
+# (Reporting.Reason_Sentence). The three last were one state, Unspecified, until 2026-10-16.
+#   Unit [Tuple<Tuple<string> 1x2>]
+CONST_WARNING_KINDS = (('outside', 'Outside area'), ('foreign', 'Foreign object'), ('several_parts', 'Several parts'),
+                       ('side_unknown', 'Side unclear'), ('side_mismatch', 'Side mismatch'))
+# The Warning kinds of an object the verdict rule identified as the part, though it could not judge it.
+#   Unit [Tuple<string>]
+CONST_PART_WARNING_KINDS = ('several_parts', 'side_unknown', 'side_mismatch')
 
 
 @dataclass
@@ -224,7 +234,7 @@ class Catalogue_Result_Str(object):
     Side_Similarities: tp.Dict[str, float] = field(default_factory=dict)
     Side_Evidence: str = ''
     # The object's mask area over the part's nominal area (Length_Mm x Width_Mm), both in mm at the
-    # part's top face, and the ratio from which an object is Unspecified (the mode's).
+    # part's top face, and the ratio from which an object is a Warning, several parts (the mode's).
     #   Unit [float] / [float]
     Area_Ratio: float = 0.0
     Unspecified_Area_Ratio: float = 0.0
@@ -237,10 +247,10 @@ class Catalogue_Result_Str(object):
     # is a Warning, never judged, and no check runs on it.
     #   Unit [bool]
     Outside_Area: bool = False
-    # Whether the object resembles the catalogue part: identified by the verdict rule (OK, NOK, or Unspecified for
-    # several parts or its side), or, outside the inspection area, by the position-free cues (Classify.Resembles_Part:
+    # Whether the object resembles the catalogue part: identified by the verdict rule (OK, NOK, or a Warning of a kind
+    # in CONST_PART_WARNING_KINDS), or, outside the inspection area, by the position-free cues (Classify.Resembles_Part:
     # its similarity, its colour, its visible extent), with the mean saturation and the extent they read. A Warning
-    # that does not is a foreign object, drawn grey wherever it lies; one that does lies outside the area (amber).
+    # that does not is a foreign object wherever it lies; one that does, outside the area, is a part outside it.
     #   Unit [bool] / [float] (OpenCV saturation, 0-255) / [float] (mm)
     Resembles: bool = False
     Saturation: float = 0.0
@@ -250,10 +260,10 @@ class Catalogue_Result_Str(object):
     # verdict; empty otherwise. The reason gives what the readings share (Reporting.Reason_Sentence).
     #   Unit [Dict<string, Detection_Str(object)>]
     Side_Readings: tp.Dict[str, tp.Any] = field(default_factory=dict, repr=False, compare=False)
-    # Why an Unspecified object was not judged: 'area' (probably several parts) or 'side' (which side is up
-    # cannot be told, and its verdict depends on it); '' for any other verdict.
+    # A Warning's kind (CONST_WARNING_KINDS: 'outside', 'foreign', 'several_parts', 'side_unknown' or 'side_mismatch');
+    # '' for any other verdict.
     #   Unit [string]
-    Unspecified_Cause: str = ''
+    Warning_Kind: str = ''
 
 
 @dataclass
@@ -596,11 +606,11 @@ class Analysis_Str(object):
     # The verdict-badge wording (e.g. 'Empty', '1 found', 'Low confidence').
     #   Unit [string]
     Verdict: str = 'Idle'
-    # The verdict severity that drives the badge colour: 'ok' | 'warn' | 'fail' | 'foreign' | 'unspecified' | 'idle'.
+    # The verdict severity that drives the badge colour: 'ok' | 'warn' | 'fail' | 'idle'.
     #   Unit [string]
     Verdict_Level: str = 'idle'
     # Every badge the reading shows, as (wording, level), the first being Verdict and Verdict_Level: in a catalogue
-    # mode the Warnings show one badge per kind there, outside the area and foreign (Reporting.Badges).
+    # mode one per state present, NOK and Warning, or All OK (Reporting.Badges).
     #   Unit [Vector<Tuple<string> 1x2>]
     Badges: tp.List[tp.Tuple[str, str]] = field(default_factory=list)
     # The human-readable name of what produced the reading — the configuration's Identity.Task, or the

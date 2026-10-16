@@ -364,8 +364,11 @@ def test_the_frame_confidence_is_the_mean_of_the_scored_objects_only() -> None:
 
 
 def _Judged(verdict: str, similarity: float = 0.94, distance: float = 30.0,
-            checks: tp.Optional[tp.List[tp.Any]] = None, area: float = 1.0) -> Detection_Str:
-    """An object as a catalogue mode leaves it: a verdict, its evidence and its dimension checks."""
+            checks: tp.Optional[tp.List[tp.Any]] = None, area: float = 1.0, kind: str = '') -> Detection_Str:
+    """An object as a catalogue mode leaves it: a verdict, its evidence and its dimension checks; a Warning of the kind
+    given, a foreign object inside the area when none is ('Warning-outside' names the verdict and the kind at once)."""
+    verdict, _dash, named = verdict.partition('-')
+    kind = kind or named or ('foreign' if verdict == 'Warning' else '')
     from Parameters.Vision import Catalogue_Result_Str
     from Vision.Utilities.Dimensions import Check_Dimension
     return Detection_Str(Label='plate', Bbox=(0, 0, 1, 1), Verdict=verdict, Sentence='A plate.',
@@ -373,49 +376,61 @@ def _Judged(verdict: str, similarity: float = 0.94, distance: float = 30.0,
                                                                              Check_Dimension('width', 40.1, 40.0, 1.5)],
                          Catalogue=Catalogue_Result_Str(Similarity=similarity, Side='front', Identify_Similarity=0.75,
                                                         Area_Ratio=area, Unspecified_Area_Ratio=1.7,
-                                                        Center_Distance_Mm=distance, Verified_Radius_Mm=74.3))
+                                                        Center_Distance_Mm=distance, Verified_Radius_Mm=74.3,
+                                                        Warning_Kind=kind, Outside_Area=kind == 'outside',
+                                                        Resembles=verdict != 'Warning' or kind != 'foreign'))
 
 
 def test_each_state_reads_as_the_owner_specified() -> None:
     """
     Description:
         Scene Understanding shows the state and, when it is not OK, why — never the similarity, which is in the
-        log only: OK is 'State: OK.' alone; a Warning is 'State: Warning.' and 'Reason: The object should not be
-        on the surface.'; an Unspecified object says why it could not be judged and what to do.
+        log only: OK is 'State: OK.' alone; a Warning is 'State: Warning – <kind>' (the owner's wording, 2026-10-16)
+        and its reason with what the operator does: a foreign object to remove, a part outside the area to move
+        inside, several parts to separate.
     """
 
     from Reporting.Core import Verdict_Lines
     assert Verdict_Lines(_Judged('OK')) == ['State: OK.']
-    assert Verdict_Lines(_Judged('Warning', similarity=0.31)) == ['State: Warning.',
-                                                                  'Reason: The object should not be on the surface.']
-    assert Verdict_Lines(_Judged('Unspecified', area=2.04)) == [
-        'State: Unspecified.',
-        "Reason: Its area is 2.04 times the part's, probably several parts together, so it cannot be judged. "
-        'Separate them and scan again.']
-    for verdict in ('OK', 'NOK', 'Warning', 'Unspecified'):
+    assert Verdict_Lines(_Judged('Warning', similarity=0.31)) == [
+        'State: Warning – Foreign object',
+        'Reason: It is not the part, so it should not be there: remove it from the surface.']
+    assert Verdict_Lines(_Judged('Warning-outside')) == [
+        'State: Warning – Outside area',
+        'Reason: It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.']
+    assert Verdict_Lines(_Judged('Warning-several_parts', area=2.04)) == [
+        'State: Warning – Several parts',
+        "Reason: Its area is 2.04 times the part's, probably several parts touching or lying close together, so it "
+        'cannot be judged: separate the parts and scan again.']
+    # The side kinds quote both sides' similarity, the evidence the operator acts on (as Unspecified's did).
+    for verdict in ('OK', 'NOK', 'Warning', 'Warning-outside', 'Warning-several_parts'):
         assert not [line for line in Verdict_Lines(_Judged(verdict)) if 'similarity' in line.lower()], verdict
 
 
-def test_an_unspecified_part_says_why_it_was_not_judged_and_what_to_do() -> None:
+def test_a_warning_on_the_part_says_why_it_was_not_judged_and_what_to_do() -> None:
     """
     Description:
-        An Unspecified object's reason names its cause: its area (several parts, as before); or its side, which
-        neither its look (both similarities given) nor its holes tell while its verdict depends on it, or which its
-        holes and its look tell differently. Each says what to do. The log names a side its holes decided.
+        A Warning on an object the rule identified as the part names its kind and cause: several parts (its area);
+        its side unclear, which neither its look (both similarities given) nor its holes tell while its verdict
+        depends on it; or a side mismatch, which its holes and its look tell differently. Each says what to do, and
+        the log line leads with the same state as Scene Understanding. The log names a side its holes decided.
     """
 
-    from Reporting.Core import Reason_Sentence, Verdict_Log_Line
-    told = _Judged('Unspecified')
-    told.Catalogue.Unspecified_Cause, told.Catalogue.Side_Evidence = 'side', 'undecided'
+    from Reporting.Core import Reason_Sentence, Verdict_Lines, Verdict_Log_Line
+    told = _Judged('Warning-side_unknown')
+    told.Catalogue.Side_Evidence = 'undecided'
     told.Catalogue.Side_Similarities = {'front': 0.72, 'back': 0.75}
+    assert Verdict_Lines(told)[0] == 'State: Warning – Side unclear'
     assert Reason_Sentence(told) == ('Which side is up cannot be told from its look (similarity front 0.72, back '
-                                     '0.75) or its holes, and its verdict depends on it, so it cannot be judged. '
-                                     'Move it nearer the centre and scan again.')
-    told.Catalogue.Side_Evidence = 'conflict'
+                                     '0.75) or its holes, and its verdict depends on it, so it cannot be judged: '
+                                     'move it nearer the centre and scan again.')
+    assert Verdict_Log_Line(0, told)[1].startswith('Object 1: Warning – Side unclear, similarity 0.94. Reason: Which')
+    told.Catalogue.Side_Evidence, told.Catalogue.Warning_Kind = 'conflict', 'side_mismatch'
+    assert Verdict_Lines(told)[0] == 'State: Warning – Side mismatch'
     assert Reason_Sentence(told) == ('Its holes show one side up and its look the other (similarity front 0.72, back '
-                                     '0.75), so it cannot be judged. Check that it is the part and scan it again '
+                                     '0.75), so it cannot be judged: check that it is the part and scan it again '
                                      'nearer the centre.')
-    assert Reason_Sentence(_Judged('Unspecified', area=2.04)).startswith("Its area is 2.04 times the part's")
+    assert Reason_Sentence(_Judged('Warning-several_parts', area=2.04)).startswith("Its area is 2.04 times the part's")
     holes = _Judged('NOK', similarity=0.75)
     holes.Catalogue.Side_Evidence = 'holes'
     assert Verdict_Log_Line(0, holes)[1].startswith('Object 1: NOK, front up by its holes, similarity 0.75.')
@@ -466,8 +481,8 @@ def test_the_verdict_reaches_the_file_and_the_log_keeps_the_similarity() -> None
     Description:
         The Screen Understanding file's object line carries the verdict lines, indented, under the object. The
         log carries the verdict on one line with what Scene Understanding leaves out — the side of a judged
-        part and the similarity of every object — at WARNING for a Warning or an Unspecified object and at
-        INFO for OK and NOK. Outside a catalogue mode the object line is exactly what it was.
+        part and the similarity of every object — at WARNING for a Warning, of any kind, and at INFO for OK and
+        NOK. Outside a catalogue mode the object line is exactly what it was.
     """
 
     from Reporting.Core import Object_Line, Verdict_Log_Line
@@ -477,44 +492,35 @@ def test_the_verdict_reaches_the_file_and_the_log_keeps_the_similarity() -> None
     plain = Detection_Str(Label='plate', Bbox=(0, 0, 1, 1), Sentence='A plate.')
     assert Object_Line(0, plain) == 'Object 1 · Confidence — - A plate.'
     assert Verdict_Log_Line(1, _Judged('Warning', similarity=0.31)) == (
-        'WARNING', 'Object 2: Warning, similarity 0.31. Reason: The object should not be on the surface.')
+        'WARNING', 'Object 2: Warning – Foreign object, similarity 0.31. Reason: It is not the part, so it should not '
+                   'be there: remove it from the surface.')
     assert Verdict_Log_Line(0, _Judged('NOK', similarity=0.58, distance=82.2)) == (
         'INFO', "Object 1: NOK, front up, similarity 0.58. Reason: It has the part's outline but does not look like "
                 'the part. Note: The size check is not verified here: 82 mm from the frame centre, verified to 74 mm.')
     assert Verdict_Log_Line(0, _Judged('OK')) == ('INFO', 'Object 1: OK, front up, similarity 0.94.')
-    assert Verdict_Log_Line(0, _Judged('Unspecified', area=2.0))[0] == 'WARNING'
+    assert Verdict_Log_Line(0, _Judged('Warning-several_parts', area=2.0))[0] == 'WARNING'
 
 
 @pytest.mark.parametrize('verdicts, badges', [
-    (['OK', 'OK'], [('All OK · 2', 'ok')]),
-    (['OK', 'Warning', 'Warning'], [('Foreign object · 2', 'foreign')]),
-    (['OK', 'Warning-outside', 'Warning-outside'], [('Outside the area · 2', 'warn')]),
-    (['OK', 'Warning', 'Warning-outside'], [('Outside the area · 1', 'warn'), ('Foreign object · 1', 'foreign')]),
-    (['OK', 'Warning-far', 'Warning'], [('Foreign object · 2', 'foreign')]),
-    (['OK', 'Warning', 'Unspecified'], [('Foreign object · 1', 'foreign'), ('Not judged · 1', 'unspecified')]),
-    (['OK', 'NOK', 'Unspecified', 'Warning', 'NOK'], [('NOK · 2 of 5', 'fail'), ('Foreign object · 1', 'foreign'),
-                                                      ('Not judged · 1', 'unspecified')]),
-    (['Unspecified', 'Warning-outside', 'NOK', 'Warning', 'OK'], [('NOK · 1 of 5', 'fail'), ('Outside the area · 1', 'warn'),
-                                                                 ('Foreign object · 1', 'foreign'),
-                                                                 ('Not judged · 1', 'unspecified')]),
-], ids=['all ok', 'foreign', 'outside', 'foreign and outside', 'foreign outside the area', 'foreign and unspecified',
-        'nok beside the others', 'all four'])
+    (['OK', 'OK'], [('All OK', 'ok')]),
+    (['OK', 'Warning', 'Warning'], [('Warning · 2', 'warn')]),
+    (['OK', 'Warning-outside', 'Warning', 'Warning-several_parts', 'Warning-side_unknown', 'Warning-side_mismatch'],
+     [('Warning · 5', 'warn')]),
+    (['OK', 'NOK', 'Warning-several_parts', 'Warning', 'NOK'], [('NOK · 2', 'fail'), ('Warning · 2', 'warn')]),
+    (['NOK', 'OK'], [('NOK · 1', 'fail')]),
+], ids=['all ok', 'warnings', 'every kind one badge', 'nok beside warning', 'nok alone'])
 def test_the_badges_show_every_state_that_needs_the_operator(verdicts: tp.List[str],
                                                              badges: tp.List[tp.Tuple[str, str]]) -> None:
     """
     Description:
-        In a catalogue mode one badge for every state there that needs the operator, all at once, so a part to move is
-        never hidden behind a NOK: 'NOK · n of m' ('fail'), 'Outside the area · n' ('warn', the amber), 'Foreign object ·
-        n' ('foreign', the grey) and 'Not judged · n' ('unspecified', the blue), in that order, never one badge counting
-        two kinds; with none of them 'All OK · n' ('ok') — each in words as well as colour. The first badge is the
-        reading's Verdict. Outside a catalogue mode it still counts what was found.
+        In a catalogue mode one badge per state present (the owner's rule of 2026-10-16): 'NOK · n' ('fail') and
+        'Warning · n' ('warn', the amber), every kind of Warning counted in the one badge, in that order, both at once
+        so a Warning is never hidden behind a NOK; with neither 'All OK' ('ok') — each in words as well as colour.
+        The first badge is the reading's Verdict. Outside a catalogue mode it still counts what was found.
     """
 
     from Reporting.Core import Verdict, Badges
-    objects = [_Judged(verdict.split('-')[0]) for verdict in verdicts]
-    for det, verdict in zip(objects, verdicts):
-        det.Catalogue.Outside_Area = verdict.endswith(('-outside', '-far'))   # -far: a foreign object outside the area
-        det.Catalogue.Resembles = verdict.endswith('-outside') or verdict in ('OK', 'NOK', 'Unspecified')
+    objects = [_Judged(verdict) for verdict in verdicts]
     assert (Badges(objects), Verdict(objects)) == (badges, badges[0])
     assert Verdict([Detection_Str(Label='plate', Bbox=(0, 0, 1, 1))] * 3) == ('3 found', 'ok')
 
@@ -523,7 +529,7 @@ def test_a_judged_part_says_which_side_is_up_in_the_catalogues_words() -> None:
     """
     Description:
         An OK or NOK part's description gains one sentence naming the side DINOv2 matched, in the catalogue's
-        words for it; a Warning (not the part) and an Unspecified object (several) gain none, and neither does
+        words for it; a Warning, of any kind (not judged), gains none, and neither does
         an object outside a catalogue mode.
     """
 
@@ -532,7 +538,7 @@ def test_a_judged_part_says_which_side_is_up_in_the_catalogues_words() -> None:
         det = _Judged(verdict)
         det.Catalogue.Side_Name = 'machined front'
         assert Side_Sentence(det) == 'It lies with its machined front up.'
-    for verdict in ('Warning', 'Unspecified'):
+    for verdict in ('Warning', 'Warning-several_parts'):
         det = _Judged(verdict)
         det.Catalogue.Side_Name = 'machined front'
         assert Side_Sentence(det) == ''
@@ -653,7 +659,7 @@ def test_the_findings_say_what_the_checks_found_in_words_without_numbers() -> No
         What the describer is told of a judged part: one sentence per check that ran, in words and without a digit
         — stains found or none, what each hole group's check found ('no through-holes', 'only one countersink',
         'both', 'all the', 'more … than the part has'), never the number the part should have, an outline out of
-        tolerance — and nothing for a Warning or an Unspecified object.
+        tolerance — and nothing for a Warning, of any kind.
     """
 
     from Reporting.Core import Findings
@@ -683,7 +689,7 @@ def test_the_findings_say_what_the_checks_found_in_words_without_numbers() -> No
     assert Findings(det) == 'An automatic check found no through-holes on its unmachined back.'
     det.Hole_Counts = [Hole_Count_Str(Name='through-hole', Found=4, Expected=4)]
     assert Findings(det) == 'An automatic check found all the through-holes on its unmachined back.'
-    for verdict in ('Warning', 'Unspecified'):
+    for verdict in ('Warning', 'Warning-several_parts', 'Warning-side_unknown'):
         assert Findings(_Judged(verdict)) == ''
 
 
@@ -693,7 +699,8 @@ def test_the_describer_prompt_is_the_items_filled_for_the_part() -> None:
         A judged part's prompt is the item's Describer.Prompt with its side's name and description, that side's
         defects only (what they look like and what is not one) and the findings, then the rule that holes and stains
         are described as features seen, never as the checks'; no placeholder is left and no digit is in it. A
-        Warning, an Unspecified object or an item without a prompt gets '' (the mode's prompt).
+        Warning on the part (several parts, its side), a foreign object or an item without a prompt gets '' (the
+        mode's prompt).
     """
 
     import dataclasses
@@ -715,7 +722,7 @@ def test_the_describer_prompt_is_the_items_filled_for_the_part() -> None:
                                            'stains only as features you see on the part, for example "two stepped '
                                            'holes"; never mention the checks, a verification, a confirmation or a '
                                            'detection.')
-    for verdict in ('Warning', 'Unspecified'):
+    for verdict in ('Warning', 'Warning-several_parts', 'Warning-side_mismatch'):
         assert Describer_Prompt(_Judged(verdict), item) == ''
     assert Describer_Prompt(det, dataclasses.replace(item, Describer_Prompt='')) == ''
 
@@ -894,8 +901,7 @@ def test_a_part_outside_the_inspection_area_only_says_to_move_it_inside() -> Non
 
     from Reporting.Core import Reason_Sentence, Part_Lines, Outside_Part, Verdict_Log_Line
     first = 'It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.'
-    part = _Judged('Warning', similarity=0.70)
-    part.Catalogue.Outside_Area = part.Catalogue.Resembles = True
+    part = _Judged('Warning-outside', similarity=0.70)
     assert (Reason_Sentence(part), Outside_Part(part), Part_Lines(0, part)) == (first, True, [])
     foreign = _Judged('Warning', similarity=0.64)
     foreign.Catalogue.Outside_Area, foreign.Catalogue.Saturation, foreign.Catalogue.Extent_Mm = True, 129.4, 44.5
@@ -903,7 +909,8 @@ def test_a_part_outside_the_inspection_area_only_says_to_move_it_inside() -> Non
     assert not Outside_Part(foreign)
     assert ('outside the inspection area, does not resemble the part (saturation 129, extent 44.5 mm)'
             in Verdict_Log_Line(0, foreign)[1])
-    assert Reason_Sentence(_Judged('Warning', similarity=0.31)) == 'The object should not be on the surface.'
+    assert Reason_Sentence(_Judged('Warning', similarity=0.31)) == ('It is not the part, so it should not be there: '
+                                                                    'remove it from the surface.')
 
 
 @pytest.mark.parametrize('sentence, dropped', [
@@ -928,8 +935,7 @@ def test_a_part_outside_the_area_is_described_without_holes_or_stains(sentence: 
 
     from Reporting.Core import Describer_Prompt, Guard_Description, CONST_DESCRIBER_OUTSIDE_PROMPT
     from Parameters.Catalogue import Catalogue_Item_Str
-    part = _Judged('Warning', similarity=0.70)
-    part.Catalogue.Outside_Area = part.Catalogue.Resembles = True
+    part = _Judged('Warning-outside', similarity=0.70)
     item = Catalogue_Item_Str(Name='plate', Describer_Prompt='Describe the {side}. {findings}')
     prompt = Describer_Prompt(part, item)
     assert prompt == CONST_DESCRIBER_OUTSIDE_PROMPT and 'Do not mention holes, countersinks, stains' in prompt

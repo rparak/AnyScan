@@ -304,14 +304,15 @@ def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app,
 @pytest.mark.parametrize('level, ground, ink', [('fail', 'CONST_NOK_LABEL_GROUND', 'CONST_INK'),
                                                 ('warn', 'CONST_WARNING_BOX', 'CONST_INK'),
                                                 ('ok', 'CONST_OK_LABEL_GROUND', 'CONST_INK'),
-                                                ('unspecified', 'CONST_UNSPECIFIED_LABEL_GROUND', 'CONST_INK'),
-                                                ('foreign', 'CONST_FOREIGN_LABEL_GROUND', 'CONST_INK')])
+                                                ('unspecified', 'CONST_CARD', 'CONST_INK_MUTE'),
+                                                ('foreign', 'CONST_CARD', 'CONST_INK_MUTE')])
 def test_the_badge_paints_each_verdict_level_legibly(qt_app, level: str, ground: str, ink: str) -> None:
     """
     Description:
         The status badge, rendered: a NOK paints the 'fail' level — the purple on the orange-red's tint, as the
-        poster's defect tag — and the warning (the amber), OK, Unspecified (the blue's tint) and foreign-object (the grey)
-        levels their own grounds; on each, the darkest painted text
+        poster's defect tag — and the Warning (the amber, every kind) and OK levels their own grounds; the retired
+        Unspecified and foreign-object levels paint no verdict ground, only the idle card; on each, the darkest
+        painted text
         clears 4.5:1 against the ground actually painted, and the ground is the level's token, so a NOK can never
         show another verdict's colour.
     """
@@ -336,32 +337,36 @@ def test_the_badge_paints_each_verdict_level_legibly(qt_app, level: str, ground:
 def test_every_badge_shows_at_once_and_wraps_rather_than_clip(qt_app, reference_background_path, scan) -> None:
     """
     Description:
-        A reading with every state that needs the operator shows four badges in the reading card's head, in order —
-        NOK, Outside the area (the amber), Foreign object (the grey), Not judged (the blue) — none hidden behind another;
-        in a head too narrow for one row they wrap onto a second, right-aligned, each wholly inside the row and none
-        overlapping; a later reading with one badge shows only it.
+        A reading with both states that need the operator shows both badges in the reading card's head, in order —
+        'NOK · n', then 'Warning · n' on the amber, every kind counted in it (Reporting.Badges) — neither hidden behind
+        the other; in a head too narrow for one row they wrap onto a second, right-aligned, each wholly inside the row
+        and neither overlapping; a later reading with one badge shows only it, 'All OK'.
     """
 
     import UI.Utilities.Style as Style
-    badges = [('NOK · 1 of 5', 'fail'), ('Outside the area · 1', 'warn'), ('Foreign object · 1', 'foreign'),
-              ('Not judged · 1', 'unspecified')]
+    from Parameters.Vision import Catalogue_Result_Str
+    from Reporting.Core import Badges
+    judged = [Detection_Str(Label='plate', Bbox=(0, 0, 8, 8), Verdict=verdict.partition('-')[0],
+                            Catalogue=Catalogue_Result_Str(Warning_Kind=verdict.partition('-')[2]))
+              for verdict in ('NOK', 'Warning-outside', 'Warning-foreign', 'Warning-several_parts', 'Warning-side_unknown')]
+    badges = Badges(judged)
+    assert badges == [('NOK · 1', 'fail'), ('Warning · 4', 'warn')]
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=[_Object('A plate.'), _Object('A washer.')], Background='A surface.',
                                        Verdict=badges[0][0], Verdict_Level=badges[0][1], Task='caption', Badges=badges), scan)
     row = _Private(window, '__stage_badges')
     shown = row.Badges()
     assert [badge.text() for badge in shown] == [text for text, _level in badges]
-    grounds = (Style.CONST_NOK_LABEL_GROUND, Style.CONST_WARNING_BOX, Style.CONST_FOREIGN_LABEL_GROUND,
-               Style.CONST_UNSPECIFIED_LABEL_GROUND)
+    grounds = (Style.CONST_NOK_LABEL_GROUND, Style.CONST_WARNING_BOX)
     assert all(ground in badge.styleSheet() for badge, ground in zip(shown, grounds))
-    for width in (900, 330, 190):
+    for width, rows in ((900, 1), (300, 1), (150, 2)):
         row.resize(width, row.heightForWidth(width))
         row.layout().setGeometry(row.rect())
         boxes = [badge.geometry() for badge in shown]
         assert all(row.rect().contains(box) for box in boxes), width
         assert not any(a.intersects(b) for i, a in enumerate(boxes) for b in boxes[i + 1:]), width
-        assert (len({box.top() for box in boxes}) > 1) == (width < sum(b.width() for b in boxes) + 18), width
+        assert len({box.top() for box in boxes}) == rows, width
     _Private(window, '__On_Analysis_Finished')(Analysis_Str(Objects=[_Object('A plate.')], Background='A surface.',
-                                                             Verdict='All OK · 1', Verdict_Level='ok', Task='caption',
-                                                             Badges=[('All OK · 1', 'ok')]))
-    assert [badge.text() for badge in row.Badges()] == ['All OK · 1']
+                                                             Verdict='All OK', Verdict_Level='ok', Task='caption',
+                                                             Badges=[('All OK', 'ok')]))
+    assert [badge.text() for badge in row.Badges()] == ['All OK']
