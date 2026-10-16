@@ -23,6 +23,8 @@
 
 # System (Default)
 import os
+# Typing (Support for type hints)
+import typing as tp
 # Qt must render headless; set the platform before any QApplication is constructed.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Pytest (Testing framework) [pip3 install pytest]
@@ -82,12 +84,12 @@ def _Object(sentence: str, score=None) -> Detection_Str:
                          Segmenter_Score=score)
 
 
-def _Window_With(reference_background_path, result: Analysis_Str) -> AnyScan_Window_Cls:
+def _Window_With(reference_background_path, result: Analysis_Str, scan: tp.Callable[[tp.Any], None]) -> AnyScan_Window_Cls:
     """A window that has scanned a frame and rendered the given result."""
     window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
     _Private(window, '__On_Analysis_Finished')(result)
     return window
 
@@ -123,7 +125,7 @@ def _Line_Texts(window) -> list:
     return triples
 
 
-def test_lead_is_the_shared_screen_header(qt_app, reference_background_path) -> None:
+def test_lead_is_the_shared_screen_header(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         The reading lead is Screen_Header — the SAME first line the descriptions file
@@ -135,7 +137,7 @@ def test_lead_is_the_shared_screen_header(qt_app, reference_background_path) -> 
     background = 'A green background that is very bright.'
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=objects, Background=background,
-                                       Verdict='2 found', Verdict_Level='ok', Task='caption'))
+                                       Verdict='2 found', Verdict_Level='ok', Task='caption'), scan)
 
     lead = _Private(window, '__reading_lead')
     assert lead.text() == Screen_Header(objects, background)
@@ -143,7 +145,7 @@ def test_lead_is_the_shared_screen_header(qt_app, reference_background_path) -> 
     assert 'There are 2 objects on it, described below.' in lead.text()
 
 
-def test_background_paragraph_is_one_uniformly_styled_label(qt_app, reference_background_path) -> None:
+def test_background_paragraph_is_one_uniformly_styled_label(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         The background sentence and the object count are ONE paragraph: a single label holds the
@@ -158,7 +160,7 @@ def test_background_paragraph_is_one_uniformly_styled_label(qt_app, reference_ba
     background = 'A green background that is very bright.'
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=objects, Background=background,
-                                       Verdict='2 found', Verdict_Level='ok', Task='caption'))
+                                       Verdict='2 found', Verdict_Level='ok', Task='caption'), scan)
     header = Screen_Header(objects, background)
     lead = _Private(window, '__reading_lead')
 
@@ -183,7 +185,7 @@ def test_background_paragraph_is_one_uniformly_styled_label(qt_app, reference_ba
     assert lead.font().pointSizeF() > description.font().pointSizeF()
 
 
-def test_object_blocks_carry_the_shared_label_and_description(qt_app, reference_background_path) -> None:
+def test_object_blocks_carry_the_shared_label_and_description(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         Each object is a two-level block whose label line is the shared name
@@ -199,7 +201,7 @@ def test_object_blocks_carry_the_shared_label_and_description(qt_app, reference_
                _Object('A hex nut.')]
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=objects, Background='A plain surface.',
-                                       Verdict='3 found', Verdict_Level='ok', Task='caption'))
+                                       Verdict='3 found', Verdict_Level='ok', Task='caption'), scan)
 
     triples = _Line_Texts(window)
     assert len(triples) == len(objects)
@@ -219,7 +221,7 @@ def test_object_blocks_carry_the_shared_label_and_description(qt_app, reference_
     assert _Line_Texts(window)[2][1].endswith('Confidence —')
 
 
-def test_object_blocks_are_single_colour_two_level(qt_app, reference_background_path) -> None:
+def test_object_blocks_are_single_colour_two_level(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         Each object block is a SINGLE colour (Style.CONST_INK = '#2b2455') on two levels —
@@ -232,7 +234,7 @@ def test_object_blocks_are_single_colour_two_level(qt_app, reference_background_
     objects = [_Object('A silver ring.', 0.91), _Object('A blue bracket.')]
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=objects, Background='A plain surface.',
-                                       Verdict='2 found', Verdict_Level='ok', Task='caption'))
+                                       Verdict='2 found', Verdict_Level='ok', Task='caption'), scan)
 
     layout = _Private(window, '__object_list').box
     # One block per object, so the loop below cannot pass by running zero times.
@@ -252,7 +254,7 @@ def test_object_blocks_are_single_colour_two_level(qt_app, reference_background_
         assert name.font().weight() > confidence.font().weight()
 
 
-def test_zero_objects_reads_sensibly(qt_app, reference_background_path) -> None:
+def test_zero_objects_reads_sensibly(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         The zero case reads 'No objects were detected on it.' in the lead — never
@@ -261,7 +263,7 @@ def test_zero_objects_reads_sensibly(qt_app, reference_background_path) -> None:
 
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=[], Background='A plain surface.',
-                                       Verdict='Empty', Verdict_Level='idle', Task='caption'))
+                                       Verdict='Empty', Verdict_Level='idle', Task='caption'), scan)
 
     lead = _Private(window, '__reading_lead')
     assert lead.text() == 'A plain surface. No objects were detected on it.'
@@ -269,7 +271,7 @@ def test_zero_objects_reads_sensibly(qt_app, reference_background_path) -> None:
     assert _Line_Texts(window) == []
 
 
-def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app, reference_background_path) -> None:
+def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         In a catalogue mode each object block shows its verdict lines (Reporting.Verdict_Lines) — the state
@@ -288,7 +290,7 @@ def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app,
                                                           Center_Distance_Mm=80.0, Verified_Radius_Mm=74.3))
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=[judged, _Object('A washer.')], Background='A surface.',
-                                       Verdict='2 found', Verdict_Level='ok', Task='caption'))
+                                       Verdict='2 found', Verdict_Level='ok', Task='caption'), scan)
     layout = _Private(window, '__object_list').box
     first, second = layout.itemAt(0).widget().layout(), layout.itemAt(1).widget().layout()
     assert first.count() == 3 and second.count() == 2
@@ -331,7 +333,7 @@ def test_the_badge_paints_each_verdict_level_legibly(qt_app, level: str, ground:
     assert Contrast_Ratio(getattr(Style, ink), getattr(Style, ground)) >= 4.5
 
 
-def test_every_badge_shows_at_once_and_wraps_rather_than_clip(qt_app, reference_background_path) -> None:
+def test_every_badge_shows_at_once_and_wraps_rather_than_clip(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         A reading with every state that needs the operator shows four badges in the reading card's head, in order —
@@ -345,7 +347,7 @@ def test_every_badge_shows_at_once_and_wraps_rather_than_clip(qt_app, reference_
               ('Not judged · 1', 'unspecified')]
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=[_Object('A plate.'), _Object('A washer.')], Background='A surface.',
-                                       Verdict=badges[0][0], Verdict_Level=badges[0][1], Task='caption', Badges=badges))
+                                       Verdict=badges[0][0], Verdict_Level=badges[0][1], Task='caption', Badges=badges), scan)
     row = _Private(window, '__stage_badges')
     shown = row.Badges()
     assert [badge.text() for badge in shown] == [text for text, _level in badges]

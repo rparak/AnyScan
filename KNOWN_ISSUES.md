@@ -611,8 +611,8 @@ and hole-diameter error of the plates inside stays within half its tolerance. Wh
 - **The area is narrow upright.** It is about 101 mm high, so a plate standing with its long side vertical (60 mm)
   can move only about ±20 mm up or down from the frame's middle row and still be judged (±30 mm lying across).
   Such a plate 21-22 mm from the centre already reaches into the top band (`Image_062`, `20261015-170753_14`). The
-  area shows on the empty view and on the scanned frame; a future live preview with the area drawn would let the
-  operator place a part before the scan.
+  area shows on the empty view and on the scanned frame, and since 2026-10-16 on the live preview (PREVIEW), so the
+  operator can place a part inside it before the scan.
 
 - **Impact:** a part placed by the left or bottom edge of the area, or in its corners, is judged on errors measured
   mostly by the right edge and the top; the area may be larger, or need to be smaller, there. An upright plate a
@@ -623,6 +623,23 @@ and hole-diameter error of the plates inside stays within half its tolerance. Wh
   tolerance, the insets stand, or shrink where they allow.
 - **Pinned by:** `test/Vision/Utilities/test_classify.py::test_only_an_object_wholly_inside_the_inspection_area_is_judged`,
   `test/integration/test_edge_of_view.py`, `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`.
+
+## The live preview runs at about 3.7 frames a second, set by the USB-C Ethernet adapter
+
+PREVIEW shows the table at about 3.7 frames a second (3.67 measured in the window on 2026-10-16), so a hand placing a
+part moves in visible steps. The limit is not the camera (51 fps) but the link: the camera's throughput is held to
+10 MB/s (`Camera.Basler.CONST_THROUGHPUT_LIMIT`), the measured ceiling of the USB-C Ethernet adapter it is plugged
+into, and a full 1920 × 1200 frame is 2.3 MB.
+
+- **Impact:** the preview is usable for placing parts, not smooth; SCAN from the preview first waits for the frame
+  in flight (0.786 s from the press to the frame, against 0.590 s without the preview). Nothing measured or judged
+  depends on it.
+- **Not fixed here:** a faster preview at this link would need a camera setting that differs between preview and scan
+  (binning, a smaller window), which the owner ruled out, and would show something other than the frame the scan
+  takes. A dedicated gigabit network card for the GigE camera would allow a much faster preview without changing any
+  camera setting; revisit then (docs/design-decisions.md, *The preview's frame rate is the GigE adapter's, not the
+  camera's*, has what to raise and re-measure).
+- **Pinned by:** nothing automated (a property of the network hardware); `Example/Camera/preview_check.py` measures it.
 
 ## A plate cut more than any measured could read as a foreign object
 

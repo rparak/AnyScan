@@ -47,7 +47,7 @@ from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 Description:
     A headless (offscreen) smoke test for the whole UI. It builds the main window
     — which constructs every widget and wires every signal — and drives the
-    synchronous scan path (capture -> ndarray -> QImage -> viewport), the one
+    scan path (the scan worker's capture -> ndarray -> QImage -> viewport), the one
     boundary the domain unit tests cannot reach. No display, no camera hardware and
     no model weights are needed.
 
@@ -115,10 +115,10 @@ class _Loaded_Vision_Cls(object):
     Name, Models_Loaded, Model_Names = 'JIC_AnyScan_All_v1', True, ('FastSAM-x.pt', 'gemma')
 
 
-def test_scan_path_displays_frame(qt_app, reference_background_path, reference_shape) -> None:
+def test_scan_path_displays_frame(qt_app, reference_background_path, reference_shape, scan) -> None:
     """
     Description:
-        Connect the camera and run the synchronous scan slot: the frame is captured
+        Connect the camera and scan (the slot, then the scan's worker): the frame is captured
         as an ndarray, converted to a QImage for the viewport, and the badge shows
         the frame size. ANALYZE needs the frame AND a loaded configuration — with a frame but no
         loaded configuration it stays disabled. Then clear and disconnect return to the empty state.
@@ -128,7 +128,7 @@ def test_scan_path_displays_frame(qt_app, reference_background_path, reference_s
 
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
 
     height, width, _ = reference_shape
     assert _Private(window, '__frame_badge').text() == '%d × %d · RGB' % (width, height)

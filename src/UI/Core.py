@@ -26,6 +26,7 @@ import typing as tp
 import os
 import sys
 import statistics
+import time
 import uuid
 from datetime import datetime
 # OpenCV library for computer vision tasks [pip3 install opencv-python]
@@ -52,7 +53,8 @@ from UI.Views.Trends import Trends_View_Cls
 #   ../UI/Views/Log
 from UI.Views.Log import Log_View_Cls
 #   ../UI/Workers
-from UI.Workers import Analysis_Worker_Cls, Connect_Worker_Cls, Join_Worker_Thread
+from UI.Workers import (Analysis_Worker_Cls, Connect_Worker_Cls, Preview_Worker_Cls, Scan_Worker_Cls,
+                        Join_Worker_Thread)
 #   ../UI/Configuration_Dialog
 from UI.Configuration_Dialog import Configuration_Dialog_Cls
 # Custom Lib.: AnyScan domain — backends, renderers and the result structure
@@ -187,6 +189,22 @@ class AnyScan_Window_Cls(QMainWindow):
     # What the operator reads when that check finds the device gone.
     CONST_CONNECTION_LOST_MESSAGE = ('The camera is no longer reachable: it was unplugged, lost power or its GigE '
                                      'link went down. Check the camera and its cable, then press CONNECT.')
+    # What the operator reads when the camera is lost during the live preview, and when the preview stops on a
+    # camera that is still there (followed by the camera's own sentence).
+    CONST_PREVIEW_LOST_MESSAGE = 'The live preview stopped. ' + CONST_CONNECTION_LOST_MESSAGE
+    CONST_PREVIEW_FAILED_FORMAT = 'The live preview stopped: %s Press PREVIEW to start it again.'
+    # The disabled PREVIEW button's tooltip without a connected camera.
+    CONST_PREVIEW_NEEDS_CAMERA = 'Connect the camera first.'
+    # The Camera View's badge during the live preview, with the frame rate over the last frames.
+    CONST_LIVE_BADGE_FORMAT = 'Live · %.1f fps'
+    CONST_LIVE_BADGE_STARTING = 'Live'
+    # How many recent preview frames the badge's frame rate is taken over (about 2.4 s at the rig's 3.7 fps).
+    #   Unit [int]
+    CONST_LIVE_RATE_FRAMES = 10
+    # What the live preview does once its worker has stopped, by precedence: a later request replaces a pending
+    # one only when it ranks higher, so a lost camera or a close is never overridden by a SCAN that was waiting.
+    #   Unit [Dict<string, int>]
+    CONST_PREVIEW_STOP_RANK = {'stop': 0, 'scan': 1, 'disconnect': 2, 'lost': 3, 'close': 4}
 
     def __init__(self, camera: tp.Optional[tp.Any] = None,
                  logger: tp.Optional[Session_Logger_Cls] = None, *,
@@ -297,6 +315,21 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__conn_thread = None
         self.__conn_worker = None
         self.__connecting = False
+        # Scan worker plumbing; None when idle. Whether a scan is under way, and whether the live preview
+        # comes back when it is refused for a moving scene (it was started from the preview).
+        self.__scan_thread = None
+        self.__scan_worker = None
+        self.__scanning = False
+        self.__resume_preview = False
+        # Live-preview worker plumbing; None when the preview is off. It is not a 'running worker': SCAN,
+        # PREVIEW, DISCONNECT and CLEAR stay available while it runs. Once a stop is requested, what follows when
+        # the worker has ended ('stop', 'scan', 'disconnect', 'lost' or 'close'; CONST_PREVIEW_STOP_RANK) waits
+        # here, and every control is disabled until then. The arrival times of the recent preview frames give
+        # the badge its frame rate.
+        self.__preview_thread = None
+        self.__preview_worker = None
+        self.__preview_pending = None
+        self.__live_times = []
         # The connection check: running while the camera is connected, stopped however it ends.
         self.__connection_timer = QTimer(self)
         self.__connection_timer.setInterval(self.CONST_CONNECTION_CHECK_MS)
@@ -337,6 +370,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_connect = None
         self.__button_disconnect = None
         self.__button_scan = None
+        self.__button_preview = None
         self.__button_analyze = None
         self.__button_clear = None
         self.__button_configuration = None
@@ -571,7 +605,7 @@ class AnyScan_Window_Cls(QMainWindow):
     def __Build_Camera_Card(self) -> Card_Cls:
         """
         Description:
-            The camera card: head, viewport and the six action buttons.
+            The camera card: head, viewport and the seven action buttons.
 
         Returns:
             (1) parameter [Card_Cls(object)]: The camera card.
@@ -598,12 +632,15 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_connect = Tool_Button_Cls('CONNECT')
         self.__button_disconnect = Tool_Button_Cls('DISCONNECT')
         self.__button_scan = Tool_Button_Cls('SCAN')
+        # PREVIEW, not LIVE: the header's view switch already has a Live tab. It sits before SCAN, the order an
+        # operator uses them in: watch the table while placing parts, then scan.
+        self.__button_preview = Tool_Button_Cls('PREVIEW')
         self.__button_analyze = Tool_Button_Cls('ANALYZE', primary=True)
         self.__button_clear = Tool_Button_Cls('CLEAR')
         # Configuration comes first: it is what a session starts from, before CONNECT.
         self.__button_configuration = Tool_Button_Cls('CONFIGURATION')
         for b in (self.__button_configuration, self.__button_connect, self.__button_disconnect,
-                  self.__button_scan, self.__button_analyze, self.__button_clear):
+                  self.__button_preview, self.__button_scan, self.__button_analyze, self.__button_clear):
             bar.addWidget(b)
         card.box.addLayout(bar)
         return card
@@ -695,6 +732,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_connect.clicked.connect(self.__On_Connect_Button_Clicked)
         self.__button_disconnect.clicked.connect(self.__On_Disconnect_Button_Clicked)
         self.__button_scan.clicked.connect(self.__On_Scan_Button_Clicked)
+        self.__button_preview.clicked.connect(self.__On_Preview_Button_Clicked)
         self.__button_analyze.clicked.connect(self.__On_Analyze_Button_Clicked)
         self.__button_clear.clicked.connect(self.__On_Clear_Button_Clicked)
         self.__button_configuration.clicked.connect(self.__On_Configuration_Button_Clicked)
@@ -758,12 +796,14 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             Enable/disable the controls and repaint the camera pill for the current
-            connection and worker state. While a worker runs, every control is
-            disabled.
+            connection and worker state. While a worker runs, or the live preview is stopping, every
+            control is disabled. While the preview runs, ANALYZE is: it would analyse the last scanned
+            frame while the view shows the table live, so the operator scans first.
         """
 
         connected = self.__camera.Connected
-        running = self.__worker_running
+        previewing = self.__preview_thread is not None
+        running = self.__worker_running or (previewing and self.__preview_pending is not None)
         # A loaded configuration gates the whole session: CONNECT waits for it, and so — structurally,
         # not only because a frame needs a connection — does ANALYZE.
         loaded = self.__vision.Models_Loaded
@@ -771,7 +811,9 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__button_connect.setToolTip('' if loaded else self.CONST_CONNECT_NEEDS_CONFIGURATION)
         self.__button_disconnect.setEnabled(connected and not running)
         self.__button_scan.setEnabled(connected and not running)
-        self.__button_analyze.setEnabled(self.__frame is not None and loaded and not running)
+        self.__button_preview.setEnabled(connected and not running)
+        self.__button_preview.setToolTip('' if connected else self.CONST_PREVIEW_NEEDS_CAMERA)
+        self.__button_analyze.setEnabled(self.__frame is not None and loaded and not running and not previewing)
         self.__button_clear.setEnabled(not running)
         # Configuration is decided before the first CONNECT of the run and fixed from then on — it
         # does not come back on DISCONNECT. The disabled button says so in its tooltip.
@@ -782,7 +824,7 @@ class AnyScan_Window_Cls(QMainWindow):
         # The view toggle is meaningful only once an analysis has delivered its
         # renders, and never while a worker runs. Its visibility follows the held
         # renders, so a stale frame (which drops them) hides it in the same breath.
-        has_views = self.__viewport.Has_Views()
+        has_views = self.__viewport.Has_Views() and not previewing
         self.__view_toggle.setVisible(has_views)
         self.__view_toggle.setEnabled(has_views and not running)
 
@@ -890,17 +932,19 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__pill_model.setStyleSheet('#modelPill { border: 1px %s %s; background: %s; }'
                                         % (line, border, Style.CONST_CARD))
 
-    def __Fail(self, message: str) -> None:
+    def __Fail(self, message: str, badge: tp.Tuple[str, str] = ('Error', 'warn')) -> None:
         """
         Description:
             Show a failure where the operator is already looking — the reading panel.
 
         Args:
             (1) message [string]: The actionable failure sentence.
+            (2) badge [Tuple<string> 1x2]: The reading's badge, as (text, level): 'Error' unless the failure
+                is a refusal that names itself ('Moving').
         """
 
         self.__showing_error = True
-        self.__stage_badges.Set_Badges([('Error', 'warn')])
+        self.__stage_badges.Set_Badges([badge])
         self.__reading_empty.setText(message)
         self.__reading_empty.show()
         self.__reading_lead.hide()
@@ -1008,7 +1052,20 @@ class AnyScan_Window_Cls(QMainWindow):
     def __On_Disconnect_Button_Clicked(self) -> None:
         """
         Description:
-            Disconnect the camera and clear the frame and its status.
+            Disconnect the camera and clear the frame and its status. During the live preview, the preview
+            is stopped first and the camera disconnected once its worker has ended (__On_Preview_Stopped),
+            so the device is never closed under a running grab.
+        """
+
+        if self.__preview_thread is not None:
+            self.__Stop_Preview('disconnect')
+            return
+        self.__Disconnect_Now()
+
+    def __Disconnect_Now(self) -> None:
+        """
+        Description:
+            Disconnect the camera (no worker uses it) and clear the frame and its status.
         """
 
         self.__connection_timer.stop()
@@ -1044,8 +1101,16 @@ class AnyScan_Window_Cls(QMainWindow):
         Description:
             The connection check's tick: when the camera reports its device gone, the connection is
             closed now and reported where the operator looks, as a lost connection found at a Scan is.
+            While a worker uses the camera nothing is closed under it: during the live preview a loss stops
+            the preview, and the camera is disconnected once its worker has ended; a scan finds a loss itself.
         """
 
+        if self.__preview_thread is not None:
+            if self.__camera.Device_Lost():
+                self.__Stop_Preview('lost')
+            return
+        if self.__scanning:
+            return
         if not self.__camera.Check_Connection():
             return
         self.__Record_Connection_Lost(self.CONST_CONNECTION_LOST_MESSAGE)
@@ -1068,46 +1133,264 @@ class AnyScan_Window_Cls(QMainWindow):
     def __On_Scan_Button_Clicked(self) -> None:
         """
         Description:
-            Capture one frame (a short GUI-thread step), show it in the viewport and
-            reset the reading panel.
+            Take a frame. During the live preview, the preview is stopped first and the scan starts once its
+            worker has ended (__On_Preview_Stopped), so the scan's stream is a new one and its frame is
+            exposed after SCAN was pressed.
+        """
+
+        if self.__worker_running or not self.__camera.Connected:
+            return
+        if self.__preview_thread is not None:
+            self.__Stop_Preview('scan')
+            return
+        self.__Start_Scan(resume_preview=False)
+
+    def __Start_Scan(self, resume_preview: bool) -> None:
+        """
+        Description:
+            Hand the scan to a worker on its own thread (Scan_Worker_Cls): it waits for a still scene, up to
+            about a second, then takes one fresh frame. The animated overlay names the step meanwhile.
+
+        Args:
+            (1) resume_preview [bool]: Whether the live preview comes back when the scan is refused for a moving
+                scene (it was started from the preview).
         """
 
         if self.__logger is not None:
             self.__logger.Log_Scan_Started()
 
-        try:
-            self.__viewport.Set_Busy('Capturing frame…', 'camera')
-            self.__frame = self.__camera.Capture()
-            self.__frame_distorted = self.__camera.Last_Distorted_Frame
-            self.__frame_undistortion = self.__camera.Last_Undistortion
-        except Camera_Error_Cls as exc:
-            # The failed capture ends this scan's cycle now, whatever the reason that follows. A
-            # capture that failed AND left the camera disconnected (the backend found its device
-            # removed) is a mid-session connection LOST (ERROR, closes the session); a failure while
-            # still connected is a transient capture error (tracked ERROR that a later scan can
-            # resolve).
+        self.__worker_running = True
+        self.__scanning = True
+        self.__resume_preview = resume_preview
+        self.__viewport.Start_Busy('Capturing frame…', 'camera')
+        self.__Sync_Controls()
+
+        self.__scan_thread = QThread(self)
+        self.__scan_worker = Scan_Worker_Cls(self.__camera)
+        self.__scan_worker.moveToThread(self.__scan_thread)
+
+        self.__scan_thread.started.connect(self.__scan_worker.Run)
+        self.__scan_worker.Scan_Finished.connect(self.__On_Scan_Finished)
+        self.__scan_worker.Scan_Failed.connect(self.__On_Scan_Failed)
+
+        self.__scan_worker.Scan_Finished.connect(self.__scan_thread.quit)
+        self.__scan_worker.Scan_Failed.connect(self.__scan_thread.quit)
+        self.__scan_thread.finished.connect(self.__scan_worker.deleteLater)
+        self.__scan_thread.finished.connect(self.__scan_thread.deleteLater)
+
+        self.__scan_thread.start()
+
+    def __End_Scan(self) -> None:
+        """
+        Description:
+            The scan's worker has reported: join its thread, then let it go and clear the overlay.
+        """
+
+        self.__worker_running = False
+        Join_Worker_Thread(self.__scan_thread)              # before the references go: Join_Worker_Thread
+        self.__scan_thread = None
+        self.__scan_worker = None
+        self.__scanning = False
+        self.__viewport.Stop_Busy()
+
+    def __On_Scan_Finished(self, frame: tp.Any, distorted: tp.Any, undistortion: tp.Any) -> None:
+        """
+        Description:
+            The scan took its frame: show it in the viewport and reset the reading panel.
+
+        Args:
+            (1) frame [Matrix<uint8> HxWx3]: The scanned frame (RGB).
+            (2) distorted [Matrix<uint8> HxWx3 or None]: Its distorted original.
+            (3) undistortion [Dict or None]: How it was undistorted.
+        """
+
+        self.__End_Scan()
+        self.__frame = frame
+        self.__frame_distorted = distorted
+        self.__frame_undistortion = undistortion
+        self.__viewport.Show_Frame(Rgb_To_Qimage(self.__frame))
+        self.__frame_badge.setText(self.__Frame_Badge_Text())
+        self.__status.updated.Set_Value(datetime.now().strftime(self.CONST_TIME_FORMAT))
+        if self.__logger is not None:
+            # A successful scan resolves a pending scan error, then reports itself.
+            if self.__scan_error_id is not None:
+                self.__logger.Log_Error_Resolved(self.__scan_error_id)
+                self.__scan_error_id = None
+            self.__logger.Log_Scan_Ended()
+        self.__Clear_Reading()
+        self.__Sync_Controls()
+        self.__Close_If_Requested()
+
+    def __On_Scan_Failed(self, message: str, moving: bool) -> None:
+        """
+        Description:
+            The scan took no frame. The failed capture ends this scan's cycle now, whatever the reason that
+            follows. A moving scene is a refusal, not an error: a WARNING, the previous frame kept, and the live
+            preview back when the scan came from it, so the operator sees what moves. A capture that failed AND
+            left the camera disconnected (the backend found its device removed) is a mid-session connection
+            LOST (ERROR, closes the session); a failure while still connected is a transient capture error
+            (tracked ERROR that a later scan can resolve).
+
+        Args:
+            (1) message [string]: The failure sentence.
+            (2) moving [bool]: Whether the scene was moving (the camera is fine).
+        """
+
+        self.__End_Scan()
+        if self.__logger is not None:
+            self.__logger.Log_Scan_Failed()
+        if moving:
             if self.__logger is not None:
-                self.__logger.Log_Scan_Failed()
-            if not self.__camera.Connected:
-                self.__Record_Connection_Lost(str(exc))
-            elif self.__logger is not None:
-                self.__scan_error_id = self.__Log_Error(str(exc))
-            self.__Fail(str(exc))
+                self.__logger.Log_Warning(message)
+            self.__Fail(message, ('Moving', 'warn'))
         else:
-            self.__viewport.Show_Frame(Rgb_To_Qimage(self.__frame))
-            self.__frame_badge.setText('%d × %d · RGB'
-                                       % (self.__frame.shape[1], self.__frame.shape[0]))
-            self.__status.updated.Set_Value(datetime.now().strftime(self.CONST_TIME_FORMAT))
+            if not self.__camera.Connected:
+                self.__Record_Connection_Lost(message)
+            elif self.__logger is not None:
+                self.__scan_error_id = self.__Log_Error(message)
+            self.__Fail(message)
+        self.__Sync_Controls()
+        if self.__closing:
+            self.__Close_If_Requested()
+        elif moving and self.__resume_preview and self.__camera.Connected:
+            self.__Start_Preview()
+
+    # ------------------------------------------------------------ live preview
+
+    def __Frame_Badge_Text(self) -> str:
+        """
+        Description:
+            The Camera View's badge outside the live preview: the scanned frame's size, or 'No frame'.
+
+        Returns:
+            (1) parameter [string]: The badge text.
+        """
+
+        if self.__frame is None:
+            return 'No frame'
+        return '%d × %d · RGB' % (self.__frame.shape[1], self.__frame.shape[0])
+
+    def __On_Preview_Button_Clicked(self) -> None:
+        """
+        Description:
+            Start the live preview, or — while it runs — stop it, which brings back the last scanned frame
+            and its result as they were.
+        """
+
+        if self.__preview_thread is not None:
+            self.__Stop_Preview('stop')
+            return
+        if self.__worker_running or not self.__camera.Connected:
+            return
+        self.__Start_Preview()
+
+    def __Start_Preview(self) -> None:
+        """
+        Description:
+            Start the live preview's worker (Preview_Worker_Cls) on its own thread. No busy overlay: the
+            view shows the LIVE marker at once and each frame as it arrives (__On_Preview_Frame). The last
+            scanned frame, its renders and the reading panel stay as they are.
+        """
+
+        self.__preview_pending = None
+        self.__live_times = []
+        self.__viewport.Start_Live()
+        self.__frame_badge.setText(self.CONST_LIVE_BADGE_STARTING)
+
+        self.__preview_thread = QThread(self)
+        self.__preview_worker = Preview_Worker_Cls(self.__camera)
+        self.__preview_worker.moveToThread(self.__preview_thread)
+
+        self.__preview_thread.started.connect(self.__preview_worker.Run)
+        self.__preview_worker.Frame_Ready.connect(self.__On_Preview_Frame)
+        self.__preview_worker.Preview_Stopped.connect(self.__On_Preview_Stopped)
+
+        self.__preview_worker.Preview_Stopped.connect(self.__preview_thread.quit)
+        self.__preview_thread.finished.connect(self.__preview_worker.deleteLater)
+        self.__preview_thread.finished.connect(self.__preview_thread.deleteLater)
+
+        self.__preview_thread.start()
+        if self.__logger is not None:
+            self.__logger.Log_Info('Live preview started.')
+        self.__Sync_Controls()
+
+    def __Stop_Preview(self, action: str) -> None:
+        """
+        Description:
+            Ask the live preview's worker to stop, and say what follows once it has ended. A request ranked
+            below the one already pending is ignored (CONST_PREVIEW_STOP_RANK). Every control is disabled
+            until the worker has ended — within one frame period on a camera that sends.
+
+        Args:
+            (1) action [string]: 'stop', 'scan', 'disconnect', 'lost' or 'close'.
+        """
+
+        rank = self.CONST_PREVIEW_STOP_RANK
+        if self.__preview_pending is not None and rank[action] <= rank[self.__preview_pending]:
+            return
+        self.__preview_pending = action
+        self.__preview_worker.Request_Stop()
+        self.__Sync_Controls()
+
+    def __On_Preview_Frame(self) -> None:
+        """
+        Description:
+            A preview frame waits in the worker's mailbox: take the newest and paint it, and show the frame
+            rate in the badge. Only the viewport ever sees it — never ANALYZE, the logger or the statistics.
+        """
+
+        if self.__preview_worker is None or self.__preview_pending is not None:
+            return
+        frame = self.__preview_worker.Take_Frame()
+        if frame is None:
+            return
+        self.__viewport.Show_Live(Rgb_To_Qimage(frame))
+        self.__live_times = (self.__live_times + [time.monotonic()])[-self.CONST_LIVE_RATE_FRAMES:]
+        if len(self.__live_times) > 1:
+            rate = (len(self.__live_times) - 1) / max(self.__live_times[-1] - self.__live_times[0], 1e-6)
+            self.__frame_badge.setText(self.CONST_LIVE_BADGE_FORMAT % rate)
+
+    def __On_Preview_Stopped(self, message: str) -> None:
+        """
+        Description:
+            The live preview's worker has ended and its stream is stopped: join its thread, show the last
+            scanned frame again, then do what was waiting — scan, disconnect, close, or report a lost camera.
+            A preview that ended by itself failed: when the camera is gone it is disconnected and the loss
+            reported; when it is still there, the failure is.
+
+        Args:
+            (1) message [string]: '' when the stop was requested, otherwise the camera's failure sentence.
+        """
+
+        Join_Worker_Thread(self.__preview_thread)           # before the references go: Join_Worker_Thread
+        self.__preview_thread = None
+        self.__preview_worker = None
+        action, self.__preview_pending = self.__preview_pending, None
+        self.__viewport.Stop_Live()
+        self.__frame_badge.setText(self.__Frame_Badge_Text())
+        if action == 'lost' or (message and self.__camera.Device_Lost()):
+            self.__camera.Disconnect()
+            self.__Record_Connection_Lost(self.CONST_PREVIEW_LOST_MESSAGE)
+            self.__Fail(self.CONST_PREVIEW_LOST_MESSAGE)
+        elif message:
+            text = self.CONST_PREVIEW_FAILED_FORMAT % message
             if self.__logger is not None:
-                # A successful scan resolves a pending scan error, then reports itself.
-                if self.__scan_error_id is not None:
-                    self.__logger.Log_Error_Resolved(self.__scan_error_id)
-                    self.__scan_error_id = None
-                self.__logger.Log_Scan_Ended()
-            self.__Clear_Reading()
-        finally:
-            self.__viewport.Set_Busy('')
-            self.__Sync_Controls()
+                self.__Log_Error(text)
+            self.__Fail(text)
+        elif self.__logger is not None:
+            self.__logger.Log_Info({'stop': 'Live preview stopped: PREVIEW pressed again.',
+                                    'scan': 'Live preview stopped: SCAN pressed.',
+                                    'disconnect': 'Live preview stopped: DISCONNECT pressed.',
+                                    'close': 'Live preview stopped: the window is closing.'}[action])
+        if action == 'close':
+            self.close()
+            return
+        if action == 'disconnect' and self.__camera.Connected:
+            self.__Disconnect_Now()
+            return
+        self.__Sync_Controls()
+        if action == 'scan' and not message and self.__camera.Connected:
+            self.__Start_Scan(resume_preview=True)
 
     def __On_Analyze_Button_Clicked(self) -> None:
         """
@@ -1116,7 +1399,9 @@ class AnyScan_Window_Cls(QMainWindow):
             indicator. Nothing blocks the GUI thread, so the pixel icon steps throughout.
         """
 
-        if self.__frame is None:
+        # ANALYZE reads the last SCANNED frame only, never a preview frame, and not while the preview shows the
+        # table live: the button is disabled then, and this is the same rule, enforced.
+        if self.__frame is None or self.__preview_thread is not None:
             return
         if self.__worker_running:
             # A re-analysis requested while one is still in flight is dropped, not queued;
@@ -1232,8 +1517,8 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             A close arrived while a worker runs: refuse it for now and let the worker end. An analysis
-            is asked to stop before its next object; a CONNECT cannot be interrupted, so it is waited
-            for. The busy line says which, and that a second close quits at once; the escape timer
+            is asked to stop before its next object; a CONNECT or a scan (about a second at most) cannot
+            be interrupted, so it is waited for. The busy line says which, and that a second close quits at once; the escape timer
             bounds the wait (CONST_CLOSE_ESCAPE_MS). The connection check stops here, so it cannot
             report a loss into a closing window.
         """
@@ -1243,6 +1528,9 @@ class AnyScan_Window_Cls(QMainWindow):
         if self.__connecting:
             text = 'Closing when the camera answers… Close again to quit now.'
             line = 'Close requested while connecting to the camera: the window closes when it answers.'
+        elif self.__scanning:
+            text = 'Closing when the scan ends… Close again to quit now.'
+            line = 'Close requested during a scan: the window closes when it ends.'
         else:
             self.__worker.Request_Stop()
             text = 'Stopping the analysis, then closing… Close again to quit now.'
@@ -1272,7 +1560,8 @@ class AnyScan_Window_Cls(QMainWindow):
 
         self.__close_escape.stop()
         self.__connection_timer.stop()
-        what = 'the camera connection' if self.__connecting else 'analysis %d' % self.__session_analyses
+        what = ('the camera connection' if self.__connecting else 'the scan' if self.__scanning
+                else 'analysis %d' % self.__session_analyses)
         if self.__logger is not None:
             self.__logger.Log_Warning('Closing without waiting for %s: %s. The application exits with it still '
                                       'running.' % (what, reason))
@@ -1821,7 +2110,8 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__latencies = []
         self.__confidence_band = 'ok'
         self.__viewport.Clear()
-        self.__frame_badge.setText('No frame')
+        if self.__preview_thread is None:
+            self.__frame_badge.setText('No frame')
         self.__status.images.Set_Value('0')
         self.__status.objects.Set_Value('0')
         self.__status.updated.Set_Value(Style.CONST_NO_VALUE)
@@ -2096,7 +2386,8 @@ class AnyScan_Window_Cls(QMainWindow):
             Close the window — never with a worker's thread still running, which would be destroyed
             with the window and abort the process ('QThread: Destroyed while thread is still
             running'). While a worker runs the close is refused and deferred (__Close_After_Worker):
-            an analysis stops before its next object, a CONNECT is waited for, and the window closes
+            an analysis stops before its next object, a CONNECT or a scan is waited for, the live
+            preview is stopped first (__Stop_Preview), and the window closes
             when the worker's slot ends it (__Close_If_Requested). A second close while waiting, or
             CONST_CLOSE_ESCAPE_MS without the worker ending, exits without it (__Exit_Now). Every
             worker's slot joins its thread, so none is left running when the close goes through.
@@ -2111,6 +2402,12 @@ class AnyScan_Window_Cls(QMainWindow):
                 self.__Exit_Now('close was requested again')
             else:
                 self.__Close_After_Worker()
+            return
+        # The live preview's worker stops within a frame period; the window closes once it has
+        # (__On_Preview_Stopped), so its thread never outlives the window.
+        if self.__preview_thread is not None:
+            event.ignore()
+            self.__Stop_Preview('close')
             return
         self.__close_escape.stop()
         self.__connection_timer.stop()

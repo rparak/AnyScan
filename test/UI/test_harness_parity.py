@@ -112,7 +112,7 @@ def _Catalogue() -> tp.Any:
 
 
 def _Ui_Written_Mask(reference_background_path: str, log_dir: str,
-                     classification_enabled: bool) -> np.ndarray:
+                     classification_enabled: bool, scan: tp.Callable[[tp.Any], None]) -> np.ndarray:
     """The label mask the WINDOW writes to its capture set for one analysis (BGR, as on disk)."""
     app = QApplication.instance()
     logger = Session_Logger_Cls(config_path=None, log_dir=log_dir, install_handlers=False)
@@ -128,8 +128,7 @@ def _Ui_Written_Mask(reference_background_path: str, log_dir: str,
     while private('__conn_thread') is not None and time.time() < deadline:
         app.processEvents()
         time.sleep(0.01)
-    private('__On_Scan_Button_Clicked')()
-    app.processEvents()
+    scan(window)
     setattr(window, CONST_MANGLE + '__current_set_id', 'parity_1')
     frame_shape = private('__frame').shape
     private('__On_Analysis_Finished')(Analysis_Str(Objects=_Objects(frame_shape), Latency_Ms=100,
@@ -189,7 +188,7 @@ def _Harness_Written_Mask(monkeypatch, tmp_path, reference_background_path: str,
 
 @pytest.mark.parametrize('classification_enabled', [False, True])
 def test_the_window_writes_the_shared_render_for_its_flag(qt_app, reference_background_path, tmp_path,
-                                                          classification_enabled) -> None:
+                                                          classification_enabled, scan) -> None:
     """
     Description:
         The mask the window writes to its capture set is exactly Render_Views' mask for the
@@ -197,7 +196,7 @@ def test_the_window_writes_the_shared_render_for_its_flag(qt_app, reference_back
         the window passes its configuration's mode, and the writer stores the render unchanged.
     """
 
-    ui_mask = _Ui_Written_Mask(reference_background_path, str(tmp_path), classification_enabled)
+    ui_mask = _Ui_Written_Mask(reference_background_path, str(tmp_path), classification_enabled, scan)
     scene = cv2.imread(reference_background_path)
     _annotated, shared = Annotate.Render_Views(scene, _Objects(scene.shape), cv2, np,
                                                verdict_colored=classification_enabled)

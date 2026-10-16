@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `cfa4754` (2026-10-15).
+Last reviewed against the code at commit `56284d4` (2026-10-16).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -41,7 +41,7 @@ file is not the generator's output, so regenerate it, never edit it.
 |---|---|---|
 | `Parameters` | The data structures (`*_Str`) and tokens every other package exchanges: detections, analyses, the loaded configuration, the catalogue item, camera and calibration records, the theme. | No |
 | `Configuration` | Reads and validates the mode, station, calibration and catalogue item files (`Load_Configuration`, `Load_Catalogue`; `Load_Station_Camera` for `calibrate.py`; `Load_Configuration_For_Reference` for `make_reference.py`, which returns an out-of-date reference's problems instead of failing), writes new calibrations (`Write_Calibration`), and builds the reference sidecar. The only reader of `Configuration/*/*.yaml` and `Data/Catalogue/*/*.yaml`. | No |
-| `Camera` | The camera backends (`Basler_Camera_Cls`, `File_Camera_Cls` for `--frame`): connect, set and read back the sensor window, grab, undistort, detect a lost connection. | No |
+| `Camera` | The camera backends (`Basler_Camera_Cls`, `File_Camera_Cls` for `--frame`): connect, set and read back the sensor window, grab, undistort, detect a lost connection, stream the live preview, and take a scan's frame once the scene is still (`src/Camera/Utilities/Stillness.py`). | No |
 | `Vision` | The pipeline (`Vision_Pipeline_Cls`): background subtraction, FastSAM, fusion, Gemma description, measurement, the annotated image and label mask, the heatmap; in a catalogue mode the dimension checks, DINOv2 identification (`Vision.Identifier`) and the verdicts (`Vision.Utilities.Classify`). | No |
 | `Reporting` | The report composer, the one voice of every sentence the operator reads, and the Trends accumulator and chart maths. | No |
 | `Logger` | The session log, the run-summary CSV and cycle accounting (`Logger.Core`), and the daily station event export (`Logger.Station_Events`). | No |
@@ -61,9 +61,10 @@ are in the style skill's
    the calibration the station names into one `Configuration_Str`. That object is what configures the camera, the pipeline
    (`Vision_Pipeline_Cls.Configure`, run in `Model_Load_Worker_Cls`) and the logger. No other module
    reads the YAML.
-2. **Capture.** `Camera_Backend_Cls.Capture` returns an RGB NumPy array, undistorted when calibrated.
-   This array is the exchange format for the whole application. The frame before undistortion is
-   kept for the capture set.
+2. **Capture.** `Camera_Backend_Cls.Capture_Still`, run in `Scan_Worker_Cls`, returns an RGB NumPy array,
+   undistorted when calibrated: one frame of a new stream, taken once it shows no movement since the frame
+   before. This array is the exchange format for the whole application. The frame before undistortion is
+   kept for the capture set. The live preview's frames (`Preview_Worker_Cls`) go to the Camera View only.
 3. **Analyse.** `Analysis_Worker_Cls` runs `Vision_Pipeline_Cls.Analyze` off the UI thread. It
    returns an `Analysis_Str`: the objects (mask, box, cue, description, measurement and confidence),
    the background sentence, the verdict, the timings and the heatmap. The annotated image and the
@@ -195,13 +196,20 @@ it names. The modes shipped today:
    and reads them back. A camera another program holds (AnyScan elsewhere, or a camera script) is
    reported as in use at once, naming it and what to stop, not as "no camera". A lost connection is
    detected while connected, not only on DISCONNECT.
-3. **SCAN** — captures one frame (undistorted when calibrated). A new frame clears the previous
-   result rather than marking it stale.
-4. **ANALYZE** — runs the pipeline in a worker thread, shows the result and writes a capture set.
+3. **PREVIEW** (optional) — shows the table live in the Camera View, with the inspection area on it, while
+   the operator places parts. The last result stays; ANALYZE waits for a scan. PREVIEW again stops it and shows
+   the last result again. Its rate is about 3.7 frames a second on the rig, set by the GigE link
+   ([KNOWN_ISSUES](../KNOWN_ISSUES.md#the-live-preview-runs-at-about-37-frames-a-second-set-by-the-usb-c-ethernet-adapter)).
+4. **SCAN** — stops the preview if it runs, then waits for a still scene and captures one fresh frame
+   (undistorted when calibrated), about 0.59 s on the rig. If something still moves after about a second, it
+   takes no frame and says so, and the preview comes back if it was on. A new frame clears the previous result
+   rather than marking it stale.
+5. **ANALYZE** — runs the pipeline in a worker thread, shows the result and writes a capture set.
    A scan to the end of its analysis is one **cycle**.
-5. **CLEAR** resets the on-screen figures. **DISCONNECT** releases the camera.
-6. **Close** (`Esc`) — waits for a running worker, stops an analysis before its next object, and
-   exports the day's station events.
+6. **CLEAR** resets the on-screen figures (the preview keeps running). **DISCONNECT** stops the preview,
+   then releases the camera; a camera lost during the preview is closed and reported the same way.
+7. **Close** (`Esc`) — stops the preview, waits for a running worker, stops an analysis before its next
+   object, and exports the day's station events.
 
 ## UI views
 
@@ -237,10 +245,13 @@ Two cards:
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
   never a verdict, on screen only). While the camera connects, a frame is captured or analysed, the view lies
   under its own grey-lilac at 70 %, the frame showing through, with the step in the purple under a pixel icon of
-  the task: a camera while connecting and capturing, a magnifier while analysing. In a catalogue mode the
+  the task: a camera while connecting and capturing, a magnifier while analysing; never during the live preview.
+  The **live preview** (PREVIEW) paints the camera's frames as they come, with `●  LIVE PREVIEW` in white on a
+  purple block in the view's top-left corner and `Live · n fps` in the head's badge; the view selector hides while it
+  runs. In a catalogue mode the
   **inspection area** is drawn as a thin solid line, square-cornered and unfilled, in the purple over the empty view
-  and in a light amber over the scanned frame and the Annotated render (not the Mask, Heatmap or Similarity), on
-  screen only: the saved images never carry it. Segment Anything shows none.
+  and in a light amber over the live preview, the scanned frame and the Annotated render (not the Mask, Heatmap or
+  Similarity), on screen only: the saved images never carry it. Segment Anything shows none.
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
   each object adds `State: …`, one `Reason: …` sentence summing up why it is not OK (counts in words up to
@@ -412,6 +423,10 @@ Scripts in `Example/`. A harness that captures or analyses goes through the appl
 path; the one exception, `calibrate.py --capture`, says so where it is.
 
 - `Camera/scan.py` — capture frames from the camera into `Data/Results/`.
+- `Camera/preview_check.py` — check the live preview and the scan on the camera: the preview's frame rate
+  and CPU load, the still table's frame-to-frame difference behind the stillness thresholds, each scan
+  frame exposed after a camera-clock latch taken after the preview stopped, every camera setting read
+  back unchanged before, during and after, and the scan's time with and without the stillness check.
 - `Camera/calibrate.py` — capture a calibration set (`--capture`) and solve it (`--images`) into a new
   calibration file, printing the station line that puts it in force.
 - `Camera/make_reference.py` — shoot a new empty-surface reference through the application's camera path:
@@ -444,6 +459,7 @@ This section only links. The entries themselves are the record.
   - [*The confidence status metric is partial — only the FastSAM cue is scored*](../KNOWN_ISSUES.md#the-confidence-status-metric-is-partial--only-the-fastsam-cue-is-scored)
   - [*A killed run never gets its run-summary CSV row*](../KNOWN_ISSUES.md#a-killed-run-never-gets-its-run-summary-csv-row)
   - [*The inspection area's insets rest on plates measured mostly by the right edge*](../KNOWN_ISSUES.md#the-inspection-areas-insets-rest-on-plates-measured-mostly-by-the-right-edge)
+  - [*The live preview runs at about 3.7 frames a second, set by the USB-C Ethernet adapter*](../KNOWN_ISSUES.md#the-live-preview-runs-at-about-37-frames-a-second-set-by-the-usb-c-ethernet-adapter)
   - and the rest of that file.
 
 ## Verified on hardware, and not yet
@@ -465,7 +481,9 @@ Each row names its evidence. A row with none is not verified.
 | `make_reference.py`: 8 frames, the empty-table check, the camera-in-use message | Off-hardware with a stand-in camera; the check with the real FastSAM on the shipped reference and `Image_062`. On the rig (2026-10-13): 16 empty frames through the same camera path found nothing in either mode; the script itself, writing into a scratch directory, shot 8 frames, compared with `Image_Background_001`, wrote a reference whose station loads, left the station file unchanged and printed line 99; with a second process holding the camera it named the camera as in use and wrote nothing. **Not run against the running AnyScan application** (a second pylon process stood in for it), **and no reference adopted from it** | `test/Camera/test_reference_harnesses.py`; [*A new reference is the mean of 8 frames…*](design-decisions.md#a-new-reference-is-the-mean-of-8-frames-shot-by-the-tool-and-refused-if-the-application-finds-anything-on-it) |
 | The sensor window set and read back on CONNECT | Verified, 2026-09-24 16:20, after a power-cycle from factory defaults | Session log: *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain 10.00, BayerRG8 (read back from the camera)*; status bar 1920 × 1200 |
 | Exposure, gain and white balance fixed, Gamma pinned, read back on CONNECT | Verified, 2026-10-13: automatic modes Off, ratios 0.949951 / 0.899902 / 1.19995 (no step reported, ± 1/128), Gamma 1, no colour-preset node | [capture-checklist](capture-checklist.md), before item 1; commit `7d9ffe7` |
-| Lost-connection detection (cable pull) | **Not verified** | capture-checklist item 4 |
+| Lost-connection detection (cable pull) | **Not verified**, during the preview neither | capture-checklist item 4 |
+| Live preview and the scan on the camera | Verified on the development Linux machine's rig camera, 2026-10-16: 3.70 fps, 0 incomplete; every scan frame (10 of 10) exposed 292–295 ms after a camera-clock latch taken after the preview stopped; 20 settings read back identical before, during and after; a scan 0.586 s against 0.317 s for a single grab; the still table 0 of 111 pairs moving. In the window (offscreen, Ryzen 9 9950X3D): 3.67 fps shown, none dropped, 31 % of one core | `Example/Camera/preview_check.py`; [*A scan waits for a still scene…*](design-decisions.md#a-scan-waits-for-a-still-scene-and-takes-one-fresh-frame-from-a-stream-of-its-own) |
+| A scan refused for a moving scene | Off-hardware only (scripted frames, synthetic shifts and a synthetic hand on test frames); **no hand moved under the rig's camera yet** | capture-checklist item 5; `test/Camera/test_stillness.py`, `test/UI/test_preview.py` |
 | Parts session: defects, low-contrast parts, harsh shadow | Not recorded | capture-checklist item 3 |
 | Daily station event export on the station | Not recorded | — |
 | Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled, the five stained plates NOK, every other object a Warning, and since 2026-10-16 `Image_062`'s clean front, which reaches into the inspection area's top band, a Warning | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |

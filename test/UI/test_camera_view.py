@@ -94,13 +94,13 @@ def _Private(window, name: str):
     return getattr(window, CONST_MANGLE + name)
 
 
-def _Scanned_Window(reference_background_path):
+def _Scanned_Window(reference_background_path, scan: tp.Callable[[tp.Any], None]):
     """A window with the camera connected, a frame scanned, and a counting backend."""
     window = AnyScan_Window_Cls(Configuration_Str=CONST_CONFIGURATION, camera=File_Camera_Cls(reference_background_path))
     setattr(window, CONST_MANGLE + '__vision', _Counting_Vision_Cls())
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
     return window
 
 
@@ -119,14 +119,14 @@ def _Result() -> Analysis_Str:
                         Verdict_Level='idle', Task='t')
 
 
-def test_toggle_hidden_before_analysis_and_shown_after(qt_app, reference_background_path) -> None:
+def test_toggle_hidden_before_analysis_and_shown_after(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         The toggle is nothing to act on before an analysis, so it is hidden; once an
         analysis has delivered both renders it is visible and enabled.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     toggle = _Private(window, '__view_toggle')
     viewport = _Private(window, '__viewport')
 
@@ -139,14 +139,14 @@ def test_toggle_hidden_before_analysis_and_shown_after(qt_app, reference_backgro
     assert not toggle.isHidden() and toggle.isEnabled()
 
 
-def test_switching_view_does_not_invoke_the_pipeline(qt_app, reference_background_path) -> None:
+def test_switching_view_does_not_invoke_the_pipeline(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         Switching between annotated and mask swaps the held render in place — it must
         never re-run analysis. The backend's Analyze is never called by a view switch.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     vision = _Private(window, '__vision')
     viewport = _Private(window, '__viewport')
     _Private(window, '__On_Analysis_Finished')(_Result())
@@ -162,14 +162,14 @@ def test_switching_view_does_not_invoke_the_pipeline(qt_app, reference_backgroun
     assert vision.calls == 0                       # no switch touched the pipeline
 
 
-def test_selected_view_persists_across_a_second_analysis(qt_app, reference_background_path) -> None:
+def test_selected_view_persists_across_a_second_analysis(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         An operator working in mask view is not thrown back to annotated by the next
         Analyze: the remembered choice is reapplied when the second analysis completes.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     viewport = _Private(window, '__viewport')
     _Private(window, '__On_Analysis_Finished')(_Result())
     annotated = _Grab(viewport)
@@ -182,7 +182,7 @@ def test_selected_view_persists_across_a_second_analysis(qt_app, reference_backg
     assert np.array_equal(_Grab(viewport), mask)
 
 
-def test_a_new_scan_makes_the_result_stale_and_hides_the_toggle(qt_app, reference_background_path) -> None:
+def test_a_new_scan_makes_the_result_stale_and_hides_the_toggle(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         The staleness rule: a new frame's annotations would not line up with the old
@@ -190,25 +190,25 @@ def test_a_new_scan_makes_the_result_stale_and_hides_the_toggle(qt_app, referenc
         a previous frame's overlay over a new one.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     toggle = _Private(window, '__view_toggle')
     viewport = _Private(window, '__viewport')
     _Private(window, '__On_Analysis_Finished')(_Result())
     assert not toggle.isHidden()
 
-    _Private(window, '__On_Scan_Button_Clicked')()   # a new frame arrives
+    scan(window)   # a new frame arrives
     assert not viewport.Has_Views()
     assert toggle.isHidden()
 
 
-def test_disconnect_drops_the_result_and_hides_the_toggle(qt_app, reference_background_path) -> None:
+def test_disconnect_drops_the_result_and_hides_the_toggle(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         A camera disconnect clears the frame, so any held analysis is stale: the renders
         are dropped and the toggle hidden.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     toggle = _Private(window, '__view_toggle')
     viewport = _Private(window, '__viewport')
     _Private(window, '__On_Analysis_Finished')(_Result())
@@ -249,7 +249,7 @@ def _Legend(grab: np.ndarray, viewport) -> np.ndarray:
     return grab[grab.shape[0] - int(110 * scale):, :int(320 * scale)]
 
 
-def test_the_heatmap_view_paints_each_value_in_its_colour_on_the_fixed_scale(qt_app, reference_background_path) -> None:
+def test_the_heatmap_view_paints_each_value_in_its_colour_on_the_fixed_scale(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         Choosing Heatmap paints the heatmap: a difference of 0 in the theme's first heatmap colour, 64 in
@@ -258,7 +258,7 @@ def test_the_heatmap_view_paints_each_value_in_its_colour_on_the_fixed_scale(qt_
         maximum.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     viewport = _Private(window, '__viewport')
     colors = Theme.Heatmap_Colors()
     _Private(window, '__On_Analysis_Finished')(_Heatmap_Result(window, right=64))
@@ -273,7 +273,7 @@ def test_the_heatmap_view_paints_each_value_in_its_colour_on_the_fixed_scale(qt_
     assert _Close(_Painted(viewport, grab, 0.75, 0.4), colors[255])
 
 
-def test_the_legend_marks_the_threshold_and_shows_only_on_the_heatmap(qt_app, reference_background_path) -> None:
+def test_the_legend_marks_the_threshold_and_shows_only_on_the_heatmap(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         Two readings that differ only in the threshold marked on the legend render differently in the
@@ -282,7 +282,7 @@ def test_the_legend_marks_the_threshold_and_shows_only_on_the_heatmap(qt_app, re
         heatmap.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     viewport = _Private(window, '__viewport')
     finished = _Private(window, '__On_Analysis_Finished')
     _Private(window, '__On_View_Toggle')('heatmap')
@@ -302,7 +302,7 @@ def test_the_legend_marks_the_threshold_and_shows_only_on_the_heatmap(qt_app, re
     assert np.array_equal(annotated_60, annotated_again)
 
 
-def test_the_legend_labels_are_the_purple_on_its_grey_lilac_panel(qt_app, reference_background_path) -> None:
+def test_the_legend_labels_are_the_purple_on_its_grey_lilac_panel(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         The legend's labels under the colour bar (its two ends and the threshold's name) are the purple on the
@@ -310,7 +310,7 @@ def test_the_legend_labels_are_the_purple_on_its_grey_lilac_panel(qt_app, refere
         no white pixel, though the threshold's white tick crosses the bar above it.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     viewport = _Private(window, '__viewport')
     _Private(window, '__On_Analysis_Finished')(_Heatmap_Result(window, right=64, marks=((60.0, 'Otsu 60'),)))
     _Private(window, '__On_View_Toggle')('heatmap')
@@ -323,14 +323,14 @@ def test_the_legend_labels_are_the_purple_on_its_grey_lilac_panel(qt_app, refere
     assert not (labels >= 245).all(axis=2).any()
 
 
-def test_the_heatmap_shows_the_difference_alone_with_no_boxes(qt_app, reference_background_path) -> None:
+def test_the_heatmap_shows_the_difference_alone_with_no_boxes(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         The heatmap is the difference image alone: a reading with a located object renders the same
         heatmap as one without, while its annotated view does show the object's box.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     viewport = _Private(window, '__viewport')
     part = Detection_Str(Label='ring', Bbox=(300, 300, 400, 300), Sentence='A ring.', Segmenter_Score=0.9, Cue='both')
     grabs = []
@@ -345,7 +345,7 @@ def test_the_heatmap_shows_the_difference_alone_with_no_boxes(qt_app, reference_
     assert not np.array_equal(annotated_empty, annotated_part)
 
 
-def test_without_a_heatmap_its_segment_is_unavailable_and_the_choice_waits(qt_app, reference_background_path) -> None:
+def test_without_a_heatmap_its_segment_is_unavailable_and_the_choice_waits(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         A reading that brought no heatmap paints the annotated view even when the operator had chosen the
@@ -353,7 +353,7 @@ def test_without_a_heatmap_its_segment_is_unavailable_and_the_choice_waits(qt_ap
         the next reading with a heatmap is shown as a heatmap again.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     viewport, toggle = _Private(window, '__viewport'), _Private(window, '__view_toggle')
     finished = _Private(window, '__On_Analysis_Finished')
     finished(_Heatmap_Result(window, right=64))
@@ -372,7 +372,7 @@ def test_without_a_heatmap_its_segment_is_unavailable_and_the_choice_waits(qt_ap
     assert np.array_equal(shown, _Grab(viewport))                   # what was shown was the annotated view
 
 
-def test_the_similarity_view_overlays_the_frame_and_needs_a_catalogue_reading(qt_app, reference_background_path) -> None:
+def test_the_similarity_view_overlays_the_frame_and_needs_a_catalogue_reading(qt_app, reference_background_path, scan) -> None:
     """
     Description:
         A catalogue reading's similarity map is its own view: Similarity paints the frame with the map's colours
@@ -380,7 +380,7 @@ def test_the_similarity_view_overlays_the_frame_and_needs_a_catalogue_reading(qt
         leaves its segment disabled and shows the annotated view, keeping the choice for the next.
     """
 
-    window = _Scanned_Window(reference_background_path)
+    window = _Scanned_Window(reference_background_path, scan)
     viewport, toggle = _Private(window, '__viewport'), _Private(window, '__view_toggle')
     finished = _Private(window, '__On_Analysis_Finished')
     height, width = _Private(window, '__frame').shape[:2]

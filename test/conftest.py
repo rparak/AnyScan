@@ -472,6 +472,54 @@ def make_synthetic_frame() -> tp.Callable[[np.ndarray, tp.List[tp.Tuple[int, int
     return _Build
 
 
+# How long wait_for_scan waits for a scan's worker before it fails the test: a scan waits at most about a
+# second for a still scene (Camera.Core.CONST_STILL_TIMEOUT_S), so this is reached only by a hang.
+#   Unit [s]
+CONST_SCAN_WAIT_S = 10.0
+
+
+@pytest.fixture(scope='session')
+def wait_for_scan() -> tp.Callable[[tp.Any], None]:
+    """
+    Description:
+        Wait, processing Qt events, until a window's scan has ended: a scan runs on a worker thread
+        (UI.Workers.Scan_Worker_Cls), so a test that presses SCAN reads the result only after the worker
+        has reported. A scan that never ends fails the test after CONST_SCAN_WAIT_S.
+
+    Returns:
+        (1) parameter [function]: (window) -> None.
+    """
+
+    def _Wait(window: tp.Any) -> None:
+        # Imported here: most tests never build a window, and this module imports no Qt at load.
+        from PyQt5.QtWidgets import QApplication
+        deadline = time.monotonic() + CONST_SCAN_WAIT_S
+        while getattr(window, '_AnyScan_Window_Cls__scanning') or getattr(window, '_AnyScan_Window_Cls__scan_thread'):
+            if time.monotonic() > deadline:
+                pytest.fail('The scan did not end within %g s.' % CONST_SCAN_WAIT_S)
+            QApplication.processEvents()
+            time.sleep(0.002)
+
+    return _Wait
+
+
+@pytest.fixture(scope='session')
+def scan(wait_for_scan: tp.Callable[[tp.Any], None]) -> tp.Callable[[tp.Any], None]:
+    """
+    Description:
+        Press SCAN through the window's slot and wait until the scan has ended (wait_for_scan).
+
+    Returns:
+        (1) parameter [function]: (window) -> None.
+    """
+
+    def _Scan(window: tp.Any) -> None:
+        getattr(window, '_AnyScan_Window_Cls__On_Scan_Button_Clicked')()
+        wait_for_scan(window)
+
+    return _Scan
+
+
 @pytest.fixture
 def top_level_imports() -> tp.Callable[[str], tp.Set[str]]:
     """

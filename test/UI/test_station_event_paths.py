@@ -162,7 +162,7 @@ def _Cell_Text(window: AnyScan_Window_Cls, name: str) -> str:
 
 
 def test_a_scan_closed_by_the_windows_close_is_one_cycle_and_the_connection_none(qt_app, run, tmp_path,
-                                                                                  reference_background_path) -> None:
+                                                                                  reference_background_path, wait_for_scan) -> None:
     """
     Description:
         The operator connects, scans and closes the application with the camera still connected and the
@@ -174,6 +174,7 @@ def test_a_scan_closed_by_the_windows_close_is_one_cycle_and_the_connection_none
     _Connect(window)
     assert _Private(window, '__camera').Connected
     _Private(window, '__button_scan').click()
+    wait_for_scan(window)
     window.close()
     assert _Exported(events) == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE', 'STATION_OFF']
 
@@ -181,7 +182,7 @@ def test_a_scan_closed_by_the_windows_close_is_one_cycle_and_the_connection_none
 @pytest.mark.parametrize('vision, ending', [(_Vision_Cls, 'finished in'), (_Failing_Vision_Cls, 'failed.')],
                          ids=['finished', 'failed'])
 def test_an_analysis_through_the_window_ends_its_scans_cycle(qt_app, run, tmp_path, reference_background_path,
-                                                             vision, ending) -> None:
+                                                             vision, ending, wait_for_scan) -> None:
     """
     Description:
         SCAN then ANALYZE through the buttons, on the worker thread: the analysis's end — finished or
@@ -192,6 +193,7 @@ def test_an_analysis_through_the_window_ends_its_scans_cycle(qt_app, run, tmp_pa
     window, logger, events = _Station(tmp_path, run, reference_background_path, vision())
     _Connect(window)
     _Private(window, '__button_scan').click()
+    wait_for_scan(window)
     _Private(window, '__button_analyze').click()
     _Pump_Until(lambda: not _Private(window, '__worker_running'))
     with open(logger.Path, 'r', encoding='utf-8') as handle:
@@ -225,7 +227,7 @@ def test_a_connection_lost_with_no_scan_is_closed_by_the_connection_check(qt_app
     assert _Exported(events) == ['STATION_ON', 'STATION_OFF']
 
 
-def test_a_connection_lost_at_a_scan_closes_the_cycle(qt_app, run, tmp_path, reference_background_path) -> None:
+def test_a_connection_lost_at_a_scan_closes_the_cycle(qt_app, run, tmp_path, reference_background_path, scan) -> None:
     """
     Description:
         The cable is pulled and the operator presses Scan before the check ticks: the failed grab on a
@@ -236,7 +238,7 @@ def test_a_connection_lost_at_a_scan_closes_the_cycle(qt_app, run, tmp_path, ref
     window, logger, events = _Station(tmp_path, run, reference_background_path)
     _Connect(window)
     _Unplug(_Private(window, '__camera'))
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
     assert not _Private(window, '__connection_timer').isActive()
     assert [event.Event_Type for event in Read_Events(logger.Path)] == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE']
     window.close()

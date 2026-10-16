@@ -3888,7 +3888,9 @@ spinner (2026-10-15).
 - **The icon names the task**, in the brand's pixel style: whole 5 px cells on a grid
   (`UI.Utilities.Pixel_Motif.CONST_BUSY_ICONS`, `Busy_Cells`). A camera while connecting and capturing blinks its
   lens (600 ms); a magnifier while preparing and analysing moves a glint across its lens (360 ms a step, then a
-  rest). Unlit cells are the purple at 18 %. The capture runs on the GUI thread, so its camera stays still. The
+  rest). Unlit cells are the purple at 18 %. The capture runs on the GUI thread, so its camera stays still. *Corrected
+  2026-10-16:* the scan runs on a worker now (*The live preview is a worker that drops frames…*), so its camera blinks
+  as the connect's does; the overlay is never shown over the live preview. The
   owner chose this, variant B, over a pixel loader whose 3 × 3 squares lit in turn (A), from 1x renders of the
   window and animated captures of both.
 - **Over the empty view** (connecting), the empty state's mark and instruction are not painted: through the
@@ -4284,7 +4286,8 @@ right edge*).
 **Placing a plate.** The area is 101.2 mm high, so a plate standing with its long side upright (60 mm) can move only
 about ±20 mm up or down from the frame's middle row and still be judged; lying with its long side across, ±30 mm. A
 live preview with the area drawn (`Paint_Inspection_Area`) would let the operator place it before the scan; today
-the area shows on the empty view and on the scanned frame.
+the area shows on the empty view and on the scanned frame. *Corrected 2026-10-16:* PREVIEW now shows the table live
+with the area drawn by that call (*The live preview is a worker that drops frames…*).
 
 **Rejected.** A similarity rule for cut objects, threshold and visible evidence combined (the owner's first plan):
 dropped by the owner for the area before it was measured. A rule tolerating a slightly cut plate: unmeasured, and a
@@ -4294,7 +4297,8 @@ size tolerance.
 
 **Revisit if** captures along the area's left and bottom edges and in its corners (capture checklist 3d) read beyond
 half a tolerance inside it, or well within it outside it; the camera, the lens, the table height or the item changes
-(the insets are this station's); or a live preview is built (it calls `Paint_Inspection_Area`).
+(the insets are this station's); or a live preview is built (it calls `Paint_Inspection_Area`). *Built 2026-10-16;
+the insets stand: the preview draws the same area.*
 Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_frame_inset_by_the_stations_insets`,
 `::test_only_an_object_wholly_inside_the_inspection_area_is_judged`,
 `::test_an_object_without_a_mask_is_never_inside_the_area`,
@@ -4534,3 +4538,118 @@ Tests `test/Parameters/test_theme.py::test_every_catalogue_state_has_its_colour`
 `test/UI/test_history.py::test_each_state_filter_carries_its_states_frame_colour`,
 `test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
 `test/UI/test_reading_view.py::test_every_badge_shows_at_once_and_wraps_rather_than_clip`.
+
+## A scan waits for a still scene, and takes one fresh frame from a stream of its own
+
+Decided 2026-10-16, on the owner's request with the live preview. SCAN (`Camera_Backend_Cls.Capture_Still`, run in
+`UI.Workers.Scan_Worker_Cls`) starts a new stream (`Camera.Basler.Basler_Cls.Start_Stream`), compares each frame with
+the one before it (`Camera.Utilities.Stillness.Is_Still`) and keeps the first frame that shows no movement since the
+previous one; if the scene still moves `CONST_STILL_TIMEOUT_S` (1.0 s) after SCAN, it takes no frame and says
+*Something is moving in the view…* (`Camera_Motion_Error_Cls`). The frame kept is one frame, processed and
+undistorted exactly as `Capture` processes one: never an average, never picked for sharpness, so every threshold
+measured on scanned frames and every frame of the test set stay valid.
+
+**Fresh.** A scan never takes a frame the preview buffered: `Capture_Still` and `Capture` refuse while the preview's
+stream runs, and the window stops the preview, joins its worker and only then starts the scan. Stopping a stream drops
+every buffered frame, and the camera exposes the next only after the new stream starts. Checked on the rig's camera
+with `Example/Camera/preview_check.py`: the camera clock was latched (`TimestampLatch`) after the preview stopped and
+before each scan, and all 10 scan frames carry a camera `TimeStamp` 292–295 ms after the latch (the scan keeps the
+second frame of its stream, one frame period after the first).
+
+**No setting changes.** Neither the preview nor the scan writes a camera node: the stream only starts and stops
+acquisition. The same harness read 20 values back before the preview, during it and after the scans — exposure, its
+auto, gain, its auto, white-balance auto and the three ratios, gamma, pixel format, the window and offsets, the frame
+rate and its enable, the throughput limit and its mode, packet size and delay — and all were identical.
+
+**The thresholds, measured.** Both frames are reduced to grey at a quarter of their size and their absolute difference
+blurred 5 × 5, so the sensor noise averages out. On the still table (exposure 10000 µs, gain 10 dB, BayerRG8), 60 s of
+the preview through the application's own processing gave 222 consecutive pairs: the largest difference in a pair had
+a median of 3.91, a 99th percentile of 4.49 and a maximum of 4.55 grey levels; no pixel of any pair exceeded 5.0. A
+second run (30 s, 111 pairs) peaked at 4.35. `CONST_STILL_LEVEL` is twice the maximum, 9.0; a scene moves when more
+than `CONST_STILL_AREA_PX` = 16 reduced pixels (about 1.6 × 1.6 mm on the table) exceed it, so one stray speck never
+refuses a scan. On the test set a 1 px (0.1 mm) slide of the whole scene exceeds it in 7 of 8 frames and a 2 px slide in
+all 8; a 0.5 px slide in a 270 ms frame period does not, which blurs a 10 ms exposure by about 0.02 px. With the
+thresholds in force, 0 of the 111 still pairs read as moving.
+
+**What it costs.** A still scene is taken at the second frame: 0.586 s against 0.317 s for today's single grab (median
+of 10 each, +0.269 s), 0.590 s in the window. From the preview, SCAN first waits for the preview's frame in flight:
+0.786 s from the press to the frame shown. A scene that keeps moving is refused after the comparison at about 1.13 s.
+
+**Rejected.** Averaging frames or picking the sharpest: either changes what a scanned frame is, and every threshold
+and test frame was measured on single frames. Comparing a frame with the preview's last frame: that frame was exposed
+before SCAN. A configuration field for the thresholds (the owner's choice): they are this camera's noise at this gain,
+recorded here with the harness that measures them.
+
+**Revisit if** the gain, the exposure, the pixel format or the lighting changes (re-run `preview_check.py` and re-derive
+both thresholds from its still-table numbers); a still table refuses a scan, or a part still moving is scanned; or the
+frame rate changes (`CONST_STILL_TIMEOUT_S` then covers another number of comparisons, and a slow motion moves another
+distance between frames).
+Tests `test/Camera/test_stillness.py`, `test/Camera/test_preview.py::test_a_scan_takes_the_first_frame_that_shows_no_movement_since_the_one_before`,
+`::test_a_scene_that_keeps_moving_is_refused_after_the_timeout`, `::test_a_scan_never_takes_a_frame_the_preview_buffered`,
+`test/Camera/test_basler.py::test_the_stream_keeps_only_the_newest_frame_skips_incomplete_ones_and_writes_no_setting`,
+`test/UI/test_preview.py::test_scan_during_the_preview_stops_it_and_takes_a_fresh_frame_from_its_own_stream`,
+`::test_a_scan_while_something_moves_is_refused_and_the_preview_comes_back`.
+
+## The live preview is a worker that drops frames, and nothing closes the camera under it
+
+Decided 2026-10-16, on the owner's request. PREVIEW, among the action buttons before SCAN (named so beside the header's
+Live tab), shows the table live in the Camera View with the inspection area on it (`Paint_Inspection_Area`, the same
+call as on a scanned frame) and `●  LIVE PREVIEW` in white on the purple (9.15:1). Preview frames are processed and
+undistorted as a scan's, so the area lies where the scan will judge. The owner's choices: ANALYZE is disabled while the
+preview runs, so nobody analyses a frame other than the one in view; PREVIEW toggles, stopping it shows the last scanned
+frame and its result again; a scan refused for movement is a WARNING with a `Moving` badge, not an error, and brings the
+preview back when it came from it.
+
+**The state machine.** Without a connected camera PREVIEW is disabled. Previewing, SCAN, PREVIEW, DISCONNECT and CLEAR
+are available, ANALYZE not; CONFIGURATION is fixed from the first CONNECT, as before. SCAN, PREVIEW, DISCONNECT, a lost
+camera and a close each ask the preview's worker to stop and leave what follows pending; every control is disabled
+until the worker has ended (within one frame period), and a later request replaces a pending one only when it ranks
+higher (`CONST_PREVIEW_STOP_RANK`: stop, scan, disconnect, lost, close). Nothing closes the camera under a running
+worker: the connection check asks `Device_Lost`, which closes nothing, while the preview or a scan uses the camera, and
+DISCONNECT or a loss disconnects once the worker has been joined. A camera lost during the preview is closed and reported
+as *The live preview stopped. The camera is no longer reachable…*; a preview grab failing on a camera still there ends
+the preview with its sentence and *Press PREVIEW to start it again*. CLEAR keeps the preview running.
+
+**Frames are dropped, never queued.** The camera's stream keeps only its newest frame (`GrabStrategy_LatestImageOnly`),
+and the worker hands frames on through a one-frame mailbox: `Frame_Ready` is emitted only when the mailbox was empty,
+so at most one notification is ever on its way to the window, which takes the newest frame when it gets there.
+
+**Preview frames exist in the view only.** They never become the frame ANALYZE reads, never reach the logger (which
+records only *Live preview started.* and why it stopped), the run statistics or a capture set, and the busy overlay
+is never shown over them.
+
+**The scan left the GUI thread.** It used to grab on the GUI thread behind a static overlay (`Viewport_Cls.Set_Busy`,
+now removed): one 0.32 s grab. Waiting for a still scene takes 0.59–1.13 s, so the scan is a worker with the
+animated overlay, and a close during a scan waits for it. A test that presses SCAN waits for the scan through the
+`scan` and `wait_for_scan` fixtures (`test/conftest.py`).
+
+**Measured** in the window, offscreen, on the rig's camera on the development Linux machine (Ryzen 9 9950X3D), 30 s of
+preview: 3.67 frames a second delivered and 3.70 shown, 0 of 112 dropped, 31.1 % of one core against 1.0 % connected
+and idle (the grab, the processing and undistortion of each 1920 × 1200 frame, its conversion and painting). The frame
+rate is the link's (*The preview's frame rate is the GigE adapter's, not the camera's*). The GUI thread never waits for
+the camera: with a 0.3 s grab, pressing PREVIEW and SCAN returns within 0.1 s and a 10 ms timer never pauses for 0.15 s. The preview's busy-free view and the marker were rendered and looked at at 1920 × 1080.
+
+**Revisit if** the preview's CPU load matters on the station's machine (the frame could be reduced before conversion; the
+scan's frame never is); the operator wants ANALYZE while the preview runs; or a camera without a stream is added (the
+default stream grabs one frame at a time).
+Tests `test/UI/test_preview.py`, `test/Camera/test_preview.py::test_disconnect_during_the_preview_stops_the_stream_before_closing`,
+`::test_device_lost_asks_without_closing`, `::test_a_preview_frame_leaves_the_last_captures_record`,
+`test/UI/test_control_contrast.py` (PREVIEW in every state).
+
+## The preview's frame rate is the GigE adapter's, not the camera's
+
+The live preview runs at about 3.7 frames a second (the camera's `ResultingFrameRate` 3.70; 3.67 shown in the window),
+not at the camera's 51. A 1920 × 1200 BayerRG8 frame is 2.3 MB, and the camera's link is held to 10 MB/s
+(`Camera.Basler.CONST_THROUGHPUT_LIMIT`), the measured ceiling of the USB-C Ethernet adapter it is plugged into
+(`CONST_FRAME_RATE`, 5 fps, is never reached). The preview keeps the scan's settings and the full frame: binning, a
+smaller window or a faster link only for the preview would change a camera setting between preview and scan, which the
+owner ruled out, and would make the view something other than the frame the scan takes.
+
+**Revisit when** the GigE camera gets a dedicated gigabit network card: about 117 MB/s instead of 10 would allow a much
+faster preview with no camera setting changing between preview and scan — the throughput limit and the frame rate are
+transport constants, set the same on every connect for both. Then raise `CONST_THROUGHPUT_LIMIT` and
+`CONST_FRAME_RATE` together, re-run `Example/Camera/preview_check.py` (incomplete frames, the fps, the CPU load) and
+re-derive the stillness thresholds, since a shorter frame period changes how far a slow motion moves between frames
+(*A scan waits for a still scene…*). A scan would then also be faster: it takes the second frame of its stream.
+Recorded open in KNOWN_ISSUES, *The live preview runs at about 3.7 frames a second…*.
+Tests none (a property of the network hardware); measured with `Example/Camera/preview_check.py`.

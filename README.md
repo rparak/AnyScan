@@ -122,7 +122,8 @@ The console drives a Basler camera and the local Gemma describer — both real,
 no mocks. The window still opens when either is absent and reports an actionable
 sentence when a missing component is first used, so **CONNECT → SCAN → ANALYZE**
 degrades one step at a time rather than failing at startup. `F11` toggles
-fullscreen, `Esc` closes.
+fullscreen, `Esc` closes. PREVIEW shows the table live while parts are placed; SCAN stops it and
+takes a frame once nothing moves (about 0.6 s).
 
 For a run without the camera, pass a real frame previously saved from it. The
 pipeline differences the frame against the configured reference background, so the
@@ -316,7 +317,7 @@ What a catalogue mode does not check, it cannot fail:
   NOK. Anything else, a part cut by the frame's border included, is a Warning, and no hole or stain check runs
   on it: a stain on a part outside the area is neither marked nor named until it is moved inside. The area is about 101 mm high, so a plate standing with its long
   side vertical can move only about ±20 mm up or down; place parts by the line on the empty view or the scanned
-  frame (a future live preview will help). The insets were measured mostly by the right edge and the top
+  frame, or on the live preview (PREVIEW) while placing it. The insets were measured mostly by the right edge and the top
   of the view; along the left and bottom edges and in the corners they are not verified (KNOWN_ISSUES).
 - **The Similarity tab is not a defect map.** It shows where a judged part looks unlike its reference to
   DINOv2: the fingerprints show, but so does glare, and missing holes do not.
@@ -337,10 +338,11 @@ The rig's captures, in order. The first two were made on 2026-09-28 (the referen
 2. the **empty-surface reference**, shot under that calibration with `make_reference.py`,
    which writes its provenance sidecar.
 
-Two are still to do:
+Three are still to do:
 
 3. a **parts session**: defective parts with clean controls, low-contrast parts, and a harsh shadow;
-4. the **cable pull**, which checks that a lost connection is detected.
+4. the **cable pull**, which checks that a lost connection is detected, during the live preview too;
+5. a **moving hand under SCAN**, which checks that a scan of a moving scene is refused on the rig.
 
 The procedures, the conditions and what to record alongside each frame are in
 [docs/capture-checklist.md](docs/capture-checklist.md). Items 1 and 2 are repeated when the camera,

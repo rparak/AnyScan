@@ -337,7 +337,7 @@ CONST_STOPPING_TEXT = 'Stopping the analysis, then closing… Close again to qui
 
 
 def test_closing_during_an_analysis_stops_it_before_its_next_object_then_closes(qt_app, tmp_path,
-                                                                               reference_background_path) -> None:
+                                                                               reference_background_path, wait_for_scan) -> None:
     """
     Description:
         A close during an eight-object analysis does not block and does not leave the thread running:
@@ -356,6 +356,7 @@ def test_closing_during_an_analysis_stops_it_before_its_next_object_then_closes(
         _Private(window, '__button_connect').click()
         _Pump(qt_app, lambda: not _Private(window, '__worker_running'))
         _Private(window, '__button_scan').click()
+        wait_for_scan(window)
         _Private(window, '__button_analyze').click()
         thread = _Private(window, '__thread')
         _Pump(qt_app, lambda: vision.described >= 1)
@@ -394,7 +395,7 @@ def test_closing_during_an_analysis_stops_it_before_its_next_object_then_closes(
 
 
 def test_a_close_arriving_as_the_analysis_finishes_closes_once_with_the_whole_result(qt_app, tmp_path,
-                                                                                      reference_background_path) -> None:
+                                                                                      reference_background_path, wait_for_scan) -> None:
     """
     Description:
         The analysis has finished on its thread but its result has not reached the window when the close
@@ -408,6 +409,7 @@ def test_a_close_arriving_as_the_analysis_finishes_closes_once_with_the_whole_re
     _Private(window, '__button_connect').click()
     _Pump(qt_app, lambda: not _Private(window, '__worker_running'))
     _Private(window, '__button_scan').click()
+    wait_for_scan(window)
     _Private(window, '__button_analyze').click()
     assert vision.returned.wait(5)
     window.close()                                         # the result is still queued

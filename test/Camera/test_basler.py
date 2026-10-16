@@ -508,3 +508,49 @@ def test_a_frame_of_another_size_is_refused_at_the_grab(monkeypatch) -> None:
     with pytest.raises(Camera_Error_Cls, match='delivered a 1936 × 1216 frame, but the configuration sets it to '
                                                '1920 × 1200'):
         camera._Grab()
+
+
+class _Grab_Result_Cls(object):
+    """A stand-in pylon grab result: complete or not, with a camera timestamp, released once."""
+
+    def __init__(self, complete: bool, timestamp: int) -> None:
+        self.complete, self.TimeStamp, self.released = complete, timestamp, 0
+
+    def GrabSucceeded(self) -> bool:
+        return self.complete
+
+    def Release(self) -> None:
+        self.released += 1
+
+
+def test_the_stream_keeps_only_the_newest_frame_skips_incomplete_ones_and_writes_no_setting(monkeypatch) -> None:
+    """
+    Description:
+        Start_Stream starts newest-frame-only acquisition (a frame not taken in time is dropped, never queued);
+        Retrieve converts a complete frame and keeps its camera timestamp, and releases an incomplete one,
+        returning None; Stop_Stream stops grabbing. None of it writes or changes a node: every value the
+        camera holds after the stream is what it held before.
+    """
+
+    device = _Device_Cls(width=1920, height=1200, offset_x=8, offset_y=8)
+    driver = _Connect(monkeypatch, device)
+    nodes = {name: node for name, node in vars(device).items() if isinstance(node, _Node_Cls)}
+    before = {name: node.Value for name, node in nodes.items()}
+    calls_before = list(device.calls)
+    results = [_Grab_Result_Cls(False, 100), _Grab_Result_Cls(True, 200)]
+    strategies = []
+    device.StartGrabbing = lambda strategy: (strategies.append(strategy), setattr(device, 'grabbing', True))
+    device.RetrieveResult = lambda timeout, handling: results.pop(0)
+    driver.converter = type('_Converter', (), {'Convert': lambda self, result: type(
+        '_Image', (), {'GetArray': lambda image: 'frame %d' % result.TimeStamp})()})()
+    spent = list(results)
+
+    driver.Start_Stream()
+    assert strategies == [Basler.pylon.GrabStrategy_LatestImageOnly] and device.IsGrabbing()
+    assert driver.Retrieve(1000) is None and driver.timestamp is None
+    assert driver.Retrieve(1000) == 'frame 200' and driver.timestamp == 200
+    assert [result.released for result in spent] == [1, 1]
+    driver.Stop_Stream()
+    assert not device.IsGrabbing()
+    assert device.calls == calls_before
+    assert {name: node.Value for name, node in nodes.items()} == before

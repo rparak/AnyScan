@@ -173,19 +173,20 @@ def _Shown_Window(reference_background_path: str, vision: Vision_Backend_Cls) ->
     return window
 
 
-def _Connected_And_Scanned(reference_background_path: str) -> AnyScan_Window_Cls:
+def _Connected_And_Scanned(reference_background_path: str, wait_for_scan: tp.Callable[[tp.Any], None]) -> AnyScan_Window_Cls:
     """A window brought to 'frame captured' by clicking CONNECT and then SCAN."""
     window = _Shown_Window(reference_background_path, _Loaded_Vision_Cls())
     _Click(_Window_Private(window, '__button_connect'))
     assert _Pump_Until(lambda: _Window_Private(window, '__camera').Connected
                        and not _Window_Private(window, '__worker_running'))
     _Click(_Window_Private(window, '__button_scan'))
+    wait_for_scan(window)
     return window
 
 
-def _Analyzed(reference_background_path: str) -> AnyScan_Window_Cls:
+def _Analyzed(reference_background_path: str, wait_for_scan: tp.Callable[[tp.Any], None]) -> AnyScan_Window_Cls:
     """A window brought to 'analysis delivered' by clicking CONNECT, SCAN and ANALYZE."""
-    window = _Connected_And_Scanned(reference_background_path)
+    window = _Connected_And_Scanned(reference_background_path, wait_for_scan)
     _Click(_Window_Private(window, '__button_analyze'))
     assert _Pump_Until(lambda: _Window_Private(window, '__viewport').Has_Views()
                        and not _Window_Private(window, '__worker_running'))
@@ -210,27 +211,27 @@ def test_clicking_connect_opens_the_camera(qt_app, reference_background_path) ->
     window.close()
 
 
-def test_clicking_scan_captures_and_shows_the_frame(qt_app, reference_background_path, reference_shape) -> None:
+def test_clicking_scan_captures_and_shows_the_frame(qt_app, reference_background_path, reference_shape, wait_for_scan) -> None:
     """
     Description:
         SCAN (clicked) captures a frame and the frame badge states its size.
     """
 
-    window = _Connected_And_Scanned(reference_background_path)
+    window = _Connected_And_Scanned(reference_background_path, wait_for_scan)
 
     height, width, _ = reference_shape
     assert _Window_Private(window, '__frame_badge').text() == '%d × %d · RGB' % (width, height)
     window.close()
 
 
-def test_clicking_analyze_runs_the_analysis_and_delivers_both_renders(qt_app, reference_background_path) -> None:
+def test_clicking_analyze_runs_the_analysis_and_delivers_both_renders(qt_app, reference_background_path, wait_for_scan) -> None:
     """
     Description:
         ANALYZE (clicked) runs the backend on the worker, and the result arrives in the window:
         both renders are held and the object list shows the two objects.
     """
 
-    window = _Analyzed(reference_background_path)
+    window = _Analyzed(reference_background_path, wait_for_scan)
 
     assert _Window_Private(window, '__viewport').Has_Views()
     blocks = _Private(_Window_Private(window, '__object_list'), '__blocks', '_Object_List_Cls')
@@ -238,13 +239,13 @@ def test_clicking_analyze_runs_the_analysis_and_delivers_both_renders(qt_app, re
     window.close()
 
 
-def test_clicking_clear_empties_the_frame(qt_app, reference_background_path) -> None:
+def test_clicking_clear_empties_the_frame(qt_app, reference_background_path, wait_for_scan) -> None:
     """
     Description:
         CLEAR (clicked) drops the frame: the badge returns to 'No frame'.
     """
 
-    window = _Connected_And_Scanned(reference_background_path)
+    window = _Connected_And_Scanned(reference_background_path, wait_for_scan)
     assert _Window_Private(window, '__frame_badge').text() != 'No frame'
 
     _Click(_Window_Private(window, '__button_clear'))
@@ -253,13 +254,13 @@ def test_clicking_clear_empties_the_frame(qt_app, reference_background_path) -> 
     window.close()
 
 
-def test_clicking_disconnect_closes_the_camera(qt_app, reference_background_path) -> None:
+def test_clicking_disconnect_closes_the_camera(qt_app, reference_background_path, wait_for_scan) -> None:
     """
     Description:
         DISCONNECT (clicked) closes the camera.
     """
 
-    window = _Connected_And_Scanned(reference_background_path)
+    window = _Connected_And_Scanned(reference_background_path, wait_for_scan)
     camera = _Window_Private(window, '__camera')
     assert camera.Connected
 
@@ -293,14 +294,14 @@ def test_clicking_a_view_segment_switches_the_central_page(qt_app, reference_bac
     window.close()
 
 
-def test_clicking_the_view_toggle_repaints_the_viewport_with_the_other_render(qt_app, reference_background_path) -> None:
+def test_clicking_the_view_toggle_repaints_the_viewport_with_the_other_render(qt_app, reference_background_path, wait_for_scan) -> None:
     """
     Description:
         The Annotated / Mask toggle (clicked) changes what the viewport PAINTS — the pixels, not a
         state variable — and clicking back restores the annotated picture exactly.
     """
 
-    window = _Analyzed(reference_background_path)
+    window = _Analyzed(reference_background_path, wait_for_scan)
     viewport = _Window_Private(window, '__viewport')
     toggle = _Window_Private(window, '__view_toggle')
     annotated = _Grab(viewport)

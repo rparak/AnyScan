@@ -108,7 +108,7 @@ CONST_SEGMENTED = (('View switch', None, '__view_switch'),
 # The tool buttons, as (name, window attribute).
 #   Unit [Tuple<Tuple<string, string>>]
 CONST_TOOL_BUTTONS = (('CONNECT', '__button_connect'), ('DISCONNECT', '__button_disconnect'),
-                      ('SCAN', '__button_scan'), ('ANALYZE', '__button_analyze'),
+                      ('PREVIEW', '__button_preview'), ('SCAN', '__button_scan'), ('ANALYZE', '__button_analyze'),
                       ('CLEAR', '__button_clear'))
 
 # The committed reference background, resolved from this file (test/UI -> ../..). The conftest

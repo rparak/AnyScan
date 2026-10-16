@@ -376,7 +376,7 @@ def _Write_Set(root: str, set_id: str, run_id: str, scores: tp.Sequence[tp.Optio
                                    metadata, 'stamp', cv2, np, distorted_bgr=None, undistortion=None)
 
 
-def _Working_Window(tmp_path: tp.Any) -> AnyScan_Window_Cls:
+def _Working_Window(tmp_path: tp.Any, scan: tp.Callable[[tp.Any], None]) -> AnyScan_Window_Cls:
     """
     Description:
         The working state: loaded, connected, one analysis with a composer note and an unscored object,
@@ -392,7 +392,7 @@ def _Working_Window(tmp_path: tp.Any) -> AnyScan_Window_Cls:
     window = _Window(tmp_path, loaded=True)
     _Private(window, '__camera').Connect()
     _Private(window, '__Sync_Controls')()
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
     objects = [Detection_Str(Label='ring', Bbox=(4, 4, 20, 16), Segmenter_Score=0.93, Sentence='A steel ring.', Cue='both'),
                Detection_Str(Label='nut', Bbox=(30, 6, 12, 12), Segmenter_Score=None, Sentence='A hex nut.', Cue='background')]
     _Private(window, '__On_Analysis_Finished')(Analysis_Str(Objects=objects, Latency_Ms=1180, Verdict='ok',
@@ -421,7 +421,7 @@ def qt_app() -> QApplication:
 
 
 @pytest.fixture(scope='module')
-def records(qt_app, tmp_path_factory) -> tp.List[tp.Dict[str, tp.Any]]:
+def records(qt_app, tmp_path_factory, scan) -> tp.List[tp.Dict[str, tp.Any]]:
     """
     Description:
         Every text measured across the states, with QPainter.drawText hooked so painted text reports its
@@ -462,7 +462,7 @@ def records(qt_app, tmp_path_factory) -> tp.List[tp.Dict[str, tp.Any]]:
         window.close()
 
         # Working: loaded, connected, one analysis with a composer note, capture sets in History.
-        window = _Working_Window(tmp_path)
+        window = _Working_Window(tmp_path, scan)
         for key in CONST_VIEWS:
             _View(window, key)
             _Measure(window, 'working/%s' % key, painted, out)
@@ -555,7 +555,7 @@ def _Fixed_Now(cls: type, tz: tp.Any = None) -> datetime:
 CONST_FROZEN_DATETIME = type('Frozen_Datetime', (datetime,), {'now': classmethod(_Fixed_Now)})
 
 
-def _Grab_Views(tmp_path: tp.Any) -> tp.Dict[str, np.ndarray]:
+def _Grab_Views(tmp_path: tp.Any, scan: tp.Callable[[tp.Any], None]) -> tp.Dict[str, np.ndarray]:
     """
     Description:
         The working window's Live and History views (the two with chrome below 9 pt), as grabbed pixels.
@@ -567,7 +567,7 @@ def _Grab_Views(tmp_path: tp.Any) -> tp.Dict[str, np.ndarray]:
         (1) parameter [Dict<string, Matrix<uint8>>]: The view key -> its grab.
     """
 
-    window = _Working_Window(tmp_path)
+    window = _Working_Window(tmp_path, scan)
     grabs = {}
     for key in ('live', 'history'):
         _View(window, key)
@@ -589,7 +589,7 @@ def test_every_text_is_at_least_9_pt_on_a_low_density_display(qt_app, records) -
     assert not small, 'below %g pt: %s' % (CONST_LOW_DENSITY_MINIMUM_PT, small)
 
 
-def test_a_high_density_display_draws_what_it_drew_without_the_floor(qt_app, tmp_path, monkeypatch) -> None:
+def test_a_high_density_display_draws_what_it_drew_without_the_floor(qt_app, tmp_path, monkeypatch, scan) -> None:
     """
     Description:
         At DPR 1.5 and above the floor changes nothing: the Live and History views are pixel-identical to
@@ -600,9 +600,9 @@ def test_a_high_density_display_draws_what_it_drew_without_the_floor(qt_app, tmp
     if qt_app.devicePixelRatio() < Style.CONST_LOW_DENSITY_DPR:
         pytest.skip('this run is at DPR %g; the high-density comparison runs at DPR 2' % qt_app.devicePixelRatio())
     monkeypatch.setattr(Core, 'datetime', CONST_FROZEN_DATETIME)
-    shipped = _Grab_Views(tmp_path / 'shipped')
+    shipped = _Grab_Views(tmp_path / 'shipped', scan)
     monkeypatch.setattr(Style, 'CONST_TYPE_FLOOR_LOW_DENSITY', 0.0)
-    without = _Grab_Views(tmp_path / 'without')
+    without = _Grab_Views(tmp_path / 'without', scan)
     for key in shipped:
         differing = int((shipped[key] != without[key]).any(axis=2).sum()) if shipped[key].shape == without[key].shape else -1
         assert differing == 0, '%s view: %d pixels differ from the view without the floor' % (key, differing)

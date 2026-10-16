@@ -138,11 +138,11 @@ def test_the_task_icon_is_painted_cell_for_cell_in_the_purple_above_the_step(qt_
         assert not (pixels >= 245).all(axis=2).any(), kind                                     # no white anywhere
 
 
-def test_the_icon_steps_with_the_timer_and_a_static_step_stays_still(qt_app) -> None:
+def test_the_icon_steps_with_the_timer(qt_app) -> None:
     """
     Description:
         While animated, the icon changes as the timer ticks (the camera's lens goes dim after 5 ticks and is back
-        after 10); a static step (Set_Busy, the capture on the GUI thread) does not start the timer.
+        after 10), and Stop_Busy stops the timer.
     """
 
     viewport = _Viewport(CONST_TABLE)
@@ -155,9 +155,7 @@ def test_the_icon_steps_with_the_timer_and_a_static_step_stays_still(qt_app) -> 
         shown.append(_Pixels(viewport))
     viewport.Stop_Busy()
     assert not np.array_equal(shown[0], shown[1]) and np.array_equal(shown[0], shown[2])
-    viewport.Set_Busy('Capturing frame…', 'camera')
     assert not getattr(viewport, '_Viewport_Cls__timer').isActive()
-    viewport.Set_Busy('')
 
 
 def test_while_busy_the_empty_view_keeps_only_its_corner_cluster(qt_app) -> None:

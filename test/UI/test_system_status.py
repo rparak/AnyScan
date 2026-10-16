@@ -156,7 +156,7 @@ def test_the_system_cell_says_what_is_missing_before_it_says_ready(qt_app, refer
     window.close()
 
 
-def test_a_failed_analysis_then_the_logged_error_then_clear(qt_app, reference_background_path, tmp_path) -> None:
+def test_a_failed_analysis_then_the_logged_error_then_clear(qt_app, reference_background_path, tmp_path, scan) -> None:
     """
     Description:
         A failed analysis turns the cell to 'Analysis failed' (error colour). A later successful
@@ -165,7 +165,7 @@ def test_a_failed_analysis_then_the_logged_error_then_clear(qt_app, reference_ba
     """
 
     window = _Window(reference_background_path, tmp_path, loaded=True, connected=True)
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
 
     _Private(window, '__On_Analysis_Failed')('The describer could not run.')
     shown, pixels = _System(window)
@@ -181,7 +181,7 @@ def test_a_failed_analysis_then_the_logged_error_then_clear(qt_app, reference_ba
     window.close()
 
 
-def test_every_logged_error_counts_until_clear(qt_app, reference_background_path, tmp_path) -> None:
+def test_every_logged_error_counts_until_clear(qt_app, reference_background_path, tmp_path, scan) -> None:
     """
     Description:
         Errors the window logs — here a lost camera connection and a failed configuration load —
@@ -192,7 +192,7 @@ def test_every_logged_error_counts_until_clear(qt_app, reference_background_path
     camera = _Private(window, '__camera')
 
     _Unplug(camera)
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
     assert _System(window)[0] == '● Error logged'
 
     _Private(window, '__On_Configuration_Load_Failed')('The FastSAM weights are missing.')
@@ -224,7 +224,7 @@ def _Connect_Through_Connect(window: AnyScan_Window_Cls) -> None:
 
 
 def test_a_lost_connection_reads_disconnected_in_the_camera_cell_too(qt_app, reference_background_path,
-                                                                     tmp_path) -> None:
+                                                                     tmp_path, scan) -> None:
     """
     Description:
         The Camera cell reports the camera's state, not the last button pressed: when the
@@ -240,7 +240,7 @@ def test_a_lost_connection_reads_disconnected_in_the_camera_cell_too(qt_app, ref
     camera = _Private(window, '__camera')
 
     _Unplug(camera)
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
     assert _Cell_Text(window, 'camera') == '● Disconnected'
     assert 'offline' in _Private(window, '__pill_camera').text()
     assert _Cell_Text(window, 'resolution') == Style.CONST_NO_VALUE     # no size left standing
@@ -294,7 +294,8 @@ def test_the_camera_cell_reads_connecting_while_a_connect_runs(qt_app, reference
 
 
 @pytest.mark.parametrize('width', [0, 1920], ids=['minimum', '1920'])
-def test_no_column_of_the_strip_moves_when_a_state_changes(qt_app, reference_background_path, tmp_path, width) -> None:
+def test_no_column_of_the_strip_moves_when_a_state_changes(qt_app, reference_background_path, tmp_path, width,
+                                                          scan) -> None:
     """
     Description:
         Every cell reserves the width of the widest value it can show, so whatever the strip says —
@@ -326,7 +327,7 @@ def test_no_column_of_the_strip_moves_when_a_state_changes(qt_app, reference_bac
         window.resize(width or window.minimumSizeHint().width(), 900)
         _Record(window)
         if loaded and connected:
-            _Private(window, '__On_Scan_Button_Clicked')()
+            scan(window)
             _Private(window, '__On_Analysis_Failed')('The describer could not run.')
             _Record(window)
             _Private(window, '__On_Configuration_Load_Failed')('The FastSAM weights are missing.')

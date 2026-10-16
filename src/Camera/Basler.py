@@ -155,6 +155,7 @@ class Basler_Cls:
 
                 # Functions of the class.
                 Cls.Capture(); Cls.Is_Grabbing(); Cls.Print_Statistics()
+                Cls.Start_Stream(); Cls.Retrieve(timeout); Cls.Stop_Stream()
     """
 
     def __init__(self, config: tp.Dict[str, tp.Any], resolution: tp.Tuple[int, int], offset: tp.Tuple[int, int],
@@ -194,6 +195,8 @@ class Basler_Cls:
 
         # Initialize the image as None
         self.image = None
+        # The camera timestamp of the last streamed frame (Retrieve) [ns of the camera clock], None until then.
+        self.timestamp = None
 
     def __Connect(self, max_retries: int, retry_delay: int) -> None:
         """
@@ -644,6 +647,50 @@ class Basler_Cls:
         print(f'[ERROR] Failed to capture a complete image after {max_attempts} attempts.')
 
         return None
+
+    def Start_Stream(self) -> None:
+        """
+        Description:
+            Start a continuous acquisition that keeps only the newest frame (GrabStrategy_LatestImageOnly):
+            a frame the host has not taken by the time the next one arrives is dropped, never queued. Only
+            acquisition starts; no setting is written, so a streamed frame is exposed exactly as a Capture's.
+            Starting after a stop is what makes a stream's first frame fresh: StopGrabbing drops every
+            buffered frame, and the camera exposes the next one only after StartGrabbing.
+        """
+
+        self.timestamp = None
+        self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+
+    def Retrieve(self, timeout: int) -> tp.Optional[tp.List[tp.List[int]]]:
+        """
+        Description:
+            Take the newest frame of the running stream (Start_Stream). A frame grabbed incompletely is
+            released and None is returned, so a caller skips it; a timeout or an SDK failure raises. The
+            frame's camera timestamp is kept in 'timestamp'.
+
+        Args:
+            (1) timeout [int]: Retrieval timeout in milliseconds.
+
+        Returns:
+            (1) parameter [Vector<uint8> 3xArray] / [None]: The frame (BGR), or None when it was incomplete.
+        """
+
+        result = self.camera.RetrieveResult(timeout, pylon.TimeoutHandling_ThrowException)
+        try:
+            if not result.GrabSucceeded():
+                return None
+            self.timestamp = int(result.TimeStamp)
+            return self.converter.Convert(result).GetArray()
+        finally:
+            result.Release()
+
+    def Stop_Stream(self) -> None:
+        """
+        Description:
+            Stop the running stream (Start_Stream), dropping every buffered frame. No setting is written.
+        """
+
+        self.__Stop_Grabbing()
 
     def Print_Statistics(self) -> None:
         """

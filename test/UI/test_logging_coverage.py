@@ -108,9 +108,9 @@ class _Lost_Camera_Cls(_Idle_Camera_Cls):
 
 
 class _Transient_Camera_Cls(_Idle_Camera_Cls):
-    """A camera whose Capture fails but stays connected — a transient error."""
+    """A camera whose grab fails but stays connected — a transient error."""
 
-    def Capture(self):
+    def _Grab(self):
         raise Camera_Error_Cls('capture timeout')
 
 
@@ -295,7 +295,7 @@ def test_camera_events_reach_the_log_through_the_sink(qt_app, tmp_path) -> None:
     assert '[INFO   ] camera configuration loaded' in content
 
 
-def test_mid_session_connection_loss_is_an_error(qt_app, tmp_path) -> None:
+def test_mid_session_connection_loss_is_an_error(qt_app, tmp_path, scan) -> None:
     """
     Description:
         A capture that fails AND leaves the camera disconnected is a mid-session
@@ -305,13 +305,13 @@ def test_mid_session_connection_loss_is_an_error(qt_app, tmp_path) -> None:
 
     window, logger = _Window(tmp_path, camera=_Lost_Camera_Cls())
     _Private(window, '__camera').Connect()
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
     logger.Close()
     assert '[ERROR  ] The camera connection was lost' in _Log_Text(logger)
 
     window2, logger2 = _Window(tmp_path / 'b', camera=_Transient_Camera_Cls())
     _Private(window2, '__camera').Connect()
-    _Private(window2, '__On_Scan_Button_Clicked')()
+    scan(window2)
     logger2.Close()
     content = _Log_Text(logger2)
     assert 'The camera connection was lost' not in content
@@ -327,7 +327,7 @@ class _Undistorting_Camera_Cls(_Idle_Camera_Cls):
         return np.zeros((40, 60, 3), dtype=np.uint8)
 
 
-def test_the_scanned_frames_distorted_original_reaches_the_capture_set(qt_app, tmp_path) -> None:
+def test_the_scanned_frames_distorted_original_reaches_the_capture_set(qt_app, tmp_path, scan) -> None:
     """
     Description:
         The window keeps the camera's pre-undistortion frame from SCAN and hands it, with its
@@ -339,7 +339,7 @@ def test_the_scanned_frames_distorted_original_reaches_the_capture_set(qt_app, t
     camera = _Undistorting_Camera_Cls()
     window, logger = _Window(tmp_path, camera=camera)     # built before CONNECT, as in the app
     camera.Connect()
-    _Private(window, '__On_Scan_Button_Clicked')()
+    scan(window)
     setattr(window, CONST_MANGLE + '__current_set_id', '20260923-100000_1')
     setattr(window, CONST_MANGLE + '__session_id', '20260923-095900_s1')
     _Private(window, '__On_Analysis_Finished')(

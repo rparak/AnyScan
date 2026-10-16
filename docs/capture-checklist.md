@@ -57,6 +57,7 @@ calibration written from it carries it.
 3. **Then the parts session.** Its frames are then undistorted under the new calibration and
    analysed against the new reference.
 4. **The cable pull last**, any time after item 3 — it disturbs nothing the other items depend on.
+5. **The moving hand under SCAN** any time after CONNECT — it records nothing the other items depend on.
 
 ---
 
@@ -321,3 +322,30 @@ the second at each step.
 - [ ] whether step 4's Scan reported a lost connection or a capture error
 - [ ] any loss not detected at all — stop and report it: then the camera reads connected after the
       cable is gone, and a Scan reports a capture error instead of the loss
+
+6. Repeat 1–3 with the live preview running (PREVIEW pressed, the view showing *LIVE PREVIEW*). The preview must
+   stop, the Camera cell read *Disconnected* and the reading panel *The live preview stopped. The camera is no
+   longer reachable…*, with the same ERROR in the log; CONNECT must then work, and PREVIEW must start again.
+
+- [ ] the seconds from pulling the cable to the preview stopping (step 6), and whether it reported a lost
+      connection or *The live preview stopped: …* with the camera still Connected
+
+## 5. Live preview and SCAN: a moving hand is refused
+
+**Why.** SCAN takes its frame only once two consecutive frames show no movement, and refuses after about a
+second (docs/design-decisions.md, *A scan waits for a still scene…*). The thresholds come from the still table's
+noise on this camera; the refusal itself is tested only on scripted and synthetic frames.
+
+**Conditions.** Configuration loaded, CONNECT done, a part on the table.
+
+1. Press PREVIEW, then wave a hand over the table and press SCAN while it moves. The reading must say *Something is
+   moving in the view…* with a *Moving* badge, the log a WARNING with the same sentence, and the preview must come
+   back. The System cell must not count an error.
+2. Hold the hand still in view and press SCAN: the scan must take the frame (a hand held still is still).
+3. Take the hand away, wait a second, press SCAN: the frame must show the table without the hand.
+4. Repeat 1 with a part slid slowly across the table instead of a hand.
+
+**Record alongside:**
+
+- [ ] whether each step behaved as written, and the scan's time in step 3 (the log's scan lines)
+- [ ] any still table that was refused, or any movement that was scanned — stop and report it

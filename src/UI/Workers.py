@@ -28,12 +28,15 @@ import threading
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import QObject, pyqtSignal
+# Custom Lib.: AnyScan — the scan's refusal for a moving scene, told apart from a capture failure
+#   ../Camera/Core
+from Camera.Core import Camera_Motion_Error_Cls
 
 """
 Description:
     The off-thread workers. Long-running work (model inference, a model load, a Basler
-    handshake) never runs on the GUI thread (a scan, one short grab, does, behind Set_Busy); each worker is moved onto a QThread
-    owned by the window and reports back only through signals. The window quits and
+    handshake, a scan waiting for a still scene, the live preview's frames) never runs on the GUI thread;
+    each worker is moved onto a QThread owned by the window and reports back only through signals. The window quits and
     waits on the thread once a worker's terminal signal fires (Join_Worker_Thread), then
     deletes both.
 """
@@ -228,6 +231,198 @@ class Connect_Worker_Cls(QObject):
             self.Connect_Failed.emit(str(exc))
         else:
             self.Connect_Finished.emit()
+
+
+class Preview_Worker_Cls(QObject):
+    """
+    Description:
+        Runs the live preview off the GUI thread: starts the camera's stream, takes its frames one after
+        another until asked to stop, then stops the stream — on every path, a failure included. Frames are
+        dropped, never queued: the newest waits in a one-frame mailbox, and Frame_Ready is emitted only
+        when the mailbox was empty, so at most one notification is ever on its way to the window, and a
+        window busy painting takes the newest frame when it gets there (Take_Frame). The camera's stream
+        keeps only its newest frame too (Camera.Basler.Basler_Cls.Start_Stream). Preview frames go to the
+        window only: nothing here analyses, records or counts them.
+
+    Initialization of the Class:
+        Args:
+            (1) camera [Camera_Backend_Cls(object)]: The connected camera.
+
+        Example:
+            Initialization:
+                # Assignment of the variables.
+                thread = QThread()
+
+                # Initialization of the class.
+                Cls = Preview_Worker_Cls(camera)
+                Cls.moveToThread(thread)
+                thread.started.connect(Cls.Run)
+
+            Features:
+                # Properties of the class.
+                Cls.Delivered; Cls.Dropped
+
+                # Signals of the class.
+                Cls.Frame_Ready; Cls.Preview_Stopped
+
+                # Functions of the class.
+                Cls.Run(); Cls.Take_Frame(); Cls.Request_Stop()
+    """
+
+    # The shortest time between two frames the worker hands on: a backend with no frame rate of its own (a
+    # saved frame) would otherwise loop as fast as it can. Far below the rig's 270 ms frame period, so the
+    # camera's own rate is never limited by it.
+    #   Unit [s]
+    CONST_MIN_INTERVAL_S = 0.05
+
+    # << SIGNALS >> #
+    Frame_Ready = pyqtSignal()               # a new frame waits in the mailbox (Take_Frame)
+    Preview_Stopped = pyqtSignal(str)        # '' when asked to stop, otherwise the failure sentence
+
+    def __init__(self, camera: tp.Any) -> None:
+        super().__init__()
+
+        # << PRIVATE >> #
+        self.__camera = camera
+        # Set from the GUI thread by Request_Stop, read on the worker thread before each frame.
+        self.__stop = threading.Event()
+        # The one-frame mailbox, shared by the two threads under the lock.
+        self.__lock = threading.Lock()
+        self.__frame = None
+        # Frames put in the mailbox, and frames overwritten there before the window took them.
+        self.__delivered = 0
+        self.__dropped = 0
+
+    @property
+    def Delivered(self) -> int:
+        """
+        Description:
+            How many frames the worker has put in the mailbox.
+
+        Returns:
+            (1) parameter [int]: The frames delivered.
+        """
+
+        return self.__delivered
+
+    @property
+    def Dropped(self) -> int:
+        """
+        Description:
+            How many frames were replaced in the mailbox by a newer one before the window took them.
+
+        Returns:
+            (1) parameter [int]: The frames dropped.
+        """
+
+        return self.__dropped
+
+    def Request_Stop(self) -> None:
+        """
+        Description:
+            Ask the preview to stop after the frame it is waiting for (at most one frame period, or the
+            camera's stream timeout on a camera that stopped sending). Called directly from the GUI thread.
+        """
+
+        self.__stop.set()
+
+    def Take_Frame(self) -> tp.Optional[tp.List[tp.List[int]]]:
+        """
+        Description:
+            Take the newest frame out of the mailbox (GUI thread), leaving it empty.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The frame (RGB), or None when none waits.
+        """
+
+        with self.__lock:
+            frame, self.__frame = self.__frame, None
+        return frame
+
+    def Run(self) -> None:
+        """
+        Description:
+            Start the stream, hand on frames until asked to stop or until the camera fails, stop the stream,
+            and report how it ended through Preview_Stopped.
+        """
+
+        message = ''
+        try:
+            self.__camera.Start_Preview()
+            while not self.__stop.is_set():
+                start = time.monotonic()
+                frame = self.__camera.Preview_Frame()
+                if frame is None:
+                    continue
+                with self.__lock:
+                    waiting = self.__frame is not None
+                    self.__frame = frame
+                    self.__delivered += 1
+                    self.__dropped += int(waiting)
+                if not waiting:
+                    self.Frame_Ready.emit()
+                self.__stop.wait(max(0.0, self.CONST_MIN_INTERVAL_S - (time.monotonic() - start)))
+        except Exception as exc:                          # noqa: BLE001
+            message = str(exc)
+        finally:
+            self.__camera.Stop_Preview()
+        self.Preview_Stopped.emit(message)
+
+
+class Scan_Worker_Cls(QObject):
+    """
+    Description:
+        Takes the scan's frame off the GUI thread: Capture_Still waits for a still scene (up to about a
+        second) before it takes one fresh frame. Reports the frame with its distorted original and
+        undistortion record, read on this thread right after the capture so they belong to that frame — or
+        a failure, saying whether it was a moving scene (a refusal, the camera fine) or a capture failure.
+
+    Initialization of the Class:
+        Args:
+            (1) camera [Camera_Backend_Cls(object)]: The connected camera, its preview stopped.
+
+        Example:
+            Initialization:
+                # Assignment of the variables.
+                thread = QThread()
+
+                # Initialization of the class.
+                Cls = Scan_Worker_Cls(camera)
+                Cls.moveToThread(thread)
+                thread.started.connect(Cls.Run)
+
+            Features:
+                # Signals of the class.
+                Cls.Scan_Finished; Cls.Scan_Failed
+
+                # Functions of the class.
+                Cls.Run()
+    """
+
+    # << SIGNALS >> #
+    Scan_Finished = pyqtSignal(object, object, object)  # (frame, distorted original or None, undistortion or None)
+    Scan_Failed = pyqtSignal(str, bool)                 # (the sentence, whether the scene was moving)
+
+    def __init__(self, camera: tp.Any) -> None:
+        super().__init__()
+
+        # << PRIVATE >> #
+        self.__camera = camera
+
+    def Run(self) -> None:
+        """
+        Description:
+            Take the scan's frame and report it, or the failure, through signals only.
+        """
+
+        try:
+            frame = self.__camera.Capture_Still()
+        except Camera_Motion_Error_Cls as exc:
+            self.Scan_Failed.emit(str(exc), True)
+        except Exception as exc:                          # noqa: BLE001
+            self.Scan_Failed.emit(str(exc), False)
+        else:
+            self.Scan_Finished.emit(frame, self.__camera.Last_Distorted_Frame, self.__camera.Last_Undistortion)
 
 
 class Model_Load_Worker_Cls(QObject):

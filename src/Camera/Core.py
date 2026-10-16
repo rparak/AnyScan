@@ -24,6 +24,8 @@
 # System (Default)
 import os
 import sys
+# Time (Time access and conversions)
+import time
 # Typing (Support for type hints)
 import typing as tp
 # Custom Lib.: AnyScan — the camera block of a loaded configuration
@@ -54,6 +56,12 @@ CONST_BASLER_SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(
 #   Unit [int]
 CONST_BASLER_UNDISTORT_ALPHA = 1
 
+# How long a scan waits for a still scene (Capture_Still) before it refuses: about one second, as the operator
+# asked. At the rig's 3.7 fps (a frame every 270 ms) the comparisons fall at about 0.59, 0.86 and 1.13 s, so a
+# scene that keeps moving is refused after about 1.1 s.
+#   Unit [s]
+CONST_STILL_TIMEOUT_S = 1.0
+
 
 class Camera_Error_Cls(RuntimeError):
     """
@@ -72,6 +80,15 @@ class Camera_In_Use_Error_Cls(Camera_Error_Cls):
     """
 
 
+class Camera_Motion_Error_Cls(Camera_Error_Cls):
+    """
+    Description:
+        A scan found the scene moving between consecutive frames for CONST_STILL_TIMEOUT_S, and took no frame.
+        A Camera_Error_Cls, so it is shown like any capture failure, but the camera is fine: the caller
+        tells it apart to report it as a warning, not an error.
+    """
+
+
 class Camera_Backend_Cls(object):
     """
     Description:
@@ -84,7 +101,13 @@ class Camera_Backend_Cls(object):
 
         _Open, _Close, _Grab and _Device_Removed are the per-device SPI a subclass implements; they
         keep a single leading underscore rather than the name-mangled __ private
-        form precisely because they are overridden across classes.
+        form precisely because they are overridden across classes. _Start_Stream, _Grab_Stream and
+        _Stop_Stream are the continuous acquisition behind the live preview and the still-scene scan;
+        the defaults grab one frame at a time, for a backend that has no stream (a saved frame).
+
+        The live preview (Start_Preview, Preview_Frame, Stop_Preview) and the scan (Capture_Still)
+        never overlap: Capture_Still and Capture refuse while the preview runs, so a scan can never
+        take a frame the preview buffered. Neither writes a camera setting.
 
     Initialization of the Class:
         Args:
@@ -100,7 +123,8 @@ class Camera_Backend_Cls(object):
                 Cls.Connected; Cls.Resolution
 
                 # Functions of the class.
-                Cls.Connect(); Cls.Capture(); Cls.Check_Connection(); Cls.Disconnect()
+                Cls.Connect(); Cls.Capture(); Cls.Capture_Still(); Cls.Check_Connection(); Cls.Disconnect()
+                Cls.Start_Preview(); Cls.Preview_Frame(); Cls.Stop_Preview(); Cls.Device_Lost()
     """
 
     Name = 'camera'
@@ -108,6 +132,8 @@ class Camera_Backend_Cls(object):
     def __init__(self) -> None:
         # << PRIVATE >> #
         self.__connected = False
+        # Whether the live preview's stream runs (Start_Preview to Stop_Preview).
+        self.__previewing = False
         # An optional log sink the UI wires to the session logger. The Qt-free camera
         # layer must not reach up into the UI or hold the logger (the same inversion
         # Basler.py avoids by not importing Core), so it emits (level, message) events
@@ -233,6 +259,18 @@ class Camera_Backend_Cls(object):
         return self.__connected
 
     @property
+    def Previewing(self) -> bool:
+        """
+        Description:
+            Whether the live preview's stream runs.
+
+        Returns:
+            (1) parameter [bool]: True between Start_Preview and Stop_Preview.
+        """
+
+        return self.__previewing
+
+    @property
     def Resolution(self) -> tp.Tuple[int, int]:
         """
         Description:
@@ -271,6 +309,31 @@ class Camera_Backend_Cls(object):
 
         raise NotImplementedError
 
+    def _Start_Stream(self) -> None:
+        """
+        Description:
+            Start a continuous acquisition whose first frame is exposed after this call. The default
+            does nothing: a backend without a stream grabs one frame at a time (_Grab_Stream).
+        """
+
+    def _Grab_Stream(self) -> tp.Optional[tp.List[tp.List[int]]]:
+        """
+        Description:
+            The newest frame of the running stream, processed exactly as _Grab processes one, or None
+            for a frame the device delivered incompletely. The default is one _Grab.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The frame (RGB), or None.
+        """
+
+        return self._Grab()
+
+    def _Stop_Stream(self) -> None:
+        """
+        Description:
+            Stop the running stream, dropping every frame it buffered. The default does nothing.
+        """
+
     def _Device_Removed(self) -> bool:
         """
         Description:
@@ -299,6 +362,18 @@ class Camera_Backend_Cls(object):
         self.Disconnect()
         return True
 
+    def Device_Lost(self) -> bool:
+        """
+        Description:
+            Whether the device is reported gone while connected — the question Check_Connection asks,
+            without closing anything. The application asks this while the preview's worker or a scan
+            uses the camera, and disconnects only once that worker has ended.
+
+        Returns:
+            (1) parameter [bool]: True when connected and the device is reported removed.
+        """
+
+        return self.__connected and self._Device_Removed()
     def Connect(self) -> None:
         """
         Description:
@@ -318,6 +393,7 @@ class Camera_Backend_Cls(object):
 
         if not self.__connected:
             return
+        self.Stop_Preview()
         self._Close()
         self.__connected = False
 
@@ -334,12 +410,143 @@ class Camera_Backend_Cls(object):
 
         if not self.__connected:
             raise Camera_Error_Cls('Camera is not connected.')
+        self.__Refuse_While_Previewing()
         # A frame's distorted original never outlives it: cleared before every grab, so a
         # failed grab cannot leave the previous frame's original behind.
         self._last_distorted = None
         self._last_undistortion = None
         try:
             return self._Grab()
+        except Camera_Error_Cls:
+            if self._Device_Removed():
+                self.Disconnect()
+            raise
+
+
+    def __Refuse_While_Previewing(self) -> None:
+        """
+        Description:
+            Refuse a capture while the live preview's stream runs: its buffered frame was exposed before
+            the scan was asked for. The application stops the preview first; this makes it a rule.
+        """
+
+        if self.__previewing:
+            raise Camera_Error_Cls('The live preview is still running. Stop it before scanning, so the scan takes '
+                                   'a frame exposed after SCAN was pressed.')
+
+    def Start_Preview(self) -> None:
+        """
+        Description:
+            Start the live preview's stream. Refused when disconnected; a second call is a no-op. No camera
+            setting is written: a preview frame is exposed as a scan's.
+        """
+
+        if not self.__connected:
+            raise Camera_Error_Cls('Camera is not connected.')
+        if self.__previewing:
+            return
+        self._Start_Stream()
+        self.__previewing = True
+
+    def Preview_Frame(self) -> tp.Optional[tp.List[tp.List[int]]]:
+        """
+        Description:
+            The newest frame of the live preview, processed exactly as a scan's, or None for a frame the
+            device delivered incompletely (skip it). A preview frame is never a capture: the last capture's
+            distorted original and undistortion record stay as they were. A failure raises and closes
+            nothing — the preview runs on a worker thread, and the application decides what the failure
+            means once that worker has ended (Check_Connection).
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The frame (RGB), or None.
+        """
+
+        if not self.__previewing:
+            raise Camera_Error_Cls('The live preview is not running.')
+        kept = (self._last_distorted, self._last_undistortion)
+        try:
+            return self._Grab_Stream()
+        finally:
+            self._last_distorted, self._last_undistortion = kept
+
+    def Stop_Preview(self) -> None:
+        """
+        Description:
+            Stop the live preview's stream, dropping what it buffered. A call while it is not running is a
+            no-op, and a failure to stop never blocks DISCONNECT.
+        """
+
+        if not self.__previewing:
+            return
+        self.__previewing = False
+        try:
+            self._Stop_Stream()
+        except Camera_Error_Cls:
+            pass
+
+    def __Stream_Frame(self) -> tp.List[tp.List[int]]:
+        """
+        Description:
+            The next complete frame of the running stream: an incomplete one is skipped, and a stream that
+            delivers no complete frame within CONST_STILL_TIMEOUT_S fails.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3]: The frame (RGB).
+        """
+
+        start = time.monotonic()
+        while True:
+            frame = self._Grab_Stream()
+            if frame is not None:
+                return frame
+            if time.monotonic() - start >= CONST_STILL_TIMEOUT_S:
+                raise Camera_Error_Cls('The camera delivered only incomplete frames. Check the GigE link and '
+                                       'its cable, then scan again.')
+
+    def Capture_Still(self) -> tp.List[tp.List[int]]:
+        """
+        Description:
+            The scan: start a fresh stream, so every frame is exposed after this call, and compare each
+            frame with the one before it (Camera.Utilities.Stillness.Is_Still). The first frame that shows
+            no movement since the previous one is the scan's frame — one frame, processed exactly as
+            Capture processes one, never an average. When the scene still moves CONST_STILL_TIMEOUT_S after
+            the call, no frame is taken: Camera_Motion_Error_Cls. Refused while the live preview runs. As in
+            Capture, a failure on a device reported removed disconnects the backend before it goes on.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3]: The frame (RGB).
+        """
+
+        if not self.__connected:
+            raise Camera_Error_Cls('Camera is not connected.')
+        self.__Refuse_While_Previewing()
+        # Imported here, like the SDK in _Open: this module imports with no OpenCV present.
+        if CONST_BASLER_SRC not in sys.path:
+            sys.path.insert(0, CONST_BASLER_SRC)
+        from Camera.Utilities.Stillness import Is_Still
+
+        start = time.monotonic()
+        self._last_distorted = None
+        self._last_undistortion = None
+        try:
+            self._Start_Stream()
+            try:
+                previous = self.__Stream_Frame()
+                while True:
+                    frame = self.__Stream_Frame()
+                    if Is_Still(previous, frame):
+                        return frame
+                    if time.monotonic() - start >= CONST_STILL_TIMEOUT_S:
+                        self._last_distorted = None
+                        self._last_undistortion = None
+                        raise Camera_Motion_Error_Cls(
+                            'Something is moving in the view, so no frame was taken. Keep hands and parts '
+                            'still on the table, then press SCAN again.')
+                    previous = frame
+            finally:
+                self._Stop_Stream()
+        except Camera_Motion_Error_Cls:
+            raise
         except Camera_Error_Cls:
             if self._Device_Removed():
                 self.Disconnect()
@@ -472,6 +679,12 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
 
     Name = 'Basler'
 
+    # How long a streamed frame (the live preview, the still-scene scan) may take to arrive: about 3.7 frame
+    # periods at the rig's 3.7 fps, so one late frame is waited for and a camera that stopped sending fails
+    # within a second rather than after a Capture's 5000 ms.
+    #   Unit [ms]
+    CONST_STREAM_TIMEOUT_MS = 1000
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -507,6 +720,20 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
         if self._camera_config is not None:
             return tuple(self._camera_config.Resolution)
         return (0, 0)
+
+    @property
+    def Device(self) -> tp.Optional[tp.Any]:
+        """
+        Description:
+            The open Basler_Cls (Camera.Basler), or None when disconnected — for a diagnostic harness that
+            reads the camera's nodes and frame timestamps back (Example/Camera/preview_check.py). The
+            application never uses it.
+
+        Returns:
+            (1) parameter [Basler_Cls(object) or None]: The device wrapper, or None.
+        """
+
+        return self.__cam
 
     @property
     def Window(self) -> tp.Optional[tp.Dict[str, tp.List[int]]]:
@@ -663,8 +890,6 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
             (1) parameter [Matrix<uint8> HxWx3]: The captured frame (RGB).
         """
 
-        cv2, np = self.__cv2, self.__np
-
         # One frame. Capture() grabs exactly one (StartGrabbingMax, GrabStrategy_OneByOne) with a
         # 5000 ms retrieve timeout that raises on hang; translate any failure into a
         # message the operator can act on rather than freezing the window.
@@ -680,6 +905,64 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
                 'The camera returned an empty frame. Check the exposure time and '
                 'the scene lighting, then scan again.'
             )
+        return self.__Deliver(raw)
+
+    def _Start_Stream(self) -> None:
+        """
+        Description:
+            Start the device's newest-frame-only stream (Basler_Cls.Start_Stream). Nothing is written to
+            the camera but the start of acquisition.
+        """
+
+        try:
+            self.__cam.Start_Stream()
+        except Exception as exc:                          # noqa: BLE001
+            raise Camera_Error_Cls('The camera could not start sending frames. Check that it is still powered '
+                                   'and that the GigE link is up.') from exc
+
+    def _Grab_Stream(self) -> tp.Optional[tp.List[tp.List[int]]]:
+        """
+        Description:
+            The newest streamed frame, processed and undistorted exactly as _Grab does, or None when the
+            device delivered it incompletely.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The frame (RGB), or None.
+        """
+
+        try:
+            raw = self.__cam.Retrieve(self.CONST_STREAM_TIMEOUT_MS)
+        except Exception as exc:                          # noqa: BLE001
+            raise Camera_Error_Cls(
+                'The camera did not return a frame in time. Check that it is still '
+                'powered and that the GigE link is up.'
+            ) from exc
+        return None if raw is None else self.__Deliver(raw)
+
+    def _Stop_Stream(self) -> None:
+        """
+        Description:
+            Stop the device's stream (Basler_Cls.Stop_Stream), which never raises.
+        """
+
+        if self.__cam is not None:
+            self.__cam.Stop_Stream()
+
+    def __Deliver(self, raw: tp.List[tp.List[int]]) -> tp.List[tp.List[int]]:
+        """
+        Description:
+            Turn one raw frame (BGR, as the SDK converted it) into the delivered frame: refuse a frame of
+            another size than the configuration's, apply the project's image processing, undistort, and
+            convert to RGB — keeping the frame before undistortion and how it was undistorted.
+
+        Args:
+            (1) raw [Matrix<uint8> HxWx3]: The raw frame (BGR).
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3]: The delivered frame (RGB).
+        """
+
+        cv2, np = self.__cv2, self.__np
 
         # A safety net behind the window set on connect: a frame of another size than the
         # configuration's is refused here, before it reaches undistortion or the pipeline.
