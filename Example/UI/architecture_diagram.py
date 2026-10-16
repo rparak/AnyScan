@@ -55,12 +55,15 @@ Description:
     Initialization of constants.
 
     The generator of images/anyscan-architecture.svg, the diagram the README opens with: what
-    AnyScan is and how it works in its two modes, at the top level only — the camera, finding the
-    objects, describing and measuring each one, the desktop application; what a catalogue mode adds
-    (recognising its part, the checks its item defines, a verdict per object); the files that set
-    the stages up (the mode, the station, the calibration, the catalogue item, the reference); and
-    the records the application writes and reads back. No class, model or product names, no
-    configuration fields, no check of one part; README > Detection logic has the detail. Each card
+    AnyScan is and how it works in its two modes, at the top level only — the camera (a live preview,
+    then a fresh frame once nothing moves), finding the objects, describing and measuring each one, the
+    desktop application; what a catalogue mode adds (recognising its part, the inspection area that
+    decides which parts are judged and tells a part outside it from a foreign object, the kinds of check
+    an item can define on the side that is up, a state per object, and a description held to the
+    checks); the files that set the stages up (the mode names the station, the station the calibration,
+    and the catalogue item and the reference); and the records the application writes and reads back. No
+    class, model or product names, no configuration fields, no number; README > Detection logic and
+    docs/capabilities.md have the detail. Each card
     carries a line icon from CONST_ICONS, drawn here, so the figure needs no icon set or its licence.
 
     Regenerating is the way to change it; the SVG is never edited by hand. Every colour comes
@@ -101,7 +104,7 @@ CONST_JIC_END = '<!-- jic:end -->'
 # it at 0.75).
 #   Unit [px]
 CONST_WIDTH = 1200
-CONST_HEIGHT = 1255
+CONST_HEIGHT = 1425
 # The header's logo: its top-left corner and its scale (logo units -> diagram units). The divider and
 # the JIC mark follow the top bar's rule (UI/Core.py): Style.CONST_MARK_GAP from ink to divider and
 # from divider to ink, scaled from the bar's Style.CONST_LOGO_HEIGHT px lockup to this logo's height.
@@ -123,7 +126,7 @@ CONST_JIC_Y = 52.2
 CONST_DIVIDER_WIDTH = 1.5
 # The top edge of the group of what sets the stages up.
 #   Unit [px]
-CONST_SET_TOP = 792
+CONST_SET_TOP = 938
 # The card icons, in the JIC Smart Factory guide's pixel style (its IKONY pages): each a 12 x 12 grid, one square per
 # '#', drawn in one colour (no icon font, no third-party set, so no licence to carry). They stay legible at 3 px a
 # cell, CONST_ICON_SIZE; at the earlier 28 px line icons' size a cell is 2.33 px and the grid smears.
@@ -151,6 +154,8 @@ CONST_ICONS = {
                 '.#....##....', '.#..........', '.#..........', '.#..........', '############', '............'],
     'target': ['.....#......', '...#####....', '..#..#..#...', '.#...#...#..', '.#..###..#..', '######.#####',
                '.#..###..#..', '.#...#...#..', '..#..#..#...', '...#####....', '.....#......', '............'],
+    'area': ['###.####.###', '#..........#', '#..........#', '...######...', '...######...', '#..######..#',
+             '#..######..#', '...######...', '...######...', '#..........#', '#..........#', '###.####.###'],
     'catalogue': ['............', '####....####', '#...#..#...#', '#....##....#', '#....#.....#', '#....#.....#',
                   '#....#.....#', '#....#.....#', '#....#.....#', '####.#.####.', '....###.....', '............'],
     'image': ['............', '############', '#..........#', '#.##.......#', '#.##.......#', '#.......#..#',
@@ -166,7 +171,7 @@ CONST_ICON_INSET = 16
 # The funding band: its top edge, the console's per-logo heights scaled by this factor (the
 # heights are tuned per logo there, so they are scaled, never replaced), and the gap between logos.
 #   Unit [px] / [-]
-CONST_BAND_TOP = 1072
+CONST_BAND_TOP = 1242
 CONST_BAND_SCALE = 1.35
 CONST_BAND_GAP = 36
 # The band's inner space: above the logos, and from the logos to the rule under them.
@@ -515,9 +520,10 @@ def Draw_Architecture(logo_svg: str) -> str:
     Description:
         The whole diagram: the header (the AnyScan logo and the JIC mark) and the tagline; the
         flow left to right — capture, find the objects, describe and measure each one, the
-        desktop application; under it what a catalogue mode adds for each object — recognise,
-        check, the verdict; the mode, station, calibration, catalogue item and reference that set
-        the stages up, and the records under the application that writes them; and the console's
+        desktop application; under it what a catalogue mode adds for each object — recognise, the
+        inspection area, check, the state; the mode, station, calibration (a chain, each naming the next),
+        catalogue item and reference that set the stages up, and the records under the application that
+        writes them; and the console's
         funding band (the EDIH-DIGIMAT, Ministry and EU logos and the EU disclaimer). Everything drawn is in the code; nothing is planned.
 
     Args:
@@ -534,18 +540,23 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Add('<!-- Generated by Example/UI/architecture_diagram.py. Regenerate it, do not edit it by hand. -->')
     c.Add('<title>AnyScan architecture</title>')
     c.Add('<desc>AnyScan finds every object on a work surface, describes it and measures it. A catalogue mode '
-          'also judges it. In every mode the camera takes a frame and undistorts it. Two cues, fused, find the '
-          'objects: what differs from the empty surface, and a segmentation model. Each object is described in '
-          'words by a local vision-language model and measured in mm through the calibration, and the desktop '
-          'application shows the result in its Live, Trends, History and Log views. A catalogue mode adds three '
-          'steps for each object found: recognising the catalogued part and the side that is up by its reference '
-          'images, the checks its catalogue item defines, which differ from item to item, and a verdict: OK, NOK, '
-          'Warning or Unspecified. In a catalogue mode each object is described after its verdict. The stages are '
-          'set up by the mode (models and prompts), which names its station (camera, light and table). The '
-          'station names its calibration (undistortion and mm per pixel) and the empty-surface reference, and a '
-          'catalogue mode also names its catalogue item (the part, its checks and its reference images). Every '
-          'analysis is recorded with its images and results, alongside the session log, a run summary and the '
-          'daily station events. Built at JIC within the EDIH-DIGIMAT project, funded by the European Union.</desc>')
+          'also judges it. In every mode the camera shows a live preview while parts are placed, then takes a fresh '
+          'frame once nothing moves, undistorted. Two cues, fused, find the objects: what differs from the empty '
+          'surface, and a segmentation model. Each object is described in words by a local vision-language model '
+          'and measured in mm through the calibration, and the desktop application shows the result in its Live, '
+          'Trends, History and Log views. A catalogue mode adds four steps for each object found. It recognises the '
+          'catalogued part by its reference images. Only a part wholly inside the inspection area is judged, and '
+          'one outside is told apart as a part or a foreign object by similarity, size and colour. A judged part is '
+          'checked on the side that is up, told by its references or else by its countersinks: its size, its '
+          'holes, each bore centred in its countersink with the view angle corrected, and its stains. Each object '
+          'then gets a state: OK, NOK, Outside area, Foreign object or Unspecified. In a catalogue mode each object '
+          'is described after its state, told what the checks found, and a sentence that contradicts them is '
+          'dropped. The stages are set up by the mode (models and prompts), which names its station (camera, '
+          'light, table and inspection area). The station names its calibration (undistortion and mm per pixel) '
+          'and the empty-surface reference, and a catalogue mode also names its catalogue item (the part, its '
+          'checks and its reference images). Every analysis is recorded with its images and results, alongside '
+          'the session log, a run summary and the daily station events. Built at JIC within the EDIH-DIGIMAT '
+          'project, funded by the European Union.</desc>')
     c.Blank()
     c.Open('<defs>')
     c.Open('<style>')
@@ -595,8 +606,9 @@ def Draw_Architecture(logo_svg: str) -> str:
     # Every mode: four columns at one height; the arrows sit on the cards' middle line.
     y, h = 232, 224
     mid = y + h / 2
-    c.Open('<g id="capture">', '1. Capture: the camera takes the frame')
-    c.Card(40, y, 180, h, 'Capture', ['the camera', 'takes a frame and', 'undistorts it'], icon='camera')
+    c.Open('<g id="capture">', '1. Capture: a live preview, then a fresh frame once nothing moves')
+    c.Card(40, y, 180, h, 'Capture', ['a live preview', 'while parts are', 'placed, then a', 'fresh frame once',
+                                      'nothing moves,', 'undistorted'], icon='camera')
     c.Close('g')
     c.Arrow(226, mid, 258)
     c.Blank()
@@ -618,44 +630,58 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Arrow(854, mid, 886)
     c.Blank()
 
-    # What a catalogue mode adds, for each object, in a group marked like 'each object'.
-    y_cat, h_cat = 546, 150
+    # What a catalogue mode adds, for each object, in a group marked like 'each object': recognise, then the
+    # inspection area under it (stacked as Describe and Measure are), then the check and the state.
+    y_cat, h_cat = 546, 276
     mid_cat = y_cat + h_cat / 2
-    c.Open('<g id="catalogue">', '4. A catalogue mode also recognises its part, checks it and gives each object a verdict')
+    h_recognise, gap = 96, 34
+    y_area, h_area = y_cat + h_recognise + gap, h_cat - h_recognise - gap
+    c.Open('<g id="catalogue">', '4. A catalogue mode also recognises its part, judges only inside the inspection area, '
+           'checks the side that is up and gives each object a state')
     # Every object found goes on to these steps: down from Find objects, over, and into Recognise.
-    c.Elbow([(389, y + h + 6), (389, y + h + 33), (172, y + h + 33), (172, y_cat - 6)])
-    c.Rect(40, y_cat - 20, 808, h_cat + 68, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
+    c.Elbow([(389, y + h + 6), (389, y + h + 33), (191, y + h + 33), (191, y_cat - 6)])
+    c.Rect(40, y_cat - 20, 808, h_cat + 90, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
     c.Rect(214, y_cat - 34, 320, 28, T.CONST_BRAND)
     c.Text(374, y_cat - 14, 'catalogue mode adds, for each object', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
-    c.Card(56, y_cat, 232, h_cat, 'Recognise', ['the catalogued part and', 'the side that is up, by', 'its reference images'],
-           icon='focus')
-    c.Arrow(294, mid_cat, 328)
-    c.Card(334, y_cat, 208, h_cat, 'Check', ['the checks its item', 'defines, which differ', 'from item to item'],
+    c.Card(56, y_cat, 270, h_recognise, 'Recognise', ['the catalogued part, by', 'its reference images'], icon='focus')
+    c.Elbow([(191, y_cat + h_recognise + 6), (191, y_area - 6)])
+    c.Card(56, y_area, 270, h_area, 'Inspection area', ['only a part wholly inside', 'is judged. Outside: a part',
+                                                        'or a foreign object, by', 'similarity, size, colour'],
+           icon='area')
+    c.Arrow(332, y_area + h_area / 2, 360)
+    c.Card(366, y_cat, 240, h_cat, 'Check', ['on the side that is up,', 'by its references, else',
+                                            'by its countersinks:', 'size, holes, each bore',
+                                            'centred in its countersink', '(view angle corrected)', 'and stains'],
            icon='checklist')
-    c.Arrow(548, mid_cat, 582)
-    # The four verdicts, each a label in the purple on its verdict's ground, as the console's badge, two to a row.
-    c.Rect(588, y_cat, 244, h_cat, T.CONST_CARD, T.CONST_CARD_BORDER)
-    c.Text(612, y_cat + 42, 'Verdict', S[6], T.CONST_INK, weight='700')
-    c.Icon(832 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(y_cat + 42), 'badge', T.CONST_INK_SOFT)
-    for i, (verdict, x_chip, w_chip) in enumerate([('OK', 612, 64), ('NOK', 684, 72), ('Warning', 612, 82),
-                                                   ('Unspecified', 702, 108)]):
-        y_chip = y_cat + 62 + 40 * (i // 2)
-        c.Rect(x_chip, y_chip, w_chip, 30, T.Label_Ground(verdict))
-        c.Text(x_chip + w_chip / 2, y_chip + 21, verdict, S[2], T.CONST_INK, weight='700', anchor='middle')
+    c.Arrow(612, mid_cat, 640)
+    # The five states, each a label in the purple on its state's ground, as the console's badges and History's filter.
+    h_states = 42 + 4 * 40 - 10
+    top_states = y_cat + (h_cat - h_states) / 2
+    c.Rect(646, y_cat, 186, h_cat, T.CONST_CARD, T.CONST_CARD_BORDER)
+    c.Text(670, top_states + 22, 'State', S[6], T.CONST_INK, weight='700')
+    c.Icon(832 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top_states + 22), 'badge', T.CONST_INK_SOFT)
+    for state, ground, x_chip, row, w_chip in [('OK', 'OK', 670, 0, 64), ('NOK', 'NOK', 742, 0, 72),
+                                               ('Outside area', 'Warning', 670, 1, 122),
+                                               ('Foreign object', 'Foreign', 670, 2, 136),
+                                               ('Unspecified', 'Unspecified', 670, 3, 116)]:
+        y_chip = top_states + 42 + 40 * row
+        c.Rect(x_chip, y_chip, w_chip, 30, T.Label_Ground(ground))
+        c.Text(x_chip + w_chip / 2, y_chip + 21, state, S[2], T.CONST_INK, weight='700', anchor='middle')
     c.Arrow(854, mid_cat, 886)
-    # In a catalogue mode the description comes last: it is written with what the checks found.
-    c.Text(832, y_cat + h_cat + 32, 'In this mode each object is described after its verdict.', S[2],
-           T.CONST_INK_MUTE, anchor='end')
+    # In a catalogue mode the description comes last: it is written with what the checks found, and held to it.
+    for i, line in enumerate(['In this mode each object is described after its state, told what the checks found,',
+                              'and a sentence that contradicts them is dropped.']):
+        c.Text(832, y_cat + h_cat + 32 + 22 * i, line, S[2], T.CONST_INK_MUTE, anchor='end')
     c.Close('g')
     c.Blank()
 
     c.Open('<g id="application">', '5. The desktop application and its four views')
-    h_app = y_cat + h_cat + 48 - y
+    h_app = y_cat + h_cat + 70 - y
     c.Rect(892, y, 268, h_app, T.CONST_VIEWPORT)
     top = y + (h_app - 250) / 2 + 22
     c.Text(916, top, 'Desktop app', S[6], T.CONST_VIEWPORT_TEXT, weight='700')
     c.Icon(1160 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top), 'window', T.CONST_VIEWPORT_TEXT)
-    for i, line in enumerate(['shows each object, its', 'description and size,', 'and, in a catalogue', 'mode, its verdict']):
+    for i, line in enumerate(['shows each object, its', 'description and size,', 'and, in a catalogue', 'mode, its state']):
         c.Text(916, top + 30 + 24 * i, line, S[3], T.CONST_VIEWPORT_TEXT)
     for i, view in enumerate(['Live', 'Trends', 'History', 'Log']):
         x_view, y_view = 916 + 114 * (i % 2), top + 140 + 44 * (i // 2)
@@ -664,23 +690,27 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Close('g')
     c.Blank()
 
-    # What sets the stages up, as cards in a group marked like 'each object': the mode names its
-    # station and any catalogue item, the station its calibration and the empty-surface reference.
-    y_set, h_set = CONST_SET_TOP, 240
-    c.Open('<g id="set-up">', 'What sets the stages up: the mode, the station, the calibration, the catalogue item, '
-           'the reference')
+    # What sets the stages up, as cards in a group marked like 'each object': the mode names its station and
+    # the station its calibration, a chain drawn with arrows; the mode also names any catalogue item, the station
+    # the empty-surface reference.
+    y_set, h_set = CONST_SET_TOP, 264
+    c.Open('<g id="set-up">', 'What sets the stages up: the mode, which names the station, which names the calibration, '
+           'the catalogue item, the reference')
     c.Rect(40, y_set, 808, h_set, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
     c.Rect(60, y_set - 14, 104, 28, T.CONST_BRAND)
     c.Text(112, y_set + 6, 'set up by', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
     for i, (title, lines, icon) in enumerate([('Mode', ['models and prompts,', 'and its station'], 'gear'),
-                                              ('Station', ['camera, light, table,', 'and its calibration'], 'station'),
+                                              ('Station', ['camera, light, table,', 'inspection area, and',
+                                                           'its calibration'], 'station'),
                                               ('Calibration', ['undistortion and', 'mm per pixel'], 'target')]):
-        c.Card(56 + 262 * i, y_set + 22, 252, 96, title, lines, icon=icon)
+        c.Card(56 + 272 * i, y_set + 22, 232, 120, title, lines, icon=icon)
+        if i:
+            c.Arrow(56 + 272 * i - 34, y_set + 82, 56 + 272 * i - 6)
     for i, (title, lines, icon) in enumerate([('Catalogue item', ['named by a catalogue mode: the',
                                                                   'part, its checks, reference images'], 'catalogue'),
                                               ('Reference', ['named by the station: the empty',
                                                              'surface each frame is compared with'], 'image')]):
-        c.Card(56 + 393 * i, y_set + 128, 383, 96, title, lines, icon=icon)
+        c.Card(56 + 393 * i, y_set + 152, 383, 96, title, lines, icon=icon)
     c.Close('g')
     c.Blank()
 

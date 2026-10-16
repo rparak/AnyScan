@@ -1692,6 +1692,22 @@ was undistorted with, and the load refuses a mismatch. With the committed refere
 the calibration therefore fails the load. The card states the general rule. This entry states
 the coupling.
 
+*Updated 2026-10-16: the live preview, the inspection area and the catalogue checks.* Read from the code,
+the diagram was missing or showing wrongly: Capture said nothing of the live preview or the stillness check before a
+scan; the catalogue row had no inspection area (only a part wholly inside is judged, and one outside is told apart
+as a part or a foreign object by similarity, size and colour, `Resembles_Part`); Recognise claimed the side was told
+by the reference images alone, where it is their margin, else the countersinks (`Decide_Side`), and only for a part
+inside the area, so the side moved to Check; Check said only "the checks its item defines", not the size, the holes
+with each bore centred in its countersink less the camera's predicted shift (`__Concentricity`) and the stains; the
+four verdicts OK, NOK, Warning, Unspecified are shown as five states, a Warning by its kind (Outside area, Foreign
+object), as the badges and History do; the description's guard against the check findings (`Guard_Description`) was
+missing; and the set-up row named the chain mode, station, calibration only in words, with the inspection area
+not under the station. Inspection area is a new card, stacked under Recognise as Describe sits over Measure; the side
+joined Check, the guard the row's note, the chain two arrows, and the area the Station card, so the level of
+abstraction stays the overview's. The figure grew from 1255 to 1425 px high; the new icon, a dashed frame around a
+block, is drawn on the same 12 × 12 grid. Rendered in Firefox with the fallback fonts and looked at: no overlap, no
+clipped text, no crossing arrow.
+
 **Revisit if** the calibration becomes required (the card says "optional"), or if a stage, an
 input or a record is added or removed: the diagram draws each one.
 
