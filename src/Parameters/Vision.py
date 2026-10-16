@@ -237,6 +237,14 @@ class Catalogue_Result_Str(object):
     # is a Warning, never judged, and a part identified there keeps its checks as information.
     #   Unit [bool]
     Outside_Area: bool = False
+    # Whether the object resembles the catalogue part: identified by the verdict rule (OK, NOK, or Unspecified for
+    # several parts or its side), or, outside the inspection area, by the position-free cues (Classify.Resembles_Part:
+    # its similarity, its colour, its visible extent), with the mean saturation and the extent they read. A Warning
+    # that does not is a foreign object, drawn grey wherever it lies; one that does lies outside the area (amber).
+    #   Unit [bool] / [float] (OpenCV saturation, 0-255) / [float] (mm)
+    Resembles: bool = False
+    Saturation: float = 0.0
+    Extent_Mm: float = 0.0
     # A part whose side could not be told (Side_Evidence 'undecided'): its reading on each side, by the side's
     # catalogue name ('machined front'), each with that side's hole counts, hole checks, stains, features and
     # verdict; empty otherwise. The reason gives what the readings share (Reporting.Reason_Sentence).

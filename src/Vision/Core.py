@@ -65,7 +65,8 @@ from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import (Object_Crop, Reference_Crop, Rotations, Best_Match, Best_Turn, Similarity_Grid,
                                        Classify, Apply_Holes, Apply_Stain, Crop_To_Frame, Side_Similarities, Decide_Side,
-                                       Settle_Side, Settle_Area, Inspection_Area_Px, Inside_Area, Wall_Widths,
+                                       Settle_Side, Settle_Area, Inspection_Area_Px, Inside_Area, Resembles_Part,
+                                       Mean_Saturation, Visible_Extent_Mm, Wall_Widths,
                                        Crop_View)
 #   ../Vision/Utilities/Holes
 from Vision.Utilities.Holes import Hole_Candidates, Check_Holes, Hole_Features, Side_Evidence
@@ -974,7 +975,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             judged on every side, each side's reading kept, and a verdict that differs by side is Unspecified
             (Settle_Side). Last, any object whose outline leaves the station's inspection area is a Warning
             (Settle_Area): a part identified there keeps its checks and marks as information, any other object
-            has none. The crop's scale is the mean of the two
+            has none. Whether each object resembles the part is kept apart from where it lies (Resembles_Part), so
+            a foreign object is told from a part that only lies outside the area. The crop's scale is the mean of the two
             factors (they differ by 0.17 %). Each judged part's features are taken to the frame and numbered as
             its parts, and its patches' unlikeness to the reference of the side checked is laid on the frame's
             similarity map.
@@ -1015,6 +1017,11 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             similarity, side = Best_Match(own, references, self.__reference_sides)
             Classify(det, similarity, side, item, self.__config.Identification, self.__config.Scale, frame_size)
             inside = Inside_Area(det, area_px, np)
+            # Whether it resembles the part, from the rule's own verdict before the area makes it a Warning, and outside
+            # the area from the cues that do not depend on where it lies.
+            det.Catalogue.Outside_Area = not inside
+            Resembles_Part(det, Mean_Saturation(frame_bgr, det, cv2, np),
+                           Visible_Extent_Mm(det, self.__config.Scale, cv2, np), item)
             if det.Verdict not in ('OK', 'NOK'):
                 Settle_Area(det, inside)
                 continue

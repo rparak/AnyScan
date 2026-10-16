@@ -55,7 +55,9 @@ Description:
     (Decide_Side); when neither tells, the part is judged on every side and a verdict that differs by side is
     Unspecified (Settle_Side). Last, any object whose outline leaves the station's inspection area (a rectangle
     inset from the frame's edges, Inspection_Area_Px) is a Warning, never judged (Settle_Area); a part identified
-    there keeps its checks as information.
+    there keeps its checks as information. Whether an object resembles the part (Resembles_Part) is told apart from
+    where it lies: an object the rule identified does, and outside the area, where a cut or far plate scores lower,
+    an object that resembles it by its similarity, colour and visible extent; any other is a foreign object.
 
     (3) has no lower similarity bound, on purpose: an object of the part's size that does not look like
     it reads NOK, not Warning — in quality control the safer error — and a floor between the blank plate
@@ -70,6 +72,20 @@ Description:
 # that it is not verified.
 #   Unit [float] (mm)
 CONST_VERIFIED_RADIUS_MM = 46.4
+# Whether an object outside the inspection area resembles the catalogue part, by cues that do not depend on where it
+# lies (Resembles_Part), measured on 2026-10-16 on every object outside the area or cut by the frame's border in the
+# test set and the five mounting-plate captures on disk (86: 43 plates, 43 foreign objects). The similarity: plates
+# 0.668 at least (a stained front cut by the right border, 88.5 mm out), foreign objects 0.645 at most (the red
+# block cut by the top border), so 0.657, midway; the other foreign objects score 0.433 at most. The colour, the mean
+# saturation over the object's mask eroded by CONST_SATURATION_ERODE_PX: every one of the 73 plates measured, inside
+# and out, fronts and backs, 20.2-40.4; the red block, wherever it lay (20 frames, similarity up to 0.673 inside the
+# area), 112.3-134.1, so 76.3, midway. The visible extent (the largest distance across the mask) at most the part's
+# diagonal plus its outline tolerance: plates 72.6 mm at most. A fully visible side was not used: by the frame's edge
+# a cut plate's read up to 1.73 mm off 40 or 60 (the side wall), past the 1.5 tolerance, and a screw's 1.83 mm.
+#   Unit [float] / [float] (OpenCV saturation, 0-255) / [int] (px)
+CONST_OUTSIDE_SIMILARITY = 0.657
+CONST_PART_MAX_SATURATION = 76.3
+CONST_SATURATION_ERODE_PX = 15
 # The margin of DINOv2's best side over the other at and above which it tells the side up. Measured on the same 72
 # frames (2026-10-15): every back -0.455 to -0.554 at any distance (13); fronts +0.50 near the centre, falling with
 # the distance and their stains to +0.004 at 59 mm, and the wrong side, -0.030 to -0.075, on 8 stained fronts 57-67 mm
@@ -416,6 +432,84 @@ def Inside_Area(det: Detection_Str, area_px: tp.Tuple[float, float, float, float
         return False
     left, top, right, bottom = area_px
     return bool(columns.min() >= left and columns.max() <= right and rows.min() >= top and rows.max() <= bottom)
+
+
+def Mean_Saturation(frame_bgr: tp.Any, det: Detection_Str, cv2: tp.Any, np: tp.Any) -> float:
+    """
+    Description:
+        An object's colour cue: the mean HSV saturation over its mask eroded by CONST_SATURATION_ERODE_PX, so the table
+        at its rim does not count (the whole mask when the eroded one is under 50 px).
+
+    Args:
+        (1) frame_bgr [Matrix<uint8> HxWx3]: The frame.
+        (2) det [Detection_Str(object)]: The object, with its mask.
+        (3) cv2 [module]: The OpenCV module, injected by the caller.
+        (4) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [float]: The mean saturation, 0-255; 0 without a mask.
+    """
+
+    if det.Mask is None or not det.Mask.any():
+        return 0.0
+    mask = det.Mask.astype(np.uint8)
+    core = cv2.erode(mask, np.ones((CONST_SATURATION_ERODE_PX, CONST_SATURATION_ERODE_PX), np.uint8)).astype(bool)
+    if core.sum() < 50:
+        core = mask.astype(bool)
+    return float(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2HSV)[..., 1][core].mean())
+
+
+def Visible_Extent_Mm(det: Detection_Str, scale: Scale_Str, cv2: tp.Any, np: tp.Any) -> float:
+    """
+    Description:
+        An object's size cue that holds when it is cut: the largest distance across what is visible of it (between
+        two points of its mask's convex hull), in mm at the scale in force. A plate's never exceeds its diagonal.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object, with its mask.
+        (2) scale [Scale_Str(object)]: The scale.
+        (3) cv2 [module]: The OpenCV module, injected by the caller.
+        (4) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [float]: The extent; 0 without a mask.
+    """
+
+    if det.Mask is None or not det.Mask.any():
+        return 0.0
+    contours, _hierarchy = cv2.findContours(det.Mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    hull = cv2.convexHull(np.vstack(contours)).reshape(-1, 2).astype(float) * np.array([scale.Mm_Per_Px_X,
+                                                                                        scale.Mm_Per_Px_Y])
+    gaps = hull[:, None, :] - hull[None, :, :]
+    return float(np.sqrt((gaps ** 2).sum(axis=2)).max())
+
+
+def Resembles_Part(det: Detection_Str, saturation: float, extent_mm: float, Catalogue_Item_Str: Catalogue_Item_Str) -> None:
+    """
+    Description:
+        Whether an object resembles the catalogue part, in place (det.Catalogue.Resembles, with the cues read): one the
+        verdict rule identified (OK, NOK, Unspecified) does; one it did not, outside the inspection area, where a cut or
+        far plate scores lower than the rule's similarity, does when every position-free cue says so: its similarity
+        at least CONST_OUTSIDE_SIMILARITY, its mean saturation at most CONST_PART_MAX_SATURATION and its visible
+        extent at most the part's diagonal plus its outline tolerance. Inside the area an object the rule did not
+        identify never does. Holes are not a cue: a foreign object can have one (the red block's countersink).
+
+    Args:
+        (1) det [Detection_Str(object)]: The object, classified, its Outside_Area set (mutated).
+        (2) saturation [float]: Its mean saturation (Mean_Saturation).
+        (3) extent_mm [float]: Its visible extent (Visible_Extent_Mm).
+        (4) Catalogue_Item_Str [Catalogue_Item_Str(object)]: The catalogue item.
+    """
+
+    result = det.Catalogue
+    result.Saturation, result.Extent_Mm = saturation, extent_mm
+    outline = Catalogue_Item_Str.Outline
+    if det.Verdict in ('OK', 'NOK', 'Unspecified'):
+        result.Resembles = True
+        return
+    result.Resembles = (result.Outside_Area and result.Similarity >= CONST_OUTSIDE_SIMILARITY
+                        and saturation <= CONST_PART_MAX_SATURATION
+                        and extent_mm <= math.hypot(outline.Length_Mm, outline.Width_Mm) + outline.Tolerance_Mm)
 
 
 def Settle_Area(det: Detection_Str, inside: bool) -> None:

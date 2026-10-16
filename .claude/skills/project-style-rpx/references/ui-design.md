@@ -34,9 +34,10 @@ practices followed inconsistently are under **Unsettled**.
   (DD *Every chip carries a white numeral*). One purple: no darker shade of it exists in the theme (DD
   *The palette is the JIC Smart Factory brand's*).
 - A Warning has two looks on the frame, never on the mask: a catalogued part that only lies outside the
-  inspection area keeps the amber; a **foreign object** (a Warning inside the area: not the part, not supposed to be
-  there) is drawn, outline, box and chip, in a grey of the brand's grey-lilac family, `Theme.CONST_FOREIGN_BOX`,
-  with the white numeral (`Annotate.Foreign`). Candidates against the table #236A56 / white / #655E6D: `#C9BFD2`
+  inspection area keeps the amber; a **foreign object** (a Warning that does not resemble the part, wherever it
+  lies, cut by the border or not: `Catalogue_Result_Str.Resembles`) is drawn, outline, box and chip, in a grey of the
+  brand's grey-lilac family, `Theme.CONST_FOREIGN_BOX`, with the white numeral (`Annotate.Foreign`). The colour
+  follows what the object is, never only where it lies. Candidates against the table #236A56 / white / #655E6D: `#C9BFD2`
   3.63 / 1.77 / 3.52:1, `#B4A6BE` (the disabled label's token) 2.80 / 2.30 / 2.71:1, `#A396AE` 2.30 / 2.79 /
   2.23:1, the owner choosing by eye (DD *A catalogue mode judges only inside the inspection area*). The label mask
   keeps the Warning colours for both: no fill in that hue clears the mask's floors against a box that light.

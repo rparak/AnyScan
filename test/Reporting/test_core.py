@@ -490,22 +490,26 @@ def test_the_verdict_reaches_the_file_and_the_log_keeps_the_similarity() -> None
     (['OK', 'Warning', 'Warning'], ('Foreign object · 2', 'warn')),
     (['OK', 'Warning-outside', 'Warning-outside'], ('Outside the area · 2', 'warn')),
     (['OK', 'Warning', 'Warning-outside'], ('Warning · 2', 'warn')),
+    (['OK', 'Warning-far', 'Warning'], ('Foreign object · 2', 'warn')),
     (['OK', 'Warning', 'Unspecified'], ('Not judged · 1', 'warn')),
     (['OK', 'NOK', 'Unspecified', 'Warning', 'NOK'], ('NOK · 2 of 5', 'fail')),
-], ids=['all ok', 'warning', 'outside', 'foreign and outside', 'unspecified over warning', 'nok over all'])
+], ids=['all ok', 'warning', 'outside', 'foreign and outside', 'foreign outside the area', 'unspecified over warning',
+        'nok over all'])
 def test_the_badge_states_the_worst_verdict(verdicts: tp.List[str], badge: tp.Tuple[str, str]) -> None:
     """
     Description:
         In a catalogue mode the badge is never green while anything on the surface is not OK: any NOK (the
         'fail' level), else any Unspecified, else any Warning (both 'warn'), else all OK ('ok') — each in words
-        as well as colour. The Warnings are named by kind: foreign objects, objects outside the inspection area, or
-        'Warning' when both kinds are there. Outside a catalogue mode it still counts what was found.
+        as well as colour. The Warnings are named by kind: foreign objects (not resembling the part), parts outside
+        the inspection area, or 'Warning' when both kinds are there. Outside a catalogue mode it still counts what
+        was found.
     """
 
     from Reporting.Core import Verdict
     objects = [_Judged(verdict.split('-')[0]) for verdict in verdicts]
     for det, verdict in zip(objects, verdicts):
-        det.Catalogue.Outside_Area = verdict.endswith('-outside')
+        det.Catalogue.Outside_Area = verdict.endswith(('-outside', '-far'))   # -far: a foreign object outside the area
+        det.Catalogue.Resembles = verdict.endswith('-outside')
     assert Verdict(objects) == badge
     assert Verdict([Detection_Str(Label='plate', Bbox=(0, 0, 1, 1))] * 3) == ('3 found', 'ok')
 
@@ -877,20 +881,27 @@ def test_the_guard_drops_a_sentence_referring_to_the_checks(sentence: str, dropp
 def test_an_object_outside_the_inspection_area_says_so_and_names_what_was_seen_there() -> None:
     """
     Description:
-        A Warning outside the inspection area is not "should not be on the surface": it says it lies outside the area
-        and what to do. A part identified there also names, as information, what its checks found where it is visible:
-        each hole group found and missing, and its stains (or none); a foreign object or a part that failed
-        identification (no checks ran) gets the first sentence alone. The log lists the identified part's evidence.
+        A Warning that resembles the part outside the inspection area is not "should not be on the surface": it says
+        it lies outside the area and what to do. A part identified there also names, as information, what its checks
+        found where it is visible: each hole group found and missing, and its stains (or none); a cut plate that only
+        resembles the part (no checks ran) gets the first sentence alone. A foreign object outside the area, which
+        does not resemble the part, is named as one, to remove, not as a part to move. The log lists the identified
+        part's evidence, and for each object outside the area whether it resembles the part, by which cues.
     """
 
     from Parameters.Vision import Hole_Count_Str, Stain_Str
-    from Reporting.Core import Reason_Sentence, Part_Lines, Identified_Outside
+    from Reporting.Core import Reason_Sentence, Part_Lines, Identified_Outside, Verdict_Log_Line
     first = 'It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.'
-    foreign = _Judged('Warning', similarity=0.31)
-    foreign.Catalogue.Outside_Area = True
-    assert (Reason_Sentence(foreign), Identified_Outside(foreign), Part_Lines(0, foreign)) == (first, False, [])
+    cut = _Judged('Warning', similarity=0.70)
+    cut.Catalogue.Outside_Area = cut.Catalogue.Resembles = True
+    assert (Reason_Sentence(cut), Identified_Outside(cut), Part_Lines(0, cut)) == (first, False, [])
+    foreign = _Judged('Warning', similarity=0.64)
+    foreign.Catalogue.Outside_Area, foreign.Catalogue.Saturation, foreign.Catalogue.Extent_Mm = True, 129.4, 44.5
+    assert Reason_Sentence(foreign) == 'It is not the part and lies outside the inspection area: remove it from the surface.'
+    assert ('outside the inspection area, does not resemble the part (saturation 129, extent 44.5 mm)'
+            in Verdict_Log_Line(0, foreign)[1])
     part = _Judged('Warning')
-    part.Catalogue.Outside_Area = True
+    part.Catalogue.Outside_Area = part.Catalogue.Resembles = True
     part.Hole_Counts = [Hole_Count_Str(Name='countersink', Found=2, Expected=2),
                         Hole_Count_Str(Name='through-hole', Found=1, Expected=2)]
     part.Stains = [Stain_Str(Area_Mm2=150.0), Stain_Str(Area_Mm2=55.0)]

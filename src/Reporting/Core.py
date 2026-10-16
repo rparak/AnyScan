@@ -335,8 +335,9 @@ def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tupl
 
         In a catalogue mode (the objects carry catalogue evidence) the badge states the worst verdict, so it
         is never green while anything on the surface is not OK: any NOK ('NOK · 2 of 5', level 'fail'), else
-        any Unspecified ('Not judged · 1', 'warn'), else any Warning ('Foreign object · 3' when none lies outside the
-        inspection area, 'Outside the area · 2' when all do, 'Warning · 3' when both kinds are there; 'warn'), else
+        any Unspecified ('Not judged · 1', 'warn'), else any Warning ('Foreign object · 3' when none resembles the
+        part, 'Outside the area · 2' when all do and so lie outside the inspection area, 'Warning · 3' when both kinds
+        are there; 'warn'), else
         every object OK ('All OK · 2', 'ok'). The word carries the state as well as the colour.
 
     Args:
@@ -357,7 +358,7 @@ def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tupl
         if count['Unspecified']:
             return 'Not judged · %d' % count['Unspecified'], 'warn'
         if count['Warning']:
-            outside = sum(o.Verdict == 'Warning' and o.Catalogue is not None and o.Catalogue.Outside_Area
+            outside = sum(o.Verdict == 'Warning' and o.Catalogue is not None and o.Catalogue.Resembles
                           for o in objects)
             word = ('Outside the area' if outside == count['Warning'] else 'Foreign object' if not outside
                     else 'Warning')
@@ -775,10 +776,10 @@ def Reason_Sentence(det: Detection_Str) -> str:
         order, joined ('A, b, and c.'). Counts in words up to ten. The
         measured and expected values are in the log (Part_Lines). A part whose side could not be told, NOK on every
         side, gives what its readings share; with nothing shared, each reading's clauses with its side named
-        ('Read with its machined front up, …; read with its unmachined back up, ….'). A Warning outside the
-        inspection area says so, what to do, and what an identified part's checks saw there (__Outside_Sentence);
-        any other Warning should not be there; an Unspecified object could not be judged, and what to do. Empty for
-        an OK part and outside a catalogue mode.
+        ('Read with its machined front up, …; read with its unmachined back up, ….'). A Warning that resembles the
+        part lies outside the inspection area: it says so, what to do, and what an identified part's checks saw there
+        (__Outside_Sentence); one that does not is a foreign object, to remove, wherever it lies; an Unspecified
+        object could not be judged, and what to do. Empty for an OK part and outside a catalogue mode.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -791,7 +792,10 @@ def Reason_Sentence(det: Detection_Str) -> str:
     if result is None or det.Verdict == 'OK':
         return ''
     if det.Verdict == 'Warning':
-        return __Outside_Sentence(det) if result.Outside_Area else 'The object should not be on the surface.'
+        if not result.Resembles:
+            return ('It is not the part and lies outside the inspection area: remove it from the surface.'
+                    if result.Outside_Area else 'The object should not be on the surface.')
+        return __Outside_Sentence(det)
     if det.Verdict == 'Unspecified':
         return __Unspecified_Sentence(result)
     clauses = __Finding_Clauses(det, result.Side_Name)
@@ -1286,6 +1290,9 @@ def Verdict_Log_Line(index: int, det: Detection_Str) -> tp.Tuple[str, str]:
     side = '%s up%s' % (result.Side, ' by its holes' if result.Side_Evidence == 'holes' else '')
     evidence = [det.Verdict] + ([side] if det.Verdict in ('OK', 'NOK') else [])
     evidence.append('similarity %.2f' % result.Similarity)
+    if det.Verdict == 'Warning' and result.Outside_Area:
+        evidence.append('outside the inspection area, %s the part (saturation %.0f, extent %.1f mm)'
+                        % ('resembles' if result.Resembles else 'does not resemble', result.Saturation, result.Extent_Mm))
     note = Verdict_Notes(det)
     reason = Reason_Sentence(det)
     words = (['%s.' % ', '.join(evidence)] + (['Reason: %s' % reason] if reason else [])

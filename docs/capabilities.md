@@ -129,8 +129,11 @@ then composes and measures. The numbers are the ones the README and the mode fil
   leaves it, a part cut by the frame's border included, is a Warning whose reason says it lies outside the area and
   to move it inside and scan again. A part identified there (OK or NOK by the rule above) still has its holes and
   stains checked where it is visible, marked on the frame in the Warning colour and named in the reason as
-  information ("Seen there: both countersinks found, …, two stains found."); a foreign object or a part that failed
-  identification outside the area gets no marks
+  information ("Seen there: both countersinks found, …, two stains found."); a part that failed identification
+  outside the area gets no marks. Whether an object is a foreign object follows what it is, not where it lies: one
+  the rule does not identify is foreign, except outside the area, where a cut or far plate scores lower, an object
+  whose similarity (0.657 or more), colour (mean saturation 76 or less) and visible extent (73.6 mm or less) all
+  resemble the plate. A foreign object outside the area is told to be removed, not moved; no marks
   ([*A catalogue mode judges only inside the inspection area*](design-decisions.md#a-catalogue-mode-judges-only-inside-the-inspection-area)).
   An Unspecified object's reason names its cause (several parts, or its side) and what to do.
   The verdict colours the frame and the mask and sets the badge; its state and reasons are in Scene
@@ -220,7 +223,8 @@ Two cards:
   (`3.1`, the number of its `Part` line in the Log) on the corner of its box nearest the object's chip, turned with
   that box and never more than 45° off level, never over another chip; a part identified outside the inspection
   area has every mark, tint and chip in the Warning colour, the mark styles unchanged; a foreign object (a Warning
-  inside the area) has its outline, box and chip in a grey-lilac grey instead of the amber, on the frame only; each object's box and chip are its state's
+  that does not resemble the part, wherever it lies) has its outline, box and chip in a grey-lilac grey instead of
+  the amber, on the frame only; each object's box and chip are its state's
   colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified the neutral grey `#655E6D`, and every
   object of a detect-only mode (Segment Anything) the logo purple `#640ABA`; the chip's number is plain
   white on every chip, in every state and mode; a missing hole is placed by the holes found, a countersink's

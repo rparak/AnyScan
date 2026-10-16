@@ -641,22 +641,27 @@ def test_a_part_outside_the_inspection_area_is_marked_only_in_the_warning_colour
 def test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame() -> None:
     """
     Description:
-        On the annotated frame a foreign object (a Warning inside the inspection area: not the part, not supposed to be
-        on the surface) has its box and chip in the foreign grey with the white numeral, and no amber; a part that only
-        lies outside the area keeps the Warning amber, and no grey. On the label mask both keep the Warning colour.
+        On the annotated frame a foreign object (a Warning that does not resemble the part, so not supposed to be on the
+        surface) has its box and chip in the foreign grey with the white numeral, and no amber, inside the inspection
+        area or outside it; a part that resembles the part and only lies outside the area keeps the Warning amber, and
+        no grey. On the label mask both keep the Warning colour.
     """
 
     from Parameters.Vision import Catalogue_Result_Str
     grey, amber = Theme.Hex_To_Bgr(Theme.CONST_FOREIGN_BOX), Theme.Hex_To_Bgr(Theme.Verdict_Color('Warning')[0])
-    foreign, outside = __Object(150, 100, size=120, verdict='Warning'), __Object(150, 500, size=120, verdict='Warning')
-    foreign.Catalogue = Catalogue_Result_Str(Outside_Area=False)
-    outside.Catalogue = Catalogue_Result_Str(Outside_Area=True)
+    foreign, outside = __Object(150, 30, size=120, verdict='Warning'), __Object(150, 230, size=120, verdict='Warning')
+    foreign_outside = __Object(150, 430, size=120, verdict='Warning')
+    foreign.Catalogue = Catalogue_Result_Str(Outside_Area=False, Resembles=False)
+    outside.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=True)
+    foreign_outside.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=False)
     scene = np.full((CONST_H, CONST_W, 3), (86, 106, 35), np.uint8)
-    annotated = Annotate.Draw_Annotated(scene, [foreign, outside], cv2, np, verdict_colored=True)
-    left, right = annotated[:, :400], annotated[:, 400:]
+    annotated = Annotate.Draw_Annotated(scene, [foreign, outside, foreign_outside], cv2, np, verdict_colored=True)
+    left, middle, right = annotated[:, :200], annotated[:, 200:400], annotated[:, 400:]
     assert __Has_Bgr(left, grey) and not __Has_Bgr(left, amber)
-    assert __Has_Bgr(right, amber) and not __Has_Bgr(right, grey)
-    chip = annotated[150 - 40:150, 100:140]
+    assert __Has_Bgr(middle, amber) and not __Has_Bgr(middle, grey)
+    assert __Has_Bgr(right, grey) and not __Has_Bgr(right, amber)
+    chip = annotated[150 - 40:150, 30:70]
     assert __Has_Bgr(chip, grey) and __Has_Bgr(chip, (255, 255, 255))
-    mask = Annotate.Draw_Label_Mask([foreign, outside], (CONST_H, CONST_W, 3), cv2, np, verdict_colored=True)
-    assert __Has_Bgr(mask[:, :400], amber) and not __Has_Bgr(mask, grey)
+    mask = Annotate.Draw_Label_Mask([foreign, outside, foreign_outside], (CONST_H, CONST_W, 3), cv2, np,
+                                    verdict_colored=True)
+    assert __Has_Bgr(mask[:, :200], amber) and not __Has_Bgr(mask, grey)

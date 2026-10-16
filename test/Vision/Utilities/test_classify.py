@@ -34,7 +34,8 @@ import pytest
 from Vision.Utilities.Classify import (Classify, Object_Crop, Reference_Crop, Rotations, Best_Match, Object_Area_Mm2,
                                        Center_Distance_Mm, CONST_VERIFIED_RADIUS_MM, CONST_SIDE_MARGIN,
                                        Side_Similarities, Decide_Side, Settle_Side, Settle_Area, Inspection_Area_Px,
-                                       Inside_Area, Wall_Widths)
+                                       Inside_Area, Resembles_Part, CONST_OUTSIDE_SIMILARITY,
+                                       CONST_PART_MAX_SATURATION, Mean_Saturation, Visible_Extent_Mm, Wall_Widths)
 #   ../Vision/Utilities/Measure
 from Vision.Utilities.Measure import Measure_Mask
 #   ../Vision/Utilities/Dimensions
@@ -368,6 +369,55 @@ def test_only_an_object_wholly_inside_the_inspection_area_is_judged(
     Settle_Area(det, Inside_Area(det, Inspection_Area_Px(CONST_FRAME, CONST_SCALE, 10.0, 13.0), np))
     assert (det.Verdict, det.Catalogue.Outside_Area) == (after, outside)
     assert det.Catalogue.Unspecified_Cause == ('area' if after == 'Unspecified' else '')
+
+
+@pytest.mark.parametrize('verdict, outside, similarity, saturation, extent, resembles', [
+    ('OK', False, 0.95, 30.0, 70.0, True),          # identified by the rule
+    ('NOK', True, 0.10, 200.0, 99.0, True),         # identified (by its outline) outside: the cues are not asked
+    ('Unspecified', False, 0.95, 30.0, 140.0, True),  # several parts
+    ('Warning', False, 0.70, 30.0, 70.0, False),    # inside the area the rule alone identifies
+    ('Warning', True, 0.668, 39.6, 66.7, True),     # the most cut plate measured (20261016-070632_8)
+    ('Warning', True, 0.645, 129.3, 44.5, False),   # the red block cut by the border (20261016-111333_4)
+    ('Warning', True, 0.673, 112.3, 44.1, False),   # the red block at its most plate-like look: its colour
+    ('Warning', True, 0.433, 33.0, 67.8, False),    # a square plate: its look
+    ('Warning', True, 0.70, 30.0, 94.7, False),     # larger than the plate's diagonal
+], ids=['ok', 'identified-outside', 'several', 'inside-warning', 'cut-plate', 'red-block-cut', 'red-block-colour',
+        'square-plate', 'too-large'])
+def test_an_object_resembles_the_part_by_the_rule_or_outside_by_every_position_free_cue(
+        verdict: str, outside: bool, similarity: float, saturation: float, extent: float, resembles: bool) -> None:
+    """
+    Description:
+        An object the verdict rule identified resembles the part wherever it lies; one it did not resembles it only
+        outside the inspection area, and only when its similarity reaches 0.657, its mean saturation stays at 76.3 or
+        below and its visible extent within the plate's diagonal plus tolerance (73.6 mm): the most cut plate
+        measured does, the red block does not by its colour even at its highest similarity (0.673), a square plate does
+        not by its look, and an object larger than the plate does not by its extent.
+    """
+
+    assert (CONST_OUTSIDE_SIMILARITY, CONST_PART_MAX_SATURATION) == (pytest.approx(0.657), pytest.approx(76.3))
+    det = _Part([(660, 400, 1260, 800)])
+    Classify(det, similarity, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    det.Verdict, det.Catalogue.Outside_Area = verdict, outside
+    Resembles_Part(det, saturation, extent, CONST_ITEM)
+    assert (det.Catalogue.Resembles, det.Catalogue.Saturation, det.Catalogue.Extent_Mm) == (resembles, saturation, extent)
+
+
+def test_the_colour_and_extent_cues_read_the_mask() -> None:
+    """
+    Description:
+        The colour cue is the mean HSV saturation over the mask eroded off its rim (a grey plate on a saturated table
+        reads the plate's, not the table's), and the extent the largest distance across the visible mask (a 60 x 40 mm
+        rectangle at 0.1 mm/px: its diagonal, 72.1 mm).
+    """
+
+    det = _Part([(660, 400, 1260, 800)])
+    frame = np.zeros((CONST_FRAME[1], CONST_FRAME[0], 3), np.uint8)
+    frame[:] = (40, 200, 40)                                  # a saturated green table
+    frame[400:800, 660:1260] = (128, 128, 128)               # a grey plate
+    assert Mean_Saturation(frame, det, cv2, np) == pytest.approx(0.0)
+    frame[400:800, 660:1260] = (40, 40, 200)                 # a red one
+    assert Mean_Saturation(frame, det, cv2, np) > 150.0
+    assert Visible_Extent_Mm(det, CONST_SCALE, cv2, np) == pytest.approx(72.1, abs=0.2)
 
 
 def test_an_object_without_a_mask_is_never_inside_the_area() -> None:

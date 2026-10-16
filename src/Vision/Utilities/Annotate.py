@@ -613,8 +613,9 @@ def __Draw_Dashed_Line(image: tp.Any, start: tp.Tuple[float, float], end: tp.Tup
 def Foreign(det: Detection_Str) -> bool:
     """
     Description:
-        Whether an object is foreign in a catalogue mode: a Warning lying inside the inspection area, so not the part
-        and not supposed to be on the surface at all, told on the frame from a part that only lies outside the area.
+        Whether an object is foreign in a catalogue mode: a Warning that does not resemble the catalogue part
+        (Catalogue_Result_Str.Resembles), wherever it lies, inside the inspection area or outside it, cut or not; so
+        not supposed to be on the surface at all, told on the frame from a part that only lies outside the area.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -623,7 +624,7 @@ def Foreign(det: Detection_Str) -> bool:
         (1) parameter [bool]: True for a foreign object.
     """
 
-    return det.Verdict == 'Warning' and det.Catalogue is not None and not det.Catalogue.Outside_Area
+    return det.Verdict == 'Warning' and det.Catalogue is not None and not det.Catalogue.Resembles
 
 
 def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,

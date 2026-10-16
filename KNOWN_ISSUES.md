@@ -623,6 +623,23 @@ and hole-diameter error of the plates inside stays within half its tolerance. Wh
 - **Pinned by:** `test/Vision/Utilities/test_classify.py::test_only_an_object_wholly_inside_the_inspection_area_is_judged`,
   `test/integration/test_edge_of_view.py`, `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`.
 
+## A plate cut more than any measured could read as a foreign object
+
+Outside the inspection area an object the verdict rule does not identify resembles the part only when its similarity
+is at least 0.657, its mean saturation at most 76.3 and its visible extent at most 73.6 mm
+(`Classify.Resembles_Part`; docs/design-decisions.md, *A foreign object is told by what it is, not where it lies*).
+The most cut plate measured, a stained front 88.5 mm out with a corner off the right border (`20261016-070632_8`),
+scored 0.668, 0.011 above the threshold. A plate with less of it in view (only a corner) was never measured and may
+score under it.
+
+- **Impact:** such a plate would be drawn grey and told "It is not the part … remove it from the surface" instead of
+  amber and "move it fully inside the area"; its verdict is a Warning either way, and the operator moves it either
+  way.
+- **Not fixed here:** only captures can tell: plates cut by each border with less and less of them in view
+  (docs/capture-checklist.md, 3d), and foreign objects of the plate's grey cut by it.
+- **Pinned by:** `test/Vision/Utilities/test_classify.py::test_an_object_resembles_the_part_by_the_rule_or_outside_by_every_position_free_cue`
+  (the cut-plate case).
+
 ## A stained front by the edge of the view reads "does not look like the part"
 
 DINOv2's similarity of the fingerprinted front to the front reference falls with its distance from the frame centre:

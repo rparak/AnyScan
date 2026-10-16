@@ -4222,8 +4222,9 @@ hole-less block, was NOK on both sides. The radius is removed and replaced:
 3a. **Foreign objects look different.** Added 2026-10-16, the owner's request: a Warning inside the area, an object
    that should not be on the surface at all, is drawn on the frame (its outline, outer box and chip, white numeral)
    in a grey of the brand's grey-lilac family (`CONST_FOREIGN_BOX`, `Annotate.Foreign`), so it is told from a
-   catalogued part that only lies outside the area, which keeps the Warning amber; every object outside the area,
-   a foreign one or a cut plate included, is amber, since its reason is where it lies. The verdict, the counts and
+   catalogued part that only lies outside the area, which keeps the Warning amber. *Corrected 2026-10-16:* first
+   written as "every object outside the area is amber", which drew the red block cut by the border amber; the colour
+   now follows what the object is (*A foreign object is told by what it is, not where it lies*). The verdict, the counts and
    the badge (`Foreign object · n`) are unchanged. The label mask keeps the Warning colours for both: in that hue no
    fill clears the mask's floors (ΔE 25 from the box, 4.5:1 on black) against a box of L* 64-79. Three candidates,
    rendered on `Image_059` beside an Unspecified frame and an outside-area amber frame, against the table / the white
@@ -4301,3 +4302,55 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_f
 `test/UI/test_inspection_area.py`, `test/Configuration/test_core.py::test_an_inspection_area_too_small_for_the_part_fails_the_load`,
 `test/integration/test_edge_of_view.py` (frames 2, 6, 14 and 21 of `20261016-070531_s1` added as crops),
 `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`.
+
+## A foreign object is told by what it is, not where it lies
+
+Decided 2026-10-16, on the owner's rig test (capture `20261016-111250_s1`): the red block, cut by the frame's top border,
+was drawn in the amber of a part outside the inspection area, though DINOv2 had not found it like the plate. The cause:
+`Annotate.Foreign` took the colour from where the object lay (a Warning inside the area), and `Settle_Area` replaced
+the rule's "not the part" with the outside-area Warning, so nothing kept what the object was. Now
+`Catalogue_Result_Str.Resembles` keeps it (`Classify.Resembles_Part`, before `Settle_Area`): an object the verdict rule
+identifies (OK, NOK, Unspecified) resembles the part; one it does not, outside the area, where a cut or far plate
+scores under the rule's 0.75, resembles it only when every cue that does not depend on where it lies says so. A
+Warning that does not resemble the part is a foreign object: grey wherever it lies, inside the area or outside, cut or
+not ("The object should not be on the surface." inside; "It is not the part and lies outside the inspection area:
+remove it from the surface." outside); one that does is the amber part outside the area, to move inside. The badge
+counts by the same (`Foreign object · n`, `Outside the area · n`); the log gives the cues of every object outside
+the area.
+
+**The cues, measured** on every object outside the area or cut by the frame's border in the test set and the five
+mounting-plate captures on disk (`20261015-170251_s1` frames 12–21, its frames 1–11 no longer on disk;
+`-180933_s1`; `20261016-070531_s1`; `-105125_s1`; `-111250_s1`): 86 objects, 43 plates (including the four cut
+stained fronts the rule does not identify) and 43 foreign objects. In the owner's order:
+
+| Cue | Plates | Foreign objects | Gap | Rule |
+|---|---|---|---|---|
+| 1. DINOv2 similarity | 0.668 – 0.982 | 0.230 – 0.645 (the red block cut; every other 0.433 at most) | 0.023 | at least **0.657** (`CONST_OUTSIDE_SIMILARITY`), midway |
+| 2. Size: the visible extent | 66.7 – 72.6 mm | 15.9 – 94.7 mm | none but the upper bound | at most the diagonal plus tolerance, **73.6 mm** |
+| 3. Colour: mean saturation (mask eroded 15 px) | 20.2 – 40.4 (all 73 plates, inside and out) | 2.2 – 187.1; the red block 112.3 – 134.1 (20 frames) | 71.9 to the red block | at most **76.3** (`CONST_PART_MAX_SATURATION`), midway to the red block |
+
+With all three, every one of the 86 is told right. Each foreign object fails the similarity, the red block also its
+colour (and one 94.7 mm object its extent); every plate passes all three, the most cut one (`20261016-070632_8`,
+88.5 mm out) by 0.011 on the similarity. The red block inside the area reached 0.673 at most (`Image_073`), above that
+plate: the similarity alone would not hold it, its colour does, by 72. **Not used:** a fully visible side matching 40
+or 60 mm: at the catalogue's 1.5 mm, two cut plates read 61.56 and 41.73 mm (the side wall by the frame's edge) and a
+screw 38.17 mm, so the side would misjudge plates and barely separate the screw. Holes: the red block has a
+countersunk hole. **Gemma:** never needed: the measured cues decide every object, none near two thresholds at once, so it
+is not built and its consistency was not measured.
+
+**Before and after**, on the same 92 frames, 210 objects, through the application's pipeline: no verdict changes. 43
+objects change colour and reason, every one a foreign object outside the area, from amber and "move it inside" to
+grey and "remove it": the red block cut by the top border on the rig's frames 2, 4, 5 and 6, and 39 foreign objects
+of the test set lying over the area's edge. The 43 plates outside or cut keep the amber and their reasons.
+
+**Revisit if** a plate cut more than any measured (only a corner in view) scores under 0.657 and reads foreign (a
+wrong colour and reason, never a verdict: it is a Warning either way); a foreign object of the plate's grey and size
+scores 0.657 or more outside the area; or the catalogue item changes (the saturation bound is the mounting plate's grey
+metal under this light, and the similarity threshold its references').
+Tests `test/Vision/Utilities/test_classify.py::test_an_object_resembles_the_part_by_the_rule_or_outside_by_every_position_free_cue`,
+`::test_the_colour_and_extent_cues_read_the_mask`,
+`test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
+`test/Reporting/test_core.py::test_an_object_outside_the_inspection_area_says_so_and_names_what_was_seen_there`,
+`::test_the_badge_states_the_worst_verdict`,
+`test/integration/test_edge_of_view.py::test_the_red_block_is_a_foreign_object_wherever_it_lies` (frames 1, 2, 4 and 5 of
+`20261016-111250_s1` as crops), `::test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber`.

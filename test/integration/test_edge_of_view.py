@@ -48,7 +48,8 @@ Description:
     on frames 17 and 19, a bore seen at an angle; frame 1 the control (a clean front near the centre, the hole-less
     block, a real back 58 mm out). Three of capture 20261015-180933_s1: the stained front again (DINOv2's margin
     -0.076, the widest wrong one measured) and two clean fronts 60 mm out, where DINOv2 tells the front by less than
-    its margin and the countersinks decide. Four of capture 20261016-070531_s1: the stained front cut by the right
+    its margin and the countersinks decide. Four of the rig's capture 20261016-111250_s1, the red block inside the area
+    and cut by its top border, which must stay a foreign object (grey) there. Four of capture 20261016-070531_s1: the stained front cut by the right
     border and failing identification (frame 2, similarity 0.738, its outline cut to 61.56 mm), cut by it and still
     identified by its outline (frame 6), whole but over the top and right edges of the inspection area (frame 14, read
     Unspecified 71 mm out by the radius rule this replaced), and a clean front inside the area 56 mm out (frame 21).
@@ -88,7 +89,16 @@ CONST_EDGE_VERDICTS = {
     '20261016-070619_6': ('Warning',),
     '20261016-070812_14': ('Warning',),
     '20261016-070930_21': ('OK',),
+    '20261016-111254_1': ('NOK', 'Warning'),
+    '20261016-111301_2': ('Warning', 'NOK'),
+    '20261016-111333_4': ('Warning', 'NOK'),
+    '20261016-111340_5': ('Warning', 'Warning'),
 }
+# The rig's frames of 20261016-111250_s1 with the red block (a foreign object with a countersunk hole): inside the area
+# (frame 1), only a corner of it below the top border (frame 2, similarity 0.517), and cut by the top border (frames 4
+# and 5, 0.645 and 0.635); with the stained front inside the area, NOK (frames 1, 2, 4), and outside it (frame 5).
+#   Unit [Tuple<string>]
+CONST_RED_BLOCK_FRAMES = ('20261016-111254_1', '20261016-111301_2', '20261016-111333_4', '20261016-111340_5')
 # The frames whose plate is the stained front by the edge, identified, and those whose plate is a clean front by it.
 #   Unit [Tuple<string>]
 CONST_STAINED_EDGE_FRONTS = ('20261015-170809_16', '20261015-170816_17', '20261015-170830_19', '20261015-180936_1',
@@ -291,3 +301,41 @@ def test_the_holeless_block_keeps_both_readings_and_gives_what_they_share(requir
     assert {reading.Verdict for reading in readings.values()} == {'NOK'}
     assert Reason_Sentence(block) == ("It has the part's outline but does not look like the part, and both "
                                       'through-holes are missing.')
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize('name', CONST_RED_BLOCK_FRAMES)
+def test_the_red_block_is_a_foreign_object_wherever_it_lies(name: str, require_weights, monkeypatch) -> None:
+    """
+    Description:
+        The red block does not resemble the mounting plate, inside the inspection area or cut by the frame's top border:
+        it is a Warning drawn as a foreign object (Annotate.Foreign, the grey), never as a part outside the area (the
+        amber), with no marks. Inside the area it should not be on the surface; outside it, it is named as a foreign
+        object to remove, not a part to move. Its colour rules it out (mean saturation above 100, every plate 40 at
+        most) even where its similarity would not.
+    """
+
+    from Vision.Utilities.Annotate import Foreign
+    (block,) = [det for det in _Objects(name, require_weights, monkeypatch) if det.Catalogue.Saturation > 100.0]
+    assert (block.Verdict, block.Catalogue.Resembles, Foreign(block), block.Features) == ('Warning', False, True, [])
+    assert Reason_Sentence(block) == ('It is not the part and lies outside the inspection area: remove it from the '
+                                      'surface.' if block.Catalogue.Outside_Area else
+                                      'The object should not be on the surface.')
+    assert block.Catalogue.Outside_Area == (name != '20261016-111254_1')
+
+
+@pytest.mark.slow
+def test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber(require_weights, monkeypatch) -> None:
+    """
+    Description:
+        On the rig's frame 5 the stained front lies over the area's top edge beside the cut red block: it resembles the
+        part (identified, similarity 0.750), so it is the amber part outside the area, its stains named, never grey.
+    """
+
+    from Vision.Utilities.Annotate import Foreign
+    objects = _Objects('20261016-111340_5', require_weights, monkeypatch)
+    (plate,) = [det for det in objects if det.Catalogue.Saturation <= 100.0]
+    assert (plate.Verdict, plate.Catalogue.Outside_Area, plate.Catalogue.Resembles, Foreign(plate)) == \
+        ('Warning', True, True, False)
+    assert Reason_Sentence(plate) == CONST_OUTSIDE + (' Seen there: both countersinks found, both through-holes found, '
+                                                      'two stains found.')
