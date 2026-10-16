@@ -426,7 +426,8 @@ exported at the next start. The mode file's comment says how to read it.
 Scripts in `Example/`. A harness that captures or analyses goes through the application's own code
 path; the one exception, `calibrate.py --capture`, says so where it is.
 
-- `Camera/scan.py` — capture frames from the camera into `Data/Results/`.
+- `Camera/scan.py` — capture a frame from the camera into `Data/Results/`, as the application's SCAN does: once
+  nothing moves, or refused with the application's sentence (exit 1); `--no-stillness` takes one frame at once.
 - `Camera/preview_check.py` — check the live preview and the scan on the camera: the preview's frame rate
   and CPU load, the still table's frame-to-frame difference behind the stillness thresholds, each scan
   frame exposed after a camera-clock latch taken after the preview stopped, every camera setting read

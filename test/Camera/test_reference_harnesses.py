@@ -472,11 +472,13 @@ def test_scan_captures_through_the_application_camera_path(tmp_path, monkeypatch
         scan.py no longer undistorts on its own without the processing step: it hands the configuration
         to the application's camera (Basler_Camera_Cls — window, processing, undistortion) and saves
         exactly the frame that path delivers, converted from RGB for OpenCV — as a timestamped
-        Scan_*.png in its output directory, never into the pinned test set.
+        Scan_*.png in its output directory, never into the pinned test set. It scans as the application's
+        SCAN does: through Capture_Still, the stillness check, never a single Capture.
     """
 
     import Camera.Core
     scan = _Load_Script('scan')
+    monkeypatch.setattr('sys.argv', ['scan.py'])
     # The claim itself: the name scan.py captures through IS the application's camera class — checked
     # before it is replaced below by a stand-in for the hardware.
     assert scan.Basler_Camera_Cls is Camera.Core.Basler_Camera_Cls
@@ -500,6 +502,9 @@ def test_scan_captures_through_the_application_camera_path(tmp_path, monkeypatch
             seen['connected'] = True
 
         def Capture(self):
+            raise AssertionError('scan.py took a single frame without the stillness check')
+
+        def Capture_Still(self):
             return frame.copy()
 
         def Disconnect(self):
@@ -513,6 +518,78 @@ def test_scan_captures_through_the_application_camera_path(tmp_path, monkeypatch
     saved = cv2.imread(str(saved_path))
     assert np.array_equal(saved[..., ::-1], frame)
     assert seen == {'window': ((1920, 1200), (8, 8)), 'connected': True, 'disconnected': True}
+
+
+class _Scan_Camera_Cls(object):
+    """A stand-in for the application's camera in scan.py: records which capture it was asked for, and refuses
+    Capture_Still for a moving scene when told to."""
+
+    moving = False
+    calls = []
+
+    def Set_Configuration(self, Camera_Configuration_Str: tp.Any, configuration_name: str, calibration_name: str) -> None:
+        pass
+
+    def Set_Log_Callback(self, callback: tp.Any) -> None:
+        pass
+
+    def Connect(self) -> None:
+        pass
+
+    def Capture(self) -> np.ndarray:
+        self.calls.append('Capture')
+        return np.zeros((40, 64, 3), np.uint8)
+
+    def Capture_Still(self) -> np.ndarray:
+        import Camera.Core
+        self.calls.append('Capture_Still')
+        if self.moving:
+            raise Camera.Core.Camera_Motion_Error_Cls('Something is moving in the view, so no frame was taken. Keep '
+                                                      'hands and parts still on the table, then press SCAN again.')
+        return np.zeros((40, 64, 3), np.uint8)
+
+    def Disconnect(self) -> None:
+        pass
+
+
+def test_scan_refuses_a_moving_scene_with_the_applications_message_and_saves_nothing(tmp_path, monkeypatch,
+                                                                                     capsys) -> None:
+    """
+    Description:
+        When the stillness check finds the scene still moving, scan.py takes no frame: it prints the application's
+        refusal sentence as a WARNING, saves nothing and exits 1.
+    """
+
+    scan = _Load_Script('scan')
+    monkeypatch.setattr('sys.argv', ['scan.py'])
+    monkeypatch.setattr(_Scan_Camera_Cls, 'moving', True)
+    monkeypatch.setattr(_Scan_Camera_Cls, 'calls', [])
+    monkeypatch.setattr(scan, 'Basler_Camera_Cls', _Scan_Camera_Cls)
+    monkeypatch.setattr(scan, 'CONST_OUTPUT_DIR', str(tmp_path / 'Results'))
+    assert scan.main() == 1
+    assert '[WARNING] Something is moving in the view, so no frame was taken.' in capsys.readouterr().out
+    assert _Scan_Camera_Cls.calls == ['Capture_Still'] and not (tmp_path / 'Results').exists()
+
+
+def test_scan_without_the_stillness_check_takes_one_frame_at_once(tmp_path, monkeypatch, capsys) -> None:
+    """
+    Description:
+        --no-stillness skips the check: one Capture, never Capture_Still, so a moving scene is saved, not refused;
+        the flag is named in the script's help.
+    """
+
+    scan = _Load_Script('scan')
+    monkeypatch.setattr('sys.argv', ['scan.py', '--no-stillness'])
+    monkeypatch.setattr(_Scan_Camera_Cls, 'moving', True)
+    monkeypatch.setattr(_Scan_Camera_Cls, 'calls', [])
+    monkeypatch.setattr(scan, 'Basler_Camera_Cls', _Scan_Camera_Cls)
+    monkeypatch.setattr(scan, 'CONST_OUTPUT_DIR', str(tmp_path / 'Results'))
+    assert scan.main() == 0
+    assert _Scan_Camera_Cls.calls == ['Capture'] and len(list((tmp_path / 'Results').iterdir())) == 1
+    monkeypatch.setattr('sys.argv', ['scan.py', '--help'])
+    with pytest.raises(SystemExit):
+        scan.main()
+    assert '--no-stillness' in capsys.readouterr().out
 
 
 def test_calibrate_refuses_images_without_the_board_height_and_says_what_it_is(tmp_path, monkeypatch, capsys) -> None:

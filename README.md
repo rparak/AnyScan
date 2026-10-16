@@ -125,6 +125,15 @@ degrades one step at a time rather than failing at startup. `F11` toggles
 fullscreen, `Esc` closes. PREVIEW shows the table live while parts are placed; SCAN clears the previous
 result at once, stops the preview and takes a frame once nothing moves (about 0.6 s).
 
+To save one frame from the camera without the application (it must not be connected there):
+
+```bash
+python Example/Camera/scan.py                  # as SCAN: waits for a still scene, refuses a moving one (exit 1)
+python Example/Camera/scan.py --no-stillness   # one frame at once, without the stillness check
+```
+
+The frame goes to `Data/Results/Scan_<timestamp>.png`; `--help` lists the options.
+
 For a run without the camera, pass a real frame previously saved from it. The
 pipeline differences the frame against the configured reference background, so the
 frame must match that background's resolution — 1920×1200 (a configuration must still be

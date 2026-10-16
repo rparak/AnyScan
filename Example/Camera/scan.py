@@ -26,6 +26,8 @@
 import sys
 # OS (Operating system interfaces)
 import os
+# Argparse (Command-line parsing)
+import argparse
 # Resolve src/ from this file's own location (Example/Camera -> ../../src), so the script runs the
 # same whether launched from Example/Camera/ or the repository root.
 _SRC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'src'))
@@ -37,7 +39,7 @@ import cv2
 from datetime import datetime
 # Custom Lib.:
 #   ../Camera/Core — the application's own camera path (window, processing, undistortion)
-from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls
+from Camera.Core import Basler_Camera_Cls, Camera_Error_Cls, Camera_Motion_Error_Cls
 #   ../Configuration/Core — the one configuration layer
 from Configuration.Core import Load_Configuration, Display_Path, CONST_DEFAULT_CONFIG_FILE, CONST_PROJECT_ROOT
 
@@ -57,6 +59,10 @@ def main():
         Capture one frame from the Basler camera (a2A1920-51gcPRO, lit by the EFFI-FD-200-200-000)
         and save it as Data/Results/Scan_<timestamp>.png (git-ignored).
 
+        It scans as the application's SCAN does (Camera_Backend_Cls.Capture_Still): it waits for a still
+        scene and takes one fresh frame, and when something is still moving after about a second it takes
+        none and says so (exit 1). --no-stillness takes one frame at once instead (Capture), without the check.
+
         The frame goes through the APPLICATION's own camera path, Camera.Core.Basler_Camera_Cls —
         the sensor window set and read back, the image processing step, and the undistortion under
         the calibration in force — so it is the frame the pipeline sees, not a harness's
@@ -73,6 +79,15 @@ def main():
             Lighting: EFFI-FD-200-200-000 High-Power Flat Light
     """
 
+    parser = argparse.ArgumentParser(
+        description='Capture one frame through the application\'s camera path into Data/Results/, as the '
+                    'application\'s SCAN does: the frame is taken once nothing moves in the view, and refused '
+                    'when something still moves after about a second.')
+    parser.add_argument('--no-stillness', action='store_true',
+                        help='take one frame at once, without waiting for a still scene (the stillness check is '
+                             'skipped; a frame taken while something moves may be blurred or show it mid-way)')
+    args = parser.parse_args()
+
     # The shipped configuration: the camera block (acquisition settings, window, calibration).
     configuration = Load_Configuration(CONST_DEFAULT_CONFIG_FILE)
     for level, message in configuration.Notes:
@@ -85,7 +100,10 @@ def main():
     camera.Set_Log_Callback(lambda level, message: print(f'[{level}] {message}'))
     try:
         camera.Connect()
-        image_rgb = camera.Capture()
+        image_rgb = camera.Capture() if args.no_stillness else camera.Capture_Still()
+    except Camera_Motion_Error_Cls as error:
+        print(f'[WARNING] {error}')
+        return 1
     except Camera_Error_Cls as error:
         print(f'[ERROR] {error}')
         return 1
