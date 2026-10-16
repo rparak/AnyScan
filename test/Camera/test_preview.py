@@ -277,3 +277,18 @@ def test_the_preview_needs_a_connected_camera_and_a_running_stream() -> None:
     cam.Stop_Preview()
     cam.Stop_Preview()
     assert cam.events == [('start', 1), ('stop', 1)] and not cam.Previewing
+
+
+def test_the_scan_hands_on_every_frame_its_check_grabs() -> None:
+    """
+    Description:
+        Capture_Still calls its frame callback with every complete frame the stillness check grabs, in order, the
+        frame it keeps last — what the window shows while the scan waits — and skips an incomplete one.
+    """
+
+    frames = [_Frame(220), None, _Frame(40), _Frame(40)]
+    cam = _Stream_Camera_Cls(lambda stream, index: frames[index])
+    cam.Connect()
+    shown = []
+    kept = cam.Capture_Still(frame_cb=shown.append)
+    assert [id(frame) for frame in shown] == [id(frames[0]), id(frames[2]), id(frames[3])] and shown[-1] is kept

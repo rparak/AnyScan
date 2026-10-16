@@ -338,12 +338,16 @@ noise on this camera; the refusal itself is tested only on scripted and syntheti
 
 **Conditions.** Configuration loaded, CONNECT done, a part on the table.
 
-1. Press PREVIEW, then wave a hand over the table and press SCAN while it moves. The reading must say *Something is
-   moving in the view…* with a *Moving* badge, the log a WARNING with the same sentence, and the preview must come
-   back. The System cell must not count an error.
+1. Press PREVIEW, then wave a hand over the table and press SCAN while it moves. While it waits the view must show
+   the table moving under *SCANNING…*. The reading must then say *Something is moving in the view…* with a *Moving*
+   badge, the log a WARNING with the same sentence, and the preview must come back. The System cell must not count
+   an error.
 2. Hold the hand still in view and press SCAN: the scan must take the frame (a hand held still is still).
 3. Take the hand away, wait a second, press SCAN: the frame must show the table without the hand.
 4. Repeat 1 with a part slid slowly across the table instead of a hand.
+5. SCAN and ANALYZE a part, move it, and SCAN again — once with the preview off, once with it on. The moment SCAN is
+   pressed the old frame, its outlines and its reading must be gone (the reading *Scanning…*); the new frame must
+   follow. Stop the preview with PREVIEW after an ANALYZE: the analysed result must come back.
 
 **Record alongside:**
 

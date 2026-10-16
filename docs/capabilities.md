@@ -200,10 +200,11 @@ it names. The modes shipped today:
    the operator places parts. The last result stays; ANALYZE waits for a scan. PREVIEW again stops it and shows
    the last result again. Its rate is about 3.7 frames a second on the rig, set by the GigE link
    ([KNOWN_ISSUES](../KNOWN_ISSUES.md#the-live-preview-runs-at-about-37-frames-a-second-set-by-the-usb-c-ethernet-adapter)).
-4. **SCAN** — stops the preview if it runs, then waits for a still scene and captures one fresh frame
-   (undistorted when calibrated), about 0.59 s on the rig. If something still moves after about a second, it
-   takes no frame and says so, and the preview comes back if it was on. A new frame clears the previous result
-   rather than marking it stale.
+4. **SCAN** — the moment it is pressed, the previous frame and its result leave the Camera View and Scene
+   Understanding (ANALYZE has no frame until the scan ends). It stops the preview if it runs, then waits for a
+   still scene, showing the fresh frames it grabs, and captures one fresh frame (undistorted when calibrated),
+   about 0.59 s on the rig. If something still moves after about a second, it takes no frame and says so: its last
+   fresh frame stays on screen (badge *Not scanned*), never the old result, and the preview comes back if it was on.
 5. **ANALYZE** — runs the pipeline in a worker thread, shows the result and writes a capture set.
    A scan to the end of its analysis is one **cycle**.
 6. **CLEAR** resets the on-screen figures (the preview keeps running). **DISCONNECT** stops the preview,
@@ -245,7 +246,10 @@ Two cards:
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
   never a verdict, on screen only). While the camera connects, a frame is captured or analysed, the view lies
   under its own grey-lilac at 70 %, the frame showing through, with the step in the purple under a pixel icon of
-  the task: a camera while connecting and capturing, a magnifier while analysing; never during the live preview.
+  the task: a camera while connecting, a magnifier while analysing; never during the live preview or a scan. A
+  **scan** shows the fresh frames its stillness check grabs as they come, under the busy overlay's camera icon and
+  `SCANNING…` in white on a purple block in the view's top-left corner (no scrim), with *Scanning…* in the head's
+  badge and in Scene Understanding.
   The **live preview** (PREVIEW) paints the camera's frames as they come, with `●  LIVE PREVIEW` in white on a
   purple block in the view's top-left corner and `Live · n fps` in the head's badge; the view selector hides while it
   runs. In a catalogue mode the

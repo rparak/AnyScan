@@ -503,7 +503,8 @@ class Camera_Backend_Cls(object):
                 raise Camera_Error_Cls('The camera delivered only incomplete frames. Check the GigE link and '
                                        'its cable, then scan again.')
 
-    def Capture_Still(self) -> tp.List[tp.List[int]]:
+    def Capture_Still(self, frame_cb: tp.Optional[tp.Callable[[tp.List[tp.List[int]]], None]] = None
+                      ) -> tp.List[tp.List[int]]:
         """
         Description:
             The scan: start a fresh stream, so every frame is exposed after this call, and compare each
@@ -513,6 +514,11 @@ class Camera_Backend_Cls(object):
             the call, no frame is taken: Camera_Motion_Error_Cls. Refused while the live preview runs. As in
             Capture, a failure on a device reported removed disconnects the backend before it goes on.
 
+        Args:
+            (1) frame_cb [function or None]: Called with every complete frame the check grabs, in order, the
+                frame kept included — so the window can show the scene while the scan waits for it to be still.
+                Called on the caller's thread; None calls nothing.
+
         Returns:
             (1) parameter [Matrix<uint8> HxWx3]: The frame (RGB).
         """
@@ -520,6 +526,7 @@ class Camera_Backend_Cls(object):
         if not self.__connected:
             raise Camera_Error_Cls('Camera is not connected.')
         self.__Refuse_While_Previewing()
+        show = frame_cb if frame_cb is not None else (lambda frame: None)
         # Imported here, like the SDK in _Open: this module imports with no OpenCV present.
         if CONST_BASLER_SRC not in sys.path:
             sys.path.insert(0, CONST_BASLER_SRC)
@@ -532,8 +539,10 @@ class Camera_Backend_Cls(object):
             self._Start_Stream()
             try:
                 previous = self.__Stream_Frame()
+                show(previous)
                 while True:
                     frame = self.__Stream_Frame()
+                    show(frame)
                     if Is_Still(previous, frame):
                         return frame
                     if time.monotonic() - start >= CONST_STILL_TIMEOUT_S:

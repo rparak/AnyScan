@@ -122,8 +122,8 @@ The console drives a Basler camera and the local Gemma describer — both real,
 no mocks. The window still opens when either is absent and reports an actionable
 sentence when a missing component is first used, so **CONNECT → SCAN → ANALYZE**
 degrades one step at a time rather than failing at startup. `F11` toggles
-fullscreen, `Esc` closes. PREVIEW shows the table live while parts are placed; SCAN stops it and
-takes a frame once nothing moves (about 0.6 s).
+fullscreen, `Esc` closes. PREVIEW shows the table live while parts are placed; SCAN clears the previous
+result at once, stops the preview and takes a frame once nothing moves (about 0.6 s).
 
 For a run without the camera, pass a real frame previously saved from it. The
 pipeline differences the frame against the configured reference background, so the

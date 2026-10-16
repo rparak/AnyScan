@@ -3890,7 +3890,9 @@ spinner (2026-10-15).
   lens (600 ms); a magnifier while preparing and analysing moves a glint across its lens (360 ms a step, then a
   rest). Unlit cells are the purple at 18 %. The capture runs on the GUI thread, so its camera stays still. *Corrected
   2026-10-16:* the scan runs on a worker now (*The live preview is a worker that drops frames…*), so its camera blinks
-  as the connect's does; the overlay is never shown over the live preview. The
+  as the connect's does; the overlay is never shown over the live preview. *Corrected again 2026-10-16:* a scan no
+  longer lays the overlay over the view at all; it shows its fresh frames under the same camera icon in a corner
+  marker (*SCAN drops the previous result the moment it is pressed…*). The
   owner chose this, variant B, over a pixel loader whose 3 × 3 squares lit in turn (A), from 1x renders of the
   window and animated captures of both.
 - **Over the empty view** (connecting), the empty state's mark and instruction are not painted: through the
@@ -4620,7 +4622,8 @@ is never shown over them.
 
 **The scan left the GUI thread.** It used to grab on the GUI thread behind a static overlay (`Viewport_Cls.Set_Busy`,
 now removed): one 0.32 s grab. Waiting for a still scene takes 0.59–1.13 s, so the scan is a worker with the
-animated overlay, and a close during a scan waits for it. A test that presses SCAN waits for the scan through the
+animated overlay, and a close during a scan waits for it. *Corrected 2026-10-16:* no overlay; the scan shows its
+fresh frames under a SCANNING marker (*SCAN drops the previous result the moment it is pressed…*). A test that presses SCAN waits for the scan through the
 `scan` and `wait_for_scan` fixtures (`test/conftest.py`).
 
 **Measured** in the window, offscreen, on the rig's camera on the development Linux machine (Ryzen 9 9950X3D), 30 s of
@@ -4653,3 +4656,46 @@ re-derive the stillness thresholds, since a shorter frame period changes how far
 (*A scan waits for a still scene…*). A scan would then also be faster: it takes the second frame of its stream.
 Recorded open in KNOWN_ISSUES, *The live preview runs at about 3.7 frames a second…*.
 Tests none (a property of the network hardware); measured with `Example/Camera/preview_check.py`.
+
+## SCAN drops the previous result the moment it is pressed, and shows the fresh frames it grabs
+
+Decided 2026-10-16, after the owner's rig test: after SCAN and ANALYZE, with the part moved, a second SCAN left the
+previous frame and its analysis on screen while it ran, with the preview on or not. The operator must never see an
+old result while a new scan is in progress.
+
+**Why the old frame stayed.** Two views kept it. The **Camera View**: `Viewport_Cls` held the previous frame and its
+analysis renders until a new frame arrived (`Show_Frame`, on a successful scan only), and the scan laid only the busy
+overlay over them, which is translucent by design (the grey-lilac at 70 %, the frame showing through). With the
+preview on it was worse: SCAN stops the preview first, and stopping it (`Stop_Live`) deliberately shows the held
+frame and renders again — the behaviour wanted for PREVIEW pressed again — just before the scan started.
+**Scene Understanding** was reset only when the scan succeeded (`__Clear_Reading` in `__On_Scan_Finished`).
+
+**Now.** Pressing SCAN (`__Clear_For_Scan`, before the preview is even stopped) drops the frame — ANALYZE can no
+longer read it — and its renders from the view and the reading from Scene Understanding, which says *Scanning…*
+with a *Scanning* badge; the head's badge says *Scanning…*. While the scan waits for a still scene the view paints
+each fresh frame the check grabs (`Capture_Still`'s frame callback, `Scan_Worker_Cls` handing them on through the
+preview's one-frame mailbox, `Frame_Mailbox_Cls`) under a corner marker: the busy overlay's camera icon, its lens
+blinking, and `SCANNING…` in white on the purple (`Viewport_Cls.Start_Live('scan')`), with no scrim over the image.
+The scan ends on the new scanned frame. Refused for movement, it leaves its last fresh frame on screen with the
+*Moving* message (the head's badge *Not scanned*; ANALYZE has no frame) and resumes the preview when it came from
+it; stopping that preview shows the same fresh frame. The previous result never comes back. PREVIEW pressed again
+still returns to the last scanned frame and its result, as decided: only SCAN drops them. The run's statistics stay;
+CLEAR resets them.
+
+Between the press and the preview's last frame in flight (at most one frame period, about 0.27 s on the rig) the view
+keeps the newest preview frame, the table as it is now, under LIVE PREVIEW; it is never the old result.
+
+**Rendered and looked at** on the rig's camera (offscreen, 1920 × 1080): after a scan with an analysis and the
+preview on, SCAN pressed (the reading *Scanning…*, the preview's newest frame), mid-scan (the fresh frame under the
+SCANNING marker and the area) and after (the new frame, the size badge, ANALYZE available).
+
+**Rejected.** Keeping the result until the new frame arrives: the rig showed it is read as the current one.
+Covering the view with the opaque busy overlay: it would hide the very scene the stillness check waits on.
+
+**Revisit if** the operator needs the previous result while scanning (it is in History), or the moment between SCAN and
+the scan's first frame proves confusing on the rig.
+Tests `test/UI/test_preview.py::test_scan_after_analyze_never_shows_the_old_result` (with and without the preview),
+`::test_the_scan_shows_its_fresh_frames_under_the_scanning_marker_without_a_scrim`,
+`::test_a_scan_refused_after_analyze_keeps_the_last_fresh_frame_never_the_old_result`,
+`::test_preview_again_leaves_the_last_result_and_stopping_it_brings_the_result_back`,
+`test/Camera/test_preview.py::test_the_scan_hands_on_every_frame_its_check_grabs`.

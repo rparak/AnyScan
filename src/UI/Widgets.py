@@ -676,6 +676,11 @@ class Viewport_Cls(QWidget):
     CONST_BUSY_CELL = 5
     # The live preview's marker: its text, and its inset from the view's top-left corner.
     CONST_LIVE_TEXT = '●  LIVE PREVIEW'
+    # The scan's marker while it shows the fresh frames its stillness check grabs: the busy overlay's camera icon,
+    # in cells of CONST_SCAN_ICON_CELL, beside its text, in the same purple block as the preview's.
+    CONST_SCAN_TEXT = 'SCANNING…'
+    #   Unit [px]
+    CONST_SCAN_ICON_CELL = 2
     #   Unit [px]
     CONST_LIVE_MARGIN = 12
 
@@ -718,6 +723,8 @@ class Viewport_Cls(QWidget):
         # and its renders, which are kept underneath: stopping the preview shows them again as they were.
         self.__live_on = False
         self.__live = None
+        # What the live frames are: 'preview' (PREVIEW) or 'scan' (the fresh frames a scan's stillness check grabs).
+        self.__live_kind = 'preview'
         self.__mark = QSvgRenderer(os.path.join(Style.CONST_ASSETS, 'anyscan-mark.svg'))
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -737,15 +744,24 @@ class Viewport_Cls(QWidget):
         self.__area = area
         self.update()
 
-    def Start_Live(self) -> None:
+    def Start_Live(self, kind: str = 'preview') -> None:
         """
         Description:
-            Show the live preview: the LIVE marker at once, each frame as Show_Live hands it over. The
-            scanned frame and its renders stay held, unpainted, until Stop_Live.
+            Show live frames: the marker at once, each frame as Show_Live hands it over. For the preview the
+            marker is LIVE PREVIEW, and the scanned frame and its renders stay held, unpainted, until Stop_Live.
+            For a scan it is the camera icon, stepping with the busy timer, and SCANNING… — over the image's
+            corner, never a scrim over the image.
+
+        Args:
+            (1) kind [string]: 'preview' or 'scan'.
         """
 
         self.__live_on = True
+        self.__live_kind = kind
         self.__live = None
+        if kind == 'scan':
+            self.__tick = 0
+            self.__timer.start()
         self.update()
 
     def Show_Live(self, image: QImage) -> None:
@@ -770,7 +786,20 @@ class Viewport_Cls(QWidget):
 
         self.__live_on = False
         self.__live = None
+        if not self.__busy:
+            self.__timer.stop()
         self.update()
+
+    def Live_Kind(self) -> str:
+        """
+        Description:
+            What the live frames shown are: 'preview', 'scan', or '' when none are.
+
+        Returns:
+            (1) parameter [string]: The kind, or ''.
+        """
+
+        return self.__live_kind if self.__live_on else ''
 
     def Is_Live(self) -> bool:
         """
@@ -849,6 +878,17 @@ class Viewport_Cls(QWidget):
             self.__view = view
             self.update()
 
+    def Has_Frame(self) -> bool:
+        """
+        Description:
+            Whether a frame is held to show outside the live view (a scanned frame, or a refused scan's last).
+
+        Returns:
+            (1) parameter [bool]: True when one is held.
+        """
+
+        return self.__image is not None
+
     def Has_Views(self) -> bool:
         """
         Description:
@@ -908,6 +948,8 @@ class Viewport_Cls(QWidget):
         self.__mask = None
         self.__heatmap = None
         self.__legend = None
+        self.__similarity = None
+        self.__similarity_legend = None
         self.update()
 
     def Set_Empty_Text(self, text: str) -> None:
@@ -964,7 +1006,8 @@ class Viewport_Cls(QWidget):
         self.__busy = False
         self.__busy_text = ''
         self.__animated = False
-        self.__timer.stop()
+        if not (self.__live_on and self.__live_kind == 'scan'):
+            self.__timer.stop()
         self.update()
 
     def __Tick(self) -> None:
@@ -1053,25 +1096,36 @@ class Viewport_Cls(QWidget):
     def __Paint_Live_Marker(self, p: QPainter) -> None:
         """
         Description:
-            The live preview's marker in the view's top-left corner: the label in white on a solid purple
-            block, the brand's filled-button pairing (Tool_Button_Cls's primary hover), so the operator never
-            takes the live view for the scanned frame.
+            The live frames' marker in the view's top-left corner, in white on a solid purple block, the brand's
+            filled-button pairing (Tool_Button_Cls's primary hover), so the operator never takes live frames for
+            the scanned frame: LIVE PREVIEW for the preview; for a scan, the busy overlay's camera icon (its lens
+            blinking with the timer) and SCANNING….
 
         Args:
             (1) p [QPainter(object)]: The active painter.
         """
 
+        scanning = self.__live_kind == 'scan'
+        text = self.CONST_SCAN_TEXT if scanning else self.CONST_LIVE_TEXT
         font = Font(9.5, QFont.DemiBold, tracking=6)
         metrics = QFontMetrics(font)
         pad_x, pad_y = 12, 6
+        cell = self.CONST_SCAN_ICON_CELL
+        cells = Busy_Cells('camera', self.__tick, Style.CONST_BUSY_DIM_ALPHA) if scanning else []
+        icon_w = (max(column for column, _, _ in cells) + 1) * cell + 10 if cells else 0
         rect = QRect(self.CONST_LIVE_MARGIN, self.CONST_LIVE_MARGIN,
-                     metrics.horizontalAdvance(self.CONST_LIVE_TEXT) + pad_x * 2, metrics.height() + pad_y * 2)
+                     icon_w + metrics.horizontalAdvance(text) + pad_x * 2, metrics.height() + pad_y * 2)
         p.save()
         p.setRenderHint(QPainter.Antialiasing, False)
         p.fillRect(rect, Style.Token_Color(Style.CONST_INK))
+        if cells:
+            rows = max(row for _, row, _ in cells) + 1
+            left, top = rect.left() + pad_x, rect.top() + (rect.height() - rows * cell) // 2
+            for column, row, alpha in cells:
+                p.fillRect(left + column * cell, top + row * cell, cell, cell, Style.Token_Color(Style.CONST_ON_INK, alpha))
         p.setFont(font)
         p.setPen(Style.Token_Color(Style.CONST_ON_INK))
-        p.drawText(rect, Qt.AlignCenter, self.CONST_LIVE_TEXT)
+        p.drawText(rect.adjusted(icon_w, 0, 0, 0), Qt.AlignCenter, text)
         p.restore()
 
     def __Paint_Legend(self, p: QPainter, legend: Heatmap_Str) -> None:
@@ -1172,7 +1226,8 @@ class Viewport_Cls(QWidget):
         # the translucent overlay they would sit under the step's words.
         if self.__busy:
             return
-        text = 'Starting the live preview…' if self.__live_on else self.__empty_text
+        text = (('Scanning…' if self.__live_kind == 'scan' else 'Starting the live preview…') if self.__live_on
+                else self.__empty_text)
         cy = self.height() // 2
         if self.__mark.isValid():
             # The mark is rendered as vectors at its drawn size, never scaled from a raster (which blurred it).

@@ -233,6 +233,95 @@ class Connect_Worker_Cls(QObject):
             self.Connect_Finished.emit()
 
 
+class Frame_Mailbox_Cls(object):
+    """
+    Description:
+        A one-frame mailbox between a worker thread and the window: Put keeps only the newest frame and says
+        whether the box was empty (so the worker announces a frame only then, and at most one announcement is
+        ever on its way); Take empties it. Frames are dropped, never queued. Thread-safe.
+
+    Initialization of the Class:
+        Args:
+            None.
+
+        Example:
+            Initialization:
+                # Initialization of the class.
+                Cls = Frame_Mailbox_Cls()
+
+            Features:
+                # Properties of the class.
+                Cls.Delivered; Cls.Dropped
+
+                # Functions of the class.
+                Cls.Put(frame); Cls.Take()
+    """
+
+    def __init__(self) -> None:
+        # << PRIVATE >> #
+        self.__lock = threading.Lock()
+        self.__frame = None
+        # Frames put in the box, and frames replaced there before they were taken.
+        self.__delivered = 0
+        self.__dropped = 0
+
+    @property
+    def Delivered(self) -> int:
+        """
+        Description:
+            How many frames were put in the box.
+
+        Returns:
+            (1) parameter [int]: The frames delivered.
+        """
+
+        return self.__delivered
+
+    @property
+    def Dropped(self) -> int:
+        """
+        Description:
+            How many frames were replaced in the box by a newer one before they were taken.
+
+        Returns:
+            (1) parameter [int]: The frames dropped.
+        """
+
+        return self.__dropped
+
+    def Put(self, frame: tp.List[tp.List[int]]) -> bool:
+        """
+        Description:
+            Put the newest frame in the box, replacing one not yet taken.
+
+        Args:
+            (1) frame [Matrix<uint8> HxWx3]: The frame (RGB).
+
+        Returns:
+            (1) parameter [bool]: True when the box was empty: the frame must be announced.
+        """
+
+        with self.__lock:
+            waiting = self.__frame is not None
+            self.__frame = frame
+            self.__delivered += 1
+            self.__dropped += int(waiting)
+        return not waiting
+
+    def Take(self) -> tp.Optional[tp.List[tp.List[int]]]:
+        """
+        Description:
+            Take the newest frame out of the box, leaving it empty.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The frame (RGB), or None when none waits.
+        """
+
+        with self.__lock:
+            frame, self.__frame = self.__frame, None
+        return frame
+
+
 class Preview_Worker_Cls(QObject):
     """
     Description:
@@ -286,12 +375,8 @@ class Preview_Worker_Cls(QObject):
         self.__camera = camera
         # Set from the GUI thread by Request_Stop, read on the worker thread before each frame.
         self.__stop = threading.Event()
-        # The one-frame mailbox, shared by the two threads under the lock.
-        self.__lock = threading.Lock()
-        self.__frame = None
-        # Frames put in the mailbox, and frames overwritten there before the window took them.
-        self.__delivered = 0
-        self.__dropped = 0
+        # The one-frame mailbox the two threads share.
+        self.__mailbox = Frame_Mailbox_Cls()
 
     @property
     def Delivered(self) -> int:
@@ -303,7 +388,7 @@ class Preview_Worker_Cls(QObject):
             (1) parameter [int]: The frames delivered.
         """
 
-        return self.__delivered
+        return self.__mailbox.Delivered
 
     @property
     def Dropped(self) -> int:
@@ -315,7 +400,7 @@ class Preview_Worker_Cls(QObject):
             (1) parameter [int]: The frames dropped.
         """
 
-        return self.__dropped
+        return self.__mailbox.Dropped
 
     def Request_Stop(self) -> None:
         """
@@ -335,9 +420,7 @@ class Preview_Worker_Cls(QObject):
             (1) parameter [Matrix<uint8> HxWx3 or None]: The frame (RGB), or None when none waits.
         """
 
-        with self.__lock:
-            frame, self.__frame = self.__frame, None
-        return frame
+        return self.__mailbox.Take()
 
     def Run(self) -> None:
         """
@@ -354,12 +437,7 @@ class Preview_Worker_Cls(QObject):
                 frame = self.__camera.Preview_Frame()
                 if frame is None:
                     continue
-                with self.__lock:
-                    waiting = self.__frame is not None
-                    self.__frame = frame
-                    self.__delivered += 1
-                    self.__dropped += int(waiting)
-                if not waiting:
+                if self.__mailbox.Put(frame):
                     self.Frame_Ready.emit()
                 self.__stop.wait(max(0.0, self.CONST_MIN_INTERVAL_S - (time.monotonic() - start)))
         except Exception as exc:                          # noqa: BLE001
@@ -373,9 +451,12 @@ class Scan_Worker_Cls(QObject):
     """
     Description:
         Takes the scan's frame off the GUI thread: Capture_Still waits for a still scene (up to about a
-        second) before it takes one fresh frame. Reports the frame with its distorted original and
-        undistortion record, read on this thread right after the capture so they belong to that frame — or
-        a failure, saying whether it was a moving scene (a refusal, the camera fine) or a capture failure.
+        second) before it takes one fresh frame. Every fresh frame the check grabs is handed on as the preview's
+        are (a one-frame mailbox, Frame_Ready, Take_Frame), so the window shows the scene while the scan waits;
+        the last of them stays readable (Last_Frame), for a scan refused for movement. Reports the frame with its
+        distorted original and undistortion record, read on this thread right after the capture so they belong
+        to that frame — or a failure, saying whether it was a moving scene (a refusal, the camera fine) or a
+        capture failure.
 
     Initialization of the Class:
         Args:
@@ -392,14 +473,18 @@ class Scan_Worker_Cls(QObject):
                 thread.started.connect(Cls.Run)
 
             Features:
+                # Properties of the class.
+                Cls.Last_Frame
+
                 # Signals of the class.
-                Cls.Scan_Finished; Cls.Scan_Failed
+                Cls.Frame_Ready; Cls.Scan_Finished; Cls.Scan_Failed
 
                 # Functions of the class.
-                Cls.Run()
+                Cls.Run(); Cls.Take_Frame()
     """
 
     # << SIGNALS >> #
+    Frame_Ready = pyqtSignal()                          # a fresh frame waits in the mailbox (Take_Frame)
     Scan_Finished = pyqtSignal(object, object, object)  # (frame, distorted original or None, undistortion or None)
     Scan_Failed = pyqtSignal(str, bool)                 # (the sentence, whether the scene was moving)
 
@@ -408,6 +493,46 @@ class Scan_Worker_Cls(QObject):
 
         # << PRIVATE >> #
         self.__camera = camera
+        self.__mailbox = Frame_Mailbox_Cls()
+        # The last fresh frame the check grabbed, None before the first.
+        self.__last = None
+
+    @property
+    def Last_Frame(self) -> tp.Optional[tp.List[tp.List[int]]]:
+        """
+        Description:
+            The last fresh frame the stillness check grabbed — what a scan refused for movement leaves on screen.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The frame (RGB), or None when none was grabbed.
+        """
+
+        return self.__last
+
+    def Take_Frame(self) -> tp.Optional[tp.List[tp.List[int]]]:
+        """
+        Description:
+            Take the newest fresh frame out of the mailbox (GUI thread), leaving it empty.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The frame (RGB), or None when none waits.
+        """
+
+        return self.__mailbox.Take()
+
+    def __Hand_On(self, frame: tp.List[tp.List[int]]) -> None:
+        """
+        Description:
+            Capture_Still's frame callback (this thread): keep the frame as the last, and announce it when the
+            mailbox was empty.
+
+        Args:
+            (1) frame [Matrix<uint8> HxWx3]: A fresh frame (RGB).
+        """
+
+        self.__last = frame
+        if self.__mailbox.Put(frame):
+            self.Frame_Ready.emit()
 
     def Run(self) -> None:
         """
@@ -416,7 +541,7 @@ class Scan_Worker_Cls(QObject):
         """
 
         try:
-            frame = self.__camera.Capture_Still()
+            frame = self.__camera.Capture_Still(frame_cb=self.__Hand_On)
         except Camera_Motion_Error_Cls as exc:
             self.Scan_Failed.emit(str(exc), True)
         except Exception as exc:                          # noqa: BLE001

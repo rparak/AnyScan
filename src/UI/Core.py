@@ -168,6 +168,8 @@ class AnyScan_Window_Cls(QMainWindow):
 
     CONST_READING_HAS_FRAME = ('Frame captured. Press Analyze to read the scene. The result '
                                'appears here as plain English text.')
+    # The reading panel while a scan waits for a still scene: the previous result is gone the moment SCAN is pressed.
+    CONST_READING_SCANNING = 'Scanning… The frame is taken as soon as nothing moves in the view.'
 
     # The disabled CONFIGURATION button's tooltip: configuration is decided before the first
     # CONNECT of a run, and changing it afterwards means restarting the application.
@@ -775,6 +777,8 @@ class AnyScan_Window_Cls(QMainWindow):
             (1) parameter [string]: The prompt sentence.
         """
 
+        if self.__scanning or self.__preview_pending == 'scan':
+            return self.CONST_READING_SCANNING
         if self.__frame is not None:
             return self.CONST_READING_HAS_FRAME
         return self.CONST_READING_NO_FRAME if self.__camera.Connected else self.CONST_READING_DISCONNECTED
@@ -1133,17 +1137,39 @@ class AnyScan_Window_Cls(QMainWindow):
     def __On_Scan_Button_Clicked(self) -> None:
         """
         Description:
-            Take a frame. During the live preview, the preview is stopped first and the scan starts once its
-            worker has ended (__On_Preview_Stopped), so the scan's stream is a new one and its frame is
-            exposed after SCAN was pressed.
+            Take a frame. The previous frame and its result leave the Camera View and Scene Understanding at
+            once (__Clear_For_Scan): the operator never sees an old result while a new scan runs. During the live
+            preview, the preview is stopped first and the scan starts once its worker has ended
+            (__On_Preview_Stopped), so the scan's stream is a new one and its frame is exposed after SCAN was
+            pressed.
         """
 
         if self.__worker_running or not self.__camera.Connected:
             return
         if self.__preview_thread is not None:
-            self.__Stop_Preview('scan')
+            if self.__preview_pending is None:
+                self.__Stop_Preview('scan')
+                self.__Clear_For_Scan()
             return
+        self.__Clear_For_Scan()
         self.__Start_Scan(resume_preview=False)
+
+    def __Clear_For_Scan(self) -> None:
+        """
+        Description:
+            SCAN was pressed: drop the previous frame — ANALYZE can no longer read it — and its result from the
+            Camera View and Scene Understanding, and say a scan is under way. Nothing of it comes back, whether
+            the scan succeeds, is refused or fails. The run's statistics stay (CLEAR resets them).
+        """
+
+        self.__frame = None
+        self.__frame_distorted = None
+        self.__frame_undistortion = None
+        self.__viewport.Clear()
+        self.__Clear_Reading()
+        self.__stage_badges.Set_Badges([('Scanning', 'idle')])
+        self.__frame_badge.setText('Scanning…')
+        self.__Sync_Controls()
 
     def __Start_Scan(self, resume_preview: bool) -> None:
         """
@@ -1162,7 +1188,9 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__worker_running = True
         self.__scanning = True
         self.__resume_preview = resume_preview
-        self.__viewport.Start_Busy('Capturing frame…', 'camera')
+        # The fresh frames the stillness check grabs show as they come, under the SCANNING marker — no scrim.
+        self.__viewport.Start_Live('scan')
+        self.__frame_badge.setText('Scanning…')
         self.__Sync_Controls()
 
         self.__scan_thread = QThread(self)
@@ -1170,6 +1198,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__scan_worker.moveToThread(self.__scan_thread)
 
         self.__scan_thread.started.connect(self.__scan_worker.Run)
+        self.__scan_worker.Frame_Ready.connect(self.__On_Scan_Frame)
         self.__scan_worker.Scan_Finished.connect(self.__On_Scan_Finished)
         self.__scan_worker.Scan_Failed.connect(self.__On_Scan_Failed)
 
@@ -1180,18 +1209,37 @@ class AnyScan_Window_Cls(QMainWindow):
 
         self.__scan_thread.start()
 
-    def __End_Scan(self) -> None:
+    def __On_Scan_Frame(self) -> None:
         """
         Description:
-            The scan's worker has reported: join its thread, then let it go and clear the overlay.
+            A fresh frame of the scan's stillness check waits in its worker's mailbox: paint the newest. Only the
+            viewport sees it; the frame the scan keeps arrives with Scan_Finished.
         """
 
+        if self.__scan_worker is None:
+            return
+        frame = self.__scan_worker.Take_Frame()
+        if frame is not None:
+            self.__viewport.Show_Live(Rgb_To_Qimage(frame))
+
+    def __End_Scan(self) -> tp.Optional[tp.Any]:
+        """
+        Description:
+            The scan's worker has reported: join its thread, then let it go and clear the overlay a close may have
+            put up.
+
+        Returns:
+            (1) parameter [Matrix<uint8> HxWx3 or None]: The last fresh frame the stillness check grabbed (RGB).
+        """
+
+        last = self.__scan_worker.Last_Frame if self.__scan_worker is not None else None
         self.__worker_running = False
         Join_Worker_Thread(self.__scan_thread)              # before the references go: Join_Worker_Thread
         self.__scan_thread = None
         self.__scan_worker = None
         self.__scanning = False
         self.__viewport.Stop_Busy()
+        return last
 
     def __On_Scan_Finished(self, frame: tp.Any, distorted: tp.Any, undistortion: tp.Any) -> None:
         """
@@ -1209,6 +1257,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__frame_distorted = distorted
         self.__frame_undistortion = undistortion
         self.__viewport.Show_Frame(Rgb_To_Qimage(self.__frame))
+        self.__viewport.Stop_Live()
         self.__frame_badge.setText(self.__Frame_Badge_Text())
         self.__status.updated.Set_Value(datetime.now().strftime(self.CONST_TIME_FORMAT))
         if self.__logger is not None:
@@ -1225,8 +1274,9 @@ class AnyScan_Window_Cls(QMainWindow):
         """
         Description:
             The scan took no frame. The failed capture ends this scan's cycle now, whatever the reason that
-            follows. A moving scene is a refusal, not an error: a WARNING, the previous frame kept, and the live
-            preview back when the scan came from it, so the operator sees what moves. A capture that failed AND
+            follows. A moving scene is a refusal, not an error: a WARNING, the last fresh frame the check grabbed
+            left on screen (never the previous result, gone since SCAN was pressed; ANALYZE has no frame), and
+            the live preview back when the scan came from it, so the operator sees what moves. A capture that failed AND
             left the camera disconnected (the backend found its device removed) is a mid-session connection
             LOST (ERROR, closes the session); a failure while still connected is a transient capture error
             (tracked ERROR that a later scan can resolve).
@@ -1236,7 +1286,11 @@ class AnyScan_Window_Cls(QMainWindow):
             (2) moving [bool]: Whether the scene was moving (the camera is fine).
         """
 
-        self.__End_Scan()
+        last = self.__End_Scan()
+        if moving and last is not None:
+            self.__viewport.Show_Frame(Rgb_To_Qimage(last))
+        self.__viewport.Stop_Live()
+        self.__frame_badge.setText(self.__Frame_Badge_Text())
         if self.__logger is not None:
             self.__logger.Log_Scan_Failed()
         if moving:
@@ -1260,14 +1314,15 @@ class AnyScan_Window_Cls(QMainWindow):
     def __Frame_Badge_Text(self) -> str:
         """
         Description:
-            The Camera View's badge outside the live preview: the scanned frame's size, or 'No frame'.
+            The Camera View's badge outside the live preview: the scanned frame's size; 'Not scanned' when the view
+            shows a frame no scan kept (a scan refused for movement leaves its last fresh frame); else 'No frame'.
 
         Returns:
             (1) parameter [string]: The badge text.
         """
 
         if self.__frame is None:
-            return 'No frame'
+            return 'Not scanned' if self.__viewport.Has_Frame() else 'No frame'
         return '%d × %d · RGB' % (self.__frame.shape[1], self.__frame.shape[0])
 
     def __On_Preview_Button_Clicked(self) -> None:
@@ -1531,6 +1586,7 @@ class AnyScan_Window_Cls(QMainWindow):
         elif self.__scanning:
             text = 'Closing when the scan ends… Close again to quit now.'
             line = 'Close requested during a scan: the window closes when it ends.'
+            self.__viewport.Start_Busy(text, 'camera')
         else:
             self.__worker.Request_Stop()
             text = 'Stopping the analysis, then closing… Close again to quit now.'

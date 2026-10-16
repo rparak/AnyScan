@@ -237,6 +237,35 @@ def _Enabled(window: AnyScan_Window_Cls) -> tp.Set[str]:
     return {label for label, name in CONST_BUTTONS if _Private(window, name).isEnabled()}
 
 
+def _Shown(window: AnyScan_Window_Cls) -> tp.Optional[QImage]:
+    """The image the Camera View paints now (the live frame, the selected render or the frame), or None."""
+    return getattr(_Private(window, '__viewport'), '_Viewport_Cls__Displayed')()
+
+
+def _Shown_Stream(window: AnyScan_Window_Cls) -> tp.Optional[int]:
+    """The number of the camera stream the shown image came from (its first pixel), or None when none is shown."""
+    image = _Shown(window)
+    return None if image is None else image.pixelColor(0, 0).red()
+
+
+def _Analysed(window: AnyScan_Window_Cls) -> None:
+    """Scan through the button and hand the window an analysis of the frame, as the worker does."""
+    _Private(window, '__button_scan').click()
+    _Idle(window)
+    setattr(window, CONST_MANGLE + '__current_set_id', 'set_%d' % id(window))
+    _Private(window, '__On_Analysis_Finished')(_Result(_Private(window, '__frame').shape))
+    assert _Private(window, '__viewport').Has_Views() and not _Private(window, '__reading_lead').isHidden()
+
+
+def _Assert_Result_Gone(window: AnyScan_Window_Cls) -> None:
+    """Nothing of the previous scan or its analysis is held or shown: no frame, no render, no reading."""
+    viewport = _Private(window, '__viewport')
+    assert _Private(window, '__frame') is None and not viewport.Has_Frame() and not viewport.Has_Views()
+    assert _Private(window, '__reading_lead').isHidden() and _Private(window, '__object_list').box.count() == 0
+    assert _Private(window, '__reading_empty').text() == window.CONST_READING_SCANNING
+    assert [badge.text() for badge in _Private(window, '__stage_badges').Badges()] == ['Scanning']
+
+
 def _Log(logger: Session_Logger_Cls) -> str:
     with open(logger.Path, encoding='utf-8') as handle:
         return handle.read()
@@ -530,18 +559,20 @@ def test_a_scan_while_something_moves_is_refused_and_the_preview_comes_back(qt_a
 def test_a_scan_without_the_preview_while_something_moves_does_not_start_it(qt_app, tmp_path, scan) -> None:
     """
     Description:
-        The same refusal for a SCAN pressed without the preview: the message is shown and the last scanned frame
-        kept, and the preview stays off — it comes back only when the scan came from it.
+        The same refusal for a SCAN pressed without the preview: the message is shown over the last fresh frame
+        the check grabbed — the previous scanned frame is gone, so ANALYZE has none — and the preview stays off; it
+        comes back only when the scan came from it.
     """
 
     camera = _Live_Camera_Cls()
     window, _, _ = _Window(tmp_path, camera)
     scan(window)
-    frame = _Private(window, '__frame')
     camera.moving = True
     scan(window)
-    assert _Private(window, '__frame') is frame and _Private(window, '__preview_thread') is None
+    assert _Private(window, '__frame') is None and _Private(window, '__preview_thread') is None
+    assert _Shown_Stream(window) == 2 and _Private(window, '__frame_badge').text() == 'Not scanned'
     assert _Private(window, '__reading_empty').text().startswith('Something is moving in the view')
+    assert 'ANALYZE' not in _Enabled(window)
     window.close()
 
 
@@ -683,3 +714,89 @@ def test_the_connection_check_leaves_a_scanning_camera_alone(qt_app, tmp_path) -
     assert camera.Connected and ('close',) not in camera.events
     _Idle(window)
     window.close()
+
+
+@pytest.mark.parametrize('previewing', [False, True], ids=['without-preview', 'during-preview'])
+def test_scan_after_analyze_never_shows_the_old_result(qt_app, tmp_path, previewing: bool) -> None:
+    """
+    Description:
+        The rig's case: SCAN, ANALYZE, the part moved, SCAN again — with and without the preview running. The moment
+        SCAN is pressed the previous frame and its result leave the Camera View and Scene Understanding (the reading
+        says a scan is under way); at no point of the scan does the view paint the old frame or its analysis — it
+        shows the fresh frames the stillness check grabs, from the scan's own stream; then the new scanned frame.
+    """
+
+    camera = _Live_Camera_Cls(delay=0.12)
+    window, _, _ = _Window(tmp_path, camera)
+    _Analysed(window)
+    if previewing:
+        _Preview(window, frames=1)
+    _Private(window, '__button_scan').click()
+    _Assert_Result_Gone(window)
+    scan_stream = camera.stream + 1
+    shown = []
+    _Pump(lambda: shown.append(_Shown_Stream(window)) or (_Private(window, '__frame') is not None
+                                                         and not _Private(window, '__worker_running')))
+    seen = [stream for stream in shown if stream is not None]
+    assert scan_stream in seen and set(seen) <= ({2, scan_stream} if previewing else {scan_stream}), seen
+    assert seen[-1] == scan_stream and not _Private(window, '__viewport').Has_Views()
+    assert _Private(window, '__frame')[0, 0, 0] == scan_stream and 'ANALYZE' in _Enabled(window)
+
+
+def test_the_scan_shows_its_fresh_frames_under_the_scanning_marker_without_a_scrim(qt_app, tmp_path) -> None:
+    """
+    Description:
+        While the scan waits for a still scene, the view paints the fresh frames as they come: the table at its own
+        colour (no busy scrim over it, no busy overlay), with the inspection area, and in the corner the SCANNING
+        marker — the busy overlay's camera icon and the word in white on the purple block. The badge says
+        Scanning….
+    """
+
+    camera = _Live_Camera_Cls(delay=0.2)
+    camera.moving = True
+    window, _, _ = _Window(tmp_path, camera)
+    viewport = _Private(window, '__viewport')
+    _Private(window, '__button_scan').click()
+    _Pump(lambda: getattr(viewport, '_Viewport_Cls__live') is not None)
+    assert viewport.Live_Kind() == 'scan' and _Private(window, '__frame_badge').text() == 'Scanning…'
+    assert not getattr(viewport, '_Viewport_Cls__busy')
+    pixels = _Grab(viewport)
+    left, top, right, bottom = _Area_On_Screen(window)
+    centre = pixels[(top + bottom) // 2 + 150, (left + right) // 2 + 300]
+    assert (np.abs(centre.astype(int) - CONST_TABLE[::-1]) <= 3).all(), 'the fresh frame is covered'
+    assert _Is(pixels, Theme.CONST_INSPECTION_AREA)[top - 1:top + 2, left:right + 1].any(axis=0).mean() > 0.98
+    margin = viewport.CONST_LIVE_MARGIN
+    block = pixels[margin + 1:margin + 26, margin + 1:margin + 140]
+    assert _Is(block, Theme.CONST_INK, 2).mean() > 0.5
+    # The icon first: its 11 cells of 2 px make an unbroken run of white columns, which no letter makes.
+    white = np.flatnonzero(_Is(block, Theme.CONST_ON_INK, 2).any(axis=0))
+    run = np.argmax(np.diff(white) != 1) + 1 if white.size > 1 else white.size
+    assert white.size and white[0] < 16 and run >= 18, white[:40]
+    _Idle(window)
+
+
+def test_a_scan_refused_after_analyze_keeps_the_last_fresh_frame_never_the_old_result(qt_app, tmp_path) -> None:
+    """
+    Description:
+        After SCAN and ANALYZE, a SCAN during the preview while something moves is refused: the view keeps the last
+        fresh frame the check grabbed (from the scan's stream) with the Moving message, ANALYZE has no frame, and the
+        preview comes back. Stopping the preview then shows that fresh frame — never the old frame or its result.
+    """
+
+    camera = _Live_Camera_Cls(delay=0.1)
+    window, _, _ = _Window(tmp_path, camera)
+    _Analysed(window)
+    _Preview(window, frames=1)
+    camera.moving = True
+    _Private(window, '__button_scan').click()
+    _Pump(lambda: _Private(window, '__scanning'))
+    _Pump(lambda: not _Private(window, '__scanning'))
+    assert _Private(window, '__reading_empty').text().startswith('Something is moving in the view')
+    assert _Private(window, '__frame') is None and 'ANALYZE' not in _Enabled(window)
+    _Pump(lambda: _Private(window, '__viewport').Live_Kind() == 'preview')
+    _Private(window, '__button_preview').click()
+    _Pump(lambda: _Private(window, '__preview_thread') is None)
+    viewport = _Private(window, '__viewport')
+    assert not viewport.Has_Views() and _Shown_Stream(window) == 3
+    assert _Private(window, '__frame_badge').text() == 'Not scanned'
+
