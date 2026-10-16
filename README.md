@@ -399,24 +399,28 @@ git diff test/Vision/data/characterization.txt
 
 ## Detection logic
 
-`Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) runs one frame through four stages,
-each in its own module, then measures the objects. Two cues find the objects and are
-**fused, not gated**: background subtraction (stage 1) finds *what changed* against a fixed
-empty-surface reference — cheap and class-agnostic — and FastSAM (stage 2) finds object
-instances in the frame. Stage 3 ORs the two, so an object survives if **either** cue sees it
-(a part FastSAM misses is kept by the difference; a dark part the difference barely sees is
-kept by FastSAM), then splits the result into objects. Stage 4 crops each object — padded,
-with every *other* object's pixels replaced by the reference so no neighbour is described
-with it, contrast-stretched from the object's own pixels — and the Gemma describer, or the
-model-free fallback, writes its description.
+**The frame.** PREVIEW streams the camera into the Camera View (`Camera_Backend_Cls.Start_Preview`,
+`src/Camera/Core.py`); nothing of the preview is analysed. SCAN stops it and calls `Capture_Still`: a new stream,
+each frame compared with the one before (`Camera.Utilities.Stillness.Is_Still`), and the first frame with no
+movement since the previous one is the scan's — one frame, undistorted when calibrated, never an average. If
+something still moves after about a second, no frame is taken.
+
+`Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) then runs the frame through three stages that every mode
+shares, each in its own module (`src/Vision/Utilities/` unless named). Two cues find the objects and are **fused,
+not gated**: background subtraction (stage 1) finds *what changed* against a fixed empty-surface reference — cheap
+and class-agnostic — and FastSAM (stage 2) finds object instances in the frame. Stage 3 ORs the two, so an object
+survives if **either** cue sees it (a part FastSAM misses is kept by the difference; a dark part the difference
+barely sees is kept by FastSAM), then splits the result into objects.
 
 ```
   current frame (RGB)  +  reference background
            |  (RGB -> BGR)
            v
-  (1) background subtraction ......... Segmentation.Background_Foreground
-           |  the foreground mask: absdiff -> blur -> floored
-           |  Otsu -> open -> dilate; one of the two fused cues
+  (1) background subtraction ......... Segmentation.Background_Difference
+           |  absdiff -> blur -> grey; then   + Segmentation.Foreground_Mask
+           |  floored Otsu -> open -> dilate: the foreground
+           |  mask, one of the two fused cues (the difference
+           |  is also the Heatmap view)
            v
   (2) FastSAM segmentation ........... Segmenter.Fast_Sam_Cls
            |  everything-mode instance masks + scores; the
@@ -429,16 +433,19 @@ model-free fallback, writes its description.
            |  object records the cue(s) that found it
            v
       objects: mask + tight bbox (+ cue, coverage, score)
-           |
-           v
+```
+
+**A detect-only mode** (Segment Anything) then describes and measures each object:
+
+```
   (4) description .................... Describers.Gemma_Describer_Cls
-           |  padded crop, neighbours removed,  OR Describe_Fallback
-           |  contrast-stretched, fed to Gemma  (per CONST_DESCRIBER;
-           |  with the object prompt            the fallback reads
-           |                                    mask + bbox directly)
+           |  padded crop, neighbours replaced    OR Describe_Fallback
+           |  by the reference (Enhancement.        (per CONST_DESCRIBER;
+           |  Isolate_Crop), contrast-stretched     the fallback reads
+           |  (Enhance_Crop), fed to Gemma with     mask + bbox directly)
+           |  the object prompt
            v
-      Compose -> per-object lines + verdict  (Reporting.Compose)
-           |
+      Reporting.Compose -> per-object lines + verdict ('n found')
            v
       measurement ........................ Measure.Measure_Objects
            |  size and rotation from each mask through the
@@ -446,6 +453,76 @@ model-free fallback, writes its description.
            v
       Analysis_Str
 ```
+
+**A catalogue mode** measures every object first, then recognises, places and checks it, and describes it last,
+with what the checks found:
+
+```
+  objects from stage 3
+           v
+  measurement + outline .............. Measure.Measure_Objects, Dimensions.Check_Objects
+           |  size against the item's outline and its tolerance
+           v
+  recognition ........................ Identifier.Dino_Identifier_Cls, Classify.Best_Match
+           |  each object's upright crop, turned, against the     + Classify.Classify
+           |  item's reference image of each side (DINOv2). The
+           |  rule: area >= Unspecified_Area_Ratio x the part's -> Unspecified;
+           |  similarity >= Identify_Similarity -> OK, or NOK if the outline fails;
+           |  else the outline alone within tolerance -> NOK; else Warning
+           v
+  inspection area .................... Classify.Inspection_Area_Px, Inside_Area,
+           |  the frame inset by the station's            Resembles_Part, Settle_Area
+           |  Inspection_Area. Only an object wholly inside is
+           |  judged: one outside is a Warning and no check runs on
+           |  it. Whether it resembles the part is kept apart from
+           |  where it lies: by similarity (>= 0.657), colour (mean
+           |  saturation <= 76.3) and size (its visible extent no
+           |  larger than the part's diagonal plus its tolerance) a
+           |  Warning is a part outside the area, else a foreign object
+           v                       (OK or NOK and inside only)
+  side up ............................ Holes.Hole_Candidates, Classify.Decide_Side
+           |  FastSAM again on the upright crop for holes. The   + Holes.Side_Evidence
+           |  side is DINOv2's best when its margin over the next
+           |  is >= 0.265, else the side a hole only it has shows
+           |  (the countersinks show the front). Undecided, the
+           |  part is checked on every side; a conflict or sides
+           |  that disagree -> Unspecified (Classify.Settle_Side)
+           v
+  holes .............................. Holes.Check_Holes -> Classify.Apply_Holes
+           |  each group's count near its positions, diameter,
+           |  edge distances and pitch on the top face, and each
+           |  stepped hole's bore centred on its countersink: its
+           |  offset, less the shift the camera predicts at that
+           |  depth (pinhole model), within 0.85 mm. A missing,
+           |  extra or out-of-tolerance hole makes the part NOK
+           v
+  stains ............................. Stain.Check_Stain -> Classify.Apply_Stain
+           |  the item's colour band inside the part, its edge and
+           |  holes left out; a region of 1 mm² or more makes it NOK
+           v
+  state .............................. Reporting.Shown_State, Reporting.Badges
+           |  OK, NOK, Outside area, Foreign object or Unspecified
+           v
+  (4) description, held to the checks  Reporting.Describer_Prompt, Guard_Description
+           |  the prompt carries the side, its defects and what the
+           |  checks found (Reporting.Findings, no number); a part
+           |  outside the area is asked for its material, shape and
+           |  surface alone, and a sentence naming a hole or a stain
+           |  is dropped. A sentence with a number, naming the checks
+           |  or contradicting the hole or stain check is dropped; on a
+           |  contradiction it is asked once more with the findings
+           |  restated (Reporting.Restated_Prompt), and the state is
+           |  never changed. Reporting.Side_Sentence adds the side
+           v
+      Reporting.Compose -> per-object lines + badges; the Similarity view
+      (Classify.Similarity_Grid: where a judged part looks unlike its
+      reference, not a defect map)
+           v
+      Analysis_Str
+```
+
+The thresholds are measured, not chosen: the record of each is in `docs/design-decisions.md`, and
+`docs/capabilities.md` > *Pipeline stages* lists the stages in one line each.
 
 Every analysis needs a reference-background capture; there is no background-free
 detection path (see `KNOWN_ISSUES.md`).
