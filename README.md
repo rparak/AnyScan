@@ -314,7 +314,9 @@ What a catalogue mode does not check, it cannot fail:
 - **A part outside the inspection area is never judged.** Only a part whose whole outline lies inside the
   area drawn in the Camera View (the frame inset by 10 mm at the top and bottom, 13 mm at the sides) gets OK or
   NOK. Anything else, a part cut by the frame's border included, is a Warning: the stains and holes found on it
-  are named as information, never as a verdict. The insets were measured mostly by the right edge and the top
+  are named as information, never as a verdict. The area is about 101 mm high, so a plate standing with its long
+  side vertical can move only about ±20 mm up or down; place parts by the line on the empty view or the scanned
+  frame (a future live preview will help). The insets were measured mostly by the right edge and the top
   of the view; along the left and bottom edges and in the corners they are not verified (KNOWN_ISSUES).
 - **The Similarity tab is not a defect map.** It shows where a judged part looks unlike its reference to
   DINOv2: the fingerprints show, but so does glare, and missing holes do not.

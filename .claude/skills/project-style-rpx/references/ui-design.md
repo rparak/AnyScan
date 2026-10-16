@@ -33,6 +33,18 @@ practices followed inconsistently are under **Unsettled**.
   rust-stained metal 3.02:1, steel 2.32:1). It equals OK, the owner's ruling of 2026-10-15: that mode shows no verdict
   (DD *Every chip carries a white numeral*). One purple: no darker shade of it exists in the theme (DD
   *The palette is the JIC Smart Factory brand's*).
+- A Warning has two looks on the frame, never on the mask: a catalogued part that only lies outside the
+  inspection area keeps the amber; a **foreign object** (a Warning inside the area: not the part, not supposed to be
+  there) is drawn, outline, box and chip, in a grey of the brand's grey-lilac family, `Theme.CONST_FOREIGN_BOX`,
+  with the white numeral (`Annotate.Foreign`). Candidates against the table #236A56 / white / #655E6D: `#C9BFD2`
+  3.63 / 1.77 / 3.52:1, `#B4A6BE` (the disabled label's token) 2.80 / 2.30 / 2.71:1, `#A396AE` 2.30 / 2.79 /
+  2.23:1, the owner choosing by eye (DD *A catalogue mode judges only inside the inspection area*). The label mask
+  keeps the Warning colours for both: no fill in that hue clears the mask's floors against a box that light.
+- The inspection area's line (`UI.Widgets.Paint_Inspection_Area`, 1 px, solid, square corners, no fill, on screen
+  only) is the amber `Theme.CONST_INSPECTION_AREA` `#FFD880` over a camera image (4.71:1 on the table, 1.18:1 against
+  the Warning amber, told from a Warning frame by its 1 px against the frame's 2 px) and the purple
+  `Theme.CONST_INSPECTION_AREA_EMPTY` (`CONST_INK`) over the empty Camera View, whose grey-lilac hides the amber
+  (1.01:1; the purple 6.79:1). The owner's choice of 2026-10-16 from renders.
 - The box, the chip and the mask outline are drawn in the verdict colour itself, unshifted, on any
   background. A colour is never lightened, darkened or rotated to gain contrast against a frame.
 - Legibility comes from the foreground: a chip is its box's colour and its numeral is plain white
@@ -47,6 +59,8 @@ practices followed inconsistently are under **Unsettled**.
   verdict contour*).
 - ✅ `test/Vision/Utilities/test_annotate.py::test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour`,
   `::test_each_chip_is_its_box_colour_with_a_white_numeral`,
+  `::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
+  `test/UI/test_inspection_area.py::test_the_area_is_drawn_on_the_empty_view_the_scanned_frame_and_the_annotated_result_only`,
   `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box`,
   `::test_verdict_colour_comes_from_the_one_constant`, `::test_every_chip_numeral_is_white`,
   `::test_the_palette_keeps_the_brands_rules`.

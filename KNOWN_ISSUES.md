@@ -607,8 +607,15 @@ and hole-diameter error of the plates inside stays within half its tolerance. Wh
   (`20261016-070736_10`), but their outlines read up to 1.17 mm off nominal from 57 mm out, more than half the
   tolerance.
 
+- **The area is narrow upright.** It is about 101 mm high, so a plate standing with its long side vertical (60 mm)
+  can move only about ±20 mm up or down from the frame's middle row and still be judged (±30 mm lying across).
+  Such a plate 21-22 mm from the centre already reaches into the top band (`Image_062`, `20261015-170753_14`). The
+  area shows on the empty view and on the scanned frame; a future live preview with the area drawn would let the
+  operator place a part before the scan.
+
 - **Impact:** a part placed by the left or bottom edge of the area, or in its corners, is judged on errors measured
-  mostly by the right edge and the top; the area may be larger, or need to be smaller, there.
+  mostly by the right edge and the top; the area may be larger, or need to be smaller, there. An upright plate a
+  little off the middle row is a Warning, to be moved and scanned again.
 - **Not fixed here:** only rig captures can tell (docs/capture-checklist.md, 3d: plates along the area's left and
   bottom edges and in its four corners, clean and stained fronts and backs; plates cut by the frame's border and
   foreign objects cut by it, for the outside-area Warning). If the plates there measure within half of every

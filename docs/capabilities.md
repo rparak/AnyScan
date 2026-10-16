@@ -219,7 +219,8 @@ Two cards:
   only dashed feature marks); a stain as its box with its pixels tinted; each feature numbered on a smaller chip
   (`3.1`, the number of its `Part` line in the Log) on the corner of its box nearest the object's chip, turned with
   that box and never more than 45° off level, never over another chip; a part identified outside the inspection
-  area has every mark, tint and chip in the Warning colour, the mark styles unchanged; each object's box and chip are its state's
+  area has every mark, tint and chip in the Warning colour, the mark styles unchanged; a foreign object (a Warning
+  inside the area) has its outline, box and chip in a grey-lilac grey instead of the amber, on the frame only; each object's box and chip are its state's
   colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified the neutral grey `#655E6D`, and every
   object of a detect-only mode (Segment Anything) the logo purple `#640ABA`; the chip's number is plain
   white on every chip, in every state and mode; a missing hole is placed by the holes found, a countersink's
@@ -231,9 +232,9 @@ Two cards:
   never a verdict, on screen only). While the camera connects, a frame is captured or analysed, the view lies
   under its own grey-lilac at 70 %, the frame showing through, with the step in the purple under a pixel icon of
   the task: a camera while connecting and capturing, a magnifier while analysing. In a catalogue mode the
-  **inspection area** is drawn as a thin solid amber line, square-cornered and unfilled, over the empty view, the
-  scanned frame and the Annotated render (not the Mask, Heatmap or Similarity), on screen only: the saved images
-  never carry it. Segment Anything shows none.
+  **inspection area** is drawn as a thin solid line, square-cornered and unfilled, in the purple over the empty view
+  and in a light amber over the scanned frame and the Annotated render (not the Mask, Heatmap or Similarity), on
+  screen only: the saved images never carry it. Segment Anything shows none.
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
   each object adds `State: …`, one `Reason: …` sentence summing up why it is not OK (counts in words up to

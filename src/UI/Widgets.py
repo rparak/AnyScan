@@ -125,19 +125,22 @@ def Meta_Row(parent_layout: QVBoxLayout, key: str, *, compact: bool, mono: bool 
 
 
 def Paint_Inspection_Area(p: QPainter, draw_rect: QRectF, frame_size: tp.Tuple[int, int],
-                          area_px: tp.Tuple[float, float, float, float]) -> None:
+                          area_px: tp.Tuple[float, float, float, float], color: str = Style.CONST_INSPECTION_AREA) -> None:
     """
     Description:
-        A catalogue mode's inspection area over a frame drawn at draw_rect: a thin solid line in the area's token,
-        square corners, no fill, on the screen only (the images saved to the logger never carry it). The one painter of
-        the area: the Camera View calls it over its empty state, the scanned frame and the annotated result, and a live
-        preview can call it over each of its frames.
+        A catalogue mode's inspection area over a frame drawn at draw_rect: a thin solid line, square corners, no fill,
+        on the screen only (the images saved to the logger never carry it): the amber over a camera image, the purple
+        over the empty view's grey-lilac, where the amber vanishes (Theme, CONST_INSPECTION_AREA_EMPTY). The one painter
+        of the area: the Camera View calls it over its empty state, the scanned frame and the annotated result, and a
+        live preview can call it over each of its frames.
 
     Args:
         (1) p [QPainter(object)]: The active painter (its state is restored).
         (2) draw_rect [QRectF(object)]: Where the frame lies on the painter, letterboxed.
         (3) frame_size [Vector<int> 1x2]: The frame's (width, height) in pixels.
         (4) area_px [Tuple<float> 1x4]: The area on the frame (Vision.Utilities.Classify.Inspection_Area_Px).
+        (5) color [string]: The line's theme token: CONST_INSPECTION_AREA over a camera image (the default),
+                            CONST_INSPECTION_AREA_EMPTY over the empty view.
     """
 
     sx, sy = draw_rect.width() / frame_size[0], draw_rect.height() / frame_size[1]
@@ -146,7 +149,7 @@ def Paint_Inspection_Area(p: QPainter, draw_rect: QRectF, frame_size: tp.Tuple[i
     rect = QRect(int(round(draw_rect.left() + left * sx)), int(round(draw_rect.top() + top * sy)), 0, 0)
     rect.setRight(int(round(draw_rect.left() + right * sx)))
     rect.setBottom(int(round(draw_rect.top() + bottom * sy)))
-    pen = QPen(Style.Token_Color(Style.CONST_INSPECTION_AREA), CONST_INSPECTION_AREA_W, Qt.SolidLine, Qt.SquareCap,
+    pen = QPen(Style.Token_Color(color), CONST_INSPECTION_AREA_W, Qt.SolidLine, Qt.SquareCap,
                Qt.MiterJoin)
     p.save()
     p.setRenderHint(QPainter.Antialiasing, False)
@@ -662,7 +665,8 @@ class Viewport_Cls(QWidget):
         if displayed is None:
             self.__Paint_Empty(p)
             if self.__area is not None:
-                Paint_Inspection_Area(p, QRectF(self.__Letterbox(*self.__area[0])), *self.__area)
+                Paint_Inspection_Area(p, QRectF(self.__Letterbox(*self.__area[0])), *self.__area,
+                                      Style.CONST_INSPECTION_AREA_EMPTY)
         else:
             p.drawImage(self.__Draw_Rect(), displayed)
             if self.__area is not None and (displayed is self.__image or displayed is self.__annotated):

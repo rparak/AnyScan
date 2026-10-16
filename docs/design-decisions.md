@@ -4210,10 +4210,27 @@ hole-less block, was NOK on both sides. The radius is removed and replaced:
    in the Warning colour, chips included, the mark styles unchanged (`Annotate.__Draw_Features`), and its reason adds
    "Seen there: …" naming the hole groups found and missing and its stains, as information. A foreign object, or a
    cut plate that failed identification, gets the first sentence alone and no marks.
-3. **Where it shows.** The Camera View draws the area, a 1 px solid line in `CONST_INSPECTION_AREA`, square corners,
-   no fill, over the empty view once a catalogue configuration is loaded, the scanned frame and the Annotated render
+3. **Where it shows.** The Camera View draws the area, a 1 px solid line, square corners, no fill, over the empty
+   view once a catalogue configuration is loaded, the scanned frame and the Annotated render
    (`UI.Widgets.Paint_Inspection_Area`, which a live preview can call), on screen only: the images saved to the
-   logger never carry it. Segment Anything shows none.
+   logger never carry it. Segment Anything shows none. Over a camera image it is the amber `#FFD880`
+   (`CONST_INSPECTION_AREA`): 4.71:1 on the table (median `#236A56`), 1.18:1 against the Warning amber, from which
+   its 1 px against a frame's 2 px tells it. Over the empty view it is the brand purple `#640ABA`
+   (`CONST_INSPECTION_AREA_EMPTY`): the amber is 1.01:1 on that grey-lilac `#E1DCE6`, the purple 6.79:1. The owner
+   chose both by eye on 2026-10-16, from renders of both amber candidates (`#FFCD59`: 4.32:1 on the table, 1.09:1
+   against the Warning amber, 1.10:1 on the empty view).
+3a. **Foreign objects look different.** Added 2026-10-16, the owner's request: a Warning inside the area, an object
+   that should not be on the surface at all, is drawn on the frame (its outline, outer box and chip, white numeral)
+   in a grey of the brand's grey-lilac family (`CONST_FOREIGN_BOX`, `Annotate.Foreign`), so it is told from a
+   catalogued part that only lies outside the area, which keeps the Warning amber; every object outside the area,
+   a foreign one or a cut plate included, is amber, since its reason is where it lies. The verdict, the counts and
+   the badge (`Foreign object · n`) are unchanged. The label mask keeps the Warning colours for both: in that hue no
+   fill clears the mask's floors (ΔE 25 from the box, 4.5:1 on black) against a box of L* 64-79. Three candidates,
+   rendered on `Image_059` beside an Unspecified frame and an outside-area amber frame, against the table / the white
+   numeral / Unspecified's `#655E6D`: `#C9BFD2` 3.63 / 1.77 / 3.52:1 (ΔE 37.7), `#B4A6BE` (the existing disabled
+   label token) 2.80 / 2.30 / 2.71:1 (ΔE 29.3), `#A396AE` 2.30 / 2.79 / 2.23:1 (ΔE 23.4); `#B4A6BE` stands until
+   the owner chooses on the rig. A lighter grey reads better on the table and worse under its numeral: no grey of
+   this family reaches 3:1 against both (it would need a relative luminance of at least 0.44 and at most 0.30).
 4. **The words.** The badge names the Warnings: `Foreign object · n`, `Outside the area · n`, or `Warning · n` for
    both. Trends and History keep one Warning series, described as objects not judged.
 5. **The side's readings.** A part whose side could not be told and is NOK on both readings keeps the readings
@@ -4236,7 +4253,8 @@ against nominal (worst / median, mm), and DINOv2's similarity (lowest / median):
 | 15 / 15 | 163.6 × 91.2 | 34 | 0.77 / 0.35 | 0.66 / 0.13 | 0.73 / 0.22 | 0.757 / 0.923 | `Image_083` |
 | **10 / 13** | **167.6 × 101.2** | **40** | **0.77 / 0.34** | **0.66 / 0.13** | **0.73 / 0.22** | **0.730 / 0.923** | `Image_083` |
 
-Every tolerance is 1.5 mm, so half is 0.75. The owner's criterion, the smallest whole-millimetre inset at which every
+Every tolerance is 1.5 mm, so half is 0.75. Accepted by the owner on 2026-10-16, with `Image_083` set aside because its
+error does not depend on where it lies. The owner's criterion, the smallest whole-millimetre inset at which every
 error of the plates inside stays within half its tolerance, is met by no inset: `Image_083`'s plate, 14.2 mm from the
 centre, reads 0.77 mm off its nominal size, inside every candidate, so no inset changes it, and it was set aside (no
 calipers: part of it may be the plate). Of the errors that depend on where the plate lies, only one binds:
@@ -4258,6 +4276,11 @@ in its corners (a whole plate can lie up to about 67 mm out there; the farthest 
 foreign object cut by the border (KNOWN_ISSUES, *The inspection area's insets rest on plates measured mostly by the
 right edge*).
 
+**Placing a plate.** The area is 101.2 mm high, so a plate standing with its long side upright (60 mm) can move only
+about ±20 mm up or down from the frame's middle row and still be judged; lying with its long side across, ±30 mm. A
+live preview with the area drawn (`Paint_Inspection_Area`) would let the operator place it before the scan; today
+the area shows on the empty view and on the scanned frame.
+
 **Rejected.** A similarity rule for cut objects, threshold and visible evidence combined (the owner's first plan):
 dropped by the owner for the area before it was measured. A rule tolerating a slightly cut plate: unmeasured, and a
 plate's corner off the frame cannot be checked. The data hull of the judged plates as the area (0.4–3.9 mm from the
@@ -4274,6 +4297,7 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_f
 `::test_a_part_nok_on_every_side_gives_what_its_readings_share_else_each_with_its_side`,
 `::test_the_badge_states_the_worst_verdict`,
 `test/Vision/Utilities/test_annotate.py::test_a_part_outside_the_inspection_area_is_marked_only_in_the_warning_colour`,
+`::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
 `test/UI/test_inspection_area.py`, `test/Configuration/test_core.py::test_an_inspection_area_too_small_for_the_part_fails_the_load`,
 `test/integration/test_edge_of_view.py` (frames 2, 6, 14 and 21 of `20261016-070531_s1` added as crops),
 `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`.

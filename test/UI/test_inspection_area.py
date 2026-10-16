@@ -77,19 +77,21 @@ def _Grab(widget) -> np.ndarray:
     return np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)[:, :, :3].copy()
 
 
-def _Line(pixels: np.ndarray) -> np.ndarray:
-    """Where the pixels are the area's colour, within a blend of its antialiased edge, as a bool HxW map."""
-    r, g, b = Theme.Hex_To_Rgb(Theme.CONST_INSPECTION_AREA)
+def _Line(pixels: np.ndarray, colour: str = Theme.CONST_INSPECTION_AREA) -> np.ndarray:
+    """Where the pixels are the area's colour (the amber unless given), within a small blend, as a bool HxW map."""
+    r, g, b = Theme.Hex_To_Rgb(colour)
     return (np.abs(pixels.astype(int) - np.array([b, g, r])) <= 45).all(axis=2)
 
 
-def _Area_Drawn(pixels: np.ndarray, left: int, top: int, right: int, bottom: int) -> bool:
-    """Whether the area's four edges are drawn, solid, where they belong (within a pixel), and nothing else."""
-    line = _Line(pixels)
+def _Area_Drawn(pixels: np.ndarray, left: int, top: int, right: int, bottom: int,
+               colour: str = Theme.CONST_INSPECTION_AREA, clear_inside: bool = True) -> bool:
+    """Whether the area's four edges are drawn, solid, in the colour, where they belong (within a pixel), and, unless
+    clear_inside is False (the empty view's mark is the same purple), nothing of it inside."""
+    line = _Line(pixels, colour)
     edges = [line[top - 1:top + 2, left:right + 1].any(axis=0), line[bottom - 1:bottom + 2, left:right + 1].any(axis=0),
              line[top:bottom + 1, left - 1:left + 2].any(axis=1), line[top:bottom + 1, right - 1:right + 2].any(axis=1)]
     inner = line[top + 3:bottom - 2, left + 3:right - 2]
-    return all(edge.mean() > 0.98 for edge in edges) and not inner.any()
+    return all(edge.mean() > 0.98 for edge in edges) and not (clear_inside and inner.any())
 
 
 def _Viewport(area: tp.Any) -> Viewport_Cls:
@@ -111,13 +113,15 @@ def test_the_area_is_drawn_on_the_empty_view_the_scanned_frame_and_the_annotated
     """
     Description:
         With an area set, the viewport draws it as a thin solid rectangle with square corners and no fill where it lies
-        on the letterboxed frame: over the empty state (before any scan), over a scanned frame (the green table) and
-        over the annotated result, but not over the mask. Without one it draws none.
+        on the letterboxed frame: over the empty state (before any scan) in the purple, where the amber would vanish on
+        the grey-lilac, and in the amber over a scanned frame (the green table) and over the annotated result, but not
+        over the mask. Without one it draws none.
     """
 
     left, top, right, bottom = 65, 50, 895, 550
     viewport = _Viewport((CONST_FRAME, CONST_AREA))
-    assert _Area_Drawn(_Grab(viewport), left, top, right, bottom)
+    empty = _Grab(viewport)
+    assert _Area_Drawn(empty, left, top, right, bottom, Theme.CONST_INSPECTION_AREA_EMPTY, False) and not _Line(empty).any()
     table = _Image((80, 101, 23))
     viewport.Show_Frame(table)
     assert _Area_Drawn(_Grab(viewport), left, top, right, bottom)
@@ -164,15 +168,13 @@ def test_a_catalogue_mode_shows_its_stations_area_and_segment_anything_none(qt_a
     window = AnyScan_Window_Cls(Configuration_Str=config, camera=File_Camera_Cls(reference_background_path))
     viewport = getattr(window, '_AnyScan_Window_Cls__viewport')
     area = getattr(viewport, '_Viewport_Cls__area')
-    if not shown:
-        assert area is None and not _Line(_Grab(viewport)).any()
-        return
     inset = config.Inspection_Area
     expected = Inspection_Area_Px(CONST_FRAME, config.Scale, inset.Long_Edge_Inset_Mm, inset.Short_Edge_Inset_Mm)
-    assert area == (CONST_FRAME, expected)
     pixels = _Grab(viewport)
     scale = min(pixels.shape[1] / CONST_FRAME[0], pixels.shape[0] / CONST_FRAME[1])
     x0, y0 = int((pixels.shape[1] - CONST_FRAME[0] * scale) / 2), int((pixels.shape[0] - CONST_FRAME[1] * scale) / 2)
     left, top, right, bottom = expected
-    assert _Area_Drawn(pixels, int(round(x0 + left * scale)), int(round(y0 + top * scale)),
-                       int(round(x0 + right * scale)), int(round(y0 + bottom * scale)))
+    drawn = _Area_Drawn(pixels, int(round(x0 + left * scale)), int(round(y0 + top * scale)),
+                        int(round(x0 + right * scale)), int(round(y0 + bottom * scale)), Theme.CONST_INSPECTION_AREA_EMPTY,
+                        False)
+    assert (area == (CONST_FRAME, expected), drawn) == (True, True) if shown else (area, drawn) == (None, False)

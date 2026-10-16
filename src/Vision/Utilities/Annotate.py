@@ -28,7 +28,7 @@ import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
 from Parameters.Theme import (Verdict_Color, Detection_Color, Detection_Mask_Outline, Mask_Outline_Color,
-                              Hex_To_Bgr, CONST_CHIP_NUMERAL)
+                              Hex_To_Bgr, CONST_CHIP_NUMERAL, CONST_FOREIGN_BOX)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -610,6 +610,22 @@ def __Draw_Dashed_Line(image: tp.Any, start: tp.Tuple[float, float], end: tp.Tup
         position = stop + gap
 
 
+def Foreign(det: Detection_Str) -> bool:
+    """
+    Description:
+        Whether an object is foreign in a catalogue mode: a Warning lying inside the inspection area, so not the part
+        and not supposed to be on the surface at all, told on the frame from a part that only lies outside the area.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [bool]: True for a foreign object.
+    """
+
+    return det.Verdict == 'Warning' and det.Catalogue is not None and not det.Catalogue.Outside_Area
+
+
 def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
                  cv2: tp.Any, verdict_colored: bool, neutral_hex: str,
                  draw_rotated: bool = False, on_mask: bool = False) -> None:
@@ -632,7 +648,9 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
                                  (solid), demoting its axis-aligned box to a thin dashed line. The
                                  Camera View's annotated frame does; the label mask does not.
         (8) on_mask [bool]: The image is the label mask: a verdict drawn in the neutral colour
-                            (Unspecified) takes the mask's derived neutral outline (Mask_Outline_Color).
+                            (Unspecified) takes the mask's derived neutral outline (Mask_Outline_Color). On the
+                            frame a foreign object (Foreign) takes the foreign grey (CONST_FOREIGN_BOX), its
+                            outline, box and chip; on the mask it keeps the Warning colour.
     """
 
     box_w = max(1, int(round(CONST_ANNOTATE_BOX_W * scale)))
@@ -641,7 +659,8 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
     neutral_bgr = Hex_To_Bgr(neutral_hex)
     for i, det in enumerate(objects):
         x, y, w, h = det.Bbox
-        outline = Mask_Outline_Color(det.Verdict) if on_mask else Verdict_Color(det.Verdict)[0]
+        outline = (Mask_Outline_Color(det.Verdict) if on_mask else CONST_FOREIGN_BOX if Foreign(det)
+                   else Verdict_Color(det.Verdict)[0])
         color_bgr = Hex_To_Bgr(outline) if verdict_colored else neutral_bgr
         measurement = det.Measurement
         if draw_rotated and measurement is not None and not measurement.Symmetric \

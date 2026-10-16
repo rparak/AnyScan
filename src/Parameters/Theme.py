@@ -252,11 +252,27 @@ CONST_DETECTION_LABEL_GROUND = '#E1DCE6'
 CONST_CHIP_NUMERAL = '#FFFFFF'
 
 # The inspection area's line in the Camera View (UI.Widgets.Paint_Inspection_Area): a catalogue mode's rectangle, thin,
-# solid, square-cornered and unfilled, drawn on the screen only. A light amber, the Warning's hue raised, so the area
-# reads as where a Warning starts without being taken for a Warning frame. One of the owner's two candidates,
-# #FFD880 and #FFCD59, pending the choice by eye (2026-10-16).
+# solid, square-cornered and unfilled, drawn on the screen only. Over a camera image (the scanned frame, the annotated
+# result) a light amber, the Warning's hue raised, so the area reads as where a Warning starts without being taken for
+# a Warning frame: 4.71:1 on the table (median #236A56), 1.18:1 against the Warning amber, which it is told from by
+# its 1 px against the frame's 2 px. Over the empty view the amber vanishes on the grey-lilac (1.01:1), so there it is
+# the brand purple (CONST_INK, 6.79:1 on #E1DCE6). The owner's choice of 2026-10-16 between #FFD880 and #FFCD59 (4.32:1
+# on the table, 1.10:1 on the empty view), from renders (docs/design-decisions.md).
 #   Unit [string] (hex colour)
 CONST_INSPECTION_AREA = '#FFD880'
+CONST_INSPECTION_AREA_EMPTY = CONST_INK
+# A FOREIGN object in a catalogue mode — a Warning that lies inside the inspection area and is not the part, so it
+# should not be on the surface at all — is drawn on the frame (its outline, outer box and chip, white numeral) in a
+# grey of the brand's grey-lilac family, so it is told at a glance from a catalogued part that only lies outside the
+# area (the Warning amber). It keeps the Warning verdict, its counts and its badge. The label mask keeps the Warning
+# colours for both: no fill in this hue clears the mask's floors against a box this light. Candidates for the owner's
+# choice by eye (2026-10-16), against the table #236A56 / the white numeral / Unspecified's #655E6D (ΔE):
+#   #C9BFD2  3.63:1 / 1.77:1 / 3.52:1 (ΔE 37.7)
+#   #B4A6BE  2.80:1 / 2.30:1 / 2.71:1 (ΔE 29.3)   the disabled label's token (CONST_CONTROL_DISABLED_TEXT)
+#   #A396AE  2.30:1 / 2.79:1 / 2.23:1 (ΔE 23.4)
+# (the Warning amber's white numeral is 1.62:1, the owner's accepted exception).
+#   Unit [string] (hex colour)
+CONST_FOREIGN_BOX = CONST_CONTROL_DISABLED_TEXT
 
 # The NEUTRAL colours: no pass/fail to encode. Two boxes, one ink:
 #
