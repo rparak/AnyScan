@@ -255,30 +255,36 @@ still judged, and the session log notes that its size check is not verified ther
 from the centre, for example in the corners of the view, would win the zone back: if they read within
 tolerance there, the zone can be widened to them.
 
-Side, holes and stains are judged only out to 66.7 mm (`CONST_JUDGED_RADIUS_MM`, the farthest judged plate
-measured, 2026-10-15); a plate farther out is Unspecified with its findings marked. Beyond 50 mm only the right
-edge of the view was measured (22 plates, one on the left at 51 mm): capture `20261015-180933_s1`, taken for the
-other edges, holds six fronts on the right (five clean, OK, 58–62.5 mm), and no back lay beyond 59 mm (KNOWN_ISSUES,
-*Parts beyond 66.7 mm…*). The rows below on the left, top and bottom, the backs and the corners are still open; run
-them through the pipeline as the 2026-10-15 measurement did (each plate's side, both sides' similarities, its holes,
-their concentricity readings and its stains), and check the frame position before shooting: x below 400 px for the
-left edge, y below 300 or above 900 px for the top and bottom bands.
+Since 2026-10-16 a catalogue mode judges only inside the station's inspection area, the frame inset by 10 mm at
+the top and bottom and 13 mm at the left and right (`Inspection_Area` in the station file); the area is drawn in the
+Camera View. The insets were measured on plates mostly by the right edge and the top: inside the area the closest
+measured plates came within 0.1 mm of its top edge, 0.7 mm of its right and 2.4 mm of its left, but only one within
+9 mm of its bottom, and none lay in its corners, where a whole plate's centre can lie up to about 67 mm out (the
+farthest measured inside, 58.4 mm). The rows below fill those in, and add what the outside-area Warning needs: plates
+and foreign objects cut by the frame's border. Run them through the pipeline as the 2026-10-16 measurement did (each
+plate's outline, holes and stains against half of each tolerance), and check each plate against the line on screen
+before shooting: wholly inside, just inside an edge, or over it.
 
 Shipped lighting, the mounting-plate mode, each plate lying flat:
 
 | Frames | What |
 |---|---|
-| 4 | one plate in each corner of the view, as far out as it fits whole, machined front up, clean |
+| 4 | one plate in each corner of the inspection area, just inside its line, machined front up, clean |
 | 4 | the same, unmachined back up |
-| 2 | one plate midway along a long edge and one midway along a short edge, clean |
-| 6 | a clean front 50–67 mm out on the left, at the top and at the bottom (two turns each) |
+| 6 | a clean front just inside the area's left edge and its bottom edge (three turns each) |
 | 6 | the same with the fingerprinted front, and 3 with a back |
+| 2 | one plate midway along the area's top edge and one along its right edge, clean (controls) |
+| 4 | a plate cut by the frame's border: on the left, the bottom, the right and in a corner, stained front up |
+| 3 | a foreign object (the red block, a square plate, the terminal block) cut by the frame's border |
+| 2 | a foreign object wholly inside the area, and one over its line but whole |
 
 **Record alongside:**
 
 - [ ] each plate's lines in the log: its verdict, its side ("by its holes" when they decided it), its outline's
       measured sides and, beyond 46.4 mm, its size note, which gives its distance from the frame centre
-- [ ] any plate cut by the frame's edge (not usable: its outline is not whole)
+- [ ] for every plate and object, whether it lies wholly inside the line on screen, over it, or cut by the frame's
+      border, and its verdict line in the log (an object outside the area is a Warning; an identified part there
+      names what its checks saw)
 
 ---
 

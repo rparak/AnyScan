@@ -133,6 +133,29 @@ class Description_Parameters_Str:
 
 
 @dataclass
+class Inspection_Area_Str:
+    """
+    Description:
+        Where on the table a catalogue mode gives a verdict: the rectangle inset from the frame's edges, centred on
+        the frame centre (Vision.Utilities.Classify.Inspection_Area_Px), drawn in the Camera View so the operator
+        knows where to place parts. An object whose outline leaves it is a Warning, never judged. Read from the
+        station file's 'Inspection_Area' block (the table and the camera's, shared by every mode); unused outside a
+        catalogue mode.
+    """
+
+    # The inset from the frame's long edges (top and bottom) and short edges (left and right), at the part's top
+    # face. Measured on the 72 fully visible mounting plates of the test set and the three capture sets
+    # (2026-10-16), each inset from 10 to 15 mm: the smallest at which every size, hole-position and hole-diameter
+    # error of the plates inside stays within half its tolerance, bar one plate 14 mm from the centre (0.77 mm of
+    # 0.75, inside every candidate). The short edges bind at 13 (a plate 55.9 mm out read 0.89 mm long); the long
+    # edges never bind, so they take the range's floor (docs/design-decisions.md, *A catalogue mode judges only
+    # inside the inspection area*).
+    #   Unit [float] (mm)
+    Long_Edge_Inset_Mm: float = 10.0
+    Short_Edge_Inset_Mm: float = 13.0
+
+
+@dataclass
 class Identification_Parameters_Str:
     """
     Description:
@@ -232,6 +255,8 @@ class Configuration_Str:
     Catalogue: tp.Optional[Catalogue_Item_Str] = None
     # A catalogue mode's identification (the same block); its defaults stand outside one.
     Identification: Identification_Parameters_Str = field(default_factory=Identification_Parameters_Str)
+    # A catalogue mode's inspection area (the station file's); its defaults stand outside one.
+    Inspection_Area: Inspection_Area_Str = field(default_factory=Inspection_Area_Str)
     # The station file the mode names (its Station), which the camera block and the background reference came
     # from (absolute).
     #   Unit [string]

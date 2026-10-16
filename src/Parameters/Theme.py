@@ -251,6 +251,13 @@ CONST_DETECTION_LABEL_GROUND = '#E1DCE6'
 #   Unit [string] (hex colour)
 CONST_CHIP_NUMERAL = '#FFFFFF'
 
+# The inspection area's line in the Camera View (UI.Widgets.Paint_Inspection_Area): a catalogue mode's rectangle, thin,
+# solid, square-cornered and unfilled, drawn on the screen only. A light amber, the Warning's hue raised, so the area
+# reads as where a Warning starts without being taken for a Warning frame. One of the owner's two candidates,
+# #FFD880 and #FFCD59, pending the choice by eye (2026-10-16).
+#   Unit [string] (hex colour)
+CONST_INSPECTION_AREA = '#FFD880'
+
 # The NEUTRAL colours: no pass/fail to encode. Two boxes, one ink:
 #
 #   CONST_DETECTION_BOX — every object's box and chip when a configuration only DETECTS and does not classify

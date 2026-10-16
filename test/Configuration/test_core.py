@@ -1318,6 +1318,54 @@ def test_a_catalogue_mode_needs_a_scale_it_can_move_to_the_top_face(tmp_path: tp
     assert Load_Configuration(_Write(tmp_path, plain, None, name='Config_%s_Mode_Plain.yaml' % CONST_HARDWARE))
 
 
+def _With_Area(mode_path: str, area: tp.Dict[str, tp.Any]) -> str:
+    """The station file a written mode names (_Write), given an Inspection_Area block; the mode file's path back."""
+    station_path = os.path.join(os.path.dirname(os.path.dirname(mode_path)), 'Station', CONST_STATION_NAME)
+    with open(station_path, 'r', encoding='utf-8') as f:
+        station = yaml.safe_load(f)
+    station['Inspection_Area'] = area
+    with open(station_path, 'w', encoding='utf-8') as f:
+        yaml.safe_dump(station, f, sort_keys=False)
+    return mode_path
+
+
+def test_the_inspection_area_is_read_from_the_station_and_defaults_when_absent(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A catalogue mode reads its inspection area's insets from the station file it names; a station without the
+        block takes the documented defaults (10 and 13 mm) and the log says so.
+    """
+
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    config = Load_Configuration(_With_Area(_Write(tmp_path, mode, calibration),
+                                           {'Long_Edge_Inset_Mm': 12, 'Short_Edge_Inset_Mm': 14.5}))
+    assert (config.Inspection_Area.Long_Edge_Inset_Mm, config.Inspection_Area.Short_Edge_Inset_Mm) == (12.0, 14.5)
+    config = Load_Configuration(_Write(tmp_path, mode, calibration))
+    assert (config.Inspection_Area.Long_Edge_Inset_Mm, config.Inspection_Area.Short_Edge_Inset_Mm) == (10.0, 13.0)
+    assert any('Inspection_Area.Short_Edge_Inset_Mm not set; using the default 13.0' in message
+               for _level, message in config.Notes)
+
+
+@pytest.mark.parametrize('area, words', [
+    ({'Long_Edge_Inset_Mm': 0, 'Short_Edge_Inset_Mm': 13}, 'Inspection_Area.Long_Edge_Inset_Mm must be a number above 0'),
+    ({'Long_Edge_Inset_Mm': 10, 'Short_Edge_Inset_Mm': 'wide'}, 'Inspection_Area.Short_Edge_Inset_Mm must be a number above 0'),
+    ({'Long_Edge_Inset_Mm': 25, 'Short_Edge_Inset_Mm': 13}, 'cannot hold the Mounting plate (72.1 mm across its corners)'),
+], ids=['zero', 'not a number', 'too small for the part'])
+def test_an_inspection_area_too_small_for_the_part_fails_the_load(tmp_path: tp.Any, area: tp.Dict[str, tp.Any],
+                                                                  words: str) -> None:
+    """
+    Description:
+        An inset that is not a number above 0 fails the load naming the field and the station file; so do insets
+        that leave an area which cannot hold the catalogue part in any rotation (25 mm from the top and bottom leaves
+        71.2 mm, under the plate's 72.1 mm diagonal), since no part could ever be judged there.
+    """
+
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    with pytest.raises(Configuration_Error_Cls) as error:
+        Load_Configuration(_With_Area(_Write(tmp_path, mode, calibration), area))
+    assert words in str(error.value) and CONST_STATION_NAME in str(error.value)
+
+
 @pytest.mark.parametrize('block, words', [
     ({}, 'Catalogue.Item is required'),
     (None, 'Catalogue.Item is required'),

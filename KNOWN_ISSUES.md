@@ -553,8 +553,9 @@ The size checks were verified on real frames only out to 46.4 mm from the frame 
 (`Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM`: the farthest judged mounting plate of the test set, 46.32 mm,
 Image_072). Farther out the side-wall term predicts up to about 1 mm more (README > Limitations), beyond the plates'
 0.73 mm margin to the tolerance. A part there is judged on its size exactly as one at the centre: this radius is
-evidence for the log, not a branch of the rule. (Beyond 66.7 mm a part is not judged at all: *Parts beyond 66.7 mm
-from the frame centre are not judged…*, below. The 2026-10-15 captures measured plates 50–66.6 mm out at
+evidence for the log, not a branch of the rule. (Outside the station's inspection area a part is not judged at all:
+*The inspection area's insets rest on plates measured mostly by the right edge*, below. The 2026-10-15 captures
+measured plates 50–66.6 mm out at
 59.97–61.27 × 39.89–41.31 mm, within tolerance, the side wall reaching about 1 mm on the edges facing the axis;
 without calipers that is not a verification of the size.)
 
@@ -582,34 +583,38 @@ where the motif's purple square is expected) fail. They fail identically on unch
 - **Pinned by:** nothing yet.
 
 
-## Parts beyond 66.7 mm from the frame centre are not judged, and beyond 50 mm only the right edge was measured
+## The inspection area's insets rest on plates measured mostly by the right edge
 
-A judged part whose centre lies more than 66.7 mm from the frame centre (`Vision.Utilities.Classify.CONST_JUDGED_RADIUS_MM`,
-the farthest judged mounting plate measured, 66.62 mm, capture `20261015-170830_19`) is Unspecified: "It lies N mm
-from the frame centre, beyond the 67 mm parts were judged to …". Its holes and stains are still marked. Within it,
-measured 2026-10-15 on 78 frames (the test set and the five mounting-plate capture sets, 69 plates, 3.4–66.6 mm out):
+A catalogue mode judges only inside the station's inspection area: the frame inset by 10 mm from its top and bottom
+edges and 13 mm from its left and right (`Inspection_Area` in the station file; docs/design-decisions.md, *A catalogue
+mode judges only inside the inspection area*). The insets were chosen on 2026-10-16 from the 72 fully visible
+mounting plates of the test set and the three capture sets on disk, as the smallest at which every size, hole-position
+and hole-diameter error of the plates inside stays within half its tolerance. What that rests on:
 
-| From the centre | Side identification | Hole detection | Stain detection |
-|---|---|---|---|
-| 0–50 mm | DINOv2 alone right on every plate (margin from +0.067) | every hole found, round 0.883–0.916, Ø 6.07–6.73 mm, edge distances within 0.72 mm | both stains on every stained front |
-| 50–57 mm | DINOv2 right by +0.013 at least; the countersinks decide | the same, within 0.61 mm | the same |
-| 57–67 mm | DINOv2 wrong on 9 of 17 fronts (−0.030 to −0.076); the countersinks right on all | the same, within 0.78 mm, with the stepped hole at its step and the side wall left out | the same, the plate's brightness down to 0.68 of the centre's |
+- **The edges are unevenly covered.** Of the 40 plates inside the area, the closest to each of its edges came within
+  0.1 mm of the top (3 plates within 4 mm), 0.7 mm of the right (3 within 4.2 mm), 2.4 mm of the left (3 within
+  6.1 mm), but only 4.7 mm of the bottom, and only one plate (`20261016-070930_21`) lies within 9 mm of it. Most of
+  the plates measured by the edges, and every one that set the short-edge inset, lay by the **right** edge.
+- **The corners are not measured.** A plate wholly inside the area can lie up to about 67 mm from the frame centre
+  (in a corner, its long side upright); the farthest judged inside lies 58.4 mm out. Between, nothing was measured.
+- **One plate exceeds the criterion wherever the area lies.** `Image_083`'s plate, 14.2 mm from the centre, reads
+  0.77 mm off its nominal size against the 0.75 mm half tolerance. It is inside every candidate area, so no inset
+  could change it, and it was set aside; the plates are not measured with calipers (README > Limitations), so part of
+  that is the plate itself.
+- **The plates past the area are no longer judged.** By the right edge, where the captures of 2026-10-15 and
+  2026-10-16 put them on purpose, they lie over the area's edge and are Warnings, with their checks named as
+  information: on those frames a stained front's two stains, and every hole, were still found to 80.9 mm out
+  (`20261016-070736_10`), but their outlines read up to 1.17 mm off nominal from 57 mm out, more than half the
+  tolerance.
 
-Coverage is lopsided. Beyond 50 mm the measured plates lie on the right edge of the view (x 1466–1574 px, 22 plates,
-with capture `20261015-180933_s1`'s six fronts at x 1538–1563 px, 58–62.5 mm) and one on the left at 51 mm; none lay in
-the top or bottom bands (y < 300 or > 900 px) or in a corner, and no back lay beyond 59 mm. Clean fronts are measured
-to 62.5 mm (five, all on the right). Every stepped hole's bore lay within 0.205 mm of its countersink's axis once the
-camera's shift was taken out (112 holes). The physics corrected (the bore and the side wall seen off the axis) is radial, but the light is
-not: the table at the corners reads 0.725 (bottom left) to 0.826 (top right) of its centre's brightness.
-
-- **Impact:** a part in a corner (up to 114 mm out) is never judged; one at 50–67 mm on the left, top or bottom is
-  judged on corrections and a band measured only on the right.
-- **Not fixed here:** only rig captures can widen it (docs/capture-checklist.md, 3d: corners, the left, top and bottom
-  edges at 50–67 mm, clean and stained fronts and backs). Capture `20261015-180933_s1`, meant for those edges, holds six
-  fronts on the right only (2026-10-15). If the side, holes and stains read right there,
-  `CONST_JUDGED_RADIUS_MM` widens to them.
-- **Pinned by:** `test/Vision/Utilities/test_classify.py::test_a_part_beyond_the_radius_parts_were_judged_to_is_unspecified`,
-  `test/integration/test_edge_of_view.py`.
+- **Impact:** a part placed by the left or bottom edge of the area, or in its corners, is judged on errors measured
+  mostly by the right edge and the top; the area may be larger, or need to be smaller, there.
+- **Not fixed here:** only rig captures can tell (docs/capture-checklist.md, 3d: plates along the area's left and
+  bottom edges and in its four corners, clean and stained fronts and backs; plates cut by the frame's border and
+  foreign objects cut by it, for the outside-area Warning). If the plates there measure within half of every
+  tolerance, the insets stand, or shrink where they allow.
+- **Pinned by:** `test/Vision/Utilities/test_classify.py::test_only_an_object_wholly_inside_the_inspection_area_is_judged`,
+  `test/integration/test_edge_of_view.py`, `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`.
 
 ## A stained front by the edge of the view reads "does not look like the part"
 
@@ -623,9 +628,12 @@ The drop below 0.75 is the stains', not the position's (capture `20261015-180933
 58–62.5 mm out score 0.83–0.87 (0.92–1.00 near the centre) and read OK with no such clause; a stained front at the same
 place scores 0.69. The position takes about 0.1 off a clean front; the stains take the rest.
 
+Since 2026-10-16 most of those plates lie outside the inspection area and are Warnings, whose reason does not carry the
+clause; inside the area a stained front still scores down to 0.73 (`20261015-170602_4`, 52 mm out) and still gets it.
+
 - **Impact:** the verdict is right; the clause says the stains make the front look unlike its clean reference, which is
   true, in words written for a foreign object. A clean front by the edge does not get it.
 - **Not fixed here:** nothing to fix in the identification; a separate wording for a judged part whose stains were
   found could follow, if the owner wants one.
-- **Pinned by:** `test/integration/test_edge_of_view.py::test_a_clean_front_by_the_edge_is_ok` (the clean fronts, no
-  clause); the stained fronts' clause is not pinned.
+- **Pinned by:** `test/integration/test_edge_of_view.py::test_a_clean_front_by_the_edge_is_outside_the_area_with_its_checks_clean`
+  (the clean fronts' similarity above 0.75); the stained fronts' clause is not pinned.

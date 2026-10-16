@@ -84,7 +84,8 @@ def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
     """
     Description:
         The objects chart's per-verdict series when the run classifies, as (label, Trend_Image_Str attribute,
-        colour): OK, NOK, the Warnings — objects that should not be on the surface — and the Unspecified ones,
+        colour): OK, NOK, the Warnings — objects not judged, because they are not the part or lie outside the inspection
+        area — and the Unspecified ones,
         so the four add up to the total, each in its verdict's text twin (Verdict_Color()[1]): the boxes are
         frame colours, and the orange-red, the amber and the grey-lilac are too light for a line on the white
         card (2.92:1, 1.62:1, 1.32:1), where the twins are 6.2:1 and the purple 9.15:1. The total is the muted

@@ -115,17 +115,24 @@ then composes and measures. The numbers are the ones the README and the mode fil
   DINOv2's side when its margin over the other side is 0.265 or more, otherwise the side shown by a hole only that
   side has (the mounting plate's countersinks show its front wherever it lies); with neither, the part is judged
   on both sides and a verdict that differs by side is Unspecified, as is a hole evidence that contradicts a
-  decisive DINOv2. Its holes are checked on that side: each catalogue group counted near its positions, each
+  decisive DINOv2; NOK on both sides, its reason gives what both readings share, or, with nothing shared, each
+  reading's findings with its side named. Its holes are checked on that side: each catalogue group counted near its positions, each
   hole's diameter, edge distances and pitch within tolerance, a stepped hole's position measured at its step's
   centre and every edge distance from the top face's edges, the side wall seen off the optical axis left out, and a
   stepped hole's bore within 0.85 mm of its step's axis once the camera's predicted shift for a bore seen at an angle
   is taken out; a hole missing, extra or out of tolerance makes it NOK
   ([*A judged part's holes are counted…*](design-decisions.md#a-judged-parts-holes-are-counted-where-the-catalogue-puts-them-by-fastsam-on-its-upright-crop),
   [*The side up is DINOv2's only by its margin…*](design-decisions.md#the-side-up-is-dinov2s-only-by-its-margin-a-hole-only-one-side-has-decides-otherwise-and-hole-positions-are-the-top-faces)).
-  On a side with a stain check, a yellow-brown area of 1 mm² or more inside it makes it NOK. A part whose centre
-  lies more than 66.7 mm from the frame centre, the farthest a judged part was measured, is Unspecified with its
-  findings still marked. An Unspecified object's reason names its cause (several parts, its distance, or its
-  side) and what to do.
+  On a side with a stain check, a yellow-brown area of 1 mm² or more inside it makes it NOK. A verdict is given
+  only inside the station's **inspection area**, the frame inset by 10 mm from its top and bottom edges and 13 mm
+  from its left and right (`Inspection_Area` in the station file, at the part's top face): any object whose outline
+  leaves it, a part cut by the frame's border included, is a Warning whose reason says it lies outside the area and
+  to move it inside and scan again. A part identified there (OK or NOK by the rule above) still has its holes and
+  stains checked where it is visible, marked on the frame in the Warning colour and named in the reason as
+  information ("Seen there: both countersinks found, …, two stains found."); a foreign object or a part that failed
+  identification outside the area gets no marks
+  ([*A catalogue mode judges only inside the inspection area*](design-decisions.md#a-catalogue-mode-judges-only-inside-the-inspection-area)).
+  An Unspecified object's reason names its cause (several parts, or its side) and what to do.
   The verdict colours the frame and the mask and sets the badge; its state and reasons are in Scene
   Understanding, and the log adds the side ("by its holes" when they decided it) and the similarity. An OK or NOK
   part's description gains the side that is up, in the catalogue's words.
@@ -211,7 +218,8 @@ Two cards:
   outline, solid; a hole expected and not found as its box and a circle of the catalogue's diameter, dashed (the
   only dashed feature marks); a stain as its box with its pixels tinted; each feature numbered on a smaller chip
   (`3.1`, the number of its `Part` line in the Log) on the corner of its box nearest the object's chip, turned with
-  that box and never more than 45° off level, never over another chip; each object's box and chip are its state's
+  that box and never more than 45° off level, never over another chip; a part identified outside the inspection
+  area has every mark, tint and chip in the Warning colour, the mark styles unchanged; each object's box and chip are its state's
   colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified the neutral grey `#655E6D`, and every
   object of a detect-only mode (Segment Anything) the logo purple `#640ABA`; the chip's number is plain
   white on every chip, in every state and mode; a missing hole is placed by the holes found, a countersink's
@@ -222,7 +230,10 @@ Two cards:
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
   never a verdict, on screen only). While the camera connects, a frame is captured or analysed, the view lies
   under its own grey-lilac at 70 %, the frame showing through, with the step in the purple under a pixel icon of
-  the task: a camera while connecting and capturing, a magnifier while analysing.
+  the task: a camera while connecting and capturing, a magnifier while analysing. In a catalogue mode the
+  **inspection area** is drawn as a thin solid amber line, square-cornered and unfilled, over the empty view, the
+  scanned frame and the Annotated render (not the Mask, Heatmap or Similarity), on screen only: the saved images
+  never carry it. Segment Anything shows none.
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
   each object adds `State: …`, one `Reason: …` sentence summing up why it is not OK (counts in words up to
@@ -230,7 +241,8 @@ Two cards:
   missing holes are not marked on the frame (no hole found to place them by: which end of the part they belong at
   cannot be told). The measured and expected values, part by part (Part 2.3 · …), the similarity and, beyond the
   verified zone, the size note are in the log. The badge states the worst verdict, in the purple on its verdict's ground: `NOK · n of m` (the orange-red's
-  tint), `Not judged · n` and `Foreign object · n` (the amber), `All OK · n` (the periwinkle); outside a catalogue
+  tint), `Not judged · n` and, for Warnings, `Foreign object · n`, `Outside the area · n` or `Warning · n` when
+  both kinds are there (the amber), `All OK · n` (the periwinkle); outside a catalogue
   mode, `n found`.
 
 ### Trends
@@ -303,6 +315,7 @@ machine only.
 | `Camera.Resolution`, `Camera.Offset` | The sensor window set on every CONNECT and read back. The reference and the calibration are checked against it. | Yes |
 | `Camera.Custom_Cfg` | The acquisition settings the camera reads: exposure, gain, white balance, pixel format. | Yes |
 | `Background` | The empty-surface reference every mode differences against, checked against its provenance sidecar, which it must have. | Yes |
+| `Inspection_Area` | Where a catalogue mode gives a verdict: the insets from the frame's long edges (top and bottom) and short edges (left and right), in mm at the part's top face; defaults 10 and 13. The area left must hold the catalogue part in any rotation. Read only by a catalogue mode. | No |
 
 ## Calibration
 
@@ -420,7 +433,7 @@ This section only links. The entries themselves are the record.
   - [*A very harsh cast shadow can be absorbed into a part's component*](../KNOWN_ISSUES.md#a-very-harsh-cast-shadow-can-be-absorbed-into-a-parts-component)
   - [*The confidence status metric is partial — only the FastSAM cue is scored*](../KNOWN_ISSUES.md#the-confidence-status-metric-is-partial--only-the-fastsam-cue-is-scored)
   - [*A killed run never gets its run-summary CSV row*](../KNOWN_ISSUES.md#a-killed-run-never-gets-its-run-summary-csv-row)
-  - [*Parts beyond 66.7 mm from the frame centre are not judged, and beyond 50 mm only the right edge was measured*](../KNOWN_ISSUES.md#parts-beyond-667-mm-from-the-frame-centre-are-not-judged-and-beyond-50-mm-only-the-right-edge-was-measured)
+  - [*The inspection area's insets rest on plates measured mostly by the right edge*](../KNOWN_ISSUES.md#the-inspection-areas-insets-rest-on-plates-measured-mostly-by-the-right-edge)
   - and the rest of that file.
 
 ## Verified on hardware, and not yet
@@ -445,13 +458,14 @@ Each row names its evidence. A row with none is not verified.
 | Lost-connection detection (cable pull) | **Not verified** | capture-checklist item 4 |
 | Parts session: defects, low-contrast parts, harsh shadow | Not recorded | capture-checklist item 3 |
 | Daily station event export on the station | Not recorded | — |
-| Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled, the five stained plates NOK, every other object a Warning | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
+| Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled, the five stained plates NOK, every other object a Warning, and since 2026-10-16 `Image_062`'s clean front, which reaches into the inspection area's top band, a Warning | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
 | Catalogue stain check on the test set | Off-hardware: the five fingerprinted fronts caught, each as its two fingerprints (two regions, largest 149–158 mm²), every clean front clean | the same test; `test/Vision/Utilities/test_stain.py` |
 | Describer told the findings, guarded | Off-hardware, Gemma 4 E4B on 24 judged parts: every contradiction it wrote dropped and logged, no digit. 2026-10-15, the 10 mounting-plate capture frames (15 judged parts, RTX 5070 Ti): the 4 contradictions caught, each fixed by the ask again, no right claim dropped; with the no-checks rule, 0 of 15 texts name the checks, no intervention, the ask again 0.50–1.02 s when forced | [design-decisions](design-decisions.md#the-describer-is-told-what-the-checks-found-never-a-number-and-its-contradictions-are-dropped-and-logged) |
 | Feature marks on the frame | Off-hardware: rendered and looked at on a front, the dark back and a stained front (Image_055, 056, 080), a synthetic missing hole, synthetic plates turned 135°, 215° and 260°, a synthetic concentric pair at the tolerance limits, and the Camera View at 0.45 scale; not looked at on the rig's screen | `test/Vision/Utilities/test_annotate.py::test_a_chip_sits_outside_its_box_on_the_corner_nearest_the_objects_chip_and_reads_near_level`, `test/integration/test_pipeline.py::test_each_stained_front_shows_its_two_fingerprints_as_two_stains` |
 | Missing-hole marks, white chip numerals, the detect-only purple | Off-hardware, 2026-10-15: rendered and looked at on capture `20261015-143622_s1` (a Warning terminal block, a stained front, a back with no holes) in both modes, and on its front with found holes dropped (SYNTHETIC: one stepped hole, both bores); the back with no holes keeps no mark and says why; not looked at on the rig's screen | `test/Vision/Utilities/test_holes.py::test_through_holes_missing_under_found_countersinks_are_placed_at_their_centres`, `test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note`, `test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_a_white_numeral` |
 | Catalogue hole check on the test set | Off-hardware: every mounting-plate hole within tolerance | `test/integration/test_pipeline.py::test_every_mounting_plate_shows_all_its_holes_within_tolerance` |
-| Side, holes and stains by the edge of the view | Off-hardware, 2026-10-15, on the 78 mounting-plate frames (the test set and the five capture sets): every plate's side right, every hole found and within tolerance (bores within 0.205 mm of their countersinks' axes), every stain found, plate centres 3.4–66.6 mm from the frame centre, clean fronts OK to 62.5 mm; no verdict that was right changed, five wrong OKs and four wrong reasons corrected. Synthetic bores 1.5–3 mm off their countersinks' axes caught everywhere (3,584 of 3,584). Beyond 50 mm only the right edge was covered (22 plates) and one plate on the left (51 mm); the top and bottom bands, the corners and backs beyond 59 mm not at all. The regression frames are stored as crops that reproduce every decision, not every measured value | `test/integration/test_edge_of_view.py`; [KNOWN_ISSUES](../KNOWN_ISSUES.md#parts-beyond-667-mm-from-the-frame-centre-are-not-judged-and-beyond-50-mm-only-the-right-edge-was-measured) |
+| Inspection area | Off-hardware, 2026-10-16, on the 91 mounting-plate frames of the test set and the three capture sets on disk (215 objects): every object outside the area a Warning, every one inside keeping its verdict; the insets chosen from the plates' measured errors (design-decisions). Drawn and looked at in the offscreen Camera View in both candidate colours; **not looked at on the rig's screen, and no capture yet along the left and bottom edges or in the corners** | `test/Vision/Utilities/test_classify.py::test_only_an_object_wholly_inside_the_inspection_area_is_judged`, `test/UI/test_inspection_area.py`, `test/integration/test_edge_of_view.py` |
+| Side, holes and stains by the edge of the view | Off-hardware, 2026-10-15, on the 78 mounting-plate frames (the test set and the five capture sets): every plate's side right, every hole found and within tolerance (bores within 0.205 mm of their countersinks' axes), every stain found, plate centres 3.4–66.6 mm from the frame centre, clean fronts OK to 62.5 mm; no verdict that was right changed, five wrong OKs and four wrong reasons corrected. Synthetic bores 1.5–3 mm off their countersinks' axes caught everywhere (3,584 of 3,584). Beyond 50 mm only the right edge was covered (22 plates) and one plate on the left (51 mm); the top and bottom bands, the corners and backs beyond 59 mm not at all. The regression frames are stored as crops that reproduce every decision, not every measured value. Since 2026-10-16 these plates lie outside the inspection area and are Warnings; their checks still run, as information | `test/integration/test_edge_of_view.py`; [KNOWN_ISSUES](../KNOWN_ISSUES.md#the-inspection-areas-insets-rest-on-plates-measured-mostly-by-the-right-edge) |
 | Defect detection | **Not built** | README > Limitations |
 
 ## Keeping this file true

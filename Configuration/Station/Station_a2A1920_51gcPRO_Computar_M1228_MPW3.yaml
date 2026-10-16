@@ -97,3 +97,17 @@ Background:
   # from this camera, under this light, on this table (Example/Camera/make_reference.py), which is
   # why it is the station's and not a mode's.
   Reference: Data/Images/Background/Image_Background_001.png
+
+# Where a catalogue mode gives a verdict on this table: the rectangle inset from the frame's edges, centred on
+# the frame centre, drawn in the Camera View (never into the saved images) so the operator knows where to place
+# parts. An object whose outline leaves it is a Warning, not judged: its checks run, as information only, when it
+# is identified as the part. Each inset is in mm at the part's top face, converted with the calibration's scale;
+# the area left must hold the catalogue part in any rotation, or the configuration fails to load. Read only by a
+# catalogue mode. Measured on this rig (2026-10-16, docs/design-decisions.md, "A catalogue mode judges only inside
+# the inspection area"): the smallest insets from 10 to 15 mm at which the plates inside measured within half of
+# every tolerance.
+Inspection_Area:
+  # The inset from the top and bottom edges [mm]. Default: 10.
+  Long_Edge_Inset_Mm: 10
+  # The inset from the left and right edges [mm]. Default: 13.
+  Short_Edge_Inset_Mm: 13

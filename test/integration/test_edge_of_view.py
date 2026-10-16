@@ -48,37 +48,55 @@ Description:
     on frames 17 and 19, a bore seen at an angle; frame 1 the control (a clean front near the centre, the hole-less
     block, a real back 58 mm out). Three of capture 20261015-180933_s1: the stained front again (DINOv2's margin
     -0.076, the widest wrong one measured) and two clean fronts 60 mm out, where DINOv2 tells the front by less than
-    its margin and the countersinks decide.
+    its margin and the countersinks decide. Four of capture 20261016-070531_s1: the stained front cut by the right
+    border and failing identification (frame 2, similarity 0.738, its outline cut to 61.56 mm), cut by it and still
+    identified by its outline (frame 6), whole but over the top and right edges of the inspection area (frame 14, read
+    Unspecified 71 mm out by the radius rule this replaced), and a clean front inside the area 56 mm out (frame 21).
+
+    Since 2026-10-16 only a part wholly inside the station's inspection area is judged (Classify.Settle_Area): every
+    plate by the right edge here lies over the area's edge, so it is a Warning, and the checks that pinned its side,
+    holes and stains still run on it, as information named in its reason.
 
     Each frame is stored as crops around its objects (40 px margin) with a manifest: their offsets, the frame's size,
     the source capture frame and its SHA-256. The test pastes them onto the mode's empty-surface reference at their
     offsets, so every distance from the frame centre and the camera geometry are the frame's. Measured on all seven
-    (2026-10-15): the side, how it was decided, the holes found and passing, the stains and the verdict are the full
-    frame's on every object; the measured values are not (outlines up to 0.79 mm, hole distances up to 0.60 mm), since
-    the background difference's Otsu threshold is taken over the whole frame and the rebuilt frame has no table noise
-    outside the crops. So these pin decisions, never values. A set separate from the pinned Data/Images/Test.
+    first frames (2026-10-15): the side, how it was decided, the holes found and passing, the stains and the verdict are
+    the full frame's on every object; the measured values are not (outlines up to 0.79 mm, hole distances up to
+    0.60 mm), since the background difference's Otsu threshold is taken over the whole frame and the rebuilt frame has
+    no table noise outside the crops. So these pin decisions, never values. A set separate from the pinned
+    Data/Images/Test.
 """
 
 # The frames' folder, beside the pinned test set: one <frame>.json manifest per frame, its crops beside it.
 #   Unit [string]
 CONST_EDGE_FRAMES = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Data', 'Images', 'Edge')
 # Every frame's objects' states, in no particular order: frame 1's clean front (4.8 mm out) and back (58.4 mm) are OK
-# and the block of the part's outline with no holes is NOK; the stained front is NOK, for its two stains, 59.9-66.6 mm
-# out; the clean fronts 59.8 and 60.2 mm out are OK. By eye, 2026-10-15: both stepped holes are whole on every frame.
+# and the block of the part's outline with no holes is NOK, all three inside the inspection area; every plate by the
+# right edge lies over the area's edge, so it is a Warning, stained (59.9-66.6 mm out) or clean (59.8 and 60.2 mm), as
+# are the cut and the whole stained fronts of 20261016-070531_s1; its clean front 56 mm out, inside, is OK. By eye,
+# 2026-10-15 and 2026-10-16: both stepped holes are whole on every frame but frame 2's (cut by the border).
 #   Unit [Dict<string, Tuple<string>>]
 CONST_EDGE_VERDICTS = {
     '20261015-170254_1': ('OK', 'OK', 'NOK'),
-    '20261015-170809_16': ('NOK',),
-    '20261015-170816_17': ('NOK',),
-    '20261015-170830_19': ('NOK',),
-    '20261015-180936_1': ('NOK',),
-    '20261015-180955_2': ('OK',),
-    '20261015-181017_6': ('OK',),
+    '20261015-170809_16': ('Warning',),
+    '20261015-170816_17': ('Warning',),
+    '20261015-170830_19': ('Warning',),
+    '20261015-180936_1': ('Warning',),
+    '20261015-180955_2': ('Warning',),
+    '20261015-181017_6': ('Warning',),
+    '20261016-070547_2': ('Warning',),
+    '20261016-070619_6': ('Warning',),
+    '20261016-070812_14': ('Warning',),
+    '20261016-070930_21': ('OK',),
 }
-# The frames whose plate is the stained front by the edge, and those whose plate is a clean front by it.
+# The frames whose plate is the stained front by the edge, identified, and those whose plate is a clean front by it.
 #   Unit [Tuple<string>]
-CONST_STAINED_EDGE_FRONTS = ('20261015-170809_16', '20261015-170816_17', '20261015-170830_19', '20261015-180936_1')
+CONST_STAINED_EDGE_FRONTS = ('20261015-170809_16', '20261015-170816_17', '20261015-170830_19', '20261015-180936_1',
+                             '20261016-070619_6', '20261016-070812_14')
 CONST_CLEAN_EDGE_FRONTS = ('20261015-180955_2', '20261015-181017_6')
+# What every object outside the inspection area's reason opens with.
+#   Unit [string]
+CONST_OUTSIDE = 'It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.'
 CONST_CATALOGUE_MODE_FILE = 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml'
 # Each frame's objects, analysed once per session (the pipeline is deterministic on one frame).
 #   Unit [Dict<string, Vector<Detection_Str(object)>>]
@@ -156,55 +174,64 @@ def test_each_edge_frame_gets_its_expected_verdicts(name: str, require_weights, 
 
 @pytest.mark.slow
 @pytest.mark.parametrize('name', CONST_STAINED_EDGE_FRONTS)
-def test_a_stained_front_by_the_edge_is_checked_on_its_front(name: str, require_weights, monkeypatch) -> None:
+def test_a_stained_front_by_the_edge_is_outside_the_area_with_its_checks_named(name: str, require_weights,
+                                                                               monkeypatch) -> None:
     """
     Description:
-        The stained front 60-67 mm out is checked on its front, shown by its countersinks (a hole only the front has)
-        where DINOv2's margin chose the back: both countersinks and both through-holes found, every diameter, edge
-        distance and pitch within tolerance (the through-hole measured at its countersink's centre, from the top
-        face's edges), and its two stains found, which are the reason it is NOK. On frames 17 and 19 a through-hole
-        read 19.04 and 19.37 mm from its short edge against 17.5 ± 1.5, its bore seen at an angle.
+        The stained front 60-71 mm out lies over the inspection area's edge, so it is a Warning, never judged; its
+        checks still run, on its front, shown by its countersinks (a hole only the front has) where DINOv2's margin
+        chose the back: both countersinks and both through-holes found, every diameter, edge distance and pitch within
+        tolerance, and its two stains found, which its reason names as information. On frames 17 and 19 a through-hole
+        once read 19.04 and 19.37 mm from its short edge against 17.5 ± 1.5, its bore seen at an angle; frame 6 is cut
+        by the frame's border and still identified by its outline.
     """
 
     (det,) = _Objects(name, require_weights, monkeypatch)
+    assert (det.Verdict, det.Catalogue.Outside_Area) == ('Warning', True)
     assert det.Catalogue.Side == 'front'
     assert [(c.Name, c.Found, c.Expected) for c in det.Hole_Counts] == [('countersink', 2, 2), ('through-hole', 2, 2)]
     assert [c.Name for c in det.Hole_Checks if not c.Within] == []
     assert len(det.Stains or []) == 2
-    reason = Reason_Sentence(det)
-    assert 'two stains on the machined front' in reason and 'hole' not in reason
+    assert Reason_Sentence(det) == CONST_OUTSIDE + (' Seen there: both countersinks found, both through-holes found, '
+                                                    'two stains found.')
     assert det.Catalogue.Side_Evidence == 'holes'
+    assert sorted(feature.Kind for feature in det.Features) == ['hole'] * 4 + ['stain'] * 2
 
 
 @pytest.mark.slow
 def test_the_back_by_the_edge_stays_a_back(require_weights, monkeypatch) -> None:
     """
     Description:
-        The control, as it was before the side took the holes' evidence: frame 1's real back, 58 mm out, has only
-        through-holes, which both sides have, so no hole shows a side and DINOv2's margin (0.53) keeps it a back, OK,
-        with both through-holes found and within tolerance (the side wall left out of its edges changes none).
+        The control, as it was before the side took the holes' evidence: frame 1's real back, 58 mm out and inside the
+        inspection area, has only through-holes, which both sides have, so no hole shows a side and DINOv2's margin
+        (0.53) keeps it a back, OK, with both through-holes found and within tolerance (the side wall left out of its
+        edges changes none).
     """
 
     objects = _Objects('20261015-170254_1', require_weights, monkeypatch)
     (back,) = [det for det in objects if det.Catalogue.Center_Distance_Mm > 50.0 and det.Verdict == 'OK']
-    assert back.Catalogue.Side == 'back'
+    assert back.Catalogue.Side == 'back' and not back.Catalogue.Outside_Area
     assert [(c.Name, c.Found, c.Expected) for c in back.Hole_Counts] == [('through-hole', 2, 2)]
     assert all(c.Within for c in back.Hole_Checks)
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize('name', CONST_CLEAN_EDGE_FRONTS)
-def test_a_clean_front_by_the_edge_is_ok(name: str, require_weights, monkeypatch) -> None:
+def test_a_clean_front_by_the_edge_is_outside_the_area_with_its_checks_clean(name: str, require_weights,
+                                                                             monkeypatch) -> None:
     """
     Description:
-        A clean front 60 mm out (capture 20261015-180933_s1) is the part, OK: it looks like it (similarity to the front
-        0.85-0.87, above 0.75, so no "does not look like the part"), its side is decided by its countersinks (DINOv2's
-        margin +0.23 to +0.25, under the 0.265 that tells), every hole is found and within tolerance (the bores within
-        0.17 mm of their countersinks' axes once the camera's shift is out), and no stain is found.
+        A clean front 60 mm out (capture 20261015-180933_s1) lies over the inspection area's edge, so it is a Warning,
+        not OK; its checks still run and find nothing: it looks like the part (similarity to the front 0.85-0.87, above
+        0.75), its side is decided by its countersinks (DINOv2's margin +0.23 to +0.25, under the 0.265 that tells),
+        every hole is found and within tolerance (the bores within 0.17 mm of their countersinks' axes once the
+        camera's shift is out), and no stain is found, which its reason says.
     """
 
     (det,) = _Objects(name, require_weights, monkeypatch)
-    assert det.Verdict == 'OK' and Reason_Sentence(det) == ''
+    assert (det.Verdict, det.Catalogue.Outside_Area) == ('Warning', True)
+    assert Reason_Sentence(det) == CONST_OUTSIDE + (' Seen there: both countersinks found, both through-holes found, '
+                                                    'no stain found.')
     assert det.Catalogue.Similarity >= det.Catalogue.Identify_Similarity
     assert det.Catalogue.Side == 'front'
     assert [(c.Name, c.Found, c.Expected) for c in det.Hole_Counts] == [('countersink', 2, 2), ('through-hole', 2, 2)]
@@ -212,3 +239,55 @@ def test_a_clean_front_by_the_edge_is_ok(name: str, require_weights, monkeypatch
     assert len([c for c in det.Hole_Checks if c.Name == "through-hole's offset from its countersink"]) == 2
     assert not det.Stains
     assert det.Catalogue.Side_Evidence == 'holes'
+
+
+@pytest.mark.slow
+def test_a_cut_plate_that_fails_identification_is_outside_the_area_with_no_marks(require_weights, monkeypatch) -> None:
+    """
+    Description:
+        The stained front cut by the frame's right border (20261016-070547_2, its outline cut to 61.56 mm, similarity
+        0.738) is not identified as the part, so outside the area it is a Warning with the outside-area reason alone:
+        no check runs on it and nothing is marked on it, as for a foreign object.
+    """
+
+    (det,) = _Objects('20261016-070547_2', require_weights, monkeypatch)
+    assert (det.Verdict, det.Catalogue.Outside_Area) == ('Warning', True)
+    assert det.Catalogue.Similarity < det.Catalogue.Identify_Similarity
+    assert Reason_Sentence(det) == CONST_OUTSIDE
+    assert (det.Features, det.Hole_Counts, det.Stains) == ([], [], None)
+
+
+@pytest.mark.slow
+def test_a_clean_front_inside_the_area_away_from_the_centre_is_ok(require_weights, monkeypatch) -> None:
+    """
+    Description:
+        The control inside the area: the clean front 56 mm out on the left (20261016-070930_21), wholly inside it, is
+        judged, OK, with every hole found and within tolerance and no stain.
+    """
+
+    (det,) = _Objects('20261016-070930_21', require_weights, monkeypatch)
+    assert (det.Verdict, det.Catalogue.Outside_Area, Reason_Sentence(det)) == ('OK', False, '')
+    assert [(c.Name, c.Found, c.Expected) for c in det.Hole_Counts] == [('countersink', 2, 2), ('through-hole', 2, 2)]
+    assert all(c.Within for c in det.Hole_Checks) and not det.Stains
+
+
+@pytest.mark.slow
+def test_the_holeless_block_keeps_both_readings_and_gives_what_they_share(require_weights, monkeypatch) -> None:
+    """
+    Description:
+        Frame 1's block of the part's outline with no holes is the one object whose side could not be told (DINOv2's
+        margin 0.165, no hole to show a side): it is read on both sides, each NOK, and keeps both readings, the front's
+        with its countersinks and through-holes missing, the back's with its through-holes missing. Its reason gives
+        only what both share, never the front's missing countersinks.
+    """
+
+    objects = _Objects('20261015-170254_1', require_weights, monkeypatch)
+    (block,) = [det for det in objects if det.Verdict == 'NOK']
+    readings = block.Catalogue.Side_Readings
+    assert block.Catalogue.Side_Evidence == 'undecided'
+    assert sorted(readings) == ['machined front', 'unmachined back']
+    assert [(c.Name, c.Found) for c in readings['machined front'].Hole_Counts] == [('countersink', 0), ('through-hole', 0)]
+    assert [(c.Name, c.Found) for c in readings['unmachined back'].Hole_Counts] == [('through-hole', 0)]
+    assert {reading.Verdict for reading in readings.values()} == {'NOK'}
+    assert Reason_Sentence(block) == ("It has the part's outline but does not look like the part, and both "
+                                      'through-holes are missing.')

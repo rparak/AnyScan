@@ -53,8 +53,9 @@ Description:
     a missing or extra hole, or a hole out of tolerance, makes it NOK; and its stains, on a side that has the
     check (Apply_Stain). The side up is DINOv2's when its margin tells, or shown by a hole only that side has
     (Decide_Side); when neither tells, the part is judged on every side and a verdict that differs by side is
-    Unspecified (Settle_Side). Last, a part lying farther from the frame centre than parts were judged on
-    real frames (CONST_JUDGED_RADIUS_MM) is Unspecified (Settle_Radius).
+    Unspecified (Settle_Side). Last, any object whose outline leaves the station's inspection area (a rectangle
+    inset from the frame's edges, Inspection_Area_Px) is a Warning, never judged (Settle_Area); a part identified
+    there keeps its checks as information.
 
     (3) has no lower similarity bound, on purpose: an object of the part's size that does not look like
     it reads NOK, not Warning — in quality control the safer error — and a floor between the blank plate
@@ -69,14 +70,6 @@ Description:
 # that it is not verified.
 #   Unit [float] (mm)
 CONST_VERIFIED_RADIUS_MM = 46.4
-# How far from the frame centre a part was judged on real frames: the farthest centre of a judged mounting plate on
-# the 72 measured frames (the 41 of Data/Images/Test and the 31 of the mounting-plate captures of 2026-10-15),
-# measured with Center_Distance_Mm, 66.62 mm (20261015-170830_19, by the right edge, low), rounded up to the next
-# 0.1 mm. Within it every hole was found round and of its diameter and every stain found, at any distance; side
-# identification and hole positions needed Decide_Side and Holes.Seat_Holes. Beyond it nothing was measured: a part
-# there is Unspecified (KNOWN_ISSUES, *Parts beyond 66.7 mm from the frame centre are not judged*).
-#   Unit [float] (mm)
-CONST_JUDGED_RADIUS_MM = 66.7
 # The margin of DINOv2's best side over the other at and above which it tells the side up. Measured on the same 72
 # frames (2026-10-15): every back -0.455 to -0.554 at any distance (13); fronts +0.50 near the centre, falling with
 # the distance and their stains to +0.004 at 59 mm, and the wrong side, -0.030 to -0.075, on 8 stained fronts 57-67 mm
@@ -377,19 +370,70 @@ def Settle_Side(det: Detection_Str, verdicts: tp.Dict[str, str], how: str) -> No
         det.Verdict, det.Catalogue.Unspecified_Cause = 'Unspecified', 'side'
 
 
-def Settle_Radius(det: Detection_Str) -> None:
+def Inspection_Area_Px(frame_size: tp.Tuple[int, int], scale: Scale_Str, long_edge_inset_mm: float,
+                       short_edge_inset_mm: float) -> tp.Tuple[float, float, float, float]:
     """
     Description:
-        A judged part lying farther from the frame centre than parts were judged on real frames
-        (CONST_JUDGED_RADIUS_MM) is Unspecified, in place: its side, holes and stains were not measured there, so
-        an OK would be a guess. Its checks stay on it, so the frame marks what was found.
+        The station's inspection area on the frame: the rectangle inset from the frame's long edges (top and bottom)
+        and short edges (left and right) by the station's insets, converted at the scale in force (the part's top
+        face in a catalogue mode), so it is centred on the frame centre. The one source of the rectangle: the verdict
+        (Inside_Area) and the Camera View's line (UI.Widgets.Paint_Inspection_Area) both take it from here.
 
     Args:
-        (1) det [Detection_Str(object)]: The part, judged (mutated).
+        (1) frame_size [Vector<int> 1x2]: The frame's (width, height) in pixels.
+        (2) scale [Scale_Str(object)]: The scale.
+        (3) long_edge_inset_mm [float]: The inset from the top and bottom edges.
+        (4) short_edge_inset_mm [float]: The inset from the left and right edges.
+
+    Returns:
+        (1) parameter [Tuple<float> 1x4]: (left, top, right, bottom) in pixels; a pixel at x, y is inside when
+                                          left <= x <= right and top <= y <= bottom.
     """
 
-    if det.Verdict in ('OK', 'NOK') and det.Catalogue.Center_Distance_Mm > det.Catalogue.Judged_Radius_Mm:
-        det.Verdict, det.Catalogue.Unspecified_Cause = 'Unspecified', 'radius'
+    dx, dy = short_edge_inset_mm / scale.Mm_Per_Px_X, long_edge_inset_mm / scale.Mm_Per_Px_Y
+    return dx, dy, frame_size[0] - 1 - dx, frame_size[1] - 1 - dy
+
+
+def Inside_Area(det: Detection_Str, area_px: tp.Tuple[float, float, float, float], np: tp.Any) -> bool:
+    """
+    Description:
+        Whether an object's whole outline lies inside the inspection area: every pixel of its mask, so a part cut by
+        the frame's border (the area is inset from it) is never inside.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object, with its mask.
+        (2) area_px [Tuple<float> 1x4]: The area (Inspection_Area_Px).
+        (3) np [module]: The NumPy module, injected by the caller.
+
+    Returns:
+        (1) parameter [bool]: True when the mask is non-empty and wholly inside.
+    """
+
+    if det.Mask is None:
+        return False
+    rows, columns = np.nonzero(det.Mask)
+    if rows.size == 0:
+        return False
+    left, top, right, bottom = area_px
+    return bool(columns.min() >= left and columns.max() <= right and rows.min() >= top and rows.max() <= bottom)
+
+
+def Settle_Area(det: Detection_Str, inside: bool) -> None:
+    """
+    Description:
+        An object's verdict once where it lies is known, in place: one whose outline leaves the inspection area is a
+        Warning, whatever it was, since the final verdict is given only inside the area. A part identified there
+        (judged OK or NOK, or Unspecified for its side) keeps its checks on it, as information; any other object has
+        none. Inside the area the verdict stands.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object, classified (mutated).
+        (2) inside [bool]: Whether its outline lies inside the area (Inside_Area).
+    """
+
+    det.Catalogue.Outside_Area = not inside
+    if not inside:
+        det.Verdict, det.Catalogue.Unspecified_Cause = 'Warning', ''
 
 
 def Best_Turn(object_rows: tp.Any, reference_rows: tp.Any, sides: tp.List[str], side: str) -> int:
@@ -503,8 +547,7 @@ def Classify(det: Detection_Str, similarity: float, side: str, Catalogue_Item_St
                                          Identify_Similarity=thresholds.Identify_Similarity,
                                          Area_Ratio=area_ratio, Unspecified_Area_Ratio=thresholds.Unspecified_Area_Ratio,
                                          Center_Distance_Mm=Center_Distance_Mm(det, frame_size, scale),
-                                         Verified_Radius_Mm=CONST_VERIFIED_RADIUS_MM,
-                                         Judged_Radius_Mm=CONST_JUDGED_RADIUS_MM)
+                                         Verified_Radius_Mm=CONST_VERIFIED_RADIUS_MM)
     outline_within = bool(det.Dimension_Checks) and all(check.Within for check in det.Dimension_Checks)
     if area_ratio >= thresholds.Unspecified_Area_Ratio:
         det.Verdict, det.Catalogue.Unspecified_Cause = 'Unspecified', 'area'

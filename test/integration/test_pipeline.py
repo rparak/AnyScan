@@ -125,7 +125,9 @@ CONST_STATES = ('OK', 'NOK', 'Unspecified', 'Warning')
 # (back) are OK; the 'rust-stained plate' (front, brown fingerprint stains) is NOK; every other object, the
 # 50 x 50 square plates among them, is a Warning. No frame shows two plates touching, so none is Unspecified.
 # Every plate here is nominal in size (no calipers; the owner's ruling: a part within tolerance reads OK), so no
-# NOK is a size.
+# NOK is a size. Since 2026-10-16 a part is judged only wholly inside the station's inspection area: Image_062's clean
+# front (20.8 mm out, its long side upright) reaches into the band along the top edge, so it is a Warning, its checks
+# run as information (CONST_PLATES_OUTSIDE_THE_AREA).
 #   Unit [Dict<string, Tuple<string>>]
 CONST_EXPECTED_VERDICTS = {
     'Image_055.png': ('OK',),
@@ -135,7 +137,7 @@ CONST_EXPECTED_VERDICTS = {
     'Image_059.png': ('NOK',) + _Warnings(5),
     'Image_060.png': _Warnings(7),
     'Image_061.png': _Warnings(7),
-    'Image_062.png': ('OK',) + _Warnings(6),
+    'Image_062.png': _Warnings(7),
     'Image_063.png': ('OK',) + _Warnings(7),
     'Image_064.png': ('OK',) + _Warnings(7),
     'Image_065.png': ('OK',) + _Warnings(7),
@@ -170,6 +172,9 @@ CONST_EXPECTED_VERDICTS = {
     'Image_094.png': _Warnings(4),
     'Image_095.png': _Warnings(4),
 }
+# The frames whose mounting plate lies over the inspection area's edge, identified there: a Warning whose checks ran.
+#   Unit [Tuple<string>]
+CONST_PLATES_OUTSIDE_THE_AREA = ('Image_062.png',)
 # The frames that ARE the catalogue item's reference images (Data/Catalogue/mounting_plate/reference_image/, byte
 # for byte). Judging the item on them is circular, so results on them are reported apart: analyze.py finds them
 # by content (test_analyze_harness pins which they are).
@@ -465,8 +470,9 @@ def test_the_outline_passes_exactly_the_catalogue_parts(name: str, require_weigh
     Description:
         Through the application's pipeline (FastSAM on the CPU, the model-free describer) in the mounting-plate
         mode, the objects whose outline is within the item's tolerance are exactly as many as the labels' OK and
-        NOK objects: every nominal plate reads within tolerance at its top face, and no other object is its size.
-        Slow because it runs FastSAM; missing weights fail it under --runslow.
+        NOK objects and the plates outside the inspection area: every nominal plate reads within tolerance at its
+        top face, and no other object is its size. Slow because it runs FastSAM; missing weights fail it under
+        --runslow.
     """
 
     config = Load_Configuration(os.path.join(Mode_Directory(), CONST_CATALOGUE_MODE_FILE))
@@ -476,7 +482,7 @@ def test_the_outline_passes_exactly_the_catalogue_parts(name: str, require_weigh
     objects = _Analyze_Frame(config, name)
     within = [det for det in objects if det.Dimension_Checks and all(check.Within for check in det.Dimension_Checks)]
     states = collections.Counter(CONST_EXPECTED_VERDICTS[name])
-    assert len(within) == states['OK'] + states['NOK']
+    assert len(within) == states['OK'] + states['NOK'] + (name in CONST_PLATES_OUTSIDE_THE_AREA)
 
 
 @pytest.mark.slow
@@ -529,18 +535,21 @@ def test_each_stained_front_shows_its_two_fingerprints_as_two_stains(name: str, 
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize('name', sorted(name for name, states in CONST_EXPECTED_VERDICTS.items()
-                                        if set(states) & {'OK', 'NOK'}))
+@pytest.mark.parametrize('name', sorted({name for name, states in CONST_EXPECTED_VERDICTS.items()
+                                         if set(states) & {'OK', 'NOK'}} | set(CONST_PLATES_OUTSIDE_THE_AREA)))
 def test_every_mounting_plate_shows_all_its_holes_within_tolerance(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
         In the mounting-plate mode, every plate of the test set shows its holes as the catalogue gives them —
         a front two countersinks and two through-holes, a back two through-holes — each diameter, edge distance
-        and the pitch within tolerance. Slow because it runs FastSAM and DINOv2.
+        and the pitch within tolerance, the plate outside the inspection area too (its checks run as information).
+        Slow because it runs FastSAM and DINOv2.
     """
 
+    from Reporting.Core import Identified_Outside
     objects = _Catalogue_Objects(name, require_weights, monkeypatch)
-    judged = [det for det in objects if det.Verdict in ('OK', 'NOK')]
+    judged = [det for det in objects if det.Verdict in ('OK', 'NOK') or Identified_Outside(det)]
+    assert all(Identified_Outside(det) for det in judged) == (name in CONST_PLATES_OUTSIDE_THE_AREA)
     assert judged
     for det in judged:
         expected = ([('countersink', 2, 2), ('through-hole', 2, 2)] if det.Catalogue.Side == 'front'

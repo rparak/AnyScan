@@ -35,10 +35,10 @@ from dataclasses import dataclass, field
 CONST_SCALE_UNITS = 'mm/px'
 # The four states an object takes in a catalogue mode (Vision.Utilities.Classify): OK — the catalogue part,
 # every check passed; NOK — the catalogue part, a check failed; Unspecified — not judged: an area of at least the
-# mode's Unspecified_Area_Ratio times the part's (probably several parts together), a part lying farther from the
-# frame centre than parts were judged on real frames, or one whose side up cannot be told when its verdict depends
-# on it (Catalogue_Result_Str.Unspecified_Cause); Warning — not the
-# catalogue part, found and described but not supposed to be there. A mode without a catalogue judges
+# mode's Unspecified_Area_Ratio times the part's (probably several parts together), or a part whose side up cannot
+# be told when its verdict depends on it (Catalogue_Result_Str.Unspecified_Cause); Warning — not judged: not the
+# catalogue part, found and described but not supposed to be there, or any object whose outline leaves the
+# station's inspection area (Catalogue_Result_Str.Outside_Area). A mode without a catalogue judges
 # nothing and every object keeps the default, OK, drawn in the neutral colour.
 #   Unit [Tuple<string>]
 CONST_VERDICTS = ('OK', 'NOK', 'Unspecified', 'Warning')
@@ -228,16 +228,22 @@ class Catalogue_Result_Str(object):
     #   Unit [float] / [float]
     Area_Ratio: float = 0.0
     Unspecified_Area_Ratio: float = 0.0
-    # The object's centre's distance from the frame centre, the distance up to which the size checks
-    # were verified on real frames (Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM), and the one up
-    # to which a part was judged on real frames (CONST_JUDGED_RADIUS_MM).
+    # The object's centre's distance from the frame centre, and the distance up to which the size checks
+    # were verified on real frames (Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM).
     #   Unit [float] (mm)
     Center_Distance_Mm: float = 0.0
     Verified_Radius_Mm: float = 0.0
-    Judged_Radius_Mm: float = 0.0
-    # Why an Unspecified object was not judged: 'area' (probably several parts), 'radius' (it lies
-    # beyond Judged_Radius_Mm) or 'side' (which side is up cannot be told, and its verdict depends on
-    # it); '' for any other verdict.
+    # Whether the object's outline (its mask) leaves the station's inspection area (Classify.Settle_Area): then it
+    # is a Warning, never judged, and a part identified there keeps its checks as information.
+    #   Unit [bool]
+    Outside_Area: bool = False
+    # A part whose side could not be told (Side_Evidence 'undecided'): its reading on each side, by the side's
+    # catalogue name ('machined front'), each with that side's hole counts, hole checks, stains, features and
+    # verdict; empty otherwise. The reason gives what the readings share (Reporting.Reason_Sentence).
+    #   Unit [Dict<string, Detection_Str(object)>]
+    Side_Readings: tp.Dict[str, tp.Any] = field(default_factory=dict, repr=False, compare=False)
+    # Why an Unspecified object was not judged: 'area' (probably several parts) or 'side' (which side is up
+    # cannot be told, and its verdict depends on it); '' for any other verdict.
     #   Unit [string]
     Unspecified_Cause: str = ''
 

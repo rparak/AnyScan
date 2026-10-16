@@ -4076,7 +4076,9 @@ NOK for "through-hole 1.2" (frames 17, 19), never for its stains. Three changes,
    thickness, K and the top face's scale; no new field).
 3. **The region.** A judged part whose centre lies beyond `CONST_JUDGED_RADIUS_MM` (66.7 mm, the farthest measured) is
    Unspecified, with its findings still marked (`Settle_Radius`). Each Unspecified reason names its cause
-   (`Catalogue_Result_Str.Unspecified_Cause`).
+   (`Catalogue_Result_Str.Unspecified_Cause`). *Corrected 2026-10-16:* replaced by the station's inspection area
+   (*A catalogue mode judges only inside the inspection area*). The radius hid two stains found on six whole
+   plates 68–81 mm out as Unspecified, and judged plates cut by the frame's border, which the area refuses.
 
 **Why, measured.** Measured on the 72 mounting-plate frames: the 41 of the test set and the 31 of the captures
 `20261015-131258_s1`, `-143622_s1`, `-160433_s1` and `-170251_s1`. They hold 63 plates, 3.4–66.6 mm out. Each stage was
@@ -4122,14 +4124,14 @@ step…*). A stained front by the edge still reads "does not look like the
 part", with a right verdict (KNOWN_ISSUES).
 
 **Revisit if** rig captures at 50–67 mm on the left, top and bottom or in the corners (capture checklist 3d) show a
-side, hole or stain read wrong, or widen `CONST_JUDGED_RADIUS_MM`; an item's sides share every hole group (then only
+side, hole or stain read wrong; an item's sides share every hole group (then only
 the margin and the both-sides rule decide); a part with a defective stepped hole is measured; or the reference images
 are re-shot (the margins change with them).
 Tests `test/integration/test_edge_of_view.py` (frames 1, 16, 17 and 19 of the capture and 1, 2 and 6 of
 `20261015-180933_s1`, stored as crops in `Data/Images/Edge`),
 `test/Vision/Utilities/test_classify.py::test_the_side_is_dinov2s_by_its_margin_else_the_holes`,
 `::test_a_part_whose_side_cannot_be_told_keeps_only_a_verdict_every_side_gives`,
-`::test_a_part_beyond_the_radius_parts_were_judged_to_is_unspecified`,
+`::test_only_an_object_wholly_inside_the_inspection_area_is_judged` (which replaced the radius test),
 `::test_the_side_wall_is_seen_only_on_the_edges_facing_the_optical_axis`,
 `test/Vision/Utilities/test_holes.py::test_a_through_hole_in_its_countersink_is_measured_at_the_countersinks_centre`,
 `::test_a_hole_only_one_side_has_shows_that_side`, `::test_edge_distances_are_from_the_top_face_not_the_side_wall`,
@@ -4166,7 +4168,7 @@ passes; no verdict, reason or side changed on the 78 frames (214 objects with ca
 about 0.4 mm, or the catalogue gives a concentricity tolerance (it would replace the constant).
 Tests `test/Vision/Utilities/test_holes.py::test_a_bore_off_its_countersinks_axis_fails_wherever_the_part_lies`,
 `test/Vision/Utilities/test_classify.py::test_the_crop_view_puts_the_optical_axis_on_the_crop`,
-`test/integration/test_edge_of_view.py::test_a_clean_front_by_the_edge_is_ok`.
+`test/integration/test_edge_of_view.py::test_a_clean_front_by_the_edge_is_outside_the_area_with_its_checks_clean`.
 
 ## The edge-of-view regression frames are stored as crops on the empty-surface reference
 
@@ -4187,3 +4189,91 @@ table), so the threshold, and with it the mask's edge, moves. The crops pin deci
 threshold stops depending on the whole frame.
 Tests `test/integration/test_edge_of_view.py::test_the_inventory_names_every_frame_and_crop_of_the_edge_set` and the
 rest of that file.
+
+## A catalogue mode judges only inside the inspection area
+
+Decided 2026-10-16, on the owner's report of capture `20261016-070531_s1`, where nine plates with their holes found and
+two stains found on six of them read Unspecified. The cause was the radius rule (`Settle_Radius`, 66.7 mm): it replaced
+any OK or NOK beyond it, a found defect included. The side rule was not involved: on all 91 mounting-plate frames
+every real plate's side was decided, by DINOv2's margin or its countersinks, and the one undecided object, the
+hole-less block, was NOK on both sides. The radius is removed and replaced:
+
+1. **The area.** The station file's `Inspection_Area` gives insets from the frame's long edges (top and bottom,
+   `Long_Edge_Inset_Mm`, 10) and short edges (`Short_Edge_Inset_Mm`, 13), in mm at the part's top face
+   (`Parameters.Configuration.Inspection_Area_Str`; `Classify.Inspection_Area_Px` converts them with the scale). The
+   loader refuses insets that leave no room for the item in any rotation (its outline's diagonal).
+2. **The rule.** A catalogue mode gives OK or NOK only to an object whose mask lies wholly inside the area
+   (`Classify.Inside_Area`, `Settle_Area`, last in `Vision.Core.__Classify_Objects`). Any other object, a part cut by
+   the frame's border included (the area is inset from it), is a Warning, `Catalogue_Result_Str.Outside_Area` set:
+   "It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again." A part
+   identified there (OK or NOK by the rule before it) keeps its checks, run where it is visible: its marks are drawn
+   in the Warning colour, chips included, the mark styles unchanged (`Annotate.__Draw_Features`), and its reason adds
+   "Seen there: …" naming the hole groups found and missing and its stains, as information. A foreign object, or a
+   cut plate that failed identification, gets the first sentence alone and no marks.
+3. **Where it shows.** The Camera View draws the area, a 1 px solid line in `CONST_INSPECTION_AREA`, square corners,
+   no fill, over the empty view once a catalogue configuration is loaded, the scanned frame and the Annotated render
+   (`UI.Widgets.Paint_Inspection_Area`, which a live preview can call), on screen only: the images saved to the
+   logger never carry it. Segment Anything shows none.
+4. **The words.** The badge names the Warnings: `Foreign object · n`, `Outside the area · n`, or `Warning · n` for
+   both. Trends and History keep one Warning series, described as objects not judged.
+5. **The side's readings.** A part whose side could not be told and is NOK on both readings keeps the readings
+   (`Catalogue_Result_Str.Side_Readings`) and its reason gives what they share; with nothing shared, each reading's
+   findings with its side named ("Read with its machined front up, …; read with its unmachined back up, …."), so a
+   defect on either side is never hidden.
+
+**Why these insets.** Measured on the 72 fully visible mounting plates judged on the 91 frames (the test set and the
+captures `20261015-170251_s1`, `-180933_s1` and `20261016-070531_s1`; the other 2026-10-15 captures are no longer on
+disk), the hole-less block set aside, for each inset from 10 to 15 mm the plates wholly inside and their errors
+against nominal (worst / median, mm), and DINOv2's similarity (lowest / median):
+
+| Long / short | Area (mm) | Plates | Size | Hole position | Hole Ø | Similarity | Over half a tolerance |
+|---|---|---|---|---|---|---|---|
+| 10 / 10 | 173.6 × 101.2 | 42 | 0.89 / 0.35 | 0.66 / 0.13 | 0.73 / 0.22 | 0.729 / 0.920 | `20261015-170740_12`, `Image_083` |
+| 11 / 11 | 171.6 × 99.2 | 40 | 0.89 / 0.35 | 0.66 / 0.13 | 0.73 / 0.22 | 0.730 / 0.923 | the same |
+| 12 / 12 | 169.6 × 97.2 | 40 | 0.89 / 0.35 | 0.66 / 0.13 | 0.73 / 0.22 | 0.730 / 0.923 | the same |
+| 13 / 13 | 167.6 × 95.2 | 38 | 0.77 / 0.35 | 0.66 / 0.13 | 0.73 / 0.22 | 0.730 / 0.923 | `Image_083` |
+| 14 / 14 | 165.6 × 93.2 | 37 | 0.77 / 0.35 | 0.66 / 0.12 | 0.73 / 0.22 | 0.757 / 0.924 | `Image_083` |
+| 15 / 15 | 163.6 × 91.2 | 34 | 0.77 / 0.35 | 0.66 / 0.13 | 0.73 / 0.22 | 0.757 / 0.923 | `Image_083` |
+| **10 / 13** | **167.6 × 101.2** | **40** | **0.77 / 0.34** | **0.66 / 0.13** | **0.73 / 0.22** | **0.730 / 0.923** | `Image_083` |
+
+Every tolerance is 1.5 mm, so half is 0.75. The owner's criterion, the smallest whole-millimetre inset at which every
+error of the plates inside stays within half its tolerance, is met by no inset: `Image_083`'s plate, 14.2 mm from the
+centre, reads 0.77 mm off its nominal size, inside every candidate, so no inset changes it, and it was set aside (no
+calipers: part of it may be the plate). Of the errors that depend on where the plate lies, only one binds:
+`20261015-170740_12`, 55.9 mm out, 0.89 mm off its length, by the right edge, which a short-edge inset of 13 mm
+excludes. No plate binds the long edges at any inset, so they take the range's floor, 10. The area holds the plate in
+any rotation (72.1 mm across its corners) and two side by side (144.2 mm across the 167.6). Outside it the plates read
+up to 1.17 mm off nominal from 57 mm out (`20261016-070838_15`, 1.17; `-070855_17`, 1.01), though every hole and
+every stain was still found there, to 80.9 mm.
+
+**Before and after**, on the same 91 frames, 215 objects, through the application's pipeline (CPU, the model-free
+describer): every object inside the area keeps its verdict and its reason. 37 verdicts change, every one because the
+object lies outside the area, as intended by the rule: 21 NOK, 7 OK and 9 radius-Unspecified become Warning (the plates
+by the right edge in all three captures, the plates by the edges of `20261016-070531_s1` except frame 21, and two
+vertical plates near the centre whose long side reaches into the top band, `Image_062`, 20.8 mm out, OK, and
+`20261015-170753_14`, 22.4 mm, NOK). 48 Warnings outside the area keep their verdict and take the outside reason, among
+them the four stained fronts cut by the border in `20261016-070531_s1` (frames 2, 8, 11, 13, similarity 0.668–0.738),
+which fail identification and are not marked. Not measured: plates along the area's bottom edge (one within 9 mm),
+in its corners (a whole plate can lie up to about 67 mm out there; the farthest judged inside is 58.4 mm), and any
+foreign object cut by the border (KNOWN_ISSUES, *The inspection area's insets rest on plates measured mostly by the
+right edge*).
+
+**Rejected.** A similarity rule for cut objects, threshold and visible evidence combined (the owner's first plan):
+dropped by the owner for the area before it was measured. A rule tolerating a slightly cut plate: unmeasured, and a
+plate's corner off the frame cannot be checked. The data hull of the judged plates as the area (0.4–3.9 mm from the
+frame's edges): the owner chose an inset from 10 to 15 mm instead, since the plates by the edges read beyond half the
+size tolerance.
+
+**Revisit if** captures along the area's left and bottom edges and in its corners (capture checklist 3d) read beyond
+half a tolerance inside it, or well within it outside it; the camera, the lens, the table height or the item changes
+(the insets are this station's); or a live preview is built (it calls `Paint_Inspection_Area`).
+Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_frame_inset_by_the_stations_insets`,
+`::test_only_an_object_wholly_inside_the_inspection_area_is_judged`,
+`::test_an_object_without_a_mask_is_never_inside_the_area`,
+`test/Reporting/test_core.py::test_an_object_outside_the_inspection_area_says_so_and_names_what_was_seen_there`,
+`::test_a_part_nok_on_every_side_gives_what_its_readings_share_else_each_with_its_side`,
+`::test_the_badge_states_the_worst_verdict`,
+`test/Vision/Utilities/test_annotate.py::test_a_part_outside_the_inspection_area_is_marked_only_in_the_warning_colour`,
+`test/UI/test_inspection_area.py`, `test/Configuration/test_core.py::test_an_inspection_area_too_small_for_the_part_fails_the_load`,
+`test/integration/test_edge_of_view.py` (frames 2, 6, 14 and 21 of `20261016-070531_s1` added as crops),
+`test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`.

@@ -82,7 +82,7 @@ class Trend_Image_Str:
     #   Unit [int]
     Index: int = 0
     # This image's object counts: total, and the split by verdict — OK, NOK, and in a catalogue mode the
-    # Warnings (objects that should not be on the surface) and the Unspecified ones (not judged), so the four
+    # Warnings (not judged: not the part, or outside the inspection area) and the Unspecified ones (not judged), so the four
     # add up to the total there.
     #   Unit [int]
     Total: int = 0

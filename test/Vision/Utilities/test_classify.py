@@ -32,9 +32,9 @@ import pytest
 # Custom Lib.: AnyScan — the catalogue verdict rule and the structures it reads
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import (Classify, Object_Crop, Reference_Crop, Rotations, Best_Match, Object_Area_Mm2,
-                                       Center_Distance_Mm, CONST_VERIFIED_RADIUS_MM, CONST_JUDGED_RADIUS_MM,
-                                       CONST_SIDE_MARGIN, Side_Similarities, Decide_Side, Settle_Side, Settle_Radius,
-                                       Wall_Widths)
+                                       Center_Distance_Mm, CONST_VERIFIED_RADIUS_MM, CONST_SIDE_MARGIN,
+                                       Side_Similarities, Decide_Side, Settle_Side, Settle_Area, Inspection_Area_Px,
+                                       Inside_Area, Wall_Widths)
 #   ../Vision/Utilities/Measure
 from Vision.Utilities.Measure import Measure_Mask
 #   ../Vision/Utilities/Dimensions
@@ -326,31 +326,60 @@ def test_a_part_whose_side_cannot_be_told_keeps_only_a_verdict_every_side_gives(
     assert (det.Verdict, det.Catalogue.Unspecified_Cause, det.Catalogue.Side_Evidence) == (settled, cause, how)
 
 
-def test_a_part_beyond_the_radius_parts_were_judged_to_is_unspecified() -> None:
+def test_the_inspection_area_is_the_frame_inset_by_the_stations_insets() -> None:
     """
     Description:
-        A part whose centre lies farther from the frame centre than CONST_JUDGED_RADIUS_MM (66.7 mm, the farthest
-        judged plate measured, 66.62) is Unspecified for its distance, OK or NOK alike; within it, and for a Warning
-        anywhere, the verdict stands. An area-Unspecified object says so.
+        The area is the frame inset by the long-edge inset from the top and bottom and by the short-edge inset from
+        the left and right, converted at the scale per axis: at 0.1 mm/px, 10 and 13 mm are 100 and 130 px, so the
+        1920 x 1200 frame's area spans columns 130-1789 and rows 100-1099.
     """
 
-    assert CONST_JUDGED_RADIUS_MM == pytest.approx(66.7)
-    far = _Part([(1320, 750, 1920, 1150)])                          # 60 x 40 mm, centre 74.7 mm out
-    Classify(far, 0.95, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
-    assert (far.Verdict, far.Catalogue.Judged_Radius_Mm) == ('OK', CONST_JUDGED_RADIUS_MM)
-    Settle_Radius(far)
-    assert (far.Verdict, far.Catalogue.Unspecified_Cause) == ('Unspecified', 'radius')
-    near = _Part([(660, 400, 1260, 800)])
-    Classify(near, 0.95, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
-    Settle_Radius(near)
-    assert (near.Verdict, near.Catalogue.Unspecified_Cause) == ('OK', '')
-    stray = _Part([(1320, 1050, 1720, 1150)])
-    Classify(stray, 0.3, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
-    Settle_Radius(stray)
-    assert stray.Verdict == 'Warning'
-    merged = _Part([(200, 200, 800, 600), (800, 200, 1400, 600)])
-    Classify(merged, 0.95, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
-    assert (merged.Verdict, merged.Catalogue.Unspecified_Cause) == ('Unspecified', 'area')
+    assert Inspection_Area_Px(CONST_FRAME, CONST_SCALE, 10.0, 13.0) == pytest.approx((130.0, 100.0, 1789.0, 1099.0))
+    assert Inspection_Area_Px(CONST_FRAME, Scale_Str(Mm_Per_Px_X=0.1, Mm_Per_Px_Y=0.2), 10.0, 13.0) == \
+        pytest.approx((130.0, 50.0, 1789.0, 1149.0))
+
+
+@pytest.mark.parametrize('rects, similarity, before, after, outside', [
+    ([(660, 400, 1260, 800)], 0.95, 'OK', 'OK', False),                     # in the middle
+    ([(130, 100, 730, 500)], 0.95, 'OK', 'OK', False),                      # on the area's top-left corner
+    ([(1190, 700, 1790, 1100)], 0.95, 'OK', 'OK', False),                   # on its bottom-right corner
+    ([(129, 400, 729, 800)], 0.95, 'OK', 'Warning', True),                  # one column over the left edge
+    ([(660, 99, 1260, 499)], 0.95, 'OK', 'Warning', True),                  # one row over the top edge
+    ([(0, 400, 600, 800)], 0.95, 'OK', 'Warning', True),                    # cut by the frame's border
+    ([(1320, 750, 1920, 1150)], 0.95, 'OK', 'Warning', True),               # by the corner, 74.7 mm out
+    ([(1200, 400, 1840, 800)], 0.95, 'NOK', 'Warning', True),               # a NOK is not given there either
+    ([(1500, 400, 1900, 500)], 0.30, 'Warning', 'Warning', True),           # a foreign object outside
+    ([(1300, 200, 1900, 600), (1300, 600, 1900, 1000)], 0.95, 'Unspecified', 'Warning', True),  # two plates outside
+], ids=['middle', 'top-left-corner', 'bottom-right-corner', 'left-edge', 'top-edge', 'border-cut', 'corner',
+        'nok-outside', 'foreign-outside', 'merged-outside'])
+def test_only_an_object_wholly_inside_the_inspection_area_is_judged(
+        rects: tp.List[tp.Tuple[int, int, int, int]], similarity: float, before: str, after: str, outside: bool) -> None:
+    """
+    Description:
+        An object whose mask lies wholly inside the area keeps its verdict, to the area's last pixel; one with a single
+        column or row of its mask outside it, cut by the frame's border, or in a corner of the view, is a Warning
+        whatever it was (OK, NOK, a foreign object's Warning, two plates' Unspecified), its Unspecified cause cleared,
+        and says it lies outside.
+    """
+
+    det = _Part(rects)
+    Classify(det, similarity, 'front', CONST_ITEM, CONST_THRESHOLDS, CONST_SCALE, CONST_FRAME)
+    assert det.Verdict == before
+    Settle_Area(det, Inside_Area(det, Inspection_Area_Px(CONST_FRAME, CONST_SCALE, 10.0, 13.0), np))
+    assert (det.Verdict, det.Catalogue.Outside_Area) == (after, outside)
+    assert det.Catalogue.Unspecified_Cause == ('area' if after == 'Unspecified' else '')
+
+
+def test_an_object_without_a_mask_is_never_inside_the_area() -> None:
+    """
+    Description:
+        An object with no mask, or an empty one, has no outline to place inside the area, so it is not inside.
+    """
+
+    area = Inspection_Area_Px(CONST_FRAME, CONST_SCALE, 10.0, 13.0)
+    assert not Inside_Area(Detection_Str(Label='x', Bbox=(700, 500, 10, 10), Mask=None), area, np)
+    assert not Inside_Area(Detection_Str(Label='x', Bbox=(700, 500, 10, 10),
+                                         Mask=np.zeros((CONST_FRAME[1], CONST_FRAME[0]), dtype=bool)), area, np)
 
 
 def test_side_similarities_take_each_sides_best_rotation() -> None:

@@ -174,9 +174,10 @@ such a station the dialog refuses them: another mode needs its own local copy to
 read.
 
 The camera is not in the mode file either. Its settings — the camera, lens and lighting as a person
-names them, the acquisition settings, the sensor window — the empty-surface reference and the
-calibration in force live in the station file the mode names, `Configuration/Station/`: they belong to
-the camera, the light and the table, so every mode naming that station shares them. A mode file never
+names them, the acquisition settings, the sensor window — the empty-surface reference, the catalogue modes'
+inspection area (`Inspection_Area`, its insets from the frame's edges in mm) and the calibration in force live
+in the station file the mode names, `Configuration/Station/`: they belong to the camera, the light and the
+table, so every mode naming that station shares them. A mode file never
 overrides them: one that holds `Camera`, `Calibration` or a background reference fails to load and names
 the station file. The station file is written by hand and committed, so it holds nothing true of one
 machine only; the station-event directory stays in the local copy of the mode file.
@@ -310,6 +311,11 @@ What a catalogue mode does not check, it cannot fail:
 - **A stain is caught by its colour, measured under this light** (KNOWN_ISSUES): a yellow-brown area of
   1 mm² or more on the mounting plate's front. A stain of another colour, or this colour under another light,
   is not verified.
+- **A part outside the inspection area is never judged.** Only a part whose whole outline lies inside the
+  area drawn in the Camera View (the frame inset by 10 mm at the top and bottom, 13 mm at the sides) gets OK or
+  NOK. Anything else, a part cut by the frame's border included, is a Warning: the stains and holes found on it
+  are named as information, never as a verdict. The insets were measured mostly by the right edge and the top
+  of the view; along the left and bottom edges and in the corners they are not verified (KNOWN_ISSUES).
 - **The Similarity tab is not a defect map.** It shows where a judged part looks unlike its reference to
   DINOv2: the fingerprints show, but so does glare, and missing holes do not.
   No verdict reads it.

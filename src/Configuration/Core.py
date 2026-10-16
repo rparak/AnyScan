@@ -474,6 +474,8 @@ CONST_STATION_CAMERA_FIELDS = (
 )
 CONST_STATION_FIELDS = CONST_STATION_CAMERA_FIELDS + (
     (('Background', 'Reference'), ('Segmentation', 'Background_Reference'), 'path', True),
+    (('Inspection_Area', 'Long_Edge_Inset_Mm'), ('Inspection_Area', 'Long_Edge_Inset_Mm'), 'positive', False),
+    (('Inspection_Area', 'Short_Edge_Inset_Mm'), ('Inspection_Area', 'Short_Edge_Inset_Mm'), 'positive', False),
 )
 # What a mode file may not hold because the station file holds it: the whole Camera block, the
 # reference (Segmentation.Background.Reference before 2026-10-11), and the calibration the station names.
@@ -1570,6 +1572,34 @@ def __Check_Identification(Configuration_Str: Configuration_Str, resolution: tp.
                                '%d × %d' % size if size else 'not a readable image', resolution[0], resolution[1]))
 
 
+def __Check_Inspection_Area(Configuration_Str: Configuration_Str, resolution: tp.Optional[tp.Tuple[int, int]],
+                            problems: tp.List[str]) -> None:
+    """
+    Description:
+        A catalogue mode's inspection area, against the camera window, the scale and the item: the area left once
+        the station's insets are taken from the frame, at the part's top face, must hold the part in any rotation
+        (its outline's diagonal on both sides), or no part could ever be judged.
+
+    Args:
+        (1) Configuration_Str [Configuration_Str(object)]: The configuration being filled (Scale at the top face).
+        (2) resolution [Vector<int> 1x2 or None]: The camera's window size (None when invalid).
+        (3) problems [Vector<string>]: Collects what is wrong.
+    """
+
+    item, scale = Configuration_Str.Catalogue, Configuration_Str.Scale
+    if item is None or scale is None or resolution is None:
+        return
+    area = Configuration_Str.Inspection_Area
+    width = resolution[0] * scale.Mm_Per_Px_X - 2.0 * area.Short_Edge_Inset_Mm
+    height = resolution[1] * scale.Mm_Per_Px_Y - 2.0 * area.Long_Edge_Inset_Mm
+    diagonal = math.hypot(item.Outline.Length_Mm, item.Outline.Width_Mm)
+    if min(width, height) < diagonal:
+        problems.append('%s: Inspection_Area leaves %.1f × %.1f mm of the view, which cannot hold the %s (%.1f mm '
+                        'across its corners) in any rotation: make Long_Edge_Inset_Mm and Short_Edge_Inset_Mm smaller'
+                        % (os.path.basename(Configuration_Str.Station_Path), width, height, item.Display_Name,
+                           diagonal))
+
+
 def __Catalogue_Scale(Configuration_Str: Configuration_Str, board_height: tp.Optional[float],
                       problems: tp.List[str]) -> tp.Optional[Scale_Str]:
     """
@@ -1726,6 +1756,7 @@ def __Load_Mode(config_path: str, reference_problems: tp.Optional[tp.List[str]])
         __Check_Identification(Configuration_Str_i, resolution, problems)
         if Configuration_Str_i.Catalogue is not None and calibrated:
             Configuration_Str_i.Scale = __Catalogue_Scale(Configuration_Str_i, board_height, problems)
+        __Check_Inspection_Area(Configuration_Str_i, resolution, problems)
 
     # 6\ The reference's provenance, against the window, the calibration and the lighting — after
     #    the calibration is read, since the reference must have been undistorted with it.

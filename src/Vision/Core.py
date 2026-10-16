@@ -65,7 +65,8 @@ from Vision.Identifier import Dino_Identifier_Cls, Identifier_Error_Cls
 #   ../Vision/Utilities/Classify
 from Vision.Utilities.Classify import (Object_Crop, Reference_Crop, Rotations, Best_Match, Best_Turn, Similarity_Grid,
                                        Classify, Apply_Holes, Apply_Stain, Crop_To_Frame, Side_Similarities, Decide_Side,
-                                       Settle_Side, Settle_Radius, Wall_Widths, Crop_View)
+                                       Settle_Side, Settle_Area, Inspection_Area_Px, Inside_Area, Wall_Widths,
+                                       Crop_View)
 #   ../Vision/Utilities/Holes
 from Vision.Utilities.Holes import Hole_Candidates, Check_Holes, Hole_Features, Side_Evidence
 #   ../Vision/Utilities/Stain
@@ -970,8 +971,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             candidates on its upright crop (FastSAM again, Vision.Utilities.Holes), the side up from DINOv2's
             margin or a hole only one side has (Decide_Side), and its checks on that side: its holes and its
             stains (Vision.Utilities.Stain), each found defect making it NOK. With the side undecided it is also
-            judged on every side, and a verdict that differs by side, or a part beyond the radius parts were
-            judged to, is Unspecified (Settle_Side, Settle_Radius). The crop's scale is the mean of the two
+            judged on every side, each side's reading kept, and a verdict that differs by side is Unspecified
+            (Settle_Side). Last, any object whose outline leaves the station's inspection area is a Warning
+            (Settle_Area): a part identified there keeps its checks and marks as information, any other object
+            has none. The crop's scale is the mean of the two
             factors (they differ by 0.17 %). Each judged part's features are taken to the frame and numbered as
             its parts, and its patches' unlikeness to the reference of the side checked is laid on the frame's
             similarity map.
@@ -1005,11 +1008,15 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         item = self.__config.Catalogue
         mm_per_px = (self.__config.Scale.Mm_Per_Px_X + self.__config.Scale.Mm_Per_Px_Y) / 2.0
         names = {entry.Side: entry.Name for entry in item.Sides}
+        area = self.__config.Inspection_Area
+        area_px = Inspection_Area_Px(frame_size, self.__config.Scale, area.Long_Edge_Inset_Mm, area.Short_Edge_Inset_Mm)
         for index, det in enumerate(objects):
             own = rows[index * turns:(index + 1) * turns]
             similarity, side = Best_Match(own, references, self.__reference_sides)
             Classify(det, similarity, side, item, self.__config.Identification, self.__config.Scale, frame_size)
+            inside = Inside_Area(det, area_px, np)
             if det.Verdict not in ('OK', 'NOK'):
+                Settle_Area(det, inside)
                 continue
             upright = uprights[index]
             height_px, width_px = upright.shape[:2]
@@ -1031,12 +1038,16 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             verdicts = {}
             if how == 'undecided':
                 for other in self.__reference_sides:
-                    trial = dataclasses.replace(det)
-                    self.__Check_Side(trial, other, upright, holes, size_mm, (walls, view), mm_per_px, cv2, np)
+                    # Its own catalogue result, on its own side, so the reading names that side and holds no readings.
+                    trial = dataclasses.replace(det, Catalogue=dataclasses.replace(
+                        det.Catalogue, Side=other, Side_Name=names.get(other, other), Side_Readings={}))
+                    trial.Features = self.__Check_Side(trial, other, upright, holes, size_mm, (walls, view), mm_per_px,
+                                                       cv2, np)
                     verdicts[other] = trial.Verdict
+                    det.Catalogue.Side_Readings[names.get(other, other)] = trial
             features = self.__Check_Side(det, side, upright, holes, size_mm, (walls, view), mm_per_px, cv2, np)
             Settle_Side(det, verdicts, how)
-            Settle_Radius(det)
+            Settle_Area(det, inside)
             # The similarity overlay (a diagnostic, never a verdict): each patch's unlikeness to the reference of the
             # side checked, from the identification's own pass, laid on the part's pixels.
             turn = Best_Turn(own, references, self.__reference_sides, side)

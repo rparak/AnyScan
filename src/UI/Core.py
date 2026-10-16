@@ -64,6 +64,8 @@ from Vision.Core import Vision_Pipeline_Cls
 from Vision.Utilities.Annotate import Render_Views, Seg_Lines
 #   ../Vision/Utilities/Heatmap
 from Vision.Utilities.Heatmap import Render_Heatmap, Render_Overlay
+#   ../Vision/Utilities/Classify
+from Vision.Utilities.Classify import Inspection_Area_Px
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header, Screen_Understanding, Yolo_Lines, Frame_Confidence, Verdict_Log_Line, Part_Lines
 #   ../Reporting/Trends
@@ -585,6 +587,8 @@ class AnyScan_Window_Cls(QMainWindow):
         card.box.addWidget(head)
 
         self.__viewport = Viewport_Cls()
+        # A catalogue mode's inspection area from the start, so the empty view already shows where to place parts.
+        self.__viewport.Set_Inspection_Area(self.__Inspection_Area(self.__config))
         card.box.addWidget(self.__viewport, 1)
 
         bar = QHBoxLayout()
@@ -1980,6 +1984,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__camera.Set_Configuration(Configuration_Str.Camera, Configuration_Str.Name,
                                         os.path.basename(Configuration_Str.Calibration_Path))
         self.__object_list.Set_Thresholds(Configuration_Str.Confidence)
+        self.__viewport.Set_Inspection_Area(self.__Inspection_Area(Configuration_Str))
         self.__trends_view.Set_Configuration(Configuration_Str.Classifies,
                                              Configuration_Str.Confidence)
         self.__history_view.Set_Configuration(Configuration_Str.Classifies,
@@ -1992,6 +1997,29 @@ class AnyScan_Window_Cls(QMainWindow):
             for level, note in Configuration_Str.Notes:
                 self.__Log_Event(level, note)
         self.__Sync_Controls()
+
+    @staticmethod
+    def __Inspection_Area(Configuration_Str: Configuration_Str) -> tp.Optional[tp.Tuple[tp.Tuple[int, int],
+                                                                                        tp.Tuple[float, float, float, float]]]:
+        """
+        Description:
+            The inspection area the Camera View draws for a configuration: a catalogue mode's, on its camera window at
+            its scale (Inspection_Area_Px, the rectangle the verdict uses), or None — a mode without a catalogue
+            (Segment Anything) shows none.
+
+        Args:
+            (1) Configuration_Str [Configuration_Str(object)]: The configuration.
+
+        Returns:
+            (1) parameter [Tuple or None]: (the frame's (width, height), the area on it in pixels), or None.
+        """
+
+        if not Configuration_Str.Classifies or Configuration_Str.Scale is None:
+            return None
+        frame_size = tuple(Configuration_Str.Camera.Resolution)
+        area = Configuration_Str.Inspection_Area
+        return frame_size, Inspection_Area_Px(frame_size, Configuration_Str.Scale, area.Long_Edge_Inset_Mm,
+                                              area.Short_Edge_Inset_Mm)
 
     def __On_Configuration_Refused(self, message: str) -> None:
         """

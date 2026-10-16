@@ -335,7 +335,8 @@ def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tupl
 
         In a catalogue mode (the objects carry catalogue evidence) the badge states the worst verdict, so it
         is never green while anything on the surface is not OK: any NOK ('NOK · 2 of 5', level 'fail'), else
-        any Unspecified ('Not judged · 1', 'warn'), else any Warning ('Foreign object · 3', 'warn'), else
+        any Unspecified ('Not judged · 1', 'warn'), else any Warning ('Foreign object · 3' when none lies outside the
+        inspection area, 'Outside the area · 2' when all do, 'Warning · 3' when both kinds are there; 'warn'), else
         every object OK ('All OK · 2', 'ok'). The word carries the state as well as the colour.
 
     Args:
@@ -356,7 +357,11 @@ def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tupl
         if count['Unspecified']:
             return 'Not judged · %d' % count['Unspecified'], 'warn'
         if count['Warning']:
-            return 'Foreign object · %d' % count['Warning'], 'warn'
+            outside = sum(o.Verdict == 'Warning' and o.Catalogue is not None and o.Catalogue.Outside_Area
+                          for o in objects)
+            word = ('Outside the area' if outside == count['Warning'] else 'Foreign object' if not outside
+                    else 'Warning')
+            return '%s · %d' % (word, count['Warning']), 'warn'
         return 'All OK · %d' % len(objects), 'ok'
     scored = [o.Confidence for o in objects if o.Confidence is not None]
     if scored and min(scored) < threshold:
@@ -638,9 +643,8 @@ def __Unspecified_Sentence(result: Catalogue_Result_Str) -> str:
     """
     Description:
         Why an object was not judged, and what to do, by its cause (Catalogue_Result_Str.Unspecified_Cause): its area
-        (probably several parts), its distance from the frame centre (beyond the radius parts were judged to), or its
-        side (which side is up cannot be told and its verdict depends on it, or its holes and its look show different
-        sides).
+        (probably several parts) or its side (which side is up cannot be told and its verdict depends on it, or its
+        holes and its look show different sides).
 
     Args:
         (1) result [Catalogue_Result_Str(object)]: The object's catalogue result, Unspecified.
@@ -649,10 +653,6 @@ def __Unspecified_Sentence(result: Catalogue_Result_Str) -> str:
         (1) parameter [string]: The sentence.
     """
 
-    if result.Unspecified_Cause == 'radius':
-        return ('It lies %.0f mm from the frame centre, beyond the %.0f mm parts were judged to, so its side, holes '
-                'and stains cannot be judged there. Move it nearer the centre and scan again.'
-                % (result.Center_Distance_Mm, result.Judged_Radius_Mm))
     if result.Unspecified_Cause == 'side':
         looks = ', '.join('%s %.2f' % (side, similarity) for side, similarity in result.Side_Similarities.items())
         if result.Side_Evidence == 'conflict':
@@ -664,6 +664,108 @@ def __Unspecified_Sentence(result: Catalogue_Result_Str) -> str:
             'Separate them and scan again.' % result.Area_Ratio)
 
 
+def Identified_Outside(det: Detection_Str) -> bool:
+    """
+    Description:
+        Whether an object is a part identified outside the inspection area: a Warning for where it lies, whose checks
+        ran as information (Vision.Utilities.Classify.Settle_Area), so its features are marked and named. A foreign
+        object, or a part that failed identification, outside the area has no checks.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [bool]: True for an identified part outside the area.
+    """
+
+    result = det.Catalogue
+    return (result is not None and result.Outside_Area and det.Verdict == 'Warning'
+            and (bool(det.Hole_Counts) or det.Stains is not None))
+
+
+def __Outside_Sentence(det: Detection_Str) -> str:
+    """
+    Description:
+        Why an object outside the inspection area was not judged, and what to do; for a part identified there, what
+        its checks found where it is visible, as information ('Seen there: both countersinks found, one of two
+        through-holes missing, two stains found.'), never as a verdict.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object, a Warning outside the area.
+
+    Returns:
+        (1) parameter [string]: The sentence.
+    """
+
+    sentence = ('It lies outside the inspection area, so it is not judged: move it fully inside the area and scan '
+                'again.')
+    if not Identified_Outside(det):
+        return sentence
+    seen = []
+    for count in det.Hole_Counts:
+        if count.Found:
+            seen.append('%s %s found' % ('both' if count.Found == 2 == count.Expected else Count_Word(count.Found),
+                                         __Plural(count.Found, count.Name)))
+        if count.Expected > count.Found:
+            missing = count.Expected - count.Found
+            if count.Found:
+                seen.append('%s of %s %ss missing' % (Count_Word(missing), Count_Word(count.Expected), count.Name))
+            else:
+                seen.append('%s %s missing' % ('both' if missing == 2 else Count_Word(missing),
+                                               __Plural(missing, count.Name)))
+    if det.Stains:
+        seen.append('a stain found' if len(det.Stains) == 1 else '%s stains found' % Count_Word(len(det.Stains)))
+    elif det.Stains is not None:
+        seen.append('no stain found')
+    return sentence + (' Seen there: %s.' % ', '.join(seen) if seen else '')
+
+
+def __Finding_Clauses(det: Detection_Str, side_name: str) -> tp.List[str]:
+    """
+    Description:
+        A judged part's findings as clauses, in order: the outline's size ('its length is out of tolerance'), its
+        look, its holes (__Hole_Clauses) and its stains ('there are two stains on the machined front').
+
+    Args:
+        (1) det [Detection_Str(object)]: The part, or one side's reading of it.
+        (2) side_name [string]: The side its holes and stains were checked on, as the catalogue names it.
+
+    Returns:
+        (1) parameter [Vector<string>]: The clauses.
+    """
+
+    result = det.Catalogue
+    clauses = []
+    failed = [check.Name for check in det.Dimension_Checks if not check.Within]
+    if not det.Dimension_Checks:
+        clauses.append('its outline could not be measured')
+    elif failed:
+        clauses.append('its %s %s out of tolerance' % (__Join(failed), 'is' if len(failed) == 1 else 'are'))
+    if result.Similarity < result.Identify_Similarity:
+        clauses.append("it has the part's outline but does not look like the part")
+    clauses += __Hole_Clauses(det)
+    if det.Stains:
+        side = ' on the %s' % side_name if side_name else ''
+        clauses.append('there is a stain%s' % side if len(det.Stains) == 1 else
+                       'there are %s stains%s' % (Count_Word(len(det.Stains)), side))
+    return clauses
+
+
+def __Clause_Sentence(clauses: tp.List[str]) -> str:
+    """
+    Description:
+        Clauses joined as one phrase ('A, b, and c'), uncapitalised and without its full stop.
+
+    Args:
+        (1) clauses [Vector<string>]: The clauses, at least one.
+
+    Returns:
+        (1) parameter [string]: The phrase.
+    """
+
+    return clauses[0] if len(clauses) == 1 else '%s, and %s' % (', '.join(clauses[:-1]), clauses[-1])
+
+
 def Reason_Sentence(det: Detection_Str) -> str:
     """
     Description:
@@ -671,8 +773,12 @@ def Reason_Sentence(det: Detection_Str) -> str:
         2026-10-11): each kind of finding a clause — the outline's size ('its length is out of tolerance'), its
         look, the holes (__Hole_Clauses) and the stains ('there are two stains on the machined front') — in that
         order, joined ('A, b, and c.'). Counts in words up to ten. The
-        measured and expected values are in the log (Part_Lines). A Warning should not be there; an Unspecified
-        object could not be judged, and what to do. Empty for an OK part and outside a catalogue mode.
+        measured and expected values are in the log (Part_Lines). A part whose side could not be told, NOK on every
+        side, gives what its readings share; with nothing shared, each reading's clauses with its side named
+        ('Read with its machined front up, …; read with its unmachined back up, ….'). A Warning outside the
+        inspection area says so, what to do, and what an identified part's checks saw there (__Outside_Sentence);
+        any other Warning should not be there; an Unspecified object could not be judged, and what to do. Empty for
+        an OK part and outside a catalogue mode.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -685,25 +791,22 @@ def Reason_Sentence(det: Detection_Str) -> str:
     if result is None or det.Verdict == 'OK':
         return ''
     if det.Verdict == 'Warning':
-        return 'The object should not be on the surface.'
+        return __Outside_Sentence(det) if result.Outside_Area else 'The object should not be on the surface.'
     if det.Verdict == 'Unspecified':
         return __Unspecified_Sentence(result)
-    clauses = []
-    failed = [check.Name for check in det.Dimension_Checks if not check.Within]
-    if not det.Dimension_Checks:
-        clauses.append('its outline could not be measured')
-    elif failed:
-        clauses.append('its %s %s out of tolerance' % (__Join(failed), 'is' if len(failed) == 1 else 'are'))
-    if result.Similarity < result.Identify_Similarity:
-        clauses.append("it has the part's outline but does not look like the part")
-    clauses += __Hole_Clauses(det)
-    if det.Stains:
-        side = ' on the %s' % result.Side_Name if result.Side_Name else ''
-        clauses.append('there is a stain%s' % side if len(det.Stains) == 1 else
-                       'there are %s stains%s' % (Count_Word(len(det.Stains)), side))
+    clauses = __Finding_Clauses(det, result.Side_Name)
+    readings = {name: __Finding_Clauses(reading, name) for name, reading in result.Side_Readings.items()}
+    if result.Side_Evidence == 'undecided' and len(readings) > 1:
+        shared = [clause for clause in next(iter(readings.values()))
+                  if all(clause in other for other in readings.values())]
+        if not shared and all(readings.values()):
+            sentence = '; '.join('read with its %s up, %s' % (name, __Clause_Sentence(found))
+                                 for name, found in readings.items())
+            return sentence[0].upper() + sentence[1:] + '.'
+        clauses = shared or clauses
     if not clauses:
         return ''
-    sentence = clauses[0] if len(clauses) == 1 else '%s, and %s' % (', '.join(clauses[:-1]), clauses[-1])
+    sentence = __Clause_Sentence(clauses)
     return sentence[0].upper() + sentence[1:] + '.'
 
 
@@ -712,17 +815,19 @@ def Part_Lines(index: int, det: Detection_Str) -> tp.List[str]:
     Description:
         A judged part's evidence for the log, below its verdict line (the request's explainability: each part's
         measured value, expected value and tolerance): its outline's checks, each hole group's count, then one
-        line per part ('Part 2.3 · through-hole: …'), numbered as the frame numbers its failing parts.
+        line per part ('Part 2.3 · through-hole: …'), numbered as the frame numbers its failing parts. A part
+        identified outside the inspection area (Identified_Outside) has them too, as information.
 
     Args:
         (1) index [int]: The object's 0-based position.
         (2) det [Detection_Str(object)]: The object, judged.
 
     Returns:
-        (1) parameter [Vector<string>]: The lines; [] for an object not judged the part.
+        (1) parameter [Vector<string>]: The lines; [] for an object neither judged the part nor identified outside
+                                        the area.
     """
 
-    if det.Catalogue is None or det.Verdict not in ('OK', 'NOK'):
+    if det.Catalogue is None or (det.Verdict not in ('OK', 'NOK') and not Identified_Outside(det)):
         return []
     label = Object_Label(index)
     lines = []

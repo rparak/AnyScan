@@ -60,6 +60,12 @@ Description:
     else is name-mangled private state.
 """
 
+# The inspection area's line width on the screen (Paint_Inspection_Area): thin, half the frame boxes' 2 px, drawn
+# without antialiasing on whole pixels so it stays one solid colour (1.5 px antialiased spread it over two pixels at
+# three quarters of its colour, measured on the offscreen render, 2026-10-16).
+#   Unit [px] (logical)
+CONST_INSPECTION_AREA_W = 1
+
 
 def Digit_Variants(text: str) -> tp.List[str]:
     """
@@ -116,6 +122,38 @@ def Meta_Row(parent_layout: QVBoxLayout, key: str, *, compact: bool, mono: bool 
     line.addWidget(value)
     parent_layout.addWidget(row)
     return value
+
+
+def Paint_Inspection_Area(p: QPainter, draw_rect: QRectF, frame_size: tp.Tuple[int, int],
+                          area_px: tp.Tuple[float, float, float, float]) -> None:
+    """
+    Description:
+        A catalogue mode's inspection area over a frame drawn at draw_rect: a thin solid line in the area's token,
+        square corners, no fill, on the screen only (the images saved to the logger never carry it). The one painter of
+        the area: the Camera View calls it over its empty state, the scanned frame and the annotated result, and a live
+        preview can call it over each of its frames.
+
+    Args:
+        (1) p [QPainter(object)]: The active painter (its state is restored).
+        (2) draw_rect [QRectF(object)]: Where the frame lies on the painter, letterboxed.
+        (3) frame_size [Vector<int> 1x2]: The frame's (width, height) in pixels.
+        (4) area_px [Tuple<float> 1x4]: The area on the frame (Vision.Utilities.Classify.Inspection_Area_Px).
+    """
+
+    sx, sy = draw_rect.width() / frame_size[0], draw_rect.height() / frame_size[1]
+    left, top, right, bottom = area_px
+    # On whole pixels: the line lies on the area's outermost pixels, inside it.
+    rect = QRect(int(round(draw_rect.left() + left * sx)), int(round(draw_rect.top() + top * sy)), 0, 0)
+    rect.setRight(int(round(draw_rect.left() + right * sx)))
+    rect.setBottom(int(round(draw_rect.top() + bottom * sy)))
+    pen = QPen(Style.Token_Color(Style.CONST_INSPECTION_AREA), CONST_INSPECTION_AREA_W, Qt.SolidLine, Qt.SquareCap,
+               Qt.MiterJoin)
+    p.save()
+    p.setRenderHint(QPainter.Antialiasing, False)
+    p.setPen(pen)
+    p.setBrush(Qt.NoBrush)
+    p.drawRect(rect)
+    p.restore()
 
 
 class Card_Cls(QFrame):
@@ -336,10 +374,26 @@ class Viewport_Cls(QWidget):
         self.__timer.timeout.connect(self.__Tick)
         # An empty state is an instruction — it names the step available right now.
         self.__empty_text = 'Connect a camera, then press Scan to capture a frame.'
+        # A catalogue mode's inspection area, as (the frame's size, the area on it), or None (Set_Inspection_Area).
+        self.__area = None
         self.__mark = QSvgRenderer(os.path.join(Style.CONST_ASSETS, 'anyscan-mark.svg'))
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMinimumHeight(320)
+
+    def Set_Inspection_Area(self, area: tp.Optional[tp.Tuple[tp.Tuple[int, int], tp.Tuple[float, float, float, float]]]
+                            ) -> None:
+        """
+        Description:
+            Show a catalogue mode's inspection area over the empty state, the scanned frame and the annotated result
+            (Paint_Inspection_Area), or none (a mode without a catalogue, or no scale to place it with).
+
+        Args:
+            (1) area [Tuple or None]: (the frame's (width, height), the area on it in pixels), or None.
+        """
+
+        self.__area = area
+        self.update()
 
     def Show_Frame(self, image: QImage) -> None:
         """
@@ -565,10 +619,24 @@ class Viewport_Cls(QWidget):
         displayed = self.__Displayed()
         if displayed is None:
             return QRect()
-        scale = min(self.width() / displayed.width(),
-                    self.height() / displayed.height())
-        w = displayed.width() * scale
-        h = displayed.height() * scale
+        return self.__Letterbox(displayed.width(), displayed.height())
+
+    def __Letterbox(self, width: int, height: int) -> QRect:
+        """
+        Description:
+            Where an image of the given size sits, letterboxed, inside this widget.
+
+        Args:
+            (1) width [int]: The image's width.
+            (2) height [int]: The image's height.
+
+        Returns:
+            (1) parameter [QRect(object)]: Its draw rectangle.
+        """
+
+        scale = min(self.width() / width, self.height() / height)
+        w = width * scale
+        h = height * scale
         return QRect(int((self.width() - w) / 2), int((self.height() - h) / 2),
                      int(w), int(h))
 
@@ -576,8 +644,9 @@ class Viewport_Cls(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:
         """
         Description:
-            Paint the dark surface, the letterboxed frame (the boxes are in its render), the
-            heatmap's legend when it shows, and any busy overlay on top.
+            Paint the dark surface, the letterboxed frame (the boxes are in its render), a catalogue mode's
+            inspection area over the empty state, the scanned frame and the annotated result (never the mask, the
+            heatmap or the similarity view), the heatmap's legend when it shows, and any busy overlay on top.
         """
 
         p = QPainter(self)
@@ -592,8 +661,12 @@ class Viewport_Cls(QWidget):
         displayed = self.__Displayed()
         if displayed is None:
             self.__Paint_Empty(p)
+            if self.__area is not None:
+                Paint_Inspection_Area(p, QRectF(self.__Letterbox(*self.__area[0])), *self.__area)
         else:
             p.drawImage(self.__Draw_Rect(), displayed)
+            if self.__area is not None and (displayed is self.__image or displayed is self.__annotated):
+                Paint_Inspection_Area(p, QRectF(self.__Draw_Rect()), *self.__area)
             if displayed is self.__heatmap and self.__legend is not None:
                 self.__Paint_Legend(p, self.__legend)
             elif displayed is self.__similarity and self.__similarity_legend is not None:

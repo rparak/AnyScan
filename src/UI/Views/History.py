@@ -104,7 +104,7 @@ CONST_EMPTY_MESSAGES = {
     'all': 'No captures in this run yet. Analyse an image to begin.',
     'ok': 'No OK part in this run.',
     'nok': 'No NOK part in this run.',
-    'warning': 'No object that should not be on the surface in this run.',
+    'warning': 'No foreign object and no object outside the inspection area in this run.',
     'unspecified': 'No object that could not be judged in this run.'}
 
 

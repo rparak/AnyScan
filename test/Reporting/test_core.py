@@ -399,18 +399,12 @@ def test_each_state_reads_as_the_owner_specified() -> None:
 def test_an_unspecified_part_says_why_it_was_not_judged_and_what_to_do() -> None:
     """
     Description:
-        An Unspecified object's reason names its cause: its area (several parts, as before); its distance, beyond
-        the radius parts were judged to; or its side, which neither its look (both similarities given) nor its holes
-        tell while its verdict depends on it, or which its holes and its look tell differently. Each says what to do.
-        The log names a side its holes decided.
+        An Unspecified object's reason names its cause: its area (several parts, as before); or its side, which
+        neither its look (both similarities given) nor its holes tell while its verdict depends on it, or which its
+        holes and its look tell differently. Each says what to do. The log names a side its holes decided.
     """
 
     from Reporting.Core import Reason_Sentence, Verdict_Log_Line
-    far = _Judged('Unspecified', distance=74.7)
-    far.Catalogue.Unspecified_Cause, far.Catalogue.Judged_Radius_Mm = 'radius', 66.7
-    assert Reason_Sentence(far) == ('It lies 75 mm from the frame centre, beyond the 67 mm parts were judged to, so '
-                                    'its side, holes and stains cannot be judged there. Move it nearer the centre '
-                                    'and scan again.')
     told = _Judged('Unspecified')
     told.Catalogue.Unspecified_Cause, told.Catalogue.Side_Evidence = 'side', 'undecided'
     told.Catalogue.Side_Similarities = {'front': 0.72, 'back': 0.75}
@@ -494,19 +488,25 @@ def test_the_verdict_reaches_the_file_and_the_log_keeps_the_similarity() -> None
 @pytest.mark.parametrize('verdicts, badge', [
     (['OK', 'OK'], ('All OK · 2', 'ok')),
     (['OK', 'Warning', 'Warning'], ('Foreign object · 2', 'warn')),
+    (['OK', 'Warning-outside', 'Warning-outside'], ('Outside the area · 2', 'warn')),
+    (['OK', 'Warning', 'Warning-outside'], ('Warning · 2', 'warn')),
     (['OK', 'Warning', 'Unspecified'], ('Not judged · 1', 'warn')),
     (['OK', 'NOK', 'Unspecified', 'Warning', 'NOK'], ('NOK · 2 of 5', 'fail')),
-], ids=['all ok', 'warning', 'unspecified over warning', 'nok over all'])
+], ids=['all ok', 'warning', 'outside', 'foreign and outside', 'unspecified over warning', 'nok over all'])
 def test_the_badge_states_the_worst_verdict(verdicts: tp.List[str], badge: tp.Tuple[str, str]) -> None:
     """
     Description:
         In a catalogue mode the badge is never green while anything on the surface is not OK: any NOK (the
         'fail' level), else any Unspecified, else any Warning (both 'warn'), else all OK ('ok') — each in words
-        as well as colour. Outside a catalogue mode it still counts what was found.
+        as well as colour. The Warnings are named by kind: foreign objects, objects outside the inspection area, or
+        'Warning' when both kinds are there. Outside a catalogue mode it still counts what was found.
     """
 
     from Reporting.Core import Verdict
-    assert Verdict([_Judged(verdict) for verdict in verdicts]) == badge
+    objects = [_Judged(verdict.split('-')[0]) for verdict in verdicts]
+    for det, verdict in zip(objects, verdicts):
+        det.Catalogue.Outside_Area = verdict.endswith('-outside')
+    assert Verdict(objects) == badge
     assert Verdict([Detection_Str(Label='plate', Bbox=(0, 0, 1, 1))] * 3) == ('3 found', 'ok')
 
 
@@ -872,3 +872,66 @@ def test_the_guard_drops_a_sentence_referring_to_the_checks(sentence: str, dropp
     kept, drops = Guard_Description('The part is a rectangular metal plate. ' + sentence, det)
     assert kept == 'The part is a rectangular metal plate.' + ('' if dropped else ' ' + sentence)
     assert drops == ([(sentence, CONST_GUARD_CHECKS_WHY)] if dropped else [])
+
+
+def test_an_object_outside_the_inspection_area_says_so_and_names_what_was_seen_there() -> None:
+    """
+    Description:
+        A Warning outside the inspection area is not "should not be on the surface": it says it lies outside the area
+        and what to do. A part identified there also names, as information, what its checks found where it is visible:
+        each hole group found and missing, and its stains (or none); a foreign object or a part that failed
+        identification (no checks ran) gets the first sentence alone. The log lists the identified part's evidence.
+    """
+
+    from Parameters.Vision import Hole_Count_Str, Stain_Str
+    from Reporting.Core import Reason_Sentence, Part_Lines, Identified_Outside
+    first = 'It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.'
+    foreign = _Judged('Warning', similarity=0.31)
+    foreign.Catalogue.Outside_Area = True
+    assert (Reason_Sentence(foreign), Identified_Outside(foreign), Part_Lines(0, foreign)) == (first, False, [])
+    part = _Judged('Warning')
+    part.Catalogue.Outside_Area = True
+    part.Hole_Counts = [Hole_Count_Str(Name='countersink', Found=2, Expected=2),
+                        Hole_Count_Str(Name='through-hole', Found=1, Expected=2)]
+    part.Stains = [Stain_Str(Area_Mm2=150.0), Stain_Str(Area_Mm2=55.0)]
+    assert Reason_Sentence(part) == first + (' Seen there: both countersinks found, one through-hole found, one of two '
+                                             'through-holes missing, two stains found.')
+    assert Identified_Outside(part) and Part_Lines(0, part)[1:] == ['Object 1 · countersinks: 2 of 2 found.',
+                                                                     'Object 1 · through-holes: 1 of 2 found.']
+    part.Stains = []
+    part.Hole_Counts = [Hole_Count_Str(Name='through-hole', Found=0, Expected=2)]
+    assert Reason_Sentence(part) == first + ' Seen there: both through-holes missing, no stain found.'
+    assert Reason_Sentence(_Judged('Warning', similarity=0.31)) == 'The object should not be on the surface.'
+
+
+def test_a_part_nok_on_every_side_gives_what_its_readings_share_else_each_with_its_side() -> None:
+    """
+    Description:
+        A part whose side could not be told and is NOK read with either side up gives the findings both readings
+        share (its outline out of tolerance, the through-holes both sides have), never a finding only one side's
+        checks can give (the front's missing countersinks); with nothing shared, each reading's findings with its side
+        named, so a defect on either side is never hidden.
+    """
+
+    from Parameters.Vision import Hole_Count_Str, Stain_Str
+    from Reporting.Core import Reason_Sentence
+    from Vision.Utilities.Dimensions import Check_Dimension
+
+    def Reading(counts: tp.List[tp.Tuple[str, int, int]], stains: int, long: float) -> Detection_Str:
+        reading = _Judged('NOK', checks=[Check_Dimension('length', long, 60.0, 1.5), Check_Dimension('width', 40.1, 40.0, 1.5)])
+        reading.Hole_Counts = [Hole_Count_Str(Name=name, Found=found, Expected=expected) for name, found, expected in counts]
+        reading.Stains = [Stain_Str(Area_Mm2=150.0)] * stains if stains else None
+        return reading
+
+    det = Reading([('countersink', 0, 2), ('through-hole', 0, 2)], 0, 62.0)
+    det.Catalogue.Side_Evidence = 'undecided'
+    det.Catalogue.Side_Readings = {'machined front': Reading([('countersink', 0, 2), ('through-hole', 0, 2)], 0, 62.0),
+                                   'unmachined back': Reading([('through-hole', 0, 2)], 0, 62.0)}
+    assert Reason_Sentence(det) == 'Its length is out of tolerance, and both through-holes are missing.'
+    det.Catalogue.Side_Readings = {'machined front': Reading([('countersink', 0, 2), ('through-hole', 2, 2)], 2, 60.2),
+                                   'unmachined back': Reading([('through-hole', 1, 2)], 0, 60.2)}
+    assert Reason_Sentence(det) == ('Read with its machined front up, both countersinks are missing, and there are two '
+                                    'stains on the machined front; read with its unmachined back up, one of two '
+                                    'through-holes is missing.')
+    det.Catalogue.Side_Evidence = 'holes'
+    assert Reason_Sentence(det) == 'Its length is out of tolerance, both countersinks are missing, and both through-holes are missing.'
