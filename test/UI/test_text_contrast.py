@@ -93,7 +93,7 @@ CONST_DOT = '●'
 # disclaimer left the window on 2026-10-15 (its band carries logos only).
 #   Unit [Tuple<string>]
 CONST_FLAGGED_TEXTS = (
-    'Configuration not loaded.', 'Loading configuration', 'Configuration loaded.', 'Camera offline', 'Camera live',
+    'Configuration not loaded.', 'Loading configuration', 'Configuration loaded.', 'Camera offline', 'Camera connected',
     'No frame', 'Idle', 'Connect a camera and scan a frame', 'CAMERA', 'Disconnected', 'Models not loaded',
     'Connected', 'Ready', 'Cumulative objects', 'No analyses in this run yet.',
     'Rolling window', 'No captures in this run yet.', 'Select a capture set.', 'lines', 'Connection sessionA',

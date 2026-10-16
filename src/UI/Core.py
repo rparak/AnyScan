@@ -833,7 +833,7 @@ class AnyScan_Window_Cls(QMainWindow):
         self.__view_toggle.setEnabled(has_views and not running)
 
         if connected:
-            self.__pill_camera.setText('●  Camera live')
+            self.__pill_camera.setText('●  Camera connected')
             self.__pill_camera.setStyleSheet(self.__Pill_Style(Style.CONST_OK_BORDER, Style.CONST_OK))
         else:
             self.__pill_camera.setText('●  Camera offline')

@@ -800,3 +800,18 @@ def test_a_scan_refused_after_analyze_keeps_the_last_fresh_frame_never_the_old_r
     assert not viewport.Has_Views() and _Shown_Stream(window) == 3
     assert _Private(window, '__frame_badge').text() == 'Not scanned'
 
+
+def test_the_header_pill_says_connected_and_live_means_only_the_preview(qt_app, tmp_path) -> None:
+    """
+    Description:
+        The header's camera pill reads Camera connected while the camera is connected and Camera offline otherwise;
+        'live' is said only by the preview's marker.
+    """
+
+    camera = _Live_Camera_Cls()
+    window, _, _ = _Window(tmp_path, camera, connect=False)
+    pill = _Private(window, '__pill_camera')
+    assert pill.text() == '●  Camera offline'
+    _Private(window, '__button_connect').click()
+    _Pump(lambda: camera.Connected and not _Private(window, '__worker_running'))
+    assert pill.text() == '●  Camera connected' and 'live' not in pill.text().lower()

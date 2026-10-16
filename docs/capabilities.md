@@ -215,7 +215,7 @@ it names. The modes shipped today:
 ## UI views
 
 The central area switches between four views. The header carries the logo, the model-set pill and
-the camera pill. The control column holds the buttons above. The status strip along the bottom
+the camera pill (*Camera connected* or *Camera offline*; "live" names only the preview). The control column holds the buttons above. The status strip along the bottom
 shows Camera, Resolution, System, Last update, Images analysed, Objects detected, Inference (run
 median) and Confidence (run mean).
 

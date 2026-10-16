@@ -4680,7 +4680,7 @@ The scan ends on the new scanned frame. Refused for movement, it leaves its last
 *Moving* message (the head's badge *Not scanned*; ANALYZE has no frame) and resumes the preview when it came from
 it; stopping that preview shows the same fresh frame. The previous result never comes back. PREVIEW pressed again
 still returns to the last scanned frame and its result, as decided: only SCAN drops them. The run's statistics stay;
-CLEAR resets them.
+CLEAR resets them. The header pill reads *Camera connected* (was *Camera live*), so "live" names only the preview.
 
 Between the press and the preview's last frame in flight (at most one frame period, about 0.27 s on the rig) the view
 keeps the newest preview frame, the table as it is now, under LIVE PREVIEW; it is never the old result.
@@ -4698,4 +4698,5 @@ Tests `test/UI/test_preview.py::test_scan_after_analyze_never_shows_the_old_resu
 `::test_the_scan_shows_its_fresh_frames_under_the_scanning_marker_without_a_scrim`,
 `::test_a_scan_refused_after_analyze_keeps_the_last_fresh_frame_never_the_old_result`,
 `::test_preview_again_leaves_the_last_result_and_stopping_it_brings_the_result_back`,
+`::test_the_header_pill_says_connected_and_live_means_only_the_preview`,
 `test/Camera/test_preview.py::test_the_scan_hands_on_every_frame_its_check_grabs`.
