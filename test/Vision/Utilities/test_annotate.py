@@ -665,3 +665,86 @@ def test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame
     mask = Annotate.Draw_Label_Mask([foreign, outside, foreign_outside], (CONST_H, CONST_W, 3), cv2, np,
                                     verdict_colored=True)
     assert __Has_Bgr(mask[:, :200], amber) and not __Has_Bgr(mask, grey)
+
+
+def __Judged_Plate(verdict: str, length_px: int, similarity: float, stains: int = 0) -> Detection_Str:
+    """
+    Description:
+        A judged plate turned 20 degrees on a 1200 x 800 frame at 0.1 mm/px, measured and outline-checked against the
+        60 x 40 mm item, its verdict and catalogue evidence set, and a stain feature when asked.
+
+    Args:
+        (1) verdict [string]: Its verdict.
+        (2) length_px [int]: Its long side in pixels (600 is 60 mm, nominal).
+        (3) similarity [float]: Its similarity.
+        (4) stains [int]: How many stain features it carries.
+
+    Returns:
+        (1) parameter [Detection_Str(object)]: The plate.
+    """
+
+    from Parameters.Vision import Scale_Str, Catalogue_Result_Str, Feature_Str
+    from Parameters.Catalogue import Catalogue_Outline_Str
+    from Vision.Utilities.Measure import Measure_Mask
+    from Vision.Utilities.Dimensions import Check_Outline
+    mask = np.zeros((800, 1200), np.uint8)
+    corners = cv2.boxPoints(((600.0, 420.0), (float(length_px), 400.0), 20.0))
+    cv2.fillPoly(mask, [np.int32(np.round(corners))], 1)
+    ys, xs = np.nonzero(mask)
+    det = Detection_Str(Label='plate', Bbox=(int(xs.min()), int(ys.min()), int(xs.max() - xs.min() + 1),
+                                             int(ys.max() - ys.min() + 1)), Mask=mask.astype(bool), Verdict=verdict)
+    det.Measurement = Measure_Mask(det.Mask, Scale_Str(Mm_Per_Px_X=0.1, Mm_Per_Px_Y=0.1), cv2, np)
+    det.Dimension_Checks = Check_Outline(det.Measurement, Catalogue_Outline_Str(Length_Mm=60.0, Width_Mm=40.0,
+                                                                                Tolerance_Mm=1.5))
+    det.Catalogue = Catalogue_Result_Str(Similarity=similarity, Identify_Similarity=0.75, Resembles=True)
+    det.Features = [Feature_Str(Part='1.%d' % (n + 1), Kind='stain', Name='stain', Passed=False,
+                                Corners=[(560 + 30 * n, 400), (580 + 30 * n, 400), (580 + 30 * n, 420), (560 + 30 * n, 420)],
+                                Outlines=[[(565 + 30 * n, 405), (575 + 30 * n, 405), (575 + 30 * n, 415)]])
+                    for n in range(stains)]
+    return det
+
+
+def __Edge_Colours(image: np.ndarray, start: tp.Any, end: tp.Any, bgrs: tp.List[tp.Tuple[int, int, int]]) -> tp.List[float]:
+    """For each colour, the fraction of 60 points along a segment (a 30 % stretch at its middle) with that colour within
+    1 px."""
+    hits = []
+    for bgr in bgrs:
+        near = __Near(image, bgr, 30)
+        found = 0
+        for t in np.linspace(0.35, 0.65, 60):
+            x, y = np.array(start, float) + (np.array(end, float) - np.array(start, float)) * t
+            found += bool(near[int(round(y)) - 1:int(round(y)) + 2, int(round(x)) - 1:int(round(x)) + 2].any())
+        hits.append(found / 60.0)
+    return hits
+
+
+@pytest.mark.parametrize('case, verdict, length_px, similarity, stains, outline, outer', [
+    ('stain only', 'NOK', 600, 0.95, 2, 'OK', 'NOK'),
+    ('size', 'NOK', 660, 0.95, 0, 'NOK', 'NOK'),
+    ('look only', 'NOK', 600, 0.60, 0, 'OK', 'NOK'),
+    ('ok', 'OK', 600, 0.95, 0, 'OK', 'OK'),
+], ids=lambda value: value if isinstance(value, str) and ' ' in value or value == 'ok' else None)
+def test_a_judged_parts_outline_carries_its_size_and_its_outer_box_and_chip_its_verdict(
+        case: str, verdict: str, length_px: int, similarity: float, stains: int, outline: str, outer: str) -> None:
+    """
+    Description:
+        On the annotated frame a judged part's marks each carry their own check: its solid rotated outline is the fail
+        colour only when its size is out of tolerance (66 x 40 mm) and the pass purple whenever its size is within,
+        though the part is NOK for its stains or its look; its dashed axis-aligned outer box and its chip carry the
+        verdict, NOK for any reason. Read along the middle of each edge in the rendered pixels.
+    """
+
+    det = __Judged_Plate(verdict, length_px, similarity, stains)
+    image = Annotate.Draw_Annotated(np.full((800, 1200, 3), (86, 106, 35), np.uint8), [det], cv2, np, verdict_colored=True)
+    ok, nok = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0]), Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
+    want = {'OK': (1, 0), 'NOK': (0, 1)}
+    corners = det.Measurement.Box_Points
+    for k in range(4):
+        on_ok, on_nok = __Edge_Colours(image, corners[k], corners[(k + 1) % 4], [ok, nok])
+        assert (on_ok > 0.9, on_nok > 0.9) == tuple(bool(v) for v in want[outline]), (case, 'outline', k, on_ok, on_nok)
+    x, y, w, h = det.Bbox
+    for start, end in (((x, y), (x + w, y)), ((x, y + h), (x + w, y + h)), ((x, y), (x, y + h)), ((x + w, y), (x + w, y + h))):
+        on_ok, on_nok = __Edge_Colours(image, start, end, [ok, nok])
+        assert (on_ok > 0.2, on_nok > 0.2) == tuple(bool(v) for v in want[outer]), (case, 'outer box', on_ok, on_nok)
+    chip = image[max(0, y - 30):y, x:x + 25]
+    assert __Has_Bgr(chip, Theme.Hex_To_Bgr(Theme.Verdict_Color(outer)[0])), (case, 'chip')

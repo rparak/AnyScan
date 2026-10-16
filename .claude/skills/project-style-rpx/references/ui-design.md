@@ -46,6 +46,10 @@ practices followed inconsistently are under **Unsettled**.
   the Warning amber, told from a Warning frame by its 1 px against the frame's 2 px) and the purple
   `Theme.CONST_INSPECTION_AREA_EMPTY` (`CONST_INK`) over the empty Camera View, whose grey-lilac hides the amber
   (1.01:1; the purple 6.79:1). The owner's choice of 2026-10-16 from renders.
+- A judged part (OK, NOK) colours its marks by their own check on the frame: the dashed outer box and the chip
+  carry the verdict, the solid rotated outline the size check alone (orange-red only when out of tolerance), and each
+  feature mark its own check (DD *A judged part's marks each carry their own check*). Warnings and Unspecified
+  objects keep one colour.
 - The box, the chip and the mask outline are drawn in the verdict colour itself, unshifted, on any
   background. A colour is never lightened, darkened or rotated to gain contrast against a frame.
 - Legibility comes from the foreground: a chip is its box's colour and its numeral is plain white
@@ -61,6 +65,7 @@ practices followed inconsistently are under **Unsettled**.
 - ✅ `test/Vision/Utilities/test_annotate.py::test_annotated_is_box_and_numeral_only_in_the_unshifted_verdict_colour`,
   `::test_each_chip_is_its_box_colour_with_a_white_numeral`,
   `::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
+  `::test_a_judged_parts_outline_carries_its_size_and_its_outer_box_and_chip_its_verdict`,
   `test/UI/test_inspection_area.py::test_the_area_is_drawn_on_the_empty_view_the_scanned_frame_and_the_annotated_result_only`,
   `test/Parameters/test_theme.py::test_label_mask_fill_is_a_visible_tint_of_its_box`,
   `::test_verdict_colour_comes_from_the_one_constant`, `::test_every_chip_numeral_is_white`,

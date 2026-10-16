@@ -4354,3 +4354,22 @@ Tests `test/Vision/Utilities/test_classify.py::test_an_object_resembles_the_part
 `::test_the_badge_states_the_worst_verdict`,
 `test/integration/test_edge_of_view.py::test_the_red_block_is_a_foreign_object_wherever_it_lies` (frames 1, 2, 4 and 5 of
 `20261016-111250_s1` as crops), `::test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber`.
+
+## A judged part's marks each carry their own check
+
+Decided 2026-10-16, on the owner's request. A part judged OK or NOK (inside the inspection area) is no longer drawn in
+one colour: its dashed axis-aligned outer box and its chip carry the verdict (the NOK orange-red `#FF6540` when the part
+is NOK for any reason, the purple `#640ABA` when OK); its solid rotated outline carries the size check alone, the
+orange-red only when the outline is out of tolerance and the purple whenever it is within, though the part is NOK for a
+stain, a hole, a missing hole or its look (`Annotate.__Outline_Color`). Its feature marks keep their own colours: a
+stain and a missing hole the orange-red, a hole the orange-red only when it fails its check. Warnings (the amber of a
+part outside the area, the grey of a foreign object) and Unspecified objects keep their single colour, and the label
+mask keeps the verdict colour.
+
+**Why.** The frame then says which check failed: a NOK plate with its stains marked and a purple outline was NOK for
+the stains, not its size, where an all-orange part read as wrong in every respect.
+
+**Revisit if** another check gets a mark of its own on the part (it would carry its own colour too), or the owner
+finds the two colours on one part read as two objects on the rig's screen.
+Tests `test/Vision/Utilities/test_annotate.py::test_a_judged_parts_outline_carries_its_size_and_its_outer_box_and_chip_its_verdict`
+(a part NOK only for its stains, NOK for its size, NOK only for its look, and OK).

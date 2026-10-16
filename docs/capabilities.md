@@ -224,7 +224,9 @@ Two cards:
   that box and never more than 45° off level, never over another chip; a part identified outside the inspection
   area has every mark, tint and chip in the Warning colour, the mark styles unchanged; a foreign object (a Warning
   that does not resemble the part, wherever it lies) has its outline, box and chip in a grey-lilac grey instead of
-  the amber, on the frame only; each object's box and chip are its state's
+  the amber, on the frame only; a judged part's solid rotated outline carries its size check alone (orange-red only
+  when out of tolerance, purple otherwise, though the part is NOK for a stain, a hole or its look), its dashed outer
+  box and chip its verdict; otherwise each object's box and chip are its state's
   colour, OK the purple, NOK the orange-red, Warning the amber, Unspecified the neutral grey `#655E6D`, and every
   object of a detect-only mode (Segment Anything) the logo purple `#640ABA`; the chip's number is plain
   white on every chip, in every state and mode; a missing hole is placed by the holes found, a countersink's

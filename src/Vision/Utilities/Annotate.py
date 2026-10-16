@@ -627,6 +627,26 @@ def Foreign(det: Detection_Str) -> bool:
     return det.Verdict == 'Warning' and det.Catalogue is not None and not det.Catalogue.Resembles
 
 
+def __Outline_Color(det: Detection_Str) -> str:
+    """
+    Description:
+        The colour of an object's solid rotated outline on the annotated frame. For a judged part (OK, NOK) it carries
+        its own check, the size: the fail colour when the outline is out of tolerance, the pass colour when it is within,
+        whatever else made the part NOK (a stain, a hole, a missing hole, its look), which the outer box and the chip
+        carry. Any other object (a Warning, amber or grey; an Unspecified one) is drawn in one colour, its box's.
+
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [string]: The colour as '#rrggbb'.
+    """
+
+    if det.Verdict in ('OK', 'NOK') and det.Catalogue is not None and det.Dimension_Checks:
+        return Verdict_Color('OK' if all(check.Within for check in det.Dimension_Checks) else 'NOK')[0]
+    return CONST_FOREIGN_BOX if Foreign(det) else Verdict_Color(det.Verdict)[0]
+
+
 def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
                  cv2: tp.Any, verdict_colored: bool, neutral_hex: str,
                  draw_rotated: bool = False, on_mask: bool = False) -> None:
@@ -651,7 +671,9 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
         (8) on_mask [bool]: The image is the label mask: a verdict drawn in the neutral colour
                             (Unspecified) takes the mask's derived neutral outline (Mask_Outline_Color). On the
                             frame a foreign object (Foreign) takes the foreign grey (CONST_FOREIGN_BOX), its
-                            outline, box and chip; on the mask it keeps the Warning colour.
+                            outline, box and chip; on the mask it keeps the Warning colour. On the frame a judged
+                            part (OK, NOK) colours its marks by their own check: the dashed outer box and the chip
+                            by the verdict, the solid rotated outline by the size check alone (__Outline_Color).
     """
 
     box_w = max(1, int(round(CONST_ANNOTATE_BOX_W * scale)))
@@ -663,6 +685,7 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
         outline = (Mask_Outline_Color(det.Verdict) if on_mask else CONST_FOREIGN_BOX if Foreign(det)
                    else Verdict_Color(det.Verdict)[0])
         color_bgr = Hex_To_Bgr(outline) if verdict_colored else neutral_bgr
+        part_bgr = Hex_To_Bgr(__Outline_Color(det)) if verdict_colored and not on_mask else color_bgr
         measurement = det.Measurement
         if draw_rotated and measurement is not None and not measurement.Symmetric \
                 and measurement.Box_Points:
@@ -674,7 +697,7 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
             for k in range(4):
                 (x0, y0), (x1, y1) = corners[k], corners[(k + 1) % 4]
                 cv2.line(image, (int(round(x0)), int(round(y0))), (int(round(x1)), int(round(y1))),
-                         color_bgr, box_w, cv2.LINE_AA)
+                         part_bgr, box_w, cv2.LINE_AA)
         else:
             cv2.rectangle(image, (x, y), (x + w, y + h), color_bgr, box_w)
         __Draw_Index_Chip(image, det.Bbox, i, color_bgr, scale, cv2)
