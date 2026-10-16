@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from Parameters.Vision import Detection_Str
 # Custom Lib.: AnyScan — the frame mean's one computation (the Live panel, the capture record, History)
 #   ../Reporting/Core
-from Reporting.Core import Frame_Confidence
+from Reporting.Core import Frame_Confidence, Shown_State
 
 """
 Description:
@@ -63,7 +63,8 @@ class Trend_Object_Str:
     # The confidence percentage (0..100). Always present — an unscored object is not a point.
     #   Unit [int]
     Confidence: int = 0
-    # The object's verdict (Parameters.Vision.CONST_VERDICTS), for the dot colour when the run classifies.
+    # The object's shown state (Reporting.Core.Shown_State: its verdict, a Warning as 'Outside' or 'Foreign'), for the
+    # dot colour when the run classifies.
     #   Unit [string]
     Verdict: str = 'OK'
 
@@ -81,21 +82,23 @@ class Trend_Image_Str:
     # The 1-based image index (the x value on both charts).
     #   Unit [int]
     Index: int = 0
-    # This image's object counts: total, and the split by verdict — OK, NOK, and in a catalogue mode the
-    # Warnings (not judged: not the part, or outside the inspection area) and the Unspecified ones (not judged), so the four
-    # add up to the total there.
+    # This image's object counts: total, and the split by state — OK, NOK, and in a catalogue mode the Warnings by
+    # kind, the parts outside the inspection area and the foreign objects, and the Unspecified ones (not judged), so
+    # the five add up to the total there.
     #   Unit [int]
     Total: int = 0
     Ok: int = 0
     Nok: int = 0
-    Warning: int = 0
+    Outside: int = 0
+    Foreign: int = 0
     Unspecified: int = 0
     # The cumulative counts up to AND including this image — the object chart's y values.
     #   Unit [int]
     Cumulative_Total: int = 0
     Cumulative_Ok: int = 0
     Cumulative_Nok: int = 0
-    Cumulative_Warning: int = 0
+    Cumulative_Outside: int = 0
+    Cumulative_Foreign: int = 0
     Cumulative_Unspecified: int = 0
     # This frame's mean confidence over its own scored objects, or None when none were scored.
     #   Unit [int]
@@ -159,13 +162,14 @@ class Trends_Accumulator_Cls(object):
         for det in objects:
             row.Ok += 1 if det.Verdict == 'OK' else 0
             row.Nok += 1 if det.Verdict == 'NOK' else 0
-            row.Warning += 1 if det.Verdict == 'Warning' else 0
+            row.Outside += 1 if Shown_State(det) == 'Outside' else 0
+            row.Foreign += 1 if Shown_State(det) in ('Foreign', 'Warning') else 0
             row.Unspecified += 1 if det.Verdict == 'Unspecified' else 0
             if det.Segmenter_Score is None:
                 row.Unscored += 1
                 continue
             percent = int(round(100.0 * det.Segmenter_Score))
-            row.Objects.append(Trend_Object_Str(Confidence=percent, Verdict=det.Verdict))
+            row.Objects.append(Trend_Object_Str(Confidence=percent, Verdict=Shown_State(det)))
             self.__scores.append(det.Segmenter_Score)
 
         # Both means from the raw scores, rounded once: rounding each object first moved them a point
@@ -181,7 +185,8 @@ class Trends_Accumulator_Cls(object):
         row.Cumulative_Total = base_total + row.Total
         row.Cumulative_Ok = base_ok + row.Ok
         row.Cumulative_Nok = base_nok + row.Nok
-        row.Cumulative_Warning = (previous.Cumulative_Warning if previous else 0) + row.Warning
+        row.Cumulative_Outside = (previous.Cumulative_Outside if previous else 0) + row.Outside
+        row.Cumulative_Foreign = (previous.Cumulative_Foreign if previous else 0) + row.Foreign
         row.Cumulative_Unspecified = (previous.Cumulative_Unspecified if previous else 0) + row.Unspecified
         self.__images.append(row)
 

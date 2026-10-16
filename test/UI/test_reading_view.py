@@ -302,12 +302,14 @@ def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app,
 @pytest.mark.parametrize('level, ground, ink', [('fail', 'CONST_NOK_LABEL_GROUND', 'CONST_INK'),
                                                 ('warn', 'CONST_WARNING_BOX', 'CONST_INK'),
                                                 ('ok', 'CONST_OK_LABEL_GROUND', 'CONST_INK'),
-                                                ('unspecified', 'CONST_UNSPECIFIED_LABEL_GROUND', 'CONST_INK')])
+                                                ('unspecified', 'CONST_UNSPECIFIED_LABEL_GROUND', 'CONST_INK'),
+                                                ('foreign', 'CONST_FOREIGN_LABEL_GROUND', 'CONST_INK')])
 def test_the_badge_paints_each_verdict_level_legibly(qt_app, level: str, ground: str, ink: str) -> None:
     """
     Description:
         The status badge, rendered: a NOK paints the 'fail' level — the purple on the orange-red's tint, as the
-        poster's defect tag — and the warning, OK and Unspecified (the blue's tint) levels their own grounds; on each, the darkest painted text
+        poster's defect tag — and the warning (the amber), OK, Unspecified (the blue's tint) and foreign-object (the grey)
+        levels their own grounds; on each, the darkest painted text
         clears 4.5:1 against the ground actually painted, and the ground is the level's token, so a NOK can never
         show another verdict's colour.
     """
@@ -327,3 +329,25 @@ def test_the_badge_paints_each_verdict_level_legibly(qt_app, level: str, ground:
     darkest = min(hexes, key=lambda h: sum(int(h[i:i + 2], 16) for i in (1, 3, 5)))
     assert Contrast_Ratio(darkest, getattr(Style, ground)) >= 4.5
     assert Contrast_Ratio(getattr(Style, ink), getattr(Style, ground)) >= 4.5
+
+
+def test_the_two_warning_kinds_show_two_badges(qt_app, reference_background_path) -> None:
+    """
+    Description:
+        A reading whose Warnings are of both kinds shows two badges side by side, 'Outside the area · n' on the amber
+        and 'Foreign object · n' on the grey, never one counting both; a reading with one badge hides the second, and the
+        idle state hides it again.
+    """
+
+    import UI.Utilities.Style as Style
+    window = _Window_With(reference_background_path,
+                          Analysis_Str(Objects=[_Object('A plate.'), _Object('A washer.')], Background='A surface.',
+                                       Verdict='Outside the area · 1', Verdict_Level='warn', Task='caption',
+                                       Badges=[('Outside the area · 1', 'warn'), ('Foreign object · 1', 'foreign')]))
+    first, second = _Private(window, '__stage_badge'), _Private(window, '__stage_badge_second')
+    assert (first.text(), second.text(), second.isVisibleTo(window)) == ('Outside the area · 1', 'Foreign object · 1', True)
+    assert Style.CONST_WARNING_BOX in first.styleSheet() and Style.CONST_FOREIGN_LABEL_GROUND in second.styleSheet()
+    _Private(window, '__On_Analysis_Finished')(Analysis_Str(Objects=[_Object('A plate.')], Background='A surface.',
+                                                             Verdict='All OK · 1', Verdict_Level='ok', Task='caption',
+                                                             Badges=[('All OK · 1', 'ok')]))
+    assert (first.text(), second.isVisibleTo(window)) == ('All OK · 1', False)

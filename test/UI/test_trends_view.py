@@ -166,29 +166,35 @@ def test_clear_empties_the_charts_with_the_aggregates(qt_app, reference_backgrou
     assert _Private(window, '__status').images.Value() == '0'
 
 
-def test_a_catalogue_run_charts_ok_nok_warning_and_unspecified(qt_app, tmp_path) -> None:
+def test_a_catalogue_run_charts_ok_nok_both_warning_kinds_and_unspecified(qt_app, tmp_path) -> None:
     """
     Description:
-        In a catalogue mode the objects chart draws a series per verdict beside the total — OK and NOK, and the
-        Warnings (objects that should not be on the surface) and the Unspecified ones — named in its legend and
-        its hover, so how many foreign objects were found is visible; rendered, the Warning series paints its
-        verdict's text twin. Segment Anything charts the total alone.
+        In a catalogue mode the objects chart draws a series per state beside the total — OK and NOK, the Warnings by
+        kind, 'Outside area' (the amber's twin) and 'Foreign object' (the grey's dark shade), and the Unspecified ones (the
+        blue's twin) — named in its legend and its hover, so the parts outside the area and the foreign objects are
+        counted apart; rendered, both Warning series paint their own colour. Segment Anything charts the total alone.
     """
 
     from Reporting.Trends import Trends_Accumulator_Cls
     from UI.Views.Trends import Objects_Chart_Cls
-    from Parameters.Theme import Verdict_Color
+    from Parameters.Theme import State_Color
+    from Parameters.Vision import Catalogue_Result_Str
+    objects = [Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=0.9, Verdict=verdict)
+               for verdict in ('OK', 'Warning', 'Warning', 'NOK', 'Unspecified', 'Warning')]
+    for det, resembles in zip(objects[1:3] + objects[5:], (True, False, False)):
+        det.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=resembles)
     acc = Trends_Accumulator_Cls()
-    acc.Add_Analysis([Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=0.9, Verdict=verdict)
-                      for verdict in ('OK', 'Warning', 'Warning', 'NOK', 'Unspecified')])
+    acc.Add_Analysis(objects)
     chart = Objects_Chart_Cls()
     chart.resize(600, 300)
     chart.Set_Data(acc.Images(), True)
-    assert [label for label, _color in chart._legend] == ['Total', 'OK', 'NOK', 'Warning', 'Unspecified']
-    assert chart._Hover_Lines(0)[-1][0] == 'OK 1 · NOK 1 · Warning 2 · Unspecified 1'
+    assert [label for label, _color in chart._legend] == ['Total', 'OK', 'NOK', 'Outside area', 'Foreign object',
+                                                         'Unspecified']
+    assert chart._Hover_Lines(0)[-1][0] == 'OK 1 · NOK 1 · Outside area 1 · Foreign object 2 · Unspecified 1'
     image = chart.grab().toImage()
-    warning = Verdict_Color('Warning')[1].lower()
-    assert any(image.pixelColor(x, y).name() == warning for x in range(image.width()) for y in range(image.height()))
+    painted = {image.pixelColor(x, y).name() for x in range(image.width()) for y in range(image.height())}
+    for state in ('Outside', 'Foreign', 'Unspecified'):
+        assert State_Color(state)[1].lower() in painted, state
     chart.Set_Data(acc.Images(), False)
     assert [label for label, _color in chart._legend] == ['Total']
 

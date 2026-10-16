@@ -4228,7 +4228,9 @@ hole-less block, was NOK on both sides. The radius is removed and replaced:
    written as "every object outside the area is amber", which drew the red block cut by the border amber; the colour
    now follows what the object is (*A foreign object is told by what it is, not where it lies*). The verdict, the counts and
    the badge (`Foreign object · n`) are unchanged. The label mask keeps the Warning colours for both: in that hue no
-   fill clears the mask's floors (ΔE 25 from the box, 4.5:1 on black) against a box of L* 64-79. Three candidates,
+   fill clears the mask's floors (ΔE 25 from the box, 4.5:1 on black) against a box of L* 64-79. *Corrected
+   2026-10-16:* fills in the hue that clear them exist, at L* 49 and chroma 28 or more (`#846B98`), a muted violet;
+   the mask now takes the grey's derived pair (*A Warning is shown, counted and recorded by its kind*). Three candidates,
    rendered on `Image_059` beside an Unspecified frame and an outside-area amber frame, against the table / the white
    numeral / Unspecified's `#655E6D`: `#C9BFD2` 3.63 / 1.77 / 3.52:1 (ΔE 37.7), `#B4A6BE` (the existing disabled
    label token) 2.80 / 2.30 / 2.71:1 (ΔE 29.3), `#A396AE` 2.30 / 2.79 / 2.23:1 (ΔE 23.4); `#B4A6BE` stands until
@@ -4445,3 +4447,47 @@ Tests `test/Parameters/test_theme.py::test_unspecified_is_a_blue_distinct_from_e
 `test/Reporting/test_core.py::test_the_badge_states_the_worst_verdict`,
 `test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`,
 `test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output`.
+
+## A Warning is shown, counted and recorded by its kind
+
+Decided 2026-10-16, on the owner's request: the two kinds of Warning, a part outside the inspection area and a
+foreign object, could not be told apart once a reading was counted, charted or stored. Each object's shown state is
+its verdict, a catalogue Warning being one of its kinds (`Reporting.Shown_State`: 'Outside' when it resembles the part,
+else 'Foreign'), and everything that counts or shows Warnings now uses it:
+
+1. **The record.** Each Warning object in `_objects.json` carries `warning_kind`, `outside` or `foreign` (`UI.Capture`);
+   an older set without it reads as a plain Warning, unchanged (`Capture_Object_Str.Warning_Kind` empty).
+2. **Trends.** The single Warning series is two: `Outside area` in the amber's twin `#7C5B00` and `Foreign object` in
+   the grey's dark shade `#4F4952` (`Theme.CONST_FOREIGN_INK`), the five state series adding up to the total; each
+   confidence dot takes its state's colour (`Theme.State_Color`).
+3. **History.** The Warning filter is two, Outside area and Foreign object, each with its count; a set written before
+   the kind was recorded is listed under both, so no set drops out of a filter it matched; a set's outline is its
+   worst state's colour, a part outside the area amber (an older plain Warning too), a foreign object grey.
+4. **The badges.** One badge per Warning kind there (`Reporting.Badges`): `Outside the area · n` on the amber (level
+   `warn`) and `Foreign object · n` on `#CAC0D3` (level `foreign`), never one badge counting both; the window shows the
+   second beside the first. NOK and Not judged still take the badge alone, as the worst state.
+5. **The mask.** A foreign object is filled `#DBCCE5` and outlined `#897C93`, the grey's pair derived as the
+   detect-only neutral's (`Neutral_Mask_Colors`); a part outside the area keeps the amber's.
+
+**Measured.** The Trends series on the white card, and against each other (ΔE76, lowest pair first): Total `#6F5783`
+6.24:1, OK `#640ABA` 9.15:1, NOK `#BA260B` 6.23:1, Outside area `#7C5B00` 6.26:1, Foreign object `#4F4952` 8.72:1,
+Unspecified `#0065A9` 6.11:1; Foreign–Total ΔE 23.8, Unspecified–Total 28.2, Foreign–Unspecified 40.1, NOK–Outside 50.5,
+Outside–Foreign 53.9, every other pair above 68. The foreign line is the grey's hue at L* 32, chroma 6, the shade
+farthest from every other series that stays the grey family and clears 4.5:1 (a near-black at L* 25 would be farther,
+ΔE 32.5, and no longer the grey). The mask's foreign pair: ΔE 30.1 between outline and fill, the fill 21.5 from white
+and 13.78:1 on black, the outline 5.37:1 on black; the fill ΔE 35.5 from OK's, 29.9 from Unspecified's, 77.1 from the
+amber's. The frame's grey `#B4A6BE` cannot be its own mask outline with a grey fill: in its hue a fill that clears the
+floors lies only at L* 49 and chroma 28 or more (`#846B98`), a muted violet at the 4.5:1 floor on black, so the outline
+is the derived darker grey, as on a detect-only mask. The foreign badge ground carries the purple words at 5.23:1 (the
+grey box itself 3.98:1).
+
+**Revisit if** a third kind of Warning appears; an older record's plain Warning is better shown under neither kind; or
+the two badges crowd the reading card's head on the rig's screen.
+Tests `test/Reporting/test_core.py::test_the_badge_states_the_worst_verdict`,
+`test/Reporting/test_trends.py::test_a_warning_or_unspecified_object_is_counted_but_neither_ok_nor_nok`,
+`test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_both_warning_kinds_and_unspecified`,
+`test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
+`::test_a_warning_records_its_kind_and_an_older_set_reads_as_a_plain_warning`,
+`test/UI/test_reading_view.py::test_the_two_warning_kinds_show_two_badges`,
+`::test_the_badge_paints_each_verdict_level_legibly`,
+`test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`.

@@ -596,9 +596,13 @@ class Analysis_Str(object):
     # The verdict-badge wording (e.g. 'Empty', '1 found', 'Low confidence').
     #   Unit [string]
     Verdict: str = 'Idle'
-    # The verdict severity that drives the badge colour: 'ok' | 'warn' | 'fail' | 'unspecified' | 'idle'.
+    # The verdict severity that drives the badge colour: 'ok' | 'warn' | 'fail' | 'foreign' | 'unspecified' | 'idle'.
     #   Unit [string]
     Verdict_Level: str = 'idle'
+    # Every badge the reading shows, as (wording, level), the first being Verdict and Verdict_Level: in a catalogue
+    # mode the Warnings show one badge per kind there, outside the area and foreign (Reporting.Badges).
+    #   Unit [Vector<Tuple<string> 1x2>]
+    Badges: tp.List[tp.Tuple[str, str]] = field(default_factory=list)
     # The human-readable name of what produced the reading — the configuration's Identity.Task, or the
     # fallback's (Vision.Core). Empty by default: a reading nothing has
     # produced names no model.

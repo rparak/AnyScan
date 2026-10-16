@@ -82,9 +82,14 @@ def _Write_Full(writer, session_id, set_id, classification=False, run_id='', tas
     raw = np.full((40, 60, 3), 30, np.uint8)
     annotated = np.full((40, 60, 3), 60, np.uint8)
     mask = np.zeros((40, 60, 3), np.uint8)
+    from Parameters.Vision import Catalogue_Result_Str
     objects = _Objects()
     for det, verdict in zip(objects, verdicts):
-        det.Verdict = verdict
+        # 'Warning-outside' / 'Warning-foreign': a catalogue Warning of that kind, recorded; a plain 'Warning' has no
+        # catalogue evidence, so no kind is recorded, as in a set written before 2026-10-16.
+        det.Verdict = verdict.split('-')[0]
+        if '-' in verdict:
+            det.Catalogue = Catalogue_Result_Str(Outside_Area=True, Resembles=verdict.endswith('-outside'))
     metadata = Build_Set_Metadata(session_id, set_id, '2026-09-20T10:00:00', objects, (60, 40),
                                   task, 1180, 91, '', classification, run_id, scale=None,
                                   configuration='Config_Test_Mode_A.yaml',
@@ -137,31 +142,67 @@ def test_each_state_filter_lists_every_set_holding_that_state(qt_app, tmp_path) 
     """
     Description:
         For sets written WITH classification the filter is shown, one segment per state and each state's count
-        under it, and a set is listed under every state its objects took: OK, NOK, Warning and Unspecified each show exactly the
-        sets holding one. A state no set holds shows a message saying so, not a blank panel.
+        under it, and a set is listed under every state its objects took: OK, NOK, Outside area, Foreign object and
+        Unspecified each show exactly the sets holding one, the two Warning kinds apart. A set written before the kind was
+        recorded (a plain Warning) is listed under both kinds. A state no set holds shows a message saying so, not a
+        blank panel.
     """
 
     writer = Capture_Writer_Cls(str(tmp_path))
     _Write_Full(writer, 'sessionA', 'set_ok', classification=True)
     _Write_Full(writer, 'sessionA', 'set_nok', classification=True, verdicts=('OK', 'NOK'))
-    _Write_Full(writer, 'sessionA', 'set_warning', classification=True, verdicts=('Warning', 'Warning'))
+    _Write_Full(writer, 'sessionA', 'set_outside', classification=True, verdicts=('Warning-outside', 'Warning-outside'))
+    _Write_Full(writer, 'sessionA', 'set_foreign', classification=True, verdicts=('OK', 'Warning-foreign'))
+    _Write_Full(writer, 'sessionA', 'set_older', classification=True, verdicts=('Warning', 'OK'))
 
     view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     view.Refresh()
     shown = lambda: sorted(card.Cap().Set_Id for card in _Private(view, '__cards'))
     assert _Private(view, '__filter').isVisibleTo(view)   # a classified run -> filter present
-    assert shown() == ['set_nok', 'set_ok', 'set_warning']
+    assert shown() == ['set_foreign', 'set_nok', 'set_ok', 'set_older', 'set_outside']
     labels = [button.text() for button in _Private(view, '__filter').findChildren(QPushButton)]
-    assert labels == ['All', 'OK', 'NOK', 'Warning', 'Unspecified']
-    assert _Private(view, '__counts').text() == 'OK 2  ·  NOK 1  ·  Warning 1  ·  Unspecified 0'
-    for key, expected in (('ok', ['set_nok', 'set_ok']), ('nok', ['set_nok']), ('warning', ['set_warning'])):
+    assert labels == ['All', 'OK', 'NOK', 'Outside area', 'Foreign object', 'Unspecified']
+    assert _Private(view, '__counts').text() == \
+        'OK 4  ·  NOK 1  ·  Outside area 2  ·  Foreign object 2  ·  Unspecified 0'
+    for key, expected in (('ok', ['set_foreign', 'set_nok', 'set_ok', 'set_older']), ('nok', ['set_nok']),
+                          ('outside', ['set_older', 'set_outside']), ('foreign', ['set_foreign', 'set_older'])):
         _Set_Filter(view, key)
         assert shown() == expected, key
     _Set_Filter(view, 'unspecified')
     assert shown() == []
     assert _Private(view, '__list_box').itemAt(0).widget().text() == 'No object that could not be judged in this run.'
     _Set_Filter(view, 'all')
-    assert len(_Private(view, '__cards')) == 3            # restored
+    assert len(_Private(view, '__cards')) == 5            # restored
+
+
+def test_a_warning_records_its_kind_and_an_older_set_reads_as_a_plain_warning(qt_app, tmp_path) -> None:
+    """
+    Description:
+        Each Warning object's record carries its kind ('warning_kind': 'outside' or 'foreign'), read back with the set; an
+        older record without it reads as a plain Warning, unchanged. A set's outline is painted in its worst state's
+        colour: a part outside the area amber, a foreign object grey, an older plain Warning amber as before.
+    """
+
+    import json
+    from Parameters.Theme import State_Color
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write_Full(writer, 'sessionA', 'set_outside', classification=True, verdicts=('Warning-outside', 'OK'))
+    _Write_Full(writer, 'sessionA', 'set_foreign', classification=True, verdicts=('Warning-foreign', 'OK'))
+    _Write_Full(writer, 'sessionA', 'set_older', classification=True, verdicts=('Warning', 'OK'))
+    records = {name: json.load(open(os.path.join(str(tmp_path), 'sessionA', name + '_objects.json')))['objects']
+               for name in ('set_outside', 'set_foreign', 'set_older')}
+    assert [record.get('warning_kind') for record in records['set_outside']] == ['outside', None]
+    assert [record.get('warning_kind') for record in records['set_foreign']] == ['foreign', None]
+    assert 'warning_kind' not in records['set_older'][0]
+    view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
+    view.Refresh()
+    sets = {cap.Set_Id: cap for cap in _Private(view, '__sets')}
+    assert (sets['set_outside'].Worst_State(), sets['set_foreign'].Worst_State(), sets['set_older'].Worst_State()) == \
+        ('Outside', 'Foreign', 'Warning')
+    for name, state in (('set_outside', 'Outside'), ('set_foreign', 'Foreign'), ('set_older', 'Warning')):
+        setattr(view, '_History_View_Cls__selected_id', name)
+        view.Refresh()
+        assert _Outline_Rgb(view) == tuple(int(State_Color(state)[0][i:i + 2], 16) for i in (1, 3, 5)), name
 
 
 def test_selecting_a_full_set_renders_the_object_list(qt_app, tmp_path) -> None:

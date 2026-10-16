@@ -124,4 +124,4 @@ def test_field_names_are_pascal_snake_case() -> None:
     # Camera View's heatmap (2026-10-07), shown only.
     assert analysis_fields == {'Objects', 'Note', 'Latency_Ms',
                                'Verdict', 'Verdict_Level', 'Task', 'Raw_Mask_Count',
-                               'Background', 'Audit', 'Timing', 'Heatmap', 'Similarity'}
+                               'Background', 'Audit', 'Timing', 'Heatmap', 'Similarity', 'Badges'}

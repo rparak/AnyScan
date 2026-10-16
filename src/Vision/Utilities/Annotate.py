@@ -28,7 +28,8 @@ import typing as tp
 # Custom Lib.: AnyScan domain — the shared colour palette and the detection structure
 #   ../Parameters/Theme
 from Parameters.Theme import (Verdict_Color, Detection_Color, Detection_Mask_Outline, Mask_Outline_Color,
-                              Hex_To_Bgr, CONST_CHIP_NUMERAL, CONST_FOREIGN_BOX)
+                              Hex_To_Bgr, CONST_CHIP_NUMERAL, CONST_FOREIGN_BOX, CONST_FOREIGN_MASK_OUTLINE,
+                              CONST_FOREIGN_MASK_FILL)
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str
 
@@ -663,7 +664,8 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
         (8) on_mask [bool]: The image is the label mask: a verdict drawn in the neutral colour
                             (Unspecified) takes the mask's derived neutral outline (Mask_Outline_Color). On the
                             frame a foreign object (Foreign) takes the foreign grey (CONST_FOREIGN_BOX), its
-                            outline, box and chip; on the mask it keeps the Warning colour. On the frame a judged
+                            outline, box and chip; on the mask its derived outline (CONST_FOREIGN_MASK_OUTLINE).
+                            On the frame a judged
                             part (OK, NOK) colours its marks by their own check: the dashed outer box and the chip
                             by the verdict, the solid rotated outline by the size check alone (__Outline_Color).
     """
@@ -674,8 +676,8 @@ def __Draw_Boxes(image: tp.Any, objects: tp.List[Detection_Str], scale: float,
     neutral_bgr = Hex_To_Bgr(neutral_hex)
     for i, det in enumerate(objects):
         x, y, w, h = det.Bbox
-        outline = (Mask_Outline_Color(det.Verdict) if on_mask else CONST_FOREIGN_BOX if Foreign(det)
-                   else Verdict_Color(det.Verdict)[0])
+        outline = ((CONST_FOREIGN_MASK_OUTLINE if Foreign(det) else Mask_Outline_Color(det.Verdict)) if on_mask
+                   else CONST_FOREIGN_BOX if Foreign(det) else Verdict_Color(det.Verdict)[0])
         color_bgr = Hex_To_Bgr(outline) if verdict_colored else neutral_bgr
         part_bgr = Hex_To_Bgr(__Outline_Color(det)) if verdict_colored and not on_mask else color_bgr
         measurement = det.Measurement
@@ -714,7 +716,9 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
         lightness to stand clear of a light fill — implying no verdict nobody made. Each
         object is filled from its OWN component mask, so two parts that sit close but do not
         touch stay separate shapes; two parts that TOUCH are already one component here
-        (Fuse_Objects), so they render as one shape — see KNOWN_ISSUES.md.
+        (Fuse_Objects), so they render as one shape — see KNOWN_ISSUES.md. A foreign object is filled and outlined
+        with the foreign grey's derived mask pair (Theme.CONST_FOREIGN_MASK_FILL, CONST_FOREIGN_MASK_OUTLINE), as on the
+        frame it is the grey and not the amber of a part outside the inspection area.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.
@@ -741,7 +745,8 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
     for det in objects:
         if det.Mask is None:
             continue
-        fill_bgr = Hex_To_Bgr(Verdict_Color(det.Verdict)[2]) if verdict_colored else neutral_fill
+        fill = CONST_FOREIGN_MASK_FILL if Foreign(det) else Verdict_Color(det.Verdict)[2]
+        fill_bgr = Hex_To_Bgr(fill) if verdict_colored else neutral_fill
         mask_image[det.Mask.astype(bool)] = fill_bgr
 
     # Then the same boxes and index chips as the annotated view, in the verdict colour — or, when

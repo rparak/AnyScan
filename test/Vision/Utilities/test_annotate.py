@@ -618,7 +618,8 @@ def test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame
         On the annotated frame a foreign object (a Warning that does not resemble the part, so not supposed to be on the
         surface) has its box and chip in the foreign grey with the white numeral, and no amber, inside the inspection
         area or outside it; a part that resembles the part and only lies outside the area keeps the Warning amber, and
-        no grey. On the label mask both keep the Warning colour.
+        no grey. The label mask matches the frame: a foreign object filled and outlined with the grey's derived pair
+        (#DBCCE5, #897C93), a part outside the area with the amber's, never one fill for both.
     """
 
     from Parameters.Vision import Catalogue_Result_Str
@@ -638,7 +639,15 @@ def test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame
     assert __Has_Bgr(chip, grey) and __Has_Bgr(chip, (255, 255, 255))
     mask = Annotate.Draw_Label_Mask([foreign, outside, foreign_outside], (CONST_H, CONST_W, 3), cv2, np,
                                     verdict_colored=True)
-    assert __Has_Bgr(mask[:, :200], amber) and not __Has_Bgr(mask, grey)
+    grey_fill, grey_outline = (Theme.Hex_To_Bgr(Theme.CONST_FOREIGN_MASK_FILL),
+                               Theme.Hex_To_Bgr(Theme.CONST_FOREIGN_MASK_OUTLINE))
+    amber_fill = Theme.Hex_To_Bgr(Theme.Verdict_Color('Warning')[2])
+    assert (Theme.CONST_FOREIGN_MASK_FILL, Theme.CONST_FOREIGN_MASK_OUTLINE) == ('#DBCCE5', '#897C93')
+    for region in (mask[:, :200], mask[:, 400:]):
+        assert tuple(int(c) for c in region[210, 90]) == grey_fill                   # inside each foreign object
+        assert __Has_Bgr(region, grey_outline) and not __Has_Bgr(region, amber) and not __Has_Bgr(region, amber_fill)
+    assert tuple(int(c) for c in mask[210, 290]) == amber_fill and __Has_Bgr(mask[:, 200:400], amber)
+    assert not __Has_Bgr(mask[:, 200:400], grey_fill)
 
 
 def __Judged_Plate(verdict: str, length_px: int, similarity: float, stains: int = 0) -> Detection_Str:

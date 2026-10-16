@@ -231,7 +231,8 @@ Two cards:
   white on every chip, in every state and mode; a missing hole is placed by the holes found, a countersink's
   through-hole by the countersink, and a countersink around its through-hole, found or placed),
   **Mask** (the label mask: black ground,
-  tinted fill, verdict contour; no feature marks), **Heatmap** (the background difference on a fixed 0–128
+  tinted fill, verdict contour, a foreign object in the grey's pair and a part outside the area in the amber's; no
+  feature marks), **Heatmap** (the background difference on a fixed 0–128
   scale, under a legend naming the threshold applied, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
   reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
   never a verdict, on screen only). While the camera connects, a frame is captured or analysed, the view lies
@@ -247,14 +248,14 @@ Two cards:
   missing holes are not marked on the frame (no hole found to place them by: which end of the part they belong at
   cannot be told). The measured and expected values, part by part (Part 2.3 · …), the similarity and, beyond the
   verified zone, the size note are in the log. The badge states the worst verdict, in the purple on its verdict's ground: `NOK · n of m` (the orange-red's
-  tint), `Not judged · n` (the blue's tint), for Warnings `Foreign object · n`, `Outside the area · n` or
-  `Warning · n` when both kinds are there (the amber), `All OK · n` (the periwinkle); outside a catalogue
+  tint), `Not judged · n` (the blue's tint), for Warnings one badge per kind there, `Outside the area · n` (the
+  amber) and `Foreign object · n` (the grey), `All OK · n` (the periwinkle); outside a catalogue
   mode, `n found`.
 
 ### Trends
 
 Two charts of the current run: **Detected objects** (cumulative; in a catalogue mode also per verdict —
-OK, NOK, Warning and Unspecified, which add up to the total) and **Confidence** (per-object scores, the
+OK, NOK, Outside area, Foreign object and Unspecified, which add up to the total) and **Confidence** (per-object scores, the
 frame mean and the running run mean; the warning threshold's dashed line in the neutral mid ink, so a
 Warning object's amber dot is not read as part of it). Both read one accumulator, so the last point and
 the status strip agree.
@@ -265,8 +266,9 @@ A browser of the current run's capture sets: thumbnails grouped by connection, t
 set's Annotated and Mask side by side, its record, and an **Info** panel holding the reading as it
 stood at analysis time. A failed analysis shows its raw frame under a failure banner. Earlier runs'
 sets stay on disk but are not listed. In a catalogue run a filter lists the sets by state — All, OK, NOK,
-Warning, Unspecified, each with its count — a set under every state its objects took, and each card is
-outlined in its worst state's colour.
+Outside area, Foreign object, Unspecified, each with its count — a set under every state its objects took (an
+older set's Warning, whose kind was not recorded, under both kinds), and each card is outlined in its worst
+state's colour (a part outside the area amber, a foreign object grey).
 
 ### Log
 
@@ -376,7 +378,7 @@ across all connections, and the oldest are evicted first. A failed analysis writ
 | `_understanding.txt` | The Scene Understanding text, for people. Nothing parses it. |
 | `.txt` | YOLO box records, one line per object. The ids are per-frame indices, not classes. |
 | `_seg.txt` | YOLO segmentation polygons (outer contour only). |
-| `_objects.json` | The machine-readable record: per object and per set, with the configuration, the station and calibration file names (from 2026-10-13; older sets read them as empty), reference, camera, lens and lighting; a judged part's features as its `parts` (number, kind, pass, box, checks, area, text, score), an additive field older sets load without. |
+| `_objects.json` | The machine-readable record: per object and per set, with the configuration, the station and calibration file names (from 2026-10-13; older sets read them as empty), reference, camera, lens and lighting; a judged part's features as its `parts` (number, kind, pass, box, checks, area, text, score), an additive field older sets load without; a Warning's kind as its `warning_kind` (`outside` or `foreign`, from 2026-10-16; an older set's Warning reads as a plain Warning). |
 
 **Run-summary CSV** — `logger/log_<Hardware>.csv`, one row per application run, shared by every mode
 on that hardware. A file of an older format is renamed aside, never appended to.

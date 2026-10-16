@@ -275,8 +275,8 @@ CONST_INSPECTION_AREA_EMPTY = CONST_INK
 # A FOREIGN object in a catalogue mode — a Warning that lies inside the inspection area and is not the part, so it
 # should not be on the surface at all — is drawn on the frame (its outline, outer box and chip, white numeral) in a
 # grey of the brand's grey-lilac family, so it is told at a glance from a catalogued part that only lies outside the
-# area (the Warning amber). It keeps the Warning verdict, its counts and its badge. The label mask keeps the Warning
-# colours for both: no fill in this hue clears the mask's floors against a box this light. Candidates for the owner's
+# area (the Warning amber). It keeps the Warning verdict; since 2026-10-16 it is counted, badged, charted and recorded
+# as its own kind, and on the label mask filled with its derived grey pair (CONST_FOREIGN_MASK_*). Candidates for the owner's
 # choice by eye (2026-10-16), against the table #236A56 / the white numeral / Unspecified's #655E6D (ΔE):
 #   #C9BFD2  3.63:1 / 1.77:1 / 3.52:1 (ΔE 37.7)
 #   #B4A6BE  2.80:1 / 2.30:1 / 2.71:1 (ΔE 29.3)   the disabled label's token (CONST_CONTROL_DISABLED_TEXT)
@@ -284,6 +284,14 @@ CONST_INSPECTION_AREA_EMPTY = CONST_INK
 # (the Warning amber's white numeral is 1.62:1, the owner's accepted exception).
 #   Unit [string] (hex colour)
 CONST_FOREIGN_BOX = CONST_CONTROL_DISABLED_TEXT
+# The foreign object's words and chart line on the white card (the Trends series, its dots): the grey's hue at L* 32,
+# chroma 6 (8.72:1 on white), the darkest shade that stays the grey family and farthest from the other series (ΔE 23.8
+# from the Total line, 39 from Unspecified's, 54 from the amber's); and the ground of its badge, where the purple words
+# clear 4.5:1 (5.23:1; the grey box itself gives 3.98:1). Its label-mask pair is derived like the detect-only neutral's
+# (CONST_FOREIGN_MASK_OUTLINE, CONST_FOREIGN_MASK_FILL, at the end of this module).
+#   Unit [string] (hex colour)
+CONST_FOREIGN_INK = '#4F4952'
+CONST_FOREIGN_LABEL_GROUND = '#CAC0D3'
 
 # The NEUTRAL colours: no pass/fail to encode. Two boxes, one ink:
 #
@@ -669,6 +677,26 @@ def Neutral_Mask_Colors(box_hex: str) -> tp.Tuple[str, str]:
     return (outline, fill)
 
 
+def State_Color(state: str) -> tp.Tuple[str, str, str]:
+    """
+    Description:
+        The (box, ink, fill) triple of a SHOWN state: a verdict's (Verdict_Color), and a catalogue Warning's two kinds,
+        'Outside' (a part outside the inspection area: the Warning amber, unchanged) and 'Foreign' (a foreign object:
+        the foreign grey, its ink and its derived mask fill). A plain 'Warning' (an older record that did not store
+        its kind) keeps the amber.
+
+    Args:
+        (1) state [string]: 'OK', 'NOK', 'Unspecified', 'Warning', 'Outside' or 'Foreign'.
+
+    Returns:
+        (1) parameter [Tuple<string> 1x3]: The (box, ink, fill) hex colours.
+    """
+
+    if state == 'Foreign':
+        return CONST_FOREIGN_BOX, CONST_FOREIGN_INK, CONST_FOREIGN_MASK_FILL
+    return Verdict_Color('Warning' if state == 'Outside' else state)
+
+
 def Verdict_Color(verdict: str) -> tp.Tuple[str, str, str]:
     """
     Description:
@@ -709,8 +737,8 @@ def Label_Ground(verdict: str) -> str:
     """
     Description:
         The ground a verdict's words sit on (the status badge, the diagram's verdict labels): the poster's tint for OK
-        and NOK, a light tint of the blue for Unspecified, and Warning's amber box, where the purple words clear
-        4.5:1.
+        and NOK, a light tint of the blue for Unspecified, a mid grey for a foreign object ('Foreign'), and Warning's
+        amber box (also a part outside the area's), where the purple words clear 4.5:1.
 
     Args:
         (1) verdict [string]: The verdict.
@@ -719,7 +747,8 @@ def Label_Ground(verdict: str) -> str:
         (1) parameter [string]: The ground colour as '#rrggbb'.
     """
 
-    grounds = {'OK': CONST_OK_LABEL_GROUND, 'NOK': CONST_NOK_LABEL_GROUND, 'Unspecified': CONST_UNSPECIFIED_LABEL_GROUND}
+    grounds = {'OK': CONST_OK_LABEL_GROUND, 'NOK': CONST_NOK_LABEL_GROUND, 'Unspecified': CONST_UNSPECIFIED_LABEL_GROUND,
+               'Foreign': CONST_FOREIGN_LABEL_GROUND}
     return grounds.get(verdict, Verdict_Color(verdict)[0])
 
 
@@ -759,6 +788,10 @@ def Detection_Mask_Outline() -> str:
 # import — loudly — instead of shipping a mask that breaks one.
 #   Unit [string] (hex colour) / [Tuple<string> 1x3] (box, ink, fill)
 CONST_DETECTION_MASK_OUTLINE, CONST_DETECTION_MASK_FILL = Neutral_Mask_Colors(CONST_DETECTION_INK)
+# A foreign object's label-mask pair, derived the same way from its frame grey (#897C93 outline, #DBCCE5 fill): no fill in
+# the grey's own chroma clears the mask's floors with the grey itself as the outline; the only in-hue fills that do lie
+# at L* 49 and chroma 28 or more (#846B98), a muted violet, not a grey, at the 4.5:1 floor on black.
+CONST_FOREIGN_MASK_OUTLINE, CONST_FOREIGN_MASK_FILL = Neutral_Mask_Colors(CONST_FOREIGN_BOX)
 CONST_DETECTION_COLORS = (CONST_DETECTION_BOX, CONST_DETECTION_INK, CONST_DETECTION_MASK_FILL)
 # The Camera View's heatmap colours: cividis (Nuñez, Anderton & Renslow, 2018), 17 anchors taken from
 # matplotlib's map at equal steps and expanded to 256 colours in L*a*b* (Heatmap_Colors). Cividis, not

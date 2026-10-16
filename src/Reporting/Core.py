@@ -333,48 +333,79 @@ def Scene_Note(objects: tp.List[Detection_Str], caption: str = '') -> str:
     return ' '.join(parts)
 
 
-def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tuple[str, str]:
+def Shown_State(det: Detection_Str) -> str:
     """
     Description:
-        The verdict-badge wording and its severity level. The level drives the
-        badge colour, returned separately so the interface never parses the
-        wording to decide how to paint it.
+        The state an object is shown and counted as: its verdict, except that a catalogue mode's Warning is one of its
+        two kinds, 'Outside' (a part outside the inspection area, Catalogue_Result_Str.Resembles) or 'Foreign' (a
+        foreign object). Recorded with each object (UI.Capture, 'warning_kind'), so History and Trends tell them apart.
 
-        In a catalogue mode (the objects carry catalogue evidence) the badge states the worst verdict, so it
-        is never green while anything on the surface is not OK: any NOK ('NOK · 2 of 5', level 'fail'), else
-        any Unspecified ('Not judged · 1', 'unspecified', on Unspecified's own ground), else any Warning ('Foreign object · 3' when none resembles the
-        part, 'Outside the area · 2' when all do and so lie outside the inspection area, 'Warning · 3' when both kinds
-        are there; 'warn'), else
-        every object OK ('All OK · 2', 'ok'). The word carries the state as well as the colour.
+    Args:
+        (1) det [Detection_Str(object)]: The object.
+
+    Returns:
+        (1) parameter [string]: 'OK', 'NOK', 'Unspecified', 'Outside', 'Foreign', or 'Warning' outside a catalogue mode.
+    """
+
+    if det.Verdict == 'Warning' and det.Catalogue is not None:
+        return 'Outside' if det.Catalogue.Resembles else 'Foreign'
+    return det.Verdict
+
+
+def Badges(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.List[tp.Tuple[str, str]]:
+    """
+    Description:
+        The verdict badges' wording and severity levels. The level drives each badge's colour, returned separately so
+        the interface never parses the wording to decide how to paint it.
+
+        In a catalogue mode (the objects carry catalogue evidence) the badges state the worst verdict, so none is
+        green while anything on the surface is not OK: any NOK ('NOK · 2 of 5', level 'fail'), else any Unspecified
+        ('Not judged · 1', 'unspecified'), else the Warnings, one badge per kind there: 'Outside the area · 2' (level
+        'warn', the amber) and 'Foreign object · 3' (level 'foreign', the grey), never one badge counting both; else
+        every object OK ('All OK · 2', 'ok'). The word carries the state as well as the colour. Outside a catalogue
+        mode, one badge: low confidence, or what was found.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects.
         (2) threshold [float]: The confidence below which the verdict is degraded.
 
     Returns:
-        (1) parameter [Tuple<string> 1x2]: The (wording, level) pair, where level
-                                           is 'fail' | 'ok' | 'warn' | 'unspecified' | 'idle'.
+        (1) parameter [Vector<Tuple<string> 1x2>]: The (wording, level) pairs, at least one; level is 'fail' | 'ok' |
+                                                   'warn' | 'foreign' | 'unspecified' | 'idle'.
     """
 
     if not objects:
-        return 'Empty', 'idle'
+        return [('Empty', 'idle')]
     if any(o.Catalogue is not None for o in objects):
-        count = {state: sum(o.Verdict == state for o in objects) for state in ('NOK', 'Unspecified', 'Warning')}
-        if count['NOK']:
-            return 'NOK · %d of %d' % (count['NOK'], len(objects)), 'fail'
-        if count['Unspecified']:
-            return 'Not judged · %d' % count['Unspecified'], 'unspecified'
-        if count['Warning']:
-            outside = sum(o.Verdict == 'Warning' and o.Catalogue is not None and o.Catalogue.Resembles
-                          for o in objects)
-            word = ('Outside the area' if outside == count['Warning'] else 'Foreign object' if not outside
-                    else 'Warning')
-            return '%s · %d' % (word, count['Warning']), 'warn'
-        return 'All OK · %d' % len(objects), 'ok'
+        states = [Shown_State(o) for o in objects]
+        if states.count('NOK'):
+            return [('NOK · %d of %d' % (states.count('NOK'), len(objects)), 'fail')]
+        if states.count('Unspecified'):
+            return [('Not judged · %d' % states.count('Unspecified'), 'unspecified')]
+        badges = [('%s · %d' % (word, states.count(state)), level)
+                  for state, word, level in (('Outside', 'Outside the area', 'warn'),
+                                             ('Foreign', 'Foreign object', 'foreign')) if states.count(state)]
+        return badges or [('All OK · %d' % len(objects), 'ok')]
     scored = [o.Confidence for o in objects if o.Confidence is not None]
     if scored and min(scored) < threshold:
-        return 'Low confidence', 'warn'
-    return '%d found' % len(objects), 'ok'
+        return [('Low confidence', 'warn')]
+    return [('%d found' % len(objects), 'ok')]
+
+
+def Verdict(objects: tp.List[Detection_Str], threshold: float = 0.35) -> tp.Tuple[str, str]:
+    """
+    Description:
+        The first verdict badge's wording and level (Badges): the one the session log and a single-badge reader take.
+
+    Args:
+        (1) objects [Vector<Detection_Str(object)>]: The located objects.
+        (2) threshold [float]: The confidence below which the verdict is degraded.
+
+    Returns:
+        (1) parameter [Tuple<string> 1x2]: The (wording, level) pair.
+    """
+
+    return Badges(objects, threshold)[0]
 
 
 def Screen_Understanding(objects: tp.List[Detection_Str], background_sentence: str) -> str:

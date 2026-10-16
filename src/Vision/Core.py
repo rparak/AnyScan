@@ -37,7 +37,7 @@ from Parameters.Vision import (Detection_Str, Analysis_Str, Heatmap_Str, Load_Ti
 #   ../Parameters/Configuration
 from Parameters.Configuration import Configuration_Str
 #   ../Reporting/Core
-from Reporting.Core import (Compose, Verdict, Background_Sentence, Side_Sentence, Describer_Prompt, Guard_Description,
+from Reporting.Core import (Compose, Badges, Background_Sentence, Side_Sentence, Describer_Prompt, Guard_Description,
                             Outside_Part,
                             Restated_Prompt, CONST_GUARD_NUMBER,
                             CONST_EMPTY_SCENE_EXPLANATION, CONST_BACKGROUND_FALLBACK)
@@ -1311,11 +1311,12 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         caption = '' if objects else CONST_EMPTY_SCENE_EXPLANATION
         started = time.perf_counter()
         objects, note = Compose(objects, caption=caption)
-        badge, level = Verdict(objects)
+        badges = Badges(objects)
+        badge, level = badges[0]
         stage_s[CONST_STAGE_COMPOSE] = time.perf_counter() - started
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return Analysis_Str(Objects=objects, Note=note,
-                            Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level,
+                            Latency_Ms=latency_ms, Verdict=badge, Verdict_Level=level, Badges=badges,
                             Task=(self.__config.Identity.Task if self.__describer is not None
                                   else CONST_FALLBACK_TASK_LABEL),
                             Raw_Mask_Count=raw_mask_count,

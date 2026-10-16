@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 # Custom Lib.: AnyScan domain — the detection structure the metadata is built from
 #   ../Parameters/Vision
 from Parameters.Vision import Detection_Str, Scale_Str, Measurement_Str, Feature_Str, Dimension_Check_Str, CONST_SCALE_UNITS
+#   ../Reporting/Core
+from Reporting.Core import Shown_State
 
 """
 Description:
@@ -145,6 +147,9 @@ class Capture_Object_Str:
     Cue: str = ''
     # The per-object verdict (one of Parameters.Vision.CONST_VERDICTS: 'OK' | 'NOK' | 'Unspecified' | 'Warning').
     Verdict: str = 'OK'
+    # A Warning's kind as recorded ('warning_kind': 'outside', a part outside the inspection area; 'foreign', a foreign
+    # object); '' for any other verdict and for a Warning in a set written before 2026-10-16, which did not record it.
+    Warning_Kind: str = ''
     # The composed description sentence (the shared formatter's output for this object).
     Description: str = ''
     # The stored measurement (sizes in mm, angle), or None when the object was not measured.
@@ -223,26 +228,30 @@ class Capture_Set_Str:
     def States(self) -> tp.Set[str]:
         """
         Description:
-            The verdicts its objects took ('OK', 'NOK', 'Warning', 'Unspecified'); empty for a partial set.
+            The states its objects are shown as: their verdicts ('OK', 'NOK', 'Unspecified'), a Warning as its recorded
+            kind ('Outside', 'Foreign'), and a Warning whose kind was not recorded (a set written before 2026-10-16) as a
+            plain 'Warning'; empty for a partial set.
 
         Returns:
             (1) parameter [Set<string>]: The states.
         """
 
-        return {obj.Verdict for obj in self.Objects}
+        return {obj.Warning_Kind.capitalize() if obj.Verdict == 'Warning' and obj.Warning_Kind else obj.Verdict
+                for obj in self.Objects}
 
     def Worst_State(self) -> str:
         """
         Description:
-            The worst verdict among its objects, in the status badge's order: NOK, then Unspecified, then Warning,
-            then OK (also for a set with no objects).
+            The worst state among its objects, in the status badges' order: NOK, then Unspecified, then a part outside
+            the area (or a Warning whose kind was not recorded), then a foreign object, then OK (also for a set with no
+            objects).
 
         Returns:
-            (1) parameter [string]: The verdict.
+            (1) parameter [string]: The state ('OK', 'NOK', 'Unspecified', 'Outside', 'Warning' or 'Foreign').
         """
 
         states = self.States()
-        return next((state for state in ('NOK', 'Unspecified', 'Warning') if state in states), 'OK')
+        return next((state for state in ('NOK', 'Unspecified', 'Outside', 'Warning', 'Foreign') if state in states), 'OK')
 
 
 def Set_Id_From_Name(name: str) -> tp.Optional[str]:
@@ -437,8 +446,9 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
         drives every other artefact — so the JSON, the images and the YOLO files describe
         identical objects in identical order, and no view need parse the prose. Per object it
         records the index, the pixel bounding box, the confidence percentage (or None), the
-        cue, the verdict and the composed description; set-wide it records the session, set id,
-        timestamp, frame dimensions, model task, inference time and the frame mean confidence.
+        cue, the verdict (a Warning with its kind, 'warning_kind': 'outside' or 'foreign') and the composed
+        description; set-wide it records the session, set id, timestamp, frame dimensions, model task, inference
+        time and the frame mean confidence.
 
     Args:
         (1) session_id [string]: The session the set belongs to.
@@ -497,6 +507,8 @@ def Build_Set_Metadata(session_id: str, set_id: str, timestamp: str,
                       if det.Segmenter_Score is not None else None)
         records.append({'index': index, 'bbox': [int(v) for v in det.Bbox],
                         'confidence': confidence, 'cue': det.Cue, 'verdict': det.Verdict,
+                        **({'warning_kind': Shown_State(det).lower()} if Shown_State(det) in ('Outside', 'Foreign')
+                           else {}),
                         'description': det.Sentence,
                         'measurement': Measurement_Record(det.Measurement),
                         'parts': [Part_Record(feature) for feature in det.Features]})
@@ -652,6 +664,7 @@ def Read_Capture_Set(session_dir: str, session_id: str, set_id: str) -> Capture_
             Confidence=(int(record['confidence']) if record.get('confidence') is not None
                         else None),
             Cue=str(record.get('cue', '')), Verdict=str(record.get('verdict', 'OK')),
+            Warning_Kind=(str(record['warning_kind']) if record.get('warning_kind') in ('outside', 'foreign') else ''),
             Description=str(record.get('description', '')),
             Measurement=__Read_Measurement(record.get('measurement')),
             Parts=__Read_Parts(record.get('parts')))

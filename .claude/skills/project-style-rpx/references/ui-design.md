@@ -45,8 +45,12 @@ practices followed inconsistently are under **Unsettled**.
   brand's grey-lilac family, `Theme.CONST_FOREIGN_BOX`, with the white numeral (`Annotate.Foreign`). The colour
   follows what the object is, never only where it lies. Candidates against the table #236A56 / white / #655E6D: `#C9BFD2`
   3.63 / 1.77 / 3.52:1, `#B4A6BE` (the disabled label's token) 2.80 / 2.30 / 2.71:1, `#A396AE` 2.30 / 2.79 /
-  2.23:1, the owner choosing by eye (DD *A catalogue mode judges only inside the inspection area*). The label mask
-  keeps the Warning colours for both: no fill in that hue clears the mask's floors against a box that light.
+  2.23:1, the owner choosing by eye (DD *A catalogue mode judges only inside the inspection area*). On the label mask
+  a foreign object takes the grey's derived pair, outline `#897C93` and fill `#DBCCE5` (`Theme.CONST_FOREIGN_MASK_*`,
+  derived as the detect-only neutral's), and a part outside the area the amber's; its chart line and words are the
+  grey's dark shade `#4F4952` (8.72:1 on white, ΔE 23.8 from the Total line) and its badge ground `#CAC0D3` (the purple
+  5.23:1). A Warning is everywhere shown by its kind, never as one Warning (DD *A Warning is shown, counted and recorded
+  by its kind*).
 - The inspection area's line (`UI.Widgets.Paint_Inspection_Area`, 1 px, solid, square corners, no fill, on screen
   only) is the amber `Theme.CONST_INSPECTION_AREA` `#FFD880` over a camera image (4.71:1 on the table, 1.18:1 against
   the Warning amber, told from a Warning frame by its 1 px against the frame's 2 px) and the purple

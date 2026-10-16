@@ -271,15 +271,16 @@ class Badge_Cls(QLabel):
     def Set_Level(self, level: str) -> None:
         """
         Description:
-            Repaint the badge for a severity level ('ok' | 'warn' | 'fail' | 'unspecified' | anything else): the ground
-            of the OK, Warning, NOK or Unspecified verdict ('fail' is a catalogue mode's NOK, 'unspecified' its objects
-            not judged), the idle card otherwise.
+            Repaint the badge for a severity level ('ok' | 'warn' | 'fail' | 'unspecified' | 'foreign' | anything else):
+            the ground of the OK, Warning (a part outside the area), NOK, Unspecified or foreign-object state ('fail' is a
+            catalogue mode's NOK, 'unspecified' its objects not judged, 'foreign' its foreign objects, the grey), the idle
+            card otherwise.
 
         Args:
             (1) level [string]: The severity level.
         """
 
-        verdict = {'ok': 'OK', 'warn': 'Warning', 'fail': 'NOK', 'unspecified': 'Unspecified'}.get(level)
+        verdict = {'ok': 'OK', 'warn': 'Warning', 'fail': 'NOK', 'unspecified': 'Unspecified', 'foreign': 'Foreign'}.get(level)
         if verdict is not None:
             bg = Style.Label_Ground(verdict)
             border, fg = bg, Style.CONST_INK

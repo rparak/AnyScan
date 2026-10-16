@@ -485,32 +485,33 @@ def test_the_verdict_reaches_the_file_and_the_log_keeps_the_similarity() -> None
     assert Verdict_Log_Line(0, _Judged('Unspecified', area=2.0))[0] == 'WARNING'
 
 
-@pytest.mark.parametrize('verdicts, badge', [
-    (['OK', 'OK'], ('All OK · 2', 'ok')),
-    (['OK', 'Warning', 'Warning'], ('Foreign object · 2', 'warn')),
-    (['OK', 'Warning-outside', 'Warning-outside'], ('Outside the area · 2', 'warn')),
-    (['OK', 'Warning', 'Warning-outside'], ('Warning · 2', 'warn')),
-    (['OK', 'Warning-far', 'Warning'], ('Foreign object · 2', 'warn')),
-    (['OK', 'Warning', 'Unspecified'], ('Not judged · 1', 'unspecified')),
-    (['OK', 'NOK', 'Unspecified', 'Warning', 'NOK'], ('NOK · 2 of 5', 'fail')),
-], ids=['all ok', 'warning', 'outside', 'foreign and outside', 'foreign outside the area', 'unspecified over warning',
+@pytest.mark.parametrize('verdicts, badges', [
+    (['OK', 'OK'], [('All OK · 2', 'ok')]),
+    (['OK', 'Warning', 'Warning'], [('Foreign object · 2', 'foreign')]),
+    (['OK', 'Warning-outside', 'Warning-outside'], [('Outside the area · 2', 'warn')]),
+    (['OK', 'Warning', 'Warning-outside'], [('Outside the area · 1', 'warn'), ('Foreign object · 1', 'foreign')]),
+    (['OK', 'Warning-far', 'Warning'], [('Foreign object · 2', 'foreign')]),
+    (['OK', 'Warning', 'Unspecified'], [('Not judged · 1', 'unspecified')]),
+    (['OK', 'NOK', 'Unspecified', 'Warning', 'NOK'], [('NOK · 2 of 5', 'fail')]),
+], ids=['all ok', 'foreign', 'outside', 'foreign and outside', 'foreign outside the area', 'unspecified over warning',
         'nok over all'])
-def test_the_badge_states_the_worst_verdict(verdicts: tp.List[str], badge: tp.Tuple[str, str]) -> None:
+def test_the_badge_states_the_worst_verdict(verdicts: tp.List[str], badges: tp.List[tp.Tuple[str, str]]) -> None:
     """
     Description:
-        In a catalogue mode the badge is never green while anything on the surface is not OK: any NOK (the
-        'fail' level), else any Unspecified (its own 'unspecified' level), else any Warning ('warn'), else all OK ('ok') — each in words
-        as well as colour. The Warnings are named by kind: foreign objects (not resembling the part), parts outside
-        the inspection area, or 'Warning' when both kinds are there. Outside a catalogue mode it still counts what
-        was found.
+        In a catalogue mode the badges are never green while anything on the surface is not OK: any NOK (the 'fail'
+        level), else any Unspecified (its own 'unspecified' level), else the Warnings, one badge per kind there, the parts
+        outside the inspection area ('Outside the area · n', 'warn', the amber) and the foreign objects (not resembling
+        the part, wherever they lie: 'Foreign object · n', 'foreign', the grey), never one badge counting both; else all
+        OK ('ok') — each in words as well as colour. The first badge is the reading's Verdict. Outside a catalogue mode
+        it still counts what was found.
     """
 
-    from Reporting.Core import Verdict
+    from Reporting.Core import Verdict, Badges
     objects = [_Judged(verdict.split('-')[0]) for verdict in verdicts]
     for det, verdict in zip(objects, verdicts):
         det.Catalogue.Outside_Area = verdict.endswith(('-outside', '-far'))   # -far: a foreign object outside the area
         det.Catalogue.Resembles = verdict.endswith('-outside')
-    assert Verdict(objects) == badge
+    assert (Badges(objects), Verdict(objects)) == (badges, badges[0])
     assert Verdict([Detection_Str(Label='plate', Bbox=(0, 0, 1, 1))] * 3) == ('3 found', 'ok')
 
 

@@ -45,7 +45,7 @@ from Parameters.General import CONST_CLASSIFICATION_ENABLED_DEFAULT
 #   ../Reporting/Core
 from Reporting.Core import Screen_Header
 #   ../Parameters/Theme
-from Parameters.Theme import Verdict_Color, Detection_Color
+from Parameters.Theme import State_Color, Detection_Color
 
 """
 Description:
@@ -92,11 +92,13 @@ CONST_REMOVED_NOTE = ('This capture set fell outside the retention window and wa
 
 # The filter segments, in order as (key, label).
 #   Unit [Vector<Tuple<string> 1x2>]
-CONST_FILTER_SEGMENTS = (('all', 'All'), ('ok', 'OK'), ('nok', 'NOK'), ('warning', 'Warning'),
-                         ('unspecified', 'Unspecified'))
-# Each state filter's verdict.
-#   Unit [Dict<string, string>]
-CONST_FILTER_STATES = {'ok': 'OK', 'nok': 'NOK', 'warning': 'Warning', 'unspecified': 'Unspecified'}
+CONST_FILTER_SEGMENTS = (('all', 'All'), ('ok', 'OK'), ('nok', 'NOK'), ('outside', 'Outside area'),
+                         ('foreign', 'Foreign object'), ('unspecified', 'Unspecified'))
+# Each state filter's shown states (Capture_Set_Str.States): a Warning by its kind; a set written before 2026-10-16,
+# whose Warnings did not record their kind, is listed under both kinds, so no set drops out of a filter it matched.
+#   Unit [Dict<string, Tuple<string>>]
+CONST_FILTER_STATES = {'ok': ('OK',), 'nok': ('NOK',), 'outside': ('Outside', 'Warning'),
+                       'foreign': ('Foreign', 'Warning'), 'unspecified': ('Unspecified',)}
 
 # The empty-grid messages, per filter.
 #   Unit [Dict<string, string>]
@@ -104,7 +106,8 @@ CONST_EMPTY_MESSAGES = {
     'all': 'No captures in this run yet. Analyse an image to begin.',
     'ok': 'No OK part in this run.',
     'nok': 'No NOK part in this run.',
-    'warning': 'No foreign object and no object outside the inspection area in this run.',
+    'outside': 'No part outside the inspection area in this run.',
+    'foreign': 'No foreign object in this run.',
     'unspecified': 'No object that could not be judged in this run.'}
 
 
@@ -734,7 +737,8 @@ class History_View_Cls(QWidget):
 
         # How many of the run's judged sets hold each state, under the filter.
         self.__counts.setText('  ·  '.join(
-            '%s %d' % (label, sum(1 for cap in self.__sets if cap.Classification and CONST_FILTER_STATES[key] in cap.States()))
+            '%s %d' % (label, sum(1 for cap in self.__sets if cap.Classification
+                                  and set(CONST_FILTER_STATES[key]) & cap.States()))
             for key, label in CONST_FILTER_SEGMENTS if key in CONST_FILTER_STATES))
         self.__counts.setVisible(self.__classification_enabled)
         matching = [cap for cap in self.__sets if self.__Filter_Matches(cap)]
@@ -852,7 +856,8 @@ class History_View_Cls(QWidget):
         """
         Description:
             Whether a set passes the active filter. 'all' matches everything. A state filter (OK, NOK,
-            Warning, Unspecified) matches a set in which any object took that state, so a set is listed
+            Outside area, Foreign object, Unspecified) matches a set in which any object took that state (a Warning
+            whose kind an older set did not record matching both kinds), so a set is listed
             under every state its objects took. They are JUDGEMENTS, so they match only a set written
             WITH classification: a detect-only set was never judged and appears only under All. (A partial
             set was never classified either, so it too is All-only.)
@@ -869,7 +874,7 @@ class History_View_Cls(QWidget):
             return True
         if not cap.Classification:
             return False                                 # never judged -> only under All
-        return CONST_FILTER_STATES[key] in cap.States()
+        return bool(set(CONST_FILTER_STATES[key]) & cap.States())
 
     def __Load_Visible(self) -> None:
         """
@@ -1198,8 +1203,9 @@ class History_View_Cls(QWidget):
         """
         Description:
             The selection-outline colour for a set, decided by how the set was WRITTEN (not the
-            current config): the muted tone for a partial set; the colour of its worst verdict
-            (Capture_Set_Str.Worst_State) for a set written WITH classification; and the neutral
+            current config): the muted tone for a partial set; the colour of its worst state
+            (Capture_Set_Str.Worst_State: a part outside the area amber, a foreign object grey) for a set written WITH
+            classification; and the neutral
             detection colour for a set written WITHOUT — so a verdict-coloured set and a
             detect-only set read differently, matching their baked-in image colours. The neutral is
             its ink (#655E6D): the detect-only box is the viewport's own grey-lilac, which would not
@@ -1215,7 +1221,7 @@ class History_View_Cls(QWidget):
         if cap.Partial:
             return Style.CONST_INK_MUTE
         if cap.Classification:
-            return Verdict_Color(cap.Worst_State())[0]
+            return State_Color(cap.Worst_State())[0]
         return Detection_Color()[1]
 
     # << QT OVERRIDE >> #
