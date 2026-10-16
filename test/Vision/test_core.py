@@ -834,3 +834,38 @@ def test_a_judged_parts_features_and_similarity_are_on_the_frame(fake_models, re
     assert np.isfinite(values[plate.Mask.astype(bool)]).all() and np.isnan(values[~plate.Mask.astype(bool)]).all()
     assert np.allclose(values[plate.Mask.astype(bool)], 0.0)
     assert 'not a defect map' in result.Similarity.Title
+
+
+def test_a_part_outside_the_area_is_not_checked_and_described_without_holes_or_stains(fake_models, reference_background,
+                                                                                      make_synthetic_frame,
+                                                                                      monkeypatch) -> None:
+    """
+    Description:
+        A plate over the inspection area's right edge resembles the part, so it is the amber Warning outside the area,
+        and nothing on it is checked: FastSAM never runs on its crop (no hole search), it has no hole, stain or feature,
+        and its reason only says to move it inside. Its describer prompt holds no hole or stain fact, and a sentence of
+        its description naming one is left out and logged, never asked again.
+    """
+
+    import cv2
+    from Reporting.Core import Reason_Sentence, CONST_DESCRIBER_OUTSIDE_PROMPT
+    _events, _config, _Variant = fake_models
+    monkeypatch.setattr(_Fake_Describer_Cls, 'caption', 'A metal plate with a shiny face. It has two stepped holes.')
+    _Fake_Segmenter_Cls.crop_holes = [(15.0, 17.5, 6.0), (15.0, 43.1, 6.0), (15.0, 17.5, 12.0), (15.0, 43.1, 12.0)]
+    frame_bgr = make_synthetic_frame(reference_background, [(1300, 300, 1900, 700)])
+    pipeline = Vision_Pipeline_Cls(Configuration_Str=_Catalogue_Mode())
+    result = pipeline.Analyze(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+    plate, = result.Objects
+    assert (plate.Verdict, plate.Catalogue.Outside_Area, plate.Catalogue.Resembles) == ('Warning', True, True)
+    assert (plate.Features, plate.Hole_Counts, plate.Hole_Checks, plate.Stains) == ([], [], [], None)
+    assert all(shape[0] >= 1200 for shape in _Private_Segmenter(pipeline).segmented)       # the frame only, no crop
+    assert Reason_Sentence(plate) == ('It lies outside the inspection area, so it is not judged: move it fully inside '
+                                      'the area and scan again.')
+    describer = getattr(pipeline, '_Vision_Pipeline_Cls__describer')
+    assert [prompt for purpose, prompt in zip(describer.purposes, describer.prompts) if purpose == 'object'] == [
+        CONST_DESCRIBER_OUTSIDE_PROMPT]
+    assert plate.Detail == 'A metal plate with a shiny face.'
+    assert [message for level, message in result.Audit if 'describer' in message] == [
+        'Object 1: the describer\'s sentence "It has two stepped holes." was left out: it names a hole or a stain, which '
+        'are not checked outside the inspection area. Its full text: "A metal plate with a shiny face. It has two '
+        'stepped holes."']

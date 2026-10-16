@@ -55,8 +55,8 @@ Description:
     Unspecified 71 mm out by the radius rule this replaced), and a clean front inside the area 56 mm out (frame 21).
 
     Since 2026-10-16 only a part wholly inside the station's inspection area is judged (Classify.Settle_Area): every
-    plate by the right edge here lies over the area's edge, so it is a Warning, and the checks that pinned its side,
-    holes and stains still run on it, as information named in its reason.
+    plate by the right edge here lies over the area's edge, so it is a Warning, and no check runs on it; the side,
+    holes and stains these frames once pinned are no longer read there.
 
     Each frame is stored as crops around its objects (40 px margin) with a manifest: their offsets, the frame's size,
     the source capture frame and its SHA-256. The test pastes them onto the mode's empty-surface reference at their
@@ -183,29 +183,22 @@ def test_each_edge_frame_gets_its_expected_verdicts(name: str, require_weights, 
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize('name', CONST_STAINED_EDGE_FRONTS)
-def test_a_stained_front_by_the_edge_is_outside_the_area_with_its_checks_named(name: str, require_weights,
-                                                                               monkeypatch) -> None:
+@pytest.mark.parametrize('name', CONST_STAINED_EDGE_FRONTS + CONST_CLEAN_EDGE_FRONTS)
+def test_a_plate_by_the_edge_is_outside_the_area_and_not_checked(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
-        The stained front 60-71 mm out lies over the inspection area's edge, so it is a Warning, never judged; its
-        checks still run, on its front, shown by its countersinks (a hole only the front has) where DINOv2's margin
-        chose the back: both countersinks and both through-holes found, every diameter, edge distance and pitch within
-        tolerance, and its two stains found, which its reason names as information. On frames 17 and 19 a through-hole
-        once read 19.04 and 19.37 mm from its short edge against 17.5 ± 1.5, its bore seen at an angle; frame 6 is cut
-        by the frame's border and still identified by its outline.
+        A plate 60-71 mm out lies over the inspection area's edge: it resembles the part, so it is the amber Warning
+        outside the area, and nothing on it is checked or marked: no hole, no stain, no feature, whatever it shows (the
+        stained fronts' two stains, the clean fronts' holes), and its reason only says to move it inside and scan again.
+        Frame 6 of 20261016-070531_s1 is cut by the frame's border and still identified by its outline.
     """
 
+    from Vision.Utilities.Annotate import Foreign
     (det,) = _Objects(name, require_weights, monkeypatch)
-    assert (det.Verdict, det.Catalogue.Outside_Area) == ('Warning', True)
-    assert det.Catalogue.Side == 'front'
-    assert [(c.Name, c.Found, c.Expected) for c in det.Hole_Counts] == [('countersink', 2, 2), ('through-hole', 2, 2)]
-    assert [c.Name for c in det.Hole_Checks if not c.Within] == []
-    assert len(det.Stains or []) == 2
-    assert Reason_Sentence(det) == CONST_OUTSIDE + (' Seen there: both countersinks found, both through-holes found, '
-                                                    'two stains found.')
-    assert det.Catalogue.Side_Evidence == 'holes'
-    assert sorted(feature.Kind for feature in det.Features) == ['hole'] * 4 + ['stain'] * 2
+    assert (det.Verdict, det.Catalogue.Outside_Area, det.Catalogue.Resembles, Foreign(det)) == ('Warning', True, True,
+                                                                                              False)
+    assert (det.Features, det.Hole_Counts, det.Hole_Checks, det.Stains) == ([], [], [], None)
+    assert Reason_Sentence(det) == CONST_OUTSIDE
 
 
 @pytest.mark.slow
@@ -223,32 +216,6 @@ def test_the_back_by_the_edge_stays_a_back(require_weights, monkeypatch) -> None
     assert back.Catalogue.Side == 'back' and not back.Catalogue.Outside_Area
     assert [(c.Name, c.Found, c.Expected) for c in back.Hole_Counts] == [('through-hole', 2, 2)]
     assert all(c.Within for c in back.Hole_Checks)
-
-
-@pytest.mark.slow
-@pytest.mark.parametrize('name', CONST_CLEAN_EDGE_FRONTS)
-def test_a_clean_front_by_the_edge_is_outside_the_area_with_its_checks_clean(name: str, require_weights,
-                                                                             monkeypatch) -> None:
-    """
-    Description:
-        A clean front 60 mm out (capture 20261015-180933_s1) lies over the inspection area's edge, so it is a Warning,
-        not OK; its checks still run and find nothing: it looks like the part (similarity to the front 0.85-0.87, above
-        0.75), its side is decided by its countersinks (DINOv2's margin +0.23 to +0.25, under the 0.265 that tells),
-        every hole is found and within tolerance (the bores within 0.17 mm of their countersinks' axes once the
-        camera's shift is out), and no stain is found, which its reason says.
-    """
-
-    (det,) = _Objects(name, require_weights, monkeypatch)
-    assert (det.Verdict, det.Catalogue.Outside_Area) == ('Warning', True)
-    assert Reason_Sentence(det) == CONST_OUTSIDE + (' Seen there: both countersinks found, both through-holes found, '
-                                                    'no stain found.')
-    assert det.Catalogue.Similarity >= det.Catalogue.Identify_Similarity
-    assert det.Catalogue.Side == 'front'
-    assert [(c.Name, c.Found, c.Expected) for c in det.Hole_Counts] == [('countersink', 2, 2), ('through-hole', 2, 2)]
-    assert all(c.Within for c in det.Hole_Checks)
-    assert len([c for c in det.Hole_Checks if c.Name == "through-hole's offset from its countersink"]) == 2
-    assert not det.Stains
-    assert det.Catalogue.Side_Evidence == 'holes'
 
 
 @pytest.mark.slow
@@ -329,7 +296,8 @@ def test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber(requi
     """
     Description:
         On the rig's frame 5 the stained front lies over the area's top edge beside the cut red block: it resembles the
-        part (identified, similarity 0.750), so it is the amber part outside the area, its stains named, never grey.
+        part (identified, similarity 0.750), so it is the amber part outside the area, never grey, and not checked: its
+        stains are neither marked nor named.
     """
 
     from Vision.Utilities.Annotate import Foreign
@@ -337,5 +305,4 @@ def test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber(requi
     (plate,) = [det for det in objects if det.Catalogue.Saturation <= 100.0]
     assert (plate.Verdict, plate.Catalogue.Outside_Area, plate.Catalogue.Resembles, Foreign(plate)) == \
         ('Warning', True, True, False)
-    assert Reason_Sentence(plate) == CONST_OUTSIDE + (' Seen there: both countersinks found, both through-holes found, '
-                                                      'two stains found.')
+    assert (Reason_Sentence(plate), plate.Features, plate.Stains) == (CONST_OUTSIDE, [], None)

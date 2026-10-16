@@ -4167,8 +4167,8 @@ passes; no verdict, reason or side changed on the 78 frames (214 objects with ca
 (D − d) / 2: the residuals show it, and the depth then needs the catalogue), the residuals of new captures exceed
 about 0.4 mm, or the catalogue gives a concentricity tolerance (it would replace the constant).
 Tests `test/Vision/Utilities/test_holes.py::test_a_bore_off_its_countersinks_axis_fails_wherever_the_part_lies`,
-`test/Vision/Utilities/test_classify.py::test_the_crop_view_puts_the_optical_axis_on_the_crop`,
-`test/integration/test_edge_of_view.py::test_a_clean_front_by_the_edge_is_outside_the_area_with_its_checks_clean`.
+`test/Vision/Utilities/test_classify.py::test_the_crop_view_puts_the_optical_axis_on_the_crop` (the real clean fronts by
+the edge pinned it until 2026-10-16, when they left the inspection area and stopped being checked).
 
 ## The edge-of-view regression frames are stored as crops on the empty-surface reference
 
@@ -4206,10 +4206,10 @@ hole-less block, was NOK on both sides. The radius is removed and replaced:
    (`Classify.Inside_Area`, `Settle_Area`, last in `Vision.Core.__Classify_Objects`). Any other object, a part cut by
    the frame's border included (the area is inset from it), is a Warning, `Catalogue_Result_Str.Outside_Area` set:
    "It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again." A part
-   identified there (OK or NOK by the rule before it) keeps its checks, run where it is visible: its marks are drawn
-   in the Warning colour, chips included, the mark styles unchanged (`Annotate.__Draw_Features`), and its reason adds
-   "Seen there: …" naming the hole groups found and missing and its stains, as information. A foreign object, or a
-   cut plate that failed identification, gets the first sentence alone and no marks.
+   identified there (OK or NOK by the rule before it) kept its checks, run where it is visible, its marks in the
+   Warning colour and "Seen there: …" in its reason, as information. *Corrected 2026-10-16:* no check runs outside
+   the area any more, so it has no marks and that sentence alone (*A part outside the inspection area is not
+   checked*).
 3. **Where it shows.** The Camera View draws the area, a 1 px solid line, square corners, no fill, over the empty
    view once a catalogue configuration is loaded, the scanned frame and the Annotated render
    (`UI.Widgets.Paint_Inspection_Area`, which a live preview can call), on screen only: the images saved to the
@@ -4294,11 +4294,10 @@ half a tolerance inside it, or well within it outside it; the camera, the lens, 
 Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_frame_inset_by_the_stations_insets`,
 `::test_only_an_object_wholly_inside_the_inspection_area_is_judged`,
 `::test_an_object_without_a_mask_is_never_inside_the_area`,
-`test/Reporting/test_core.py::test_an_object_outside_the_inspection_area_says_so_and_names_what_was_seen_there`,
+`test/Reporting/test_core.py::test_a_part_outside_the_inspection_area_only_says_to_move_it_inside`,
 `::test_a_part_nok_on_every_side_gives_what_its_readings_share_else_each_with_its_side`,
 `::test_the_badge_states_the_worst_verdict`,
-`test/Vision/Utilities/test_annotate.py::test_a_part_outside_the_inspection_area_is_marked_only_in_the_warning_colour`,
-`::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
+`test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
 `test/UI/test_inspection_area.py`, `test/Configuration/test_core.py::test_an_inspection_area_too_small_for_the_part_fails_the_load`,
 `test/integration/test_edge_of_view.py` (frames 2, 6, 14 and 21 of `20261016-070531_s1` added as crops),
 `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts`.
@@ -4350,7 +4349,7 @@ metal under this light, and the similarity threshold its references').
 Tests `test/Vision/Utilities/test_classify.py::test_an_object_resembles_the_part_by_the_rule_or_outside_by_every_position_free_cue`,
 `::test_the_colour_and_extent_cues_read_the_mask`,
 `test/Vision/Utilities/test_annotate.py::test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame`,
-`test/Reporting/test_core.py::test_an_object_outside_the_inspection_area_says_so_and_names_what_was_seen_there`,
+`test/Reporting/test_core.py::test_a_part_outside_the_inspection_area_only_says_to_move_it_inside`,
 `::test_the_badge_states_the_worst_verdict`,
 `test/integration/test_edge_of_view.py::test_the_red_block_is_a_foreign_object_wherever_it_lies` (frames 1, 2, 4 and 5 of
 `20261016-111250_s1` as crops), `::test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber`.
@@ -4373,3 +4372,35 @@ the stains, not its size, where an all-orange part read as wrong in every respec
 finds the two colours on one part read as two objects on the rig's screen.
 Tests `test/Vision/Utilities/test_annotate.py::test_a_judged_parts_outline_carries_its_size_and_its_outer_box_and_chip_its_verdict`
 (a part NOK only for its stains, NOK for its size, NOK only for its look, and OK).
+
+## A part outside the inspection area is not checked
+
+Decided 2026-10-16, on the owner's request. A catalogue part outside the inspection area (the amber Warning: it
+resembles the part, by the rule or by the measured cues, and lies over the area's edge) has no hole or stain check run
+on it at all (`Vision.Core.__Classify_Objects` settles it before the hole search): no FastSAM on its crop, no side from
+its holes, no stain check, no feature. On the frame only its rotated outline, its dashed outer box and its chip are
+drawn, in the amber with the white numeral; its reason is "It lies outside the inspection area, so it is not judged:
+move it fully inside the area and scan again." alone, without the "Seen there" findings; the log lists no part
+evidence for it. Its describer prompt holds no hole or stain fact (`Reporting.CONST_DESCRIBER_OUTSIDE_PROMPT`: its
+material, its shape and its surface only, no holes, countersinks, stains, marks or numbers), and the guard leaves out
+any sentence of its description that names a hole, a countersink or a stain (`CONST_GUARD_OUTSIDE_WHY`), logged, never
+asked again. Which objects are amber and which grey is unchanged (*A foreign object is told by what it is…*).
+
+**Why.** Findings named outside the area read as a verdict the station does not give there, and the checks cost time
+on a part the operator must move anyway. Measured, the identification stage on the 34 frames of
+`20261016-070531_s1`, `-105125_s1` and `-111250_s1` (RTX 5070 Ti, CUDA, warm, median of three runs): 31–39 ms saved per
+part the rule identified outside the area (median 36 ms), so a frame holding one plate there drops from 52–58 ms to
+21 ms; the four cut plates the rule never identified save nothing (they were never checked); frames with no part
+outside change by 0–1 ms. Not measured on the CPU.
+
+**Given up.** What these checks showed by the edge of the view: a stained front's two stains found to 80.9 mm out are
+no longer named there; the part must be moved inside to be judged.
+
+**Revisit if** the operator needs to see what is on a part before moving it (a live preview would show the part, not
+the checks), or a check is found that holds outside the area.
+Tests `test/Vision/test_core.py::test_a_part_outside_the_area_is_not_checked_and_described_without_holes_or_stains`,
+`test/Reporting/test_core.py::test_a_part_outside_the_inspection_area_only_says_to_move_it_inside`,
+`::test_a_part_outside_the_area_is_described_without_holes_or_stains`,
+`test/integration/test_edge_of_view.py::test_a_plate_by_the_edge_is_outside_the_area_and_not_checked`,
+`::test_a_stained_front_outside_the_area_beside_the_red_block_stays_amber`,
+`test/integration/test_pipeline.py::test_a_plate_outside_the_area_is_not_checked`.

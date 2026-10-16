@@ -34,7 +34,8 @@ practices followed inconsistently are under **Unsettled**.
   (DD *Every chip carries a white numeral*). One purple: no darker shade of it exists in the theme (DD
   *The palette is the JIC Smart Factory brand's*).
 - A Warning has two looks on the frame, never on the mask: a catalogued part that only lies outside the
-  inspection area keeps the amber; a **foreign object** (a Warning that does not resemble the part, wherever it
+  inspection area keeps the amber, its rotated outline, dashed outer box and chip only, with no feature mark, since
+  no check runs on it (DD *A part outside the inspection area is not checked*); a **foreign object** (a Warning that does not resemble the part, wherever it
   lies, cut by the border or not: `Catalogue_Result_Str.Resembles`) is drawn, outline, box and chip, in a grey of the
   brand's grey-lilac family, `Theme.CONST_FOREIGN_BOX`, with the white numeral (`Annotate.Foreign`). The colour
   follows what the object is, never only where it lies. Candidates against the table #236A56 / white / #655E6D: `#C9BFD2`

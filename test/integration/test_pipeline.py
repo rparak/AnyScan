@@ -126,8 +126,8 @@ CONST_STATES = ('OK', 'NOK', 'Unspecified', 'Warning')
 # 50 x 50 square plates among them, is a Warning. No frame shows two plates touching, so none is Unspecified.
 # Every plate here is nominal in size (no calipers; the owner's ruling: a part within tolerance reads OK), so no
 # NOK is a size. Since 2026-10-16 a part is judged only wholly inside the station's inspection area: Image_062's clean
-# front (20.8 mm out, its long side upright) reaches into the band along the top edge, so it is a Warning, its checks
-# run as information (CONST_PLATES_OUTSIDE_THE_AREA).
+# front (20.8 mm out, its long side upright) reaches into the band along the top edge, so it is a Warning, not
+# checked (CONST_PLATES_OUTSIDE_THE_AREA).
 #   Unit [Dict<string, Tuple<string>>]
 CONST_EXPECTED_VERDICTS = {
     'Image_055.png': ('OK',),
@@ -172,7 +172,7 @@ CONST_EXPECTED_VERDICTS = {
     'Image_094.png': _Warnings(4),
     'Image_095.png': _Warnings(4),
 }
-# The frames whose mounting plate lies over the inspection area's edge, identified there: a Warning whose checks ran.
+# The frames whose mounting plate lies over the inspection area's edge, identified there: a Warning, not checked.
 #   Unit [Tuple<string>]
 CONST_PLATES_OUTSIDE_THE_AREA = ('Image_062.png',)
 # The frames that ARE the catalogue item's reference images (Data/Catalogue/mounting_plate/reference_image/, byte
@@ -535,21 +535,18 @@ def test_each_stained_front_shows_its_two_fingerprints_as_two_stains(name: str, 
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize('name', sorted({name for name, states in CONST_EXPECTED_VERDICTS.items()
-                                         if set(states) & {'OK', 'NOK'}} | set(CONST_PLATES_OUTSIDE_THE_AREA)))
+@pytest.mark.parametrize('name', sorted(name for name, states in CONST_EXPECTED_VERDICTS.items()
+                                        if set(states) & {'OK', 'NOK'}))
 def test_every_mounting_plate_shows_all_its_holes_within_tolerance(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
-        In the mounting-plate mode, every plate of the test set shows its holes as the catalogue gives them —
+        In the mounting-plate mode, every judged plate of the test set shows its holes as the catalogue gives them —
         a front two countersinks and two through-holes, a back two through-holes — each diameter, edge distance
-        and the pitch within tolerance, the plate outside the inspection area too (its checks run as information).
-        Slow because it runs FastSAM and DINOv2.
+        and the pitch within tolerance. Slow because it runs FastSAM and DINOv2.
     """
 
-    from Reporting.Core import Identified_Outside
     objects = _Catalogue_Objects(name, require_weights, monkeypatch)
-    judged = [det for det in objects if det.Verdict in ('OK', 'NOK') or Identified_Outside(det)]
-    assert all(Identified_Outside(det) for det in judged) == (name in CONST_PLATES_OUTSIDE_THE_AREA)
+    judged = [det for det in objects if det.Verdict in ('OK', 'NOK')]
     assert judged
     for det in judged:
         expected = ([('countersink', 2, 2), ('through-hole', 2, 2)] if det.Catalogue.Side == 'front'
@@ -557,3 +554,19 @@ def test_every_mounting_plate_shows_all_its_holes_within_tolerance(name: str, re
         assert [(c.Name, c.Found, c.Expected) for c in det.Hole_Counts] == expected
         assert det.Hole_Checks and all(check.Within for check in det.Hole_Checks), \
             [(c.Name, round(c.Measured_Mm, 2)) for c in det.Hole_Checks if not c.Within]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize('name', CONST_PLATES_OUTSIDE_THE_AREA)
+def test_a_plate_outside_the_area_is_not_checked(name: str, require_weights, monkeypatch) -> None:
+    """
+    Description:
+        The plate of the test set that reaches over the inspection area's edge is the amber Warning outside the area,
+        and no hole or stain check runs on it: no hole, stain or feature, its reason only to move it inside.
+    """
+
+    from Reporting.Core import Outside_Part, Reason_Sentence
+    (plate,) = [det for det in _Catalogue_Objects(name, require_weights, monkeypatch) if Outside_Part(det)]
+    assert (plate.Features, plate.Hole_Counts, plate.Stains) == ([], [], None)
+    assert Reason_Sentence(plate) == ('It lies outside the inspection area, so it is not judged: move it fully inside '
+                                      'the area and scan again.')

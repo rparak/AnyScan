@@ -38,6 +38,7 @@ from Parameters.Vision import (Detection_Str, Analysis_Str, Heatmap_Str, Load_Ti
 from Parameters.Configuration import Configuration_Str
 #   ../Reporting/Core
 from Reporting.Core import (Compose, Verdict, Background_Sentence, Side_Sentence, Describer_Prompt, Guard_Description,
+                            Outside_Part,
                             Restated_Prompt, CONST_GUARD_NUMBER,
                             CONST_EMPTY_SCENE_EXPLANATION, CONST_BACKGROUND_FALLBACK)
 #   ../Vision/Utilities/Segmentation
@@ -973,10 +974,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             margin or a hole only one side has (Decide_Side), and its checks on that side: its holes and its
             stains (Vision.Utilities.Stain), each found defect making it NOK. With the side undecided it is also
             judged on every side, each side's reading kept, and a verdict that differs by side is Unspecified
-            (Settle_Side). Last, any object whose outline leaves the station's inspection area is a Warning
-            (Settle_Area): a part identified there keeps its checks and marks as information, any other object
-            has none. Whether each object resembles the part is kept apart from where it lies (Resembles_Part), so
-            a foreign object is told from a part that only lies outside the area. The crop's scale is the mean of the two
+            (Settle_Side). Any object whose outline leaves the station's inspection area is a Warning
+            (Settle_Area), and no check runs on it, so it has no features; whether it resembles the part is kept
+            apart from where it lies (Resembles_Part), so a foreign object is told from a part that only lies
+            outside the area. The crop's scale is the mean of the two
             factors (they differ by 0.17 %). Each judged part's features are taken to the frame and numbered as
             its parts, and its patches' unlikeness to the reference of the side checked is laid on the frame's
             similarity map.
@@ -1022,7 +1023,8 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             det.Catalogue.Outside_Area = not inside
             Resembles_Part(det, Mean_Saturation(frame_bgr, det, cv2, np),
                            Visible_Extent_Mm(det, self.__config.Scale, cv2, np), item)
-            if det.Verdict not in ('OK', 'NOK'):
+            # Outside the area nothing is judged, so no check runs on it: no holes, no side from them, no stains.
+            if det.Verdict not in ('OK', 'NOK') or not inside:
                 Settle_Area(det, inside)
                 continue
             upright = uprights[index]
@@ -1155,7 +1157,10 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
             The objects are described one after another on this thread (no batching), so their
             times add up to the crops and descriptions stages.
 
-            In a catalogue mode a judged part (OK, NOK) is described with the item's Describer.Prompt filled
+            In a catalogue mode a part outside the inspection area is described from a prompt holding no hole or
+            stain fact, asking for its material, shape and surface alone (Reporting.Describer_Prompt), and a
+            sentence naming a hole, a countersink or a stain is left out (Reporting.Guard_Description), never asked
+            again. A judged part (OK, NOK) is described with the item's Describer.Prompt filled
             for it (Reporting.Describer_Prompt: its side, that side's description and defects, what the checks
             found, no number), and the describer's text then goes through the guard
             (Reporting.Guard_Description): a sentence with a number or contradicting a check is dropped, and
@@ -1222,6 +1227,12 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                     describe_s = time.perf_counter() - started
                     if tokens is not None and retry_tokens is not None:
                         tokens = (tokens[0] + retry_tokens[0], tokens[1] + retry_tokens[1])
+                elif catalogue is not None and Outside_Part(det):
+                    # A part outside the area: no check ran, so a hole or a stain it names is left out, never asked again.
+                    full = det.Detail
+                    det.Detail, dropped = Guard_Description(full, det)
+                    audit += [('warning', 'Object %d: the describer\'s sentence "%s" was left out: %s. Its full text: "%s"'
+                               % (i + 1, sentence, why, full)) for sentence, why in dropped]
                 det.Label = Condense_Label(det.Detail)
             times.append((crop_s, describe_s, tokens))
         if progress_cb:

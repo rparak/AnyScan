@@ -313,8 +313,8 @@ What a catalogue mode does not check, it cannot fail:
   is not verified.
 - **A part outside the inspection area is never judged.** Only a part whose whole outline lies inside the
   area drawn in the Camera View (the frame inset by 10 mm at the top and bottom, 13 mm at the sides) gets OK or
-  NOK. Anything else, a part cut by the frame's border included, is a Warning: the stains and holes found on it
-  are named as information, never as a verdict. The area is about 101 mm high, so a plate standing with its long
+  NOK. Anything else, a part cut by the frame's border included, is a Warning, and no hole or stain check runs
+  on it: a stain on a part outside the area is neither marked nor named until it is moved inside. The area is about 101 mm high, so a plate standing with its long
   side vertical can move only about ±20 mm up or down; place parts by the line on the empty view or the scanned
   frame (a future live preview will help). The insets were measured mostly by the right edge and the top
   of the view; along the left and bottom edges and in the corners they are not verified (KNOWN_ISSUES).

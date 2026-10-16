@@ -234,7 +234,7 @@ class Catalogue_Result_Str(object):
     Center_Distance_Mm: float = 0.0
     Verified_Radius_Mm: float = 0.0
     # Whether the object's outline (its mask) leaves the station's inspection area (Classify.Settle_Area): then it
-    # is a Warning, never judged, and a part identified there keeps its checks as information.
+    # is a Warning, never judged, and no check runs on it.
     #   Unit [bool]
     Outside_Area: bool = False
     # Whether the object resembles the catalogue part: identified by the verdict rule (OK, NOK, or Unspecified for

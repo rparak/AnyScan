@@ -308,9 +308,6 @@ def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float
           DASHED, the only dashed feature marks, so a hole missing never reads as a hole found out of tolerance;
         - a stain: its box solid, and its pixels under a tint of the fail colour, so its shape shows.
 
-        A part identified outside the inspection area is a Warning and nothing on it is judged: each of its features,
-        its stains' tint and its chips, is in the Warning colour instead, the mark styles unchanged.
-
         Each feature then carries its part number ('3.1', the log's Part) on a chip like the object's, smaller,
         belonging to its box and turned with it (__Draw_Feature_Chip).
 
@@ -325,18 +322,13 @@ def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float
     if not any(det.Features for det in objects):
         return
     passed, failed = Hex_To_Bgr(Verdict_Color('OK')[0]), Hex_To_Bgr(Verdict_Color('NOK')[0])
-    unjudged = Hex_To_Bgr(Verdict_Color('Warning')[0])
     weight = max(1, int(round(CONST_ANNOTATE_FEATURE_W * scale)))
     dash = CONST_ANNOTATE_FEATURE_DASH * scale
-    tint = image.copy()
-    tinted = False
-    for det in objects:
-        outlines = [np.int32(np.round(outline)) for feature in det.Features if feature.Kind == 'stain'
-                    for outline in feature.Outlines]
-        if outlines:
-            cv2.fillPoly(tint, outlines, unjudged if det.Verdict == 'Warning' else failed)
-            tinted = True
-    if tinted:
+    outlines = [np.int32(np.round(outline)) for det in objects for feature in det.Features if feature.Kind == 'stain'
+                for outline in feature.Outlines]
+    if outlines:
+        tint = image.copy()
+        cv2.fillPoly(tint, outlines, failed)
         cv2.addWeighted(tint, CONST_ANNOTATE_STAIN_TINT, image, 1.0 - CONST_ANNOTATE_STAIN_TINT, 0.0, dst=image)
     for det in objects:
         placed = []
@@ -344,7 +336,7 @@ def __Draw_Features(image: tp.Any, objects: tp.List[Detection_Str], scale: float
             box = __Feature_Box(feature, np)
             if box is None:
                 continue
-            color = unjudged if det.Verdict == 'Warning' else passed if feature.Passed else failed
+            color = passed if feature.Passed else failed
             outline = [(float(x), float(y)) for x, y in feature.Outlines[0]] if feature.Kind == 'hole' and feature.Outlines \
                 else []
             for path in [[(float(x), float(y)) for x, y in box]] + ([outline] if outline else []):

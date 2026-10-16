@@ -55,7 +55,7 @@ Description:
     (Decide_Side); when neither tells, the part is judged on every side and a verdict that differs by side is
     Unspecified (Settle_Side). Last, any object whose outline leaves the station's inspection area (a rectangle
     inset from the frame's edges, Inspection_Area_Px) is a Warning, never judged (Settle_Area); a part identified
-    there keeps its checks as information. Whether an object resembles the part (Resembles_Part) is told apart from
+    there is not checked. Whether an object resembles the part (Resembles_Part) is told apart from
     where it lies: an object the rule identified does, and outside the area, where a cut or far plate scores lower,
     an object that resembles it by its similarity, colour and visible extent; any other is a foreign object.
 
@@ -516,9 +516,8 @@ def Settle_Area(det: Detection_Str, inside: bool) -> None:
     """
     Description:
         An object's verdict once where it lies is known, in place: one whose outline leaves the inspection area is a
-        Warning, whatever it was, since the final verdict is given only inside the area. A part identified there
-        (judged OK or NOK, or Unspecified for its side) keeps its checks on it, as information; any other object has
-        none. Inside the area the verdict stands.
+        Warning, whatever it was, since the final verdict is given only inside the area, and no check runs on it
+        (Vision.Core). Inside the area the verdict stands.
 
     Args:
         (1) det [Detection_Str(object)]: The object, classified (mutated).

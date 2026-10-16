@@ -602,8 +602,9 @@ and hole-diameter error of the plates inside stays within half its tolerance. Wh
   could change it, and it was set aside; the plates are not measured with calipers (README > Limitations), so part of
   that is the plate itself.
 - **The plates past the area are no longer judged.** By the right edge, where the captures of 2026-10-15 and
-  2026-10-16 put them on purpose, they lie over the area's edge and are Warnings, with their checks named as
-  information: on those frames a stained front's two stains, and every hole, were still found to 80.9 mm out
+  2026-10-16 put them on purpose, they lie over the area's edge and are Warnings, and since 2026-10-16 no check
+  runs on them: a stained front there is neither marked nor named as stained until it is moved inside. Measured
+  before that, on those frames a stained front's two stains, and every hole, were still found to 80.9 mm out
   (`20261016-070736_10`), but their outlines read up to 1.17 mm off nominal from 57 mm out, more than half the
   tolerance.
 
@@ -659,5 +660,5 @@ clause; inside the area a stained front still scores down to 0.73 (`20261015-170
   true, in words written for a foreign object. A clean front by the edge does not get it.
 - **Not fixed here:** nothing to fix in the identification; a separate wording for a judged part whose stains were
   found could follow, if the owner wants one.
-- **Pinned by:** `test/integration/test_edge_of_view.py::test_a_clean_front_by_the_edge_is_outside_the_area_with_its_checks_clean`
-  (the clean fronts' similarity above 0.75); the stained fronts' clause is not pinned.
+- **Pinned by:** nothing since 2026-10-16: the clean fronts that pinned the absence of the clause now lie outside the
+  inspection area, where no reason carries it; the stained fronts' clause is not pinned.

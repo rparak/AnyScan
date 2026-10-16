@@ -611,33 +611,6 @@ def __Chip_Extent(image: np.ndarray, x: int, y: int, box: tp.Tuple[int, int, int
     return width, height
 
 
-def test_a_part_outside_the_inspection_area_is_marked_only_in_the_warning_colour() -> None:
-    """
-    Description:
-        A part identified outside the inspection area is a Warning, and nothing on it is judged: on the rendered frame
-        its found holes (a passing and a failing one), its missing hole and its stain, their chips and the stain's tint
-        are all in the Warning colour, never the pass or fail colour; the mark styles stay (the missing hole still
-        dashed, the found ones solid).
-    """
-
-    from Parameters.Vision import Feature_Str
-    warning = Theme.Hex_To_Bgr(Theme.Verdict_Color('Warning')[0])
-    passed, failed = Theme.Hex_To_Bgr(Theme.Verdict_Color('OK')[0]), Theme.Hex_To_Bgr(Theme.Verdict_Color('NOK')[0])
-    stain = __Square(400, 550, 50, 0.0)
-    det = __Judged([__Hole('1.1', 250, 300, 40), __Hole('1.2', 500, 300, 40, Passed=False),
-                    __Hole('1.3', 250, 450, 40, Passed=False, Found=False),
-                    Feature_Str(Part='1.4', Kind='stain', Name='stain', Passed=False, Corners=stain,
-                                Outlines=[[(380, 530), (420, 530), (420, 570), (380, 570)]])])
-    det.Verdict = 'Warning'
-    annotated = Annotate.Draw_Annotated(np.full((1200, 1920, 3), 90, np.uint8), [det], cv2, np, verdict_colored=True)
-    hits = __Near(annotated, warning)
-    assert all(__Along(hits, __Circle(250, 300, 40))) and all(__Along(hits, __Circle(500, 300, 40)))
-    assert __Gaps(__Along(hits, __Circle(250, 450, 40))) >= 8 and all(__Along(hits, stain))
-    assert not __Near(annotated, passed, 30).any() and not __Near(annotated, failed, 30).any()
-    expected = Annotate.CONST_ANNOTATE_STAIN_TINT * np.array(warning) + (1.0 - Annotate.CONST_ANNOTATE_STAIN_TINT) * 90
-    assert np.abs(annotated[550, 400].astype(int) - expected).max() <= 1
-
-
 def test_a_foreign_object_is_grey_and_a_part_outside_the_area_amber_on_the_frame() -> None:
     """
     Description:

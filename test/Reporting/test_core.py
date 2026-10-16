@@ -878,41 +878,61 @@ def test_the_guard_drops_a_sentence_referring_to_the_checks(sentence: str, dropp
     assert drops == ([(sentence, CONST_GUARD_CHECKS_WHY)] if dropped else [])
 
 
-def test_an_object_outside_the_inspection_area_says_so_and_names_what_was_seen_there() -> None:
+def test_a_part_outside_the_inspection_area_only_says_to_move_it_inside() -> None:
     """
     Description:
-        A Warning that resembles the part outside the inspection area is not "should not be on the surface": it says
-        it lies outside the area and what to do. A part identified there also names, as information, what its checks
-        found where it is visible: each hole group found and missing, and its stains (or none); a cut plate that only
-        resembles the part (no checks ran) gets the first sentence alone. A foreign object outside the area, which
-        does not resemble the part, is named as one, to remove, not as a part to move. The log lists the identified
-        part's evidence, and for each object outside the area whether it resembles the part, by which cues.
+        A part outside the inspection area (a Warning that resembles the part) says it lies outside the area and to move
+        it inside and scan again, nothing more: no check ran on it, so its reason names no hole and no stain, and the
+        log lists no part evidence for it. A foreign object outside the area is named as one, to remove. The log gives,
+        for each object outside the area, whether it resembles the part and by which cues.
     """
 
-    from Parameters.Vision import Hole_Count_Str, Stain_Str
-    from Reporting.Core import Reason_Sentence, Part_Lines, Identified_Outside, Verdict_Log_Line
+    from Reporting.Core import Reason_Sentence, Part_Lines, Outside_Part, Verdict_Log_Line
     first = 'It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.'
-    cut = _Judged('Warning', similarity=0.70)
-    cut.Catalogue.Outside_Area = cut.Catalogue.Resembles = True
-    assert (Reason_Sentence(cut), Identified_Outside(cut), Part_Lines(0, cut)) == (first, False, [])
+    part = _Judged('Warning', similarity=0.70)
+    part.Catalogue.Outside_Area = part.Catalogue.Resembles = True
+    assert (Reason_Sentence(part), Outside_Part(part), Part_Lines(0, part)) == (first, True, [])
     foreign = _Judged('Warning', similarity=0.64)
     foreign.Catalogue.Outside_Area, foreign.Catalogue.Saturation, foreign.Catalogue.Extent_Mm = True, 129.4, 44.5
     assert Reason_Sentence(foreign) == 'It is not the part and lies outside the inspection area: remove it from the surface.'
+    assert not Outside_Part(foreign)
     assert ('outside the inspection area, does not resemble the part (saturation 129, extent 44.5 mm)'
             in Verdict_Log_Line(0, foreign)[1])
-    part = _Judged('Warning')
-    part.Catalogue.Outside_Area = part.Catalogue.Resembles = True
-    part.Hole_Counts = [Hole_Count_Str(Name='countersink', Found=2, Expected=2),
-                        Hole_Count_Str(Name='through-hole', Found=1, Expected=2)]
-    part.Stains = [Stain_Str(Area_Mm2=150.0), Stain_Str(Area_Mm2=55.0)]
-    assert Reason_Sentence(part) == first + (' Seen there: both countersinks found, one through-hole found, one of two '
-                                             'through-holes missing, two stains found.')
-    assert Identified_Outside(part) and Part_Lines(0, part)[1:] == ['Object 1 · countersinks: 2 of 2 found.',
-                                                                     'Object 1 · through-holes: 1 of 2 found.']
-    part.Stains = []
-    part.Hole_Counts = [Hole_Count_Str(Name='through-hole', Found=0, Expected=2)]
-    assert Reason_Sentence(part) == first + ' Seen there: both through-holes missing, no stain found.'
     assert Reason_Sentence(_Judged('Warning', similarity=0.31)) == 'The object should not be on the surface.'
+
+
+@pytest.mark.parametrize('sentence, dropped', [
+    ('A rectangular plate of bright machined metal.', False),
+    ('Its surface shows circular tool marks.', False),
+    ('It has two stepped holes.', True),
+    ('A countersink sits near one end.', True),
+    ('The plate is counter-sunk at one end.', True),
+    ('Brown stains cover one half.', True),
+    ('There is a fingerprint on it.', True),
+    ('It is a stainless steel plate.', False),
+    ('It is 60 mm long.', True),
+], ids=['material', 'surface', 'holes', 'countersink', 'counter-sunk', 'stains', 'fingerprint', 'stainless', 'number'])
+def test_a_part_outside_the_area_is_described_without_holes_or_stains(sentence: str, dropped: bool) -> None:
+    """
+    Description:
+        The describer is given a part outside the inspection area with a prompt that holds no hole or stain fact and
+        asks for its material, shape and surface alone, and the guard leaves out any sentence of its description that
+        names a hole, a countersink or a stain (never 'stainless', a material), or states a number, since no check ran
+        on it; the material, shape and surface stay.
+    """
+
+    from Reporting.Core import Describer_Prompt, Guard_Description, CONST_DESCRIBER_OUTSIDE_PROMPT
+    from Parameters.Catalogue import Catalogue_Item_Str
+    part = _Judged('Warning', similarity=0.70)
+    part.Catalogue.Outside_Area = part.Catalogue.Resembles = True
+    item = Catalogue_Item_Str(Name='plate', Describer_Prompt='Describe the {side}. {findings}')
+    prompt = Describer_Prompt(part, item)
+    assert prompt == CONST_DESCRIBER_OUTSIDE_PROMPT and 'Do not mention holes, countersinks, stains' in prompt
+    from Configuration.Core import CONST_NUMBER_WORDS
+    assert not any(word in prompt.lower().split() for word in CONST_NUMBER_WORDS + ('found', 'automatic', 'stepped'))
+    assert not any(character.isdigit() for character in prompt)
+    kept, removed = Guard_Description(sentence, part)
+    assert (kept == '', bool(removed)) == (dropped, dropped)
 
 
 def test_a_part_nok_on_every_side_gives_what_its_readings_share_else_each_with_its_side() -> None:

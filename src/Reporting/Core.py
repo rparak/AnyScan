@@ -215,6 +215,13 @@ CONST_DESCRIBER_CHECKS_RULE = ('Describe holes and stains only as features you s
                                'stepped holes"; never mention the checks, a verification, a confirmation or a detection.')
 CONST_GUARD_CHECKS = r'\b(?:automatic(?:ally)?|automated|checks?|checked|verif\w*|confirm\w*|detect\w*)\b'
 CONST_GUARD_CHECKS_WHY = 'it refers to the checks'
+# A part outside the inspection area has no check run on it (docs/design-decisions.md, *A part outside the inspection
+# area is not checked*): its prompt holds no hole or stain fact and asks for its material, shape and surface alone,
+# and a sentence naming a hole, a countersink or a stain is left out, since nothing measured stands behind it.
+#   Unit [string]
+CONST_DESCRIBER_OUTSIDE_PROMPT = ('Describe this object briefly: only its material, its shape and its surface. Do not '
+                                  'mention holes, countersinks, stains or marks, and give no numbers.')
+CONST_GUARD_OUTSIDE_WHY = 'it names a hole or a stain, which are not checked outside the inspection area'
 
 
 def Clean_Detail(text: str) -> str:
@@ -665,60 +672,22 @@ def __Unspecified_Sentence(result: Catalogue_Result_Str) -> str:
             'Separate them and scan again.' % result.Area_Ratio)
 
 
-def Identified_Outside(det: Detection_Str) -> bool:
+def Outside_Part(det: Detection_Str) -> bool:
     """
     Description:
-        Whether an object is a part identified outside the inspection area: a Warning for where it lies, whose checks
-        ran as information (Vision.Utilities.Classify.Settle_Area), so its features are marked and named. A foreign
-        object, or a part that failed identification, outside the area has no checks.
+        Whether an object is a catalogue part lying outside the inspection area: a Warning for where it lies that
+        resembles the part (Catalogue_Result_Str.Resembles), drawn amber. No check runs on it, so it carries no hole
+        or stain finding, and its description may name none.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
 
     Returns:
-        (1) parameter [bool]: True for an identified part outside the area.
+        (1) parameter [bool]: True for a part outside the area.
     """
 
     result = det.Catalogue
-    return (result is not None and result.Outside_Area and det.Verdict == 'Warning'
-            and (bool(det.Hole_Counts) or det.Stains is not None))
-
-
-def __Outside_Sentence(det: Detection_Str) -> str:
-    """
-    Description:
-        Why an object outside the inspection area was not judged, and what to do; for a part identified there, what
-        its checks found where it is visible, as information ('Seen there: both countersinks found, one of two
-        through-holes missing, two stains found.'), never as a verdict.
-
-    Args:
-        (1) det [Detection_Str(object)]: The object, a Warning outside the area.
-
-    Returns:
-        (1) parameter [string]: The sentence.
-    """
-
-    sentence = ('It lies outside the inspection area, so it is not judged: move it fully inside the area and scan '
-                'again.')
-    if not Identified_Outside(det):
-        return sentence
-    seen = []
-    for count in det.Hole_Counts:
-        if count.Found:
-            seen.append('%s %s found' % ('both' if count.Found == 2 == count.Expected else Count_Word(count.Found),
-                                         __Plural(count.Found, count.Name)))
-        if count.Expected > count.Found:
-            missing = count.Expected - count.Found
-            if count.Found:
-                seen.append('%s of %s %ss missing' % (Count_Word(missing), Count_Word(count.Expected), count.Name))
-            else:
-                seen.append('%s %s missing' % ('both' if missing == 2 else Count_Word(missing),
-                                               __Plural(missing, count.Name)))
-    if det.Stains:
-        seen.append('a stain found' if len(det.Stains) == 1 else '%s stains found' % Count_Word(len(det.Stains)))
-    elif det.Stains is not None:
-        seen.append('no stain found')
-    return sentence + (' Seen there: %s.' % ', '.join(seen) if seen else '')
+    return result is not None and det.Verdict == 'Warning' and result.Outside_Area and result.Resembles
 
 
 def __Finding_Clauses(det: Detection_Str, side_name: str) -> tp.List[str]:
@@ -777,8 +746,8 @@ def Reason_Sentence(det: Detection_Str) -> str:
         measured and expected values are in the log (Part_Lines). A part whose side could not be told, NOK on every
         side, gives what its readings share; with nothing shared, each reading's clauses with its side named
         ('Read with its machined front up, …; read with its unmachined back up, ….'). A Warning that resembles the
-        part lies outside the inspection area: it says so, what to do, and what an identified part's checks saw there
-        (__Outside_Sentence); one that does not is a foreign object, to remove, wherever it lies; an Unspecified
+        part lies outside the inspection area: it says so and what to do, nothing else, as no check ran on it; one
+        that does not is a foreign object, to remove, wherever it lies; an Unspecified
         object could not be judged, and what to do. Empty for an OK part and outside a catalogue mode.
 
     Args:
@@ -795,7 +764,7 @@ def Reason_Sentence(det: Detection_Str) -> str:
         if not result.Resembles:
             return ('It is not the part and lies outside the inspection area: remove it from the surface.'
                     if result.Outside_Area else 'The object should not be on the surface.')
-        return __Outside_Sentence(det)
+        return 'It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.'
     if det.Verdict == 'Unspecified':
         return __Unspecified_Sentence(result)
     clauses = __Finding_Clauses(det, result.Side_Name)
@@ -819,19 +788,17 @@ def Part_Lines(index: int, det: Detection_Str) -> tp.List[str]:
     Description:
         A judged part's evidence for the log, below its verdict line (the request's explainability: each part's
         measured value, expected value and tolerance): its outline's checks, each hole group's count, then one
-        line per part ('Part 2.3 · through-hole: …'), numbered as the frame numbers its failing parts. A part
-        identified outside the inspection area (Identified_Outside) has them too, as information.
+        line per part ('Part 2.3 · through-hole: …'), numbered as the frame numbers its failing parts.
 
     Args:
         (1) index [int]: The object's 0-based position.
         (2) det [Detection_Str(object)]: The object, judged.
 
     Returns:
-        (1) parameter [Vector<string>]: The lines; [] for an object neither judged the part nor identified outside
-                                        the area.
+        (1) parameter [Vector<string>]: The lines; [] for an object not judged the part.
     """
 
-    if det.Catalogue is None or (det.Verdict not in ('OK', 'NOK') and not Identified_Outside(det)):
+    if det.Catalogue is None or det.Verdict not in ('OK', 'NOK'):
         return []
     label = Object_Label(index)
     lines = []
@@ -1044,11 +1011,15 @@ def Describer_Prompt(det: Detection_Str, Catalogue_Item_Str: Catalogue_Item_Str)
         (2) Catalogue_Item_Str [Catalogue_Item_Str(object)]: The item.
 
     Returns:
-        (1) parameter [string]: The prompt; '' for an object not judged the part, or an item without a prompt
-                                (the mode's own object prompt is used then).
+        (1) parameter [string]: The prompt; for a part outside the inspection area (Outside_Part), one with no hole
+                                or stain fact asking for its material, shape and surface alone
+                                (CONST_DESCRIBER_OUTSIDE_PROMPT); '' for an object not judged the part, or an item
+                                without a prompt (the mode's own object prompt is used then).
     """
 
     item = Catalogue_Item_Str
+    if Outside_Part(det):
+        return CONST_DESCRIBER_OUTSIDE_PROMPT
     if not item.Describer_Prompt or det.Catalogue is None or det.Verdict not in ('OK', 'NOK'):
         return ''
     side = next((entry for entry in item.Sides if entry.Side == det.Catalogue.Side), None)
@@ -1241,7 +1212,9 @@ def Guard_Description(text: str, det: Detection_Str) -> tp.Tuple[str, tp.List[tp
         contradicting the hole or the stain check in either direction, read clause by clause and mention by mention
         (__Guard_Clause): holes of a kind claimed there that the check did not find, or a count it did not find;
         holes it found claimed absent; a stain claimed where it found none; the side claimed clean, or free of
-        stains or defects, where it found one. The describer confirms and describes; it never decides, and the
+        stains or defects, where it found one. For a part outside the inspection area (Outside_Part), on which no
+        check ran, any sentence naming a hole, a countersink or a stain is left out instead
+        (CONST_GUARD_OUTSIDE_WHY). The describer confirms and describes; it never decides, and the
         verdict is never changed here.
 
     Args:
@@ -1254,10 +1227,14 @@ def Guard_Description(text: str, det: Detection_Str) -> tp.Tuple[str, tp.List[tp
     """
 
     kept, dropped = [], []
+    outside = Outside_Part(det)
     for sentence in [part for part in re.split(r'(?<=[.!?])\s+', text.strip()) if part]:
         why = CONST_GUARD_NUMBER if re.search(r'\d', sentence) else ''
         why = why or (CONST_GUARD_CHECKS_WHY if re.search(CONST_GUARD_CHECKS, sentence, re.IGNORECASE) else '')
-        for clause in re.split(r'[,;:()]|\s+(?:but|while|whereas)\s+', sentence):
+        if outside:
+            named = any(re.search(r'\b(?:%s)\b' % pattern, sentence, re.IGNORECASE) for _kind, pattern in CONST_GUARD_HOLE_KINDS)
+            why = why or (CONST_GUARD_OUTSIDE_WHY if named or re.search(CONST_GUARD_STAIN, sentence, re.IGNORECASE) else '')
+        for clause in ([] if outside else re.split(r'[,;:()]|\s+(?:but|while|whereas)\s+', sentence)):
             why = why or __Guard_Clause(clause, det)
         if why:
             dropped.append((sentence, why))
