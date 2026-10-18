@@ -49,7 +49,7 @@ import UI.Utilities.Style as Style
 from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 # Custom Lib.: AnyScan UI — the 1x grid-fitting of a logo's mark
 #   ../UI/Utilities/Grid_Fit
-from UI.Utilities.Grid_Fit import Fit_Svg
+from UI.Utilities.Grid_Fit import CONST_THIN_PX, Fit_Svg
 
 """
 Description:
@@ -110,7 +110,7 @@ def _Pixels(image: QImage) -> np.ndarray:
 
 def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, opacity: float = 1.0,
                       mark_right: tp.Optional[float] = None,
-                      ground: tp.Optional[str] = None) -> tp.Tuple[np.ndarray, np.ndarray]:
+                      ground: tp.Optional[str] = None, thin_px: float = CONST_THIN_PX) -> tp.Tuple[np.ndarray, np.ndarray]:
     """
     Description:
         A region of a shown widget as the window draws it, and the SVG asset rendered directly into an image of the same
@@ -124,6 +124,7 @@ def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, 
         (5) opacity [float]: The opacity the widget draws it at.
         (6) mark_right [float]: For a logo grid-fitted at DPR 1, its mark's right edge (viewBox units); None otherwise.
         (7) ground [string]: The ground colour, as '#rrggbb'; None reads it from the widget's top-right corner.
+        (8) thin_px [float]: Grid_Fit's thin-gap threshold the widget fits the mark with, in px.
 
     Returns:
         (1) parameter [Tuple<Matrix, Matrix>]: (drawn, direct) RGB pixels.
@@ -143,7 +144,8 @@ def _Drawn_And_Direct(window: QWidget, widget: QWidget, rect: QRect, name: str, 
     box = renderer.viewBoxF()
     if mark_right is not None and grab.devicePixelRatio() == 1.0:
         with open(os.path.join(Style.CONST_ASSETS, name), 'r', encoding='utf-8') as handle:
-            renderer = QSvgRenderer(QByteArray(Fit_Svg(handle.read(), drawn.shape[0] / box.height(), mark_right).encode('utf-8')))
+            renderer = QSvgRenderer(QByteArray(Fit_Svg(handle.read(), drawn.shape[0] / box.height(), mark_right,
+                                                             thin_px).encode('utf-8')))
     renderer.render(painter, QRectF(0, 0, drawn.shape[0] * box.width() / box.height(), drawn.shape[0]))
     painter.end()
     return drawn, _Pixels(image)
@@ -158,7 +160,7 @@ def test_the_anyscan_logo_is_rendered_as_vectors_at_its_size(window) -> None:
 
     lockup = window.findChild(Widgets.Logo_Lockup_Cls)
     drawn, direct = _Drawn_And_Direct(window, lockup, QRect(0, 0, lockup.width(), lockup.height()), Style.CONST_LOGO_WORDMARK_FILE,
-                                      mark_right=Style.CONST_LOGO_MARK_RIGHT)
+                                      mark_right=Style.CONST_LOGO_MARK_RIGHT, thin_px=Style.CONST_LOGO_MARK_THIN_PX)
     rows = int(drawn.shape[0] * 107.5 / 140)
     assert np.abs(drawn[:rows] - direct[:rows]).max() <= CONST_TOLERANCE
 
@@ -194,27 +196,28 @@ def test_at_1x_the_header_marks_have_no_half_covered_pixel(qt_app, window) -> No
     """
     Description:
         On a 1x display the AnyScan mark and the J-I-C bars, as the shown header draws them, have every pixel either the
-        ground or the full purple: their edges land on whole pixels (grid-fitted). The mark's numeral, a white curve on
-        its tag, is the one part left as delivered and is set aside with its tag (units 18-36 x 19-39).
+        ground or the full purple: their edges land on whole pixels (grid-fitted), with nothing set aside (the mark
+        delivered 2026-10-18 is straight edges only). The AnyScan mark's ink is as wide as it is tall.
     """
 
     if qt_app.devicePixelRatio() != 1.0:
         pytest.skip('this run is at DPR %g; grid-fitting applies at DPR 1' % qt_app.devicePixelRatio())
     lockup = window.findChild(Widgets.Logo_Lockup_Cls)
     jic = window.findChild(QWidget, 'jicLogo')
-    for widget, units, mark_right, tag in ((lockup, 140.0, Style.CONST_LOGO_MARK_RIGHT, (18, 19, 36, 39)),
-                                           (jic, 134.76, AnyScan_Window_Cls.CONST_JIC_MARK_RIGHT, None)):
+    for widget, units, mark_right in ((lockup, 140.0, Style.CONST_LOGO_MARK_RIGHT),
+                                      (jic, 134.76, AnyScan_Window_Cls.CONST_JIC_MARK_RIGHT)):
         scale = widget.height() / units
         width = int(mark_right * scale)
         drawn = _Pixels(window.grab(QRect(widget.mapTo(window, QPoint(0, 0)), QSize(width, widget.height()))).toImage()).astype(float)
         ground = _Pixels(window.grab(QRect(widget.mapTo(window, QPoint(widget.width() - 2, 1)), QSize(1, 1))).toImage())[0, 0]
         ink = np.array([int(Style.CONST_LOGO_INK[i:i + 2], 16) for i in (1, 3, 5)])
         coverage = np.clip(((ground - drawn) / (ground - ink)).mean(axis=2), 0.0, 1.0)
-        if tag is not None:
-            x0, y0, x1, y1 = (int(v * scale) for v in tag)
-            coverage[max(0, y0 - 1):y1 + 2, max(0, x0 - 1):x1 + 2] = 0.0
         half = ((coverage > 0.05) & (coverage < 0.95)).sum()
         assert half == 0, '%d half-covered pixels in %s' % (half, widget.objectName() or type(widget).__name__)
+        if widget is lockup:
+            rows, columns = np.where((coverage >= 0.95).any(axis=1))[0], np.where((coverage >= 0.95).any(axis=0))[0]
+            assert columns[-1] - columns[0] == rows[-1] - rows[0], 'the AnyScan mark is drawn %d x %d px' % (
+                columns[-1] - columns[0] + 1, rows[-1] - rows[0] + 1)
 
 
 def test_the_funding_bands_logos_are_rendered_as_vectors_at_their_size(window) -> None:

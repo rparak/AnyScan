@@ -40,7 +40,7 @@ import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font, Hairline
 # Custom Lib.: AnyScan UI — a logo's mark grid-fitted for a 1x display (Qt-free)
 #   ../UI/Utilities/Grid_Fit
-from UI.Utilities.Grid_Fit import Fit_Svg
+from UI.Utilities.Grid_Fit import CONST_THIN_PX, Fit_Svg
 # Custom Lib.: AnyScan UI — the brand's pixel motif for the funding band (Qt-free)
 #   ../UI/Utilities/Pixel_Motif
 from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells, Busy_Cells, Grid_Shape, Wave_Diagonals
@@ -2230,7 +2230,7 @@ def Paint_To_Pixmap(widget: QWidget, paint: tp.Callable[[QPainter], None]) -> QP
 
 
 def Svg_Renderer_For(painter: QPainter, path: str, delivered: QSvgRenderer, height: float, mark_right: float,
-                     fitted: tp.Dict[float, QSvgRenderer]) -> QSvgRenderer:
+                     fitted: tp.Dict[float, QSvgRenderer], thin_px: float = CONST_THIN_PX) -> QSvgRenderer:
     """
     Description:
         The renderer to draw a logo with on a painter: on a device of pixel ratio 1 its mark grid-fitted to whole pixels at
@@ -2244,6 +2244,8 @@ def Svg_Renderer_For(painter: QPainter, path: str, delivered: QSvgRenderer, heig
         (4) height [float]: The drawn height, in logical pixels.
         (5) mark_right [float]: The mark's right edge, in viewBox units.
         (6) fitted [Dict<float, QSvgRenderer(object)>]: The fitted renderers built so far, by height (filled in).
+        (7) thin_px [float]: Grid_Fit's thin-gap threshold, in px: the JIC logo the default, the AnyScan mark
+                             Style.CONST_LOGO_MARK_THIN_PX.
 
     Returns:
         (1) parameter [QSvgRenderer(object)]: The renderer.
@@ -2254,7 +2256,8 @@ def Svg_Renderer_For(painter: QPainter, path: str, delivered: QSvgRenderer, heig
     if height not in fitted:
         with open(path, 'r', encoding='utf-8') as handle:
             svg = handle.read()
-        fitted[height] = QSvgRenderer(QByteArray(Fit_Svg(svg, height / delivered.viewBoxF().height(), mark_right).encode('utf-8')))
+        fitted[height] = QSvgRenderer(QByteArray(Fit_Svg(svg, height / delivered.viewBoxF().height(), mark_right,
+                                                         thin_px).encode('utf-8')))
     return fitted[height]
 
 
@@ -2366,7 +2369,7 @@ class Logo_Lockup_Cls(QWidget):
         """
 
         Svg_Renderer_For(painter, self.__wordmark_path, self.__wordmark, self.__wordmark_rect.height(), Style.CONST_LOGO_MARK_RIGHT,
-                         self.__fitted).render(painter, self.__wordmark_rect)
+                         self.__fitted, Style.CONST_LOGO_MARK_THIN_PX).render(painter, self.__wordmark_rect)
         painter.setFont(self.__font)
         painter.setPen(QColor(Style.CONST_LOGO_INK))
         painter.drawText(self.__origin, Style.CONST_TAGLINE)

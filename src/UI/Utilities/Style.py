@@ -118,10 +118,16 @@ CONST_LOGO_TAGLINE_SIZE = 24.55
 # The logo's viewBox height, the unit the tagline's size is a share of.
 #   Unit [float] (logo units)
 CONST_LOGO_VIEWBOX_HEIGHT = 140.0
-# Where the logo's mark ends, for grid-fitting it on a 1x display (UI.Utilities.Grid_Fit): its ink ends at 139.9 units
+# Where the logo's mark ends, for grid-fitting it on a 1x display (UI.Utilities.Grid_Fit): its ink ends at 140.0 units
 # and the wordmark's starts at 165.5, so every shape left of 152 is the mark's.
 #   Unit [float] (logo units)
 CONST_LOGO_MARK_RIGHT = 152.0
+# The mark's thin-gap threshold for Grid_Fit: 0, every edge to its own nearest pixel. Nearly every gap of the mark
+# delivered 2026-10-18 is under Grid_Fit's 10 px at the header's height, and chaining their rounded widths drew it
+# 71 x 69 px at 69 px with edges up to 2 px off; each edge alone keeps it 69 x 69 (72 x 72 at 72) and every edge within
+# 0.5 px, at the cost of one 5 px bar beside two of 6 at 69 px (the owner's choice, 2026-10-18).
+#   Unit [float] (px)
+CONST_LOGO_MARK_THIN_PX = 0.0
 # The empty space the lockup keeps right of the tagline's ink, near the logo's own (its ink ends 5.9 units inside
 # its viewBox), so no anti-aliased edge is clipped. Ink_Insets takes it off the gap to the divider.
 #   Unit [float] (logo units)
@@ -397,7 +403,7 @@ def Load_Fonts() -> None:
 def App_Icon() -> QIcon:
     """
     Description:
-        The window, taskbar and Alt-Tab icon: anyscan-mark.ico, the mark on a white square at every size
+        The window, taskbar and Alt-Tab icon: anyscan-mark.ico, the mark on a transparent ground at every size
         from 16 to 256 px (Example/UI/build_logo.py renders each size), so Qt picks the nearest slot itself and
         a 256 px render is never squeezed into a 16 px title-bar slot. Without the file the icon is empty.
 

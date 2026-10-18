@@ -35,8 +35,10 @@ import typing as tp
 import numpy as np
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
+# Pillow (Read the window icon's .ico) [pip3 install Pillow]
+from PIL import Image
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
-from PyQt5.QtCore import QByteArray, Qt
+from PyQt5.QtCore import QByteArray, QRectF, Qt
 from PyQt5.QtGui import QFont, QFontInfo, QImage, QPainter
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import QApplication
@@ -81,8 +83,14 @@ CONST_GENERATOR = os.path.join(CONST_ROOT, 'Example', 'UI', 'architecture_diagra
 CONST_BUILDER = os.path.join(CONST_ROOT, 'Example', 'UI', 'build_logo.py')
 CONST_WORDMARK = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-logo-wordmark.svg')
 CONST_MARK = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-mark.svg')
+CONST_ICON = os.path.join(CONST_ROOT, 'App', 'assets', 'anyscan-mark.ico')
+# The icon's sizes, and what only the previous mark (until 2026-10-18) carried: its stroked corner brackets, the
+# translate its bounding box, tag and object were drawn in, and its L-shaped object with three holes.
+#   Unit [Vector<int>] (px) / [Vector<string>]
+CONST_ICON_SIZES = (16, 20, 24, 32, 48, 64, 128, 256)
+CONST_PREVIOUS_MARK = ('stroke-width="9"', 'translate(0,8)', 'M32,55 H45 V43 H60 V75 H32 Z')
 CONST_JIC = os.path.join(CONST_ROOT, 'App', 'assets', 'jic-smart-factory.svg')
-# Where the logo's parts are told apart, in logo units: the mark's ink ends at 139.9 and the wordmark's starts at
+# Where the logo's parts are told apart, in logo units: the mark's ink ends at 140.0 and the wordmark's starts at
 # 165.5; the wordmark's ink ends at y 105.1 and the tagline's starts at 109.9.
 #   Unit [logo units]
 CONST_TEXT_LEFT_UNITS = 152.0
@@ -366,8 +374,9 @@ def test_the_wordmark_and_the_mark_are_the_logos_own(qt_app) -> None:
     Description:
         Rendered at one scale, the wordmark draws the logo's pixels everywhere except under the
         wordmark, where the logo's tagline is and the wordmark draws nothing; and the mark draws exactly the logo's
-        first 140 x 140 units, at the logo's scale, but for its last column: the brackets end on the mark's edge,
-        where its own viewBox clips them to a whole pixel and the logo draws that pixel anti-aliased.
+        first 140 x 140 units, at the logo's scale, to its last column. The mark is the one delivered on 2026-10-18:
+        filled in the logo's purple at its top-left and bottom-right corners only (the previous mark had a bracket in
+        all four), its square frame open in the middle.
     """
 
     # 5 px per logo unit: the logo's 609.8 units are a whole 3049 px, so it and the mark are drawn at one scale.
@@ -383,7 +392,63 @@ def test_the_wordmark_and_the_mark_are_the_logos_own(qt_app) -> None:
     assert wordmark[split:, left:, 3].max() == 0, 'the wordmark draws where the logo\'s tagline is'
     assert logo[split:, left:, 3].max() > 0
     mark = _Pixels(Style.Load_Svg('anyscan-mark.svg', height).toImage())
-    assert np.array_equal(mark[:, :-1], logo[:, :mark.shape[1] - 1]), 'the mark differs from the logo\'s mark'
+    assert mark.shape[:2] == (height, height)
+    assert np.array_equal(mark, logo[:, :mark.shape[1]]), 'the mark differs from the logo\'s mark'
+    alpha, last, unit = mark[..., 3], height - 1, height // 140
+    assert alpha[0, 0] == 255 and alpha[last, last] == 255, 'the mark has no corner at top left and bottom right'
+    assert alpha[0, last] == 0 and alpha[last, 0] == 0, 'the mark has a corner at top right or bottom left'
+    assert alpha[30 * unit, 30 * unit] == 255 and alpha[49 * unit, 46 * unit] == 0, 'the mark\'s square frame is not open'
+    ink = Theme.CONST_LOGO_INK.lstrip('#')
+    assert tuple(mark[0, 0, 2::-1]) == (int(ink[0:2], 16), int(ink[2:4], 16), int(ink[4:6], 16))
+
+
+def test_no_copy_of_the_logo_carries_the_previous_mark() -> None:
+    """
+    Description:
+        The logo, its App/assets copy, the wordmark, the mark and the logo inlined in the diagram all carry the mark
+        delivered on 2026-10-18 and nothing of the previous one in its text: no stroked bracket, no translated group,
+        no L-shaped object.
+    """
+
+    diagram = _Read(CONST_DIAGRAM)
+    inline = diagram[diagram.index(CONST_LOGO_BEGIN):diagram.index(CONST_LOGO_END)]
+    for name, svg in ((CONST_LOGO, _Read(CONST_LOGO)), (CONST_LOGO_ASSET, _Read(CONST_LOGO_ASSET)),
+                      (CONST_WORDMARK, _Read(CONST_WORDMARK)), (CONST_MARK, _Read(CONST_MARK)), (CONST_DIAGRAM, inline)):
+        for previous in CONST_PREVIOUS_MARK:
+            assert previous not in svg, '%s still carries the previous mark (%s)' % (os.path.relpath(name, CONST_ROOT), previous)
+
+
+def test_the_icon_is_the_mark_on_a_transparent_ground_crisp_at_16_and_32_px(qt_app) -> None:
+    """
+    Description:
+        App/assets/anyscan-mark.ico holds every size from 16 to 256 px, each the mark filling the square on a transparent
+        ground (its empty corners are alpha 0, where the previous icon's white square was opaque), in the logo's
+        purple. At 16 and 32 px no pixel is half-covered, and the fitted mark is the mark: every pixel the mark covers
+        by more than three quarters is inked, and none it covers by less than a quarter.
+    """
+
+    icon = Image.open(CONST_ICON)
+    assert sorted(icon.info['sizes']) == [(s, s) for s in CONST_ICON_SIZES]
+    renderer = QSvgRenderer(CONST_MARK)
+    ink = Theme.CONST_LOGO_INK.lstrip('#')
+    for size in CONST_ICON_SIZES:
+        icon.size = (size, size)
+        frame = np.array(icon.copy().convert('RGBA'))
+        alpha = frame[..., 3]
+        assert alpha[0, size - 1] == 0 and alpha[size - 1, 0] == 0, '%d px: the icon\'s ground is not transparent' % size
+        assert tuple(frame[0, 0, :3]) == (int(ink[0:2], 16), int(ink[2:4], 16), int(ink[4:6], 16)), size
+        if size not in (16, 32):
+            continue
+        assert set(np.unique(alpha)) <= {0, 255}, '%d px: the icon has half-covered pixels' % size
+        direct = QImage(size, size, QImage.Format_ARGB32)
+        direct.fill(Qt.transparent)
+        painter = QPainter(direct)
+        painter.setRenderHint(QPainter.Antialiasing)
+        renderer.render(painter, QRectF(0.0, 0.0, size, size))
+        painter.end()
+        coverage = _Pixels(direct)[:size, :size, 3] / 255.0
+        assert not ((coverage > 0.75) & (alpha == 0)).any(), '%d px: the icon misses a pixel the mark covers' % size
+        assert not ((coverage < 0.25) & (alpha > 0)).any(), '%d px: the icon inks a pixel the mark leaves empty' % size
 
 
 def test_the_live_tagline_is_the_logos() -> None:

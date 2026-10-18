@@ -78,7 +78,7 @@ CONST_EXPECTED_GAP = 32
 # A pixel is ink when it differs from the header background by more than this (sum over R, G, B).
 #   Unit [-]
 CONST_INK_THRESHOLD = 30
-# The logo's height on a high-density display, and the share of it that is ink: the mark's brackets fill the
+# The logo's height on a high-density display, and the share of it that is ink: the mark's corners fill the
 # 140-unit viewBox from top to bottom. On a low-density display the height puts the tagline, 24.55 of those 140
 # units, at 9 pt in the display's logical DPI (rounded up to a whole pixel).
 #   Unit [px] / [-] / [logo units] / [pt]

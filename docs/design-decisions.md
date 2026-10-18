@@ -1761,19 +1761,27 @@ Tests `test/UI/test_brand_figures.py` (`test_the_three_logo_copies_are_identical
 ## The logo's text is outlined, so the logo has the same width in every font setup
 
 `images/anyscan-logo.svg` is the AnyScan logo as the JIC Smart Factory designer delivered it (2026-10-14), committed
-byte for byte: one purple, `#640ABA`, the mark's brackets and object as strokes and fills, and the wordmark and
-tagline as three outlined paths, so it carries no `<text>`. Its viewBox is 609.8 × 140 units; the mark's brackets
-reach the top and the bottom, and the ink ends 5.9 units inside the right edge. The previous logo (indigo and magenta,
-outlined from `images/source/anyscan-logo-text.svg` in Inter by Inkscape) and its text source are removed.
+byte for byte: one purple, `#640ABA`, the mark as filled shapes, and the wordmark and tagline as three outlined
+paths, so it carries no `<text>`. Its viewBox is 609.8 × 140 units; the mark's corners reach the top and the bottom,
+and the ink ends 5.9 units inside the right edge. The previous logo (indigo and magenta, outlined from
+`images/source/anyscan-logo-text.svg` in Inter by Inkscape) and its text source are removed.
+
+*Corrected 2026-10-18:* the designer delivered a new mark; the wordmark, the tagline, the colour and the proportions
+are unchanged. The mark is now ten filled rectangles and one square frame (an even-odd path), all straight edges, in
+one group: two solid corners (top left, bottom right), the frame, an I-shaped base under it and three bars beside it.
+The previous mark (four stroked corner brackets, an inner bounding box, a "1" tag and an L-shaped object with three
+holes, drawn in a `translate(0,8)` group) is in git history only. `build_logo.py` needed no change for it: its output
+from the new logo is byte for byte the wordmark and mark files delivered with it. The window icon became the mark on
+a transparent ground (*The window icon is the mark on a transparent ground, grid-fitted at each size*).
 
 The application's copies are derived, never edited: `python Example/UI/build_logo.py` copies the logo to
 `App/assets/anyscan-logo.svg` and writes `App/assets/anyscan-logo-wordmark.svg` (the logo without its tagline, which
 the top bar draws), `App/assets/anyscan-mark.svg` (the mark alone: the empty viewport, the icon's source) and
-`App/assets/anyscan-mark.ico` (the mark on a white square, rendered at each of 16-256 px). The derivation is string
+`App/assets/anyscan-mark.ico` (the mark on a transparent ground, rendered at each of 16-256 px). The derivation is string
 surgery on the delivered file, so every byte it keeps is the designer's: the text is the three top-level paths after
 the mark's groups, the tagline the one starting below y 107.5. No font and no Inkscape are involved, so it reproduces
-on any machine. **Reproduced:** the derived mark is byte for byte the mark file delivered with the logo
-(`AnyScan_mark_PURPLE.svg`), and a rebuild into an empty directory reproduces the committed SVGs.
+on any machine. **Reproduced:** the derived wordmark and mark are byte for byte the files delivered with the logo
+(2026-10-18), and a rebuild into an empty directory reproduces the committed SVGs.
 
 The JIC mark beside it is the JIC Smart Factory horizontal logo in purple (`App/assets/jic-smart-factory.svg`, the
 designer's file), at 26 px, about half the AnyScan logo's height as on the poster. The grey variant is for dark
@@ -2146,6 +2154,31 @@ Tests `test/Vision/test_core.py::test_a_configuration_load_warms_up_what_the_fir
 as painted); commit `aae4fd1`. The load and warm-up log lines:
 `test/UI/test_timing_log.py::test_a_configuration_load_logs_each_model_and_the_warm_up`,
 `::test_a_warm_up_that_stops_early_is_a_warning`, `::test_the_first_analysis_after_each_load_is_marked`.
+
+## The window icon is the mark on a transparent ground, grid-fitted at each size
+
+`App/assets/anyscan-mark.ico` is the mark alone, filling its square on a transparent ground, at 16, 20, 24, 32, 48, 64,
+128 and 256 px. `Example/UI/build_logo.py` renders each size from `anyscan-mark.svg`, never scales one down, and first
+grid-fits the mark for that size with `UI.Utilities.Grid_Fit.Fit_Svg(..., thin_px=0)`: every straight edge to its own
+nearest pixel. At 16, 20, 24, 32 and 64 px no pixel is half-covered; at 48, 128 and 256 px a few are alpha 254 (the
+fitted SVG's four-decimal coordinates), which is not visible.
+
+**Why.** The owner asked for a transparent ground (2026-10-18). Until then the icon was the mark at 80 % on a white
+square, so it read on a dark taskbar. That reason still holds: `#640ABA` is 9.15:1 on white but 1.78:1 on `#202020`
+and 1.55:1 on `#2B2B2B`, so on a dark taskbar the icon is faint. The icon delivered with the logo had all eight sizes
+and a transparent ground but was not used: rendered straight from the vectors, 151 of its 256 pixels at 16 px were
+partly covered, faint alpha ran across its empty area, and it read soft at 16 and 32 px. Fitting with the header's rule
+(`CONST_THIN_PX`, 10 px) was tried and rejected: at icon sizes nearly every gap is under 10 px, the chained widths ran
+past the square (the bottom-right corner was cut off at 16 px, the mark drew 31 px wide at 32 px), and shapes merged.
+Each edge alone keeps every shape and the square. At 16 px the frame's walls are 1 and 2 px around a 2 px opening:
+a 5 px frame cannot centre a 2 px hole.
+
+**Revisit if** the icon is seen to be lost on the station's taskbar (go back to a light square), or the mark is
+redesigned (look at 16 and 32 px again).
+Tests `test/UI/test_brand_figures.py::test_the_icon_is_the_mark_on_a_transparent_ground_crisp_at_16_and_32_px` (every
+size present, the empty corners alpha 0, the purple, no half-covered pixel at 16 and 32 px, and the fitted icon inks
+every pixel the mark covers by more than three quarters and none it covers by less than a quarter),
+`test/UI/test_grid_fit.py::test_with_no_thin_gap_every_edge_goes_to_its_own_nearest_pixel`.
 
 ## The logo is taller on a low-density display, so its tagline is 9 pt
 
@@ -4006,8 +4039,8 @@ straight edges on whole pixels (`UI.Utilities.Grid_Fit.Fit_Svg`, through `Widget
 The SVG is fitted for the exact drawn height, once, and rendered as vectors. Rectangles, polygons and straight paths are
 fitted, filled ones through one map per axis (an edge shared by two shapes stays shared; a stroke under 10 px keeps its
 rounded width, so equal strokes stay equal), stroked ones with a whole-pixel stroke centred so both its edges land on
-pixels. Each edge moves by under a pixel. The lettering (curves, and everything right of the mark) and the mark's
-numeral are drawn exactly as delivered, and at any other ratio the whole logo is.
+pixels. Each edge moves by under a pixel. The lettering (curves, and everything right of the mark) is drawn exactly
+as delivered (so was the previous mark's numeral; the current mark has none), and at any other ratio the whole logo is.
 
 **Why.** On the station's 1x screen the header logos still looked soft after they were rendered as vectors at their
 drawn size: their edges fall between pixels. The owner asked first for drawn sizes whose main edges land on whole
@@ -4026,6 +4059,18 @@ and partly covered):
 
 At 69 px the brackets are a 4 px stroke (4.43 delivered), the mark's three bars 3 px each (3.45), its frame 2 px
 (2.46); at 33 px each J-I-C bar is 6 px (6.47) and the C's and J's feet are level with the I's.
+
+*Corrected 2026-10-18:* the mark delivered that day is fitted edge by edge (`Style.CONST_LOGO_MARK_THIN_PX` = 0, passed
+to `Fit_Svg` as `thin_px`; the J-I-C bars keep `Grid_Fit.CONST_THIN_PX`, 10 px). Nearly every gap of the new mark is
+under 10 px at the header's height, so chaining their rounded widths carried the error across the mark: measured on
+the fitted SVG, it drew 71 × 69 px at 69 px and 71 × 72 at 72, with edges up to 2.0 px from where the delivered file
+puts them. Each edge to its own nearest pixel keeps it 69 × 69 and 72 × 72 with every edge within 0.5 px; the cost is
+at 69 px only, where the top bar is 5 px beside two of 6 (5.75 delivered) and the base's feet 5 and 4 px (4.6); at
+72 px every bar is 6 px. The owner chose square over equal bars. Shown header at 1x, 2493 px window: 0 of the mark's
+1491 ink pixels blended. Tests `test/UI/test_grid_fit.py::test_with_no_thin_gap_every_edge_goes_to_its_own_nearest_pixel`,
+`::test_the_header_logos_marks_land_on_whole_pixels_at_1x` (the mark square, no edge moved more than 0.5 px) and
+`test/UI/test_logo_rendering.py::test_at_1x_the_header_marks_have_no_half_covered_pixel` (the mark's ink drawn square;
+nothing is set aside any more, as the new mark has no numeral).
 
 **Revisit if** the logos are redesigned (the mark's right edge, and whether its shapes are still straight), or the
 station moves to a display of another ratio, where the logos are drawn as delivered.

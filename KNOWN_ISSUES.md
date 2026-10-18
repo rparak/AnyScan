@@ -576,6 +576,10 @@ Run with `QT_SCALE_FACTOR=2`, `test/UI/test_brand_figures.py::test_the_wordmark_
 `test/UI/test_funding_band.py::test_the_motif_is_faint_squares_at_both_ends_clear_of_every_logo` (a white pixel
 where the motif's purple square is expected) fail. They fail identically on unchanged main (`870a53c`, measured
 2026-10-15); the default run is at DPR 1, where they pass, and the DPR 2 checks that exist run on 2×2 blocks.
+Re-measured 2026-10-18 with the mark delivered that day: the same four fail at the same assertions, on `main`
+(`f7d1ab0`) and with the new mark alike; the tests added with the mark
+(`test_no_copy_of_the_logo_carries_the_previous_mark`, `test_the_icon_is_the_mark_on_a_transparent_ground_crisp_at_16_and_32_px`)
+pass at DPR 2. The mark is not the cause.
 
 - **Impact:** none on the DPR 1 run or the station; a DPR 2 run of the whole suite is red.
 - **Not fixed here:** recorded on the way, without its cause measured; the tests read pixels at fixed positions,

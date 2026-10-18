@@ -32,14 +32,14 @@ Description:
     display"). An SVG drawn at a scale puts its edges between pixels, where they are drawn half-covered and read soft,
     and no single scale puts an irregular set of edges on whole pixels. Fit_Svg moves each straight edge of the mark to a
     whole device pixel: rectangles, polygons and paths of straight segments only (M, L, H, V, Z, absolute or relative),
-    filled or stroked. Curves (the lettering, the mark's numeral) are left exactly as delivered, as is every shape that
-    reaches right of the mark.
+    filled or stroked. Curves (the lettering) are left exactly as delivered, as is every shape that reaches right of the
+    mark.
 
     - A filled shape's edges share one map per axis across the whole mark, so an edge two shapes share stays shared (the
       I's foot and the J's and C's). Along an axis the lowest edge goes to its nearest pixel; an edge across a gap
       narrower than CONST_THIN_PX on screen keeps the gap's rounded width from the previous one, so equal strokes stay
       equal (each J-I-C bar, the mark's three bars); an edge across a wider gap goes to its own nearest pixel, so no
-      error carries far.
+      error carries far. With thin_px 0 (the window icon's small sizes) every edge goes to its own nearest pixel.
     - A stroked shape's stroke becomes a whole number of pixels (at least one), and each of its centre lines is placed so
       both of the stroke's edges land on pixels.
 
@@ -216,7 +216,7 @@ def __Elements(svg: str) -> tp.List[tp.Tuple[tp.Any, str, str, float, float, tp.
     return found
 
 
-def __Axis_Map(values: tp.List[float], scale: float) -> tp.Dict[float, float]:
+def __Axis_Map(values: tp.List[float], scale: float, thin_px: float) -> tp.Dict[float, float]:
     """
     Description:
         Where each of the mark's filled edge coordinates on one axis goes, in device pixels (see the module's
@@ -226,6 +226,8 @@ def __Axis_Map(values: tp.List[float], scale: float) -> tp.Dict[float, float]:
     Args:
         (1) values [Vector<float>]: The absolute coordinates, in viewBox units.
         (2) scale [float]: Device pixels per viewBox unit.
+        (3) thin_px [float]: A gap narrower than this on screen is a stroke, in px; 0 sends every edge to its own
+                             nearest pixel.
 
     Returns:
         (1) parameter [Dict<float, float>]: Each coordinate (rounded to 1e-6) and its pixel.
@@ -233,7 +235,7 @@ def __Axis_Map(values: tp.List[float], scale: float) -> tp.Dict[float, float]:
 
     fitted, previous, placed = {}, None, 0.0
     for value in sorted(set(round(v, 6) for v in values)):
-        if previous is not None and (value - previous) * scale < CONST_THIN_PX:
+        if previous is not None and (value - previous) * scale < thin_px:
             placed = placed + round((value - previous) * scale)
         else:
             placed = float(round(value * scale))
@@ -242,7 +244,7 @@ def __Axis_Map(values: tp.List[float], scale: float) -> tp.Dict[float, float]:
     return fitted
 
 
-def Fit_Svg(svg: str, scale: float, mark_right: float) -> str:
+def Fit_Svg(svg: str, scale: float, mark_right: float, thin_px: float = CONST_THIN_PX) -> str:
     """
     Description:
         The SVG with its mark's straight edges on whole device pixels at a scale: every rect, polygon and straight-only
@@ -254,6 +256,10 @@ def Fit_Svg(svg: str, scale: float, mark_right: float) -> str:
         (1) svg [string]: The SVG, its viewBox starting at 0 0.
         (2) scale [float]: Device pixels per viewBox unit, as it will be rendered.
         (3) mark_right [float]: The right edge of the mark, in viewBox units.
+        (4) thin_px [float]: A gap between filled edges narrower than this on screen keeps its rounded width, in px.
+                             The header's logos use CONST_THIN_PX; the window icon 0 (Example/UI/build_logo.py), since at
+                             16-32 px nearly every gap is under 10 px and chaining the rounded widths runs past the
+                             icon's square.
 
     Returns:
         (1) parameter [string]: The fitted SVG.
@@ -265,8 +271,8 @@ def Fit_Svg(svg: str, scale: float, mark_right: float) -> str:
         if shape and max(px for _, px, _ in shape) + dx <= mark_right:
             fittable.append((match, tag, attributes, dx, dy, width, shape))
     filled = [(dx, dy, shape) for _, _, _, dx, dy, width, shape in fittable if width is None]
-    x_map = __Axis_Map([px + dx for dx, _, shape in filled for _, px, _ in shape], scale)
-    y_map = __Axis_Map([py + dy for _, dy, shape in filled for _, _, py in shape], scale)
+    x_map = __Axis_Map([px + dx for dx, _, shape in filled for _, px, _ in shape], scale, thin_px)
+    y_map = __Axis_Map([py + dy for _, dy, shape in filled for _, _, py in shape], scale, thin_px)
 
     def Place(value: float, offset: float, width: tp.Optional[float], axis_map: tp.Dict[float, float]) -> float:
         """

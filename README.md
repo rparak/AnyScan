@@ -540,7 +540,7 @@ App/
     anyscan-logo.svg          the AnyScan logo, a copy of images/anyscan-logo.svg; built
     anyscan-logo-wordmark.svg the logo without its tagline, which the topbar draws beside the live tagline; built
     anyscan-mark.svg          the mark alone, shown in the empty viewport; built
-    anyscan-mark.ico          the window / taskbar icon: the mark on a white square, 16-256 px; built
+    anyscan-mark.ico          the window / taskbar icon: the mark on a transparent ground, 16-256 px; built
     jic-smart-factory.svg     the JIC Smart Factory logo beside the AnyScan logo
     edih-digimat-white.svg    project wordmark, funding band; traced from a PNG, not an official file
     partner-ministry-white.svg  Ministry of Industry and Trade, funding band; traced from a PNG

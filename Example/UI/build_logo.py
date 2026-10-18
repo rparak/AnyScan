@@ -41,7 +41,8 @@ Description:
                                               (docs/design-decisions.md, "The header draws the delivered logo
                                               and sets its tagline as live text")
         App/assets/anyscan-mark.svg           the mark alone (the empty viewport, and the source of the icon)
-        App/assets/anyscan-mark.ico           the window and taskbar icon: the mark on a white square, 16-256 px
+        App/assets/anyscan-mark.ico           the window and taskbar icon: the mark alone on a transparent ground,
+                                              filling the square, grid-fitted at each of 16-256 px
 
     The derivation is string surgery on the delivered file, so every byte it does not remove is the
     designer's: the logo's text is three top-level outlined paths after the mark's groups, the wordmark
@@ -75,10 +76,9 @@ CONST_MARK_SIZE = '140'
 CONST_WORDMARK_NOTE = ('<!-- Built by Example/UI/build_logo.py from images/anyscan-logo.svg: the logo without its tagline, '
                        'which the top bar sets as live text. Do not edit. -->')
 CONST_MARK_LABEL = 'AnyScan mark'
-# The icon: its sizes, and the mark's share of the white square it sits on.
-#   Unit [Vector<int>] / [-]
+# The icon's sizes. The mark fills each square, on a transparent ground (the owner's choice, 2026-10-18).
+#   Unit [Vector<int>] (px)
 CONST_ICON_SIZES = (16, 20, 24, 32, 48, 64, 128, 256)
-CONST_ICON_MARK_SHARE = 0.8
 
 
 def Split_Logo(logo: str) -> tp.Tuple[str, tp.List[str], str]:
@@ -167,9 +167,10 @@ def Mark_Only(logo: str) -> str:
 def Write_Icon(mark_path: str, output: str) -> None:
     """
     Description:
-        The window and taskbar icon: the mark, rendered at each of CONST_ICON_SIZES on its own white square
-        (so it reads on a dark taskbar), written as one .ico. Each size is rendered, not scaled down from the
-        largest, so a 16 px icon keeps the mark's shape.
+        The window and taskbar icon: the mark, filling a transparent square, rendered at each of CONST_ICON_SIZES and
+        written as one .ico. Each size is rendered, not scaled down from the largest, and grid-fitted for its size
+        (UI.Utilities.Grid_Fit, every edge to its own nearest pixel), so a 16 px icon keeps the mark's shape and has no
+        half-covered edge.
 
     Args:
         (1) mark_path [string]: The mark SVG.
@@ -178,22 +179,28 @@ def Write_Icon(mark_path: str, output: str) -> None:
 
     os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
     # PyQt5 (Render the SVG) [pip3 install PyQt5] and Pillow (Write the .ico) [pip3 install Pillow]
-    from PyQt5.QtCore import QRectF, Qt
+    from PyQt5.QtCore import QByteArray, QRectF, Qt
     from PyQt5.QtGui import QImage, QPainter
     from PyQt5.QtSvg import QSvgRenderer
     from PyQt5.QtWidgets import QApplication
     from PIL import Image
+    # Custom Lib.: Grid-fitting of a mark's straight edges (Qt-free)
+    #   ../src/UI/Utilities/Grid_Fit.py
+    sys.path.append(os.path.join(CONST_PROJECT_FOLDER, 'src'))
+    from UI.Utilities.Grid_Fit import Fit_Svg
 
     app = QApplication.instance() or QApplication([])
-    renderer = QSvgRenderer(mark_path)
+    with open(mark_path, 'r', encoding='utf-8') as handle:
+        mark = handle.read()
+    side = float(CONST_MARK_SIZE)
     images = []
     for size in CONST_ICON_SIZES:
+        renderer = QSvgRenderer(QByteArray(Fit_Svg(mark, size / side, side, thin_px=0.0).encode('utf-8')))
         image = QImage(size, size, QImage.Format_RGBA8888)
-        image.fill(Qt.white)
+        image.fill(Qt.transparent)
         painter = QPainter(image)
         painter.setRenderHint(QPainter.Antialiasing)
-        inset = size * (1.0 - CONST_ICON_MARK_SHARE) / 2.0
-        renderer.render(painter, QRectF(inset, inset, size - 2 * inset, size - 2 * inset))
+        renderer.render(painter, QRectF(0.0, 0.0, size, size))
         painter.end()
         pointer = image.constBits()
         pointer.setsize(image.byteCount())
