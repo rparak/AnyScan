@@ -680,3 +680,22 @@ clause; inside the area a stained front still scores down to 0.73 (`20261015-170
   found could follow, if the owner wants one.
 - **Pinned by:** nothing since 2026-10-16: the clean fronts that pinned the absence of the clause now lie outside the
   inspection area, where no reason carries it; the stained fronts' clause is not pinned.
+
+## The several-parts ratio and the mode file still say Unspecified
+
+Since 2026-10-16 an object whose area is 1.7 times the part's or more is a Warning of kind Several parts
+(docs/design-decisions.md, *Three states for the operator, a Warning with its kind*), but the configuration field
+that sets the ratio keeps its old name, `Catalogue.Unspecified_Area_Ratio` (`Identification_Parameters_Str`,
+`Catalogue_Result_Str`, `Configuration.Core`'s field table and its validation message), and the shipped mounting-plate
+mode file still describes it in the old words: its header names the states "OK, NOK, Unspecified or Warning", and the
+field's comment says an object "is Unspecified".
+
+- **Impact:** none on a verdict; a reader of the mode file or the field's name meets a state the application no longer
+  shows.
+- **Not fixed here:** the two mode files carry uncommitted local edits on the rig (the station events directory), and
+  renaming the field means editing the shipped file; the owner chose to leave them until then (2026-10-18).
+- **What closes it:** when the mode files are next committed, rename the field to match Several parts (for example
+  `Several_Parts_Area_Ratio`) in the mode file, the loader's field table, `Identification_Parameters_Str`,
+  `Catalogue_Result_Str` and the tests, decide whether an older mode file's `Unspecified_Area_Ratio` is still read, and
+  reword the header and the field's comment; then remove this entry.
+- **Pinned by:** `test/Configuration/test_core.py` (the ratio's validation and default, under the old name).

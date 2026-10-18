@@ -1537,14 +1537,16 @@ def test_a_catalogue_block_without_its_identifier_fails(tmp_path: tp.Any) -> Non
 
 @pytest.mark.parametrize('key, value, words', [
     ('Identify_Similarity', 1.5, 'Catalogue.Identify_Similarity must be a number from 0 to 1'),
-    ('Unspecified_Area_Ratio', 1.0, 'Catalogue.Unspecified_Area_Ratio must be above 1'),
+    ('Unspecified_Area_Ratio', 1.0, r'Catalogue.Unspecified_Area_Ratio must be above 1, or the part itself would be a '
+                                    r'Warning, several parts \(found 1.0\)'),
     ('Unspecified_Area_Ratio', -2, 'Catalogue.Unspecified_Area_Ratio must be a number above 0'),
 ])
 def test_an_invalid_identification_threshold_fails(tmp_path: tp.Any, key: str, value: tp.Any, words: str) -> None:
     """
     Description:
-        The thresholds are validated: a similarity outside 0..1 fails, and an Unspecified ratio of 1 or
-        less fails too — at 1 the part itself would be Unspecified.
+        The thresholds are validated: a similarity outside 0..1 fails, and the several-parts ratio
+        (Unspecified_Area_Ratio, its old name) of 1 or less fails too — at 1 the part itself would be a Warning,
+        several parts, as the message says.
     """
 
     mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])

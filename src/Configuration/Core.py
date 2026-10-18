@@ -1559,8 +1559,8 @@ def __Check_Identification(Configuration_Str: Configuration_Str, resolution: tp.
     if identification.Model_Path:
         identification.Model_Path = __Resolve_Model_Path(identification.Model_Path)
     if identification.Unspecified_Area_Ratio <= 1.0:
-        problems.append('Catalogue.Unspecified_Area_Ratio must be above 1, or the part itself would be Unspecified '
-                        '(found %r)' % identification.Unspecified_Area_Ratio)
+        problems.append('Catalogue.Unspecified_Area_Ratio must be above 1, or the part itself would be a Warning, '
+                        'several parts (found %r)' % identification.Unspecified_Area_Ratio)
     if Configuration_Str.Catalogue is None or resolution is None:
         return
     for reference in Configuration_Str.Catalogue.References:
