@@ -106,7 +106,7 @@ CONST_ANNOTATE_CHIP_PAD = 6       # padding (px, at font scale 1) around the num
 # distance at which two colours read as different marks rather than a near-repeat. The renderer
 # does not read it: it is the CONTRACT the annotation colours must meet — a box against its own
 # fill, the neutral against the surfaces it is drawn on — enforced by
-# test/Parameters/test_theme.py::test_neutral_detection_colour_is_distinct_and_near_achromatic.
+# test/Parameters/test_theme.py::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline.
 # It lives beside the renderer it constrains, not in the test, so the two cannot drift apart.
 #   Unit [float]
 CONST_ANNOTATE_MIN_DELTA_E = 12.0

@@ -21,7 +21,7 @@ the outline only ΔE 19.5 away; the OK fill was ΔE 13.2 from white at a sixth o
 chroma; and sRGB mixing drifted NOK's hue 22°.
 
 **Why they stayed near-white for so long: a test enforced a constraint that was never real.**
-`test_theme` asserted `_lum(fill) > 0.75` "so a dark numeral reads on it". But the index numeral
+`test/Parameters/test_theme.py` asserted `_lum(fill) > 0.75` "so a dark numeral reads on it". But the index numeral
 sits on its chip, which is filled with the box colour, and never touches the fill. The test pinned
 the fills pale, every later check passed against it, and the near-white looked like a settled
 decision rather than a side effect. The change below is therefore a correction, not a change of
@@ -251,7 +251,7 @@ about a milled plate is kept while "a green surface" is stripped. Every strip an
 substitution is logged to the audit, so over-stripping is visible, not silent. **Revisit
 if** captions show a background noun the list misses (extend the list, with a kept/stripped
 test pair) — never by widening back to bare word-matching.
-Commit `dfbb3b2`; test `test/Reporting/test_core.py::test_strip_background_noun_binding`.
+Commit `dfbb3b2`; its test, `test_strip_background_noun_binding`, was removed with the strip (`710944c`).
 
 ## A failed analysis writes a PARTIAL capture set, on purpose
 
@@ -1048,8 +1048,9 @@ Stage 4 (the per-object description and the one background sentence) moves from 
   what produced the reading: `part inspection` (Gemma), `detailed caption` (Florence),
   `model-free description` (fallback). History shows each set's own value, so older sets keep
   `detailed caption`. `Analysis_Str`'s *default* Task (a reading nothing produced) is still
-  `detailed caption`, pinned by `test_vision` and the characterization baseline; left for a
-  deliberate decision.
+  `detailed caption`, pinned by `test/Parameters/test_vision.py` and the characterization baseline; left for a
+  deliberate decision. (*Corrected 2026-10-18:* decided since, in `e0c5a03`: the default is empty, a reading nothing
+  produced names no model, pinned by `test/Parameters/test_vision.py::test_analysis_str_defaults`.)
 
 **How the object prompt was chosen** (measured, temperature 0, on the `Image_002` rust-stained
 plate, the `Image_007` clean plate and four plastic parts of `Image_001`): the starting prompt
@@ -2528,7 +2529,11 @@ connection ends below describe the file until that date.
   a fixed token (`#run-start`, `#run-stop`, `#connection-start`, `#connection-end`; `Logger.Core`'s
   `CONST_MARKER_*`). The markers name the log's own events; the mapping to the four station events is
   `Station_Events`'. A line can be reworded freely; one that loses its marker fails
-  `test_every_way_a_connection_ends_closes_its_cycle_and_closing_ends_it_before_station_off`.
+  `test_every_way_a_connection_ends_closes_its_cycle_and_closing_ends_it_before_station_off`. (*Corrected
+  2026-10-18:* that test went in `f304ed5`, when a cycle became a scan to the end of its analysis and the connection
+  markers were removed; the markers are pinned since by `test/Logger/test_station_events.py`, e.g.
+  `::test_several_scans_each_close_their_own_cycle_and_are_summed` and
+  `::test_a_camera_connection_is_no_cycle_and_a_quoted_marker_is_no_event`.)
 - **Every way a connection ends closes its cycle**, because each one writes `#connection-end` in the log:
   DISCONNECT; a lost connection (`Log_Camera_Connection_Lost`); a CONNECT while a connection is still
   open (the logger closes the old one); closing the application while connected (`CYCLE_DONE` before
@@ -3195,7 +3200,7 @@ plate's holes are measured with a pin gauge (then the bias has its number), the 
 roundness), or the crop pass's 134 ms per part matters (then one FastSAM pass could serve
 both).
 Tests `test/Vision/Utilities/test_holes.py`, `test/Configuration/test_core.py` (the groups, their validation),
-`test/Reporting/test_core.py::test_a_nok_names_its_missing_extra_and_wrong_holes`,
+`test/Reporting/test_core.py::test_a_nok_names_its_holes_in_one_sentence` (renamed in `18cf4be`, one reason sentence),
 `test/Vision/test_core.py` (the crop segmented once per judged part, a part without its holes NOK),
 `test/integration/test_pipeline.py::test_every_mounting_plate_shows_all_its_holes_within_tolerance` (slow).
 
@@ -3789,7 +3794,7 @@ brand's*; WCAG ratio, ΔE76), each with a plain white numeral:
 frame is mistaken for a judged one.
 Tests `test/Parameters/test_theme.py::test_every_chip_numeral_is_white`,
 `::test_the_detect_only_box_is_the_logo_purple`,
-`::test_neutral_detection_colour_is_distinct_and_near_achromatic`,
+`::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline` (the neutral's distinctness test went in `73daf5b`),
 `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`,
 `::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline`, `::test_the_palette_keeps_the_brands_rules`,
 `test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_a_white_numeral`,

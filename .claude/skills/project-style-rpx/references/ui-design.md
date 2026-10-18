@@ -106,7 +106,7 @@ practices followed inconsistently are under **Unsettled**.
   `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`,
   `test/Parameters/test_theme.py::test_the_detect_only_box_is_the_logo_purple`,
   `::test_every_warning_is_the_amber_and_the_retired_state_colours_are_gone`,
-  `::test_neutral_detection_colour_is_distinct_and_near_achromatic`.
+  `::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline`.
 
 ## Controls: every state clears 4.5:1, measured; disabled speaks through its fill ✅
 
