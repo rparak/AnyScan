@@ -282,11 +282,11 @@ Two cards:
 
 Two charts of the current run: **Detected objects** (cumulative; in a catalogue mode also per verdict —
 OK, NOK and Warning, which add up to the total, each in its frame mark's own colour) and **Confidence** (two series
-and no per-object dots: the frame mean, solid with a marker at every analysed image, and the running run mean, dashed
-without markers, in neutral greys, never a verdict colour, so the two read apart by pattern and colour even where they
-are equal). Every series line in both charts, Total and the two means included, is 3 px wide and every marker 8 px
-across, the size the amber Warning reads by on the white card; each legend entry is a sample of its own line at that
-width and marker size. In the Confidence chart the dashed lines at the configuration's confidence thresholds,
+and no per-object dots: the frame mean, a solid dark grey line (#655E6D) with filled squares, and the running run mean,
+a dashed light grey line (#B4A6BE) with hollow squares drawn on top, never a verdict colour; where the two are equal each
+image reads as a dark square inside a light outline). Every series line in both charts, Total and the two means
+included, is 2 px wide and every marker a 7 px square on the pixel grid, matching the application's square corners;
+each legend entry is a sample of its own line at that width with its square. In the Confidence chart the dashed lines at the configuration's confidence thresholds,
 which colour every confidence number in the application, are both a neutral grey, long dashes at 80 % and short at
 60 %, 1 px guides labelled "Warning below 80 %" and "Error below 60 %"; the hover gives each image's means and its
 scored and unscored counts. The charts' axis titles, legend labels and secondary hover lines are the neutral grey ink, not the

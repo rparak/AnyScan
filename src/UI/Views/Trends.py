@@ -25,7 +25,7 @@
 import typing as tp
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import Qt, QRectF, QPointF
-from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QFontMetrics
+from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QFontMetrics, QPainterPath
 from PyQt5.QtWidgets import QWidget, QLabel, QGridLayout, QSizePolicy
 # Custom Lib.: AnyScan UI — design tokens, style helpers and shared widgets
 #   ../UI/Utilities/Style
@@ -37,7 +37,7 @@ from UI.Widgets import Card_Cls, Card_Head_Cls
 #   ../Reporting/Trends
 from Reporting.Trends import Nice_Ticks, Value_To_Pixel, Nearest_Index, Thin_Label_Indices
 #   ../Parameters/Theme
-from Parameters.Theme import Verdict_Color, Detection_Mask_Outline, CONST_DETECTION_INK
+from Parameters.Theme import Verdict_Color, CONST_DETECTION_INK, CONST_CONTROL_DISABLED_TEXT
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str
 #   ../Parameters/General — the one default for the classification flag
@@ -67,21 +67,22 @@ CONST_MARGIN_RIGHT = 18
 # The approximate pixels one x tick label needs; the label thinning keeps them from overlapping.
 #   Unit [int]
 CONST_X_LABEL_PX = 46
-# ONE line width and ONE marker size for every series of the Trends view (the owner's rule, 2026-10-18): Total, OK,
-# NOK, Warning, the frame mean and the run mean, and the legend samples that stand for them. 3 px and a radius of 4 px
-# (8 px across) are the values the light states were given on 2026-10-16 so the amber Warning (1.62:1 on the white
-# card) reads by its line and its markers (docs/design-decisions.md, *Each state has one colour in every view*); every
-# series now takes them. A marker is filled in its series' colour, no edge of another colour. The threshold lines are
-# guides, not data: they stay 1 px (below).
-#   Unit [float] (px)
-CONST_SERIES_LINE_W = 3.0
-CONST_SERIES_MARKER_RADIUS = 4.0
-# The confidence chart's two series are told apart by pattern and colour only, at that one width: the frame mean solid
-# with a marker at every analysed image, in the muted ink (Style.CONST_INK_MUTE #6F5783, 6.24:1 on white); the run mean
-# dashed, no markers, in the lighter neutral grey (Theme.Detection_Mask_Outline #817A8A, 4.13:1; ΔE 21.8 and 1.51:1
-# from the muted ink, the theme's farthest neutral pair). The run mean is drawn over the frame mean's line and under its
-# markers, so where the two are equal the dashes alternate with the frame mean's colour and the markers still show.
-# The dash pattern is in line widths (Qt), dash then gap: 9 px and 6 px.
+# ONE line width and ONE marker for every series of the Trends view (the owner's rule, 2026-10-18): Total, OK, NOK,
+# Warning, the frame mean and the run mean, and the legend samples that stand for them. Every line is 2 px; every
+# marker is a SQUARE 7 px across, laid on the pixel grid, matching the application's square corners and pixel style. A
+# filled square is its series' colour to its edge; a hollow one (the run mean's) is a CONST_HOLLOW_MARKER_PX ring in its
+# colour round a transparent inside. The threshold lines are guides, not data: they stay 1 px (below).
+#   Unit [float] (px) / [int] (px)
+CONST_SERIES_LINE_W = 2.0
+CONST_SERIES_MARKER_PX = 7
+CONST_HOLLOW_MARKER_PX = 2
+# The confidence chart's two series, at that one width and marker size, told apart by pattern, colour and fill (the
+# owner's rule, 2026-10-18): the frame mean a solid line in the dark neutral #655E6D (Theme.CONST_DETECTION_INK, 6.22:1
+# on white) with filled squares; the run mean a dashed line in the light neutral #B4A6BE (Theme.CONST_CONTROL_DISABLED_TEXT,
+# 2.30:1 on white; 2.71:1 and ΔE 29.3 from the dark) with hollow squares, its inside transparent and its own line
+# clipped out of it, so it looks white on the card. The run mean is drawn on top: where the two are equal each image
+# reads as a dark square inside a light outline, and along the line the light dashes alternate with the dark line. The
+# dash pattern is in line widths (Qt), dash then gap: 6 px and 4 px.
 #   Unit [Vector<float>] (line widths)
 CONST_RUN_MEAN_DASH = [3.0, 2.0]
 # The two confidence-threshold lines: 1 px, both in the neutral grey ink (Theme.CONST_DETECTION_INK #655E6D, 6.22:1 on
@@ -99,6 +100,71 @@ CONST_MARKER_MIN_SPACING = 10.0
 CONST_CHART_MIN_HEIGHT = 240
 
 
+def Marker_Rect(center: QPointF) -> QRectF:
+    """
+    Description:
+        The square a marker fills, CONST_SERIES_MARKER_PX across, laid on the pixel grid (whole-pixel edges, no
+        antialiased blur) round the pixel its centre falls in.
+
+    Args:
+        (1) center [QPointF(object)]: The data point.
+
+    Returns:
+        (1) parameter [QRectF(object)]: The square.
+    """
+
+    half = CONST_SERIES_MARKER_PX // 2
+    return QRectF(int(center.x()) - half, int(center.y()) - half, CONST_SERIES_MARKER_PX, CONST_SERIES_MARKER_PX)
+
+
+def Draw_Marker(painter: QPainter, center: QPointF, color: str, hollow: bool = False) -> None:
+    """
+    Description:
+        Draw one marker: a filled square in its colour to its edge, or a hollow one, a CONST_HOLLOW_MARKER_PX ring in
+        its colour round a transparent inside.
+
+    Args:
+        (1) painter [QPainter(object)]: The active painter.
+        (2) center [QPointF(object)]: The data point.
+        (3) color [string]: The series' colour hex.
+        (4) hollow [bool]: Draw the ring alone.
+    """
+
+    square = Marker_Rect(center)
+    path = QPainterPath()
+    path.addRect(square)
+    if hollow:
+        edge = CONST_HOLLOW_MARKER_PX
+        path.addRect(square.adjusted(edge, edge, -edge, -edge))
+        path.setFillRule(Qt.OddEvenFill)
+    painter.save()
+    painter.setRenderHint(QPainter.Antialiasing, False)
+    painter.fillPath(path, QBrush(QColor(color)))
+    painter.restore()
+
+
+def Outside_Markers(bounds: QRectF, centers: tp.List[QPointF]) -> QPainterPath:
+    """
+    Description:
+        A clip that is everything in the bounds but the markers' squares, so a series' line is not drawn inside its
+        own hollow markers.
+
+    Args:
+        (1) bounds [QRectF(object)]: The area to draw in.
+        (2) centers [Vector<QPointF(object)>]: The markers' data points.
+
+    Returns:
+        (1) parameter [QPainterPath(object)]: The clip path.
+    """
+
+    path = QPainterPath()
+    path.addRect(bounds)
+    for center in centers:
+        path.addRect(Marker_Rect(center))
+    path.setFillRule(Qt.OddEvenFill)
+    return path
+
+
 def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
     """
     Description:
@@ -106,7 +172,7 @@ def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
         colour): OK, NOK and Warning (every kind), so the three add up to the total, each in exactly its frame mark's
         colour (Verdict_Color()[0], the owner's rule of 2026-10-16: one colour per state, learnt once). The light ones
         (the amber 1.62:1, the orange-red 2.92:1 on white) read
-        on the white card by the view's one line width and marker size (CONST_SERIES_LINE_W, CONST_SERIES_MARKER_RADIUS)
+        on the white card by the view's one line width and square marker (CONST_SERIES_LINE_W, CONST_SERIES_MARKER_PX)
         edged in that same colour. The total is the muted purple-grey, since the OK line is the purple.
 
     Returns:
@@ -144,7 +210,7 @@ class Chart_Base_Cls(QWidget):
         self._x_ticks, self._y_ticks = [], []
         self._x_tick_text = {}                 # tick value -> label (only the ones that get one)
         self._legend = []                      # [(label, color_hex)]
-        self._legend_marks = {}                # label -> 'line_marker' | 'dashed'
+        self._legend_marks = {}                # label -> 'filled' | 'hollow_dashed'
         self._columns = []                     # per-image x VALUES (1..n), for the hover hit-test
         self._hover = None                     # the hovered column index, or None
         self._empty_text = 'No analyses in this run yet.'
@@ -176,12 +242,12 @@ class Chart_Base_Cls(QWidget):
         """
         Description:
             Store the legend items the base draws top-right, each drawn as a sample of its series' own line, at the
-            series' width and with its marker, so the legend matches what is drawn.
+            series' width and with its square marker, so the legend matches what is drawn.
 
         Args:
             (1) legend [Vector<Tuple<string> 1x2>]: The items as (label, colour hex).
-            (2) marks [Dict<string, string>]: Per label, 'dashed' (a dashed line, no marker); any other label is a
-                                              solid line with its marker ('line_marker').
+            (2) marks [Dict<string, string>]: Per label, 'hollow_dashed' (a dashed line, a hollow square); any other
+                                              label is a solid line with a filled square ('filled').
         """
 
         self._legend, self._legend_marks = legend, dict(marks or {})
@@ -386,27 +452,30 @@ class Chart_Base_Cls(QWidget):
             return
         painter.setFont(Font(Style.CONST_TYPE_SCALE[0]))
         metrics = QFontMetrics(painter.font())
-        # A line sample is as long as a dash, a gap and a dash of the dashed series, so every sample reads whole.
+        # A line sample is as long as three dashes and their two gaps of the dashed series (26 px), so every sample
+        # shows its line on both sides of its square marker.
         gap = 14
-        sample = (2 * CONST_RUN_MEAN_DASH[0] + CONST_RUN_MEAN_DASH[1]) * CONST_SERIES_LINE_W
-        marks = [self._legend_marks.get(label, 'line_marker') for label, _ in self._legend]
+        sample = (3 * CONST_RUN_MEAN_DASH[0] + 2 * CONST_RUN_MEAN_DASH[1]) * CONST_SERIES_LINE_W
+        marks = [self._legend_marks.get(label, 'filled') for label, _ in self._legend]
         widths = [sample + 5 + metrics.horizontalAdvance(label) for label, _ in self._legend]
         total = sum(widths) + gap * (len(self._legend) - 1)
         x = rect.right() - total
         y = rect.top() - 24
         for (label, color), mark, width in zip(self._legend, marks, widths):
-            mid = y + 6.5
-            if mark == 'dashed':
+            mid = int(y + 6) + 0.5
+            center = QPointF(x + sample / 2.0, mid)
+            if mark == 'hollow_dashed':
                 pen = QPen(QColor(color), CONST_SERIES_LINE_W, Qt.CustomDashLine, Qt.FlatCap)
                 pen.setDashPattern(CONST_RUN_MEAN_DASH)
+                painter.save()
+                painter.setClipPath(Outside_Markers(QRectF(self.rect()), [center]))
                 painter.setPen(pen)
                 painter.drawLine(QPointF(x, mid), QPointF(x + sample, mid))
+                painter.restore()
             else:
                 painter.setPen(QPen(QColor(color), CONST_SERIES_LINE_W, Qt.SolidLine, Qt.FlatCap))
                 painter.drawLine(QPointF(x, mid), QPointF(x + sample, mid))
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(QBrush(QColor(color)))
-                painter.drawEllipse(QPointF(x + sample / 2.0, mid), CONST_SERIES_MARKER_RADIUS, CONST_SERIES_MARKER_RADIUS)
+            Draw_Marker(painter, center, color, hollow=mark == 'hollow_dashed')
             painter.setPen(QColor(CONST_DETECTION_INK))
             text_x = x + sample + 5
             painter.drawText(QRectF(text_x, y - 1, width, 14), Qt.AlignLeft | Qt.AlignVCenter, label)
@@ -526,7 +595,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
         """
         Description:
             Draw the cumulative-count line(s) — Total, and per verdict when the run classifies — with a
-            small marker at each image.
+            square marker at each image.
 
         Args:
             (1) painter [QPainter(object)]: The active painter.
@@ -548,11 +617,8 @@ class Objects_Chart_Cls(Chart_Base_Cls):
             # they would bead the line into a blur, and the hover still reads each image.
             if rect.width() / max(1, len(self.__rows)) < CONST_MARKER_MIN_SPACING:
                 continue
-            painter.setBrush(QBrush(QColor(color)))
-            painter.setPen(Qt.NoPen)
             for row in self.__rows:
-                point = QPointF(self._Px_X(row.Index, rect), self._Px_Y(getattr(row, attr), rect))
-                painter.drawEllipse(point, CONST_SERIES_MARKER_RADIUS, CONST_SERIES_MARKER_RADIUS)
+                Draw_Marker(painter, QPointF(self._Px_X(row.Index, rect), self._Px_Y(getattr(row, attr), rect)), color)
 
     def _Hover_Lines(self, index: int) -> tp.List[tp.Tuple[str, str]]:
         """
@@ -616,8 +682,8 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         x_text = {float(rows[i].Index): str(rows[i].Index) for i in labeled} if rows else {}
         self._Set_Axes(0.5, n + 0.5 if n else 1.5, 0.0, 100.0,
                        [float(row.Index) for row in rows], Nice_Ticks(0.0, 100.0, 5), x_text)
-        self._Set_Legend([('Frame mean', Style.CONST_INK_MUTE), ('Run mean', Detection_Mask_Outline())],
-                         {'Frame mean': 'line_marker', 'Run mean': 'dashed'})
+        self._Set_Legend([('Frame mean', CONST_DETECTION_INK), ('Run mean', CONST_CONTROL_DISABLED_TEXT)],
+                         {'Frame mean': 'filled', 'Run mean': 'hollow_dashed'})
         self._Set_Columns([float(row.Index) for row in rows])
         self.update()
 
@@ -645,9 +711,9 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
     def _Paint_Series(self, painter: QPainter, rect: QRectF) -> None:
         """
         Description:
-            Draw the labelled reference lines, then the frame mean's solid line, the run mean's dashes over it, and
-            the frame mean's markers on top (one marker at every analysed image), all at the view's one width and
-            marker size.
+            Draw the labelled reference lines, then the frame mean (its solid line and filled squares) and on top the
+            run mean (its dashed line, clipped out of its own squares, and its hollow squares), all at the view's one
+            width and marker size.
 
         Args:
             (1) painter [QPainter(object)]: The active painter.
@@ -666,16 +732,21 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
             painter.setPen(QColor(color))
             painter.drawText(QRectF(rect.right() - metrics.horizontalAdvance(label) - 6, y - 16,
                                     metrics.horizontalAdvance(label) + 4, 14), Qt.AlignRight | Qt.AlignVCenter, label)
-        run = QPen(QColor(Detection_Mask_Outline()), CONST_SERIES_LINE_W, Qt.CustomDashLine, Qt.FlatCap)
-        run.setDashPattern(CONST_RUN_MEAN_DASH)
-        self.__Draw_Mean_Line(painter, rect, 'Frame_Mean', QPen(QColor(Style.CONST_INK_MUTE), CONST_SERIES_LINE_W))
-        self.__Draw_Mean_Line(painter, rect, 'Run_Mean', run)
-        painter.setBrush(QBrush(QColor(Style.CONST_INK_MUTE)))
-        painter.setPen(Qt.NoPen)
-        for row in self.__rows:
-            if row.Frame_Mean is not None:
-                painter.drawEllipse(QPointF(self._Px_X(row.Index, rect), self._Px_Y(row.Frame_Mean, rect)),
-                                    CONST_SERIES_MARKER_RADIUS, CONST_SERIES_MARKER_RADIUS)
+        frame = [QPointF(self._Px_X(row.Index, rect), self._Px_Y(row.Frame_Mean, rect))
+                 for row in self.__rows if row.Frame_Mean is not None]
+        run = [QPointF(self._Px_X(row.Index, rect), self._Px_Y(row.Run_Mean, rect))
+               for row in self.__rows if row.Run_Mean is not None]
+        self.__Draw_Mean_Line(painter, rect, 'Frame_Mean', QPen(QColor(CONST_DETECTION_INK), CONST_SERIES_LINE_W))
+        for point in frame:
+            Draw_Marker(painter, point, CONST_DETECTION_INK)
+        dashed = QPen(QColor(CONST_CONTROL_DISABLED_TEXT), CONST_SERIES_LINE_W, Qt.CustomDashLine, Qt.FlatCap)
+        dashed.setDashPattern(CONST_RUN_MEAN_DASH)
+        painter.save()
+        painter.setClipPath(Outside_Markers(QRectF(self.rect()), run))
+        self.__Draw_Mean_Line(painter, rect, 'Run_Mean', dashed)
+        painter.restore()
+        for point in run:
+            Draw_Marker(painter, point, CONST_CONTROL_DISABLED_TEXT, hollow=True)
 
     def __Draw_Mean_Line(self, painter: QPainter, rect: QRectF, attr: str, pen: QPen) -> None:
         """
@@ -719,8 +790,8 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         frame = '%d%%' % row.Frame_Mean if row.Frame_Mean is not None else '—'
         run = '%d%%' % row.Run_Mean if row.Run_Mean is not None else '—'
         lines = [('Image %d' % row.Index, Style.CONST_INK),
-                 ('Frame mean: %s' % frame, Style.CONST_INK_MUTE),
-                 ('Run mean: %s' % run, Detection_Mask_Outline()),
+                 ('Frame mean: %s' % frame, CONST_DETECTION_INK),
+                 ('Run mean: %s' % run, CONST_DETECTION_INK),
                  ('Scored: %d' % len(row.Objects), CONST_DETECTION_INK)]
         if row.Unscored:
             lines.append(('Unscored: %d' % row.Unscored, CONST_DETECTION_INK))

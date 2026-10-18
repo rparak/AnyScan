@@ -296,8 +296,9 @@ def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None
     """
     Description:
         The confidence chart draws two series and nothing per object (the owner's rule of 2026-10-18): the frame
-        mean and the run mean, in the theme's neutral colours (CONST_INK_MUTE, Detection_Mask_Outline), never a verdict
-        colour, and its legend names exactly those two in those colours. Rendered on a catalogue run of OK, NOK and
+        mean and the run mean, in two neutral theme colours, the dark #655E6D (CONST_DETECTION_INK, 6.22:1 on white) and
+        the light #B4A6BE (CONST_CONTROL_DISABLED_TEXT, 2.30:1; 2.71:1 between them), never a verdict colour, and its
+        legend names exactly those two in those colours. Rendered on a catalogue run of OK, NOK and
         Warning objects scored far from their means: no verdict colour is painted, and nothing is painted at an
         object's own score away from the mean lines (the old dots), nor beyond the last analysed image.
     """
@@ -306,10 +307,13 @@ def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None
     frames = [[(0.95, 'OK'), (0.40, 'NOK'), (0.30, 'Warning')], [(0.96, 'Warning'), (0.42, 'OK')],
               [(0.94, 'NOK'), (0.38, 'Warning')]]
     chart, image, rows = _Confidence(frames)
-    assert chart._legend == [('Frame mean', Theme.CONST_INK_MUTE), ('Run mean', Theme.Detection_Mask_Outline())]
-    assert chart._legend_marks == {'Frame mean': 'line_marker', 'Run mean': 'dashed'}
-    # The legend draws each series as its line, not a square: along the legend's row, a horizontal run of 9 px or
-    # more in each colour (the frame mean's solid sample, a dash of the run mean's, 9 px).
+    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CONTROL_DISABLED_TEXT
+    assert chart._legend == [('Frame mean', frame), ('Run mean', run)]
+    assert chart._legend_marks == {'Frame mean': 'filled', 'Run mean': 'hollow_dashed'}
+    assert [round(Theme.Contrast_Ratio(a, b), 2) for a, b in ((frame, '#FFFFFF'), (run, '#FFFFFF'), (frame, run))] == \
+        [6.22, 2.30, 2.71]
+    # The legend draws each series as its line, not a lone square: along the legend's row, a horizontal run of 20 px or
+    # more of the frame mean's solid sample and of 6 px of the run mean's (one dash).
     top = chart._Plot_Rect().top()
 
     def Longest(colour: str) -> int:
@@ -321,7 +325,7 @@ def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None
                 best = max(best, run)
         return best
 
-    assert Longest(Theme.CONST_INK_MUTE) >= 20 and Longest(Theme.Detection_Mask_Outline()) >= 8
+    assert Longest(frame) >= 20 and Longest(run) >= 6
     assert not {colour for _label, colour in chart._legend} & {Theme.Verdict_Color(v)[0] for v in ('OK', 'NOK', 'Warning')}
     rect = chart._Plot_Rect()
     painted = {image.pixelColor(x, y).name() for x in range(image.width()) for y in range(image.height())}
@@ -332,8 +336,8 @@ def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None
             y = chart._Px_Y(100 * score, rect)
             # Each score lies 25 points or more from its frame's mean: nothing is drawn there, in its column.
             for dx in range(-30, 31, 3):
-                assert not _Near(image, chart._Px_X(row.Index, rect) + dx, y, Theme.CONST_INK_MUTE, 40), (row.Index, score)
-                assert not _Near(image, chart._Px_X(row.Index, rect) + dx, y, Theme.Detection_Mask_Outline(), 40), (row.Index, score)
+                assert not _Near(image, chart._Px_X(row.Index, rect) + dx, y, frame, 40), (row.Index, score)
+                assert not _Near(image, chart._Px_X(row.Index, rect) + dx, y, run, 30), (row.Index, score)
     beyond = chart._Px_X(len(rows), rect) + 8
     # The threshold lines and their labels (a grey near the run mean's) are skipped: their rows and the label above.
     skipped = {y for value, *_rest in chart._Reference_Labels()
@@ -341,45 +345,71 @@ def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None
     for x in range(int(beyond), int(rect.right()) - 1):
         for y in (y for y in range(int(rect.top()) + 2, int(rect.bottom()) - 2) if y not in skipped):
             colour = image.pixelColor(x, y)
-            assert not (_Near(image, x, y, Theme.CONST_INK_MUTE, 30) or _Near(image, x, y, Theme.Detection_Mask_Outline(), 30)), \
+            assert not (_Near(image, x, y, frame, 30) or _Near(image, x, y, run, 30)), \
                 (x, y, colour.name())
 
 
 def test_the_two_means_are_told_apart_when_they_are_equal(qt_app) -> None:
     """
     Description:
-        When every frame scores alike the frame mean and the run mean are equal at every image, and both still read,
-        at one width, by pattern and colour only (the owner's rule, 2026-10-18): the frame mean a solid line with a
-        marker at every analysed image, the marker's edge its own colour (no darker ring); the run mean dashed, no
-        markers, drawn over the frame mean's line, so along it the run mean's grey alternates with the frame mean's
-        ink, dash and gap. Rendered, at the means' height.
+        When every frame scores alike the frame mean and the run mean are equal at every image, and both stay visible
+        (the owner's rule, 2026-10-18): the run mean is drawn on top, its 7 px square hollow (a 2 px ring in the light
+        grey, a transparent inside) over the frame mean's filled dark 7 px square, so each image reads as a dark square
+        inside a light outline; along the line the run mean's light dashes alternate with the frame mean's dark solid
+        line. Rendered, at the means' height.
     """
 
     import Parameters.Theme as Theme
-    from Parameters.Theme import Relative_Luminance
     chart, image, rows = _Confidence([[(0.9, 'OK'), (0.9, 'OK')]] * 4)
     assert {row.Frame_Mean for row in rows} == {row.Run_Mean for row in rows} == {90}
     rect = chart._Plot_Rect()
     y = chart._Px_Y(90, rect)
-    frame, run = Theme.CONST_INK_MUTE, Theme.Detection_Mask_Outline()
+    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CONTROL_DISABLED_TEXT
     for row in rows:
-        x = chart._Px_X(row.Index, rect)
-        # A marker: the frame mean's colour over at least 6 px in its column (the 3 px line alone covers about 3).
-        extent = sum(_Near(image, x, y + dy, frame, 20) for dy in range(-6, 7))
-        assert extent >= 6, (row.Index, extent)
-        floor = Relative_Luminance(frame) - 0.02
-        around = [image.pixelColor(int(round(x)) + dx, int(round(y)) + dy).name()
-                  for dx in range(-5, 6) for dy in range(-5, 6)]
-        assert all(Relative_Luminance(c) >= floor for c in around), (row.Index, sorted(set(around)))
-    # Between images 1 and 2, on the line's middle row: the run mean's grey in its dashes and the frame mean's ink in
-    # the gaps between them, alternating (more than four changes).
+        # The marker is laid on the pixel its data point falls in.
+        cx, cy = int(chart._Px_X(row.Index, rect)), int(y)
+        # The centre (3 x 3) is the dark fill; the ring 3 px out on every side is the light outline.
+        assert all(_Near(image, cx + dx, cy + dy, frame, 12) for dx in (-1, 0, 1) for dy in (-1, 0, 1)), row.Index
+        for dx, dy in ((-3, 0), (3, 0), (0, -3), (0, 3), (-3, -3), (3, 3)):
+            assert _Near(image, cx + dx, cy + dy, run, 12), (row.Index, dx, dy, image.pixelColor(cx + dx, cy + dy).name())
+    # Between images 1 and 2, on the line's middle row: light dashes and the dark line in their gaps, alternating.
     left, right = int(chart._Px_X(1, rect)) + 8, int(chart._Px_X(2, rect)) - 8
     row_y = int(round(y))
-    kinds = ['run' if _Near(image, x, row_y, run, 8) else 'frame' if _Near(image, x, row_y, frame, 8) else ''
+    kinds = ['run' if _Near(image, x, row_y, run, 12) else 'frame' if _Near(image, x, row_y, frame, 12) else ''
              for x in range(left, right)]
     assert kinds.count('run') > 20 and kinds.count('frame') > 10, (kinds.count('run'), kinds.count('frame'))
     seen = [kind for kind in kinds if kind]
     assert sum(1 for a, b in zip(seen, seen[1:]) if a != b) > 4
+
+
+def test_a_run_mean_marker_is_hollow_and_shows_the_card_inside(qt_app) -> None:
+    """
+    Description:
+        Where the two means differ, the run mean's marker is a 7 px square ring, 2 px of the light grey round a
+        transparent 3 px inside that shows the card, its own dashed line clipped out of it, so it looks white on the
+        card; the frame mean's marker is a filled dark square, its edge its own fill. Both are squares on the pixel grid,
+        their corners as full as their sides.
+    """
+
+    import Parameters.Theme as Theme
+    chart, image, rows = _Confidence([[(0.5, 'OK')]] + [[(0.9, 'OK')]] * 5, height=760)
+    rect = chart._Plot_Rect()
+    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CONTROL_DISABLED_TEXT
+    ground = image.pixelColor(int(rect.left()) + 3, int(rect.top()) + 3).name()
+    # Images whose run mean lies on a threshold line are left out: there the transparent inside shows that line.
+    for row in [row for row in rows[1:] if min(abs(row.Run_Mean - value) for value in (80, 60)) >= 2]:
+        # Each marker is laid on the pixel its data point falls in.
+        cx = int(chart._Px_X(row.Index, rect))
+        ry, fy = int(chart._Px_Y(row.Run_Mean, rect)), int(chart._Px_Y(row.Frame_Mean, rect))
+        assert abs(ry - fy) >= 12, row.Index
+        assert all(_Near(image, cx + dx, ry + dy, ground, 8) for dx in (-1, 0, 1) for dy in (-1, 0, 1)), row.Index
+        # The ring is 2 px: its outer and inner pixels, 3 and 2 px out, are both the light grey.
+        for dx, dy in ((0, -2), (0, 2), (-2, 0), (2, 0)):
+            assert _Near(image, cx + dx, ry + dy, run, 12), (row.Index, 'inner ring', dx, dy)
+        for dx, dy in ((-3, -3), (3, -3), (-3, 3), (3, 3), (0, -3), (0, 3), (-3, 0), (3, 0)):
+            assert _Near(image, cx + dx, ry + dy, run, 12), (row.Index, 'ring', dx, dy)
+            assert _Near(image, cx + dx, fy + dy, frame, 12), (row.Index, 'filled', dx, dy)
+        assert not _Near(image, cx + 5, ry + 5, run, 40) and not _Near(image, cx + 5, fy + 5, frame, 40), row.Index
 
 
 def test_each_threshold_line_is_labelled_with_what_it_means(qt_app) -> None:
@@ -460,19 +490,21 @@ def _Coverage(image, x: int, y0: int, y1: int, colour: str) -> float:
     return total
 
 
-# The one series line width and marker diameter of the whole Trends view (the owner's rule, 2026-10-18), in px.
+# The one series line width and square marker size of the whole Trends view (the owner's rule, 2026-10-18), in px.
 #   Unit [float] (px)
-CONST_EXPECTED_LINE_W = 3.0
-CONST_EXPECTED_MARKER_D = 8.0
+CONST_EXPECTED_LINE_W = 2.0
+CONST_EXPECTED_MARKER_D = 7.0
 
 
 def test_every_series_in_both_charts_has_one_line_width_and_one_marker_size(qt_app) -> None:
     """
     Description:
         Every series line in the Trends view, Total, OK, NOK and Warning, the frame mean and the run mean, is drawn
-        at one width, 3 px, and every marker at one size, 8 px across (radius 4), the values the amber Warning reads by
-        on the white card (the owner's rule, 2026-10-18). Measured on the rendered pixels, antialiasing counted by its
-        share: across a level stretch of each line, and up through each marker; the run mean, dashed, has no marker.
+        at one width, 2 px, and every marker is one square, 7 px across (the owner's rule, 2026-10-18). Measured on the
+        rendered pixels, antialiasing counted by its share: across a level stretch of each line, and up through each
+        marker at its centre and 2 px either side of it, as full there as at its centre (a square; a 7 px disc is 4.9 px
+        there); the run mean's hollow square, a 2 px ring, is 7 px at its sides and 4 px (ring, ring) through its
+        centre.
     """
 
     import Parameters.Theme as Theme
@@ -499,17 +531,21 @@ def test_every_series_in_both_charts_has_one_line_width_and_one_marker_size(qt_a
         y = int(round(chart._Px_Y(value, rect)))
         middle = int(round((chart._Px_X(2, rect) + chart._Px_X(3, rect)) / 2.0))
         width = _Coverage(image, middle, y - 9, y + 10, colour)
-        marker = _Coverage(image, int(round(chart._Px_X(2, rect))), y - 9, y + 10, colour)
+        cx = int(round(chart._Px_X(2, rect)))
         assert abs(width - CONST_EXPECTED_LINE_W) <= 0.6, (name, width)
-        assert abs(marker - CONST_EXPECTED_MARKER_D) <= 1.0, (name, marker)
+        for dx in (-2, 0, 2):
+            marker = _Coverage(image, cx + dx, y - 9, y + 10, colour)
+            assert abs(marker - CONST_EXPECTED_MARKER_D) <= 0.6, (name, dx, marker)
     # The confidence chart: the frame mean level at 90 % from image 2 on, the run mean rising under it, apart.
     confidence, image, rows = _Confidence([[(0.5, 'OK')]] + [[(0.9, 'OK')]] * 5, height=760)
     rect = confidence._Plot_Rect()
-    frame, run = Theme.CONST_INK_MUTE, Theme.Detection_Mask_Outline()
+    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CONTROL_DISABLED_TEXT
     y = int(round(confidence._Px_Y(90, rect)))
     middle = int(round((confidence._Px_X(4, rect) + confidence._Px_X(5, rect)) / 2.0))
     assert abs(_Coverage(image, middle, y - 9, y + 10, frame) - CONST_EXPECTED_LINE_W) <= 0.6
-    assert abs(_Coverage(image, int(round(confidence._Px_X(4, rect))), y - 9, y + 10, frame) - CONST_EXPECTED_MARKER_D) <= 1.0
+    for dx in (-2, 0, 2):
+        marker = _Coverage(image, int(round(confidence._Px_X(4, rect))) + dx, y - 9, y + 10, frame)
+        assert abs(marker - CONST_EXPECTED_MARKER_D) <= 0.6, ('frame mean', dx, marker)
     # The run mean between images 4 and 5 (80 to 82 %, clear of the frame mean and of the 80 % label at the plot's
     # right end), followed along its slope: the widest column of a dash, less its slope, is the line's width.
     x4, x5 = confidence._Px_X(4, rect), confidence._Px_X(5, rect)
@@ -519,17 +555,20 @@ def test_every_series_in_both_charts_has_one_line_width_and_one_marker_size(qt_a
     widest = max(_Coverage(image, x, int(round(y4 + slope * (x - x4))) - 5, int(round(y4 + slope * (x - x4))) + 6, run)
                  for x in range(int((x4 + x5) / 2.0), int(x5) - 8))
     assert abs(widest / (1 + slope * slope) ** 0.5 - CONST_EXPECTED_LINE_W) <= 0.6, widest
-    at_image = _Coverage(image, int(round(x5)), int(round(y5)) - 9, int(round(y5)) + 10, run)
-    assert at_image <= CONST_EXPECTED_LINE_W + 0.6, at_image                       # no marker on the run mean
+    cx, cy = int(round(x5)), int(round(y5))
+    sides = [_Coverage(image, cx + dx, cy - 6, cy + 7, run) for dx in (-3, 3)]
+    centre = _Coverage(image, cx, cy - 6, cy + 7, run)
+    assert all(abs(side - CONST_EXPECTED_MARKER_D) <= 0.6 for side in sides), sides      # the ring's sides, 7 px
+    assert abs(centre - 4.0) <= 0.6, centre                                              # ring, inside, ring
 
 
 def test_each_legend_sample_has_the_width_and_marker_size_of_its_line(qt_app) -> None:
     """
     Description:
-        Every legend entry of both charts is a sample of its own line, at the same width (3 px) and, for a series with
-        markers, with a marker of the same size (8 px across): every objects series and the frame mean solid with a
-        marker, the run mean dashed without one. Rendered: along the legend's row each sample is the longest run of its
-        colour; its thinnest column is the line, its thickest the marker.
+        Every legend entry of both charts is a sample of its own line, at the same width (2 px), with its 7 px square
+        marker: every objects series and the frame mean solid with a filled square, the run mean dashed with a hollow
+        one. Rendered: along the legend's row each sample is the longest run of its colour; its thinnest column is the
+        line, its thickest the marker's 7 px (a filled square's centre, a hollow square's sides).
     """
 
     import Parameters.Theme as Theme
@@ -543,7 +582,7 @@ def test_each_legend_sample_has_the_width_and_marker_size_of_its_line(qt_app) ->
     confidence = _Confidence([[(0.9, 'OK')]])[0]
     for chart, entries in ((objects, [(Theme.CONST_INK_MUTE, True), (Theme.Verdict_Color('OK')[0], True),
                                       (Theme.Verdict_Color('NOK')[0], True), (Theme.Verdict_Color('Warning')[0], True)]),
-                           (confidence, [(Theme.CONST_INK_MUTE, True), (Theme.Detection_Mask_Outline(), False)])):
+                           (confidence, [(Theme.CONST_DETECTION_INK, True), (Theme.CONST_CONTROL_DISABLED_TEXT, False)])):
         image = chart.grab().toImage()
         top = int(chart._Plot_Rect().top())
         for colour, marked in entries:
@@ -556,10 +595,18 @@ def test_each_legend_sample_has_the_width_and_marker_size_of_its_line(qt_app) ->
                     if run > best[0]:
                         best = (run, x - run + 1, y)
             length, start, y = best
-            assert length >= (20 if marked else 8), (colour, best)       # a whole solid sample, or one 9 px dash
-            columns = [_Coverage(image, x, y - 9, y + 10, colour) for x in range(start, start + length)]
-            assert abs(min(columns[1:-1] or columns) - CONST_EXPECTED_LINE_W) <= 0.6, (colour, columns)
+            assert length >= (20 if marked else 6), (colour, best)       # a whole solid sample, or one 6 px dash
             if marked:
-                assert abs(max(columns) - CONST_EXPECTED_MARKER_D) <= 1.0, (colour, columns)
+                columns = [_Coverage(image, x, y - 9, y + 10, colour) for x in range(start, start + length)]
+                assert abs(min(columns[1:-1] or columns) - CONST_EXPECTED_LINE_W) <= 0.6, (colour, columns)
+                assert abs(max(columns) - CONST_EXPECTED_MARKER_D) <= 0.6, (colour, columns)
             else:
-                assert max(columns) <= CONST_EXPECTED_LINE_W + 0.6, (colour, columns)
+                # The dashed sample: its line 2 px, and its hollow square's sides 7 px of the colour itself.
+                sides = max(sum(_Near(image, x, yy, colour, 14) for yy in range(y - 9, y + 10))
+                            for x in range(image.width() - 400, image.width()))
+                assert sides == CONST_EXPECTED_MARKER_D, (colour, sides)
+                # Its thinnest drawn column, a dash, is the line: round the longest run, which may be a dash or the
+                # square's top edge, clear of the label to the sample's right.
+                drawn = [c for c in (_Coverage(image, x, y - 9, y + 10, colour) for x in range(start - 12, start + 18))
+                         if c > 0.5]
+                assert abs(min(drawn) - CONST_EXPECTED_LINE_W) <= 0.6, (colour, drawn)

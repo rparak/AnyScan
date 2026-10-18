@@ -4961,3 +4961,34 @@ mean's line and under its markers: there the run mean's grey alternates with the
 `::test_every_series_in_both_charts_has_one_line_width_and_one_marker_size`,
 `::test_each_legend_sample_has_the_width_and_marker_size_of_its_line`,
 `::test_the_two_means_are_told_apart_when_they_are_equal`.
+
+## Trends draws square markers, 2 px lines, and the run mean as hollow squares on top
+
+Decided 2026-10-18, on the owner's request, replacing the one 3 px width and 8 px round marker of the day before
+(*The Confidence chart draws the two means, told apart by their form*, its last correction). Every series in both
+Trends charts, Total, OK, NOK, Warning, the frame mean and the run mean, is a 2 px line with a 7 px SQUARE marker at
+every analysed image, laid on the pixel grid (`Trends.Marker_Rect`, `Draw_Marker`), matching the application's square
+corners and pixel style; filled squares are their colour to the edge. The legend samples take the same width and
+square. The threshold guides stay 1 px.
+
+In the Confidence chart the two series share the square and its size and differ by pattern, colour and fill: the frame
+mean a solid line in the dark neutral `#655E6D` (`CONST_DETECTION_INK`) with filled squares; the run mean a dashed line
+(6 px dash, 4 px gap) in the light neutral `#B4A6BE` (`CONST_CONTROL_DISABLED_TEXT`) with hollow squares, a 2 px ring
+round a transparent inside, its own line clipped out of the squares (`Outside_Markers`), so the inside shows the card.
+The run mean is drawn on top: where the two means are equal, each image reads as a dark square inside a light outline,
+and along the line the light dashes alternate with the dark line.
+
+**Measured** (WCAG ratio on white): the dark `#655E6D` 6.22:1; the light `#B4A6BE` 2.30:1; between them 2.71:1, ΔE 29.3;
+the light grey is ΔE 77–91 from OK, NOK and Warning, the dark 80–95. **Below a floor, by choice:** 2.30:1 is under the
+3:1 that WCAG 1.4.11 asks of a graphic on its ground; the run mean reads by its square rings and dashes, and its hover
+text is the dark grey (2.30:1 would fail text). **A retired colour, back by request:** `#B4A6BE` was the foreign object's
+grey until the three states retired it from Trends (*Three states for the operator, a Warning with its kind*); it is no
+verdict colour now, and Trends uses it for a mean, not a state.
+
+**Rendered and looked at**, from the window and the pipeline: the same rig frame four times (equal means, 97 %) and
+eight frames of `Data/Images/Test` (means 93–98 %, apart from the fifth image).
+
+**Revisit if** the light run mean is lost on the rig's screen (2.30:1), or a hollow square is read as an empty result.
+Tests `test/UI/test_trends_view.py::test_every_series_in_both_charts_has_one_line_width_and_one_marker_size`,
+`::test_each_legend_sample_has_the_width_and_marker_size_of_its_line`, `::test_the_two_means_are_told_apart_when_they_are_equal`,
+`::test_a_run_mean_marker_is_hollow_and_shows_the_card_inside`, `::test_the_confidence_chart_draws_only_the_frame_and_run_means`.
