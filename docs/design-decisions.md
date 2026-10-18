@@ -1746,7 +1746,10 @@ input or a record is added or removed: the diagram draws each one.
   (24-unit grid, round caps) are replaced by icons in the JIC Smart Factory guide's pixel style, each a 12 × 12 grid
   drawn as one path of 3 px squares (`CONST_ICONS`, `CONST_ICON_SIZE` 36). At the line icons' 28 px a cell would be
   2.33 px and the grid smeared; at 3 px a cell they stay legible at README width. A test holds every grid to
-  12 × 12 at whole-pixel cells (`test_the_diagram_icons_are_twelve_by_twelve_pixel_grids`).
+  12 × 12 at whole-pixel cells (`test_the_diagram_icons_are_twelve_by_twelve_pixel_grids`). *Corrected 2026-10-18:*
+  the grids are no longer the generator's own `CONST_ICONS`: they moved, unchanged, into the set the application
+  draws too, `UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS`, and the regenerated diagram is byte-identical
+  (*Every icon is a pixel icon from one set*).
 - **The logo's colour is its own.** *Corrected 2026-10-14:* the delivered logo is one purple, `#640ABA`, the JIC
   Smart Factory primary; until then the logo kept a palette that predated the theme (indigo and the magenta
   `#D6006E`). The diagram draws it as delivered whatever the theme is.
@@ -3946,7 +3949,10 @@ directly on the overlay with nothing behind them. It replaced the purple at 62 %
 spinner (2026-10-15).
 
 - **The icon names the task**, in the brand's pixel style: whole 5 px cells on a grid
-  (`UI.Utilities.Pixel_Motif.CONST_BUSY_ICONS`, `Busy_Cells`). A camera while connecting and capturing blinks its
+  (`UI.Utilities.Pixel_Motif.CONST_BUSY_ICONS`, `Busy_Cells`). *Corrected 2026-10-18:* the camera (11 × 8) and the
+  magnifier (10 × 10) were drawings of their own; they are the architecture diagram's 12 × 12 camera and magnifier
+  now, from the one set (`CONST_PIXEL_ICONS`, cycles in `CONST_BUSY_STEPS`), centred on their ink, with the blinking
+  lens a 2 × 2 centre and the glint the same three cells (*Every icon is a pixel icon from one set*). A camera while connecting and capturing blinks its
   lens (600 ms); a magnifier while preparing and analysing moves a glint across its lens (360 ms a step, then a
   rest). Unlit cells are the purple at 18 %. The capture runs on the GUI thread, so its camera stays still. *Corrected
   2026-10-16:* the scan runs on a worker now (*The live preview is a worker that drops frames…*), so its camera blinks
@@ -5047,3 +5053,55 @@ theme had no grey in between: `#817A8A` (the mask outline) is 4.13:1 but only 1.
 Tests `test/UI/test_trends_view.py::test_every_series_in_both_charts_has_one_line_width_and_one_marker_size`,
 `::test_each_legend_sample_has_the_width_and_marker_size_of_its_line`, `::test_the_two_means_are_told_apart_when_they_are_equal`,
 `::test_a_run_mean_marker_is_hollow_and_shows_the_card_inside`, `::test_the_confidence_chart_draws_only_the_frame_and_run_means`.
+
+## Every icon is a pixel icon from one set
+
+Decided 2026-10-18, on the owner's request. The application and the README's architecture diagram draw their icons from
+one set, `UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS`: each a 12 × 12 grid in the JIC Smart Factory guide's pixel style,
+`'#'` a filled cell. The diagram's generator reads it (`Pixel_Motif.Icon_Cells`), and so does the window: a card head's
+icon (`UI.Widgets.Icon_Cls`) is its cells as whole 2 px squares, 24 px, in the brand purple `#640ABA`, never
+antialiased; the state markers and the busy overlay draw the set's camera and magnifier (`Busy_Cells`), whose
+animation cells are digits that a still drawing leaves empty. The diagram's grids moved into the set unchanged, and the
+regenerated diagram is byte-identical (SHA-256 `4795d42c…` before and after).
+
+| Where | Was | Now |
+|---|---|---|
+| Camera View head | a stroked camera, 22 px | `camera` |
+| Scene Understanding head | a stroked open book (`reading`) | `text` (the diagram's *Describe*) |
+| Trends: Detected objects | the book | `magnifier` (the diagram's *Find objects*) |
+| Trends: Confidence | the book | `gauge`, **new** |
+| History: Captures | the book | `folder` (the diagram's *Records*) |
+| History: Capture set | the stroked camera | `image` (a stored frame, not the live camera) |
+| Log: Session log | the book | `log`, **new** |
+| Configuration dialog title | no icon | `gear` (the diagram's *Mode*) |
+| Model-set pill | a stroked cube, 15 px, grey | `model`, **new**, 12 px (1 px cells), in the pill's grey |
+| SCANNING… marker, busy overlay | an 11 × 8 camera of its own | `camera` |
+| ANALYZING… marker, a close's overlay | a 10 × 10 magnifier of its own | `magnifier` |
+
+**Why.** Two drawings of one icon drift: the stroked heads were in another style than the brand's, and the busy camera
+and magnifier were drawn a second time beside the diagram's. One set, read by both, cannot drift, and the tests below
+fail on a second drawing. The three new icons (`gauge`, `log`, `model`) cover meanings the diagram had none for, on the
+same grid and in the same style; a log is lines with a short stamp before each, so it is told from `text`.
+
+**Crisp.** A cell is a whole number of logical pixels (2 in a head, 1 in the pill, 2 in a marker, 5 on the overlay) on a
+whole-pixel origin, so at a device pixel ratio of 2 each cell is a whole square of device pixels: an icon renders in
+exactly two colours, its ground and its ink, at 1x and at 2x.
+
+**Aligned as before.** Measured on the window's grabs, the stroked 22 px icons' ink centred 1.5 to 2.0 px above the
+title's capitals. A 24 px pixel icon centred in the head sat 2.5 px above (its ink is in rows 1 to 9 of 12), so a head's
+icon drops 1 px (`Icon_Cls.CONST_HEAD_DROP`, its 2 px top margin): 1.5 px now, every head. The dialog's gear fills all
+12 rows and centres on its title's capitals.
+
+**Not changed.** The footer's motif and the empty view's corner cluster are patterns, not icons; they were already in
+`Pixel_Motif`, read by the diagram's funding band and the window. The Configuration dialog's in-force dot and History's
+state swatches are markers of a state's colour, not icons of a meaning, and stay as they were. The state marker grew a
+few pixels wider, the width of its widest state with the new icons.
+
+**Revisit if** an icon's meaning is misread at the console, a head gains an icon the set does not have (add it to the
+set, never draw it in place), or the heads' type size changes (the 1 px drop is measured for the 15.5 pt title).
+Tests `test/UI/test_pixel_icons.py` (`test_every_icon_in_the_window_comes_from_the_shared_set`,
+`test_every_icon_is_crisp_at_1x_and_at_a_device_pixel_ratio_of_2`, `test_the_diagram_draws_its_icons_from_the_shared_set`),
+`test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output`,
+`::test_the_diagram_icons_are_twelve_by_twelve_pixel_grids`,
+`test/UI/test_busy_overlay.py::test_the_task_icon_is_painted_cell_for_cell_in_the_purple_above_the_step`,
+`test/UI/test_pixel_motif.py::test_a_busy_icon_animates_only_its_step_cells`.

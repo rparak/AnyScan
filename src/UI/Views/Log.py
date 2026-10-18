@@ -149,7 +149,7 @@ class Log_View_Cls(Card_Cls):
             and the level filter (the console's one segmented-control look).
         """
 
-        head = Card_Head_Cls('reading', 'Session log')
+        head = Card_Head_Cls('log', 'Session log')
 
         # The 'new lines' indicator — shown only while scrolled up; clicking it jumps to the
         # bottom and resumes following.

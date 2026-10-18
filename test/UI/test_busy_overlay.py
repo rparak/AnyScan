@@ -37,7 +37,7 @@ from PyQt5.QtWidgets import QApplication
 # Custom Lib.: AnyScan UI — the viewport, the busy icons and the style tokens
 #   ../UI/Widgets, ../UI/Utilities/Pixel_Motif, ../UI/Utilities/Style
 from UI.Widgets import Viewport_Cls
-from UI.Utilities.Pixel_Motif import CONST_BUSY_ICONS
+from UI.Utilities.Pixel_Motif import CONST_PIXEL_ICONS, CONST_BUSY_STEPS
 import UI.Utilities.Style as Style
 
 """
@@ -114,19 +114,27 @@ def test_the_overlay_is_the_grey_lilac_with_the_frame_showing_through(qt_app) ->
 def test_the_task_icon_is_painted_cell_for_cell_in_the_purple_above_the_step(qt_app) -> None:
     """
     Description:
-        The busy view paints the named task's pixel icon in the purple: its solid cells are whole squares of
-        CONST_BUSY_CELL, laid out as the icon's rows, above the line the step is printed on; the camera and the
-        magnifier are different pictures; the step's words are purple and nothing on the overlay is white.
+        The busy view paints the named task's pixel icon of the shared set in the purple: its solid cells are whole
+        squares of CONST_BUSY_CELL, laid out as the icon's rows from its ink (its first marked column and row), above
+        the line the step is printed on and centred on the view across, its ink and not its grid (within half a
+        pixel: 55 px of ink cannot centre exactly on a whole pixel); the camera and the magnifier are different
+        pictures; the step's words are purple and nothing on the overlay is white.
     """
 
     cell = Viewport_Cls.CONST_BUSY_CELL
-    for kind, (rows, _steps, _ticks) in CONST_BUSY_ICONS.items():
+    for kind in CONST_BUSY_STEPS:
+        grid = CONST_PIXEL_ICONS[kind]
+        marked = [(column, row) for row, line in enumerate(grid) for column, mark in enumerate(line) if mark != '.']
+        left_ink, top_ink = min(column for column, _ in marked), min(row for _, row in marked)
+        rows = [line[left_ink:] for line in grid[top_ink:max(row for _, row in marked) + 1]]
+        rows = [line[:max(column for column, _ in marked) + 1 - left_ink] for line in rows]
         viewport = _Viewport(CONST_TABLE)
         viewport.Start_Busy('Connecting to camera…', kind)
         pixels = _Pixels(viewport)
         viewport.Stop_Busy()
         left, top, right, bottom = _Icon_Box(pixels)
         assert (right - left, bottom - top) == (len(rows[0]) * cell, len(rows) * cell), kind
+        assert abs((left + right) / 2 - CONST_SIZE[0] / 2) <= 0.5, kind
         assert bottom <= CONST_SIZE[1] // 2 + 14, kind                             # above the step's line
         for row, line in enumerate(rows):
             for column, mark in enumerate(line):

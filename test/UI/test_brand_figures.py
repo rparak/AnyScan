@@ -48,6 +48,9 @@ import Parameters.Theme as Theme
 # Custom Lib.: AnyScan UI — the logo loader the top bar uses
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
+# Custom Lib.: AnyScan UI — the one set of pixel icons the diagram and the application draw
+#   ../UI/Utilities/Pixel_Motif
+from UI.Utilities.Pixel_Motif import CONST_PIXEL_ICONS, CONST_BUSY_STEPS
 # Custom Lib.: AnyScan UI — the console's funding band, whose logos the diagram must carry
 #   ../UI/Widgets
 from UI.Widgets import Funding_Row_Cls
@@ -466,16 +469,19 @@ def test_the_live_tagline_is_the_logos() -> None:
 def test_the_diagram_icons_are_twelve_by_twelve_pixel_grids() -> None:
     """
     Description:
-        Every card icon in the diagram is a 12 x 12 grid of '#' and '.', in the JIC Smart Factory guide's pixel style,
-        drawn at whole-pixel cells (CONST_ICON_SIZE a multiple of 12), so no square smears across a pixel edge.
+        Every pixel icon of the shared set the diagram draws (UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS) is a
+        12 x 12 grid of '#' and '.', in the JIC Smart Factory guide's pixel style, drawn at whole-pixel cells
+        (CONST_ICON_SIZE a multiple of 12), so no square smears across a pixel edge; only a busy icon
+        (CONST_BUSY_STEPS) also marks animation cells, with digits, which the diagram leaves empty.
     """
 
     spec = importlib.util.spec_from_file_location('architecture_diagram', CONST_GENERATOR)
     generator = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generator)
     assert generator.CONST_ICON_SIZE % 12 == 0
-    for name, grid in generator.CONST_ICONS.items():
-        assert len(grid) == 12 and all(len(row) == 12 and set(row) <= {'#', '.'} for row in grid), name
+    for name, grid in CONST_PIXEL_ICONS.items():
+        marks = {'#', '.'} | (set('123456789') if name in CONST_BUSY_STEPS else set())
+        assert len(grid) == 12 and all(len(row) == 12 and set(row) <= marks for row in grid), name
         assert any('#' in row for row in grid), name
 
 

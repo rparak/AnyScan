@@ -43,7 +43,8 @@ from UI.Utilities.Style import Font, Hairline
 from UI.Utilities.Grid_Fit import CONST_THIN_PX, Fit_Svg
 # Custom Lib.: AnyScan UI — the brand's pixel motif for the funding band (Qt-free)
 #   ../UI/Utilities/Pixel_Motif
-from UI.Utilities.Pixel_Motif import Motif_Cells, Corner_Cells, Busy_Cells, Grid_Shape, Wave_Diagonals
+from UI.Utilities.Pixel_Motif import (Motif_Cells, Corner_Cells, Busy_Cells, Icon_Cells, Grid_Shape, Wave_Diagonals,
+                                     CONST_ICON_GRID)
 # Custom Lib.: AnyScan domain — the confidence thresholds the object list colours numbers by
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str, Heatmap_Str
@@ -209,76 +210,78 @@ class Card_Cls(QFrame):
 class Icon_Cls(QWidget):
     """
     Description:
-        The three stroked icons the card heads use, hand-painted rather than
-        shipped as files — three shapes do not justify an asset pipeline, and
-        painting them keeps the stroke weight tied to the size.
+        A pixel icon of the brand's one set (UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS, the set the architecture
+        diagram draws too): its filled cells as whole squares of `cell` logical pixels, never antialiased, so every
+        cell stays a crisp square at 1x and at a device pixel ratio of 2. The widget is the icon's whole 12-cell
+        square, so a layout aligns every icon alike whatever its ink.
     """
 
-    def __init__(self, kind: str, size: int = 22, color: str = Style.CONST_INK,
+    # The card heads' cell: 12 cells of 2 px, a 24 px icon beside the 15.5 pt title.
+    #   Unit [px]
+    CONST_HEAD_CELL = 2
+    # The head icon's top margin in its layout cell, which drops the icon 1 px below the title's centre: measured on
+    # the window's grabs, an icon's ink then centres 1.5 px above the title's capitals, as the stroked 22 px icons did
+    # (1.5 to 2.0 px); centred without it, 2.5 px.
+    #   Unit [px]
+    CONST_HEAD_DROP = 2
+
+    def __init__(self, name: str, cell: int = CONST_HEAD_CELL, color: str = Style.CONST_INK,
                  parent: tp.Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         # << PRIVATE >> #
-        self.__kind = kind
+        self.__name = name
+        self.__cells = Icon_Cells(name)
+        self.__cell = cell
         self.__color = color
 
-        self.setFixedSize(size, size)
+        self.setFixedSize(CONST_ICON_GRID * cell, CONST_ICON_GRID * cell)
+
+    def Name(self) -> str:
+        """
+        Description:
+            The icon drawn: its key in Pixel_Motif.CONST_PIXEL_ICONS.
+
+        Returns:
+            (1) parameter [string]: The key.
+        """
+
+        return self.__name
+
+    @classmethod
+    def Head_Layout(cls, name: str) -> QVBoxLayout:
+        """
+        Description:
+            A head's icon in its layout cell, dropped CONST_HEAD_DROP so it sits on the title as the card heads' icons
+            do: for a card head and for a dialog's title.
+
+        Args:
+            (1) name [string]: The icon, a key of Pixel_Motif.CONST_PIXEL_ICONS.
+
+        Returns:
+            (1) parameter [QVBoxLayout(object)]: The layout holding the icon.
+        """
+
+        box = QVBoxLayout()
+        box.setContentsMargins(0, cls.CONST_HEAD_DROP, 0, 0)
+        box.addWidget(cls(name))
+        return box
 
     # << QT OVERRIDE >> #
     def paintEvent(self, event: QPaintEvent) -> None:
         """
         Description:
-            Paint the stroked icon selected by kind at the widget's size.
+            Fill the icon's cells in its colour, each a whole square of the cell size.
+
+        Args:
+            (1) event [QPaintEvent(object)]: Unused: the whole icon is repainted.
         """
 
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        s = self.width() / 24.0
-        pen = QPen(QColor(self.__color), 1.7 * s)
-        pen.setCapStyle(Qt.RoundCap)
-        pen.setJoinStyle(Qt.RoundJoin)
-        p.setPen(pen)
-        p.setBrush(Qt.NoBrush)
-
-        def _Rect(x: float, y: float, w: float, h: float) -> QRectF:
-            """
-            Description:
-                A rectangle in the 24-unit icon grid, scaled to the widget.
-
-            Args:
-                (1 - 4) x, y, w, h [float]: The rectangle in icon units.
-
-            Returns:
-                (1) parameter [QRectF(object)]: The rectangle in widget pixels.
-            """
-
-            return QRectF(x * s, y * s, w * s, h * s)
-
-        if self.__kind == 'camera':
-            p.drawRect(_Rect(2, 6, 20, 14))
-            p.drawLine(QPoint(int(9.5 * s), int(6 * s)), QPoint(int(11 * s), int(4 * s)))
-            p.drawLine(QPoint(int(14.5 * s), int(6 * s)), QPoint(int(13 * s), int(4 * s)))
-            p.drawLine(QPoint(int(11 * s), int(4 * s)), QPoint(int(13 * s), int(4 * s)))
-            p.drawEllipse(_Rect(8.4, 9.4, 7.2, 7.2))
-        elif self.__kind == 'reading':
-            p.drawRect(_Rect(4, 4, 16, 16))
-            p.drawLine(QPoint(int(12 * s), int(4 * s)), QPoint(int(12 * s), int(20 * s)))
-            for y in (9, 12.5):
-                p.drawLine(QPoint(int(7 * s), int(y * s)), QPoint(int(9.5 * s), int(y * s)))
-                p.drawLine(QPoint(int(14.5 * s), int(y * s)), QPoint(int(17 * s), int(y * s)))
-        elif self.__kind == 'cube':
-            path = QPainterPath()
-            path.moveTo(12 * s, 3 * s)
-            path.lineTo(20 * s, 7 * s)
-            path.lineTo(20 * s, 17 * s)
-            path.lineTo(12 * s, 21 * s)
-            path.lineTo(4 * s, 17 * s)
-            path.lineTo(4 * s, 7 * s)
-            path.closeSubpath()
-            p.drawPath(path)
-            p.drawLine(QPoint(int(4 * s), int(7 * s)), QPoint(int(12 * s), int(11 * s)))
-            p.drawLine(QPoint(int(20 * s), int(7 * s)), QPoint(int(12 * s), int(11 * s)))
-            p.drawLine(QPoint(int(12 * s), int(11 * s)), QPoint(int(12 * s), int(21 * s)))
+        p.setRenderHint(QPainter.Antialiasing, False)
+        color = Style.Token_Color(self.__color)
+        for column, row in self.__cells:
+            p.fillRect(column * self.__cell, row * self.__cell, self.__cell, self.__cell, color)
         p.end()
 
 
@@ -635,7 +638,7 @@ class State_Marker_Cls(QWidget):
         mark; its icon's timer runs only while an icon shows.
     """
 
-    # Each state's words and pixel icon (a key of Pixel_Motif.CONST_BUSY_ICONS, or None).
+    # Each state's words and pixel icon (a key of Pixel_Motif.CONST_BUSY_STEPS, or None).
     #   Unit [Dict<string, Tuple<string, string or None>>]
     CONST_STATES = {'preview': ('●  LIVE PREVIEW', None),
                     'scan': ('SCANNING…', 'camera'),
@@ -800,7 +803,7 @@ class Card_Head_Cls(QWidget):
         or None) and `badges` (the Badge_Row_Cls, or None) so the window can drive them.
     """
 
-    def __init__(self, icon_kind: str, title: str, badge_text: tp.Optional[str] = None,
+    def __init__(self, icon: str, title: str, badge_text: tp.Optional[str] = None,
                  parent: tp.Optional[QWidget] = None, badge_row: bool = False) -> None:
         super().__init__(parent)
         # `box` is exposed so the window can add a right-aligned control (e.g. the
@@ -808,7 +811,7 @@ class Card_Head_Cls(QWidget):
         self.box = QHBoxLayout(self)
         self.box.setContentsMargins(2, 2, 2, 14)
         self.box.setSpacing(10)
-        self.box.addWidget(Icon_Cls(icon_kind))
+        self.box.addLayout(Icon_Cls.Head_Layout(icon))
         label = QLabel(title)
         label.setFont(Font(15.5, QFont.Bold, tracking=-2))
         label.setStyleSheet('color: %s;' % Style.CONST_INK)
@@ -836,7 +839,7 @@ class Viewport_Cls(QWidget):
     # The cell of the poster's pixel cluster in the empty state's top-right corner.
     #   Unit [px]
     CONST_CORNER_CELL = 16
-    # The cell of the busy overlay's pixel icon: the 11-cell camera is 55 px wide, the 10-cell magnifier 50 px.
+    # The cell of the busy overlay's pixel icon: the camera's ink, 10 cells across, is 50 px wide, the magnifier's 55 px.
     #   Unit [px]
     CONST_BUSY_CELL = 5
 
@@ -865,7 +868,7 @@ class Viewport_Cls(QWidget):
         self.__similarity = None
         self.__similarity_legend = None
         # Busy overlay. __busy shows the scrim, the step text and the pixel icon of the task (__icon, a key of
-        # Pixel_Motif.CONST_BUSY_ICONS); __animated steps the icon, driven by __timer, which runs ONLY while a
+        # Pixel_Motif.CONST_BUSY_STEPS); __animated steps the icon, driven by __timer, which runs ONLY while a
         # worker is busy — a timer left running repaints a static screen forever.
         self.__busy = False
         self.__busy_text = ''
@@ -1217,7 +1220,7 @@ class Viewport_Cls(QWidget):
 
         Args:
             (1) text [string]: The initial step text.
-            (2) icon [string]: The task's pixel icon, a key of Pixel_Motif.CONST_BUSY_ICONS.
+            (2) icon [string]: The task's pixel icon, a key of Pixel_Motif.CONST_BUSY_STEPS.
         """
 
         self.__busy = True

@@ -826,10 +826,10 @@ class Trends_View_Cls(QWidget):
         grid = QGridLayout(self)
         grid.setSpacing(Style.CONST_GAP)
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.addWidget(self.__Chart_Card('Detected objects',
-                                          'Cumulative objects found across the run’s images.',
+        grid.addWidget(self.__Chart_Card('magnifier', 'Detected objects',
+                                         'Cumulative objects found across the run’s images.',
                                           self.__Build_Objects_Chart()), 0, 0)
-        grid.addWidget(self.__Chart_Card('Confidence',
+        grid.addWidget(self.__Chart_Card('gauge', 'Confidence',
                                          'The mean confidence of each image and the running mean of the run.',
                                          self.__Build_Confidence_Chart()), 1, 0)
         grid.setRowStretch(0, 1)
@@ -861,23 +861,24 @@ class Trends_View_Cls(QWidget):
         self.__confidence_chart = Confidence_Chart_Cls()
         return self.__confidence_chart
 
-    def __Chart_Card(self, title: str, subtitle: str, chart: QWidget) -> Card_Cls:
+    def __Chart_Card(self, icon: str, title: str, subtitle: str, chart: QWidget) -> Card_Cls:
         """
         Description:
             One chart wrapped in the console's card chrome — a head with the title and a one-line
             subtitle above the chart canvas.
 
         Args:
-            (1) title [string]: The card title.
-            (2) subtitle [string]: The one-line description under the title.
-            (3) chart [QWidget(object)]: The chart canvas.
+            (1) icon [string]: The head's pixel icon, a key of Pixel_Motif.CONST_PIXEL_ICONS.
+            (2) title [string]: The card title.
+            (3) subtitle [string]: The one-line description under the title.
+            (4) chart [QWidget(object)]: The chart canvas.
 
         Returns:
             (1) parameter [Card_Cls(object)]: The chart card.
         """
 
         card = Card_Cls()
-        card.box.addWidget(Card_Head_Cls('reading', title))
+        card.box.addWidget(Card_Head_Cls(icon, title))
         note = QLabel(subtitle)
         note.setFont(Font(Style.CONST_TYPE_SCALE[1]))
         note.setStyleSheet('color: %s; padding: 0 2px 8px 2px;' % Style.CONST_INK_MUTE)

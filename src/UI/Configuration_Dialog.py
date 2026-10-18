@@ -35,7 +35,7 @@ from PyQt5.QtWidgets import (QDialog, QWidget, QLabel, QListWidget, QListWidgetI
 import UI.Utilities.Style as Style
 from UI.Utilities.Style import Font
 #   ../UI/Widgets
-from UI.Widgets import Tool_Button_Cls
+from UI.Widgets import Tool_Button_Cls, Icon_Cls
 #   ../UI/Workers
 from UI.Workers import Model_Load_Worker_Cls, Join_Worker_Thread
 # Custom Lib.: AnyScan — the configuration layer (the one reader of a configuration file)
@@ -179,10 +179,17 @@ class Configuration_Dialog_Cls(QDialog):
         # The dialog follows its content's height as the message appears and wraps.
         box.setSizeConstraint(QLayout.SetMinAndMaxSize)
 
+        # The title carries the configuration's pixel icon, the gear the architecture diagram draws for a mode, as a
+        # card head carries its icon: the same size, the same gap, centred on the title.
+        title_row = QHBoxLayout()
+        title_row.setSpacing(10)
+        title_row.addLayout(Icon_Cls.Head_Layout('gear'))
         title = QLabel('Configuration')
         title.setFont(Font(Style.CONST_TYPE_SCALE[4], QFont.DemiBold))
         title.setStyleSheet('color: %s;' % Style.CONST_INK)
-        box.addWidget(title)
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        box.addLayout(title_row)
 
         self.__list = QListWidget()
         self.__list.setFont(Font(Style.CONST_TYPE_SCALE[2]))

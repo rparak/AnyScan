@@ -46,9 +46,9 @@ import UI.Utilities.Style as Style
 # Custom Lib.: AnyScan UI — the console's funding band, whose logos and disclaimer the diagram repeats
 #   ../UI/Widgets
 from UI.Widgets import Funding_Row_Cls
-# Custom Lib.: AnyScan UI — the band's pixel motif (Qt-free)
+# Custom Lib.: AnyScan UI — the band's pixel motif and the pixel icons the application draws too (Qt-free)
 #   ../../src/UI/Utilities/Pixel_Motif
-from UI.Utilities.Pixel_Motif import Motif_Cells
+from UI.Utilities.Pixel_Motif import Motif_Cells, Icon_Cells, CONST_ICON_GRID
 
 """
 Description:
@@ -64,7 +64,8 @@ Description:
     and the catalogue item and the reference); and the records the application writes and reads back. No
     class, model or product names, no configuration fields, no number; README > Detection logic and
     docs/capabilities.md have the detail. Each card
-    carries a line icon from CONST_ICONS, drawn here, so the figure needs no icon set or its licence.
+    carries a pixel icon from the application's own set (UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS), so the figure
+    and the console never draw two versions of one icon, and the figure needs no icon set or its licence.
 
     Regenerating is the way to change it; the SVG is never edited by hand. Every colour comes
     from a Parameters/Theme.py token and every size from the console's type scale, so the
@@ -127,44 +128,8 @@ CONST_DIVIDER_WIDTH = 1.5
 # The top edge of the group of what sets the stages up.
 #   Unit [px]
 CONST_SET_TOP = 938
-# The card icons, in the JIC Smart Factory guide's pixel style (its IKONY pages): each a 12 x 12 grid, one square per
-# '#', drawn in one colour (no icon font, no third-party set, so no licence to carry). They stay legible at 3 px a
-# cell, CONST_ICON_SIZE; at the earlier 28 px line icons' size a cell is 2.33 px and the grid smears.
-#   Unit [Dictionary<string, List<string>>]
-CONST_ICONS = {
-    'camera': ['............', '...####.....', '.##########.', '.#........#.', '.#...##...#.', '.#..#..#..#.',
-               '.#..#..#..#.', '.#...##...#.', '.#........#.', '.##########.', '............', '............'],
-    'magnifier': ['............', '..####......', '.#....#.....', '#......#....', '#......#....', '#......#....',
-                  '#......#....', '.#....#.....', '..####.#....', '........#...', '.........#..', '..........#.'],
-    'text': ['............', '##########..', '............', '##########..', '............', '##########..',
-             '............', '######......', '............', '###.........', '............', '............'],
-    'ruler': ['............', '............', '............', '############', '#.#.#.#.#.##', '#.#...#....#',
-              '#..........#', '############', '............', '............', '............', '............'],
-    'window': ['............', '############', '#..........#', '#.#.#......#', '############', '#..........#',
-               '#..........#', '#..........#', '#..........#', '#..........#', '############', '............'],
-    'focus': ['###......###', '#..........#', '#..........#', '............', '....####....', '....#..#....',
-              '....#..#....', '....####....', '............', '#..........#', '#..........#', '###......###'],
-    'checklist': ['............', '..#.........', '.#..........', '#.#..######.', '............', '............',
-                  '..#.........', '.#..........', '#.#..######.', '............', '............', '............'],
-    'badge': ['.....##.....', '...##..##...', '.##......##.', '.#........#.', '.#.....#..#.', '.#....#...#.',
-              '.#.#.#....#.', '.#..#.....#.', '..#......#..', '...#....#...', '....#..#....', '.....##.....'],
-    'gear': ['.....##.....', '..#.####.#..', '.##########.', '..###..###..', '.##......##.', '###......###',
-             '###......###', '.##......##.', '..###..###..', '.##########.', '..#.####.#..', '.....##.....'],
-    'station': ['............', '.######.....', '.#....#.....', '.#...####...', '.#...#..#...', '.#...####...',
-                '.#....##....', '.#..........', '.#..........', '.#..........', '############', '............'],
-    'target': ['.....#......', '...#####....', '..#..#..#...', '.#...#...#..', '.#..###..#..', '######.#####',
-               '.#..###..#..', '.#...#...#..', '..#..#..#...', '...#####....', '.....#......', '............'],
-    'area': ['###.####.###', '#..........#', '#..........#', '...######...', '...######...', '#..######..#',
-             '#..######..#', '...######...', '...######...', '#..........#', '#..........#', '###.####.###'],
-    'catalogue': ['............', '####....####', '#...#..#...#', '#....##....#', '#....#.....#', '#....#.....#',
-                  '#....#.....#', '#....#.....#', '#....#.....#', '####.#.####.', '....###.....', '............'],
-    'image': ['............', '############', '#..........#', '#.##.......#', '#.##.......#', '#.......#..#',
-              '#......###.#', '#..#..#####.', '#.##########', '############', '............', '............'],
-    'folder': ['............', '####........', '#...#.......', '#....######.', '#..........#', '#..........#',
-               '#..........#', '#..........#', '#..........#', '############', '............', '............'],
-}
-# The icon's drawn size (12 cells of 3 px) and its inset from a card's right edge; it is centred on the title's
-# capitals.
+# The icon's drawn size (12 cells of 3 px: at the earlier 28 px line icons' size a cell would be 2.33 px and the grid
+# would smear) and its inset from a card's right edge; it is centred on the title's capitals.
 #   Unit [px]
 CONST_ICON_SIZE = 36
 CONST_ICON_INSET = 16
@@ -357,19 +322,18 @@ class Svg_Writer_Cls(object):
     def Icon(self, x: float, y: float, name: str, color: str) -> None:
         """
         Description:
-            One of CONST_ICONS, CONST_ICON_SIZE square, in a Theme colour: one filled path of the grid's squares,
-            drawn with crisp edges so neighbouring squares meet without a seam.
+            A pixel icon of the shared set (Pixel_Motif.Icon_Cells), CONST_ICON_SIZE square, in a Theme colour: one
+            filled path of the grid's squares, drawn with crisp edges so neighbouring squares meet without a seam.
 
         Args:
             (1 - 2) x, y [float]: The top-left corner.
-            (3) name [string]: The key in CONST_ICONS.
+            (3) name [string]: The key in Pixel_Motif.CONST_PIXEL_ICONS.
             (4) color [string]: A Theme colour token.
         """
 
-        grid = CONST_ICONS[name]
-        cell = CONST_ICON_SIZE / len(grid)
+        cell = CONST_ICON_SIZE / CONST_ICON_GRID
         squares = ['M%g %g h%g v%g h-%g Z' % (round(x + column * cell, 2), round(y + row * cell, 2), cell, cell, cell)
-                   for row, line in enumerate(grid) for column, mark in enumerate(line) if mark == '#']
+                   for column, row in Icon_Cells(name)]
         self.Add('<path d="%s" fill="%s" shape-rendering="crispEdges"/>' % (' '.join(squares), color))
 
     def Connector(self, x: float, y1: float, y2: float) -> None:
@@ -411,7 +375,7 @@ class Svg_Writer_Cls(object):
             (1 - 4) x, y, w, h [float]: The position and size.
             (5) title [string]: The block's name.
             (6) lines [List<string>]: What it does, one short line each.
-            (7) icon [string]: The key in CONST_ICONS drawn in the top-right corner, or None.
+            (7) icon [string]: The key in Pixel_Motif.CONST_PIXEL_ICONS drawn in the top-right corner, or None.
         """
 
         S = CONST_SCALE

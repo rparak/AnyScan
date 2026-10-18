@@ -414,7 +414,7 @@ class History_View_Cls(QWidget):
         """
 
         card = Card_Cls()
-        head = Card_Head_Cls('reading', 'Captures')
+        head = Card_Head_Cls('folder', 'Captures')
         self.__filter = Segmented_Control_Cls(CONST_FILTER_SEGMENTS)
         # Each state's segment carries its swatch in the state's frame colour, as the Trends legend does.
         for key, state in CONST_FILTER_STATES.items():
@@ -463,7 +463,7 @@ class History_View_Cls(QWidget):
         """
 
         card = Card_Cls()
-        head = Card_Head_Cls('camera', 'Capture set')
+        head = Card_Head_Cls('image', 'Capture set')
         self.__info_button = QPushButton('ⓘ  Info')
         self.__info_button.setCheckable(True)
         self.__info_button.setCursor(Qt.PointingHandCursor)

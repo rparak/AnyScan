@@ -24,7 +24,7 @@
 # Custom Lib.: AnyScan UI — the funding band's pixel motif (Qt-free)
 #   ../UI/Utilities/Pixel_Motif
 from UI.Utilities.Pixel_Motif import (Motif_Cells, Corner_Cells, Busy_Cells, Grid_Shape, Wave_Diagonals, CONST_POSTER_CORNER,
-                                     CONST_BUSY_ICONS, CONST_WAVE_CROSS_MS, CONST_WAVE_REST_MS)
+                                     CONST_PIXEL_ICONS, CONST_BUSY_STEPS, CONST_WAVE_CROSS_MS, CONST_WAVE_REST_MS)
 
 """
 Description:
@@ -114,23 +114,30 @@ def test_a_busy_icon_animates_only_its_step_cells() -> None:
     Description:
         A task's busy icon keeps every solid cell lit at every tick and lights a step cell only on its own step: the
         camera's lens is lit for 5 ticks and dim for the next 5, and the magnifier's glint crosses its lens over three
-        steps of 3 ticks each, then rests for one.
+        steps of 3 ticks each, then rests for one. The cells are counted from the icon's ink: the camera's first marked
+        column and row are 1 and 1 of its 12 x 12 grid, the magnifier's 0 and 1.
     """
+
+    ink = {'camera': (1, 1), 'magnifier': (0, 1)}
 
     def Lit(kind: str, tick: int) -> set:
         return {(column, row) for column, row, alpha in Busy_Cells(kind, tick, 0.2) if alpha == 1.0}
 
-    for kind, (rows, _steps, _ticks) in CONST_BUSY_ICONS.items():
-        solid = {(column, row) for row, line in enumerate(rows) for column, mark in enumerate(line) if mark == '#'}
-        everything = {(column, row) for row, line in enumerate(rows) for column, mark in enumerate(line) if mark != '.'}
+    assert set(CONST_BUSY_STEPS) == set(ink)
+    for kind in CONST_BUSY_STEPS:
+        rows, (left, top) = CONST_PIXEL_ICONS[kind], ink[kind]
+        solid = {(column - left, row - top) for row, line in enumerate(rows) for column, mark in enumerate(line)
+                 if mark == '#'}
+        everything = {(column - left, row - top) for row, line in enumerate(rows) for column, mark in enumerate(line)
+                      if mark != '.'}
         for tick in range(24):
             assert solid <= Lit(kind, tick), (kind, tick)
             assert {(column, row) for column, row, _ in Busy_Cells(kind, tick, 0.2)} == everything
-    lens = (5, 4)
+    lens = (4, 4)
     assert [lens in Lit('camera', tick) for tick in (0, 4, 5, 9, 10)] == [True, True, False, False, True]
     glint = {1: (2, 2), 2: (3, 3), 3: (4, 4)}
     for tick, expected in ((0, glint[1]), (3, glint[2]), (6, glint[3])):
-        assert Lit('magnifier', tick) - {(c, r) for r, line in enumerate(CONST_BUSY_ICONS['magnifier'][0])
+        assert Lit('magnifier', tick) - {(c, r - 1) for r, line in enumerate(CONST_PIXEL_ICONS['magnifier'])
                                          for c, mark in enumerate(line) if mark == '#'} == {expected}, tick
     assert not set(glint.values()) & Lit('magnifier', 9)                       # the fourth step rests
 

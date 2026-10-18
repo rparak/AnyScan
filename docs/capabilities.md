@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `f7d1ab0` (2026-10-18).
+Last reviewed against the code at commit `cf09e0b` (2026-10-18).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -224,6 +224,13 @@ The central area switches between four views. The header carries the logo, the m
 the camera pill (*Camera connected* or *Camera offline*; "live" names only the preview). The control column holds the buttons above. The status strip along the bottom
 shows Camera, Resolution, System, Last update, Images analysed, Objects detected, Inference (run
 median) and Confidence (run mean).
+
+Every icon is a pixel icon from one set, the set the README's architecture diagram draws, in the brand purple and
+square cells of whole pixels, so it stays crisp on a 1x and a 2x screen. A card head carries one before its title:
+Camera View a camera, Scene Understanding lines of text, Detected objects a magnifier, Confidence a gauge, Captures a
+folder, Capture set an image, Session log a log, and the Configuration dialog's title a gear; the model-set pill
+carries a small cube in its grey. The state markers and the busy overlay draw the same set's camera and magnifier
+([*Every icon is a pixel icon from one set*](design-decisions.md#every-icon-is-a-pixel-icon-from-one-set)).
 
 ### Live
 
@@ -463,7 +470,8 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
   outlines within tolerance with the item's reference frames (found by content) apart.
 - `Vision/evaluate_describer.py` — score the descriptions against the test set's answer key. The current set
   (`Data/Images/Test`) has none yet, so it cannot run until one is written.
-- `UI/architecture_diagram.py`, `UI/build_logo.py`, `UI/build_fonts.py` — rebuild the README diagram, derive
+- `UI/architecture_diagram.py`, `UI/build_logo.py`, `UI/build_fonts.py` — rebuild the README diagram (its icons
+  from the application's own pixel icon set), derive
   the application's copies of the delivered logo (the logo without its tagline, the mark, and the icon: the mark on a
   transparent ground, grid-fitted at each of 16-256 px), and build the
   bundled fonts (Public Sans and JetBrains Mono).

@@ -555,7 +555,7 @@ class AnyScan_Window_Cls(QMainWindow):
         pill_row = QHBoxLayout(model_pill)
         pill_row.setContentsMargins(12, 0, 12, 0)
         pill_row.setSpacing(7)
-        pill_row.addWidget(Icon_Cls('cube', 15, Style.CONST_INK_MUTE))
+        pill_row.addWidget(Icon_Cls('model', 1, Style.CONST_INK_MUTE))
         self.__label_model_name = QLabel(Style.CONST_NO_VALUE)
         self.__label_model_name.setFont(Font(9, QFont.DemiBold))
         self.__label_model_name.setStyleSheet('color: %s;' % Style.CONST_INK_MUTE)
@@ -666,7 +666,7 @@ class AnyScan_Window_Cls(QMainWindow):
         """
 
         card = Card_Cls()
-        head = Card_Head_Cls('reading', 'Scene Understanding', badge_row=True)
+        head = Card_Head_Cls('text', 'Scene Understanding', badge_row=True)
         self.__stage_badges = head.badges
         card.box.addWidget(head)
 

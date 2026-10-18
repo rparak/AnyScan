@@ -772,10 +772,11 @@ def test_the_scan_shows_its_fresh_frames_under_the_scanning_marker_without_a_scr
     assert marker.isVisible() and marker.Text() == 'SCANNING…'
     block = _Grab(marker)
     assert _Is(block, Theme.CONST_INK, 2).mean() > 0.5
-    # The icon first: its 11 cells of 2 px make an unbroken run of white columns, which no letter makes.
+    # The icon first, in the block's left quarter: the shared set's camera, 10 cells of 2 px across its ink, makes an
+    # unbroken run of 20 white columns, which no letter makes.
     white = np.flatnonzero(_Is(block, Theme.CONST_ON_INK, 2).any(axis=0))
     run = np.argmax(np.diff(white) != 1) + 1 if white.size > 1 else white.size
-    assert white.size and white[0] < 16 and run >= 18, white[:40]
+    assert white.size and white[0] < block.shape[1] // 4 and run == 20, white[:40]
     _Idle(window)
 
 

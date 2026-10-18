@@ -247,6 +247,24 @@ practices followed inconsistently are under **Unsettled**.
 - ✅ `test/Parameters/test_theme.py::test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_floors`,
   `::test_label_mask_fill_is_a_visible_tint_of_its_box`.
 
+## Every icon is a pixel icon from one set ✅
+
+- An icon is a 12 × 12 grid of the brand's pixel set, `UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS`, the set the README's
+  architecture diagram draws too. It is never drawn in place: a card head takes `Card_Head_Cls(<name>, title)`, a
+  dialog's title `Icon_Cls.Head_Layout(<name>)`, anything else `Icon_Cls(<name>, cell, colour)`. An icon the set lacks
+  is designed on the same grid, in the same style, and added to the set (DD *Every icon is a pixel icon from one set*).
+- Cells are whole logical pixels, never antialiased: 2 px in a head (24 px, beside the 15.5 pt title), 1 px in the
+  model pill, 2 px in the state marker, 5 px on the busy overlay. At a device pixel ratio of 2 each cell is then a whole
+  square of device pixels.
+- An icon is the brand purple `CONST_INK` (`#640ABA`); the model pill's is its grey, as the pill's words are.
+- A head's icon is the whole 12-cell square, so every head aligns alike whatever the ink, dropped 1 px
+  (`Icon_Cls.CONST_HEAD_DROP`) so its ink centres 1.5 px above the title's capitals, as the stroked icons did.
+- An animated icon (the camera, the magnifier) marks its animation cells with digits in the same grid; a still
+  drawing leaves them empty, and `Busy_Cells` centres it on its ink.
+- ✅ `test/UI/test_pixel_icons.py` reads every icon off the window's and the dialog's grabs against the set and the
+  meaning approved for its place, renders every icon at 1x and at DPR 2 (two colours, whole cells), and decodes the
+  committed diagram's icons back to the set.
+
 ## Unsettled
 
 - **Chrome type sizes.** 32 chrome `Font(...)` calls use literal sizes, most of them off the scale

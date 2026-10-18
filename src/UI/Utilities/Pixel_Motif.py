@@ -38,8 +38,10 @@ Description:
     of its row and its column from the edge falls under the fill chance at that column, which falls linearly from
     `fill` at the edge to nothing `reach` cells in. No cell touches a keep-out span (each logo with its clear space).
     Corner_Cells places the AnyScan poster's own corner cluster (CONST_POSTER_CORNER) at a corner of a widget.
-    Busy_Cells gives the cells of the busy overlay's pixel icons (CONST_BUSY_ICONS) at an animation tick, and
-    Grid_Shape and Wave_Diagonals lay out the analysis grid and its wave (CONST_WAVE_*).
+    CONST_PIXEL_ICONS is the one set of pixel icons, read by the application and by the architecture diagram's
+    generator (Example/UI/architecture_diagram.py): Icon_Cells gives an icon's cells drawn still, Busy_Cells the cells
+    of a busy icon (CONST_BUSY_STEPS) at an animation tick. Grid_Shape and Wave_Diagonals lay out the analysis grid and
+    its wave (CONST_WAVE_*).
 
     Qt-free.
 """
@@ -127,39 +129,90 @@ def Corner_Cells(right: int, top: int, cell: int) -> tp.List[tp.Tuple[int, int, 
             for row, line in enumerate(CONST_POSTER_CORNER) for column, mark in enumerate(line) if mark != '.']
 
 
-# The busy overlay's pixel icons (docs/design-decisions.md, "The busy overlay is the Camera View's grey-lilac"), in the
-# brand's style: whole cells on a square grid, also drawn small in the Camera View head's state marker. A task icon is
-# drawn row by row: '#' a cell always lit, a digit d a cell lit only on step d - 1 of the icon's cycle (dim otherwise),
-# '.' empty. The camera (connecting, scanning) blinks its lens; the magnifier (analysing, a close stopping an analysis)
-# moves a glint across its lens.
-#   Unit [Dict<string, Tuple<Tuple<string>, int, int>>] (rows, steps in a cycle, ticks per step)
-CONST_BUSY_ICONS = {
-    'camera': (('...###.....',
-                '###########',
-                '####...####',
-                '###.....###',
-                '###..1..###',
-                '###.....###',
-                '####...####',
-                '###########'), 2, 5),
-    'magnifier': (('.#####....',
-                   '#.....#...',
-                   '#.1...#...',
-                   '#..2..#...',
-                   '#...3.#...',
-                   '#.....#...',
-                   '.#####....',
-                   '......##..',
-                   '.......##.',
-                   '........##'), 4, 3)}
+# The brand's pixel icons, the ONE set the application and the architecture diagram draw (docs/design-decisions.md,
+# "Every icon is a pixel icon from one set"): in the JIC Smart Factory guide's pixel style (its IKONY pages), each a
+# 12 x 12 grid read row by row, one square cell per mark, drawn in one colour (no icon font, no third-party set, so no
+# licence to carry). '#' is a cell every drawing fills, '.' an empty one. A digit d is a cell only the busy icons draw
+# (Busy_Cells), lit on step d - 1 of the icon's cycle and dim otherwise; a still drawing (Icon_Cells, the diagram, a
+# card head) leaves it empty: the camera's lens centre blinks, the magnifier's glint crosses its lens. Drawn at a whole
+# number of pixels a cell (CONST_ICON_GRID), so every cell stays a crisp square at 1x and at a device pixel ratio of 2.
+# gauge, log and model were added for the application (2026-10-18): the diagram had no icon for a confidence, a log
+# or a model.
+#   Unit [Dict<string, Tuple<string>>]
+CONST_PIXEL_ICONS = {
+    'camera': ('............', '...####.....', '.##########.', '.#........#.', '.#...##...#.', '.#..#11#..#.',
+               '.#..#11#..#.', '.#...##...#.', '.#........#.', '.##########.', '............', '............'),
+    'magnifier': ('............', '..####......', '.#....#.....', '#.1....#....', '#..2...#....', '#...3..#....',
+                  '#......#....', '.#....#.....', '..####.#....', '........#...', '.........#..', '..........#.'),
+    'text': ('............', '##########..', '............', '##########..', '............', '##########..',
+             '............', '######......', '............', '###.........', '............', '............'),
+    'ruler': ('............', '............', '............', '############', '#.#.#.#.#.##', '#.#...#....#',
+              '#..........#', '############', '............', '............', '............', '............'),
+    'window': ('............', '############', '#..........#', '#.#.#......#', '############', '#..........#',
+               '#..........#', '#..........#', '#..........#', '#..........#', '############', '............'),
+    'focus': ('###......###', '#..........#', '#..........#', '............', '....####....', '....#..#....',
+              '....#..#....', '....####....', '............', '#..........#', '#..........#', '###......###'),
+    'checklist': ('............', '..#.........', '.#..........', '#.#..######.', '............', '............',
+                  '..#.........', '.#..........', '#.#..######.', '............', '............', '............'),
+    'badge': ('.....##.....', '...##..##...', '.##......##.', '.#........#.', '.#.....#..#.', '.#....#...#.',
+              '.#.#.#....#.', '.#..#.....#.', '..#......#..', '...#....#...', '....#..#....', '.....##.....'),
+    'gear': ('.....##.....', '..#.####.#..', '.##########.', '..###..###..', '.##......##.', '###......###',
+             '###......###', '.##......##.', '..###..###..', '.##########.', '..#.####.#..', '.....##.....'),
+    'station': ('............', '.######.....', '.#....#.....', '.#...####...', '.#...#..#...', '.#...####...',
+                '.#....##....', '.#..........', '.#..........', '.#..........', '############', '............'),
+    'target': ('.....#......', '...#####....', '..#..#..#...', '.#...#...#..', '.#..###..#..', '######.#####',
+               '.#..###..#..', '.#...#...#..', '..#..#..#...', '...#####....', '.....#......', '............'),
+    'area': ('###.####.###', '#..........#', '#..........#', '...######...', '...######...', '#..######..#',
+             '#..######..#', '...######...', '...######...', '#..........#', '#..........#', '###.####.###'),
+    'catalogue': ('............', '####....####', '#...#..#...#', '#....##....#', '#....#.....#', '#....#.....#',
+                  '#....#.....#', '#....#.....#', '#....#.....#', '####.#.####.', '....###.....', '............'),
+    'image': ('............', '############', '#..........#', '#.##.......#', '#.##.......#', '#.......#..#',
+              '#......###.#', '#..#..#####.', '#.##########', '############', '............', '............'),
+    'folder': ('............', '####........', '#...#.......', '#....######.', '#..........#', '#..........#',
+               '#..........#', '#..........#', '#..........#', '############', '............', '............'),
+    'gauge': ('............', '...######...', '..#......#..', '.#........#.', '#.......#..#', '#......#...#',
+              '#.....#....#', '#....##....#', '#....##....#', '############', '............', '............'),
+    'log': ('............', '###.#######.', '............', '###.#####...', '............', '###.########',
+            '............', '###.######..', '............', '###.####....', '............', '............'),
+    'model': ('.....#......', '...##.##....', '.##.....##..', '#.##...##.#.', '#...###...#.', '#....#....#.',
+              '#....#....#.', '#....#....#.', '#....#....#.', '.##..#..##..', '...##.##....', '.....#......')}
+# The side of every icon's grid.
+#   Unit [int] (cells)
+CONST_ICON_GRID = 12
+# The busy icons (docs/design-decisions.md, "The busy overlay is the Camera View's grey-lilac"), drawn large on the busy
+# overlay and small in the Camera View head's state marker: each a key of CONST_PIXEL_ICONS with its cycle. The camera
+# (connecting, scanning) blinks its lens; the magnifier (a close stopping an analysis, the ANALYZING… marker) moves a
+# glint across its lens.
+#   Unit [Dict<string, Tuple<int, int>>] (steps in a cycle, ticks per step)
+CONST_BUSY_STEPS = {'camera': (2, 5), 'magnifier': (4, 3)}
+
+
+def Icon_Cells(name: str) -> tp.List[tp.Tuple[int, int]]:
+    """
+    Description:
+        The filled cells of an icon drawn still (a card head, the diagram): its '#' cells, row by row, at their place in
+        the CONST_ICON_GRID square, so every icon takes the same square whatever its ink.
+
+    Args:
+        (1) name [string]: The icon, a key of CONST_PIXEL_ICONS.
+
+    Returns:
+        (1) parameter [List<Tuple<int, int>>]: Each filled cell's column and row.
+    """
+
+    return [(column, row) for row, line in enumerate(CONST_PIXEL_ICONS[name]) for column, mark in enumerate(line)
+            if mark == '#']
+
+
 def Busy_Cells(kind: str, tick: int, dim: float) -> tp.List[tp.Tuple[int, int, float]]:
     """
     Description:
-        The cells of a task's busy icon (a key of CONST_BUSY_ICONS) at an animation tick, each with its opacity: a '#'
-        cell always lit, a digit cell lit only on its step of the icon's cycle and dim otherwise.
+        The cells of a busy icon (a key of CONST_BUSY_STEPS) at an animation tick, each with its opacity: a '#' cell
+        always lit, a digit cell lit only on its step of the icon's cycle and dim otherwise. The cells are counted from
+        the icon's ink (its first marked column and row), so the icon centres on its ink, not on its grid.
 
     Args:
-        (1) kind [string]: The task's icon, a key of CONST_BUSY_ICONS ('camera', 'magnifier').
+        (1) kind [string]: The task's icon, a key of CONST_BUSY_STEPS ('camera', 'magnifier').
         (2) tick [int]: The animation tick (0 for a static icon).
         (3) dim [float]: The opacity of an unlit cell.
 
@@ -167,10 +220,13 @@ def Busy_Cells(kind: str, tick: int, dim: float) -> tp.List[tp.Tuple[int, int, f
         (1) parameter [List<Tuple<int, int, float>>]: Each cell's column, row and opacity (0..1).
     """
 
-    rows, steps, ticks_per_step = CONST_BUSY_ICONS[kind]
+    steps, ticks_per_step = CONST_BUSY_STEPS[kind]
     step = (tick // ticks_per_step) % steps
-    return [(column, row, 1.0 if mark == '#' or int(mark) - 1 == step else dim)
-            for row, line in enumerate(rows) for column, mark in enumerate(line) if mark != '.']
+    marked = [(column, row, mark) for row, line in enumerate(CONST_PIXEL_ICONS[kind]) for column, mark in enumerate(line)
+              if mark != '.']
+    left, top = min(column for column, _, _ in marked), min(row for _, row, _ in marked)
+    return [(column - left, row - top, 1.0 if mark == '#' or int(mark) - 1 == step else dim)
+            for column, row, mark in marked]
 
 
 # The analysis grid's wave (docs/design-decisions.md, "ANALYZE sweeps a decorative pixel grid over the frame"): square

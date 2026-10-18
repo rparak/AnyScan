@@ -40,7 +40,7 @@ from PyQt5.QtWidgets import QApplication, QWidget
 #   ../UI/Utilities/Style
 import UI.Utilities.Style as Style
 #   ../UI/Widgets
-from UI.Widgets import Icon_Cls, Viewport_Cls
+from UI.Widgets import Viewport_Cls
 #   ../UI/Views/Trends
 from UI.Views.Trends import Trends_View_Cls
 #   ../UI/Views/History
@@ -250,19 +250,3 @@ def test_history_pane_paints_the_message_the_image_and_the_highlight(qt_app, pai
     assert np.array_equal(_Grab(pane), image)
     pane.close()
 
-
-def test_card_icons_paint_each_kind(qt_app, paint_errors) -> None:
-    """
-    Description:
-        Every card-head icon kind paints strokes (more than a bare fill), and the kinds differ.
-    """
-
-    grabs = {}
-    for kind in ('camera', 'reading', 'cube'):
-        icon = Icon_Cls(kind, size=44)
-        icon.show()
-        grabs[kind] = _Grab(icon)
-        icon.close()
-        assert _Centre_Colours(grabs[kind]) > 1, kind
-    assert not np.array_equal(grabs['camera'], grabs['reading'])
-    assert not np.array_equal(grabs['reading'], grabs['cube'])

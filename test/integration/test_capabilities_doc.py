@@ -85,7 +85,7 @@ CONST_REVIEWED_PATHS = ['src', 'App', 'Configuration', 'Example']
 CONST_CARD_HEAD = re.compile(r"Card_Head_Cls\('\w+', '([^']+)'")
 # The Trends chart titles.
 #   Unit [Pattern]
-CONST_CHART_CARD = re.compile(r"__Chart_Card\('([^']+)'")
+CONST_CHART_CARD = re.compile(r"__Chart_Card\('[^']+', '([^']+)'")
 
 
 def Read_Text(path: str) -> str:
