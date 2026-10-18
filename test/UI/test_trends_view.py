@@ -220,32 +220,49 @@ def test_a_catalogue_run_charts_ok_nok_and_warning(qt_app, tmp_path) -> None:
     assert [label for label, _color in chart._legend] == ['Total']
 
 
-def test_the_warning_threshold_line_is_not_the_warning_verdicts_amber(qt_app, reference_background_path) -> None:
+def _Line_Runs(image, y: int, left: int, right: int) -> tp.Tuple[tp.List[int], int]:
+    """Along one pixel row, the lengths of the runs of drawn (darker than the ground) pixels, and their colours' widest
+    channel spread (0 for a pure grey)."""
+    ground = image.pixelColor(left, y - 8).getRgb()[:3]
+    runs, run, spread = [], 0, 0
+    for x in range(left, right):
+        rgb = image.pixelColor(x, y).getRgb()[:3]
+        drawn = sum(ground) - sum(rgb) > 60
+        if drawn:
+            run += 1
+            spread = max(spread, max(rgb) - min(rgb))
+        elif run:
+            runs.append(run)
+            run = 0
+    return runs + ([run] if run else []), spread
+
+
+def test_both_threshold_lines_are_a_neutral_grey_in_two_dash_patterns(qt_app, reference_background_path) -> None:
     """
     Description:
-        The confidence chart's dashed warning-threshold line is painted in the neutral mid ink, not the amber a
-        catalogue mode's Warning dots take, so an amber dot is never read as part of the line (the clash recorded
-        in KNOWN_ISSUES until 2026-10-11): rendered, the chart holds the ink and no amber.
+        The confidence chart's two threshold lines are drawn in a neutral grey from the theme (CONST_DETECTION_INK
+        #655E6D), never a verdict colour (the OK purple, the NOK orange-red, the Warning amber) nor the log's error red
+        (the owner's rule, 2026-10-18), and told apart by their dash: long dashes at the warning threshold, short at the
+        error threshold. Rendered, through the window, along each line's pixel row clear of its label.
     """
 
-    import Parameters.Theme as Theme
+    import statistics
     window = _Window(reference_background_path)
-    for scores in ([0.91, 0.72], [0.88, 0.95]):
+    for scores in ([0.97, 0.95], [0.96, 0.98]):                 # means near 96 %, clear of both lines
         _Private(window, '__On_Analysis_Finished')(_Result(scores))
     view = _Private(window, '__trends_view')
     chart = _Private(view, '__confidence_chart', '_Trends_View_Cls')
-    chart.resize(600, 320)
-    image = chart.grab().toImage().convertToFormat(4)
-    pointer = image.constBits()
-    pointer.setsize(image.byteCount())
-    pixels = np.frombuffer(pointer, np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)[:, :, :3]
-    # By hue, not exact colour: the one-pixel dashed lines are antialiased. Amber (and its blends with the card)
-    # is red well over green well over blue; the error line's deep red has green and blue alike.
-    b, g, r = (pixels.reshape(-1, 3).astype(int)[:, k] for k in range(3))
-    amber = int(((r - g > 40) & (g - b > 30)).sum())
-    ink = int((np.abs(pixels.reshape(-1, 3).astype(int) - np.array(Theme.Hex_To_Bgr(Theme.CONST_INK_SOFT))).max(axis=1)
-               <= 40).sum())
-    assert ink > 0 and amber == 0
+    chart.resize(900, 320)
+    image = chart.grab().toImage()
+    rect = chart._Plot_Rect()
+    lengths = {}
+    for value in (80, 60):
+        y = int(round(chart._Px_Y(value, rect)))
+        runs, spread = max((_Line_Runs(image, yy, int(rect.left()) + 2, int(rect.right()) - 160) for yy in (y - 1, y, y + 1)),
+                           key=lambda found: len(found[0]))
+        assert len(runs) > 20 and spread <= 20, (value, len(runs), spread)
+        lengths[value] = statistics.median(runs)
+    assert lengths[80] >= 5 and lengths[60] <= 3, lengths
 
 
 def _Confidence(frames: tp.List[tp.List[tp.Tuple[float, str]]], width: int = 900, height: int = 320) -> tp.Tuple:
@@ -318,8 +335,11 @@ def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None
                 assert not _Near(image, chart._Px_X(row.Index, rect) + dx, y, Theme.CONST_INK_MUTE, 40), (row.Index, score)
                 assert not _Near(image, chart._Px_X(row.Index, rect) + dx, y, Theme.Detection_Mask_Outline(), 40), (row.Index, score)
     beyond = chart._Px_X(len(rows), rect) + 8
+    # The threshold lines and their labels (a grey near the run mean's) are skipped: their rows and the label above.
+    skipped = {y for value, *_rest in chart._Reference_Labels()
+               for y in range(int(chart._Px_Y(value, rect)) - 17, int(chart._Px_Y(value, rect)) + 3)}
     for x in range(int(beyond), int(rect.right()) - 1):
-        for y in range(int(rect.top()) + 2, int(rect.bottom()) - 2):
+        for y in (y for y in range(int(rect.top()) + 2, int(rect.bottom()) - 2) if y not in skipped):
             colour = image.pixelColor(x, y)
             assert not (_Near(image, x, y, Theme.CONST_INK_MUTE, 30) or _Near(image, x, y, Theme.Detection_Mask_Outline(), 30)), \
                 (x, y, colour.name())
@@ -362,18 +382,60 @@ def test_each_threshold_line_is_labelled_with_what_it_means(qt_app) -> None:
     """
     Description:
         The two dashed reference lines are the configuration's confidence thresholds, which colour every confidence
-        number in the application: each is labelled at the plot's right end, just above the line and in its colour,
-        'Warning below 80 %' and 'Error below 60 %' (the thresholds in force). Rendered: text in each line's colour
-        stands above its right end, where the line alone drew one dashed pixel row.
+        number in the application: each is labelled at the plot's right end, just above the line and in its neutral
+        grey, 'Warning below 80 %' and 'Error below 60 %' (the thresholds in force), each line with its own dash.
+        Rendered: grey text stands above each line's right end, where the line alone drew one dashed pixel row.
     """
 
     import Parameters.Theme as Theme
     chart, image, _rows = _Confidence([[(0.9, 'OK')]])
-    assert chart._Reference_Labels() == [(80, 'Warning below 80 %', Theme.CONST_INK_SOFT),
-                                         (60, 'Error below 60 %', Theme.CONST_LOG_ERROR)]
+    labels = chart._Reference_Labels()
+    assert [(value, text, colour) for value, text, colour, _dash in labels] == \
+        [(80, 'Warning below 80 %', Theme.CONST_DETECTION_INK), (60, 'Error below 60 %', Theme.CONST_DETECTION_INK)]
+    assert labels[0][3] != labels[1][3]
     rect = chart._Plot_Rect()
-    for value, _text, colour in chart._Reference_Labels():
+    for value, _text, colour, _dash in labels:
         y = int(round(chart._Px_Y(value, rect)))
         ink = sum(_Near(image, x, yy, colour, 60) for x in range(int(rect.right()) - 140, int(rect.right()))
                   for yy in range(y - 14, y - 2))
         assert ink > 40, (value, ink)
+
+
+def test_the_charts_own_text_is_a_neutral_grey_not_the_ok_purple(qt_app) -> None:
+    """
+    Description:
+        The charts' secondary text, which sat in the soft ink, the OK purple since the palette change, is the neutral
+        grey ink (CONST_DETECTION_INK) beside the data (the owner's choice, 2026-10-18): the axis titles and the legend
+        labels, rendered, hold the grey and no purple (the confidence chart's legend marks are grey too, so any purple
+        there would be text); and the hover lines that were soft ink ('This image', the per-state counts, 'Scored',
+        'Unscored') are the grey. The rest of the application keeps the brand purple for its text.
+    """
+
+    import Parameters.Theme as Theme
+    from Reporting.Trends import Trends_Accumulator_Cls
+    from UI.Views.Trends import Objects_Chart_Cls
+    from Parameters.Vision import Confidence_Thresholds_Str
+    chart, image, _rows = _Confidence([[(0.97, 'OK'), (0.95, 'NOK')], [(0.96, 'Warning'), (0.98, 'OK')]])
+    rect = chart._Plot_Rect()
+    left, right, top, bottom = int(rect.left()), int(rect.right()), int(rect.top()), int(rect.bottom())
+    bands = {'x title': [(x, y) for x in range(left, right) for y in range(chart.height() - 18, chart.height() - 2)],
+             'y title': [(x, y) for x in range(0, 18) for y in range(top, bottom)],
+             'legend': [(x, y) for x in range(left, right) for y in range(top - 26, top - 8)]}
+    for name, points in bands.items():
+        colours = [image.pixelColor(x, y).getRgb()[:3] for x, y in points]
+        drawn = [rgb for rgb in colours if sum(rgb) < 600]
+        assert len(drawn) > 30, name
+        # A grey, never the purple: no pixel near #640ABA, and the drawn pixels' average colour a grey's (the text
+        # renderer's subpixel fringes, reddish and bluish, cancel in it; the purple's blue stands 176 over its green).
+        assert not any(max(abs(a - b) for a, b in zip(rgb, (100, 10, 186))) <= 50 for rgb in drawn), name
+        mean = [sum(rgb[k] for rgb in drawn) / len(drawn) for k in range(3)]
+        assert max(mean) - min(mean) <= 25, (name, [round(v) for v in mean])
+    acc = Trends_Accumulator_Cls()
+    acc.Add_Analysis([Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=None)])
+    objects = Objects_Chart_Cls()
+    objects.Set_Data(acc.Images(), True)
+    confidence = _Confidence([[(0.9, 'OK')]])[0]
+    confidence.Set_Data(acc.Images(), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
+    soft = {text.split(':')[0].split(' ')[0]: colour for text, colour in objects._Hover_Lines(0) + confidence._Hover_Lines(0)}
+    for key in ('This', 'OK', 'Scored', 'Unscored'):
+        assert soft[key] == Theme.CONST_DETECTION_INK, (key, soft[key])

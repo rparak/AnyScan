@@ -3536,6 +3536,8 @@ segment per state — All, OK, NOK, Warning, Unspecified, each with its count �
 its objects took; a card is outlined in its worst state's colour (the status badge's order: NOK, Unspecified,
 Warning, OK). The confidence chart's warning-threshold line is drawn in the neutral mid ink instead of the amber
 a Warning object's dot takes; the error line keeps its deep red, which no verdict uses.
+*Corrected 2026-10-18:* the "neutral mid ink" had become the OK purple with the palette; both threshold lines are now
+the neutral grey ink in two dash patterns (*The Confidence chart draws the two means, told apart by their form*).
 
 *Corrected 2026-10-16:* the filter is All, OK, NOK, Warning again, three states, a Warning of any kind (an older set's
 Unspecified object included) under Warning; the worst-state order is NOK, Warning, OK (*Three states for the operator, a Warning with its kind*).
@@ -3543,7 +3545,8 @@ Unspecified object included) under Warning; the worst-state order is NOK, Warnin
 **Revisit if** a fifth state is added, or the threshold lines need telling apart by more than their dash.
 Tests `test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
 `::test_a_set_is_outlined_in_its_worst_state`,
-`test/UI/test_trends_view.py::test_the_warning_threshold_line_is_not_the_warning_verdicts_amber`.
+`test/UI/test_trends_view.py::test_both_threshold_lines_are_a_neutral_grey_in_two_dash_patterns` (it replaced
+`test_the_warning_threshold_line_is_not_the_warning_verdicts_amber`, 2026-10-18).
 
 
 ## The catalogue holds only the mounting plate
@@ -4928,9 +4931,16 @@ entry, and jittered sideways within their column, so the last image's dots reach
 times (`20261016-174059_6`: both means 97 % at every image) and after eight frames of `Data/Images/Test` (means 93–98 %,
 apart from the fifth image on).
 
-**Not changed.** The warning threshold line is drawn in `CONST_INK_SOFT`, which became the OK purple when the palette
-did (it was the neutral mid ink when *History filters by the four states, and the Trends threshold line is neutral*
-was decided); it stays so, for the owner to decide.
+*Corrected 2026-10-18, on the owner's ruling:* the threshold lines and their labels are no longer the soft ink (the OK
+purple since the palette change) and the log's error red: both are the neutral grey ink `CONST_DETECTION_INK`
+`#655E6D` (6.22:1 on white), told apart by their dash, 6 px dash and 4 px gap at the warning threshold, 2 px and 3 px at
+the error threshold, and by their labels. The charts' own secondary text that was the soft ink, the axis titles, the
+legend labels and the hover's secondary lines ('This image', the per-state counts, 'Scored', 'Unscored'), is that grey
+too, the owner's choice among: the charts' text only, every use of `CONST_INK_SOFT`, or none. `CONST_INK_SOFT`'s other
+uses stay the brand purple by the one-purple rule: the Live view's key labels (`Widgets`), History's connection
+headers, the configuration dialog's stage line, and the architecture diagram's arrows, card text and State icon. Tests
+`::test_both_threshold_lines_are_a_neutral_grey_in_two_dash_patterns`,
+`::test_the_charts_own_text_is_a_neutral_grey_not_the_ok_purple`.
 
 **Revisit if** an operator confuses the run mean's band with a threshold line (both dashed, 5 px against 1 px and
 labelled), or the theme gains a neutral far enough from the muted ink for the two means to differ by colour as well.

@@ -55,7 +55,11 @@ practices followed inconsistently are under **Unsettled**.
   (ΔE 21.8, 1.51:1 between the two) they are told apart by their FORM, so they read even where they are equal: the
   frame mean thin and solid with a marker at every analysed image (its edge the marker's own colour), the run mean
   thick and dashed without markers, drawn under it. The legend draws each as a sample of its own line, never a square.
-  The two threshold lines are labelled at their right end, in their colour ('Warning below 80 %', 'Error below 60 %').
+  The two threshold lines and their labels are the neutral grey ink (`CONST_DETECTION_INK` `#655E6D`), told apart by
+  their dash (long at 80 %, short at 60 %) and their labels ('Warning below 80 %', 'Error below 60 %'), never a
+  verdict colour nor the log's error red. The charts' own secondary text (axis titles, legend labels, the hover's
+  secondary lines) is that grey too: `CONST_INK_SOFT` is the OK purple since the palette change, and beside data it
+  would read as OK. Elsewhere secondary text keeps the brand purple (`CONST_INK_SOFT`), by the one-purple rule.
   (DD *The Confidence chart draws the two means, told apart by their form*.)
 
 - The verdict colours are fixed tokens from the JIC Smart Factory palette: OK the purple `#640ABA`, NOK the

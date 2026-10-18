@@ -286,8 +286,10 @@ on a thicker line, its markers and legend swatches edged in that same colour) an
 per-object dots: the frame mean, a thin solid line with a marker at every analysed image, and the running run mean, a
 thicker dashed line without markers, in neutral greys, never a verdict colour, so the two read apart even where they
 are equal; the legend draws each line's own sample; the dashed lines at the configuration's confidence thresholds,
-which colour every confidence number in the application, are labelled "Warning below 80 %" and "Error below 60 %"; the
-hover gives each image's means and its scored and unscored counts). Both read one accumulator, so the last point and
+which colour every confidence number in the application, are both a neutral grey, long dashes at 80 % and short at
+60 %, labelled "Warning below 80 %" and "Error below 60 %"; the hover gives each image's means and its scored and
+unscored counts). The charts' axis titles, legend labels and secondary hover lines are the neutral grey ink, not the
+brand purple, which beside data could read as OK. Both read one accumulator, so the last point and
 the status strip agree.
 
 ### History

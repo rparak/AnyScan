@@ -37,7 +37,7 @@ from UI.Widgets import Card_Cls, Card_Head_Cls
 #   ../Reporting/Trends
 from Reporting.Trends import Nice_Ticks, Value_To_Pixel, Nearest_Index, Thin_Label_Indices
 #   ../Parameters/Theme
-from Parameters.Theme import Verdict_Color, Detection_Mask_Outline
+from Parameters.Theme import Verdict_Color, Detection_Mask_Outline, CONST_DETECTION_INK
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str
 #   ../Parameters/General — the one default for the classification flag
@@ -80,6 +80,13 @@ CONST_FRAME_MEAN_W = 1.5
 CONST_FRAME_MEAN_MARKER_RADIUS = 3.5
 CONST_RUN_MEAN_W = 5.0
 CONST_RUN_MEAN_DASH = [2.4, 1.6]
+# The two confidence-threshold lines: 1 px, both in the neutral grey ink (Theme.CONST_DETECTION_INK #655E6D, 6.22:1 on
+# white), no verdict's colour nor the log's error red (the owner's rule, 2026-10-18), told apart by their dash, long at
+# the warning threshold and short at the error threshold, and by their labels. Patterns in px (1 px lines), dash then
+# gap.
+#   Unit [Vector<float>] (px)
+CONST_WARN_LINE_DASH = [6.0, 4.0]
+CONST_ERROR_LINE_DASH = [2.0, 3.0]
 # A state series' line width, its markers' radius, and the width of the edge round every state marker, dot and legend
 # swatch: the states are drawn in their frame colours, some light on the white card, so the line is thicker than the
 # Total's 2 px; each marker's edge is its own fill colour, never a darker one (the owner's rule, 2026-10-18), so the
@@ -358,7 +365,7 @@ class Chart_Base_Cls(QWidget):
             (2) rect [QRectF]: The plot rectangle.
         """
 
-        painter.setPen(QColor(Style.CONST_INK_SOFT))
+        painter.setPen(QColor(CONST_DETECTION_INK))
         painter.setFont(Font(Style.CONST_TYPE_SCALE[1]))
         painter.drawText(QRectF(rect.left(), self.height() - 18, rect.width(), 16),
                          Qt.AlignHCenter | Qt.AlignVCenter, self.__x_title)
@@ -410,7 +417,7 @@ class Chart_Base_Cls(QWidget):
                 painter.setBrush(QBrush(QColor(color)))
                 painter.setPen(QPen(QColor(color), CONST_EDGE_W))
                 painter.drawRect(QRectF(x, y + 2, swatch, swatch))
-            painter.setPen(QColor(Style.CONST_INK_SOFT))
+            painter.setPen(QColor(CONST_DETECTION_INK))
             text_x = x + (sample if mark else swatch) + 5
             painter.drawText(QRectF(text_x, y - 1, width, 14), Qt.AlignLeft | Qt.AlignVCenter, label)
             x += width + gap
@@ -573,11 +580,11 @@ class Objects_Chart_Cls(Chart_Base_Cls):
 
         row = self.__rows[index]
         lines = [('Image %d' % row.Index, Style.CONST_INK),
-                 ('This image: +%d' % row.Total, Style.CONST_INK_SOFT),
+                 ('This image: +%d' % row.Total, CONST_DETECTION_INK),
                  ('Total: %d' % row.Cumulative_Total, Style.CONST_INK)]
         if self.__classified:
             lines.append((' · '.join('%s %d' % (label, getattr(row, attr)) for label, attr, _color in _Verdict_Series()),
-                          Style.CONST_INK_SOFT))
+                          CONST_DETECTION_INK))
         return lines
 
 
@@ -628,20 +635,23 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
     def _Reference_Labels(self) -> tp.List[tp.Tuple[int, str, str]]:
         """
         Description:
-            The dashed reference lines, each with the label it carries and its colour: the configuration's confidence
-            thresholds, the same pair that colours every confidence number in the application (Confidence_Severity).
-            The warning line is the soft ink and the error line the log's error red, which no verdict uses.
+            The dashed reference lines, each with the label it carries, its colour and its dash: the configuration's
+            confidence thresholds, the same pair that colours every confidence number in the application
+            (Confidence_Severity). Both are the neutral grey ink, never a verdict colour; the label carries the meaning
+            and the dash tells them apart, long at the warning threshold, short at the error threshold.
 
         Returns:
-            (1) parameter [Vector<Tuple 1x3>]: (threshold in percent, label, colour hex) per line; [] with no
-                                               thresholds set.
+            (1) parameter [Vector<Tuple 1x4>]: (threshold in percent, label, colour hex, dash pattern) per line; []
+                                               with no thresholds set.
         """
 
         thresholds = self.__thresholds
         if thresholds is None:
             return []
-        return [(thresholds.Warn_Below, 'Warning below %d %%' % thresholds.Warn_Below, Style.CONST_INK_SOFT),
-                (thresholds.Error_Below, 'Error below %d %%' % thresholds.Error_Below, Style.CONST_LOG_ERROR)]
+        return [(thresholds.Warn_Below, 'Warning below %d %%' % thresholds.Warn_Below, CONST_DETECTION_INK,
+                 CONST_WARN_LINE_DASH),
+                (thresholds.Error_Below, 'Error below %d %%' % thresholds.Error_Below, CONST_DETECTION_INK,
+                 CONST_ERROR_LINE_DASH)]
 
     def _Paint_Series(self, painter: QPainter, rect: QRectF) -> None:
         """
@@ -657,9 +667,11 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         # The reference lines and their labels, behind the means: a label sits above its line's right end.
         painter.setFont(Font(Style.CONST_TYPE_SCALE[0]))
         metrics = QFontMetrics(painter.font())
-        for value, label, color in self._Reference_Labels():
+        for value, label, color, dash in self._Reference_Labels():
             y = self._Px_Y(value, rect)
-            painter.setPen(QPen(QColor(color), 1, Qt.DashLine))
+            line = QPen(QColor(color), 1, Qt.CustomDashLine, Qt.FlatCap)
+            line.setDashPattern(dash)
+            painter.setPen(line)
             painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
             painter.setPen(QColor(color))
             painter.drawText(QRectF(rect.right() - metrics.horizontalAdvance(label) - 6, y - 16,
@@ -720,9 +732,9 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         lines = [('Image %d' % row.Index, Style.CONST_INK),
                  ('Frame mean: %s' % frame, Style.CONST_INK_MUTE),
                  ('Run mean: %s' % run, Detection_Mask_Outline()),
-                 ('Scored: %d' % len(row.Objects), Style.CONST_INK_SOFT)]
+                 ('Scored: %d' % len(row.Objects), CONST_DETECTION_INK)]
         if row.Unscored:
-            lines.append(('Unscored: %d' % row.Unscored, Style.CONST_INK_SOFT))
+            lines.append(('Unscored: %d' % row.Unscored, CONST_DETECTION_INK))
         return lines
 
 
