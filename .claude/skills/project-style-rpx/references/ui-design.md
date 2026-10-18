@@ -26,11 +26,11 @@ practices followed inconsistently are under **Unsettled**.
 ## A verdict colour never changes; its foreground carries legibility ✅
 
 - **One colour per state, in every view** (the owner's rule, 2026-10-16): a state's frame mark in the Camera View, its
-  Trends series, legend swatch and confidence dots, its History filter swatch and set outline are the same token, so the
+  Trends series and legend swatch, its History filter swatch and set outline are the same token, so the
   operator learns one colour per state. There are three states (the owner's rule, 2026-10-16): OK `#640ABA`, NOK
   `#FF6540` and Warning `#FFC226`, every Warning whatever its kind (`Theme.Verdict_Color`, whose ink is its box). No
   darker chart variant exists. On the white card a light state reads by a 3 px line (`CONST_STATE_LINE_W`); its
-  markers, confidence dots and legend and filter swatches are edged in their own colour, never a darker shade (the
+  markers and legend and filter swatches are edged in their own colour, never a darker shade (the
   owner's rule, 2026-10-18: the 1.25 px dark edge at L* 25, `Theme.Chart_Edge`, is removed). Every colour of a
   catalogue mode:
 
@@ -40,14 +40,23 @@ practices followed inconsistently are under **Unsettled**.
   | NOK | `CONST_NOK_BOX` | `#FF6540` | 2.92:1 |
   | Warning (every kind) | `CONST_WARNING_BOX` | `#FFC226` | 1.62:1 |
   | Trends Total (no state) | `CONST_INK_MUTE` | `#6F5783` | 6.24:1 |
+  | Confidence: Frame mean (no state) | `CONST_INK_MUTE` | `#6F5783`, 1.5 px solid, a marker per image | 6.24:1 |
+  | Confidence: Run mean (no state) | `Detection_Mask_Outline()` | `#817A8A`, 5 px dashed, no marker | 4.13:1 |
   | Badge grounds | OK `#C2C9FF`, NOK `#FFD9D0`, Warning `#FFC226` | | purple words ≥ 5.66:1 |
   | Mask fills | OK `#CC9EF1`, NOK `#CD7157`, Warning `#B28508` (outline the amber) | | |
+  | Inspection area | `CONST_INSPECTION_AREA` / `_EMPTY` | `#FFD880` on images / `#640ABA` on the empty view | 4.71:1 on the table / 6.79:1 on `#E1DCE6` |
 
   Retired as verdict colours on 2026-10-16: the foreign object's grey `#B4A6BE` (badge `#CAC0D3`, mask `#DBCCE5` /
   `#897C93`) and Unspecified's blue `#33A3FF` (badge `#C6E4FF`, mask `#748DB1`). The grey stays only as the disabled
   label's token (`CONST_CONTROL_DISABLED_TEXT`, `CONST_PRIMARY_DISABLED_TEXT`), never a state's; the blue is no
   token at all (DD *Three states for the operator, a Warning with its kind*).
-  | Inspection area | `CONST_INSPECTION_AREA` / `_EMPTY` | `#FFD880` on images / `#640ABA` on the empty view | 4.71:1 on the table / 6.79:1 on `#E1DCE6` |
+- **The Confidence chart draws no verdict** (the owner's rule, 2026-10-18): two series, the frame mean and the run
+  mean, and nothing per object. They are in neutral, non-verdict colours, and since neutral greys cannot lie far apart
+  (ΔE 21.8, 1.51:1 between the two) they are told apart by their FORM, so they read even where they are equal: the
+  frame mean thin and solid with a marker at every analysed image (its edge the marker's own colour), the run mean
+  thick and dashed without markers, drawn under it. The legend draws each as a sample of its own line, never a square.
+  The two threshold lines are labelled at their right end, in their colour ('Warning below 80 %', 'Error below 60 %').
+  (DD *The Confidence chart draws the two means, told apart by their form*.)
 
 - The verdict colours are fixed tokens from the JIC Smart Factory palette: OK the purple `#640ABA`, NOK the
   orange-red `#FF6540` (DD *The fail marker is the JIC orange-red*) and Warning the amber `#FFC226`, its white

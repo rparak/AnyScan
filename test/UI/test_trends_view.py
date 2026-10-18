@@ -27,6 +27,8 @@ import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 # Numpy (Array computing) [pip3 install numpy]
 import numpy as np
+# Typing (Support for type hints)
+import typing as tp
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
@@ -135,9 +137,8 @@ def test_a_failed_analysis_advances_neither_x_nor_images_analysed(qt_app, refere
 def test_unscored_objects_are_absent_from_the_confidence_chart(qt_app, reference_background_path) -> None:
     """
     Description:
-        Unscored objects are never drawn as confidence dots (a 0% dot would be a false low
-        reading); they are carried only as a count for the hover, and the dots that ARE drawn are
-        exactly the scored objects.
+        Unscored objects never enter the confidence means (a 0% would be a false low reading); they
+        are carried only as a count for the hover, beside the scored objects the means are taken over.
     """
 
     window = _Window(reference_background_path)
@@ -247,48 +248,132 @@ def test_the_warning_threshold_line_is_not_the_warning_verdicts_amber(qt_app, re
     assert ink > 0 and amber == 0
 
 
-def test_the_confidence_dots_take_their_states_frame_colour_with_no_darker_edge(qt_app) -> None:
-    """
-    Description:
-        In a catalogue run each object's confidence dot is drawn in exactly its state's frame colour — every Warning, of
-        any kind, the amber — its edge that same colour, no darker ring (the owner's rule of 2026-10-18): across the dot,
-        out to its edge, every pixel is the one blend of the amber on the card; neither the retired grey and blue nor a
-        darker chart variant is painted.
-    """
-
+def _Confidence(frames: tp.List[tp.List[tp.Tuple[float, str]]], width: int = 900, height: int = 320) -> tp.Tuple:
+    """The confidence chart, alone, after one analysis per frame of (score, verdict) objects, rendered."""
     from Reporting.Trends import Trends_Accumulator_Cls
     from UI.Views.Trends import Confidence_Chart_Cls
-    from Parameters.Theme import Verdict_Color
     from Parameters.Vision import Catalogue_Result_Str, Confidence_Thresholds_Str
-    objects = [Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=score, Verdict='Warning',
-                             Catalogue=Catalogue_Result_Str(Warning_Kind=kind))
-               for score, kind in ((0.95, 'outside'), (0.55, 'foreign'), (0.25, 'several_parts'))]
     acc = Trends_Accumulator_Cls()
-    acc.Add_Analysis(objects)
+    for objects in frames:
+        acc.Add_Analysis([Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=score, Verdict=verdict,
+                                        Catalogue=Catalogue_Result_Str(Warning_Kind='foreign' if verdict == 'Warning' else ''))
+                          for score, verdict in objects])
     chart = Confidence_Chart_Cls()
-    chart.resize(600, 300)
-    chart.Set_Data(acc.Images(), True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
-    image = chart.grab().toImage()
-    pixels = [image.pixelColor(x, y).getRgb()[:3] for x in range(image.width()) for y in range(image.height())]
+    chart.resize(width, height)
+    chart.Set_Data(acc.Images(), Confidence_Thresholds_Str=Confidence_Thresholds_Str())
+    return chart, chart.grab().toImage(), acc.Images()
 
-    def Near(hex_color: str, tolerance: int) -> bool:
-        target = tuple(int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
-        return any(max(abs(a - b) for a, b in zip(pixel, target)) <= tolerance for pixel in pixels)
 
-    # A dot is the amber at alpha 220 over the white card.
-    amber = tuple(int(Verdict_Color('Warning')[0][i:i + 2], 16) for i in (1, 3, 5))
-    dot = tuple(round(c * 220 / 255 + 255 * (1 - 220 / 255)) for c in amber)
-    assert Near('#%02X%02X%02X' % dot, 3)
-    for retired in ('#B4A6BE', '#33A3FF', '#42374B', '#003E6C', '#7C5B00', '#4F4952', '#0065A9') + CONST_OLD_EDGES:
-        assert not Near(retired, 10), retired
-    # Round the top dot (0.95), its edge included, no pixel is darker than the dot's fill (relative luminance): no ring.
-    from Parameters.Theme import Relative_Luminance
+def _Near(image, x: float, y: float, hex_color: str, tolerance: int = 12, reach: int = 0) -> bool:
+    """Whether a pixel within `reach` of (x, y) is the colour, each channel within the tolerance."""
+    target = tuple(int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
+    for dx in range(-reach, reach + 1):
+        for dy in range(-reach, reach + 1):
+            rgb = image.pixelColor(int(round(x)) + dx, int(round(y)) + dy).getRgb()[:3]
+            if max(abs(a - b) for a, b in zip(rgb, target)) <= tolerance:
+                return True
+    return False
+
+
+def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None:
+    """
+    Description:
+        The confidence chart draws two series and nothing per object (the owner's rule of 2026-10-18): the frame
+        mean and the run mean, in the theme's neutral colours (CONST_INK_MUTE, Detection_Mask_Outline), never a verdict
+        colour, and its legend names exactly those two in those colours. Rendered on a catalogue run of OK, NOK and
+        Warning objects scored far from their means: no verdict colour is painted, and nothing is painted at an
+        object's own score away from the mean lines (the old dots), nor beyond the last analysed image.
+    """
+
+    import Parameters.Theme as Theme
+    frames = [[(0.95, 'OK'), (0.40, 'NOK'), (0.30, 'Warning')], [(0.96, 'Warning'), (0.42, 'OK')],
+              [(0.94, 'NOK'), (0.38, 'Warning')]]
+    chart, image, rows = _Confidence(frames)
+    assert chart._legend == [('Frame mean', Theme.CONST_INK_MUTE), ('Run mean', Theme.Detection_Mask_Outline())]
+    assert chart._legend_marks == {'Frame mean': 'line_marker', 'Run mean': 'dashed'}
+    # The legend draws each series as its line, not a 9 px swatch: along the legend's row, a horizontal run of 12 px
+    # or more in each colour (the frame mean's solid sample, a dash of the run mean's).
+    top = chart._Plot_Rect().top()
+
+    def Longest(colour: str) -> int:
+        best = 0
+        for y in range(int(top) - 26, int(top) - 8):
+            run = 0
+            for x in range(image.width()):
+                run = run + 1 if _Near(image, x, y, colour, 10) else 0
+                best = max(best, run)
+        return best
+
+    assert Longest(Theme.CONST_INK_MUTE) >= 12 and Longest(Theme.Detection_Mask_Outline()) >= 12
+    assert not {colour for _label, colour in chart._legend} & {Theme.Verdict_Color(v)[0] for v in ('OK', 'NOK', 'Warning')}
     rect = chart._Plot_Rect()
-    cy = int(round(chart._Px_Y(95, rect)))
-    hits = [x for x in range(image.width())
-            if max(abs(a - b) for a, b in zip(image.pixelColor(x, cy).getRgb()[:3], dot)) <= 3]
-    assert hits
-    middle = hits[len(hits) // 2]
-    floor = Relative_Luminance('#%02X%02X%02X' % dot) - 0.02
-    around = [image.pixelColor(x, y).name() for x in range(middle - 6, middle + 7) for y in range(cy - 6, cy + 7)]
-    assert all(Relative_Luminance(c) >= floor for c in around), sorted(set(around))
+    painted = {image.pixelColor(x, y).name() for x in range(image.width()) for y in range(image.height())}
+    for verdict in ('NOK', 'Warning'):
+        assert Theme.Verdict_Color(verdict)[0].lower() not in painted, verdict
+    for row, objects in zip(rows, frames):
+        for score, _verdict in objects:
+            y = chart._Px_Y(100 * score, rect)
+            # Each score lies 25 points or more from its frame's mean: nothing is drawn there, in its column.
+            for dx in range(-30, 31, 3):
+                assert not _Near(image, chart._Px_X(row.Index, rect) + dx, y, Theme.CONST_INK_MUTE, 40), (row.Index, score)
+                assert not _Near(image, chart._Px_X(row.Index, rect) + dx, y, Theme.Detection_Mask_Outline(), 40), (row.Index, score)
+    beyond = chart._Px_X(len(rows), rect) + 8
+    for x in range(int(beyond), int(rect.right()) - 1):
+        for y in range(int(rect.top()) + 2, int(rect.bottom()) - 2):
+            colour = image.pixelColor(x, y)
+            assert not (_Near(image, x, y, Theme.CONST_INK_MUTE, 30) or _Near(image, x, y, Theme.Detection_Mask_Outline(), 30)), \
+                (x, y, colour.name())
+
+
+def test_the_two_means_are_told_apart_when_they_are_equal(qt_app) -> None:
+    """
+    Description:
+        When every frame scores alike the frame mean and the run mean are equal at every image, and both still read:
+        the frame mean is a thin solid line with a marker at every analysed image, its edge the marker's own colour
+        (no darker ring); the run mean a thicker dashed line without markers, drawn under it, so its dashes show past
+        the thin line on either side, broken by gaps. Rendered, at the means' height.
+    """
+
+    import Parameters.Theme as Theme
+    from Parameters.Theme import Relative_Luminance
+    chart, image, rows = _Confidence([[(0.9, 'OK'), (0.9, 'OK')]] * 4)
+    assert {row.Frame_Mean for row in rows} == {row.Run_Mean for row in rows} == {90}
+    rect = chart._Plot_Rect()
+    y = chart._Px_Y(90, rect)
+    frame, run = Theme.CONST_INK_MUTE, Theme.Detection_Mask_Outline()
+    for row in rows:
+        x = chart._Px_X(row.Index, rect)
+        # A marker: the frame mean's colour over at least 5 px in its column (the 1.5 px line alone covers about 2).
+        extent = sum(_Near(image, x, y + dy, frame, 20) for dy in range(-6, 7))
+        assert extent >= 5, (row.Index, extent)
+        floor = Relative_Luminance(frame) - 0.02
+        around = [image.pixelColor(int(round(x)) + dx, int(round(y)) + dy).name()
+                  for dx in range(-5, 6) for dy in range(-5, 6)]
+        assert all(Relative_Luminance(c) >= floor for c in around), (row.Index, sorted(set(around)))
+    # Between images 1 and 2, 2 px above the line (outside the thin frame line, inside the 5 px run line): the run
+    # mean's own colour in its dashes, and in the gaps between them the chart's plain ground (read 6 px above).
+    left, right = int(chart._Px_X(1, rect)) + 8, int(chart._Px_X(2, rect)) - 8
+    dashes = sum(_Near(image, x, y - 2, run, 10) for x in range(left, right))
+    gaps = sum(_Near(image, x, y - 2, image.pixelColor(x, int(round(y - 6))).name(), 6) for x in range(left, right))
+    assert dashes > 20 and gaps > 10, (dashes, gaps)
+
+
+def test_each_threshold_line_is_labelled_with_what_it_means(qt_app) -> None:
+    """
+    Description:
+        The two dashed reference lines are the configuration's confidence thresholds, which colour every confidence
+        number in the application: each is labelled at the plot's right end, just above the line and in its colour,
+        'Warning below 80 %' and 'Error below 60 %' (the thresholds in force). Rendered: text in each line's colour
+        stands above its right end, where the line alone drew one dashed pixel row.
+    """
+
+    import Parameters.Theme as Theme
+    chart, image, _rows = _Confidence([[(0.9, 'OK')]])
+    assert chart._Reference_Labels() == [(80, 'Warning below 80 %', Theme.CONST_INK_SOFT),
+                                         (60, 'Error below 60 %', Theme.CONST_LOG_ERROR)]
+    rect = chart._Plot_Rect()
+    for value, _text, colour in chart._Reference_Labels():
+        y = int(round(chart._Px_Y(value, rect)))
+        ink = sum(_Near(image, x, yy, colour, 60) for x in range(int(rect.right()) - 140, int(rect.right()))
+                  for yy in range(y - 14, y - 2))
+        assert ink > 40, (value, ink)

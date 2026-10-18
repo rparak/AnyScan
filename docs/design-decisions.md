@@ -4902,3 +4902,38 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_verdict_follows_the_rule
 `::test_a_warning_records_its_kind_and_an_older_set_reads_into_the_three_states`,
 `::test_a_set_is_outlined_in_its_worst_state`, `::test_each_state_filter_carries_its_states_frame_colour`,
 `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` (slow).
+
+## The Confidence chart draws the two means, told apart by their form
+
+Decided 2026-10-18, on the owner's request. The Confidence chart in Trends draws two series, the frame mean and the
+run mean, and nothing per object: the per-object score dots are removed. They were coloured by state with no legend
+entry, and jittered sideways within their column, so the last image's dots reached beyond the last analysed image.
+
+- **Told apart by their form, in neutral colours.** The frame mean is a 1.5 px solid line with a marker at every
+  analysed image (`CONST_INK_MUTE` `#6F5783`, 6.24:1 on white; the marker's edge is its own fill colour). The run mean
+  is a 5 px dashed line without markers (`Theme.Detection_Mask_Outline()` `#817A8A`, 4.13:1, above the 3:1 a graphic
+  needs), drawn under the frame mean. Neither is a verdict colour: they lie ΔE 68–90 from OK, NOK and Warning. Neutral
+  greys cannot lie far apart (ΔE 21.8 and 1.51:1 between these two, the theme's farthest pair; `#655E6D` is ΔE 18.7
+  from the muted ink), so the form carries the difference: where the means are equal, after a few similar frames, the
+  thin dark line and its markers run along a lighter band that the dashes' gaps break. The legend draws each series
+  as a sample of its own line, a dash, a gap and a dash long, never a square swatch.
+- **The threshold lines stay, labelled.** The dashed lines at 80 % and 60 % are the configuration's
+  `Confidence.Warn_Below` and `Error_Below`, the one pair that colours every confidence number in the application
+  (`Parameters.Vision.Confidence_Severity`: the object labels, the frame mean, the session mean and its log crossings).
+  They are used, so they are labelled at the plot's right end, in their colour: "Warning below 80 %" and "Error below
+  60 %" (from the thresholds in force).
+- **The chart takes no classification flag** (`Confidence_Chart_Cls.Set_Data`): it draws no verdict in any mode.
+
+**Rendered and looked at**, from the window and the pipeline: the Trends view after the same rig frame analysed four
+times (`20261016-174059_6`: both means 97 % at every image) and after eight frames of `Data/Images/Test` (means 93–98 %,
+apart from the fifth image on).
+
+**Not changed.** The warning threshold line is drawn in `CONST_INK_SOFT`, which became the OK purple when the palette
+did (it was the neutral mid ink when *History filters by the four states, and the Trends threshold line is neutral*
+was decided); it stays so, for the owner to decide.
+
+**Revisit if** an operator confuses the run mean's band with a threshold line (both dashed, 5 px against 1 px and
+labelled), or the theme gains a neutral far enough from the muted ink for the two means to differ by colour as well.
+Tests `test/UI/test_trends_view.py::test_the_confidence_chart_draws_only_the_frame_and_run_means`,
+`::test_the_two_means_are_told_apart_when_they_are_equal`, `::test_each_threshold_line_is_labelled_with_what_it_means`,
+`::test_unscored_objects_are_absent_from_the_confidence_chart`.

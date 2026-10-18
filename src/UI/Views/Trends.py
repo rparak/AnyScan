@@ -37,7 +37,7 @@ from UI.Widgets import Card_Cls, Card_Head_Cls
 #   ../Reporting/Trends
 from Reporting.Trends import Nice_Ticks, Value_To_Pixel, Nearest_Index, Thin_Label_Indices
 #   ../Parameters/Theme
-from Parameters.Theme import Verdict_Color, Detection_Color
+from Parameters.Theme import Verdict_Color, Detection_Mask_Outline
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str
 #   ../Parameters/General — the one default for the classification flag
@@ -67,11 +67,19 @@ CONST_MARGIN_RIGHT = 18
 # The approximate pixels one x tick label needs; the label thinning keeps them from overlapping.
 #   Unit [int]
 CONST_X_LABEL_PX = 46
-# The scored-object dot radius, and the jitter spread as a fraction of the column spacing, so a
-# frame's several dots fan out horizontally instead of stacking into one.
-#   Unit [float]
-CONST_DOT_RADIUS = 3.5
-CONST_JITTER_FRACTION = 0.55
+# The confidence chart's two series, told apart by their drawing as well as by two neutral theme colours, so they read
+# even where they are equal (after a few similar frames the frame mean IS the run mean). The frame mean: a thin solid
+# line with a marker at every analysed image, in the muted ink (Style.CONST_INK_MUTE #6F5783, 6.24:1 on white). The
+# run mean: a thick dashed line without markers in the lighter neutral grey (Theme.Detection_Mask_Outline #817A8A,
+# 4.13:1 on white, above the 3:1 a graphic needs; ΔE 21.8 and 1.51:1 from the frame mean's ink), drawn under the
+# frame mean, so where they are equal the thin dark line runs along a lighter band that its gaps break. Neutral greys
+# cannot lie much farther apart (#655E6D, the other neutral ink, is ΔE 18.7 from the muted ink), so the form carries
+# the difference. The dash pattern is in line widths (Qt), dash then gap.
+#   Unit [float] (px) / [Vector<float>] (line widths)
+CONST_FRAME_MEAN_W = 1.5
+CONST_FRAME_MEAN_MARKER_RADIUS = 3.5
+CONST_RUN_MEAN_W = 5.0
+CONST_RUN_MEAN_DASH = [2.4, 1.6]
 # A state series' line width, its markers' radius, and the width of the edge round every state marker, dot and legend
 # swatch: the states are drawn in their frame colours, some light on the white card, so the line is thicker than the
 # Total's 2 px; each marker's edge is its own fill colour, never a darker one (the owner's rule, 2026-10-18), so the
@@ -134,6 +142,7 @@ class Chart_Base_Cls(QWidget):
         self._x_ticks, self._y_ticks = [], []
         self._x_tick_text = {}                 # tick value -> label (only the ones that get one)
         self._legend = []                      # [(label, color_hex)]
+        self._legend_marks = {}                # label -> 'line_marker' | 'dashed'; a square swatch otherwise
         self._columns = []                     # per-image x VALUES (1..n), for the hover hit-test
         self._hover = None                     # the hovered column index, or None
         self._empty_text = 'No analyses in this run yet.'
@@ -161,16 +170,19 @@ class Chart_Base_Cls(QWidget):
         self._x_min, self._x_max, self._y_min, self._y_max = x_min, x_max, y_min, y_max
         self._x_ticks, self._y_ticks, self._x_tick_text = x_ticks, y_ticks, x_tick_text
 
-    def _Set_Legend(self, legend: tp.List[tp.Tuple[str, str]]) -> None:
+    def _Set_Legend(self, legend: tp.List[tp.Tuple[str, str]], marks: tp.Optional[tp.Dict[str, str]] = None) -> None:
         """
         Description:
-            Store the legend items the base draws top-right.
+            Store the legend items the base draws top-right, each with the mark it is drawn with: a square swatch, or a
+            sample of the series' own line, so the legend matches what is drawn.
 
         Args:
             (1) legend [Vector<Tuple<string> 1x2>]: The items as (label, colour hex).
+            (2) marks [Dict<string, string>]: Per label, 'line_marker' (a thin solid line with its marker) or 'dashed'
+                                              (a thick dashed line); a label not in it is a square swatch.
         """
 
-        self._legend = legend
+        self._legend, self._legend_marks = legend, dict(marks or {})
 
     def _Set_Columns(self, x_values: tp.List[float]) -> None:
         """
@@ -372,18 +384,35 @@ class Chart_Base_Cls(QWidget):
             return
         painter.setFont(Font(Style.CONST_TYPE_SCALE[0]))
         metrics = QFontMetrics(painter.font())
+        # A line sample is as long as a dash, a gap and a dash of the dashed series, so both samples read whole.
         gap, swatch = 14, 9
-        widths = [swatch + 5 + metrics.horizontalAdvance(label) for label, _ in self._legend]
+        sample = (2 * CONST_RUN_MEAN_DASH[0] + CONST_RUN_MEAN_DASH[1]) * CONST_RUN_MEAN_W
+        marks = [self._legend_marks.get(label) for label, _ in self._legend]
+        widths = [(sample if mark else swatch) + 5 + metrics.horizontalAdvance(label)
+                  for (label, _), mark in zip(self._legend, marks)]
         total = sum(widths) + gap * (len(self._legend) - 1)
         x = rect.right() - total
         y = rect.top() - 24
-        for (label, color), width in zip(self._legend, widths):
-            painter.setBrush(QBrush(QColor(color)))
-            painter.setPen(QPen(QColor(color), CONST_EDGE_W))
-            painter.drawRect(QRectF(x, y + 2, swatch, swatch))
+        for (label, color), mark, width in zip(self._legend, marks, widths):
+            mid = y + 2 + swatch / 2.0
+            if mark == 'dashed':
+                pen = QPen(QColor(color), CONST_RUN_MEAN_W, Qt.CustomDashLine, Qt.FlatCap)
+                pen.setDashPattern(CONST_RUN_MEAN_DASH)
+                painter.setPen(pen)
+                painter.drawLine(QPointF(x, mid), QPointF(x + sample, mid))
+            elif mark == 'line_marker':
+                painter.setPen(QPen(QColor(color), CONST_FRAME_MEAN_W))
+                painter.drawLine(QPointF(x, mid), QPointF(x + sample, mid))
+                painter.setBrush(QBrush(QColor(color)))
+                painter.drawEllipse(QPointF(x + sample / 2.0, mid), CONST_FRAME_MEAN_MARKER_RADIUS,
+                                    CONST_FRAME_MEAN_MARKER_RADIUS)
+            else:
+                painter.setBrush(QBrush(QColor(color)))
+                painter.setPen(QPen(QColor(color), CONST_EDGE_W))
+                painter.drawRect(QRectF(x, y + 2, swatch, swatch))
             painter.setPen(QColor(Style.CONST_INK_SOFT))
-            painter.drawText(QRectF(x + swatch + 5, y - 1, width, 14),
-                             Qt.AlignLeft | Qt.AlignVCenter, label)
+            text_x = x + (sample if mark else swatch) + 5
+            painter.drawText(QRectF(text_x, y - 1, width, 14), Qt.AlignLeft | Qt.AlignVCenter, label)
             x += width + gap
 
     def __Draw_Hover(self, painter: QPainter, rect: QRectF) -> None:
@@ -555,11 +584,12 @@ class Objects_Chart_Cls(Chart_Base_Cls):
 class Confidence_Chart_Cls(Chart_Base_Cls):
     """
     Description:
-        Chart 2 — confidence against the analysed-image index: one dot per SCORED object at its
-        image (jittered horizontally so a frame's objects do not stack), the frame mean and the
-        running run mean as two lines, and dashed reference lines at the §5 warn/error
-        thresholds. Unscored objects are not plotted — that would draw a false 0% — and are shown
-        in the hover count instead. Dots take their verdict colour when the run classifies.
+        Chart 2 — confidence against the analysed-image index: two series and nothing per object (the owner's
+        rule, 2026-10-18), the frame mean (a thin solid line, a marker at every analysed image) and the running
+        run mean (a thicker dashed line, no markers), in the theme's neutral inks, never a verdict colour, so they
+        read apart even where they are equal; and the dashed reference lines at the configuration's warn and error
+        thresholds, each labelled with what it means. Unscored objects are in neither mean — a false 0% — and are
+        counted in the hover.
 
     Initialization of the Class:
         Args:
@@ -569,80 +599,84 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
     def __init__(self, parent: tp.Optional[QWidget] = None) -> None:
         super().__init__('Analysed image', 'Confidence (%)', parent)
         self.__rows = []
-        self.__classified = False
         self.__thresholds = None
 
-    def Set_Data(self, rows: tp.List[tp.Any], classification_enabled: bool,
-                 Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
+    def Set_Data(self, rows: tp.List[tp.Any], Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
         """
         Description:
-            Take the accumulator's per-image rows, the run's classification flag and the
-            thresholds in force, set the fixed 0..100% axis, thin the x labels, and repaint.
+            Take the accumulator's per-image rows and the thresholds in force, set the fixed 0..100% axis, thin the
+            x labels, and repaint. The same in every mode: the chart draws no verdict.
 
         Args:
             (1) rows [Vector<Trend_Image_Str(object)>]: The per-image trend rows.
-            (2) classification_enabled [bool]: Whether the dots take their verdict colour.
-            (3) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: Where the dashed
+            (2) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: Where the dashed
                 warn / error reference lines are drawn.
         """
 
-        self.__rows, self.__classified = rows, classification_enabled
+        self.__rows = rows
         self.__thresholds = Confidence_Thresholds_Str
         n = len(rows)
         labeled = set(Thin_Label_Indices(n, max(2, int(self.width() / CONST_X_LABEL_PX) or 2)))
         x_text = {float(rows[i].Index): str(rows[i].Index) for i in labeled} if rows else {}
         self._Set_Axes(0.5, n + 0.5 if n else 1.5, 0.0, 100.0,
                        [float(row.Index) for row in rows], Nice_Ticks(0.0, 100.0, 5), x_text)
-        self._Set_Legend([('Frame mean', Style.CONST_INK_MUTE), ('Run mean', Style.CONST_INK)])
+        self._Set_Legend([('Frame mean', Style.CONST_INK_MUTE), ('Run mean', Detection_Mask_Outline())],
+                         {'Frame mean': 'line_marker', 'Run mean': 'dashed'})
         self._Set_Columns([float(row.Index) for row in rows])
         self.update()
+
+    def _Reference_Labels(self) -> tp.List[tp.Tuple[int, str, str]]:
+        """
+        Description:
+            The dashed reference lines, each with the label it carries and its colour: the configuration's confidence
+            thresholds, the same pair that colours every confidence number in the application (Confidence_Severity).
+            The warning line is the soft ink and the error line the log's error red, which no verdict uses.
+
+        Returns:
+            (1) parameter [Vector<Tuple 1x3>]: (threshold in percent, label, colour hex) per line; [] with no
+                                               thresholds set.
+        """
+
+        thresholds = self.__thresholds
+        if thresholds is None:
+            return []
+        return [(thresholds.Warn_Below, 'Warning below %d %%' % thresholds.Warn_Below, Style.CONST_INK_SOFT),
+                (thresholds.Error_Below, 'Error below %d %%' % thresholds.Error_Below, Style.CONST_LOG_ERROR)]
 
     def _Paint_Series(self, painter: QPainter, rect: QRectF) -> None:
         """
         Description:
-            Draw the dashed warn/error reference lines, the jittered per-object scored dots, and
-            the frame-mean and run-mean lines over them.
+            Draw the labelled reference lines, then the run mean (thick, dashed) and over it the frame mean (thin,
+            solid, a marker at every analysed image, the marker's edge its own colour).
 
         Args:
             (1) painter [QPainter(object)]: The active painter.
             (2) rect [QRectF]: The plot rectangle.
         """
 
-        # The dashed reference lines at the warn / error thresholds (§5), behind everything. The warning line is
-        # the neutral mid ink, not the amber: in a catalogue mode a Warning object's dot is amber, and an amber dot
-        # on an amber line read as 'below the threshold' (2026-10-11). The error line keeps its deep red, which no
-        # verdict uses.
-        thresholds = self.__thresholds
-        references = (() if thresholds is None else
-                      ((thresholds.Warn_Below, Style.CONST_INK_SOFT),
-                       (thresholds.Error_Below, Style.CONST_LOG_ERROR)))
-        for value, color in references:
+        # The reference lines and their labels, behind the means: a label sits above its line's right end.
+        painter.setFont(Font(Style.CONST_TYPE_SCALE[0]))
+        metrics = QFontMetrics(painter.font())
+        for value, label, color in self._Reference_Labels():
             y = self._Px_Y(value, rect)
             painter.setPen(QPen(QColor(color), 1, Qt.DashLine))
             painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
-        # The scored-object dots, jittered horizontally within their column.
-        spacing = rect.width() / max(1, len(self.__rows))
-        # On the white card every dot is its state's frame colour out to its edge, no darker ring, and the neutral dot the
-        # detection's ink.
-        neutral = Detection_Color()[1]
+            painter.setPen(QColor(color))
+            painter.drawText(QRectF(rect.right() - metrics.horizontalAdvance(label) - 6, y - 16,
+                                    metrics.horizontalAdvance(label) + 4, 14), Qt.AlignRight | Qt.AlignVCenter, label)
+        run = QPen(QColor(Detection_Mask_Outline()), CONST_RUN_MEAN_W, Qt.CustomDashLine, Qt.FlatCap)
+        run.setDashPattern(CONST_RUN_MEAN_DASH)
+        self.__Draw_Mean_Line(painter, rect, 'Run_Mean', run)
+        self.__Draw_Mean_Line(painter, rect, 'Frame_Mean', QPen(QColor(Style.CONST_INK_MUTE), CONST_FRAME_MEAN_W))
+        painter.setBrush(QBrush(QColor(Style.CONST_INK_MUTE)))
+        painter.setPen(QPen(QColor(Style.CONST_INK_MUTE), CONST_EDGE_W))
         for row in self.__rows:
-            count = len(row.Objects)
-            for position, obj in enumerate(row.Objects):
-                offset = 0.0 if count == 1 else ((position - (count - 1) / 2.0)
-                                                 * (spacing * CONST_JITTER_FRACTION) / count)
-                color = Verdict_Color(obj.Verdict)[0] if self.__classified else neutral
-                dot = QColor(color)
-                dot.setAlpha(220)
-                painter.setBrush(QBrush(dot))
-                painter.setPen(Qt.NoPen)
-                radius = CONST_DOT_RADIUS + (CONST_EDGE_W / 2.0 if self.__classified else 0.0)
-                painter.drawEllipse(QPointF(self._Px_X(row.Index, rect) + offset,
-                                            self._Px_Y(obj.Confidence, rect)), radius, radius)
-        # The two mean lines over the dots.
-        self.__Draw_Mean_Line(painter, rect, 'Frame_Mean', Style.CONST_INK_MUTE)
-        self.__Draw_Mean_Line(painter, rect, 'Run_Mean', Style.CONST_INK)
+            if row.Frame_Mean is not None:
+                painter.drawEllipse(QPointF(self._Px_X(row.Index, rect), self._Px_Y(row.Frame_Mean, rect)),
+                                    CONST_FRAME_MEAN_MARKER_RADIUS - CONST_EDGE_W / 2.0,
+                                    CONST_FRAME_MEAN_MARKER_RADIUS - CONST_EDGE_W / 2.0)
 
-    def __Draw_Mean_Line(self, painter: QPainter, rect: QRectF, attr: str, color: str) -> None:
+    def __Draw_Mean_Line(self, painter: QPainter, rect: QRectF, attr: str, pen: QPen) -> None:
         """
         Description:
             Draw one mean line, breaking it across images that have no mean (nothing scored yet)
@@ -652,10 +686,10 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
             (1) painter [QPainter(object)]: The active painter.
             (2) rect [QRectF]: The plot rectangle.
             (3) attr [string]: The row attribute to plot ('Frame_Mean' or 'Run_Mean').
-            (4) color [string]: The line colour hex.
+            (4) pen [QPen(object)]: The line's pen (its colour, width and dash).
         """
 
-        painter.setPen(QPen(QColor(color), 2))
+        painter.setPen(pen)
         previous = None
         for row in self.__rows:
             value = getattr(row, attr)
@@ -671,7 +705,7 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         """
         Description:
             The hover read-out for an image: its index, the frame and run means, the scored
-            count, and the unscored count when any (the objects NOT plotted, so the dots reconcile).
+            count, and the unscored count when any (the objects in neither mean).
 
         Args:
             (1) index [int]: The hovered image column index.
@@ -685,7 +719,7 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         run = '%d%%' % row.Run_Mean if row.Run_Mean is not None else '—'
         lines = [('Image %d' % row.Index, Style.CONST_INK),
                  ('Frame mean: %s' % frame, Style.CONST_INK_MUTE),
-                 ('Run mean: %s' % run, Style.CONST_INK),
+                 ('Run mean: %s' % run, Detection_Mask_Outline()),
                  ('Scored: %d' % len(row.Objects), Style.CONST_INK_SOFT)]
         if row.Unscored:
             lines.append(('Unscored: %d' % row.Unscored, Style.CONST_INK_SOFT))
@@ -701,8 +735,8 @@ class Trends_View_Cls(QWidget):
 
     Initialization of the Class:
         Args:
-            (1) classification_enabled [bool]: Whether the run classifies (drives the per-verdict series
-                                               and the verdict dot colours).
+            (1) classification_enabled [bool]: Whether the run classifies (drives the objects chart's
+                                               per-verdict series).
             (2) Confidence_Thresholds_Str [Confidence_Thresholds_Str(object)]: REQUIRED,
                 keyword-only: where the confidence chart's reference lines are drawn.
     """
@@ -724,8 +758,8 @@ class Trends_View_Cls(QWidget):
                                           'Cumulative objects found across the run’s images.',
                                           self.__Build_Objects_Chart()), 0, 0)
         grid.addWidget(self.__Chart_Card('Confidence',
-                                         'Per-object scores, the frame mean and the running '
-                                         'run mean.', self.__Build_Confidence_Chart()), 1, 0)
+                                         'The mean confidence of each image and the running mean of the run.',
+                                         self.__Build_Confidence_Chart()), 1, 0)
         grid.setRowStretch(0, 1)
         grid.setRowStretch(1, 1)
         # Hand the charts the flag and thresholds now, so the first paint already has them.
@@ -799,7 +833,7 @@ class Trends_View_Cls(QWidget):
 
         rows = self.__accumulator.Images() if self.__accumulator is not None else []
         self.__objects_chart.Set_Data(rows, self.__classification_enabled)
-        self.__confidence_chart.Set_Data(rows, self.__classification_enabled, self.__thresholds)
+        self.__confidence_chart.Set_Data(rows, self.__thresholds)
 
     def Set_Configuration(self, classification_enabled: bool,
                           Confidence_Thresholds_Str: Confidence_Thresholds_Str) -> None:
