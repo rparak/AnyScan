@@ -281,14 +281,15 @@ Two cards:
 ### Trends
 
 Two charts of the current run: **Detected objects** (cumulative; in a catalogue mode also per verdict —
-OK, NOK and Warning, which add up to the total, each in its frame mark's own colour
-on a thicker line, its markers and legend swatches edged in that same colour) and **Confidence** (two series and no
-per-object dots: the frame mean, a thin solid line with a marker at every analysed image, and the running run mean, a
-thicker dashed line without markers, in neutral greys, never a verdict colour, so the two read apart even where they
-are equal; the legend draws each line's own sample; the dashed lines at the configuration's confidence thresholds,
+OK, NOK and Warning, which add up to the total, each in its frame mark's own colour) and **Confidence** (two series
+and no per-object dots: the frame mean, solid with a marker at every analysed image, and the running run mean, dashed
+without markers, in neutral greys, never a verdict colour, so the two read apart by pattern and colour even where they
+are equal). Every series line in both charts, Total and the two means included, is 3 px wide and every marker 8 px
+across, the size the amber Warning reads by on the white card; each legend entry is a sample of its own line at that
+width and marker size. In the Confidence chart the dashed lines at the configuration's confidence thresholds,
 which colour every confidence number in the application, are both a neutral grey, long dashes at 80 % and short at
-60 %, labelled "Warning below 80 %" and "Error below 60 %"; the hover gives each image's means and its scored and
-unscored counts). The charts' axis titles, legend labels and secondary hover lines are the neutral grey ink, not the
+60 %, 1 px guides labelled "Warning below 80 %" and "Error below 60 %"; the hover gives each image's means and its
+scored and unscored counts. The charts' axis titles, legend labels and secondary hover lines are the neutral grey ink, not the
 brand purple, which beside data could read as OK. Both read one accumulator, so the last point and
 the status strip agree.
 

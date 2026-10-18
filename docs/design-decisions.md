@@ -4947,3 +4947,17 @@ labelled), or the theme gains a neutral far enough from the muted ink for the tw
 Tests `test/UI/test_trends_view.py::test_the_confidence_chart_draws_only_the_frame_and_run_means`,
 `::test_the_two_means_are_told_apart_when_they_are_equal`, `::test_each_threshold_line_is_labelled_with_what_it_means`,
 `::test_unscored_objects_are_absent_from_the_confidence_chart`.
+
+*Corrected 2026-10-18, on the owner's rule:* the means are no longer told apart by width. Every series line of the
+Trends view, in both charts, is one width and every marker one size (`Trends.CONST_SERIES_LINE_W` 3 px,
+`CONST_SERIES_MARKER_RADIUS` 4 px, 8 px across), the values the light states were given on 2026-10-16 so the amber
+Warning reads on the white card (*Each state has one colour in every view*); the Total, drawn at 2 px with 5 px
+markers until then, the frame mean at 1.5 px with 7 px markers and the run mean at 5 px take them too, and the legend
+samples, every one a line sample now (the Detected objects chart's squares included), take the same. The frame mean
+and the run mean differ by pattern and colour only: solid with markers, dashed (9 px dash, 6 px gap) without. At one
+width the run mean drawn under the frame mean would vanish where the two are equal, so it is drawn over the frame
+mean's line and under its markers: there the run mean's grey alternates with the frame mean's ink along the line
+(1.51:1 between them), and the markers show the frame mean. The threshold lines stay 1 px guides. Tests
+`::test_every_series_in_both_charts_has_one_line_width_and_one_marker_size`,
+`::test_each_legend_sample_has_the_width_and_marker_size_of_its_line`,
+`::test_the_two_means_are_told_apart_when_they_are_equal`.

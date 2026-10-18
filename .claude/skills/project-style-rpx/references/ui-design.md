@@ -26,11 +26,13 @@ practices followed inconsistently are under **Unsettled**.
 ## A verdict colour never changes; its foreground carries legibility ✅
 
 - **One colour per state, in every view** (the owner's rule, 2026-10-16): a state's frame mark in the Camera View, its
-  Trends series and legend swatch, its History filter swatch and set outline are the same token, so the
+  Trends series and legend sample, its History filter swatch and set outline are the same token, so the
   operator learns one colour per state. There are three states (the owner's rule, 2026-10-16): OK `#640ABA`, NOK
   `#FF6540` and Warning `#FFC226`, every Warning whatever its kind (`Theme.Verdict_Color`, whose ink is its box). No
-  darker chart variant exists. On the white card a light state reads by a 3 px line (`CONST_STATE_LINE_W`); its
-  markers and legend and filter swatches are edged in their own colour, never a darker shade (the
+  darker chart variant exists. Every series line in the Trends view, Total and the confidence means included, is
+  3 px wide and every marker 8 px across (`CONST_SERIES_LINE_W`, `CONST_SERIES_MARKER_RADIUS` 4; the owner's rule,
+  2026-10-18), the size the amber reads by on the white card; legend samples take the same; markers and History's
+  filter swatches are edged in their own colour, never a darker shade (the
   owner's rule, 2026-10-18: the 1.25 px dark edge at L* 25, `Theme.Chart_Edge`, is removed). Every colour of a
   catalogue mode:
 
@@ -40,8 +42,8 @@ practices followed inconsistently are under **Unsettled**.
   | NOK | `CONST_NOK_BOX` | `#FF6540` | 2.92:1 |
   | Warning (every kind) | `CONST_WARNING_BOX` | `#FFC226` | 1.62:1 |
   | Trends Total (no state) | `CONST_INK_MUTE` | `#6F5783` | 6.24:1 |
-  | Confidence: Frame mean (no state) | `CONST_INK_MUTE` | `#6F5783`, 1.5 px solid, a marker per image | 6.24:1 |
-  | Confidence: Run mean (no state) | `Detection_Mask_Outline()` | `#817A8A`, 5 px dashed, no marker | 4.13:1 |
+  | Confidence: Frame mean (no state) | `CONST_INK_MUTE` | `#6F5783`, 3 px solid, a marker per image | 6.24:1 |
+  | Confidence: Run mean (no state) | `Detection_Mask_Outline()` | `#817A8A`, 3 px dashed (9 px dash, 6 px gap), no marker | 4.13:1 |
   | Badge grounds | OK `#C2C9FF`, NOK `#FFD9D0`, Warning `#FFC226` | | purple words ≥ 5.66:1 |
   | Mask fills | OK `#CC9EF1`, NOK `#CD7157`, Warning `#B28508` (outline the amber) | | |
   | Inspection area | `CONST_INSPECTION_AREA` / `_EMPTY` | `#FFD880` on images / `#640ABA` on the empty view | 4.71:1 on the table / 6.79:1 on `#E1DCE6` |
@@ -52,9 +54,10 @@ practices followed inconsistently are under **Unsettled**.
   token at all (DD *Three states for the operator, a Warning with its kind*).
 - **The Confidence chart draws no verdict** (the owner's rule, 2026-10-18): two series, the frame mean and the run
   mean, and nothing per object. They are in neutral, non-verdict colours, and since neutral greys cannot lie far apart
-  (ΔE 21.8, 1.51:1 between the two) they are told apart by their FORM, so they read even where they are equal: the
-  frame mean thin and solid with a marker at every analysed image (its edge the marker's own colour), the run mean
-  thick and dashed without markers, drawn under it. The legend draws each as a sample of its own line, never a square.
+  (ΔE 21.8, 1.51:1 between the two) they are told apart by pattern and colour at the view's one width: the frame
+  mean solid with a marker at every analysed image, the run mean dashed without markers, drawn over the frame mean's
+  line and under its markers, so where they are equal the dashes alternate with the frame mean's ink. The legend
+  draws each as a sample of its own line, never a square.
   The two threshold lines and their labels are the neutral grey ink (`CONST_DETECTION_INK` `#655E6D`), told apart by
   their dash (long at 80 %, short at 60 %) and their labels ('Warning below 80 %', 'Error below 60 %'), never a
   verdict colour nor the log's error red. The charts' own secondary text (axis titles, legend labels, the hover's

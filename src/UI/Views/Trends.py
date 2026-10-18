@@ -67,19 +67,23 @@ CONST_MARGIN_RIGHT = 18
 # The approximate pixels one x tick label needs; the label thinning keeps them from overlapping.
 #   Unit [int]
 CONST_X_LABEL_PX = 46
-# The confidence chart's two series, told apart by their drawing as well as by two neutral theme colours, so they read
-# even where they are equal (after a few similar frames the frame mean IS the run mean). The frame mean: a thin solid
-# line with a marker at every analysed image, in the muted ink (Style.CONST_INK_MUTE #6F5783, 6.24:1 on white). The
-# run mean: a thick dashed line without markers in the lighter neutral grey (Theme.Detection_Mask_Outline #817A8A,
-# 4.13:1 on white, above the 3:1 a graphic needs; ΔE 21.8 and 1.51:1 from the frame mean's ink), drawn under the
-# frame mean, so where they are equal the thin dark line runs along a lighter band that its gaps break. Neutral greys
-# cannot lie much farther apart (#655E6D, the other neutral ink, is ΔE 18.7 from the muted ink), so the form carries
-# the difference. The dash pattern is in line widths (Qt), dash then gap.
-#   Unit [float] (px) / [Vector<float>] (line widths)
-CONST_FRAME_MEAN_W = 1.5
-CONST_FRAME_MEAN_MARKER_RADIUS = 3.5
-CONST_RUN_MEAN_W = 5.0
-CONST_RUN_MEAN_DASH = [2.4, 1.6]
+# ONE line width and ONE marker size for every series of the Trends view (the owner's rule, 2026-10-18): Total, OK,
+# NOK, Warning, the frame mean and the run mean, and the legend samples that stand for them. 3 px and a radius of 4 px
+# (8 px across) are the values the light states were given on 2026-10-16 so the amber Warning (1.62:1 on the white
+# card) reads by its line and its markers (docs/design-decisions.md, *Each state has one colour in every view*); every
+# series now takes them. A marker is filled in its series' colour, no edge of another colour. The threshold lines are
+# guides, not data: they stay 1 px (below).
+#   Unit [float] (px)
+CONST_SERIES_LINE_W = 3.0
+CONST_SERIES_MARKER_RADIUS = 4.0
+# The confidence chart's two series are told apart by pattern and colour only, at that one width: the frame mean solid
+# with a marker at every analysed image, in the muted ink (Style.CONST_INK_MUTE #6F5783, 6.24:1 on white); the run mean
+# dashed, no markers, in the lighter neutral grey (Theme.Detection_Mask_Outline #817A8A, 4.13:1; ΔE 21.8 and 1.51:1
+# from the muted ink, the theme's farthest neutral pair). The run mean is drawn over the frame mean's line and under its
+# markers, so where the two are equal the dashes alternate with the frame mean's colour and the markers still show.
+# The dash pattern is in line widths (Qt), dash then gap: 9 px and 6 px.
+#   Unit [Vector<float>] (line widths)
+CONST_RUN_MEAN_DASH = [3.0, 2.0]
 # The two confidence-threshold lines: 1 px, both in the neutral grey ink (Theme.CONST_DETECTION_INK #655E6D, 6.22:1 on
 # white), no verdict's colour nor the log's error red (the owner's rule, 2026-10-18), told apart by their dash, long at
 # the warning threshold and short at the error threshold, and by their labels. Patterns in px (1 px lines), dash then
@@ -87,15 +91,6 @@ CONST_RUN_MEAN_DASH = [2.4, 1.6]
 #   Unit [Vector<float>] (px)
 CONST_WARN_LINE_DASH = [6.0, 4.0]
 CONST_ERROR_LINE_DASH = [2.0, 3.0]
-# A state series' line width, its markers' radius, and the width of the edge round every state marker, dot and legend
-# swatch: the states are drawn in their frame colours, some light on the white card, so the line is thicker than the
-# Total's 2 px; each marker's edge is its own fill colour, never a darker one (the owner's rule, 2026-10-18), so the
-# edge only gives the marker its size. A translucent confidence dot takes no stroke, which would overlap its fill as a
-# denser ring: it is drawn CONST_EDGE_W / 2 larger instead.
-#   Unit [float] (px)
-CONST_STATE_LINE_W = 3.0
-CONST_STATE_MARKER_RADIUS = 4.0
-CONST_EDGE_W = 1.25
 # The minimum column spacing (px) at which the object chart still draws a marker per image.
 #   Unit [float]
 CONST_MARKER_MIN_SPACING = 10.0
@@ -111,7 +106,7 @@ def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
         colour): OK, NOK and Warning (every kind), so the three add up to the total, each in exactly its frame mark's
         colour (Verdict_Color()[0], the owner's rule of 2026-10-16: one colour per state, learnt once). The light ones
         (the amber 1.62:1, the orange-red 2.92:1 on white) read
-        on the white card by a thicker line (CONST_STATE_LINE_W) and markers edged in their hue's dark shade
+        on the white card by the view's one line width and marker size (CONST_SERIES_LINE_W, CONST_SERIES_MARKER_RADIUS)
         edged in that same colour. The total is the muted purple-grey, since the OK line is the purple.
 
     Returns:
@@ -149,7 +144,7 @@ class Chart_Base_Cls(QWidget):
         self._x_ticks, self._y_ticks = [], []
         self._x_tick_text = {}                 # tick value -> label (only the ones that get one)
         self._legend = []                      # [(label, color_hex)]
-        self._legend_marks = {}                # label -> 'line_marker' | 'dashed'; a square swatch otherwise
+        self._legend_marks = {}                # label -> 'line_marker' | 'dashed'
         self._columns = []                     # per-image x VALUES (1..n), for the hover hit-test
         self._hover = None                     # the hovered column index, or None
         self._empty_text = 'No analyses in this run yet.'
@@ -180,13 +175,13 @@ class Chart_Base_Cls(QWidget):
     def _Set_Legend(self, legend: tp.List[tp.Tuple[str, str]], marks: tp.Optional[tp.Dict[str, str]] = None) -> None:
         """
         Description:
-            Store the legend items the base draws top-right, each with the mark it is drawn with: a square swatch, or a
-            sample of the series' own line, so the legend matches what is drawn.
+            Store the legend items the base draws top-right, each drawn as a sample of its series' own line, at the
+            series' width and with its marker, so the legend matches what is drawn.
 
         Args:
             (1) legend [Vector<Tuple<string> 1x2>]: The items as (label, colour hex).
-            (2) marks [Dict<string, string>]: Per label, 'line_marker' (a thin solid line with its marker) or 'dashed'
-                                              (a thick dashed line); a label not in it is a square swatch.
+            (2) marks [Dict<string, string>]: Per label, 'dashed' (a dashed line, no marker); any other label is a
+                                              solid line with its marker ('line_marker').
         """
 
         self._legend, self._legend_marks = legend, dict(marks or {})
@@ -379,7 +374,7 @@ class Chart_Base_Cls(QWidget):
     def __Draw_Legend(self, painter: QPainter, rect: QRectF) -> None:
         """
         Description:
-            Draw a one-row legend of colour swatches and labels, top-right ABOVE the plot, so it
+            Draw a one-row legend of line samples and labels, top-right ABOVE the plot, so it
             never sits on the data.
 
         Args:
@@ -391,34 +386,29 @@ class Chart_Base_Cls(QWidget):
             return
         painter.setFont(Font(Style.CONST_TYPE_SCALE[0]))
         metrics = QFontMetrics(painter.font())
-        # A line sample is as long as a dash, a gap and a dash of the dashed series, so both samples read whole.
-        gap, swatch = 14, 9
-        sample = (2 * CONST_RUN_MEAN_DASH[0] + CONST_RUN_MEAN_DASH[1]) * CONST_RUN_MEAN_W
-        marks = [self._legend_marks.get(label) for label, _ in self._legend]
-        widths = [(sample if mark else swatch) + 5 + metrics.horizontalAdvance(label)
-                  for (label, _), mark in zip(self._legend, marks)]
+        # A line sample is as long as a dash, a gap and a dash of the dashed series, so every sample reads whole.
+        gap = 14
+        sample = (2 * CONST_RUN_MEAN_DASH[0] + CONST_RUN_MEAN_DASH[1]) * CONST_SERIES_LINE_W
+        marks = [self._legend_marks.get(label, 'line_marker') for label, _ in self._legend]
+        widths = [sample + 5 + metrics.horizontalAdvance(label) for label, _ in self._legend]
         total = sum(widths) + gap * (len(self._legend) - 1)
         x = rect.right() - total
         y = rect.top() - 24
         for (label, color), mark, width in zip(self._legend, marks, widths):
-            mid = y + 2 + swatch / 2.0
+            mid = y + 6.5
             if mark == 'dashed':
-                pen = QPen(QColor(color), CONST_RUN_MEAN_W, Qt.CustomDashLine, Qt.FlatCap)
+                pen = QPen(QColor(color), CONST_SERIES_LINE_W, Qt.CustomDashLine, Qt.FlatCap)
                 pen.setDashPattern(CONST_RUN_MEAN_DASH)
                 painter.setPen(pen)
                 painter.drawLine(QPointF(x, mid), QPointF(x + sample, mid))
-            elif mark == 'line_marker':
-                painter.setPen(QPen(QColor(color), CONST_FRAME_MEAN_W))
-                painter.drawLine(QPointF(x, mid), QPointF(x + sample, mid))
-                painter.setBrush(QBrush(QColor(color)))
-                painter.drawEllipse(QPointF(x + sample / 2.0, mid), CONST_FRAME_MEAN_MARKER_RADIUS,
-                                    CONST_FRAME_MEAN_MARKER_RADIUS)
             else:
+                painter.setPen(QPen(QColor(color), CONST_SERIES_LINE_W, Qt.SolidLine, Qt.FlatCap))
+                painter.drawLine(QPointF(x, mid), QPointF(x + sample, mid))
+                painter.setPen(Qt.NoPen)
                 painter.setBrush(QBrush(QColor(color)))
-                painter.setPen(QPen(QColor(color), CONST_EDGE_W))
-                painter.drawRect(QRectF(x, y + 2, swatch, swatch))
+                painter.drawEllipse(QPointF(x + sample / 2.0, mid), CONST_SERIES_MARKER_RADIUS, CONST_SERIES_MARKER_RADIUS)
             painter.setPen(QColor(CONST_DETECTION_INK))
-            text_x = x + (sample if mark else swatch) + 5
+            text_x = x + sample + 5
             painter.drawText(QRectF(text_x, y - 1, width, 14), Qt.AlignLeft | Qt.AlignVCenter, label)
             x += width + gap
 
@@ -543,11 +533,11 @@ class Objects_Chart_Cls(Chart_Base_Cls):
             (2) rect [QRectF]: The plot rectangle.
         """
 
-        series = [('Cumulative_Total', Style.CONST_INK_MUTE, False)]
+        series = [('Cumulative_Total', Style.CONST_INK_MUTE)]
         if self.__classified:
-            series += [(attr, color, True) for _label, attr, color in _Verdict_Series()]
-        for attr, color, state in series:
-            painter.setPen(QPen(QColor(color), CONST_STATE_LINE_W if state else 2))
+            series += [(attr, color) for _label, attr, color in _Verdict_Series()]
+        for attr, color in series:
+            painter.setPen(QPen(QColor(color), CONST_SERIES_LINE_W))
             previous = None
             for row in self.__rows:
                 point = QPointF(self._Px_X(row.Index, rect), self._Px_Y(getattr(row, attr), rect))
@@ -559,11 +549,10 @@ class Objects_Chart_Cls(Chart_Base_Cls):
             if rect.width() / max(1, len(self.__rows)) < CONST_MARKER_MIN_SPACING:
                 continue
             painter.setBrush(QBrush(QColor(color)))
-            painter.setPen(QPen(QColor(color), CONST_EDGE_W) if state else Qt.NoPen)
+            painter.setPen(Qt.NoPen)
             for row in self.__rows:
                 point = QPointF(self._Px_X(row.Index, rect), self._Px_Y(getattr(row, attr), rect))
-                radius = CONST_STATE_MARKER_RADIUS if state else 2.5
-                painter.drawEllipse(point, radius, radius)
+                painter.drawEllipse(point, CONST_SERIES_MARKER_RADIUS, CONST_SERIES_MARKER_RADIUS)
 
     def _Hover_Lines(self, index: int) -> tp.List[tp.Tuple[str, str]]:
         """
@@ -656,8 +645,9 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
     def _Paint_Series(self, painter: QPainter, rect: QRectF) -> None:
         """
         Description:
-            Draw the labelled reference lines, then the run mean (thick, dashed) and over it the frame mean (thin,
-            solid, a marker at every analysed image, the marker's edge its own colour).
+            Draw the labelled reference lines, then the frame mean's solid line, the run mean's dashes over it, and
+            the frame mean's markers on top (one marker at every analysed image), all at the view's one width and
+            marker size.
 
         Args:
             (1) painter [QPainter(object)]: The active painter.
@@ -676,17 +666,16 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
             painter.setPen(QColor(color))
             painter.drawText(QRectF(rect.right() - metrics.horizontalAdvance(label) - 6, y - 16,
                                     metrics.horizontalAdvance(label) + 4, 14), Qt.AlignRight | Qt.AlignVCenter, label)
-        run = QPen(QColor(Detection_Mask_Outline()), CONST_RUN_MEAN_W, Qt.CustomDashLine, Qt.FlatCap)
+        run = QPen(QColor(Detection_Mask_Outline()), CONST_SERIES_LINE_W, Qt.CustomDashLine, Qt.FlatCap)
         run.setDashPattern(CONST_RUN_MEAN_DASH)
+        self.__Draw_Mean_Line(painter, rect, 'Frame_Mean', QPen(QColor(Style.CONST_INK_MUTE), CONST_SERIES_LINE_W))
         self.__Draw_Mean_Line(painter, rect, 'Run_Mean', run)
-        self.__Draw_Mean_Line(painter, rect, 'Frame_Mean', QPen(QColor(Style.CONST_INK_MUTE), CONST_FRAME_MEAN_W))
         painter.setBrush(QBrush(QColor(Style.CONST_INK_MUTE)))
-        painter.setPen(QPen(QColor(Style.CONST_INK_MUTE), CONST_EDGE_W))
+        painter.setPen(Qt.NoPen)
         for row in self.__rows:
             if row.Frame_Mean is not None:
                 painter.drawEllipse(QPointF(self._Px_X(row.Index, rect), self._Px_Y(row.Frame_Mean, rect)),
-                                    CONST_FRAME_MEAN_MARKER_RADIUS - CONST_EDGE_W / 2.0,
-                                    CONST_FRAME_MEAN_MARKER_RADIUS - CONST_EDGE_W / 2.0)
+                                    CONST_SERIES_MARKER_RADIUS, CONST_SERIES_MARKER_RADIUS)
 
     def __Draw_Mean_Line(self, painter: QPainter, rect: QRectF, attr: str, pen: QPen) -> None:
         """
