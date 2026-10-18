@@ -282,7 +282,8 @@ Two cards:
 
 Two charts of the current run: **Detected objects** (cumulative; in a catalogue mode also per verdict —
 OK, NOK and Warning, which add up to the total, each in its frame mark's own colour
-on a thicker line with dark-edged markers) and **Confidence** (per-object scores, each dot its state's colour, dark-edged; the
+on a thicker line, its markers and legend swatches edged in that same colour) and **Confidence** (per-object scores, each
+dot its state's colour out to its edge, no darker ring; the
 frame mean and the running run mean; the warning threshold's dashed line in the neutral mid ink, so a
 Warning object's amber dot is not read as part of it). Both read one accumulator, so the last point and
 the status strip agree.

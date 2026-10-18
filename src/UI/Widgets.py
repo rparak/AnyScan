@@ -131,8 +131,7 @@ def Swatch_Icon(color: str) -> QIcon:
     """
     Description:
         A state's swatch as an icon, as the Trends legend draws it: a CONST_SWATCH_PX square in the state's frame colour,
-        edged in its hue's dark shade (Theme.Chart_Edge), so a light colour reads on the white card and on the purple of
-        a selected segment alike.
+        edged in that same colour, never a darker one (the owner's rule, 2026-10-18).
 
     Args:
         (1) color [string]: The state's colour token, as '#rrggbb'.
@@ -148,7 +147,7 @@ def Swatch_Icon(color: str) -> QIcon:
     p = QPainter(pixmap)
     p.setRenderHint(QPainter.Antialiasing, True)
     p.setBrush(Style.Token_Color(color))
-    p.setPen(QPen(Style.Token_Color(Style.Chart_Edge(color)), 1.25))
+    p.setPen(QPen(Style.Token_Color(color), 1.25))
     p.drawRect(QRectF(0.625, 0.625, CONST_SWATCH_PX - 1.25, CONST_SWATCH_PX - 1.25))
     p.end()
     return QIcon(pixmap)

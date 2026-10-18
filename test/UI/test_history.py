@@ -793,11 +793,10 @@ def test_each_state_filter_carries_its_states_frame_colour(qt_app, tmp_path) -> 
     """
     Description:
         Each state's segment of History's filter carries a swatch in exactly that state's frame colour, as the Trends
-        legend and the Camera View's marks (OK #640ABA, NOK #FF6540, Warning #FFC226, every kind), edged in its hue's
-        dark shade; All carries none, and there are no other segments.
+        legend and the Camera View's marks (OK #640ABA, NOK #FF6540, Warning #FFC226, every kind), its rim that same
+        colour, no darker edge (the owner's rule of 2026-10-18); All carries none, and there are no other segments.
     """
 
-    from Parameters.Theme import Chart_Edge
     view = History_View_Cls(str(tmp_path), classification_enabled=True, Confidence_Thresholds_Str=Confidence_Thresholds_Str())
     buttons = {button.text(): button for button in _Private(view, '__filter').findChildren(QPushButton)}
     assert buttons['All'].icon().isNull() and sorted(buttons) == ['All', 'NOK', 'OK', 'Warning']
@@ -805,4 +804,4 @@ def test_each_state_filter_carries_its_states_frame_colour(qt_app, tmp_path) -> 
         image = buttons[label].icon().pixmap(20, 20).toImage()
         centre = QColor(image.pixel(image.width() // 2, image.height() // 2)).name()
         rim = QColor(image.pixel(1, image.height() // 2)).name()
-        assert (centre, rim) == (colour.lower(), Chart_Edge(colour).lower()), label
+        assert (centre, rim) == (colour.lower(), colour.lower()), label

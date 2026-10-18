@@ -37,7 +37,7 @@ from UI.Widgets import Card_Cls, Card_Head_Cls
 #   ../Reporting/Trends
 from Reporting.Trends import Nice_Ticks, Value_To_Pixel, Nearest_Index, Thin_Label_Indices
 #   ../Parameters/Theme
-from Parameters.Theme import Verdict_Color, Detection_Color, Chart_Edge
+from Parameters.Theme import Verdict_Color, Detection_Color
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str
 #   ../Parameters/General — the one default for the classification flag
@@ -72,9 +72,11 @@ CONST_X_LABEL_PX = 46
 #   Unit [float]
 CONST_DOT_RADIUS = 3.5
 CONST_JITTER_FRACTION = 0.55
-# A state series' line width, its markers' radius, and the width of the dark edge round every state marker, dot and
-# legend swatch (Theme.Chart_Edge): the states are drawn in their frame colours, some light on the white card, so the
-# line is thicker than the Total's 2 px and each marker carries an edge in its own hue's dark shade.
+# A state series' line width, its markers' radius, and the width of the edge round every state marker, dot and legend
+# swatch: the states are drawn in their frame colours, some light on the white card, so the line is thicker than the
+# Total's 2 px; each marker's edge is its own fill colour, never a darker one (the owner's rule, 2026-10-18), so the
+# edge only gives the marker its size. A translucent confidence dot takes no stroke, which would overlap its fill as a
+# denser ring: it is drawn CONST_EDGE_W / 2 larger instead.
 #   Unit [float] (px)
 CONST_STATE_LINE_W = 3.0
 CONST_STATE_MARKER_RADIUS = 4.0
@@ -95,7 +97,7 @@ def _Verdict_Series() -> tp.List[tp.Tuple[str, str, str]]:
         colour (Verdict_Color()[0], the owner's rule of 2026-10-16: one colour per state, learnt once). The light ones
         (the amber 1.62:1, the orange-red 2.92:1 on white) read
         on the white card by a thicker line (CONST_STATE_LINE_W) and markers edged in their hue's dark shade
-        (Theme.Chart_Edge, 11:1). The total is the muted purple-grey, since the OK line is the purple.
+        edged in that same colour. The total is the muted purple-grey, since the OK line is the purple.
 
     Returns:
         (1) parameter [Vector<Tuple<string> 1x3>]: The series, in legend order.
@@ -377,7 +379,7 @@ class Chart_Base_Cls(QWidget):
         y = rect.top() - 24
         for (label, color), width in zip(self._legend, widths):
             painter.setBrush(QBrush(QColor(color)))
-            painter.setPen(QPen(QColor(Chart_Edge(color)), CONST_EDGE_W))
+            painter.setPen(QPen(QColor(color), CONST_EDGE_W))
             painter.drawRect(QRectF(x, y + 2, swatch, swatch))
             painter.setPen(QColor(Style.CONST_INK_SOFT))
             painter.drawText(QRectF(x + swatch + 5, y - 1, width, 14),
@@ -521,7 +523,7 @@ class Objects_Chart_Cls(Chart_Base_Cls):
             if rect.width() / max(1, len(self.__rows)) < CONST_MARKER_MIN_SPACING:
                 continue
             painter.setBrush(QBrush(QColor(color)))
-            painter.setPen(QPen(QColor(Chart_Edge(color)), CONST_EDGE_W) if state else Qt.NoPen)
+            painter.setPen(QPen(QColor(color), CONST_EDGE_W) if state else Qt.NoPen)
             for row in self.__rows:
                 point = QPointF(self._Px_X(row.Index, rect), self._Px_Y(getattr(row, attr), rect))
                 radius = CONST_STATE_MARKER_RADIUS if state else 2.5
@@ -620,7 +622,7 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
             painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
         # The scored-object dots, jittered horizontally within their column.
         spacing = rect.width() / max(1, len(self.__rows))
-        # On the white card every dot is its state's frame colour edged in its hue's dark shade, and the neutral dot the
+        # On the white card every dot is its state's frame colour out to its edge, no darker ring, and the neutral dot the
         # detection's ink.
         neutral = Detection_Color()[1]
         for row in self.__rows:
@@ -632,10 +634,10 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
                 dot = QColor(color)
                 dot.setAlpha(220)
                 painter.setBrush(QBrush(dot))
-                painter.setPen(QPen(QColor(Chart_Edge(color)), CONST_EDGE_W) if self.__classified else Qt.NoPen)
+                painter.setPen(Qt.NoPen)
+                radius = CONST_DOT_RADIUS + (CONST_EDGE_W / 2.0 if self.__classified else 0.0)
                 painter.drawEllipse(QPointF(self._Px_X(row.Index, rect) + offset,
-                                            self._Px_Y(obj.Confidence, rect)),
-                                    CONST_DOT_RADIUS, CONST_DOT_RADIUS)
+                                            self._Px_Y(obj.Confidence, rect)), radius, radius)
         # The two mean lines over the dots.
         self.__Draw_Mean_Line(painter, rect, 'Frame_Mean', Style.CONST_INK_MUTE)
         self.__Draw_Mean_Line(painter, rect, 'Run_Mean', Style.CONST_INK)

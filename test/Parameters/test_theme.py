@@ -311,8 +311,8 @@ def test_the_palette_keeps_the_brands_rules() -> None:
         decoration and is no token, so it marks no status and no defect; no object is marked in the JIC green, which
         would sit in the green table's hue (every verdict box and fill >= ΔE 40 from it); a verdict's words clear
         4.5:1 on the ground they sit on (Label_Ground: the badge, the diagram's labels); and, one colour per state (the
-        owner's rule of 2026-10-16), a verdict's colour on the white card is its box itself, read there by its markers'
-        dark edge, which clears 4.5:1.
+        owner's rule of 2026-10-16), a verdict's colour on the white card is its box itself, with no darker shade of
+        it (the markers' dark edge, Chart_Edge, is gone since 2026-10-18).
     """
 
     tokens = {value.upper() for name, value in vars(Theme).items() if name.startswith('CONST_') and isinstance(value, str)}
@@ -322,4 +322,5 @@ def test_the_palette_keeps_the_brands_rules() -> None:
         box, ink, fill = Theme.Verdict_Color(verdict)
         assert min(Theme.Delta_E(box, green), Theme.Delta_E(fill, green)) >= 40, verdict
         assert Theme.Contrast_Ratio(Theme.CONST_INK, Theme.Label_Ground(verdict)) >= 4.5, verdict
-        assert ink == box and Theme.Contrast_Ratio(Theme.Chart_Edge(ink), Theme.CONST_CARD) >= 4.5, verdict
+        assert ink == box, verdict
+    assert not hasattr(Theme, 'Chart_Edge') and not hasattr(Theme, 'CONST_CHART_EDGE_LIGHTNESS')

@@ -4549,6 +4549,16 @@ Tests `test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_
 *Corrected 2026-10-16:* the rule stands with three states, OK `#640ABA`, NOK `#FF6540` and Warning `#FFC226`
 (`Theme.Verdict_Color`); the badges are `NOK · n` and `Warning · n`, or `All OK` (*Three states for the operator, a Warning with its kind*).
 
+*Corrected 2026-10-18, on the owner's instruction:* no marker carries a darker edge any more. The Trends series markers
+and legend swatches and History's filter swatches are edged at 1.25 px in their own colour, and a confidence dot,
+translucent, takes no stroke (a same-colour stroke would overlap its fill as a denser ring) and is drawn 0.625 px
+larger instead, so its size is unchanged. `Theme.Chart_Edge` and its L* 25 constant are removed. The state lines keep
+their 3 px (`CONST_STATE_LINE_W`). Given up: the 11:1 the dark edge gave a light state's marker on the white card; the
+amber marker now reads at its own 1.62:1. Tests `test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
+`::test_the_confidence_dots_take_their_states_frame_colour_with_no_darker_edge`,
+`test/UI/test_history.py::test_each_state_filter_carries_its_states_frame_colour`,
+`test/Parameters/test_theme.py::test_the_palette_keeps_the_brands_rules`.
+
 Decided 2026-10-16, on the owner's rig test. Every view draws a catalogue state in exactly its frame mark's colour, so the
 operator learns one colour per state: the Camera View's marks, the Trends series, legend swatches and confidence dots,
 the History filter's swatches and set outlines: OK `#640ABA`, NOK `#FF6540`, Outside area `#FFC226`, Foreign object
@@ -4582,7 +4592,7 @@ above.
 1.62:1), or the Foreign object and Total series (ΔE 32.2) are confused there.
 Tests `test/Parameters/test_theme.py::test_every_catalogue_state_has_its_colour`, `::test_the_palette_keeps_the_brands_rules`,
 `test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
-`::test_the_confidence_dots_take_their_states_frame_colour_with_a_dark_edge`,
+`::test_the_confidence_dots_take_their_states_frame_colour_with_no_darker_edge`,
 `test/UI/test_history.py::test_each_state_filter_carries_its_states_frame_colour`,
 `test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
 `test/UI/test_reading_view.py::test_every_badge_shows_at_once_and_wraps_rather_than_clip`.
@@ -4887,7 +4897,7 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_verdict_follows_the_rule
 `test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`,
 `::test_every_badge_shows_at_once_and_wraps_rather_than_clip`,
 `test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
-`::test_the_confidence_dots_take_their_states_frame_colour_with_a_dark_edge`,
+`::test_the_confidence_dots_take_their_states_frame_colour_with_no_darker_edge`,
 `test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
 `::test_a_warning_records_its_kind_and_an_older_set_reads_into_the_three_states`,
 `::test_a_set_is_outlined_in_its_worst_state`, `::test_each_state_filter_carries_its_states_frame_colour`,

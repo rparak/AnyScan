@@ -235,8 +235,8 @@ CONST_NOK_BOX = '#FF6540'
 CONST_WARNING_BOX = '#FFC226'
 # ONE COLOUR PER STATE (the owner's rule, 2026-10-16): a state's 'ink', its colour in the charts, the legends and the
 # History filter, is its frame box itself, so the operator learns one colour per state; the darker chart variants
-# (#BA260B, #7C5B00, #4F4952, #0065A9) are gone. A light one reads on the white card by a thicker line and markers edged
-# in its hue's dark shade (Chart_Edge). (CONST_WARN_INK stays the status pill's and the log's amber text, no verdict's.)
+# (#BA260B, #7C5B00, #4F4952, #0065A9) are gone. A light one reads on the white card by a thicker line; its markers and
+# swatches are edged in its own colour, no darker shade (2026-10-18). (CONST_WARN_INK stays the status pill's and the log's amber text, no verdict's.)
 # THREE STATES (the owner's rule, 2026-10-16): every Warning, whatever its kind (Parameters.Vision.CONST_WARNING_KINDS),
 # is the amber, its outline, outer box, chip and mask fill; the foreign object's grey #B4A6BE and Unspecified's blue
 # #33A3FF are retired as verdict colours (the grey stays the disabled label's token, CONST_CONTROL_DISABLED_TEXT).
@@ -653,36 +653,6 @@ def Neutral_Mask_Colors(box_hex: str) -> tp.Tuple[str, str]:
         raise ValueError('The derived neutral mask pair (%s, %s) for box %s misses a floor after '
                          'rounding.' % (outline, fill, box_hex))
     return (outline, fill)
-
-
-# The lightness of a chart marker's edge (Chart_Edge): a darker shade of the marker's own hue, so a state's light frame
-# colour (the amber 1.62:1, the orange-red 2.92:1 on white) is drawn as itself on the white card and still reads, its
-# edge at L* 25 clearing 11:1 there (11.07-11.16:1 for the three states).
-#   Unit [float] (CIE L*)
-CONST_CHART_EDGE_LIGHTNESS = 25.0
-
-
-def Chart_Edge(hex_color: str) -> str:
-    """
-    Description:
-        The thin edge a chart marker or legend swatch of a colour is drawn with on the white card: its own hue at
-        CONST_CHART_EDGE_LIGHTNESS, at the largest chroma up to its own that stays in the sRGB gamut with the hue kept.
-
-    Args:
-        (1) hex_color [string]: The marker's colour, as '#rrggbb'.
-
-    Returns:
-        (1) parameter [string]: The edge colour as '#rrggbb'.
-    """
-
-    _lightness, chroma, hue = Lch_Of(hex_color)
-    angle = math.radians(hue)
-    for step in range(int(chroma), -1, -1):
-        edge = __Lab_To_Hex(CONST_CHART_EDGE_LIGHTNESS, step * math.cos(angle), step * math.sin(angle))
-        _l, edge_chroma, edge_hue = Lch_Of(edge)
-        if abs(edge_chroma - step) < 1.0 and (step == 0 or abs((edge_hue - hue + 180.0) % 360.0 - 180.0) < 3.0):
-            return edge
-    return __Lab_To_Hex(CONST_CHART_EDGE_LIGHTNESS, 0.0, 0.0)
 
 
 def Verdict_Color(verdict: str) -> tp.Tuple[str, str, str]:

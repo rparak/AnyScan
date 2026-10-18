@@ -29,15 +29,16 @@ practices followed inconsistently are under **Unsettled**.
   Trends series, legend swatch and confidence dots, its History filter swatch and set outline are the same token, so the
   operator learns one colour per state. There are three states (the owner's rule, 2026-10-16): OK `#640ABA`, NOK
   `#FF6540` and Warning `#FFC226`, every Warning whatever its kind (`Theme.Verdict_Color`, whose ink is its box). No
-  darker chart variant exists. On the white card a light state reads by a 3 px line (`CONST_STATE_LINE_W`) and markers
-  and swatches edged at 1.25 px in its hue's dark shade at L* 25 (`Theme.Chart_Edge`, 11.07-11.16:1 on white). Every
-  colour of a catalogue mode:
+  darker chart variant exists. On the white card a light state reads by a 3 px line (`CONST_STATE_LINE_W`); its
+  markers, confidence dots and legend and filter swatches are edged in their own colour, never a darker shade (the
+  owner's rule, 2026-10-18: the 1.25 px dark edge at L* 25, `Theme.Chart_Edge`, is removed). Every colour of a
+  catalogue mode:
 
-  | Use | Token | Value | On white (edge) |
+  | Use | Token | Value | On white |
   |---|---|---|---|
-  | OK | `CONST_INK` | `#640ABA` | 9.15:1 (`#5300A3`, 11.07:1) |
-  | NOK | `CONST_NOK_BOX` | `#FF6540` | 2.92:1 (`#7A0E00`, 11.11:1) |
-  | Warning (every kind) | `CONST_WARNING_BOX` | `#FFC226` | 1.62:1 (`#4D3800`, 11.16:1) |
+  | OK | `CONST_INK` | `#640ABA` | 9.15:1 |
+  | NOK | `CONST_NOK_BOX` | `#FF6540` | 2.92:1 |
+  | Warning (every kind) | `CONST_WARNING_BOX` | `#FFC226` | 1.62:1 |
   | Trends Total (no state) | `CONST_INK_MUTE` | `#6F5783` | 6.24:1 |
   | Badge grounds | OK `#C2C9FF`, NOK `#FFD9D0`, Warning `#FFC226` | | purple words ≥ 5.66:1 |
   | Mask fills | OK `#CC9EF1`, NOK `#CD7157`, Warning `#B28508` (outline the amber) | | |
