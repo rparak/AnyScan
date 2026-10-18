@@ -938,7 +938,7 @@ def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
     """
     Description:
         A catalogue mode's verdict on one object as Scene Understanding shows it: 'State: OK.', 'State: NOK.' or
-        'State: Warning – <kind>' (State_Word, as the owner wrote it), then, when it is not OK, its one 'Reason:'
+        'State: Warning – <kind>.' (State_Word), then, when it is not OK, its one 'Reason:'
         sentence with the operator's action for a Warning (Reason_Sentence), then the unplaced-hole note when it applies
         (Unplaced_Hole_Note). No similarity, no side and no size note here: the similarity and the size note are in
         the log only (Verdict_Log_Line), and the side is in the description (Side_Sentence). Empty outside a
@@ -954,8 +954,7 @@ def Verdict_Lines(det: Detection_Str) -> tp.List[str]:
     if det.Catalogue is None:
         return []
     note, reason = Unplaced_Hole_Note(det), Reason_Sentence(det)
-    state = State_Word(det)
-    return (['State: %s' % state + ('' if det.Verdict == 'Warning' else '.')] + (['Reason: %s' % reason] if reason else [])
+    return (['State: %s.' % State_Word(det)] + (['Reason: %s' % reason] if reason else [])
             + (['Note: %s' % note] if note else []))
 
 

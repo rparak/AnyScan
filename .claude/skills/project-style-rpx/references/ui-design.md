@@ -61,7 +61,7 @@ practices followed inconsistently are under **Unsettled**.
   mismatch): its rotated outline, dashed outer box and chip in the amber with the white numeral, filled and outlined in
   the amber's pair on the mask, and no feature mark, though a part whose side could not be told was checked and keeps
   its features in the record (`Annotate.__Draw_Features` draws only OK and NOK parts' marks). The kind is told in
-  words, never in colour: `State: Warning – <kind>` in Scene Understanding, the `warning_kind` in the record (DD
+  words, never in colour: `State: Warning – <kind>.` in Scene Understanding, the `warning_kind` in the record (DD
   *Three states for the operator, a Warning with its kind*).
 - The inspection area's line (`UI.Widgets.Paint_Inspection_Area`, 1 px, solid, square corners, no fill, on screen
   only) is the amber `Theme.CONST_INSPECTION_AREA` `#FFD880` over a camera image (4.71:1 on the table, 1.18:1 against

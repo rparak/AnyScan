@@ -268,7 +268,7 @@ Two cards:
   Similarity), on screen only: the saved images never carry it. Segment Anything shows none.
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
-  each object adds `State: OK.`, `State: NOK.` or `State: Warning – <kind>` (`State: Warning – Outside area`), one
+  each object adds `State: OK.`, `State: NOK.` or `State: Warning – <kind>.` (`State: Warning – Outside area.`), one
   `Reason: …` sentence summing up why it is not OK, a Warning's with what to do (counts in words up to
   ten: "One of two through-holes is missing, and there are two stains on the machined front."), and a note when
   missing holes are not marked on the frame (no hole found to place them by: which end of the part they belong at

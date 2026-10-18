@@ -4340,7 +4340,7 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_f
 
 *Corrected 2026-10-16:* what an object is still decides its kind and its reason, unchanged, but no longer its colour: a
 foreign object is drawn in the amber like every Warning, the grey `#B4A6BE` retired as a verdict colour; it reads
-`State: Warning – Foreign object` and is recorded as `warning_kind` `foreign`, and the badge counts it in
+`State: Warning – Foreign object.` and is recorded as `warning_kind` `foreign`, and the badge counts it in
 `Warning · n` (*Three states for the operator, a Warning with its kind*).
 
 Decided 2026-10-16, on the owner's rig test (capture `20261016-111250_s1`): the red block, cut by the frame's top border,
@@ -4490,7 +4490,7 @@ Tests `test/Parameters/test_theme.py::test_every_warning_is_the_amber_and_the_re
 ## A Warning is shown, counted and recorded by its kind
 
 *Superseded 2026-10-16, except the record* (*Three states for the operator, a Warning with its kind*): a Warning is shown, counted, charted and filtered as one state, in
-the amber, its kind told in words (`State: Warning – <kind>`); only point 1, the `warning_kind` in the record, stands,
+the amber, its kind told in words (`State: Warning – <kind>.`); only point 1, the `warning_kind` in the record, stands,
 extended with the new kinds. `Reporting.Shown_State`, `Theme.State_Color`, the foreign badge ground and mask pair and the
 History kind filters are removed.
 
@@ -4830,9 +4830,9 @@ Everywhere the operator meets it:
   and chip; on the mask the amber outline and its fill `#B28508`. No Warning has feature marks: the rule a part outside
   the area had is now every Warning's (`Annotate.__Draw_Features` draws only OK and NOK parts' marks). A part whose side
   could not be told was checked and keeps its features in the record and its readings for the reason, only undrawn.
-- **Scene Understanding.** `State: Warning – <kind>` (`Reporting.State_Word`; OK and NOK keep `State: OK.` and
-  `State: NOK.`), then its reason with the action (`Reporting.__Warning_Sentence`); the log line leads with the same
-  state, at WARNING.
+- **Scene Understanding.** `State: Warning – <kind>.` (`Reporting.State_Word`), ending in a full stop as
+  `State: OK.` and `State: NOK.` do (*corrected 2026-10-18*, the owner's ruling: it had none), then its reason
+  with the action (`Reporting.__Warning_Sentence`); the log line leads with the same state, at WARNING.
 - **Badges.** One per state present: `NOK · n` (`fail`) and `Warning · n` (`warn`, every kind counted together), or
   `All OK` (`ok`). The levels `foreign` and `unspecified` are gone; a badge given either paints the idle card.
 - **Trends.** OK, NOK and Warning (plus Total), adding up to the total; each confidence dot its verdict's colour.
@@ -4856,7 +4856,7 @@ NOK). Every other object took its kind one to one: 136 foreign objects (`foreign
 (`outside`) and the one Unspecified object, two plates touching in capture `20261016-161110_2` (area 1.99 times the
 part's), `several_parts`. No frame gave a side Unspecified, so `side_unknown` and `side_mismatch` are pinned by unit
 tests only. Rendered and looked at, from the window itself: capture `20261016-174059_6` (OK, NOK, Outside area,
-Foreign object; badges `NOK · 1` and `Warning · 2`) and `20261016-161110_2` (`State: Warning – Several parts`), the
+Foreign object; badges `NOK · 1` and `Warning · 2`) and `20261016-161110_2` (`State: Warning – Several parts.`), the
 Annotated and Mask views, Scene Understanding and the Trends chart.
 
 **Given up.** The colour no longer tells a part to move from an object to remove; the words do. A part whose side

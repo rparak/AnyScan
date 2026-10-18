@@ -385,7 +385,8 @@ def test_each_state_reads_as_the_owner_specified() -> None:
     """
     Description:
         Scene Understanding shows the state and, when it is not OK, why — never the similarity, which is in the
-        log only: OK is 'State: OK.' alone; a Warning is 'State: Warning – <kind>' (the owner's wording, 2026-10-16)
+        log only: OK is 'State: OK.' alone; a Warning is 'State: Warning – <kind>.' (the owner's wording, 2026-10-16,
+        with the full stop OK and NOK end with, 2026-10-18)
         and its reason with what the operator does: a foreign object to remove, a part outside the area to move
         inside, several parts to separate.
     """
@@ -393,13 +394,13 @@ def test_each_state_reads_as_the_owner_specified() -> None:
     from Reporting.Core import Verdict_Lines
     assert Verdict_Lines(_Judged('OK')) == ['State: OK.']
     assert Verdict_Lines(_Judged('Warning', similarity=0.31)) == [
-        'State: Warning – Foreign object',
+        'State: Warning – Foreign object.',
         'Reason: It is not the part, so it should not be there: remove it from the surface.']
     assert Verdict_Lines(_Judged('Warning-outside')) == [
-        'State: Warning – Outside area',
+        'State: Warning – Outside area.',
         'Reason: It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.']
     assert Verdict_Lines(_Judged('Warning-several_parts', area=2.04)) == [
-        'State: Warning – Several parts',
+        'State: Warning – Several parts.',
         "Reason: Its area is 2.04 times the part's, probably several parts touching or lying close together, so it "
         'cannot be judged: separate the parts and scan again.']
     # The side kinds quote both sides' similarity, the evidence the operator acts on (as Unspecified's did).
@@ -420,13 +421,13 @@ def test_a_warning_on_the_part_says_why_it_was_not_judged_and_what_to_do() -> No
     told = _Judged('Warning-side_unknown')
     told.Catalogue.Side_Evidence = 'undecided'
     told.Catalogue.Side_Similarities = {'front': 0.72, 'back': 0.75}
-    assert Verdict_Lines(told)[0] == 'State: Warning – Side unclear'
+    assert Verdict_Lines(told)[0] == 'State: Warning – Side unclear.'
     assert Reason_Sentence(told) == ('Which side is up cannot be told from its look (similarity front 0.72, back '
                                      '0.75) or its holes, and its verdict depends on it, so it cannot be judged: '
                                      'move it nearer the centre and scan again.')
     assert Verdict_Log_Line(0, told)[1].startswith('Object 1: Warning – Side unclear, similarity 0.94. Reason: Which')
     told.Catalogue.Side_Evidence, told.Catalogue.Warning_Kind = 'conflict', 'side_mismatch'
-    assert Verdict_Lines(told)[0] == 'State: Warning – Side mismatch'
+    assert Verdict_Lines(told)[0] == 'State: Warning – Side mismatch.'
     assert Reason_Sentence(told) == ('Its holes show one side up and its look the other (similarity front 0.72, back '
                                      '0.75), so it cannot be judged: check that it is the part and scan it again '
                                      'nearer the centre.')
