@@ -297,7 +297,8 @@ def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None
     Description:
         The confidence chart draws two series and nothing per object (the owner's rule of 2026-10-18): the frame
         mean and the run mean, in two neutral theme colours, the dark #655E6D (CONST_DETECTION_INK, 6.22:1 on white) and
-        the light #B4A6BE (CONST_CONTROL_DISABLED_TEXT, 2.30:1; 2.71:1 between them), never a verdict colour, and its
+        the light #9890A0 (CONST_CHART_LIGHT_INK, 3.07:1, the lightest of the dark's hue that clears the 3:1 a graphic
+        needs; 2.02:1 between them), never a verdict colour nor the retired #B4A6BE, and its
         legend names exactly those two in those colours. Rendered on a catalogue run of OK, NOK and
         Warning objects scored far from their means: no verdict colour is painted, and nothing is painted at an
         object's own score away from the mean lines (the old dots), nor beyond the last analysed image.
@@ -307,11 +308,12 @@ def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None
     frames = [[(0.95, 'OK'), (0.40, 'NOK'), (0.30, 'Warning')], [(0.96, 'Warning'), (0.42, 'OK')],
               [(0.94, 'NOK'), (0.38, 'Warning')]]
     chart, image, rows = _Confidence(frames)
-    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CONTROL_DISABLED_TEXT
+    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CHART_LIGHT_INK
     assert chart._legend == [('Frame mean', frame), ('Run mean', run)]
     assert chart._legend_marks == {'Frame mean': 'filled', 'Run mean': 'hollow_dashed'}
     assert [round(Theme.Contrast_Ratio(a, b), 2) for a, b in ((frame, '#FFFFFF'), (run, '#FFFFFF'), (frame, run))] == \
-        [6.22, 2.30, 2.71]
+        [6.22, 3.07, 2.02]
+    assert run == '#9890A0'
     # The legend draws each series as its line, not a lone square: along the legend's row, a horizontal run of 20 px or
     # more of the frame mean's solid sample and of 6 px of the run mean's (one dash).
     top = chart._Plot_Rect().top()
@@ -331,6 +333,7 @@ def test_the_confidence_chart_draws_only_the_frame_and_run_means(qt_app) -> None
     painted = {image.pixelColor(x, y).name() for x in range(image.width()) for y in range(image.height())}
     for verdict in ('NOK', 'Warning'):
         assert Theme.Verdict_Color(verdict)[0].lower() not in painted, verdict
+    assert '#b4a6be' not in painted                       # the retired foreign grey is out of Trends again
     for row, objects in zip(rows, frames):
         for score, _verdict in objects:
             y = chart._Px_Y(100 * score, rect)
@@ -364,7 +367,7 @@ def test_the_two_means_are_told_apart_when_they_are_equal(qt_app) -> None:
     assert {row.Frame_Mean for row in rows} == {row.Run_Mean for row in rows} == {90}
     rect = chart._Plot_Rect()
     y = chart._Px_Y(90, rect)
-    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CONTROL_DISABLED_TEXT
+    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CHART_LIGHT_INK
     for row in rows:
         # The marker is laid on the pixel its data point falls in.
         cx, cy = int(chart._Px_X(row.Index, rect)), int(y)
@@ -394,7 +397,7 @@ def test_a_run_mean_marker_is_hollow_and_shows_the_card_inside(qt_app) -> None:
     import Parameters.Theme as Theme
     chart, image, rows = _Confidence([[(0.5, 'OK')]] + [[(0.9, 'OK')]] * 5, height=760)
     rect = chart._Plot_Rect()
-    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CONTROL_DISABLED_TEXT
+    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CHART_LIGHT_INK
     ground = image.pixelColor(int(rect.left()) + 3, int(rect.top()) + 3).name()
     # Images whose run mean lies on a threshold line are left out: there the transparent inside shows that line.
     for row in [row for row in rows[1:] if min(abs(row.Run_Mean - value) for value in (80, 60)) >= 2]:
@@ -539,7 +542,7 @@ def test_every_series_in_both_charts_has_one_line_width_and_one_marker_size(qt_a
     # The confidence chart: the frame mean level at 90 % from image 2 on, the run mean rising under it, apart.
     confidence, image, rows = _Confidence([[(0.5, 'OK')]] + [[(0.9, 'OK')]] * 5, height=760)
     rect = confidence._Plot_Rect()
-    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CONTROL_DISABLED_TEXT
+    frame, run = Theme.CONST_DETECTION_INK, Theme.CONST_CHART_LIGHT_INK
     y = int(round(confidence._Px_Y(90, rect)))
     middle = int(round((confidence._Px_X(4, rect) + confidence._Px_X(5, rect)) / 2.0))
     assert abs(_Coverage(image, middle, y - 9, y + 10, frame) - CONST_EXPECTED_LINE_W) <= 0.6
@@ -582,7 +585,7 @@ def test_each_legend_sample_has_the_width_and_marker_size_of_its_line(qt_app) ->
     confidence = _Confidence([[(0.9, 'OK')]])[0]
     for chart, entries in ((objects, [(Theme.CONST_INK_MUTE, True), (Theme.Verdict_Color('OK')[0], True),
                                       (Theme.Verdict_Color('NOK')[0], True), (Theme.Verdict_Color('Warning')[0], True)]),
-                           (confidence, [(Theme.CONST_DETECTION_INK, True), (Theme.CONST_CONTROL_DISABLED_TEXT, False)])):
+                           (confidence, [(Theme.CONST_DETECTION_INK, True), (Theme.CONST_CHART_LIGHT_INK, False)])):
         image = chart.grab().toImage()
         top = int(chart._Plot_Rect().top())
         for colour, marked in entries:

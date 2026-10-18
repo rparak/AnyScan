@@ -4988,7 +4988,17 @@ verdict colour now, and Trends uses it for a mean, not a state.
 **Rendered and looked at**, from the window and the pipeline: the same rig frame four times (equal means, 97 %) and
 eight frames of `Data/Images/Test` (means 93–98 %, apart from the fifth image).
 
-**Revisit if** the light run mean is lost on the rig's screen (2.30:1), or a hollow square is read as an empty result.
+*Corrected 2026-10-18, on the owner's request:* the run mean's light grey is `#9890A0`, a new token,
+`Theme.CONST_CHART_LIGHT_INK`, not `#B4A6BE`, so its hollow outline reads on its own and the retired foreign grey is out
+of Trends again. It is the lightest colour of the dark ink's own hue and chroma (L* 61, C* 10) that clears the 3:1 a
+graphic needs on white: 3.07:1 on white, 2.02:1 and ΔE 19.9 against `#655E6D` (one L* lighter falls under 3:1). The
+theme had no grey in between: `#817A8A` (the mask outline) is 4.13:1 but only 1.51:1 from the dark ink; the example
+`#8C8494` 3.59:1 and 1.73:1. Where the two means are equal the light 2 px ring still reads round the dark filled square
+(2.02:1). The "below a floor" and "a retired colour, back" notes above no longer apply. Tests
+`test/Parameters/test_theme.py::test_the_charts_light_ink_is_the_lightest_of_the_dark_inks_hue_that_clears_3_to_1`,
+`test/UI/test_trends_view.py::test_the_confidence_chart_draws_only_the_frame_and_run_means`.
+
+**Revisit if** the light run mean is lost on the rig's screen (3.07:1), or a hollow square is read as an empty result.
 Tests `test/UI/test_trends_view.py::test_every_series_in_both_charts_has_one_line_width_and_one_marker_size`,
 `::test_each_legend_sample_has_the_width_and_marker_size_of_its_line`, `::test_the_two_means_are_told_apart_when_they_are_equal`,
 `::test_a_run_mean_marker_is_hollow_and_shows_the_card_inside`, `::test_the_confidence_chart_draws_only_the_frame_and_run_means`.

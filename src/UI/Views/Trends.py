@@ -37,7 +37,7 @@ from UI.Widgets import Card_Cls, Card_Head_Cls
 #   ../Reporting/Trends
 from Reporting.Trends import Nice_Ticks, Value_To_Pixel, Nearest_Index, Thin_Label_Indices
 #   ../Parameters/Theme
-from Parameters.Theme import Verdict_Color, CONST_DETECTION_INK, CONST_CONTROL_DISABLED_TEXT
+from Parameters.Theme import Verdict_Color, CONST_DETECTION_INK, CONST_CHART_LIGHT_INK
 #   ../Parameters/Vision
 from Parameters.Vision import Confidence_Thresholds_Str
 #   ../Parameters/General — the one default for the classification flag
@@ -78,8 +78,8 @@ CONST_SERIES_MARKER_PX = 7
 CONST_HOLLOW_MARKER_PX = 2
 # The confidence chart's two series, at that one width and marker size, told apart by pattern, colour and fill (the
 # owner's rule, 2026-10-18): the frame mean a solid line in the dark neutral #655E6D (Theme.CONST_DETECTION_INK, 6.22:1
-# on white) with filled squares; the run mean a dashed line in the light neutral #B4A6BE (Theme.CONST_CONTROL_DISABLED_TEXT,
-# 2.30:1 on white; 2.71:1 and ΔE 29.3 from the dark) with hollow squares, its inside transparent and its own line
+# on white) with filled squares; the run mean a dashed line in the light neutral #9890A0 (Theme.CONST_CHART_LIGHT_INK,
+# 3.07:1 on white; 2.02:1 and ΔE 19.9 from the dark) with hollow squares, its inside transparent and its own line
 # clipped out of it, so it looks white on the card. The run mean is drawn on top: where the two are equal each image
 # reads as a dark square inside a light outline, and along the line the light dashes alternate with the dark line. The
 # dash pattern is in line widths (Qt), dash then gap: 6 px and 4 px.
@@ -682,7 +682,7 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         x_text = {float(rows[i].Index): str(rows[i].Index) for i in labeled} if rows else {}
         self._Set_Axes(0.5, n + 0.5 if n else 1.5, 0.0, 100.0,
                        [float(row.Index) for row in rows], Nice_Ticks(0.0, 100.0, 5), x_text)
-        self._Set_Legend([('Frame mean', CONST_DETECTION_INK), ('Run mean', CONST_CONTROL_DISABLED_TEXT)],
+        self._Set_Legend([('Frame mean', CONST_DETECTION_INK), ('Run mean', CONST_CHART_LIGHT_INK)],
                          {'Frame mean': 'filled', 'Run mean': 'hollow_dashed'})
         self._Set_Columns([float(row.Index) for row in rows])
         self.update()
@@ -739,14 +739,14 @@ class Confidence_Chart_Cls(Chart_Base_Cls):
         self.__Draw_Mean_Line(painter, rect, 'Frame_Mean', QPen(QColor(CONST_DETECTION_INK), CONST_SERIES_LINE_W))
         for point in frame:
             Draw_Marker(painter, point, CONST_DETECTION_INK)
-        dashed = QPen(QColor(CONST_CONTROL_DISABLED_TEXT), CONST_SERIES_LINE_W, Qt.CustomDashLine, Qt.FlatCap)
+        dashed = QPen(QColor(CONST_CHART_LIGHT_INK), CONST_SERIES_LINE_W, Qt.CustomDashLine, Qt.FlatCap)
         dashed.setDashPattern(CONST_RUN_MEAN_DASH)
         painter.save()
         painter.setClipPath(Outside_Markers(QRectF(self.rect()), run))
         self.__Draw_Mean_Line(painter, rect, 'Run_Mean', dashed)
         painter.restore()
         for point in run:
-            Draw_Marker(painter, point, CONST_CONTROL_DISABLED_TEXT, hollow=True)
+            Draw_Marker(painter, point, CONST_CHART_LIGHT_INK, hollow=True)
 
     def __Draw_Mean_Line(self, painter: QPainter, rect: QRectF, attr: str, pen: QPen) -> None:
         """

@@ -324,3 +324,28 @@ def test_the_palette_keeps_the_brands_rules() -> None:
         assert Theme.Contrast_Ratio(Theme.CONST_INK, Theme.Label_Ground(verdict)) >= 4.5, verdict
         assert ink == box, verdict
     assert not hasattr(Theme, 'Chart_Edge') and not hasattr(Theme, 'CONST_CHART_EDGE_LIGHTNESS')
+
+
+def test_the_charts_light_ink_is_the_lightest_of_the_dark_inks_hue_that_clears_3_to_1() -> None:
+    """
+    Description:
+        The Trends run mean's light neutral (CONST_CHART_LIGHT_INK) is #9890A0: the detection ink's own hue and chroma
+        at L* 61, 3.07:1 on white, above the 3:1 a graphic needs (WCAG 1.4.11), and as far as that floor allows from the
+        frame mean's dark #655E6D (2.02:1, ΔE 19.9): 1 more L* would fall under 3:1. It is no verdict colour and not
+        the retired foreign grey #B4A6BE.
+    """
+
+    light, dark = Theme.CONST_CHART_LIGHT_INK, Theme.CONST_DETECTION_INK
+    assert (light, dark) == ('#9890A0', '#655E6D')
+    assert round(Theme.Contrast_Ratio(light, '#FFFFFF'), 2) == 3.07 and round(Theme.Contrast_Ratio(light, dark), 2) == 2.02
+    assert round(Theme.Delta_E(light, dark), 1) == 19.9
+    lightness, chroma, hue = Theme.Lch_Of(light)
+    _l, dark_chroma, dark_hue = Theme.Lch_Of(dark)
+    assert abs(hue - dark_hue) < 2.0 and abs(chroma - dark_chroma) < 1.0
+    import math
+    lighter = getattr(Theme, '__Lab_To_Hex')(lightness + 1.0, chroma * math.cos(math.radians(hue)),
+                                            chroma * math.sin(math.radians(hue)))
+    assert Theme.Contrast_Ratio(lighter, '#FFFFFF') < 3.0
+    assert min(Theme.Delta_E(light, Theme.Verdict_Color(v)[0]) for v in ('OK', 'NOK', 'Warning')) > 60
+    assert light != Theme.CONST_CONTROL_DISABLED_TEXT
+

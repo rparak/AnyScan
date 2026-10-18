@@ -299,6 +299,14 @@ CONST_INSPECTION_AREA_EMPTY = CONST_INK
 # The window closes only if the FLOORS change (not the box), and then Theme raises at import naming it.
 #   Unit [string] (hex colour)
 CONST_DETECTION_INK = '#655E6D'
+# The LIGHT neutral of a chart: the Trends confidence chart's run mean, beside the frame mean in CONST_DETECTION_INK
+# (the owner's request, 2026-10-18). The lightest colour of the detection ink's own hue and chroma (L* 61, C* 10) that
+# still clears the 3:1 a graphic needs on the white card (WCAG 1.4.11): 3.07:1 on white, 2.02:1 and ΔE 19.9 from
+# CONST_DETECTION_INK, so its 2 px hollow outline reads on its own and as a light ring round the frame mean's dark
+# filled square where the two are equal. The theme had none in between: #817A8A (the mask outline) is 4.13:1 but only
+# 1.51:1 from the dark ink, #B4A6BE (the disabled label) 2.30:1, under 3:1.
+#   Unit [string] (hex colour)
+CONST_CHART_LIGHT_INK = '#9890A0'
 CONST_DETECTION_BOX = CONST_LOGO_INK
 # CONST_DETECTION_COLORS — the (box, ink, fill) triple — is assembled at the END of this module,
 # once Neutral_Mask_Colors (which needs the colour-space helpers below) is defined.

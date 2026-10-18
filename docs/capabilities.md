@@ -283,7 +283,7 @@ Two cards:
 Two charts of the current run: **Detected objects** (cumulative; in a catalogue mode also per verdict —
 OK, NOK and Warning, which add up to the total, each in its frame mark's own colour) and **Confidence** (two series
 and no per-object dots: the frame mean, a solid dark grey line (#655E6D) with filled squares, and the running run mean,
-a dashed light grey line (#B4A6BE) with hollow squares drawn on top, never a verdict colour; where the two are equal each
+a dashed light grey line (#9890A0) with hollow squares drawn on top, never a verdict colour; where the two are equal each
 image reads as a dark square inside a light outline). Every series line in both charts, Total and the two means
 included, is 2 px wide and every marker a 7 px square on the pixel grid, matching the application's square corners;
 each legend entry is a sample of its own line at that width with its square. In the Confidence chart the dashed lines at the configuration's confidence thresholds,

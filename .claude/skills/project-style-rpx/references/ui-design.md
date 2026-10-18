@@ -43,23 +43,23 @@ practices followed inconsistently are under **Unsettled**.
   | Warning (every kind) | `CONST_WARNING_BOX` | `#FFC226` | 1.62:1 |
   | Trends Total (no state) | `CONST_INK_MUTE` | `#6F5783` | 6.24:1 |
   | Confidence: Frame mean (no state) | `CONST_DETECTION_INK` | `#655E6D`, 2 px solid, a filled 7 px square per image | 6.22:1 |
-  | Confidence: Run mean (no state) | `CONST_CONTROL_DISABLED_TEXT` | `#B4A6BE`, 2 px dashed (6 px dash, 4 px gap), a hollow 7 px square (2 px ring) per image, drawn on top | 2.30:1 (2.71:1 against the frame mean's) |
+  | Confidence: Run mean (no state) | `CONST_CHART_LIGHT_INK` | `#9890A0`, 2 px dashed (6 px dash, 4 px gap), a hollow 7 px square (2 px ring) per image, drawn on top | 3.07:1 (2.02:1 against the frame mean's) |
   | Badge grounds | OK `#C2C9FF`, NOK `#FFD9D0`, Warning `#FFC226` | | purple words ≥ 5.66:1 |
   | Mask fills | OK `#CC9EF1`, NOK `#CD7157`, Warning `#B28508` (outline the amber) | | |
   | Inspection area | `CONST_INSPECTION_AREA` / `_EMPTY` | `#FFD880` on images / `#640ABA` on the empty view | 4.71:1 on the table / 6.79:1 on `#E1DCE6` |
 
   Retired as verdict colours on 2026-10-16: the foreign object's grey `#B4A6BE` (badge `#CAC0D3`, mask `#DBCCE5` /
   `#897C93`) and Unspecified's blue `#33A3FF` (badge `#C6E4FF`, mask `#748DB1`). The grey stays only as the disabled
-  label's token (`CONST_CONTROL_DISABLED_TEXT`, `CONST_PRIMARY_DISABLED_TEXT`) and, since 2026-10-18 at the owner's
-  request, the Confidence chart's run mean, never a state's; the blue is no
+  label's token (`CONST_CONTROL_DISABLED_TEXT`, `CONST_PRIMARY_DISABLED_TEXT`), never a state's nor in Trends; the
+  blue is no
   token at all (DD *Three states for the operator, a Warning with its kind*).
 - **The Confidence chart draws no verdict** (the owner's rule, 2026-10-18): two series, the frame mean and the run
   mean, and nothing per object, in two neutral, non-verdict colours told apart by pattern, colour and fill at the
   view's one width and marker: the frame mean a solid dark grey line (`#655E6D`, 6.22:1 on white) with filled 7 px
-  squares; the run mean a dashed light grey line (`#B4A6BE`, 2.30:1; 2.71:1 and ΔE 29.3 from the dark) with hollow
-  7 px squares, a 2 px ring round a transparent inside, its own line clipped out of them, drawn on top: where the two
-  are equal each image reads as a dark square inside a light outline. The light grey is under the 3:1 a graphic should
-  clear on white (WCAG 1.4.11), the owner's choice; its hover text is the dark grey. The legend draws each as a sample
+  squares; the run mean a dashed light grey line (`CONST_CHART_LIGHT_INK` `#9890A0`, 3.07:1 on white, the lightest
+  of the dark ink's hue that clears the 3:1 a graphic needs; 2.02:1 and ΔE 19.9 from the dark) with hollow 7 px
+  squares, a 2 px ring round a transparent inside, its own line clipped out of them, drawn on top: where the two are
+  equal each image reads as a dark square inside a light outline. Its hover text is the dark grey. The legend draws each as a sample
   of its own line with its square.
   The two threshold lines and their labels are the neutral grey ink (`CONST_DETECTION_INK` `#655E6D`), told apart by
   their dash (long at 80 %, short at 60 %) and their labels ('Warning below 80 %', 'Error below 60 %'), never a
