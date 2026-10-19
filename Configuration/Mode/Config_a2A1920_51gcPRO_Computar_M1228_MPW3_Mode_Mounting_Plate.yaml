@@ -94,7 +94,7 @@ Identity:
   # REQUIRED. The model set's name in the header pill.
   Model_Set: JIC_AnyScan_Catalogue_v1
   # The Scene Understanding Task row and each capture set's 'task'. Default: part inspection
-  Task: part inspection
+  Task: Catalogue inspection – Mounting plate
 
 # The catalogue item this mode inspects. Its presence makes this a catalogue mode: the item's
 # file sets the part's dimensions, tolerances and checks (see its header), and the scale is
