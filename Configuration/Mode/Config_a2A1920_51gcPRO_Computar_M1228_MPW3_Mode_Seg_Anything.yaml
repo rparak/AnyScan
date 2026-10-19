@@ -87,7 +87,7 @@ Identity:
   # REQUIRED. The model set's name in the header pill.
   Model_Set: JIC_AnyScan_All_v1
   # The Scene Understanding Task row and each capture set's 'task'. Default: part inspection
-  Task: part inspection
+  Task: Object detection – Any object
 
 # Confidence severity thresholds [%]: below Warn_Below a confidence shows (and logs) as a
 # warning, below Error_Below as an error. Must be 0 <= Error_Below < Warn_Below <= 100.
