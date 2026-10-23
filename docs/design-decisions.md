@@ -4634,7 +4634,7 @@ Unspecified present, none occurring on these frames. The badge row in the window
 window's minimum, 1575 × 1054 (it does not shrink further; a 1366 × 768 screen does not hold it, a limit older than this
 branch): four badges wrap onto two right-aligned rows at every size, three fit one row from 1720 wide.
 
-**The branch's colours,** recorded together (`.claude/skills/project-style-rpx/references/ui-design.md` has the table):
+**The branch's colours,** recorded together (`.claude/skills/project-style-rpx/references/project.md` > *AnyScan's state colours* has the table):
 the inspection area `#FFD880` on camera images and the purple `#640ABA` on the empty view (*A catalogue mode judges only
 inside the inspection area*); the foreign grey `#B4A6BE` with its badge ground `#CAC0D3` and mask pair `#DBCCE5` /
 `#897C93` (*A foreign object is told by what it is…*, *A Warning is shown, counted and recorded by its kind*); the

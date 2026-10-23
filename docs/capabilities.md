@@ -52,8 +52,9 @@ file is not the generator's output, so regenerate it, never edit it.
 **Dependency direction.** `Parameters` is at the bottom, and `UI` is at the top and imports the
 rest. Nothing below `UI` imports `UI` or Qt, and a domain module reports through injected callbacks,
 never by holding the logger. The layer table, what enforces it, and the one-reader-per-format rule
-are in the style skill's
-[structure.md](../.claude/skills/project-style-rpx/references/structure.md), and are not repeated here.
+are in the style skill's project reference,
+[project.md > Layout and layers](../.claude/skills/project-style-rpx/references/project.md#layout-and-layers---for-qt)
+and *Formats*, and are not repeated here.
 
 ### From a frame to the records
 

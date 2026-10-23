@@ -168,7 +168,7 @@ code that a grep for its name misses:
 - **Files by path string**: assets in `App/assets/` (logo, fonts, icons), `images/` linked from the
   README, `.gitkeep` files that keep a required directory in a fresh clone
   (`logger/Station_Events/.gitkeep`: the shipped configuration does not load without it), and
-  `scripts/check_style.json`.
+  `.claude/skills/project-style-rpx/references/check_style.json`.
 - **Docs**: a file or name cited in `docs/`, `KNOWN_ISSUES.md` or the README is a reader of that
   name. Removing the thing means correcting the citation in the same step.
 

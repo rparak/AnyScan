@@ -136,9 +136,9 @@ happened here. Read the record; it is not retold.
       [*A worker's thread is joined before the slot that takes its result lets the worker go*](../../../docs/design-decisions.md#a-workers-thread-is-joined-before-the-slot-that-takes-its-result-lets-the-worker-go)
       and [*Closing waits for a running worker…*](../../../docs/design-decisions.md#closing-waits-for-a-running-worker-stops-an-analysis-before-its-next-object-and-has-an-escape).
 - [ ] Configuration fields that do nothing:
-      [yaml.md > *A field must be read…*](../project-style-rpx/references/yaml.md#a-field-must-be-read-by-something-that-can-change-behaviour-).
+      [project.md > *A field must be read…*](../project-style-rpx/references/project.md#a-field-must-be-read-by-something-that-can-change-behaviour-).
 - [ ] Machine-specific values committed:
-      [yaml.md > *Machine-specific values…*](../project-style-rpx/references/yaml.md#machine-specific-values-stay-out-of-the-repository-).
+      [project.md > *Machine-specific values…*](../project-style-rpx/references/project.md#machine-specific-values-stay-out-of-the-repository-).
 
 **Then:**
 
