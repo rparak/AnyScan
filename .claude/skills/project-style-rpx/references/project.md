@@ -67,11 +67,25 @@ UI                               → everything above          (App/run.py → U
 - `src/Transformation/` is inherited (rparak/RoLE), under its own convention, reached only from
   `Example/`; the app never imports it (README > Source layout). The checker excludes it.
 
-## Root 📄
+## Root ✅
 
-The root holds `App`, `Configuration`, `Data`, `Example`, `KNOWN_ISSUES.md`, `LICENSE`, `README.md`,
-`docs`, `images`, `install.sh`, `logger`, `models`, `pytest.ini`, `requirements`, `requirements.txt`,
-`src`, `test`, `.claude`, `.gitignore`, `.gitattributes`. No test pins it (a departure).
+The root holds `.claude`, `.gitattributes`, `.gitignore`, `App`, `CLAUDE.md`, `Configuration`, `Data`,
+`Example`, `KNOWN_ISSUES.md`, `LICENSE`, `README.md`, `docs`, `images`, `install.sh`, `logger`,
+`models`, `pytest.ini`, `requirements`, `requirements.txt`, `src`, `test`. Pinned by
+`test/integration/test_root_layout.py`, which also holds the records in `docs/` and no
+`.claude/project-docs/`. The exceptions to the generic list, each with its reason (kept, the
+owner's ruling of 2026-10-23):
+
+- `App/` - the application's entry point and its committed assets, apart from the domain code.
+- `Configuration/` and `Data/` - the configuration folder and the inputs (test frames, references,
+  catalogue items); `Data/Results/` and `Data/Images/Calibration/` are git-ignored outputs.
+- `docs/` and `KNOWN_ISSUES.md` - the records (Records).
+- `images/` - the README images (the generic default name is `Media/`).
+- `logger/` and `models/` - the session logs and the model weights, git-ignored apart from their
+  `.gitkeep` files, which keep the directories a fresh clone needs.
+- `requirements/` - the Linux variants of `requirements.txt` (CPU, CUDA 12, CUDA 13) the installer
+  chooses between.
+- `pytest.ini` - the test runner reads it from the root; `.gitattributes` - the line-ending rules.
 
 ## Formats - one reader and writer each 📄
 
@@ -348,7 +362,7 @@ jic-sf-ui-style, in `.claude/skills/jic-sf-ui-style/references/project.md`.
 - `Parameters` holds the shared `*_Str` structures and tokens (Layout and layers).
 - `__init__.py`: none, as the generic skill says; `src/` and `App/` reach `sys.path` through
   `test/conftest.py` and, in scripts, a path built from `__file__`.
-- No root-layout test (Root).
+- Root entries beyond the generic list, each with its reason (Root).
 - `src/Transformation/` is excluded from the checker (Header and checker).
 
 ## Unsettled - not rules yet

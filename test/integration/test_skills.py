@@ -110,3 +110,17 @@ def test_the_style_checker_configuration_is_complete_and_reasoned(project_root) 
     assert config['holder'] == 'JIC Smart Factory'
     assert all(entry.get('reason', '').strip() for entry in config['exclude'])
 
+
+def test_claude_md_names_every_project_layer_and_the_checker(project_root) -> None:
+    """
+    Description:
+        CLAUDE.md is where a session learns the layout: it names each skill with a project layer, the
+        checker by its personal path, and says project-bootstrap does not apply.
+    """
+
+    with open(os.path.join(project_root, 'CLAUDE.md'), encoding='utf-8') as file:
+        text = file.read()
+    for skill in CONST_PROJECT_LAYERS:
+        assert '`%s`' % skill in text, 'CLAUDE.md does not name %s.' % skill
+    assert '~/.claude/skills/project-style-rpx/scripts/check_style.py' in text
+    assert '`project-bootstrap` skill does not apply' in text
