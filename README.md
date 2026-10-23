@@ -7,6 +7,10 @@ application. Built at JIC within the EDIH-DIGIMAT project.
 
 ![AnyScan architecture: in every mode the camera shows a live preview, then takes a fresh frame once nothing moves, two cues, fused, find every object, and each object is described in words and measured in mm. The desktop app shows Live, Trends, History and Log. A catalogue mode adds, for each object found, recognising the catalogued part, the inspection area (only a part wholly inside is judged, one outside is a part or a foreign object by similarity, size and colour), the checks on the side that is up (size, holes with each bore centred in its countersink, stains) and a state: OK, NOK or Warning, a Warning with its kind. It describes each object after its state and drops a sentence that contradicts the checks. The mode names the station, the station the calibration, and the catalogue item and empty-surface reference set the stages up too. Every analysis is recorded, with the session log, a run summary and the daily station events](images/anyscan-architecture.svg)
 
+**Figure 1:** AnyScan's architecture, generated from the theme by `Example/UI/architecture_diagram.py` and never
+edited by hand. Read it top to bottom: the frame, the two cues and their fusion, then each object's description and
+measurement, and in a catalogue mode its state.
+
 The diagram shows how a frame becomes a reading in both modes, at the top level. Two independent cues are
 fused, so an object is kept if **either** one finds it. [Detection logic](#detection-logic)
 walks through the same stages in detail, and [Source layout](#source-layout--the-app-and-the-shared-library)
@@ -152,7 +156,7 @@ fall back to the nearest system faces.
 
 The configuration is three kinds of file, each in its own folder, linked by name:
 
-```
+```text
 Configuration/Mode/Config_<Hardware>_Mode_<Mode>.yaml      Station: Station_<...>.yaml
 Configuration/Station/Station_<Hardware>[_<Name>].yaml     Calibration: Calibration_<...>.yaml
 Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml
@@ -412,7 +416,7 @@ and class-agnostic — and FastSAM (stage 2) finds object instances in the frame
 survives if **either** cue sees it (a part FastSAM misses is kept by the difference; a dark part the difference
 barely sees is kept by FastSAM), then splits the result into objects.
 
-```
+```text
   current frame (RGB)  +  reference background
            |  (RGB -> BGR)
            v
@@ -437,7 +441,7 @@ barely sees is kept by FastSAM), then splits the result into objects.
 
 **A detect-only mode** (Segment Anything) then describes and measures each object:
 
-```
+```text
   (4) description .................... Describers.Gemma_Describer_Cls
            |  padded crop, neighbours replaced    OR Describe_Fallback
            |  by the reference (Enhancement.        (per CONST_DESCRIBER;
@@ -457,7 +461,7 @@ barely sees is kept by FastSAM), then splits the result into objects.
 **A catalogue mode** measures every object first, then recognises, places and checks it, and describes it last,
 with what the checks found:
 
-```
+```text
   objects from stage 3
            v
   measurement + outline .............. Measure.Measure_Objects, Dimensions.Check_Objects
@@ -533,7 +537,7 @@ detection path (see `KNOWN_ISSUES.md`).
 
 What is committed, and what you must supply:
 
-```
+```text
 App/
   run.py                  the application (entry point)
   assets/                 UI images, committed
@@ -731,6 +735,8 @@ Both hardware-facing parts sit behind an interface, so a replacement touches one
 AnyScan was developed at JIC within the EDIH-DIGIMAT project.
 
 ![EDIH-DIGIMAT; Ministry of Industry and Trade of the Czech Republic; Funded by the European Union](images/anyscan-funding.svg)
+
+**Figure 2:** The project's, the Ministry's and the EU's logos, generated with Figure 1.
 
 Funded by the European Union. Views and opinions expressed are however those of the author(s) only and do not
 necessarily reflect those of the European Union or European Commission. Neither the European Union nor the granting
