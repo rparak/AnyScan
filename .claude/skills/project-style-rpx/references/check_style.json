@@ -1,0 +1,24 @@
+{
+  "licence": "MIT License",
+  "holder": "JIC Smart Factory",
+  "class_roots": [
+    "src",
+    "App",
+    "Example"
+  ],
+  "test_roots": [
+    "test"
+  ],
+  "check_roots": [
+    "src",
+    "App",
+    "Example",
+    "test"
+  ],
+  "exclude": [
+    {
+      "path": "src/Transformation",
+      "reason": "Inherited from rparak/RoLE (homogeneous transforms, Euler angles, quaternions) under that library's own convention - hand-aligned matrix literals past the line limit, single-letter math accessors (x, y, z, w). Holding it to this style would mean rewriting a library this project did not write; the app never imports it (README > Source layout)."
+    }
+  ]
+}
