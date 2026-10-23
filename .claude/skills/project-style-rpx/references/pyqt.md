@@ -52,8 +52,8 @@ UI or the logger — they emit through injected callbacks (references/structure.
 
 ## Colours and fonts ✅
 
-How the interface looks — colour tokens, verdict colours, severity, contrast, the type scale — is its
-own page: **references/ui-design.md**. In code: colours and fonts come from `UI/Utilities/Style.py`
+How the interface looks is the personal skill **jic-sf-ui-style**; AnyScan's bindings of it (its views, vision
+overlays, catalogue wording and the tests) are **references/ui-design.md**. In code: colours and fonts come from `UI/Utilities/Style.py`
 (tokens defined in the Qt-free `Parameters/Theme.py`); stylesheets are built inline where they are
 applied, from those tokens (`'color: %s;' % Style.CONST_INK`); a token at an opacity is
 `Style.Token_Color(token, alpha)` (✅ `test/UI/test_colour_tokens.py`).

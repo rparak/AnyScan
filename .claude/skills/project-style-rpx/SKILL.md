@@ -80,7 +80,8 @@ Its own tests: `.venv/bin/python -m pytest .claude/skills/project-style-rpx/scri
 ## Python — the essentials
 
 Full rules with examples from this repository: **references/python.md**; Qt code: **references/pyqt.md**;
-how the interface looks (colour, contrast, severity, type): **references/ui-design.md**.
+how the interface looks: the personal skill **jic-sf-ui-style** for the style, and **references/ui-design.md** for
+AnyScan's bindings of it (its views, vision overlays, catalogue wording and the tests that hold them).
 
 1. Every `.py` file opens with the `#`-comment MIT header (all 91 files use it; the checker also
    accepts a `"""` docstring header, which this repository does not use). Copy it from
