@@ -178,6 +178,14 @@ put back `logger/Station_Events`; README > Configuration says how a station keep
 file name, started with `--config`; its `Station` resolves in the repository, so nothing is copied
 beside it). Only a **required** path is caught, and only indirectly: the suite loads the shipped file.
 
+## Units
+
+Every field names its unit in its `#   Unit [type]` comment, and configuration comments in brackets
+(Configuration > *Shape*). Image positions and sizes are in [px]; physical sizes in [mm], through the
+calibration's scale; the camera's exposure in [us]; the confidence thresholds (`Warn_Below`,
+`Error_Below`) in integer [%], while a detector's confidence score is a float. Durations are in [s]
+or [ms], each field naming its own - not yet one canonical unit (Unsettled).
+
 ## Errors
 
 The `*_Error_Cls` classes (14 in `src/`: `Configuration_Error_Cls`, `Camera_Error_Cls`,
@@ -197,6 +205,10 @@ verbatim. A settings failure is not reported as a missing device (`Basler_Settin
 The only shell file, so the rules are those of one file; a second script follows it, and a
 disagreement is a question, not a new rule. ✅ = `test/Install/test_install.py`.
 
+- **Open item**: `requirements.txt` names its direct dependencies with `>=`, not pinned `==` as the
+  generic rule asks. Not an accepted departure: it is closed by its own feature-manager change,
+  tested on Linux as well as macOS, since pinning changes what installs on every platform
+  (`requirements/linux-*.txt` included).
 - Targets: macOS on Apple silicon (verified) and Linux with an NVIDIA GPU (verified on one machine,
   2026-09-29); Windows is not a target, so there is no `.bat` (README > Platform).
 - Written for bash 3.2 (macOS's): no associative arrays, no `mapfile`, no `${var,,}`.
@@ -232,13 +244,21 @@ disagreement is a question, not a new rule. ✅ = `test/Install/test_install.py`
 - Equivalence proofs compare the characterization golden file
   (`test/Vision/data/characterization.txt`), an analysed frame's capture set, a CSV row or rendered
   pixels.
+- Scripts are tested by topic (`test/Camera/test_reference_harnesses.py`, `test/Vision/`), not one
+  `test_<script>.py` per script (a recorded departure).
 - Script tests run the script in a fresh interpreter from an unrelated working directory
   (`test/Camera/test_reference_harnesses.py` has the pattern).
 - The skills' frontmatter and this file are held by `test/integration/test_skills.py`.
 
 ## Records - `docs/`, `README.md`, `KNOWN_ISSUES.md`
 
-A departure: the records are not in `.claude/project-docs/`.
+**A departure, kept** (the owner's ruling, 2026-10-23): the records are in `docs/` and
+`KNOWN_ISSUES.md` at the root, not in `.claude/project-docs/`, and there is no SPEC. Why:
+`docs/capabilities.md` plays the SPEC's part and is public - the README links it, and
+`test/integration/test_capabilities_doc.py` holds it to the code (sections, views, packages, records,
+every link); dozens of citations in the code, the tests and the records point into `docs/`; and a
+move would change the public page for no gain in what the files say. `CLAUDE.md` says so, so the
+project-bootstrap skill (whose mode test is a SPEC in `.claude/project-docs/`) does not apply.
 
 | File | Records |
 |---|---|
@@ -246,8 +266,11 @@ A departure: the records are not in `.claude/project-docs/`.
 | `README.md` > *Limitations* | The limitations that affect a decision built on the output: a `###` heading, **the consequence first**, bold, then the evidence with the measured numbers, then plainly whether it is verified; the section links `KNOWN_ISSUES.md` |
 | `KNOWN_ISSUES.md` | Open behaviours that show up in the text or numbers but decide nothing: **Impact:**, **Pinned by:**, **Not fixed here:**, **What would answer it:**; on a fix the entry goes and the resolution moves to the DD |
 
-**Revisit if** is required for every new DD entry; the older entries are not backfilled (about half
-have one). Their labels vary (a bold **Why.** in some, a plain paragraph in most).
+**New DD entries use the generic shape** - **Why**, **Alternatives**, **Revisit if** and the pinning
+tests (project-style-rpx `references/markdown.md`). **Older entries are not backfilled** (a recorded
+departure): most name the rejected alternative inside **Why**, about half have **Revisit if**, and
+their labels vary (a bold **Why.** in some, a plain paragraph in most); inventing parts for them
+afterwards would be guessing at past reasoning.
 
 ## UI - Qt code and the brand-independent UI rules
 
@@ -319,7 +342,9 @@ jic-sf-ui-style, in `.claude/skills/jic-sf-ui-style/references/project.md`.
 
 ## Departures from the generic skill
 
-- Records in `docs/`, not `.claude/project-docs/` (Records).
+- Records in `docs/` and `KNOWN_ISSUES.md` at the root, no SPEC (Records).
+- Older DD entries keep their shape; new ones use the generic one (Records).
+- Scripts tested by topic, not one file per script (Tests).
 - `Parameters` holds the shared `*_Str` structures and tokens (Layout and layers).
 - `__init__.py`: none, as the generic skill says; `src/` and `App/` reach `sys.path` through
   `test/conftest.py` and, in scripts, a path built from `__file__`.
@@ -330,6 +355,8 @@ jic-sf-ui-style, in `.claude/skills/jic-sf-ui-style/references/project.md`.
 
 Followed inconsistently; ask before writing new code either way.
 
+- **One unit for durations**: the camera's timeouts are in [s], the inference times the UI shows in
+  [ms] (`Camera/Core.py`, `UI/Core.py`); the generic rule asks for one canonical unit per quantity.
 - **Import group order** among standard library, third-party and `typing`: most files order standard
   library → third-party → `# Custom Lib.:`; some put `typing` or `dataclasses` after a third-party
   import.
