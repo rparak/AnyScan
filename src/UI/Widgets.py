@@ -665,6 +665,11 @@ class State_Marker_Cls(QWidget):
         # One size for the three, the widest's, so the block keeps its place and size from one state to the next.
         self.setFixedSize(max(self.__Width(state) for state in self.CONST_STATES),
                           QFontMetrics(self.__font).height() + 2 * self.CONST_PAD_Y)
+        # Hidden, it keeps its size in the head, so marking a state never moves the view under it: where the marker
+        # is taller than the title's line (27 against 26 px on macOS), showing it grew the head and shrank the view.
+        policy = self.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.setSizePolicy(policy)
         self.setVisible(False)
 
     def Set_State(self, state: str) -> None:

@@ -4849,6 +4849,14 @@ the busy overlay's camera icon (its lens blinking) for the scan and its magnifie
 Nothing but the analysis grid is drawn over the frame; the empty view's instruction and the busy overlay (CONNECT, a
 close) are not over an image.
 
+*Corrected 2026-10-23:* the marker keeps its size in the head while hidden (`setRetainSizeWhenHidden`). On macOS (Qt
+5.15.14, offscreen) it is 27 px tall against the title's 26 px line, so showing it grew the head from 42 to 43 px and
+took the pixel from the view (560 to 559 px, in the test's window 560 to 558), which never returned once the marker
+hid: the frame moved when the state was named, and `test_analyze_starts_the_grid_and_marks_analyzing_in_the_head`,
+comparing the view's grabs before and during ANALYZE, failed there. The recorded Linux runs passed it, consistent with
+the title's line being as tall as the marker under FreeType's metrics; not re-measured on Linux. The view is now one
+height in every state (559 px at 1280 x 800 on macOS); the window's minimum size is unchanged (1579 x 1029).
+
 **Cost, measured** on the development machine (RTX 5070 Ti, the real window on xcb at 1920 x 1080, a test frame through
 `File_Camera_Cls`, runs alternating with the grid and without any animation, the inference time from the log):
 
