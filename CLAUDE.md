@@ -30,7 +30,7 @@ Use `.venv/bin/python`, the environment `install.sh` creates; never a bare `pyth
 ```bash
 ./install.sh                                                                    # creates .venv and fetches the models
 .venv/bin/python -m pytest -q                                                   # everyday: skips the slow tests, about 3.5 min
-.venv/bin/python -m pytest -q --runslow                                         # before a commit: the real models too
+.venv/bin/python -m pytest -q --runslow                                         # before a commit: the real models too, about 10 min
 .venv/bin/python ~/.claude/skills/project-style-rpx/scripts/check_style.py src App Example test   # 11 known issues
 .venv/bin/python App/run.py                                                     # the application
 ```

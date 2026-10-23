@@ -131,6 +131,7 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
 | `analyze.py --no-describe`, detect-only, 41 frames | 26 s wall (two runs: 26.3, 25.9) | Apple M2 Pro, 2026-10-23 |
 | `analyze.py --no-describe`, catalogue, 41 frames | 42 s wall (42.6, 41.8) | Apple M2 Pro, 2026-10-23 |
 | the default suite, `pytest -q` (1231 passed, 186 skipped) | 199 s | Apple M2 Pro, 2026-10-23 |
+| the full suite, `pytest -q --runslow` (1421 passed, 2 skipped: the DPR 2 halves of two density tests, run in their DPR 2 re-runs; 1 xfailed) | 578 s | Apple M2 Pro, 2026-10-23 |
 
 ## Interpreter and tools
 
