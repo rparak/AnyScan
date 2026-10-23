@@ -635,9 +635,9 @@ OpenCV, FastSAM on PyTorch, the Basler driver) is portable. There are three dist
 
 | Platform | Status | What is known |
 |---|---|---|
-| **macOS, Apple silicon** | **Supported, measured** | MLX on the Apple GPU (Metal). 2.20 s per object (warm), 9.35 GB pipeline peak, and output identical word for word across runs, processes and memory pressure. |
-| **Linux** | **Supported, measured on one machine** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer reads GPU 0's memory and refuses below it; `--cpu` opts into the CPU backend). Measured 2026-09-29 on Ubuntu with an RTX 5070 Ti (16 GB, driver 595.91.07), MLX 0.32.2 with the CUDA 13 backend (`mlx[cuda13]`) and PyTorch 2.14.0+cu130 (FastSAM on CUDA): E4B describes in **0.65 s per object** (warm; 0.51–0.93 s over the 37 objects of `Data/Images/Test/All`), loads in 3.9 s, and the whole application peaks at 9.5 GB of GPU memory (MLX 6.99 GB) and 4.0 GB of RAM. Output identical word for word between two processes. Not compared with the Mac's text. |
-| **Windows** | **Not a target, untested** | Nothing known prevents it — `mlx` publishes Windows wheels — but it is not supported and has never been tried. |
+| **macOS, Apple silicon** | **Verified, measured** | MLX on the Apple GPU (Metal). 2.20 s per object (warm), 9.35 GB pipeline peak, and output identical word for word across runs, processes and memory pressure. |
+| **Linux** | **Verified on one machine, 2026-09-29** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer reads GPU 0's memory and refuses below it; `--cpu` opts into the CPU backend). Measured 2026-09-29 on Ubuntu with an RTX 5070 Ti (16 GB, driver 595.91.07), MLX 0.32.2 with the CUDA 13 backend (`mlx[cuda13]`) and PyTorch 2.14.0+cu130 (FastSAM on CUDA): E4B describes in **0.65 s per object** (warm; 0.51–0.93 s over the 37 objects of `Data/Images/Test/All`), loads in 3.9 s, and the whole application peaks at 9.5 GB of GPU memory (MLX 6.99 GB) and 4.0 GB of RAM. Output identical word for word between two processes. Not compared with the Mac's text. |
+| **Windows** | **Never tried, not a target** | Nothing known prevents it — `mlx` publishes Windows wheels — but it is not supported and has never been tried. |
 
 - **Determinism does not travel.** Greedy decoding (`temperature=0`) makes the *sampler*
   deterministic, but a different backend can still produce different text through
