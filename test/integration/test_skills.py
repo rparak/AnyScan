@@ -121,7 +121,7 @@ def test_project_style_rpx_is_the_project_reference_only(project_root) -> None:
     with open(os.path.join(folder, 'references', 'project.md'), encoding='utf-8') as file:
         text = file.read()
     assert text.startswith('# project-style-rpx: project reference for AnyScan\n')
-    for section in ('## Header and checker', '## Layout and layers', '## Configuration', '## UI - AnyScan', '## Unsettled'):
+    for section in ('## Header and checker', '## Layout and layers', '## Configuration', '## UI - Qt code', '## Unsettled'):
         assert section in text, 'project.md has no %r section.' % section
     assert 'jic-sf-ui-style' in text
 
