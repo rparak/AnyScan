@@ -1015,6 +1015,11 @@ Factory` like the headers; as created it named Roman Parak, which the sweep abov
 **Deliberately unchanged:** the skill's `SKILL.md` and `README.md` lines saying the style is derived
 from `rparak/RoLE`, "MIT License, © 2023 Roman Parak". They credit where the style came from, in
 another repository; rewriting them would misstate that origin.
+*Note 2026-10-23:* the style skill's `SKILL.md`, `README.md`, `assets/` templates and checker are no
+longer in this repository. The personal skill project-style-rpx (`~/.claude/skills/`, private
+repository `rparak/rp-claude-skills`) holds them, and its checker also requires the holder named
+here; this repository keeps only `.claude/skills/project-style-rpx/references/project.md` and
+`check_style.json`. The RoLE credit is in project.md > *Header and checker*.
 
 ## The describer is Gemma 4 E4B, prompted, behind a describer seam
 
@@ -2961,7 +2966,7 @@ check. The rest is the agreed design, recorded here so the later phases build to
   block under `Checks` selects one ready-made check module (`Outline`, `Holes`, `Stain`, the last two built
   in phases C and D) with the parameters it reads. No OpenCV call sequence, and **no order**: the checks are
   independent and the verdict will require all of them, so an order field could not change a result
-  (structure.md: no field that cannot take effect). A defect check is optional per item: an item may
+  (project-style-rpx structure.md: no field that cannot take effect). A defect check is optional per item: an item may
   define none yet, and one is added later with no code change.
 - **One home per value.** The Gemma prompt for an item lives in the item file only (`Describer.Prompt`, phase
   D); the request's override in the mode file would give the same text two homes.

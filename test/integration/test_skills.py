@@ -23,6 +23,7 @@
 
 # System (Default)
 import os
+import json
 import re
 import glob
 # Typing (Support for type hints)
@@ -97,12 +98,38 @@ def test_the_skills_directory_holds_the_projects_skills(project_root) -> None:
     """
     Description:
         The parametrized check below runs once per file it finds, so a glob that finds nothing would
-        pass with no cases. The three skills the repository ships must be found.
+        pass with no cases. The two skills the repository ships with a SKILL.md must be found.
     """
 
     names = {os.path.basename(os.path.dirname(path)) for path in Skill_Files(project_root)}
 
-    assert {'project-style-rpx', 'feature-manager', 'project-optimize'} <= names
+    assert {'feature-manager', 'project-optimize'} <= names
+
+
+def test_project_style_rpx_is_the_project_reference_only(project_root) -> None:
+    """
+    Description:
+        project-style-rpx is a personal skill; a SKILL.md of the same name here would be ignored (a
+        personal skill wins over a project skill) and drift. This repository keeps its project layer:
+        references/project.md, which names the layers it binds, and references/check_style.json with
+        every field the checker requires and a reason for each exclusion.
+    """
+
+    folder = os.path.join(project_root, CONST_SKILLS_DIR, 'project-style-rpx')
+    assert not os.path.exists(os.path.join(folder, 'SKILL.md'))
+
+    with open(os.path.join(folder, 'references', 'project.md'), encoding='utf-8') as file:
+        text = file.read()
+    assert text.startswith('# project-style-rpx: project reference for AnyScan\n')
+    for section in ('## Header and checker', '## Layout and layers', '## Configuration', '## UI - AnyScan', '## Unsettled'):
+        assert section in text, 'project.md has no %r section.' % section
+    assert 'jic-sf-ui-style' in text
+
+    with open(os.path.join(folder, 'references', 'check_style.json'), encoding='utf-8') as file:
+        config = json.load(file)
+    assert set(config) == {'licence', 'holder', 'class_roots', 'test_roots', 'check_roots', 'exclude'}
+    assert config['holder'] == 'JIC Smart Factory'
+    assert all(entry.get('reason', '').strip() for entry in config['exclude'])
 
 
 @pytest.mark.parametrize('skill_path', Skill_Files(CONST_PROJECT_ROOT))
