@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `cf09e0b` (2026-10-18).
+Last reviewed against the code at commit `092a1d6` (2026-10-23).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -154,10 +154,14 @@ it names. The modes shipped today:
 
 | Mode | File | What it does |
 |---|---|---|
-| Seg_Anything | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml` | Finds every part on the surface (no class list), describes and measures it. Classification off. |
-| Mounting_Plate | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml` | Catalogue mode for `Data/Catalogue/mounting_plate`: as Seg_Anything, measured at the plate's top face (8 mm), each outline checked against 60 × 40 ± 1.5 mm, each object identified and judged, the plate's holes on both sides and stains on its front checked. Classifies. |
+| Seg_Anything | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml` | Finds every part on the surface (no class list), describes and measures it. Classification off. Its readings' Task: *Object detection – Any object*. |
+| Mounting_Plate | `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml` | Catalogue mode for `Data/Catalogue/mounting_plate`: as Seg_Anything, measured at the plate's top face (8 mm), each outline checked against 60 × 40 ± 1.5 mm, each object identified and judged, the plate's holes on both sides and stains on its front checked. Classifies. Its readings' Task: *Catalogue inspection – Mounting plate*. |
 
 - The configuration is picked in the **CONFIGURATION** dialog and is fixed after the first CONNECT.
+- A mode's `Identity.Task` names what produced a model-written reading, in the form *kind – detail*: it is the
+  Scene Understanding Task row, the capture set's `task` (and History's) and the load log's `task '…'`. A mode
+  without one reads *part inspection*; a reading by the model-free fallback describer carries the fallback's own
+  label instead. The describer's prompts do not contain it.
   Changing it means restarting the application. Another camera means restarting with `--config`.
 - **Classification**: a configuration classifies exactly when it is a catalogue mode, and only then shows
   verdicts (colours, the History filter, the words). The switch that once said so, the

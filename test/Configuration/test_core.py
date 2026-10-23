@@ -233,8 +233,9 @@ def test_the_shipped_configuration_loads_end_to_end_with_the_values_the_code_ran
     assert isinstance(config, Configuration_Str)
     assert (config.Hardware, config.Mode) == (CONST_HARDWARE, 'Seg_Anything')
     assert config.Classifies is False and config.Catalogue is None    # detect-only, as shipped
+    # The task is the operator's label, renamed in the file at will: it is read from the file, not pinned here.
     assert (config.Identity.Display_Name, config.Identity.Model_Set, config.Identity.Task) == \
-        ('Cfg. Segment Anything', 'JIC_AnyScan_All_v1', 'part inspection')
+        ('Cfg. Segment Anything', 'JIC_AnyScan_All_v1', _Read_Yaml(CONST_DEFAULT_CONFIG_FILE)['Identity']['Task'])
     assert (config.Camera.Model, config.Camera.Lens, config.Camera.Lighting) == \
         ('Basler a2A1920-51gcPRO', 'Computar M1228-MPW3', 'Effilux EFFI-FD-200-200-000')
     assert config.Segmentation.Background_Reference == os.path.join(CONST_PROJECT_ROOT, 'Data', 'Images', 'Background',

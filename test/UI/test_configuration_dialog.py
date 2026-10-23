@@ -59,6 +59,8 @@ from Logger.Core import Session_Logger_Cls
 from UI.Capture import Discover_Capture_Sets
 #   ../Parameters/Vision
 from Parameters.Vision import Analysis_Str
+#   ../Parameters/Configuration
+from Parameters.Configuration import Identity_Str
 # Custom Lib.: AnyScan — the configuration layer
 #   ../Configuration/Core
 from Configuration.Core import (Load_Configuration, Mode_Directory, Station_Directory, Calibration_Directory,
@@ -442,7 +444,8 @@ def test_a_loaded_configuration_is_applied_and_logged(qt_app, tmp_path, configur
     assert '%s, background reference' % os.path.basename(config.Calibration_Path) in log
     assert ('background reference Data/Images/Background/Image_Background_001.png and catalogue item '
             'Data/Catalogue/mounting_plate/mounting_plate.yaml' in log)
-    assert "Models loaded for '%s' (JIC_AnyScan_Strict_v1, task 'part inspection')" % config.Name in log
+    # The file sets no Task, so the code's default is the one in force, read from where it is defined.
+    assert "Models loaded for '%s' (JIC_AnyScan_Strict_v1, task '%s')" % (config.Name, Identity_Str().Task) in log
     assert 'Identity.Task not set; using the default' in log
     assert 'Run reset' not in log
 

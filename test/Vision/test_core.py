@@ -27,6 +27,8 @@ import os
 import typing as tp
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
+# PyYAML (YAML parser and emitter) [pip3 install pyyaml]
+import yaml
 # Custom Lib.: AnyScan domain — the vision backend
 #   ../Vision/Core
 import Vision.Core as Vision_Core
@@ -411,8 +413,8 @@ def test_the_task_a_reading_carries(fake_models, monkeypatch, reference_backgrou
     Description:
         The Task row and each capture set's 'task' record what produced the reading, through a real
         Analyze (stand-in models, the real stages around them): a model reading carries the
-        configuration's Identity.Task ('part inspection' as shipped), the model-free fallback its
-        own label.
+        configuration's Identity.Task, as the shipped mode file names it (read from the file, so a
+        rename needs no change here), the model-free fallback its own label.
     """
 
     import cv2
@@ -424,8 +426,11 @@ def test_the_task_a_reading_carries(fake_models, monkeypatch, reference_backgrou
     result = Vision_Pipeline_Cls(Configuration_Str=dataclasses.replace(config, Scale=None)).Analyze(frame)
 
     assert len(result.Objects) == 1
-    expected = {'gemma': 'part inspection', 'fallback': Vision_Core.CONST_FALLBACK_TASK_LABEL}[describer]
-    assert config.Identity.Task == 'part inspection'
+    with open(CONST_DEFAULT_CONFIG_FILE, 'r', encoding='utf-8') as handle:
+        shipped = yaml.safe_load(handle)['Identity']['Task']
+    expected = {'gemma': shipped, 'fallback': Vision_Core.CONST_FALLBACK_TASK_LABEL}[describer]
+    assert config.Identity.Task == shipped
+    assert shipped != Vision_Core.CONST_FALLBACK_TASK_LABEL       # else the two describers could not be told apart
     assert result.Task == expected
 
 
