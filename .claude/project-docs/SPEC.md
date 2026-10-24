@@ -133,7 +133,7 @@ then composes and measures. The numbers are the ones the README and the mode fil
   outer box and chip, in the amber; its describer prompt holds no hole or stain fact, and a sentence of its
   description naming one is left out. Whether an object is a foreign object follows what it is, not where it lies: one
   the rule does not identify is foreign, except outside the area, where a cut or far plate scores lower, an object
-  whose similarity (0.657 or more), colour (mean saturation 76 or less) and visible extent (73.6 mm or less) all
+  whose similarity (0.657 or more), colour (mean saturation 76.3 or less) and visible extent (73.6 mm or less) all
   resemble the plate. A foreign object outside the area is told to be removed, not moved; no marks
   ([*A catalogue mode judges only inside the inspection area*](design-decisions.md#a-catalogue-mode-judges-only-inside-the-inspection-area)).
   **Three states.** Every object is OK, NOK or Warning, and a Warning carries one of five kinds, each with the
@@ -165,15 +165,13 @@ it names. The modes shipped today:
   label instead. The describer's prompts do not contain it.
   Changing it means restarting the application. Another camera means restarting with `--config`.
 - **Classification**: a configuration classifies exactly when it is a catalogue mode, and only then shows
-  verdicts (colours, the History filter, the words). The switch that once said so, the
-  `General` block's `Classification`, is removed
-  ([*Classification is a per-configuration switch…*](design-decisions.md#classification-is-a-per-configuration-switch-that-exposes-the-verdict-ui-not-one-that-creates-it),
-  corrected).
+  verdicts (colours, the History filter, the words); there is no switch for it
+  ([*Classification is a per-configuration switch…*](design-decisions.md#classification-is-a-per-configuration-switch-that-exposes-the-verdict-ui-not-one-that-creates-it)).
 - **A catalogue mode** is a mode file with a `Catalogue` block naming one item,
   `Data/Catalogue/<item>/<item>.yaml`: the part's name and description, each side's name and description,
   its known defects, its thickness, tolerance and checks, with its reference images beside it. Each side's
   description and its defects fill the describer's prompt, with no number
-  ([*A catalogue item is the single tracked source…*](design-decisions.md#a-catalogue-item-is-the-single-tracked-source-for-its-part-and-its-descriptions-wait-for-the-describer), corrected). It identifies the item and its
+  ([*A catalogue item is the single tracked source…*](design-decisions.md#a-catalogue-item-is-the-single-tracked-source-for-its-part-and-its-descriptions-wait-for-the-describer)). It identifies the item and its
   side, checks the outline, the holes and stains by their colour
   ([*A judged part's stains…*](design-decisions.md#a-judged-parts-stains-are-a-colour-band-on-its-upright-crop-from-1-mm²)),
   and gives every object one of three states, each NOK with its reasons and each Warning with its kind. It then describes a judged part
@@ -209,7 +207,7 @@ it names. The modes shipped today:
    detected while connected, not only on DISCONNECT.
 3. **PREVIEW** (optional) — shows the table live in the Camera View, with the inspection area on it, while
    the operator places parts. The last result stays; ANALYZE waits for a scan. PREVIEW again stops it and shows
-   the last result again. Its rate is about 3.7 frames a second on the rig, set by the GigE link
+   the last result again. Its rate is about 3.7 frames a second on the rig, set by the camera's USB-C Ethernet adapter
    ([KNOWN_ISSUES](KNOWN_ISSUES.md#the-live-preview-runs-at-about-37-frames-a-second-set-by-the-usb-c-ethernet-adapter)).
 4. **SCAN** — the moment it is pressed, the previous frame and its result leave the Camera View and Scene
    Understanding (ANALYZE has no frame until the scan ends). It stops the preview if it runs, then waits for a
@@ -241,43 +239,50 @@ carries a small cube in its grey. The state markers and the busy overlay draw th
 
 Two cards:
 
-- **Camera View** — the frame, then the analysis, in one of four renders: **Annotated** (numbered
-  outlines; in a catalogue mode also each judged part's features, each in one colour, pass or fail, on a
-  thinner line and with no halo, each with a box along the part that turns with it: a hole as its box and its own
-  outline, solid; a hole expected and not found as its box and a circle of the catalogue's diameter, dashed (the
-  only dashed feature marks); a stain as its box with its pixels tinted; each feature numbered on a smaller chip
-  (`3.1`, the number of its `Part` line in the Log) on the corner of its box nearest the object's chip, turned with
-  that box and never more than 45° off level, never over another chip; a part identified outside the inspection
-  area, and every other Warning whatever its kind, has only its outline, outer box and chip, in the amber with the
-  white numeral, no feature mark; a judged part's solid rotated outline carries its size check alone (orange-red only
-  when out of tolerance, purple otherwise, though the part is NOK for a stain, a hole or its look), its dashed outer
-  box and chip its verdict; otherwise each object's box and chip are its state's
-  colour, OK the purple, NOK the orange-red, Warning the amber `#FFC226`, and every
-  object of a detect-only mode (Segment Anything) the logo purple `#640ABA`; the chip's number is plain
-  white on every chip, in every state and mode; a missing hole is placed by the holes found, a countersink's
-  through-hole by the countersink, and a countersink around its through-hole, found or placed),
-  **Mask** (the label mask: black ground,
-  tinted fill, verdict contour, every Warning in the amber's pair; no
-  feature marks), **Heatmap** (the background difference on a fixed 0–128
-  scale, under a legend naming the threshold applied, on screen only, never saved) and **Similarity** (catalogue modes only: how unlike its matched
-  reference each DINOv2 patch of a judged part looks, over the frame; a diagnostic, labelled not a defect map,
-  never a verdict, on screen only). While the camera connects (CONNECT), and while a close waits for a scan or an
-  analysis to end, the view lies under its own grey-lilac at 70 %, the frame showing through, with the step in the
-  purple under a pixel icon of the task (a camera, or a magnifier for the analysis's close). While an **analysis**
-  runs, a decorative grid of square cells sweeps the frame in a diagonal wave from the top-left corner — thin
-  periwinkle lines, every lit cell the same light translucent purple over parts and table alike, fading behind the
-  band — crossing the frame in about 0.5 s and repeating about once a second until the analysis ends or fails, when
-  it stops at once and the result (or the bare frame) shows; it is on screen only, never in a saved image, and the
-  analysis's step (*Segmenting…*, *Analysing object 3 of 8…*) is in the head's badge. A **scan** shows the fresh
-  frames its stillness check grabs as they come (no scrim), with *Scanning…* in the head's badge and in Scene
-  Understanding. The **live preview** (PREVIEW) paints the camera's frames as they come, with `Live · n fps` in the
-  head's badge; the view selector hides while it runs. The view names these three states in its head, after the
-  title, in one white-on-purple marker of one size: `●  LIVE PREVIEW`, `SCANNING…` with the camera pixel icon (its
-  lens blinking), `ANALYZING…` with the magnifier (its glint stepping). Nothing but the analysis grid is drawn over
-  the frame. In a catalogue mode the
-  **inspection area** is drawn as a thin solid line, square-cornered and unfilled, in the purple over the empty view
-  and in a light amber over the live preview, the scanned frame and the Annotated render (not the Mask, Heatmap or
-  Similarity), on screen only: the saved images never carry it. Segment Anything shows none.
+- **Camera View** — the frame, then the analysis, in one of four renders:
+  - **Annotated**: numbered outlines. Each object's box and chip are its state's colour — OK the purple,
+    NOK the orange-red, Warning (every kind) the amber `#FFC226` — and every object of a detect-only mode
+    (Segment Anything) the logo purple `#640ABA`; the chip's number is plain white on every chip, in every
+    state and mode. A judged part's solid rotated outline carries its size check alone (orange-red only
+    when out of tolerance, purple otherwise, though the part is NOK for a stain, a hole or its look), its
+    dashed outer box and chip its verdict. In a catalogue mode a judged part also shows its features, each
+    in one colour, pass or fail, on a thinner line with no halo, each with a box along the part that turns
+    with it: a hole as its box and its own outline, solid; a hole expected and not found as its box and a
+    circle of the catalogue's diameter, dashed (the only dashed feature marks); a stain as its box with its
+    pixels tinted. A missing hole is placed by the holes found, a countersink's through-hole by the
+    countersink, and a countersink around its through-hole, found or placed. Each feature is numbered on a
+    smaller chip (`3.1`, the number of its `Part` line in the Log) on the corner of its box nearest the
+    object's chip, turned with that box, never more than 45° off level and never over another chip. A
+    Warning of any kind, a part outside the inspection area included, has only its outline, outer box and
+    chip, in the amber with the white numeral, and no feature mark.
+  - **Mask**: the label mask — black ground, tinted fill, verdict contour, every Warning in the amber's
+    pair; no feature marks.
+  - **Heatmap**: the background difference on a fixed 0–128 scale, under a legend naming the threshold
+    applied; on screen only, never saved.
+  - **Similarity** (catalogue modes only): how unlike its matched reference each DINOv2 patch of a judged
+    part looks, over the frame; a diagnostic, labelled not a defect map, never a verdict, on screen only.
+
+  The view's states:
+  - While the camera connects (CONNECT), and while a close waits for a scan or an analysis to end, the view
+    lies under its own grey-lilac at 70 %, the frame showing through, with the step in the purple under a
+    pixel icon of the task (a camera, or a magnifier for the analysis's close).
+  - While an **analysis** runs, a decorative grid of square cells sweeps the frame in a diagonal wave from
+    the top-left corner — thin periwinkle lines, every lit cell the same light translucent purple over parts
+    and table alike, fading behind the band — crossing the frame in about 0.5 s and repeating about once a
+    second until the analysis ends or fails, when it stops at once and the result (or the bare frame) shows.
+    It is on screen only, never in a saved image; the analysis's step (*Segmenting…*, *Analysing object 3 of
+    8…*) is in the head's badge.
+  - A **scan** shows the fresh frames its stillness check grabs as they come (no scrim), with *Scanning…* in
+    the head's badge and in Scene Understanding.
+  - The **live preview** (PREVIEW) paints the camera's frames as they come, with `Live · n fps` in the head's
+    badge; the view selector hides while it runs.
+  - The head names these three states after the title, in one white-on-purple marker of one size:
+    `●  LIVE PREVIEW`, `SCANNING…` with the camera pixel icon (its lens blinking), `ANALYZING…` with the
+    magnifier (its glint stepping). Nothing but the analysis grid is drawn over the frame.
+  - In a catalogue mode the **inspection area** is drawn as a thin solid line, square-cornered and unfilled,
+    in the purple over the empty view and in a light amber over the live preview, the scanned frame and the
+    Annotated render (not the Mask, Heatmap or Similarity), on screen only: the saved images never carry it.
+    Segment Anything shows none.
 - **Scene Understanding** — the reading: the background sentence, one line per object with its
   description, size and confidence, plus Task, Inference time and Confidence (mean). In a catalogue mode
   each object adds `State: OK.`, `State: NOK.` or `State: Warning – <kind>.` (`State: Warning – Outside area.`), one
@@ -423,7 +428,7 @@ across all connections, and the oldest are evicted first. A failed analysis writ
 | `_understanding.txt` | The Scene Understanding text, for people. Nothing parses it. |
 | `.txt` | YOLO box records, one line per object. The ids are per-frame indices, not classes. |
 | `_seg.txt` | YOLO segmentation polygons (outer contour only). |
-| `_objects.json` | The machine-readable record: per object and per set, with the configuration, the station and calibration file names (from 2026-10-13; older sets read them as empty), reference, camera, lens and lighting; a judged part's features as its `parts` (number, kind, pass, box, checks, area, text, score), an additive field older sets load without; a Warning's kind as its `warning_kind` (`outside`, `foreign`, `several_parts`, `side_unknown` or `side_mismatch`; `outside` and `foreign` since 2026-10-16, the other three since the three states). An older set reads into the three states without loss: a Warning without a kind as a plain Warning, an `Unspecified` object as a Warning of kind `unspecified`, any kind as written. |
+| `_objects.json` | The machine-readable record: per object and per set, with the configuration, the station and calibration file names (an older set without them reads them as empty), reference, camera, lens and lighting; a judged part's features as its `parts` (number, kind, pass, box, checks, area, text, score), an additive field older sets load without; a Warning's kind as its `warning_kind` (`outside`, `foreign`, `several_parts`, `side_unknown` or `side_mismatch`). An older set reads into the three states without loss: a Warning without a kind as a plain Warning, an `Unspecified` object as a Warning of kind `unspecified`, any kind as written. |
 
 **Run-summary CSV** — `logger/log_<Hardware>.csv`, one row per application run, shared by every mode
 on that hardware. A file of an older format is renamed aside, never appended to.
@@ -483,19 +488,8 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
 
 ## Known limitations
 
-This section only links. The entries themselves are the record.
-
-- Decision-affecting, in [README > Limitations](../../README.md#limitations): sizes are repeatable, not
-  absolute, and the describer is not a defect detector.
-- Open behaviours, in [KNOWN_ISSUES.md](KNOWN_ISSUES.md):
-  - [*Touching parts merge before the closing*](KNOWN_ISSUES.md#touching-parts-merge-before-the-closing)
-  - [*The fusion's parameters are validated on one table under one light*](KNOWN_ISSUES.md#the-fusions-parameters-are-validated-on-one-table-under-one-light)
-  - [*A very harsh cast shadow can be absorbed into a part's component*](KNOWN_ISSUES.md#a-very-harsh-cast-shadow-can-be-absorbed-into-a-parts-component)
-  - [*The confidence status metric is partial — only the FastSAM cue is scored*](KNOWN_ISSUES.md#the-confidence-status-metric-is-partial--only-the-fastsam-cue-is-scored)
-  - [*A killed run never gets its run-summary CSV row*](KNOWN_ISSUES.md#a-killed-run-never-gets-its-run-summary-csv-row)
-  - [*The inspection area's insets rest on plates measured mostly by the right edge*](KNOWN_ISSUES.md#the-inspection-areas-insets-rest-on-plates-measured-mostly-by-the-right-edge)
-  - [*The live preview runs at about 3.7 frames a second, set by the USB-C Ethernet adapter*](KNOWN_ISSUES.md#the-live-preview-runs-at-about-37-frames-a-second-set-by-the-usb-c-ethernet-adapter)
-  - and the rest of that file.
+The three limitations that affect a decision are in [README > Limitations](../../README.md#limitations);
+the open behaviours that decide nothing are in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ## Verified on hardware, and not yet
 
@@ -521,47 +515,27 @@ Each row names its evidence. A row with none is not verified.
 | A scan refused for a moving scene | Off-hardware only (scripted frames, synthetic shifts and a synthetic hand on test frames); **no hand moved under the rig's camera yet** | capture-checklist item 5; `test/Camera/test_stillness.py`, `test/UI/test_preview.py` |
 | Parts session: defects, low-contrast parts, harsh shadow | Not recorded | capture-checklist item 3 |
 | Daily station event export on the station | Not recorded | — |
-| Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled, the five stained plates NOK, every other object a Warning, and since 2026-10-16 `Image_062`'s clean front, which reaches into the inspection area's top band, a Warning | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
+| Catalogue identification and verdicts on the test set | Off-hardware: every frame as labelled, the five stained plates NOK, every other object a Warning, `Image_062`'s clean front among them, since it reaches into the inspection area's top band | `test/integration/test_pipeline.py::test_each_frame_gets_its_expected_verdicts` |
 | Catalogue stain check on the test set | Off-hardware: the five fingerprinted fronts caught, each as its two fingerprints (two regions, largest 149–158 mm²), every clean front clean | the same test; `test/Vision/Utilities/test_stain.py` |
 | Describer told the findings, guarded | Off-hardware, Gemma 4 E4B on 24 judged parts: every contradiction it wrote dropped and logged, no digit. 2026-10-15, the 10 mounting-plate capture frames (15 judged parts, RTX 5070 Ti): the 4 contradictions caught, each fixed by the ask again, no right claim dropped; with the no-checks rule, 0 of 15 texts name the checks, no intervention, the ask again 0.50–1.02 s when forced | [design-decisions](design-decisions.md#the-describer-is-told-what-the-checks-found-never-a-number-and-its-contradictions-are-dropped-and-logged) |
 | Feature marks on the frame | Off-hardware: rendered and looked at on a front, the dark back and a stained front (Image_055, 056, 080), a synthetic missing hole, synthetic plates turned 135°, 215° and 260°, a synthetic concentric pair at the tolerance limits, and the Camera View at 0.45 scale; not looked at on the rig's screen | `test/Vision/Utilities/test_annotate.py::test_a_chip_sits_outside_its_box_on_the_corner_nearest_the_objects_chip_and_reads_near_level`, `test/integration/test_pipeline.py::test_each_stained_front_shows_its_two_fingerprints_as_two_stains` |
 | Missing-hole marks, white chip numerals, the detect-only purple | Off-hardware, 2026-10-15: rendered and looked at on capture `20261015-143622_s1` (a Warning terminal block, a stained front, a back with no holes) in both modes, and on its front with found holes dropped (SYNTHETIC: one stepped hole, both bores); the back with no holes keeps no mark and says why; not looked at on the rig's screen | `test/Vision/Utilities/test_holes.py::test_through_holes_missing_under_found_countersinks_are_placed_at_their_centres`, `test/Reporting/test_core.py::test_missing_holes_not_marked_are_named_in_the_note`, `test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_a_white_numeral` |
 | Catalogue hole check on the test set | Off-hardware: every mounting-plate hole within tolerance | `test/integration/test_pipeline.py::test_every_mounting_plate_shows_all_its_holes_within_tolerance` |
-| Inspection area | Off-hardware, 2026-10-16, on the 91 mounting-plate frames of the test set and the three capture sets on disk (215 objects): every object outside the area a Warning, every one inside keeping its verdict; the insets chosen from the plates' measured errors (design-decisions). Drawn and looked at in the offscreen Camera View in both candidate colours; **not looked at on the rig's screen, and no capture yet along the left and bottom edges or in the corners** | `test/Vision/Utilities/test_classify.py::test_only_an_object_wholly_inside_the_inspection_area_is_judged`, `test/UI/test_inspection_area.py`, `test/integration/test_edge_of_view.py` |
-| Side, holes and stains by the edge of the view | Off-hardware, 2026-10-15, on the 78 mounting-plate frames (the test set and the five capture sets): every plate's side right, every hole found and within tolerance (bores within 0.205 mm of their countersinks' axes), every stain found, plate centres 3.4–66.6 mm from the frame centre, clean fronts OK to 62.5 mm; no verdict that was right changed, five wrong OKs and four wrong reasons corrected. Synthetic bores 1.5–3 mm off their countersinks' axes caught everywhere (3,584 of 3,584). Beyond 50 mm only the right edge was covered (22 plates) and one plate on the left (51 mm); the top and bottom bands, the corners and backs beyond 59 mm not at all. The regression frames are stored as crops that reproduce every decision, not every measured value. Since 2026-10-16 these plates lie outside the inspection area and are Warnings, not checked | `test/integration/test_edge_of_view.py`; [KNOWN_ISSUES](KNOWN_ISSUES.md#the-inspection-areas-insets-rest-on-plates-measured-mostly-by-the-right-edge) |
+| Inspection area | Off-hardware, 2026-10-16, on the 91 mounting-plate frames of the test set and the three capture sets on disk (215 objects): every object outside the area a Warning, every one inside keeping its verdict; the insets chosen from the plates' measured errors (design-decisions). Drawn and looked at in the offscreen Camera View; **not looked at on the rig's screen, and no capture yet along the left and bottom edges or in the corners** | `test/Vision/Utilities/test_classify.py::test_only_an_object_wholly_inside_the_inspection_area_is_judged`, `test/UI/test_inspection_area.py`, `test/integration/test_edge_of_view.py` |
+| Side, holes and stains by the edge of the view | Off-hardware, 2026-10-15, on the 78 mounting-plate frames (the test set and the five capture sets), plate centres 3.4–66.6 mm from the frame centre: every plate's side right, every hole found and within tolerance (bores within 0.205 mm of their countersinks' axes), every stain found; synthetic bores 1.5–3 mm off their countersinks' axes caught everywhere (3,584 of 3,584). Beyond 50 mm only the right edge was covered. These measurements set the inspection area's insets; the plates beyond it are now Warnings, not checked. The regression frames are stored as crops that reproduce every decision, not every measured value | `test/integration/test_edge_of_view.py`; [KNOWN_ISSUES](KNOWN_ISSUES.md#the-inspection-areas-insets-rest-on-plates-measured-mostly-by-the-right-edge) |
 | Defect detection | **Not built** | README > Limitations |
 
 ## Keeping this file true
 
-A capability document that is wrong is worse than none.
-`test/integration/test_capabilities_doc.py` fails when the code and this file disagree:
+`test/integration/test_capabilities_doc.py` fails when this file and the code disagree on a **name**:
+the *Package* table and the packages under `src/`; the Configuration, Station and Calibration tables and
+the sections of the shipped files (every key path written there must exist); the Modes table and the
+mode files; the `###` headings under *UI views* and the view switch's labels, with the renders and Live
+card titles under *Live*; the records tables and the suffixes, CSV columns and event types the code
+writes; and every relative link and `#anchor`.
 
-- **Architecture**: the *Package* table names exactly the packages under `src/`.
-- **Configuration**: the *Section* column equals every section of every mode file in `Configuration/Mode/`
-  (the top-level keys and the mappings one level below them), and every key path written in the
-  Configuration section exists in a mode file. The same check runs for the station table against the
-  station file, and for the calibration table against the calibration file.
-- **Modes**: the Modes table names exactly the mode files in `Configuration/Mode/`.
-- **Views**: the `###` headings under *UI views* are exactly the central-view switch's labels, and
-  the Camera View renders and Live card titles named in the code appear under *Live*.
-- **Records**: the capture-set, run-summary and station-event tables name exactly the file
-  suffixes, CSV columns and event types the code writes.
-- **Links**: every relative link and `#anchor` in this file resolves.
-
-Those checks catch a **name** that changed. They cannot catch a **behaviour** that changed under
-the same name, or a stale sentence in the prose or the hardware table. So every change to the code
-is reviewed against this file, and the review is recorded:
-
-- The *Last reviewed* line at the top names the commit this file was last checked against.
-- **Every later commit that changes `src/`, `App/`, `Configuration/` or `Example/` must also change
-  this file**, in the same commit. Either the content changes, or, when the change affects no
-  capability, only the *Last reviewed* line moves: it is set to the commit the change is based on,
-  and the commit message says *Capabilities: no change* and why.
-- `test_every_code_change_since_the_last_review_updated_the_document` lists the code commits since
-  that line and fails on any that left this file untouched. A skipped review fails it; a careless
-  one does not, and that part stays with the reviewer.
-
-The rule is in the `feature-manager` skill's Done checklist. `project-optimize` changes no capability:
-its steps move the *Last reviewed* line, update an internal name this file gives (a package, a module in
-the data flow) in the same commit, and hand any removal of something the user sees or operates to
-`feature-manager`.
+A **behaviour** changed under the same name it cannot see, so every commit that changes `src/`, `App/`,
+`Configuration/` or `Example/` also changes this file: its content, or, when no capability changed, the
+*Last reviewed* line, set to the commit the change is based on, with *Capabilities: no change* and why in
+the message. `test_every_code_change_since_the_last_review_updated_the_document` fails on a code commit
+that left this file untouched (feature-manager's project reference, *Docs*).
