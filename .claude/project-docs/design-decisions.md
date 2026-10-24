@@ -990,7 +990,8 @@ Tests `test/Reporting/test_core.py::test_a_sentence_naming_the_surface_is_kept_w
 
 ## The label distiller peels Gemma's opener — and the label is still weak
 
-Superseded by [*The label runs up to the head noun (supersedes the comma cut)*](#the-label-runs-up-to-the-head-noun-supersedes-the-comma-cut)
+Superseded by [*The label runs up to the head noun (supersedes the comma
+cut)*](#the-label-runs-up-to-the-head-noun-supersedes-the-comma-cut)
 and [*The object label keeps the model's alternatives, and reads the phrasings that broke it*](#the-object-label-keeps-the-models-alternatives-and-reads-the-phrasings-that-broke-it):
 the comma cut is replaced, and asking the model for the name was measured and rejected. The full entry is in git at
 `a85215c`.
@@ -1075,7 +1076,8 @@ characterization baseline does not move.
 
 ## Consequence of Gemma via MLX: the application is supported on Apple-silicon macOS only
 
-Superseded by [*Platform: three states — measured, target, not a target*](#platform-three-states--measured-target-not-a-target)
+Superseded by [*Platform: three states — measured, target, not a
+target*](#platform-three-states--measured-target-not-a-target)
 and [*Linux: MLX's CUDA backend, E4B on every card with ≥ 11 GB, refusal instead of a silent CPU fallback*](#linux-mlxs-cuda-backend-e4b-on-every-card-with--11-gb-refusal-instead-of-a-silent-cpu-fallback):
 MLX publishes Linux wheels, and the application runs on Linux on MLX's CUDA backend. The full entry is in git at
 `a85215c`.
@@ -3126,7 +3128,11 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_similarity_grid_is_the_b
 
 ## History filters by the four states, and the Trends threshold line is neutral
 
-Superseded by [*Three states for the operator, a Warning with its kind*](#three-states-for-the-operator-a-warning-with-its-kind): History's filter is All, OK, NOK and Warning, and the threshold lines are in [*Trends draws square markers, 2 px lines, and the run mean as hollow squares on top*](#trends-draws-square-markers-2-px-lines-and-the-run-mean-as-hollow-squares-on-top). The full entry is in git at `a85215c`.
+Superseded by [*Three states for the operator, a Warning with its
+kind*](#three-states-for-the-operator-a-warning-with-its-kind): History's filter is All, OK, NOK and Warning,
+and the threshold lines are in [*Trends draws square markers, 2 px lines, and the run mean as hollow squares
+on top*](#trends-draws-square-markers-2-px-lines-and-the-run-mean-as-hollow-squares-on-top). The full entry is
+in git at `a85215c`.
 
 
 ## The catalogue holds only the mounting plate
@@ -4007,11 +4013,17 @@ Tests `test/Vision/test_core.py::test_a_part_outside_the_area_is_not_checked_and
 
 ## Unspecified is a sky blue, a verdict colour outside the brand palette
 
-Superseded by [*Three states for the operator, a Warning with its kind*](#three-states-for-the-operator-a-warning-with-its-kind): Unspecified is no longer a state, its causes are Warnings of their own kinds in the amber, and its blue is removed from the theme. The full entry is in git at `a85215c`.
+Superseded by [*Three states for the operator, a Warning with its
+kind*](#three-states-for-the-operator-a-warning-with-its-kind): Unspecified is no longer a state, its causes
+are Warnings of their own kinds in the amber, and its blue is removed from the theme. The full entry is in git
+at `a85215c`.
 
 ## A Warning is shown, counted and recorded by its kind
 
-Superseded by [*Three states for the operator, a Warning with its kind*](#three-states-for-the-operator-a-warning-with-its-kind): every Warning is shown, counted, charted and filtered as one state in the amber, its kind told in words; the record's `warning_kind` is kept there. The full entry is in git at `a85215c`.
+Superseded by [*Three states for the operator, a Warning with its
+kind*](#three-states-for-the-operator-a-warning-with-its-kind): every Warning is shown, counted, charted and
+filtered as one state in the amber, its kind told in words; the record's `warning_kind` is kept there. The
+full entry is in git at `a85215c`.
 
 ## Each state has one colour in every view
 
@@ -4354,7 +4366,10 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_verdict_follows_the_rule
 
 ## The Confidence chart draws the two means, told apart by their form
 
-Superseded by [*Trends draws square markers, 2 px lines, and the run mean as hollow squares on top*](#trends-draws-square-markers-2-px-lines-and-the-run-mean-as-hollow-squares-on-top): the two entries are merged there, with the means' current lines, markers and colours and the labelled threshold lines. The full entry is in git at `a85215c`.
+Superseded by [*Trends draws square markers, 2 px lines, and the run mean as hollow squares on
+top*](#trends-draws-square-markers-2-px-lines-and-the-run-mean-as-hollow-squares-on-top): the two entries are
+merged there, with the means' current lines, markers and colours and the labelled threshold lines. The full
+entry is in git at `a85215c`.
 
 ## Trends draws square markers, 2 px lines, and the run mean as hollow squares on top
 
