@@ -25,31 +25,31 @@ here: the sizes are repeatable, not absolute, and the describer is not a defect 
 | # | Item | Frames | What it is for | Status |
 |---|---|---|---|---|
 | 1 | Multi-view calibration set | 40+ | The lens model, the principal point and the mm/px factor. Not checked against known sizes in this version | **Done 2026-09-28** — in force |
-| 2 | Empty-surface reference | 1 | The background reference, shot under the calibration in force, with its provenance sidecar | **Done 2026-09-28** — in force |
+| 2 | Empty-surface reference | 1 | The background reference, shot under the calibration in force, with its provenance sidecar | **Done 2026-10-12** — in force |
 | 3 | Parts session: defects, low-contrast parts, harsh shadow, plates far from the centre | ~50 | Real frames for the open questions in KNOWN_ISSUES (low-contrast parts, harsh shadow), data for a future defect rule, and mounting plates far from the centre to widen the size checks' verified zone | To do |
 | 4 | Cable pull: a lost connection is detected | 0 | Not a capture: the one check of lost-connection detection on the real camera, which no test can make (it is unverified on the hardware until this is done) | To do |
+| 5 | Live preview and SCAN: a moving hand is refused | 0 | Not a capture: the one check on the rig that a scan of a moving scene is refused (tested on scripted and synthetic frames only) | To do |
 
 Items 1 and 2 are repeated, in that order, whenever the camera, the lens, its focus or the mount
 changes. Their procedures stay below for that.
 
-**Before item 1: confirm the camera is pinned.** **Confirmed on the real camera, 2026-10-13**, with `7d9ffe7`:
-the log read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain
+**Before item 1: confirm the camera is pinned.** Power-cycle the camera (it then starts from its factory
+default, the full 1936 × 1216 sensor), start the application, load the configuration and CONNECT. The log
+must read the line below, and the status bar 1920 × 1200. A camera that keeps an automatic mode on, a ratio
+outside the tolerance or a gamma other than 1 is refused at CONNECT, naming it. Anything else: stop and report
+it — every item below depends on the window. Repeat the check after any change to the camera's settings or
+firmware. **Last confirmed on the real camera on 2026-10-13** (`7d9ffe7`); the log read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain
 10.00, BayerRG8, ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off, BalanceRatio Red 0.949951, Green 0.899902,
 Blue 1.19995 (± 0.0078125, the camera reports no step), Gamma 1, LightSourcePreset not available (read back from
 the camera; LightSourcePreset not pinned).* The three automatic modes are Off; Gamma 1 is pinned in the station
 file (`Camera.Custom_Cfg.Gamma`); this model has no colour-preset node, so `Light_Source_Preset` is not pinned
 ("not available" is not an error while it is unpinned); and it reports no step for BalanceRatio, so the 1/128
 fallback is the tolerance, each ratio reading back within about 0.00005 of the station file's (0.95, 0.90, 1.20).
-The window itself was first confirmed on 2026-09-24. Repeat the check after any change to the camera's settings
-or firmware: power-cycle the camera (it then starts from its factory default, the full 1936 × 1216 sensor), start
-the application, load the configuration and CONNECT. The log must read the line above, and the status bar
-1920 × 1200. A camera that keeps an automatic mode on, a ratio outside the tolerance or a gamma other than 1 is
-refused at CONNECT, naming it. Anything else: stop and report it —
-every item below depends on the window. Each calibration set goes in its own directory
+Each calibration set goes in its own directory
 (`calibrate.py --capture` makes a new one each run): its `capture.json` records the window, and the
 calibration written from it carries it.
 
-**Order: 1, then 2, then 3.**
+**Order.**
 
 1. **Calibrate first.** Adopt the new calibration, then restart the application so it is in force.
 2. **Then the empty-surface reference, under the new calibration.** The reference is an undistorted
@@ -84,8 +84,7 @@ either is not, do not use the board; fix the printer scaling and reprint.
 **Conditions.** Shipped lighting, camera untouched. Capture with the calibration harness, not the app:
 
 ```bash
-cd Example/Camera
-python calibrate.py --capture --board-squares 11x8
+.venv/bin/python Example/Camera/calibrate.py --capture --board-squares 11x8
 ```
 
 It captures into a new `Data/Images/Calibration/<timestamp>/` (git-ignored; pass a directory to
@@ -115,7 +114,7 @@ retake it unless the board overhangs the frame on purpose.
 and leaves the one in force and the station file untouched:
 
 ```bash
-python calibrate.py --images ../../Data/Images/Calibration/<timestamp> --board-squares 11x8 --square-mm <calipered> --board-height-mm <h>
+.venv/bin/python Example/Camera/calibrate.py --images Data/Images/Calibration/<timestamp> --board-squares 11x8 --square-mm <calipered> --board-height-mm <h>
 ```
 
 Check the report (principal point near the image centre, tilt spread above the 10° floor, the factor's
@@ -129,15 +128,10 @@ either.)
 
 ## 2. Empty-surface reference (the mean of 8 frames)
 
-**Done 2026-09-28; re-shot 2026-10-12.** `Data/Images/Background/Image_Background_001.png` was first made by
-the old `make_reference.py --from` from the capture set `20260928-111434_s1`, with four edge slivers accepted
-with `--accept-objects`. *Corrected 2026-10-13:* the file in force is not that one. It was re-shot on
-2026-10-12 (commit `b131244`) from the capture set `20261012-170521_s1`, with no objects accepted, and written
-over the same name. Its sidecar records the window (1920 × 1200 at (8, 8)), the fingerprint of the calibration
-in force and the lighting. It named that calibration by the file name it had then
-(`Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3.yaml`); the file has since been renamed
-(`…_20260928-110755.yaml`, the same K and coefficients, so the fingerprint matches), and the sidecar's `file`
-was corrected to the current name. The next reference is `_002`.
+**In force: `Data/Images/Background/Image_Background_001.png`**, shot on 2026-10-12 (commit `b131244`) from
+the capture set `20261012-170521_s1`, with no objects accepted. Its sidecar records the window (1920 × 1200 at
+(8, 8)), the fingerprint of the calibration in force (`…_20260928-110755.yaml`) and the lighting. The next
+reference is `_002`.
 
 **Why.** The reference is an undistorted frame, so it belongs to one lens model and one sensor window:
 a new calibration puts its geometry out of date. Shot through the application's camera path, with its
