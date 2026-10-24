@@ -1,9 +1,8 @@
 # Known issues
 
 Open behaviours of the pipeline that show up in its text or its numbers, recorded so they are
-recognised when they appear. Nobody decides anything on them. **The two limitations that do affect
-decisions — sizes are repeatable, not absolute; the describer is not a defect detector — are in the
-README, under [Limitations](../../README.md#limitations).**
+recognised when they appear. Nobody decides anything on them. **The three limitations that do affect
+decisions are in the README, under [Limitations](../../README.md#limitations).**
 
 Each entry states the behaviour, what it affects, and why it is not fixed. An entry is removed when
 the behaviour is fixed, and the resolution is recorded in `design-decisions.md`.
@@ -40,10 +39,6 @@ in the session log: a run's log cannot show how often grabs were dropped. A grab
 attempt is not affected: `Capture` returns None, `_Grab` raises a `Camera_Error_Cls` ("The camera
 returned an empty frame..."), and the failed scan is logged.
 
-A count and a warning, "N frame(s) dropped during capture (retried)", were meant to carry this
-(`Camera_Cls.Last_Capture_Retries`). Nothing ever set the count, so the warning never fired; both
-were removed in `c69b909`.
-
 - **Impact:** low today. Only retried-then-successful grabs are invisible in the log. A cable or
   camera that starts dropping frames shows on the console alone, which an operator who starts the
   application from a launcher does not see, and the station event files never record it.
@@ -53,53 +48,34 @@ were removed in `c69b909`.
 
 ## The fusion's parameters are validated on one table under one light
 
-This entry used to describe a coverage gate and a mask dilation (`CONST_FILTER_CHANGE_COVERAGE`,
-`CONST_SEG_MASK_DILATE_KERNEL`) tuned on synthetic scenes. **Neither exists any more.** The gate
-was replaced by fusion: an object survives on *either* cue, FastSAM or background subtraction, so no
-coverage threshold decides whether a FastSAM mask counts (design-decisions.md, *The fusion
-needs both cues*).
-
-What decides detection now is set in the configuration:
+What decides detection is set in the configuration:
 
 - `Segmentation.Background.*` — the background difference: the Otsu floor, and the opening and
   dilation kernels.
 - `Segmentation.Fusion.*` — the closing kernel, the minimum component area, and the
   background-rejection fractions and border count.
 
-Two constants in `Vision/Utilities/Fusion.py` also remain: the 0.10 cue-attribution overlap, which
+Two constants in `Vision/Utilities/Fusion.py` also decide: the 0.10 cue-attribution overlap, which
 only labels which cue found an object, and the row band / object cap, which order and limit the
 objects.
 
-Unlike the old gate, these have run on real captures, with every frame's count pinned against a
-by-eye inventory (`test/integration/test_pipeline.py::test_counts_match_the_inventory`). The pinned
-test set is now the 41 frames of the 2026-10-09 session (`Evaluation.Frames`, `Data/Images/Test`,
-`Image_055`–`095`, the capture sets' `_raw.png` frames, counted by eye and confirmed by the owner
-2026-10-11). Against the shipped reference (`Image_Background_001`, shot 2026-09-28) all 41 match. The
-three 2×2 grids of plates set close together (`Image_093`–`095`) come back as four objects each. (The same
-scenes' `_distorted.png` files were briefly the set, `Image_014`–`054`, recoverable from `1580e92`: on
-nine of them the reference's undistortion border, which those frames lacked, added one object in the
-bottom-right corner — see design-decisions, *A replaced image never keeps its name*, case 6.)
+They are validated on real captures, every frame's count pinned against a by-eye inventory
+(`test/integration/test_pipeline.py::test_counts_match_the_inventory`): the 41 frames of the
+2026-10-09 session (`Evaluation.Frames`, `Data/Images/Test`, `Image_055`–`095`, counted by eye and
+confirmed by the owner 2026-10-11), all matching against the shipped reference
+(`Image_Background_001`). The three 2×2 grids of plates set close together (`Image_093`–`095`) come
+back as four objects each. The earlier sets of `1061966` and `eb00508^` matched too; the misses below were
+on `b5ca788^` and `1580e92`. 41 frames of one table, under one light, is a narrow base.
 
-Before it, the set was eight frames (`Data/Images/Test/All`, shot under the calibration and reference
-then in force; no longer in the repository, recoverable from `1061966`), and all eight matched. Five
-more frames, two plates each, were in that set until `b5ca788` removed them (recoverable from
-`b5ca788^`); three of those merged, in the entry below. The seven frames of the set before that
-(removed in `eb00508`, recoverable from `eb00508^`, shot under the previous calibration) give the same
-counts as before the closing changed, object masks unchanged pixel for pixel. 41 frames of one table,
-under one light, is still a narrow base.
-
-- **Seen since:** parts that touch or nearly touch, and a dark rusted plate the background cue barely
-  sees (2 % of it), carried by FastSAM alone — both on frames no longer in the set (`All/Image_009`–`013`,
-  recoverable from `b5ca788^`). And an extra object in the bottom-right corner on frames that skipped
-  the undistortion the reference went through (the `_distorted.png` frames `Image_014`–`054`, no longer
-  in the repository, recoverable from `1580e92`).
+- **Seen on earlier sets:** parts that touch or nearly touch, and a dark rusted plate the background cue
+  barely sees (2 % of it), carried by FastSAM alone (`b5ca788^`); an extra object in the bottom-right
+  corner on frames that skipped the undistortion the reference went through (`1580e92`; design-decisions,
+  *A replaced image never keeps its name*, case 6).
 - **Not yet seen on real data:** parts close to the table's colour, and any other lighting.
 - **The failure signatures to watch:**
   - a real part missing from the count (a cue failed and the other did not carry it)
   - one part split into two components — the closing fills gaps inside a component but no longer
-    joins two separate ones, so a part the cues see in two pieces stays two (not seen on any of the
-    twenty frames it was measured on — the thirteen of `b5ca788^` and the previous seven: every count
-    there was the same with no closing at all)
+    joins two separate ones, so a part the cues see in two pieces stays two (not seen yet)
   - two neighbours merged into one (they touch; see *Touching parts merge before the closing*)
   - a part's outline running into its shadow (see the harsh-shadow entry below)
 - **Until more real frames are analysed,** the parameters are trusted on these frames only.
@@ -108,172 +84,41 @@ under one light, is still a narrow base.
 
 ## Touching parts merge before the closing
 
-*Evidence from frames no longer in the test set* — `All/Image_009`–`013`, the five two-plate frames,
-were removed in `b5ca788` and are recoverable from `b5ca788^`. Every number in this entry was measured
-on them (and, where stated, on the previous set's seven frames, `eb00508^`). The eight frames that
-followed in `All/` (no longer in the repository, recoverable from `1061966`) held no touching parts;
-route 2 below was re-measured where those eight could answer it. The current set (`Data/Images/Test`)
-has plates set close together in its 2×2 grids (`Image_093`–`095`), but none touching by eye, and all
-three come back as four objects, so it does not re-measure this entry either. The reasoning stands;
-the frames are gone.
+Two touching parts read as one object: the count is one low and the size is the pair's. Seen on the
+five two-plate frames `All/Image_009`–`013` (recoverable from `b5ca788^`): three came back as one object
+(009, 011, 012). The current set has plates set close together in its 2×2 grids (`Image_093`–`095`), none
+touching, and counts them right, so it does not re-measure this entry.
 
-Of the five two-plate frames, three came back as ONE object: `All/Image_009`, `011` and `012`. Five routes to separating them have been measured, and all five fail. They fail for the
-same reason, and that reason is why this entry exists:
+**Two causes, independent.** FastSAM returns a hierarchy, and nothing structural tells which level holds
+the division: two touching plates and one machined plate's two halves measure the same (both children
+cover 0.99 of their parent, overlap 0.000, 1.9 px apart). And a bridge remains when FastSAM's both-plates
+mask is removed: the background cue's in 009 and 011, FastSAM's own in 012. A segmenter that got the
+level right would fix 012 only.
 
-**FastSAM's output contains the division, and nothing structural identifies which level holds it.**
-FastSAM returns a hierarchy. In 009, 011 and 012 it is three levels deep: a mask covering both plates,
-then each plate, then the hole rings. The division is at the middle level, and with the both-plates mask
-removed, FastSAM alone returns the two plates apart in 009 and 011. But for a single machined plate that
-same middle level is the plate's two halves, and the two cases measure the same: two touching plates in
-011 and one plate's halves in 010 both cover 0.99 of their parent, overlap 0.000 and lie 1.9 px apart.
-Any rule that reads the division off the masks' shape either fails to fire on the plates or splits
-single objects.
+**Five routes were measured (2026-09-28) and all fail:**
 
-**Two causes merge these frames, and they are independent.** One is FastSAM's (the both-plates mask and
-the level problem above). The other is a bridge that remains in each frame when the both-plates mask is
-gone. **In 009 and 011 that bridge is the background cue's; in 012 it is FastSAM's own.** So even a
-segmenter that got the level right would fix only 012. 009 and 011 would still merge until the
-background bridge is dealt with separately. A model swap alone does not close this entry.
+1. Lowering FastSAM's NMS `IoU` (shipped 0.9) to 0.7, 0.5 or 0.3: the three still count one; NMS chooses
+   levels by score, and the score favours the wrong level as often as the right one.
+2. A larger `Segmentation.Image_Size` (1280–1920): the both-plates mask weakens, but the plates' own masks
+   grow into the seam and touch, and frames that counted right fail (on the eight frames of `1061966`:
+   003 and 004 from 1280, 005 too at 1920, where one FastSAM mask covers 0.495 of the frame, just under
+   `Background_Area_Fraction`'s 0.50). Time is not the reason (at most a quarter of a second more per
+   frame); the counts are, so `Image_Size` stays 1024.
+3. Splitting by the seam's darkness: touching plates 0.36–0.46, a plate's halves 0.73–0.88, but the
+   robot's printed joints 0.44–0.61, so any threshold that splits the plates splits the robot.
+4. Dropping a parent mask that covers two disjoint children: it fires on every plate, the robot and the
+   terminal strip; with a coverage cut it still splits a single plate (010) and leaves 009 and 011 joined.
+5. Splitting along FastSAM's leaf masks: the leaves are hole rings, smudges and limbs, not plates.
 
-| Measured per row (2026-09-28) | 009 | 011 | 012 |
-|---|---|---|---|
-| Dark seam between the plates | 1 px, absent in 207 of 543 rows | 10 px, every row | 6 px, every row |
-| Seam brightness / plates' | 0.58 | 0.38 | 0.47 |
-| FastSAM's both-plates mask against each plate | 0.81 against 0.97 / 0.97 | 0.94 against 0.91 / 0.87 | 0.94 against 0.94 / 0.82 |
-| FastSAM's two plate masks | 23 px apart, never touching | 2 px apart, never touching | 4 px apart; touching in 35 of 361 rows (y 615–658) |
-| The background cue joins them | rows 621–867 | rows 316–320 only (the seam's top end, where it opens into a V) | nowhere |
-| Count with the both-plates mask removed: FastSAM alone / fused | 2 / **1** | 2 / **1** | 1 / 1 |
+The full measurements, per frame and per route, are in this file at `38d7c97`.
 
-- **The background cue joins 009 and 011 only at those rows; everywhere else it holds them apart.**
-  Counterintuitive, so stated plainly: background subtraction asks whether a pixel differs from the
-  *green table*, not from the plate. A dark seam is far closer to the dark-green table than a bright
-  plate is: its difference from the table (~40–44) sits at those frames' Otsu threshold (42–43), and
-  after the blur it falls below — so the cue reads the seam as table in every row of 012 and all but
-  five rows of 011. The more visible the seam, the more the cue separates. 009 is the exception: dark
-  plates and a faint seam, the threshold drops to its floor (28), and plates and gap all clear it.
-- **012's second bridge is FastSAM's own:** its plate edges each bleed ~3 px into a 6 px seam and meet
-  mid-seam over 35 rows. At the 1024 px inference size the seam is ~3 px wide.
-
-`010` and `013` (plates 10.8 and 9.8 px apart) used to merge in the closing; once the closing stopped
-joining components that were separate before it, they counted two (design-decisions, *The closing
-never joins two components*).
-
-- **Impact:** two touching parts read as one object: the count is one low and the size is the pair's.
 - **Not fixed here:** left open deliberately. Two plates butted against each other is not a realistic
-  inspection case, and every route below either fails to fire on it or splits single objects.
-- **What would work** (well-defined, out of scope), in two parts, and both are needed for all three frames:
-  1. **Something that picks out the middle level.** Either a segmenter that returns flat instances
-     (one mask per part) instead of a hierarchy, or a cue this pipeline does not have (depth, a second
-     view). Alone, this fixes 012.
-  2. **A separate answer for the background bridge in 009 and 011**, which a new segmenter does not touch.
-
-### The five routes, measured 2026-09-28
-
-All five were measured on the thirteen frames `All/` held at `b5ca788^` (FastSAM at 1024 px on the
-CPU). Routes 3–5 were also measured on the seven old frames (`eb00508^`, with the reference of that
-commit).
-
-- **1. Lowering FastSAM's NMS `IoU` (`Segmentation.IoU`, shipped 0.9).** Measured at 0.9 / 0.7 / 0.5 /
-  0.3: 009, 011 and 012 count one at every value, and the other ten frames stay on the inventory. The
-  both-plates mask overlaps each plate by about half, so only 0.3 removes anything, and then:
-  - **009 and 012:** the both-plates mask goes. 009 stays joined by the background bridge; 012 stays
-    joined by its touching plate masks.
-  - **011:** both plate masks go and the both-plates mask stays, because it outscores them. At 0.5 the
-    weaker plate (0.87) is already gone.
-
-  NMS can only choose between levels by score, and the score favours the wrong level as often as the
-  right one.
-- **2. A larger inference size (`Segmentation.Image_Size`).** At 1024 the 6–10 px seam is ~3 px wide,
-  so running closer to the frame's 1920 px looked like a configuration fix. Measured at 1024 / 1280 /
-  1536 / 1920, first on the thirteen frames (`b5ca788` recorded it as measured on all thirteen, in the
-  same commit that removed five of them), then again on the eight that remain:
-  - **It fixes the cause and creates a worse one** (the two-plate frames only, so not re-measurable). The
-    both-plates mask weakens as the size grows — 011 0.94 → 0.96 → 0.79 → **0.48**, 012 0.94 → 0.91 →
-    0.81 → **0.43** — but the plates' own masks grow into the seam (they take in the dark edge and the
-    side wall, which is the seam) and touch: at 1920 in all five two-plate frames, 86–3,132 px of contact,
-    011 included (923 px), which does not touch at 1024. 009, 011 and 012 stay merged at every size.
-  - **It costs frames that count correctly — re-measured on the eight, the same frames fail.** Off the
-    inventory on the eight: 1024 — none; 1280 and 1536 — 003, 004; 1920 — 003, 004, 005. (On the
-    thirteen the five two-plate frames were off as well: 009, 011, 012 at every size, 010 and 013 from
-    1280 as their plate masks began to touch, 010 recovering at 1920.) At 1920 in `All/Image_003` one
-    FastSAM mask covers **0.495** of the frame — the right half of the table — just under the 0.50
-    `Background_Area_Fraction` that would reject it as the table plane, so it stays in the union and joins
-    the robot and the dark plate; re-measured on the eight, the same 0.495. That threshold sits at the
-    edge of where it matters; this is the number beside it.
-  - **Time is not the reason.** FastSAM per frame on the eight (median / max, MPS): 167 / 206 ms at 1024,
-    237 / 299 at 1280, 310 / 343 at 1536, 443 / 483 at 1920 (the thirteen gave 171 / 237 to 435 / 495) —
-    at most a quarter of a second more, against Gemma's seconds per object. The counts are the reason:
-    `Image_Size` stays 1024.
-- **3. Splitting a merged component by its FastSAM masks with a seam test.** "Both plates = two
-  plates" has the same shape in mask space as "one plate = two halves", so this route looked for
-  evidence that a boundary is a physical gap. It measured the darkness of the seam between two masks
-  (its 10th percentile over the parts' median) on every candidate pair in all twenty frames:
-  - touching plates 0.36–0.46
-  - one plate's halves 0.73–0.88
-  - **the robot's body against its arms, legs and head 0.44–0.61**
-
-  The robot is separately printed pieces pinned together, so its joints are real seams, and the darkest
-  (0.44) is darker than the lightest plate seam (0.46). Any threshold that splits the plates splits the
-  robot. Do not retry this test without a new kind of evidence: at the seam, two parts touching and one
-  assembled part look the same.
-- **4. Dropping a parent mask that covers two non-overlapping children, before the union.** A census
-  of every parent–child pair in all twenty frames:
-  - **Containment is bimodal.** Of 397 pairs, 392 have the child ≥ 0.9 inside its parent and 5 have it
-    ≤ 0.85 (none between 0.2 and 0.8), so "contains" is ≥ 0.9 without a choice.
-  - **Stated as it is, the rule fires on 55 parents.** Among them: every plate (its two hole rings are
-    disjoint children), the whole robot, the terminal strip, the grey comb, the screw with its nut.
-  - **Adding coverage cuts it to 15.** Coverage is the fraction of the parent the two children cover
-    together; it has an empty gap from 0.60 to 0.96. The 15 parents above the gap look alike, and three
-    of them are the two-plate cases:
-
-  | Parent, by eye | Parent | Coverage | Child overlap | Gap between children | Parent score vs children |
-  |---|---|---|---|---|---|
-  | **Two touching plates** | 009 P6 | 0.991 | 0.000 | 6.7 px | 0.81 vs 0.97 / 0.97 |
-  | | 011 P5 | 0.989 | 0.000 | 1.9 px | 0.94 vs 0.91 / 0.87 |
-  | | 012 P5 | 0.992 | 0.000 | 1.0 px | 0.94 vs 0.94 / 0.82 |
-  | **One plate's machined halves** | 010 P2 | 0.993 | 0.000 | 1.9 px | 0.96 vs 0.69 / 0.61 |
-  | | 012 P12 | 0.990 | 0.006 | 0 | 0.82 vs 0.79 / 0.46 |
-  | | old 004 P0 | 0.989 | 0.008 | 0 | 0.98 vs 0.61 / 0.59 |
-  | **Blue double triangle (one part)** | 001 P1, old 001 P1 | 0.98–0.99 | ≤ 0.005 | 0 | 0.97–0.98 vs 0.59–0.83 |
-  | **Robot: arm + hand, leg + foot, head + handle** | 002 P8/P19/P24, 004 P15/P18, 005 P15, 003 P19 | 0.96–0.995 | ≤ 0.050 | 0 | 0.47–0.92 vs 0.50–0.94 |
-
-  - **Scores do not separate them either.** The plates' weaker child scores 0.82–0.97, the halves' and
-    the triangle's 0.46–0.74. But the robot's arm (002 P24) has children at 0.92 / 0.91 under a 0.47
-    parent, which is the plates' pattern.
-  - **Applied anyway, it splits a single plate:** 010 with FastSAM alone becomes three objects (the
-    plate's halves). The background cue hides that in the fused count.
-  - **It fixes 012 by accident:** it also drops 012's left plate mask as a "parent of two halves",
-    which removes FastSAM's plate-to-plate contact.
-  - **009 and 011 stay one object** because of the background bridge.
-- **5. Splitting a fused component along the FastSAM leaf masks inside it** (leaf: a mask that
-  contains no other mask). The leaf set is well-defined: it comes from the same bimodal containment.
-  But it is the wrong level. The leaves are hole rings, smudges, limbs and edges, not plates. Every fused
-  component in all twenty frames, by eye:
-
-  | Component, by eye | Leaves | Worst overlap between leaves | Share of component the leaves cover |
-  |---|---|---|---|
-  | **009, two plates** | 4 hole rings | 0.000 | **0.031** |
-  | **011, two plates** | 4 rings + 1 smudge | 0.000 | **0.080** |
-  | **012, two plates** | 4 rings + 1 smudge | 0.000 | **0.080** |
-  | Blue double triangle (001, old 001) | 2 | ≤ 0.005 | 0.98–0.99 |
-  | Grey comb (001, 008) | 4 bars | 0.000 | 0.83–0.84 |
-  | Robot (002–005) | 11–12 | 0.027–0.079 | 0.48–0.55 |
-  | Screw with nut (001, 008) | head, nut | 0.000 | 0.52–0.53 |
-  | Terminal strip (007, old 001) | 5–6 | ≤ 0.021 | 0.34–0.57 |
-  | Lattice bracket (007) | 11 windows | 0.000 | 0.40 |
-  | Red block (006, 007) | side face, holes | 0.000 | 0.25–0.29 |
-  | Single plates (003, 004, 010, 013, old 002–005) | 2–4 | 0.000 | 0.030–0.196 |
-  | Milled square plate (008), old 006, old 007 | 4–6 | 0.000 | 0.009–0.019 |
-
-  - **The two-plate components are near the bottom.** Only single plates and the milled square plate cover less.
-    A coverage cut low enough to include 009 fires on every multi-part object in the set. One high
-    enough to mean "most" fires only on single objects.
-  - **The leaf-overlap test does not protect the robot.** Leaves are the finest pieces, so they barely
-    overlap (≤ 0.079). It is the robot's larger masks that overlap.
-
-- **Pinned by:** nothing any more. The strict xfails on 009, 011 and 012 went with the frames in
-  `b5ca788`; restoring the frames from `b5ca788^` together with their inventory entries brings the pin
-  back.
+  inspection case.
+- **What would work** (out of scope), both needed: something that picks out the middle level (a segmenter
+  returning flat instances, or another cue: depth, a second view), and a separate answer for the
+  background bridge.
+- **Pinned by:** nothing; restoring the frames from `b5ca788^` with their inventory entries brings the
+  strict xfails back.
 
 ## The label mask reveals near-but-distinct objects, not merged touching ones
 
@@ -292,13 +137,9 @@ question.
 - **Impact:** a genuine merge (two touching parts read as one object) is invisible
   in the default mask; the per-object contour only distinguishes objects that were
   already separate components.
-- **Detection route:** the object **count** against expectation is now the only route
+- **Detection route:** the object **count** against expectation is the only one
   (a merge lowers the count by one; the status bar's OBJECTS DETECTED and the Trends
-  chart both show it). The per-object diagnostic mask fill that used to reveal a merge
-  in the mask itself (`CONST_ANNOTATE_MASK_FILL = 'index'`, filling each object in its
-  own colour) was removed — its only consumer was that diagnostic, and it carried a
-  whole coordinated-stroke palette with it, so the count against expectation stands
-  alone.
+  chart both show it).
 - **Pinned by:** `test/Vision/Utilities/test_annotate.py::test_mask_separates_near_but_distinct_objects`.
 
 ## Open question: FastSAM's reliability on low-contrast shapes
@@ -332,19 +173,11 @@ carry specular highlights and surface texture FastSAM may segment well.
 
 ## A very harsh cast shadow can be absorbed into a part's component
 
-The over-segmentation this entry used to describe — a cast shadow's boundary
-surviving stage 3 as an extra sliver, so N parts reported as more than N — was a
-property of the old coverage-gate + mask-NMS filter. The fusion pipeline replaced
-that filter (see git history: the FastSAM-∪-background-subtraction port), and on
-**real captures the defect is gone**: the soft cast shadow of the previous test set's
-`Image_004` (a single two-hole plate; the set was removed in `eb00508`, recoverable from
-`eb00508^`) is stripped by the background-subtraction opening
-(`Segmentation.Background.Open_Kernel` in the configuration) and the plate comes back as a
-single, tight silhouette (rectangularity ~0.88, no shadow tail). No frame of the current set
-over-counts either: the three wrong counts are all merges (*Touching parts merge before the
-closing*).
+On real captures a soft cast shadow is stripped by the background-subtraction opening
+(`Segmentation.Background.Open_Kernel`) and the part comes back as a tight silhouette; no frame of the
+current set over-counts.
 
-What remains is the **opposite, narrower** failure, and only off real data: when a
+The open failure is narrower, and only off real data: when a
 shadow is far darker and larger than any real capture — a 40%-darkening ellipse too
 big for the opening to erase — its absdiff clears the Otsu floor (`Segmentation.Background.Otsu_Floor`), and the
 fusion **absorbs** it into the object's component rather than rejecting it, so the
@@ -354,9 +187,7 @@ describer would then contain a strip of table.
 
 - **Fixed case, pinned by:** `test/integration/test_pipeline.py::test_plates_come_back_as_compact_silhouettes_on_a_real_capture`
   (slow; `Image_072` → six objects, the machined plate's and the red block's rectangularity ≥ 0.80,
-  measured 0.968 and 0.949 on 2026-10-11; it was `All/Image_003`, no longer in the repository,
-  recoverable from `1061966`) and, for every frame's count, `::test_counts_match_the_inventory`. The
-  single shadowed plate of the set before (`Image_004`, `eb00508^`) is not pinned as such.
+  measured 0.968 and 0.949 on 2026-10-11) and, for every frame's count, `::test_counts_match_the_inventory`.
 - **Open case, pinned by:** `test/integration/test_pipeline.py::test_synthetic_harsh_shadow_not_absorbed_xfail`
   (slow; `xfail(strict=True)`. It asserts the desired behaviour — no object reaches into
   the shadow band — which currently fails. When the pipeline stops absorbing the harsh
@@ -377,15 +208,9 @@ of its own. The run mean is therefore over **exactly** the scored objects, never
 averaging over the partial set silently, and reads `—` when no object has a score; the
 frame's own confidence shows the coverage (e.g. `87% over 5 of 9`).
 
-The limitation stands; its example is stale. When it was written, four of the previous
-test set's `Image_001`'s nine objects were background-only; re-measured 2026-09-25, none of
-that set's objects were. On the set that followed (`All/`, the eight frames left after `b5ca788`,
-re-measured 2026-09-28; no longer in the repository, recoverable from `1061966`; not re-measured on the
-current set) none were either: 37 objects, 35 `both` and 2 `fastsam` (the blue double
-triangle in `Image_001`, the lattice bracket in `Image_007`), every object scored 0.82–0.98. The
-thirteen-frame set had a third `fastsam` object, the dark plate the background cue sees 2 % of, in
-`Image_013` (`b5ca788^`). So the test frames score fully and
-do not exercise this path; a rig frame with a part FastSAM misses would.
+The test frames do not exercise this path: on the sets measured (2026-09-25 and 2026-09-28; the current
+set not re-measured) every object was scored, by FastSAM alone or with the background cue. A rig frame
+with a part FastSAM misses would.
 
 - **Why not route every object through FastSAM:** the fusion exists because neither
   cue is sufficient, and a single run proved it in both directions (the run this entry
@@ -407,8 +232,7 @@ do not exercise this path; a rig frame with a part FastSAM misses would.
 
 ## Gemma reads some through-holes as "a central green element"
 
-Seen on the previous test set (removed in `eb00508`, recoverable from `eb00508^`; the describer
-has not been re-run on the current set). On its `Image_002` plate, whose two through-holes have dark rims, Gemma describes "two circular
+Seen on the set removed in `eb00508` (recoverable from `eb00508^`); not looked for since. On its `Image_002` plate, whose two through-holes have dark rims, Gemma describes "two circular
 cutouts each containing a central green element" — the green is the table showing through the
 hole. The object prompt says "A hole may show the green surface through it; that green is not part
 of the part", which fixed the same misreading on `Image_001`'s red block ("a passage allowing a view
@@ -426,11 +250,11 @@ see inside a hole … is the surface below showing through it") made it worse �
 
 The describer guesses shape from the pixels of one small crop; the measurement computes it from the
 mask. Where they disagree, the measurement is right, and the panel shows both side by side (seen on
-the previous test set, `eb00508^`; the describer has not been re-run on the current set, and the sizes
-below were shown to one decimal then):
+the set removed in `eb00508`, recoverable from `eb00508^`; not looked for since; sizes shown to one
+decimal then):
 
 - **Hex nuts** (`Image_001` objects 7 and 8): Gemma calls them "a small, roughly octagonal metal
-  washer or flange" and "a circular metal washer or ring" (Florence-2 called them rings too). The
+  washer or flange" and "a circular metal washer or ring". The
   measurement identifies them correctly: the across-flats detection finds the silhouette's 60°
   periodicity and reports `A/F 11.7 mm` / `A/F 11.5 mm`, not `Ø`. The geometry knows it is a hex
   nut; the text says washer.
@@ -438,8 +262,7 @@ below were shown to one decimal then):
   is 48.1 × 46.9 mm, i.e. square. (It calls the other square plate, `Image_006`'s milled square plate,
   47.8 × 47.0 mm, "square".)
 
-Both models miss the nuts, so this is a limitation of describing a small crop, not something prompt
-wording will fix.
+This is a limitation of describing a small crop, not something prompt wording will fix.
 
 - **Impact:** the object's text can misname its shape or kind while its size line is correct.
   Trust the numbers.
@@ -470,8 +293,9 @@ test that was running, the thread and the kind of error (an abort such as PyQt5'
 escaping a slot, or a segfault) are unknown. pytest's faulthandler prints that dump to stderr only between
 its configure and unconfigure, so it happened during the session, not at interpreter exit. The tree was
 `99c7e70` with the Trends change of `4f3a78b` uncommitted in it, pure-Python arithmetic in
-`Reporting/Trends.py`. The same tree then passed 13 full runs in a row (745 passed, 14 skipped each, no
-dump), as had about 20 full runs and a 30-run stress loop of `test/UI` earlier that day.
+`Reporting/Trends.py`. The same tree then passed 13 full runs in a row, as had about 20 full runs and a
+30-run stress loop of `test/UI` earlier that day. It has not recurred: the two records kept since
+(2026-10-11) hold no fatal-error dump (one run exited with failures, one was cut off mid-run).
 
 - **Impact:** one run in 14 or fewer on that tree, cause unknown. Not called a flake: it is unnamed.
 - **What would answer it:** the next one. `test/conftest.py` now keeps a crash record,
@@ -560,9 +384,9 @@ measured plates 50–66.6 mm out at
 without calipers that is not a verification of the size.)
 
 - **Impact:** an OK or a NOK on size beyond 46.4 mm rests on a size not verified there, and Scene Understanding no
-  longer says so (removed 2026-10-15, the owner's ruling: on capture `20261015-160433_s1` the note stood under sizes
-  that match the plate, 61.28 × 39.75 mm at 51 mm and 60.60 × 40.57 mm at 59 mm, and misled the operator). The
-  session log's verdict line still gives the distance and the radius.
+  says so (the owner's ruling: a note there stood under sizes that match the plate and misled the operator;
+  design-decisions, *The size note is in the log only*). The session log's verdict line gives the distance and the
+  radius.
 - **Not fixed here:** only rig captures can verify it: mounting plates in the corners of the view and along its
   edges (capture-checklist.md, 3d). If they read within tolerance there, `CONST_VERIFIED_RADIUS_MM` widens to
   them.
@@ -574,24 +398,20 @@ without calipers that is not a verification of the size.)
 Run with `QT_SCALE_FACTOR=2`, `test/UI/test_brand_figures.py::test_the_wordmark_and_the_mark_are_the_logos_own`
 ("the wordmark draws where the logo's tagline is") and the three cases of
 `test/UI/test_funding_band.py::test_the_motif_is_faint_squares_at_both_ends_clear_of_every_logo` (a white pixel
-where the motif's purple square is expected) fail. They fail identically on unchanged main (`870a53c`, measured
-2026-10-15); the default run is at DPR 1, where they pass, and the DPR 2 checks that exist run on 2×2 blocks.
-Re-measured 2026-10-18 with the mark delivered that day: the same four fail at the same assertions, on `main`
-(`f7d1ab0`) and with the new mark alike; the tests added with the mark
-(`test_no_copy_of_the_logo_carries_the_previous_mark`, `test_the_icon_is_the_mark_on_a_transparent_ground_crisp_at_16_and_32_px`)
-pass at DPR 2. The mark is not the cause.
+where the motif's purple square is expected) fail; the default run is at DPR 1, where they pass, and the DPR 2
+checks that exist run on 2×2 blocks. Measured on 2026-10-15, 2026-10-18 (with the new mark, which is not the cause)
+and again on 2026-10-24: the same four, at the same assertions.
 
 - **Impact:** none on the DPR 1 run or the station; a DPR 2 run of the whole suite is red.
 - **Not fixed here:** recorded on the way, without its cause measured; the tests read pixels at fixed positions,
   which may be what does not scale.
 - **Pinned by:** nothing yet.
 
-
 ## The inspection area's insets rest on plates measured mostly by the right edge
 
 A catalogue mode judges only inside the station's inspection area: the frame inset by 10 mm from its top and bottom
 edges and 13 mm from its left and right (`Inspection_Area` in the station file; design-decisions.md, *A catalogue
-mode judges only inside the inspection area*). The insets were chosen on 2026-10-16 from the 72 fully visible
+mode judges only inside the inspection area*). The insets were chosen from the 72 fully visible
 mounting plates of the test set and the three capture sets on disk, as the smallest at which every size, hole-position
 and hole-diameter error of the plates inside stays within half its tolerance. What that rests on:
 
@@ -602,21 +422,18 @@ and hole-diameter error of the plates inside stays within half its tolerance. Wh
 - **The corners are not measured.** A plate wholly inside the area can lie up to about 67 mm from the frame centre
   (in a corner, its long side upright); the farthest judged inside lies 58.4 mm out. Between, nothing was measured.
 - **One plate exceeds the criterion wherever the area lies.** `Image_083`'s plate, 14.2 mm from the centre, reads
-  0.77 mm off its nominal size against the 0.75 mm half tolerance. It is inside every candidate area, so no inset
-  could change it, and it was set aside; the plates are not measured with calipers (README > Limitations), so part of
+  0.77 mm off its nominal size against the 0.75 mm half tolerance. No inset could change it, so it was set aside; the plates are not measured with calipers (README > Limitations), so part of
   that is the plate itself.
-- **The plates past the area are no longer judged.** By the right edge, where the captures of 2026-10-15 and
-  2026-10-16 put them on purpose, they lie over the area's edge and are Warnings, and since 2026-10-16 no check
-  runs on them: a stained front there is neither marked nor named as stained until it is moved inside. Measured
-  before that, on those frames a stained front's two stains, and every hole, were still found to 80.9 mm out
-  (`20261016-070736_10`), but their outlines read up to 1.17 mm off nominal from 57 mm out, more than half the
-  tolerance.
+- **The plates past the area are not judged.** By the right edge, where the captures of 2026-10-15 and
+  2026-10-16 put them on purpose, they lie over the area's edge and are Warnings, with no check run on them.
+  Measured there, a stained front's stains and every hole were found to 80.9 mm out (`20261016-070736_10`), but
+  the outlines read up to 1.17 mm off nominal from 57 mm out, more than half the tolerance.
 
 - **The area is narrow upright.** It is about 101 mm high, so a plate standing with its long side vertical (60 mm)
   can move only about ±20 mm up or down from the frame's middle row and still be judged (±30 mm lying across).
   Such a plate 21-22 mm from the centre already reaches into the top band (`Image_062`, `20261015-170753_14`). The
-  area shows on the empty view and on the scanned frame, and since 2026-10-16 on the live preview (PREVIEW), so the
-  operator can place a part inside it before the scan.
+  area shows on the empty view, the scanned frame and the live preview (PREVIEW), so the operator can place a part
+  inside it before the scan.
 
 - **Impact:** a part placed by the left or bottom edge of the area, or in its corners, is judged on errors measured
   mostly by the right edge and the top; the area may be larger, or need to be smaller, there. An upright plate a
@@ -656,7 +473,7 @@ score under it.
 
 - **Impact:** such a plate would read `State: Warning – Foreign object.` and be told "It is not the part … remove it
   from the surface" instead of `Warning – Outside area.` and "move it fully inside the area", and be recorded with
-  `warning_kind` `foreign`; it is drawn in the amber either way (one colour for every Warning since 2026-10-16), its
+  `warning_kind` `foreign`; it is drawn in the amber either way (one colour for every Warning), its
   verdict is a Warning either way, and the operator moves it either way.
 - **Not fixed here:** only captures can tell: plates cut by each border with less and less of them in view
   (capture-checklist.md, 3d), and foreign objects of the plate's grey cut by it.
@@ -675,19 +492,19 @@ The drop below 0.75 is the stains', not the position's (capture `20261015-180933
 58–62.5 mm out score 0.83–0.87 (0.92–1.00 near the centre) and read OK with no such clause; a stained front at the same
 place scores 0.69. The position takes about 0.1 off a clean front; the stains take the rest.
 
-Since 2026-10-16 most of those plates lie outside the inspection area and are Warnings, whose reason does not carry the
-clause; inside the area a stained front still scores down to 0.73 (`20261015-170602_4`, 52 mm out) and still gets it.
+Most of those plates lie outside the inspection area and are Warnings, whose reason does not carry the clause; inside
+the area a stained front still scores down to 0.73 (`20261015-170602_4`, 52 mm out) and still gets it.
 
 - **Impact:** the verdict is right; the clause says the stains make the front look unlike its clean reference, which is
   true, in words written for a foreign object. A clean front by the edge does not get it.
 - **Not fixed here:** nothing to fix in the identification; a separate wording for a judged part whose stains were
   found could follow, if the owner wants one.
-- **Pinned by:** nothing since 2026-10-16: the clean fronts that pinned the absence of the clause now lie outside the
-  inspection area, where no reason carries it; the stained fronts' clause is not pinned.
+- **Pinned by:** nothing: the clean fronts that pinned the clause's absence lie outside the inspection area, where no
+  reason carries it, and the stained fronts' clause is not pinned.
 
 ## The several-parts ratio and the mode file still say Unspecified
 
-Since 2026-10-16 an object whose area is 1.7 times the part's or more is a Warning of kind Several parts
+An object whose area is 1.7 times the part's or more is a Warning of kind Several parts
 (design-decisions.md, *Three states for the operator, a Warning with its kind*), but the configuration field
 that sets the ratio keeps its old name, `Catalogue.Unspecified_Area_Ratio` (`Identification_Parameters_Str`,
 `Catalogue_Result_Str`, `Configuration.Core`'s field table and its validation message), and the shipped mounting-plate
