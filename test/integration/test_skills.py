@@ -50,7 +50,7 @@ CONST_PROJECT_LAYERS = {
     'project-style-rpx': ('## Header and checker', '## Layout and layers', '## Root', '## Configuration',
                           '## Records', '## UI - Qt code', '## Unsettled'),
     'jic-sf-ui-style': ('## Modules', "## AnyScan's state colours", '## The vision overlays', '## Unsettled'),
-    'feature-manager': ('## Records instead of a SPEC', '## Domain checklist', '## Docs'),
+    'feature-manager': ('## Records', '## Domain checklist', '## Docs'),
     'project-optimize': ('## Outputs compared byte for byte', '## The frozen clock', '## Normalisation filter',
                          '## Never touched', '## Reached without a grep hit'),
     'readme-writer': ('## Readers', '## Sources of numbers', '## Triggers', '## Statuses', '## Figures',

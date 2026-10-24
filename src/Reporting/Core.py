@@ -1043,7 +1043,7 @@ def Describer_Prompt(det: Detection_Str, Catalogue_Item_Str: Catalogue_Item_Str)
     """
     Description:
         The describer's prompt for a judged part: the item's Describer.Prompt filled with the side up (its
-        Name, DINOv2's side), that side's description, that side's defects and what the checks found (Findings).
+        Name, the side the identification decided), that side's description, that side's defects and what the checks found (Findings).
         Nothing filled in holds a number: the loader refuses one in the texts, and Findings writes none. The rule
         that holes and stains are described as features seen, never as the checks' (CONST_DESCRIBER_CHECKS_RULE),
         comes last.

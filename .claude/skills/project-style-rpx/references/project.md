@@ -301,8 +301,8 @@ jic-sf-ui-style, in `.claude/skills/jic-sf-ui-style/references/project.md`.
   `keyPressEvent`, `mousePressEvent`, `resizeEvent`, `showEvent`, `leaveEvent`, `reject`, the
   `QLayout` methods of a flow layout …) ✅ checker.
 - 26 custom signals (`Stage_Changed = pyqtSignal(str)`, `Analysis_Finished = pyqtSignal(object)`),
-  33 `__On_*` slots. The workers are `Analysis_Worker_Cls`, `Connect_Worker_Cls` and
-  `Model_Load_Worker_Cls` in `UI/Workers.py`.
+  33 `__On_*` slots. The workers are `Model_Load_Worker_Cls`, `Connect_Worker_Cls`, `Preview_Worker_Cls`,
+  `Scan_Worker_Cls` and `Analysis_Worker_Cls` in `UI/Workers.py`.
 - The domain modules a UI class calls: `Camera`, `Vision`, `Configuration`, `Reporting`, `Logger`.
 - Colours and fonts come from `UI/Utilities/Style.py` (tokens defined in the Qt-free
   `Parameters/Theme.py`); stylesheets are built inline where they are applied, from those tokens

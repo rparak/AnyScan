@@ -89,7 +89,7 @@ CONST_TYPE_FLOOR_LOW_DENSITY = 9.0
 # Busy-indicator animation, driven by a QTimer in the viewport while the worker runs: one tick per step of the
 # pixel icon (UI.Utilities.Pixel_Motif.Busy_Cells), which repaints only then. Kept here so the whole console's
 # tunable values live in one place.
-CONST_BUSY_TICK_MS  = 120         # a task icon steps every few ticks (Pixel_Motif.CONST_BUSY_ICONS)
+CONST_BUSY_TICK_MS  = 120         # a task icon steps every few ticks (Pixel_Motif.CONST_BUSY_STEPS)
 # The analysis grid (Viewport_Cls.Start_Analysis): a repaint every 40 ms, 25 a second, the reference animation's rate
 # (20) or a little above, so its 0.5 s crossing takes a dozen steps. The frame is cut into CONST_GRID_COLUMNS square
 # cells across (40 px each on a 1920 px frame, about 24 px on the rig's screen), finer than the parts.

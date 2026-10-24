@@ -38,8 +38,8 @@ pypylon>=3.0          # only needed for the live camera; --frame runs without it
 
 # ---- the local Gemma 4 describer (models/gemma-4-e4b-it-4bit) --------------
 # An MLX conversion, run on Apple's Metal GPU through MLX — not PyTorch/MPS. Measured on
-# macOS on Apple silicon, the machine that drives the camera. Linux is installable but
-# unmeasured: there mlx has no compute backend of its own and needs an extra chosen for the
+# macOS on Apple silicon, the machine that drives the camera, and on Linux on one machine
+# (2026-09-29). On Linux mlx has no compute backend of its own and needs an extra chosen for the
 # machine, which lives in a one-line file per backend — requirements/linux-cuda12.txt,
 # linux-cuda13.txt or linux-cpu.txt — selected by install.sh from the NVIDIA driver it finds.
 # The version is pinned here only; the backend files name the extra without a version, and

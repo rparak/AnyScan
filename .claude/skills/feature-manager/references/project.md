@@ -5,15 +5,15 @@ where they differ. The language rule (notes in Czech or Slovak, everything writt
 `CLAUDE.md`. This folder has no `SKILL.md` on purpose: a personal skill wins over a project skill of
 the same name, so a copy here would be ignored and drift.
 
-## Records instead of a SPEC
+## Records
 
-AnyScan has no `.claude/project-docs/SPEC.md` (project-style-rpx `project.md` > *Records*). Where the
-generic skill says SPEC, read:
+In `.claude/project-docs/`, as the generic skill says, with one more (project-style-rpx `project.md` >
+*Records*):
 
-- **`.claude/project-docs/SPEC.md`** - what the application does, its configuration tables, views, records and
-  hardware; held to the code by `test/integration/test_capabilities_doc.py`.
-- **`.claude/project-docs/design-decisions.md`** (DD) - why; **`.claude/project-docs/KNOWN_ISSUES.md`** - what is open;
-  **`.claude/project-docs/capture-checklist.md`** - what only the rig can show.
+- **`SPEC.md`** - what the application does, its configuration tables, views, records and hardware;
+  held to the code by `test/integration/test_capabilities_doc.py`. Its sections are named, not numbered.
+- **`design-decisions.md`** (DD) - why; **`KNOWN_ISSUES.md`** - what is open;
+  **`capture-checklist.md`** - what only the rig can show.
 
 ## What the output is
 
