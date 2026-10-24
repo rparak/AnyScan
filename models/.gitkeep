@@ -48,7 +48,7 @@ The vision pipeline's stage 2 loads FastSAM-x from:
 
     models/FastSAM/FastSAM-x.pt
 
-Expected contents: the single ~140 MB FastSAM-x.pt checkpoint.
+Expected contents: the single 145 MB FastSAM-x.pt checkpoint.
 
 Upstream source
 ---------------
