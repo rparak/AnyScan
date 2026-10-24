@@ -295,7 +295,7 @@ def Instructions_Page() -> str:
             'the detector needs about one square of white on every side. Do not trim it, write on it or tape '
             'over it.']),
         ('4. Calibrate', [
-            'Capture at least 40 views, flat (f) and tilted (t); docs/capture-checklist.md, item 1, says how many of '
+            'Capture at least 40 views, flat (f) and tilted (t); the capture checklist, item 1, says how many of '
             'each and why 40:',
             '    python Example/Camera/calibrate.py --capture --board-squares %dx%d' % CONST_BOARD_SQUARES,
             'Solve:',

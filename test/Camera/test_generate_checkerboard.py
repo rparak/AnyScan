@@ -266,3 +266,17 @@ def test_the_command_asks_for_the_calipered_size_never_the_nominal(tmp_path) -> 
         assert '--board-squares 11x8' in text
         assert '--square-mm <CALIPERED mm>' in text
         assert not re.search(r'--square-mm\s+\d', text)
+
+
+def test_the_printed_text_names_no_repository_path_of_a_record(tmp_path) -> None:
+    """
+    Description:
+        The paper outlives the repository's layout: the instructions name the capture checklist by name,
+        never by a path such as docs/capture-checklist.md, which went stale when the records moved.
+    """
+
+    _, pdf = _Generate(str(tmp_path))
+    text = ' '.join(' '.join(_Texts(stream)) for stream in _Page_Streams(pdf))
+    assert 'capture checklist' in text
+    assert not re.search(r'[\w./-]+\.md\b', text), re.findall(r'[\w./-]+\.md\b', text)
+    assert 'docs/' not in text
