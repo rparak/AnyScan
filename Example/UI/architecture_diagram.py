@@ -521,7 +521,9 @@ def Draw_Architecture(logo_svg: str) -> str:
           'and the empty-surface reference, and a catalogue mode also names its catalogue item (the part, its '
           'checks and its reference images). Every analysis is recorded with its images and results, alongside '
           'the session log, a run summary and the daily station events. Developed within internal research at '
-          'JIC Smart Factory. Funded by the European Union.</desc>')
+          'JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT project shows small and '
+          'medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts. '
+          'Funded by the European Union.</desc>')
     c.Blank()
     c.Open('<defs>')
     c.Open('<style>')

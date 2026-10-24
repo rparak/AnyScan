@@ -362,7 +362,8 @@ expectations: they refer to the frames by name.
 
 ## Funding
 
-Developed within internal research at JIC Smart Factory.
+Developed within internal research at JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT
+project shows small and medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts.
 
 ![EDIH-DIGIMAT; Ministry of Industry and Trade of the Czech Republic; Funded by the European Union](images/anyscan-funding.svg)
 
@@ -382,5 +383,4 @@ The code is under the MIT licence ([LICENSE](LICENSE)); the models and fonts are
   converted from; the conversion's `license: gemma` tag looks like converter boilerplate. Checked 2026-09-24.
 - **DINOv2 base** (Meta) is under the **Apache License 2.0**, tagged `apache-2.0` at `f9e44c8` (checked 2026-10-11).
   Anyone shipping either model does so under Apache 2.0's conditions (a copy of the licence, retained notices).
-- **Public Sans and JetBrains Mono** (`App/assets/fonts/`) are under the **SIL Open Font License 1.1**, each family's
-  licence text beside its files.
+- **Public Sans and JetBrains Mono** (`App/assets/fonts/`): **SIL Open Font License 1.1**, each licence beside its files.

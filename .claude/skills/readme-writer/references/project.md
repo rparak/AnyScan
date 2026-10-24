@@ -92,8 +92,9 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
   portrait, not a figure, so its alt is the person's name and it carries no caption. The checker has no
   per-section suppression, so the baseline is 8 errors, every one on an Authors cell; any other ERROR is
   a defect. The avatars are external images (GitHub's avatar service), the README's only ones.
-- **Funding** reads: "Developed within internal research at JIC Smart Factory." (the owner's words,
-  2026-10-24, the README's only sentence on where AnyScan was developed), Figure 2, its
+- **Funding** reads: "Developed within internal research at JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT project shows small and medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts." (the owner's words,
+  2026-10-24, the README's only sentence on where AnyScan was developed; Figure 1's description
+  carries the same sentence, then "Funded by the European Union.", from its generator), Figure 2, its
   caption, then the EU disclaimer word for word as `Funding_Row_Cls.DISCLAIMER` holds it. The window's
   band does not carry the disclaimer; the README and Figure 2's source do.
 - **Limitations** follow project-style-rpx `project.md` > *Records*: three limitations, each the
