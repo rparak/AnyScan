@@ -101,8 +101,8 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
   `check_readme.py` reports one as ERROR [semicolons]). The EU disclaimer has none, so it needs no
   exception. The semicolons left in the README are syntax, which the check skips: the FastSAM
   `python -c` one-liner, the folders' `text` block and the avatars' `width="120px;"`. Figure 2's alt
-  text lists the three logos with commas, while the funding SVG's `aria-label`, written by
-  `Example/UI/architecture_diagram.py`, keeps its semicolons: it is the generator's output, not README prose.
+  text and the funding SVG's `aria-label` (written by `Example/UI/architecture_diagram.py`) list the
+  three logos the same way, with commas.
 - **Limitations** follow project-style-rpx `project.md` > *Records*: three limitations, each the
   consequence first, then the evidence, then whether it is verified.
 - **No internal document is linked or named** (the owner's ruling, 2026-10-24): nothing in
