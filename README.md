@@ -4,7 +4,7 @@
 
 AnyScan is a desktop inspection station for one Basler camera looking down at a work surface. It finds every
 object on the table, describes each one with a local vision-language model, measures it in mm and records the
-analysis; a catalogue mode also recognises the catalogued part, checks it and gives a state: OK, NOK or Warning.
+analysis. A catalogue mode also recognises the catalogued part, checks it and gives a state: OK, NOK or Warning.
 
 ![AnyScan architecture: in every mode the camera shows a live preview, then takes a fresh frame once nothing moves, two cues, fused, find every object, and each object is described in words and measured in mm. The desktop app shows Live, Trends, History and Log. A catalogue mode adds, for each object found, recognising the catalogued part, the inspection area (only a part wholly inside is judged, one outside is a part or a foreign object by similarity, size and colour), the checks on the side that is up (size, holes with each bore centred in its countersink, stains) and a state: OK, NOK or Warning, a Warning with its kind. It describes each object after its state and drops a sentence that contradicts the checks. The mode names the station, the station the calibration, and the catalogue item and empty-surface reference set the stages up too. Every analysis is recorded, with the session log, a run summary and the daily station events](images/anyscan-architecture.svg)
 
@@ -12,7 +12,7 @@ analysis; a catalogue mode also recognises the catalogued part, checks it and gi
 edited by hand. Read it top to bottom: the frame, the two cues and their fusion, then each object's description and
 measurement, and in a catalogue mode its state.
 
-Two independent cues are fused, so an object is kept if **either** one finds it; [Detection logic](#detection-logic)
+Two independent cues are fused, so an object is kept if **either** one finds it. [Detection logic](#detection-logic)
 gives the stages. The project poster is [images/anyscan-poster.pdf](images/anyscan-poster.pdf).
 
 > [!IMPORTANT]
@@ -27,16 +27,16 @@ gives the stages. The project poster is [images/anyscan-poster.pdf](images/anysc
 ## Setup
 
 AnyScan runs on **macOS on Apple silicon** (Verified, measured) and on **Linux with an NVIDIA GPU** (Verified on one
-machine, 2026-09-29); Windows is Never tried, not a target ([Platform](#platform)). The installer creates the virtual
-environment, installs the dependencies for the hardware (Metal; on Linux, MLX's CUDA 12 or 13 backend chosen from the
-driver) and downloads the three models, each checksum-verified; it is safe to re-run. Later commands run in its venv:
+machine, 2026-09-29). Windows is Never tried, not a target ([Platform](#platform)). The installer creates the virtual
+environment, installs the dependencies for the hardware (Metal, or on Linux MLX's CUDA 12 or 13 backend chosen from the
+driver) and downloads the three models, each checksum-verified. It is safe to re-run. Later commands run in its venv:
 
 ```bash
 ./install.sh                 # or ./install.sh --detect-only to see what it would do
 source .venv/bin/activate
 ```
 
-On Linux it stops, naming the card and its memory, when GPU 0 has less than 11 GB or there is no usable NVIDIA GPU;
+On Linux it stops, naming the card and its memory, when GPU 0 has less than 11 GB or there is no usable NVIDIA GPU.
 `--cpu` installs the CPU builds instead (unmeasured, expected to be far slower). **Some installer paths have never
 run for real**: the full install on Linux, the Gemma download on macOS, and the CUDA 12 and CPU branches anywhere are
 tested with stubbed commands only. If one fails, please report it with the installer's full output.
@@ -47,7 +47,7 @@ tested with stubbed commands only. If one fails, please report it with the insta
 | FastSAM-x | segmenting the frame, finding holes | 145 MB |
 | DINOv2 base, `facebook/dinov2-base` | recognising the catalogue part (catalogue modes) | 346 MB |
 
-The window and the tests run without the weights; a missing one is reported, with what to do, when first used.
+The window and the tests run without the weights. A missing one is reported, with what to do, when first used.
 
 <details>
 <summary><b>Setup by hand</b>: the environment, the OpenCV fix and the three model downloads</summary>
@@ -63,15 +63,15 @@ pip install --force-reinstall --no-deps opencv-python-headless==5.0.0.93
 ```
 
 The last two lines leave OpenCV's headless build only. ultralytics and mlx-vlm pull in OpenCV's GUI build, whose Qt
-plugins make the window abort with "Could not load the Qt platform plugin xcb"; uninstalling it also deletes files
+plugins make the window abort with "Could not load the Qt platform plugin xcb". Uninstalling it also deletes files
 the two builds share, so the headless build is reinstalled whole. `./install.sh` does this after every install, and
 `App/run.py` refuses to start, naming these two commands, while the GUI build is there. On Linux, `mlx` also needs
 its backend, one of `requirements/linux-cuda12.txt`, `linux-cuda13.txt` or `linux-cpu.txt`, and PyTorch from the
-matching index (`cu126`, `cu130` or `cpu`); see [Platform](#platform). `pypylon` (the Basler SDK) is needed only for
+matching index (`cu126`, `cu130` or `cpu`), see [Platform](#platform). `pypylon` (the Basler SDK) is needed only for
 the live camera.
 
-The describer, Gemma 4 E4B, at the revision the application was measured with (10 files, 5.2 GB; the public
-repository needs no token; `hf` is the Hugging Face CLI from `huggingface_hub`):
+Download the describer, Gemma 4 E4B, at the revision the application was measured with (10 files, 5.2 GB). The
+public repository needs no token, and `hf` is the Hugging Face CLI from `huggingface_hub`:
 
 ```bash
 hf download mlx-community/gemma-4-e4b-it-4bit \
@@ -103,8 +103,8 @@ directory. `models/.gitkeep` lists the expected directory contents.
 python App/run.py
 ```
 
-The console drives a Basler camera and the local Gemma describer, both real; the window still opens without either,
-so **CONNECT → SCAN → ANALYZE** degrades one step at a time. PREVIEW shows the table live; SCAN clears the previous
+The console drives a Basler camera and the local Gemma describer, both real. The window still opens without either,
+so **CONNECT → SCAN → ANALYZE** degrades one step at a time. PREVIEW shows the table live, and SCAN clears the previous
 result, stops the preview and takes a frame once nothing moves (about 0.6 s). `F11` toggles fullscreen, `Esc` closes.
 Without the camera, pass a saved 1920×1200 frame (a configuration must still be loaded, which needs the weights).
 `scan.py` saves one frame to `Data/Results/Scan_<timestamp>.png` while the application is not connected (`--help`):
@@ -125,18 +125,18 @@ Configuration/Station/Station_<Hardware>[_<Name>].yaml     Calibration: Calibrat
 Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml
 ```
 
-- **Mode**: what a user changes without code (models, prompts, thresholds; a catalogue mode's item,
+- **Mode**: what a user changes without code (models, prompts, thresholds, and a catalogue mode's item,
   `Data/Catalogue/<item>/<item>.yaml`). Its comments give every field's default and unit.
 - **Station**: the camera, lens, lighting, sensor window, empty-surface reference, inspection area and the
   calibration in force. A mode file that holds any of these fails to load.
 - **Calibration**: a new file from every `Example/Camera/calibrate.py` run, which prints the station line to change.
 
 `Configuration.Core.Load_Configuration` checks the three as a whole: a missing required field, a link that disagrees
-or a reference that does not match its sidecar fails the load, naming the file and the line; a missing optional field
+or a reference that does not match its sidecar fails the load, naming the file and the line. A missing optional field
 takes its default and is logged. **Changing the lamp without updating `Camera.Lighting` goes unnoticed.**
 
 The application starts with its configuration named but not loaded: CONFIGURATION lists `Configuration/Mode/`, and
-**Load** applies one (on failure the previous one stays); after the first CONNECT it is fixed for the run. **A station
+**Load** applies one (on failure the previous one stays). After the first CONNECT it is fixed for the run. **A station
 sets its station-event directory in a local copy of the mode file, never the shipped one**: copy it outside the
 repository, keeping its name, change only `General.Station_Events.Directory`, and start with `--config <that copy>`.
 
@@ -160,7 +160,7 @@ its part, within 46.4 mm of the frame centre.** A part's size varies with its th
   RMS of 0.45 px, 0.102 mm/px. A good fit shows that the lens model is consistent, not that the sizes are right.
 - **Catalogue mode:** with the scale moved to the part's top face, the 22 plates read −0.77 to +0.76 mm off 60 × 40
   (tolerance ±1.5 mm), their centres up to 46.3 mm from the frame centre. **Not verified:** the parts were not
-  calipered. **Not measured:** beyond 46.4 mm, where the side-wall term predicts up to about 1 mm more; a size
+  calipered. **Not measured:** beyond 46.4 mm, where the side-wall term predicts up to about 1 mm more. A size
   checked there is noted in the session log, not on screen. The 0.01 mm display is formatting: a pixel is ~0.10 mm.
 
 ### The describer is not a defect detector
@@ -171,7 +171,7 @@ dent) is detected by nothing.
 
 - **Evidence** (the previous test set, not re-run on the current one): one rust stain was named at crop paddings
   0.20 and 0.36 and missed at 0.00–0.12 and 0.28, identically on every run, a step with the framing. The shipped 0.20
-  happens to report it; one stain on one frame is a reason for more caution, not less.
+  happens to report it. One stain on one frame is a reason for more caution, not less.
 
 ### A catalogue mode checks only what its item lists
 
@@ -183,7 +183,7 @@ dent) is detected by nothing.
   plate's front. Another colour, or this colour under another light, is not verified.
 - **A part outside the inspection area is never judged**: only one wholly inside the frame inset by 10 mm (top,
   bottom) and 13 mm (sides) gets OK or NOK, the rest a Warning with no hole or stain check. The area is ~101 mm high,
-  so an upright plate can move only ~±20 mm; the insets are not verified by the left and bottom edges or corners.
+  so an upright plate can move only ~±20 mm. The insets are not verified by the left and bottom edges or corners.
 - **The Similarity tab is not a defect map**: glare shows on it too, and no state reads it.
 - **The describer's words are guarded, not trusted**: a sentence contradicting the checks, naming them or with a
   number is dropped and logged, by reading words, so a paraphrase can pass. The state never comes from it.
@@ -193,13 +193,13 @@ dent) is detected by nothing.
 In force since 2026-09-28: (1) a **multi-view calibration set**, and (2) the **empty-surface reference** (re-shot
 2026-10-12), shot under that calibration with `make_reference.py`, which writes its sidecar. Still to do:
 
-3. a **parts session**: defective parts with clean controls, low-contrast parts, and a harsh shadow;
-4. the **cable pull**, which checks that a lost connection is detected, during the live preview too;
+3. a **parts session**: defective parts with clean controls, low-contrast parts, and a harsh shadow,
+4. the **cable pull**, which checks that a lost connection is detected, during the live preview too,
 5. a **moving hand under SCAN**, which checks that a scan of a moving scene is refused on the rig.
 
-Each is captured through the application (CONFIGURATION → Load, CONNECT, then SCAN → ANALYZE per frame); every
+Each is captured through the application (CONFIGURATION → Load, CONNECT, then SCAN → ANALYZE per frame), and every
 ANALYZE writes a capture set under `logger/captures/<connection>/` (keep its `_raw.png`). The board is
-`Data/Calibration/Checkerboard_11x8_12mm_A4.pdf`; items 1 and 2 are repeated when the camera, lens or mount changes.
+`Data/Calibration/Checkerboard_11x8_12mm_A4.pdf`. Items 1 and 2 are repeated when the camera, lens or mount changes.
 
 ## Tests
 
@@ -210,8 +210,8 @@ pytest                 # the default run
 pytest --runslow       # also runs the `slow` failure-path tests (need the weights)
 ```
 
-With the FastSAM and Gemma weights the default run smoke-tests the real `Analyze`; without them it prints
-`REAL VISION PATH NOT VERIFIED` and passes. `test/Vision/test_characterize.py` has a golden file; after an intended change:
+With the FastSAM and Gemma weights the default run smoke-tests the real `Analyze`. Without them it prints
+`REAL VISION PATH NOT VERIFIED` and passes. `test/Vision/test_characterize.py` has a golden file. After an intended change:
 
 ```bash
 pytest test/Vision/test_characterize.py --update-golden
@@ -221,7 +221,7 @@ git diff test/Vision/data/characterization.txt
 ## Detection logic
 
 SCAN stops the preview and calls `Camera_Backend_Cls.Capture_Still` (`src/Camera/Core.py`): the first frame with no
-movement since the one before (`Camera.Utilities.Stillness.Is_Still`) is the scan's, undistorted when calibrated; if
+movement since the one before (`Camera.Utilities.Stillness.Is_Still`) is the scan's, undistorted when calibrated. If
 something still moves after about a second, none is taken. `Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) then
 runs the stages every mode shares (modules under `src/Vision/Utilities/` unless named):
 
@@ -233,7 +233,7 @@ runs the stages every mode shares (modules under `src/Vision/Utilities/` unless 
 ```
 
 Then `Reporting.Compose` writes the sentences and `Measure.Measure_Objects` the sizes (A x B, Ø or A/F, in mm). A
-**detect-only mode** (Segment Anything) runs these as listed; a **catalogue mode** measures, recognises and checks
+**detect-only mode** (Segment Anything) runs these as listed, and a **catalogue mode** measures, recognises and checks
 each object before stage 4, then describes it with what the checks found. The thresholds are measured, not chosen.
 
 <details>
@@ -243,25 +243,25 @@ each object before stage 4, then describes it with what the checks found. The th
    face against the item's outline and its tolerance.
 2. **Recognition** (`Identifier.Dino_Identifier_Cls`, `Classify.Best_Match`, `Classify.Classify`): each object's
    upright crop against the item's reference image of each side, by DINOv2. An area 1.7× the part's or more is a
-   Warning, several parts; a similarity of 0.75 or more is the part, OK or NOK by its outline; the outline alone
-   within tolerance is NOK; anything else is a Warning, foreign object.
+   Warning, several parts. A similarity of 0.75 or more is the part, OK or NOK by its outline. The outline alone
+   within tolerance is NOK. Anything else is a Warning, foreign object.
 3. **Inspection area** (`Classify.Inspection_Area_Px`, `Inside_Area`, `Resembles_Part`, `Settle_Area`): only an object
    wholly inside the frame inset by the station's `Inspection_Area` is judged. Outside, it is a Warning: outside area
    when it resembles the part (similarity 0.657 or more, mean saturation 76.3 or less, its extent no larger than the
    part's diagonal plus its tolerance), else foreign object.
 4. **Side up** (`Holes.Hole_Candidates`, `Holes.Side_Evidence`, `Classify.Decide_Side`, `Classify.Settle_Side`):
    FastSAM again on the upright crop for holes. DINOv2's side when its margin over the next is 0.265 or more, else
-   the side a hole only it has shows. Sides that disagree are a Warning, side unclear; holes against look a Warning,
+   the side a hole only it has shows. Sides that disagree are a Warning, side unclear. Holes against look are a Warning,
    side mismatch.
 5. **Holes** (`Holes.Check_Holes`, `Classify.Apply_Holes`): each group's count near its positions, diameter, edge
    distances and pitch, and each stepped hole's bore within 0.85 mm of its countersink once the camera's predicted
    shift is taken out. A missing, extra or out-of-tolerance hole makes the part NOK.
 6. **Stains** (`Stain.Check_Stain`, `Classify.Apply_Stain`): the item's colour band inside the part, its edge and
-   holes left out; a region of 1 mm² or more makes it NOK.
+   holes left out. A region of 1 mm² or more makes it NOK.
 7. **State** (`Reporting.State_Word`, `Reporting.Badges`): OK, NOK or Warning with its kind and the operator's action.
 8. **Description, held to the checks** (`Reporting.Describer_Prompt`, `Guard_Description`, `Restated_Prompt`): the
    prompt carries the side and what the checks found, no number. A sentence with a number, naming the checks or
-   contradicting them is dropped; on a contradiction it is asked once more. The state is never changed.
+   contradicting them is dropped. On a contradiction it is asked once more. The state is never changed.
    `Classify.Similarity_Grid` draws the Similarity view.
 
 </details>
@@ -276,9 +276,9 @@ each object before stage 4, then describes it with what the checks found. The th
 
 - **Determinism does not travel**: greedy decoding fixes the sampler, but another backend can still change the text
   through floating-point differences. No test pins live describer text, so the suite passes on both.
-- **The models**: the describer, Gemma 4 E4B in 4-bit **MLX** at revision `475b908`, decides where AnyScan runs; the
+- **The models**: the describer, Gemma 4 E4B in 4-bit **MLX** at revision `475b908`, decides where AnyScan runs, and the
   rest is portable. DINOv2 base (`f9e44c8`, catalogue modes) only compares objects with the item's reference images.
-  No packaging recipe has been verified on any platform; run from source.
+  No packaging recipe has been verified on any platform. Run from source.
 
 <details>
 <summary><b>The Linux measurement</b>: the machine, the installer's run and the numbers</summary>
@@ -288,8 +288,8 @@ each object before stage 4, then describes it with what the checks found. The th
   PyTorch 2.14.0+cu130.
 - **The numbers**, through the application's path (`Load_Configuration` → `Configure` → `Analyze`) on the eight
   frames of the previous test set with the shipped configuration (not re-run on the current one): E4B 0.65 s per
-  object (mean of 37; 0.51–0.93 s per object, 0.64–0.66 s over two processes), model load 3.9 s, configure (load and
-  warm-up) 4.8 s (9.4 s once, on the first run after the download); FastSAM loads in 0.08 s and segments a frame in
+  object (the mean of 37, ranging 0.51–0.93 s, and 0.64–0.66 s over two processes), model load 3.9 s, configure (load and
+  warm-up) 4.8 s (9.4 s once, on the first run after the download), and FastSAM loads in 0.08 s and segments a frame in
   34–55 ms on CUDA. Peaks: 6.99 GB MLX, 9.5 GB GPU for the whole application (`nvidia-smi`), 4.0 GB process RSS. The
   first analysis after a load is no slower than the next. The full suite passes with and without `--runslow`.
 - **The installer**: on Linux the backend comes from one requirements file per backend,
@@ -297,7 +297,7 @@ each object before stage 4, then describes it with what the checks found. The th
   index (`cu126`, `cu130` or `cpu`). `./install.sh` chooses both from the NVIDIA driver after checking GPU 0's memory
   (11 GB minimum), and warns when more than 1.5 GB of it is already in use. On this machine its detection ran for real
   (`--detect-only`: driver 595.91.07, the CUDA 13 backend and the `cu130` build, 15.9 GB on GPU 0), and so did its
-  Gemma step, which downloaded and verified E4B. The full install was not run there; the other Linux branches are
+  Gemma step, which downloaded and verified E4B. The full install was not run there, and the other Linux branches are
   tested with stubbed commands only.
 
 </details>
@@ -330,10 +330,10 @@ the segmenter, the describer, the identifier and their utilities), `Reporting/` 
 one voice), `UI/` (the widgets, the window and the workers), `Parameters/` (the data structures) and
 `Configuration/` (`Configuration/Core.py`, the one reader of the configuration files). The domain packages import
 with PyQt5 unavailable, a tested contract. `Calibration/` holds the multi-view checkerboard calibration that
-`calibrate.py` drives; `Transformation/` is an inherited robotics library that nothing imports today.
+`calibrate.py` drives, and `Transformation/` is an inherited robotics library that nothing imports today.
 
 The figures are regenerated, never edited. After replacing `images/anyscan-logo.svg`, rebuild the logo copies, then
-the diagram, which embeds the logo; `test/UI/test_brand_figures.py` fails when they disagree:
+the diagram, which embeds the logo. `test/UI/test_brand_figures.py` fails when they disagree:
 
 ```bash
 python Example/UI/build_logo.py
@@ -365,7 +365,7 @@ expectations: they refer to the frames by name.
 Developed within internal research at JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT
 project shows small and medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts.
 
-![EDIH-DIGIMAT; Ministry of Industry and Trade of the Czech Republic; Funded by the European Union](images/anyscan-funding.svg)
+![EDIH-DIGIMAT, Ministry of Industry and Trade of the Czech Republic, Funded by the European Union](images/anyscan-funding.svg)
 
 **Figure 2:** The project's, the Ministry's and the EU's logos, generated with Figure 1.
 
@@ -375,12 +375,12 @@ authority can be held responsible for them.
 
 ## Licence note
 
-The code is under the MIT licence ([LICENSE](LICENSE)); the models and fonts are not, and no model ships with it.
+The code is under the MIT licence ([LICENSE](LICENSE)). The models and fonts are not, and no model ships with it.
 
 - **Gemma 4 E4B** (Google, via the `mlx-community` conversion) is under the **Apache License 2.0**
-  (<https://ai.google.dev/gemma/docs/gemma_4_license>; the Gemma Terms of Use, <https://ai.google.dev/gemma/terms>,
-  do not govern Gemma 4). `google/gemma-4-E4B-it` is tagged `apache-2.0` at `fee6332`, the revision the weights were
-  converted from; the conversion's `license: gemma` tag looks like converter boilerplate. Checked 2026-09-24.
+  (<https://ai.google.dev/gemma/docs/gemma_4_license>). The Gemma Terms of Use, <https://ai.google.dev/gemma/terms>,
+  do not govern Gemma 4. `google/gemma-4-E4B-it` is tagged `apache-2.0` at `fee6332`, the revision the weights were
+  converted from. The conversion's `license: gemma` tag looks like converter boilerplate. Checked 2026-09-24.
 - **DINOv2 base** (Meta) is under the **Apache License 2.0**, tagged `apache-2.0` at `f9e44c8` (checked 2026-10-11).
   Anyone shipping either model does so under Apache 2.0's conditions (a copy of the licence, retained notices).
 - **Public Sans and JetBrains Mono** (`App/assets/fonts/`): **SIL Open Font License 1.1**, each licence beside its files.
