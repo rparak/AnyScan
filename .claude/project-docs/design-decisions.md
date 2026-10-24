@@ -14,72 +14,14 @@ of every entry is in git (folded 2026-10-24; the last unfolded version is at `a8
 ## The label mask is black ground, tinted fill, verdict contour
 
 The exported mask paints a black ground, fills each object with a **tint of its own box
-colour**, and outlines it in that box colour. Black ground keeps every silhouette edge sharp.
-The fill was white until a tint replaced it, because white made the silhouette and its coloured
-box read as two things. A tint of the box's own hue makes them read as **one object**.
+colour**, and outlines it in that box colour. Black ground keeps every silhouette edge sharp. A
+tint of the box's own hue makes the silhouette and its coloured box read as **one object**, which a
+white fill did not.
 
-**The first tint was a token on paper only.** It mixed the box with 80% white in sRGB and landed
-on near-white: the neutral fill `#F1F2F4` was ΔE 4.7 from white — the white it replaced — with
-the outline only ΔE 19.5 away; the OK fill was ΔE 13.2 from white at a sixth of the box's
-chroma; and sRGB mixing drifted NOK's hue 22°.
-
-**Why they stayed near-white for so long: a test enforced a constraint that was never real.**
-`test/Parameters/test_theme.py` asserted `_lum(fill) > 0.75` "so a dark numeral reads on it". But the index numeral
-sits on its chip, which is filled with the box colour, and never touches the fill. The test pinned
-the fills pale, every later check passed against it, and the near-white looked like a settled
-decision rather than a side effect. The change below is therefore a correction, not a change of
-taste: the false constraint is removed and replaced by floors that describe what a fill actually
-has to do. The fills are now built in LCh with the box's hue held:
-
-| | box | fill | ΔE box↔fill | ΔE fill↔white | vs black ground |
-|---|---|---|---|---|---|
-| OK | `#6C63B5` | `#E2E0F0` → **`#B4AADB`** | 59.4 → 33.6 | 13.2 → 39.0 | 9.7:1 |
-| NOK | `#ff005c` | `#FFCCDE` → **`#FC929C`** | 74.7 → 46.8 | 24.6 → 51.1 | 9.7:1 |
-| neutral | `#B8BECA` → mask outline **`#767C87`** | `#F1F2F4` → **`#C0C6D2`** (derived pair) | 19.5 → 27.9 | 4.7 → 21.3 | 12.2:1 |
-
-OK and NOK share L\* 72 at about half their box's chroma, so only hue separates them, as with
-the boxes; their mask outlines are their boxes (L\* 46 and 54, darker than the fills), so they
-never had the neutral's convergence problem and were checked and left as they are.
-
-**The neutral mask has its own derived pair — a light fill and a darker outline.** The first
-correction kept the frame's box (`#B8BECA`, L\* 76.85) as the mask outline; the ΔE 25 outline/fill
-floor then forced the fill down to a dark grey (L\* ~50), which read too dark. The box needs its
-lightness on the frame, over the green table and the parts, but on the mask the outline only ever
-meets the fill and the black ground. So the mask gets its own neutral outline, darker, which frees
-the fill to go light (`Theme.Neutral_Mask_Colors`, `Detection_Mask_Outline`); the annotated frame
-keeps `#B8BECA`. The pair is derived in the box's own hue and chroma and no longer depends on the
-box's lightness:
-
-- the **fill** is as light as the fill/white floor allows. For a near-neutral of chroma C\*,
-  ΔE to white is √((100 − L\*)² + C\*²), so ΔE ≥ 21 needs L\* ≤ 100 − √(21² − C\*²) = 80.12
-  here; less the 0.5 margin (and hex rounding), the fill is `#C0C6D2` at L\* 79.75;
-- the **outline** sits at the midpoint of its window [48.88 (4.5:1 against black), fill − 25] =
-  [48.88, 54.62]: `#767C87`, L\* 51.86. ΔE(outline, fill) 27.9, fill 12.2:1 and outline 5.0:1 on
-  black.
-
-**The fill/white floor is 21, and why.** It exists for one failure: a mask fill that reads as
-white — which `#F1F2F4` did at ΔE 4.7. It was set to 25 for one round, and 25 capped the neutral
-fill at L\* ~75 (the outline/fill floor was never the constraint: with the outline near L\* 50 it
-stays at 28–30). Previews at L\* 80 and 85 settled it: L\* 80 (ΔE ~21 from white) still reads
-clearly as grey, including at full size on the previous test set's `Image_001` (`eb00508^`; a visual
-check, not re-done on `All/`); L\* 85 (ΔE ~16) starts drifting back toward
-the white that was removed. So 21 is a chosen margin with L\* 85 as the point where it starts to fail
-visually, not a measurement limit — `Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E` carries this note so it
-is not rounded back up. Every point above 21 costs neutral fill lightness. The pair re-derives from
-the floor; the outline's window is now 5.74 L\* wide and closes only if the floors change.
-the floors change (not the box), and then Theme raises at import naming the window.
-
-The floors
-(`Theme.CONST_MASK_FILL_*`, in the parameters layer because Theme derives with them) are stricter
-than the general ΔE 12 because a thin outline must
-stand out against the fill it crosses: ΔE box↔fill ≥ 25, ΔE fill↔white ≥ 21, ≥ 4.5:1 against the
-black ground, and a chromatic fill within 5° of its box's hue at ≥ 40% of its chroma. The OK/NOK
-box↔fill ΔE went *down*: that is the cost of a fill that is actually a colour, and both stay well
-above the floor. When classification is off the fill is the neutral one, implying no verdict
-nobody made.
-*Corrected 2026-10-14, the JIC Smart Factory palette (*The palette is the JIC Smart Factory brand's, one purple,
-measured on the frames*):* the boxes are now light (but OK), so each fill is built in the box's hue BELOW it, at
-L\* 56–72, against the same floors; a fill lighter than a light box would read as white.
+The fills are built in LCh with the box's hue held. The boxes are light (the JIC Smart Factory
+palette, *The palette is the JIC Smart Factory brand's, one purple, measured on the frames*), so
+each fill is built in the box's hue BELOW it, at L\* 56–72, against the floors below; a fill
+lighter than a light box would read as white.
 
 | | box | fill | ΔE box↔fill | ΔE fill↔white | vs black ground |
 |---|---|---|---|---|---|
@@ -88,10 +30,38 @@ L\* 56–72, against the same floors; a fill lighter than a light box would read
 | Warning | `#FFC226` | **`#B28508`** | 28.3 | 75.3 | 6.3:1 |
 | neutral | `#655E6D` → mask outline **`#817A8A`** | **`#CEC6D7`** (derived pair, L\* 80.81; bound 81.31) | 28.7 | 21.3 | 12.7:1 |
 
-*Corrected 2026-10-15:* the neutral box became the dark `#655E6D` (*Every chip carries a white numeral, but
-Warning's*); the pair re-derived from its hue and chroma (9.6, so the fill's bound rose from 79.74). The mask outline
-is now lighter than the frame's box, not darker: the box is 3.4:1 on the black ground, under the mask's 4.5:1 floor,
-which is why the mask keeps its own outline. Before, the box was `#E1DCE6` and the pair `#7E7982` / `#C7C2CC`.
+**The neutral mask has its own derived pair, a light fill and its own outline**
+(`Theme.Neutral_Mask_Colors`, `Detection_Mask_Outline`). On the mask the outline only ever meets
+the fill and the black ground, so it need not be the frame's box. The neutral box `#655E6D` is
+3.4:1 on the black ground, under the mask's 4.5:1 floor, which is why the mask keeps its own
+outline (now lighter than the box). The pair is derived in the box's own hue and chroma (9.6) and
+does not depend on the box's lightness:
+
+- the **fill** is as light as the fill/white floor allows. For a near-neutral of chroma C\*,
+  ΔE to white is √((100 − L\*)² + C\*²), so ΔE ≥ 21 bounds L\*; less the 0.5 margin (and hex
+  rounding), the fill sits under that bound (L\* 80.81 against 81.31);
+- the **outline** sits inside its window [4.5:1 against black, fill − ΔE 25]. The window closes
+  only if the floors change (not the box), and then Theme raises at import naming the window.
+
+**The fill/white floor is 21, and why.** It exists for one failure: a mask fill that reads as
+white, which the first tint (`#F1F2F4`, ΔE 4.7) did. 25 capped the neutral fill at L\* ~75.
+Previews at L\* 80 and 85 settled it: L\* 80 (ΔE ~21 from white) still reads clearly as grey,
+including at full size on the previous test set's `Image_001` (`eb00508^`; a visual check, not
+re-done since); L\* 85 (ΔE ~16) starts drifting back toward white. So 21 is a chosen margin with
+L\* 85 as the point where it starts to fail visually, not a measurement limit —
+`Theme.CONST_MASK_FILL_MIN_WHITE_DELTA_E` carries this note so it is not rounded back up. Every
+point above 21 costs neutral fill lightness.
+
+The floors (`Theme.CONST_MASK_FILL_*`, in the parameters layer because Theme derives with them)
+are stricter than the general ΔE 12 because a thin outline must stand out against the fill it
+crosses: ΔE box↔fill ≥ 25, ΔE fill↔white ≥ 21, ≥ 4.5:1 against the black ground, and a chromatic
+fill within 5° of its box's hue at ≥ 40% of its chroma. In a detect-only mode the fill is the
+neutral one, implying no verdict nobody made.
+
+*History:* the fill was white, then an sRGB 80 % tint that landed near-white, held there by a test
+asserting `_lum(fill) > 0.75` "so a dark numeral reads on it" — a false constraint, since the
+numeral sits on its chip and never touches the fill; then LCh fills on the earlier palette, before
+the JIC Smart Factory boxes (2026-10-14) and the dark neutral box (2026-10-15).
 
 **Revisit if** the operator-facing mask needs to encode something other than verdict (e.g.
 per-class colour), in which case add a mode rather than overloading the default.
@@ -107,16 +77,15 @@ margins), `::test_neutral_mask_pair_ignores_box_lightness_and_fails_loudly_on_fl
 
 The NOK verdict colour is the JIC orange-red `#FF6540`, the colour the AnyScan poster marks a defect in, for the
 object's box and chip, a failed feature's marks and the stain tint. Its text twin `#BA260B` and, for words on its
-ground, the poster's defect-tag tint `#FFD9D0` carry it into the UI.
+ground, the poster's defect-tag tint `#FFD9D0` carry it into the UI. It reads as a fail marker at a glance and stays
+apart from every other state (ΔE ≥ 58) and from the Log's error pink (ΔE 55), so a defect and an application fault
+never share a colour. Do not swap it for a calmer red.
 
-*Corrected 2026-10-14:* until the JIC Smart Factory palette this entry was "`#ff005c` is the fail marker and must
-stay the NOK colour": the EDIH-DIGIMAT magenta, kept because it read as a fail marker at a glance. The owner moved the
-application to the JIC Smart Factory brand, whose poster gives the defect its orange-red; it still reads as a fail
-marker and stays apart from every other state (ΔE ≥ 58) and from the Log's error pink (ΔE 55), so a defect and an
-application fault never share a colour. Do not swap it for a calmer red.
+*History:* until the JIC Smart Factory palette (2026-10-14) the fail marker was the EDIH-DIGIMAT magenta `#ff005c`
+(commit `ab7df30`).
 
 **Revisit if** the verdict scheme or the brand changes.
-Commit `ab7df30` (the magenta); test `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`.
+Test `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_constant`.
 
 ## The colour-name saturation cutoff is 120, and was not tuned for the red block
 
@@ -148,38 +117,24 @@ changing *detection* to populate a *status* field. **Revisit by** giving the
 background-subtraction cue its own confidence (normalised change magnitude or mask-edge
 sharpness) so every object scores from whichever cue found it; until then the coverage
 fraction is the honest disclosure.
-Commit `5def2d0`; [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) "confidence status metric is partial"; tests `test/UI/test_status_metrics.py::test_status_confidence_denominator_is_the_scored_count_not_the_total`, `::test_status_confidence_is_no_value_when_no_object_has_a_score` (*Corrected 2026-10-08:* renamed from `test_confidence_…`).
+Commit `5def2d0`; [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) "confidence status metric is partial"; tests `test/UI/test_status_metrics.py::test_status_confidence_denominator_is_the_scored_count_not_the_total`, `::test_status_confidence_is_no_value_when_no_object_has_a_score`.
 
 ## The fusion needs both cues — the previous test set's `Image_001` proved it in both directions
 
 Detection fuses FastSAM instance masks with OpenCV background subtraction: an object
-survives on **either** cue. This is not redundancy. On `Image_001`, objects 2 and 9 came
-back with background-subtraction coverage `cov=0.00` — the background cue missed them
-entirely and FastSAM carried them — while the `cue = background` objects (four of nine)
-had no FastSAM mask at all and were carried only by background subtraction. Dropping either
-cue loses real objects. **Revisit only** if a single cue is shown to cover every object
+survives on **either** cue. This is not redundancy. On the previous test set's `Image_001`
+(`eb00508^`), objects 2 and 9 came back with background-subtraction coverage `cov=0.00` — the
+background cue missed them entirely and FastSAM carried them — while the `cue = background` objects
+(four of nine) had no FastSAM mask at all and were carried only by background subtraction. Dropping
+either cue loses real objects. **Revisit only** if a single cue is shown to cover every object
 across a representative set of frames, which today's evidence contradicts.
 
-*Re-measured 2026-09-25:* only one direction still shows on the repository frames. With the
-current pipeline `Image_001`'s nine objects are 4 `both` + 5 `fastsam`: FastSAM still carries
-objects the background cue misses, but no object is background-only, on `Image_001` or on the
-other six frames (one `both` object each). The "four of nine" above is that run's figure, not
-today's. This does not meet the revisit clause: seven frames, six with one object, are not a
-representative set, and the tests hold the background-only path. The entry stands. The
-background-only direction now rests on the original run, not on a frame in the repository.
-
-*Re-measured 2026-09-28 on the test set of that time* (`Data/Images/Test/All`, no longer in the repository, recoverable from `1061966`; the frames above are the
-previous set, removed in `eb00508`, recoverable from `eb00508^` — names there do not match `All/`): 44
-objects, 41 `both` and 3 `fastsam` (one each in `All/Image_001`, `007` and `013`), none background-only.
-The FastSAM-only direction is sharper than before — the dark rusted plate in `All/Image_013` is 2 % seen
-by the background cue — and the background-only direction still rests on the original run. The entry
-stands.
-
-*Re-measured 2026-09-28 on the eight frames left after `b5ca788`* removed `All/Image_009`–`013`
-(recoverable from `b5ca788^`; the eight are gone too, recoverable from `1061966`, and the current set is not
-re-measured): 37 objects, 35 `both` and 2 `fastsam` (the blue double triangle in
-`All/Image_001`, the lattice bracket in `007`), none background-only. The 2 % plate was in `013` and is
-no longer in the set; the FastSAM-only direction rests on the triangle and the bracket. The entry stands.
+**Evidence since.** Re-measured on 2026-09-25 and twice on 2026-09-28, on frames no longer in the
+repository (recoverable from `eb00508^`, `b5ca788^` and `1061966`): FastSAM still carried objects the
+background cue missed (the last count 37 objects, 35 `both`, 2 `fastsam`: a blue double triangle and
+a lattice bracket; earlier a dark rusted plate 2 % seen by the background cue), and no object was
+background-only. The background-only direction rests on the original run and on the tests; the
+current set is not re-measured.
 Commit `feca088`; tests `test/Vision/Utilities/test_fusion.py::test_object_seen_only_by_fastsam_survives`, `::test_object_seen_only_by_background_survives`.
 
 ## The closing never joins two components
@@ -229,7 +184,7 @@ Commit `94b74fa`; test `test/UI/test_camera_view.py::test_switching_view_does_no
 ## Staleness clears the result rather than marking it
 
 When the frame changes (a new scan, a disconnect, Clear), the held analysis renders are
-dropped and the annotated/mask toggle is hidden, rather than kept and marked as belonging
+dropped and the view selector is hidden, rather than kept and marked as belonging
 to an earlier frame. Showing a previous frame's annotations over a new scene is the one
 genuinely misleading failure here — the outlines would not line up and nothing on screen
 would say so — and clearing is unambiguous where a "stale" badge invites the operator to
@@ -240,21 +195,8 @@ Commit `94b74fa`; tests `test/UI/test_camera_view.py::test_a_new_scan_makes_the_
 
 ## `strip_background` binds `surface` to a background noun instead of matching the word
 
-**Superseded — the strip is removed** (see "The background strip is removed, not retuned"). Kept
-for the record of why it was built the way it was.
-
-The background-stripping deletes a sentence only when it is *about* the background —
-requiring a background noun (`background`, `backdrop`, `table`, `tablecloth`, `cloth`,
-`felt`, `mat`, `desk`, `floor`, `sheet`) or a colour bound to one — rather than deleting
-any sentence containing `surface` or a colour word, as the prototype did. The bare word
-matched legitimate object description ("the surface of the plate is machined", "a green
-plastic terminal block") and threw it away; `surface` in particular is a weak noun that
-only strips when it is colour-bound or locative, so "the surface is shiny and reflective"
-about a milled plate is kept while "a green surface" is stripped. Every strip and
-substitution is logged to the audit, so over-stripping is visible, not silent. **Revisit
-if** captions show a background noun the list misses (extend the list, with a kept/stripped
-test pair) — never by widening back to bare word-matching.
-Commit `dfbb3b2`; its test, `test_strip_background_noun_binding`, was removed with the strip (`710944c`).
+Superseded by [*The background strip is removed, not retuned*](#the-background-strip-is-removed-not-retuned): the strip
+had no job left once Gemma described the parts, and it cost real description. The full entry is in git at `a85215c`.
 
 ## A failed analysis writes a PARTIAL capture set, on purpose
 
@@ -285,9 +227,10 @@ This is the kind of file someone will point a training script at, so state it pl
 every frame, so a class built from them is an arbitrary mix; a `classes.txt` beside the
 captures lists the ids in order (currently the per-frame object indices) and carries the
 same warning in its own header, so the caution travels with the data. They become a real
-dataset only once ids are reassigned by actual class. **Revisit when** classification
-exists: the id then comes from the class, and this note is rewritten — the id stops being a
-per-frame handle and becomes a real label.
+dataset only once ids are reassigned by actual class. A catalogue mode's verdicts (OK, NOK,
+Warning) are states, not classes, and do not change this. **Revisit when** a classifier assigns
+each object a class: the id then comes from the class, and this note is rewritten — the id stops
+being a per-frame handle and becomes a real label.
 Commit `1b208df`; tests `test/Reporting/test_core.py::test_yolo_lines_are_normalised_and_indexed_from_the_object_list`, `test/UI/test_capture.py::test_yolo_file_holds_the_given_lines_and_classes_has_a_header`.
 
 ## The three confidence figures have one home each, at three different scopes
@@ -302,29 +245,26 @@ so each has exactly one home and one scope:
    (`Confidence (mean)`), with coverage shown when the frame is only partly scored
    (`87% over 5 of 9`) so it reconciles against the object list directly below it
    (`AnyScan_Window_Cls.__Frame_Confidence_Text`).
-3. **Per session** — the mean over *every scored object in every analysis* since the session
-   began, in the status strip (`Confidence (session mean)`), beside the session-median
-   inference time.
+3. **Per run** — since the application started or the last Clear: the mean over *every scored
+   object in every analysis* of the run, in the status strip (`Confidence (run mean)`), beside
+   `Inference (run median)`. Its accumulator is `Reporting.Trends`
+   (`AnyScan_Window_Cls.__trends.Run_Mean()`), the one Trends reads.
 
-The status figure **accumulates individual object scores across analyses**
-(`AnyScan_Window_Cls.__session_scores`) and divides by their count — it does **not**
-recompute the current frame, and it is **not** the mean of the per-frame means. Per-object
-weighting is deliberate: a nine-object frame and a one-object frame must not count equally,
-which the mean of frame means would do. The status labels name both the scope and the
-statistic (`session median`, `session mean`) precisely because these scopes differ — a
-label that implied "session" while computing the frame is the class of bug where the UI
-looks right and quietly says something false (it existed: the status confidence recomputed
-the frame mean under a session label). Coverage stays out of the status bar (it lives in the
-log and the frame table). **Revisit if** a fourth scope is wanted (e.g. a rolling window of
-the last N analyses): add it as its own cell with its own scope in the label, never overload
-an existing one.
-*Corrected 2026-10-08:* since `d14a130` the third scope is the **run** (since the start or the last
-Clear), labelled "Inference (run median)" and "Confidence (run mean)", and its accumulator is
-`Reporting.Trends` (`AnyScan_Window_Cls.__trends.Run_Mean()`), not `__session_scores`. It weights
-each object equally over the raw scores and rounds once, and Trends' frame mean is `Frame_Confidence`'s,
-so the Trends tooltip, the Live panel and History show the same frame mean. Until 2026-10-08 Trends
-rounded each object first and could read a point lower (scores 0.569 and 0.802: 68 % in Trends, 69 %
-everywhere else); `test/Reporting/test_trends.py::test_the_means_round_once_from_the_raw_scores` pins it.
+The run figure **accumulates individual object scores across analyses** and divides by their
+count — it does **not** recompute the current frame, and it is **not** the mean of the per-frame
+means. Per-object weighting is deliberate: a nine-object frame and a one-object frame must not
+count equally, which the mean of frame means would do. It weights each object equally over the raw
+scores and rounds once, and Trends' frame mean is `Frame_Confidence`'s, so the Trends tooltip, the
+Live panel and History show the same frame mean (`test/Reporting/test_trends.py::test_the_means_round_once_from_the_raw_scores`).
+The status labels name both the scope and the statistic (`run median`, `run mean`) precisely
+because these scopes differ — a label that implied one scope while computing another is the class
+of bug where the UI looks right and quietly says something false (it existed: the status
+confidence once recomputed the frame mean under a session label). Coverage stays out of the status
+bar (it lives in the log and the frame table). **Revisit if** a fourth scope is wanted (e.g. a
+rolling window of the last N analyses): add it as its own cell with its own scope in the label,
+never overload an existing one.
+*History:* the third scope was the camera session, with its own accumulator, until `d14a130`; until
+2026-10-08 Trends rounded each object first and could read a point lower (68 % against 69 %).
 Commit `8c48a73`; tests `test/UI/test_status_metrics.py::test_frame_mean_and_session_mean_are_over_their_own_scopes`, `::test_session_mean_weights_each_object_equally_not_each_frame`, `test/UI/test_reading_view.py::test_object_blocks_carry_the_shared_label_and_description`.
 
 ## Segmentation polygons keep only the outer contour, and the set carries a JSON record
@@ -355,50 +295,18 @@ Commit `61bb651`; tests `test/Vision/Utilities/test_annotate.py::test_seg_keeps_
 
 ## Classification is a per-configuration switch that exposes the verdict UI, not one that creates it
 
-*Corrected 2026-10-11: the switch is removed. A configuration classifies exactly when it is a catalogue
-mode (`Configuration_Str.Classifies`), so the dormant "on, but every object OK" state below cannot occur
-any more; a file that still holds `General.Classification` loads with a warning that it is no longer
-read. What this entry says about the verdict UI (the filter absent when not classifying, the neutral
-colour, History following each set's recorded flag) still holds, with the catalogue mode as the switch.
-See [*A catalogue mode identifies by similarity…*](#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok).*
-
-`General.Classification.Enabled` in the configuration file says whether a configuration performs
-OK/NOK classification or only detects objects. It defaults to **false**, because nothing
-classifies today — no code assigns NOK; `Detection_Str.Verdict` defaults to OK and nothing sets
-it otherwise. So enabling the switch does **not** make classification work: with it on, today's
-behaviour is filters visible, every object OK, the NOK filter permanently empty. That is a
-deliberate, shippable state — the config is ready for a classifier that does not exist yet.
-
-**Enabled** shows verdict state: the Captures OK/NOK filter, verdict colours on annotations, and
-the verdict per object wherever object detail is shown. **Disabled** removes all of it — the
-filter is not there (removed, not disabled, so nothing on screen implies a feature this
-configuration lacks), objects are annotated in a single colour (`Theme.Detection_Color`; since
-2026-10-15 the logo purple, which equals the OK colour and is accepted because no verdict is shown,
-*Every chip carries a white numeral*), and the UI speaks only of detected objects.
-
-The flag is read **once**, through the one configuration layer
-(`Camera.Utilities.Configuration.Read_Classification_Enabled`), with the single default living in
-`Parameters.General`; the launcher passes it to the window and logs it on the configuration-loaded
-line, which is the answer when someone asks why the UI has no OK/NOK. It governs what LIVE
-produces (annotation colours, and the flag recorded on each new capture set) — **not** History.
-
-History lists only the **current application run** (see the run-scope entry below), and the flag is
-read once at startup, so every set in a run shares it — there is no mixed history. The Captures
-filter appears when **the run classifies**, and each set's outline still follows its **own recorded
-flag** (`_objects.json` keeps it as the record, so an earlier set shown by some future cross-run
-view would still carry its own colours). Object rows always show the record — suppressing a
-captured verdict would lie about what was captured. The earlier mixed-history handling (the filter
-shown by scanning sets, and a "not classified" per-card marker) was removed with run scoping,
-since it can no longer arise.
-
-**Two empty-NOK states are kept distinguishable:** config disabled ⇒ the filter is absent (its
-absence is the answer); config enabled with no classifier ⇒ the filter is present and says why it
-is empty ("no classifier is running yet, so no object has been judged"), the reason being the
-missing classifier, not the config.
-
-**Revisit when** a classifier lands: it sets `Detection_Str.Verdict`, the empty-NOK message stops
-being the normal state, and the switch starts gating a feature that actually runs.
-Commit `1fbbd7b`; tests `test/Configuration/test_core.py`, `test/UI/test_history.py::test_the_two_empty_nok_states_are_distinguishable`, `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`.
+A configuration classifies exactly when it is a catalogue mode (`Configuration_Str.Classifies`); the verdicts
+themselves are in [*A catalogue mode identifies by similarity…*](#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok).
+Classifying shows the verdict state: the Captures filter, verdict colours on the annotations, and the verdict per
+object wherever object detail is shown. Not classifying removes all of it — the filter is not there (removed, not
+disabled, so nothing on screen implies a feature this configuration lacks), every object is annotated in one colour
+(`Theme.Detection_Color`, the logo purple, accepted because no verdict is shown), and the UI speaks only of detected
+objects. History follows each set's own recorded flag (`_objects.json`); object rows always show the record, since
+suppressing a captured verdict would lie about what was captured. The two empty-NOK states stay distinguishable: not
+classifying, the filter is absent (its absence is the answer); classifying with no NOK, it says "No NOK part in this run."
+*History:* until 2026-10-11 the switch was `General.Classification.Enabled` (default false, with no classifier behind
+it); a file that still holds it loads with a warning that it is no longer read.
+Tests `test/Configuration/test_core.py`, `test/UI/test_history.py::test_the_two_empty_nok_states_are_distinguishable`, `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`.
 
 ## History shows only the current run, identified by a run id
 
@@ -415,15 +323,14 @@ Tests `test/UI/test_history.py::test_history_lists_only_the_current_run`, `::tes
 
 ## Vocabulary: "session" is a camera connection; UI figures run since start or last Clear
 
-**Session = camera connection = the UI's "Connection".** The logger's session bookkeeping, the
-capture directory names (`<timestamp>_s<N>`) and the run-summary CSV's `total_session_time` all
-count **camera connections**. *Corrected 2026-10-07:* `total_session_time` no longer does. It is now the
-summed cycles, each from a scan to the end of its analysis (*A cycle is a scan to the end of its analysis,
-not a camera connection*). The column keeps its name because the name is the data contract. In the UI a connection
+**Session = camera connection = the UI's "Connection".** The logger's session bookkeeping and the
+capture directory names (`<timestamp>_s<N>`) count **camera connections**. The run-summary CSV's
+`total_session_time` does not: it is the summed cycles, each from a scan to the end of its analysis
+(*A cycle is a scan to the end of its analysis, not a camera connection*), and keeps its name because
+the name is the data contract. In the UI a connection
 is called a **Connection** — the History grid headers, the Info panel, and the Log view's prose
 lines ("Camera connected. Connection 1 started.", "Connection 1 ended after …", "Created the
-capture directory for connection …"). The Log is UI and speaks the UI's words. The CSV is a file
-format: its `total_session_time` column name is a data contract that its rows carry, so it stays.
+capture directory for connection …"). The Log is UI and speaks the UI's words.
 
 **Three spans, named precisely** — they differ on purpose, and each is labelled for what it is:
 
@@ -433,8 +340,8 @@ format: its `total_session_time` column name is a data contract that its rows ca
   one accumulator.
 - **History: the application run**, identified by the run id in each set's `_objects.json`. Clear
   does not hide sets; History shows every set written since the application started.
-- **The run-summary CSV: one row per application run** — its time account (cycle, connected
-  and idle time), which Clear does not touch.
+- **The run-summary CSV: one row per application run** — its time account (cycle time, the summed
+  cycles and idle time), which Clear does not touch.
 
 So after a Clear, the status bar and Trends restart while History and the CSV do not. That is the
 intended behaviour, not a counting bug.
@@ -444,9 +351,9 @@ too; the CSV column keeps its name regardless.
 ## Trends: one accumulator, a hand-drawn chart base, and no failed image on the x axis
 
 The Trends view (Live · Trends · History · Log — named for what it shows: both charts are
-running values over the run's images, not summary statistics) draws two charts: cumulative
-detected objects (Total, plus OK/NOK when the run classifies), and confidence (one dot per scored
-object, the frame mean, the running run mean, dashed 80%/60% lines at the §5 thresholds).
+running values over the run's images, not summary statistics) draws two charts, cumulative
+detected objects and confidence; what each draws is in [*Trends draws square markers, 2 px lines, and the run mean
+as hollow squares on top*](#trends-draws-square-markers-2-px-lines-and-the-run-mean-as-hollow-squares-on-top).
 
 - **One accumulator** (`Reporting.Trends.Trends_Accumulator_Cls`, Qt-free) feeds both charts
   *and* the status bar's IMAGES ANALYSED, OBJECTS DETECTED and run-mean confidence, so the last
@@ -455,16 +362,14 @@ object, the frame mean, the running run mean, dashed 80%/60% lines at the §5 th
   run — History covers that (see the vocabulary entry).
 - **A failed analysis does not advance x.** It is not an analysed image, and the accumulator is
   only fed successful analyses, so the last x and IMAGES ANALYSED agree either way.
-- **Unscored objects are not plotted.** A dot at 0% would be a false low-confidence reading; the
-  hover shows how many objects in that image were left off.
+- **Unscored objects are in neither mean.** A score of 0% would be a false low-confidence reading;
+  the hover shows how many objects in that image were left out.
 - **Hand-drawn with QPainter, not matplotlib.** matplotlib is installed (via ultralytics), but a
   small Qt chart base matches how the rest of the UI is drawn, takes its colours and type sizes
   from the theme by construction, and keeps a plotting library out of the UI layer. Both charts
   share one base (`UI.Views.Trends.Chart_Base_Cls`) for axes, gridlines, legend and hover; the
   maths that such charts usually get wrong (1/2/5 × 10ⁿ ticks on **both** axes, value→pixel
   mapping, the hover hit-test, x-label thinning onto round numbers) is pure and unit-tested.
-- Neutral confidence dots use the detection colour's **ink** twin (`#5C6270`): the box value
-  `#B8BECA` is tuned for drawing on the green frame and nearly vanishes on the white card.
 
 **Revisit if** a chart needs zoom/pan or thousands of series points, which is where adopting a
 charting library starts to pay for itself.
@@ -473,27 +378,25 @@ Tests `test/Reporting/test_trends.py`, `test/UI/test_trends_view.py`.
 ## `verdict_colored` has no default, and the harnesses read the flag like the app
 
 `Draw_Annotated` and `Draw_Label_Mask` take `verdict_colored` as a **required, keyword-only**
-argument. It used to default to `True`, and two callers that never read the configuration fell
-back to it silently: `Example/Vision/analyze.py` painted OK-verdict boxes and the OK tint
-(`#E2E0F0`) on a detect-only run, and `Example/UI/screenshot.py` (since removed) built its window detect-only but
-rendered its `demo_*.png` beside it in verdict mode — two modes in one run. A default is a
-rendering mode chosen on the caller's behalf; with none, a caller that has not decided fails at
-the call site, and the keyword makes a bare `True`/`False` impossible to pass without naming it.
-Both harnesses now read `General.Classification.Enabled` through the application's own
-`Read_Classification_Enabled` and default config (`analyze.py --config` overrides it), because
-*(corrected 2026-10-11: the switch is removed; `analyze.py` reads `Configuration_Str.Classifies`, true in a
-catalogue mode, from the same loaded configuration the application uses)*
-`analyze.py` validates the logic the app uses — a harness rendering in another mode would make a
-harness artefact look like a real difference. **Do not reintroduce a default.**
+argument. A default is a rendering mode chosen on the caller's behalf; with none, a caller that has
+not decided fails at the call site, and the keyword makes a bare `True`/`False` impossible to pass
+without naming it. `Example/Vision/analyze.py` reads `Configuration_Str.Classifies` (true in a
+catalogue mode) from the same loaded configuration the application uses, because `analyze.py`
+validates the logic the app uses — a harness rendering in another mode would make a harness
+artefact look like a real difference. **Do not reintroduce a default.**
+*History:* it defaulted to `True`, and two callers that never read the configuration fell back to it
+silently: `analyze.py` painted OK-verdict boxes on a detect-only run, and `Example/UI/screenshot.py`
+(since removed) rendered verdict mode beside a detect-only window.
 Tests `test/UI/test_harness_parity.py` (the harness mask equals the mask the window writes, for
-both flag values; the harness uses the app's config reader; the renderers reject an unstated mode).
+both flag values; the harness uses the app's configuration; the renderers reject an unstated mode).
 
 ## The configuration sets the camera's sensor window
 
-`Camera.Resolution` (`x`, `y`) and `Camera.Offset` (`x`, `y`) — 1920 × 1200 centred at (8, 8) on the
-a2A1920-51gcPRO's 1936 × 1216 sensor — are REQUIRED, and `Basler_Cls` sets them on every connect
-(offsets to 0, then the size, then the offsets: the camera caps each by the other) and reads all four
-back. The read-back window, exposure, gain and pixel format go into the session log on connect.
+`Camera.Resolution` (`x`, `y`) and `Camera.Offset` (`x`, `y`) in the station file — 1920 × 1200
+centred at (8, 8) on the a2A1920-51gcPRO's 1936 × 1216 sensor — are REQUIRED, and `Basler_Cls` sets
+them on every connect (offsets to 0, then the size, then the offsets: the camera caps each by the
+other) and reads all four back. The read-back window, exposure, gain and pixel format go into the
+session log on connect.
 
 **Why.** `Camera.Resolution` already existed: it was loaded into the configuration and never read.
 Only `Custom_Cfg` reached the camera, and no code had ever set `Width` / `Height`. The camera ran at
@@ -501,52 +404,49 @@ whatever it last remembered; the 1920 × 1200 frames came from a setting made ou
 and never saved to a user set, and a power cycle returned the camera to its factory default, the full
 1936 × 1216 sensor (found 2026-09-24, when a frame stopped matching the 1920 × 1200 reference). A
 missing field is honest; **a field that looks authoritative and does nothing is how someone concludes
-the sensor is pinned when it is not** — the same class of error as the hardware-id constant below that
+the sensor is pinned when it is not** — the same class of error as the hardware-id constant that
 duplicated the configuration's, and removed for the same reason. Giving the existing field the job,
 rather than adding `Width` / `Height` beside it, keeps one source.
 
 **The dependency runs one way.** Configuration → camera (set on connect) → data validated against the
 configuration at load: a background reference of another size fails the load naming both sizes, and a
 calibration solved at another window fails it too — K's principal point and the mm/px factor are in
-that window's pixels. The camera never reads its size from the reference: that would make the hardware
-follow a picture on disk, and swapping the reference would silently reconfigure the sensor. The check
-at the grab (a delivered frame of another size) and the one at ANALYZE stay as safety nets, not the
-first line of defence. `calibrate.py` records the read-back window in `capture.json` and in the
-calibration it writes, refuses to extend a capture set taken at another window, and the writer refuses
-a calibration that does not record its window.
+that window's pixels. A calibration that does not record its window fails the load, naming the
+camera's window and `calibrate.py`. The camera never reads its size from the reference: that would
+make the hardware follow a picture on disk, and swapping the reference would silently reconfigure the
+sensor. The check at the grab (a delivered frame of another size) and the one at ANALYZE stay as
+safety nets, not the first line of defence. `calibrate.py` records the read-back window in
+`capture.json` and in the calibration it writes, refuses to extend a capture set taken at another
+window, and the writer refuses a calibration that does not record its window.
 
 **Centred, (8, 8).** Symmetric about the lens axis; trims the sensor's border evenly. The old frames'
 window position is unrecoverable (the empty mat has no texture to register against), and both the
-calibration and the background reference are being re-shot, so there was nothing to match back to.
+calibration and the background reference were re-shot, so there was nothing to match back to.
 
-**Temporary leniency.** The calibration in force predates recorded windows, so an absent window is a
-WARNING that names the risk (measurements may be wrong by an unknown amount), not a load failure —
-blocking live use over a calibration being replaced that week would gain nothing. **Once the
-multi-view recalibration is in force, make an absent window a load failure**; the code beside the
-warning (`Configuration.Core.__Read_Calibration`) says so. *Corrected 2026-10-08:* the leniency has
-ended. The multi-view recalibration in force since 2026-09-28 records its window, so an absent window
-now fails the load, naming the camera's window and `calibrate.py`
-(`test_a_calibration_without_its_window_fails_the_load`).
+*History:* while the calibration in force predated recorded windows, an absent window was a WARNING;
+it became a load failure once the multi-view recalibration (2026-09-28) was in force.
 
 **Revisit if** the camera changes (another sensor makes 1920 × 1200 at (8, 8) wrong — the window
-belongs to the hardware, in its mode files); a measurement ever needs the 16 px per axis the window
+belongs to the hardware, in its station file); a measurement ever needs the 16 px per axis the window
 trims; or the read-back ever catches the camera not keeping the window, in which case persist it in a
 user set on the camera as well, instead of only setting it on connect.
 Tests `test/Configuration/test_core.py` (the window's validation, the reference and calibration
-checks, the writer's refusal), `test/Camera/test_basler.py` (the set order against a stand-in with the
-camera's constraints, the read-back, the log line, the grab check), `test/Calibration/test_core.py`
-(the window in `capture.json` and in the written calibration).
+checks, the writer's refusal, `test_a_calibration_without_its_window_fails_the_load`),
+`test/Camera/test_basler.py` (the set order against a stand-in with the camera's constraints, the
+read-back, the log line, the grab check), `test/Calibration/test_core.py` (the window in
+`capture.json` and in the written calibration).
 
 ## The background reference carries its provenance; harnesses capture through the app's path
 
-A reference is made by `Example/Camera/make_reference.py` from a capture set of the empty table: it
-copies the set's `_raw.png` byte for byte and writes `Image_Background_NNN.json` from the set's own
-records — the window the camera read back (capture sets now record it: the offset is not in the
-pixels), the fingerprint of the lens model that undistorted the frame (from the set's undistortion
-record, a SHA-256 over K and the coefficients), the configuration, the camera, lens and lighting,
-the time and the source. Nothing in it is typed by a person. `Load_Configuration` checks the reference
-against it: the image must match the sidecar's SHA-256, and the window, lens model and lighting must be
-the configuration's; any mismatch fails the load.
+A reference's sidecar, `Image_Background_NNN.json`, records how it was made from what the software
+recorded, never typed by a person: the window the camera read back (the offset is not in the
+pixels), the fingerprint of the lens model that undistorted the frame (a SHA-256 over K and the
+coefficients), the configuration, the camera, lens and lighting, the time and the source.
+`Load_Configuration` checks the reference against it: the image must match the sidecar's SHA-256, and
+the window, lens model and lighting must be the configuration's; any mismatch fails the load, and so
+does a reference with no sidecar. How a reference is shot, and the sidecar's `frames`, `station` and
+`compared_with` (which the load does not check), are in [*A new reference is the mean of 8 frames, shot by the tool,
+and refused if the application finds anything on it*](#a-new-reference-is-the-mean-of-8-frames-shot-by-the-tool-and-refused-if-the-application-finds-anything-on-it).
 
 **Why a sidecar, not the size check alone.** Size cannot tell two frames of one size apart: not the
 window's position, not the lens model that undistorted it (a reference is an undistorted frame, so a
@@ -554,38 +454,31 @@ recalibration puts it out of date), not the light it was shot under. And provena
 file: the configuration says which reference to use; only the file can say how it was made.
 
 **The guarantees are not equal.** The window and calibration checks are structural — both sides are
-recorded by the software. The lighting check compares `Camera.Lighting` with the lighting the
-configuration named when the reference was made: two fields a person types. **It fires only when
-someone updates `Camera.Lighting`; whoever changes the lamp and not the configuration gets no warning.**
-That gap is real and stays until lighting is measured rather than named.
-
-**Temporary leniency, twice.** A reference with no sidecar loads with a WARNING (the reference in force
-predates sidecars), like a calibration with no recorded window. Both paths say beside them in the code
-that they become load failures once their reason expires: the recalibration in force, and a reference
-made by the tool in force (checklist item 2). *Corrected 2026-10-08:* both reasons have expired (the
-recalibration and `Image_Background_001` with its sidecar, both in force since 2026-09-28), and both
-paths are load failures now (`test_a_reference_without_a_sidecar_fails_the_load_naming_what_is_unknown`,
-`test_a_calibration_without_its_window_fails_the_load`).
+recorded by the software. The lighting check compares the station's `Camera.Lighting` with the
+lighting the configuration named when the reference was made: two fields a person types. **It fires
+only when someone updates `Camera.Lighting`; whoever changes the lamp and not the configuration gets
+no warning.** That gap is real and stays until lighting is measured rather than named.
 
 **`scan.py` goes through the application's camera path.** It undistorted frames without the
 application's processing step, so its frames were not what the pipeline sees — and it is the harness
 someone would reach for to shoot a reference or grab a test frame. The same class of defect as
 `analyze.py`'s `verdict_colored`, made required so a harness could not render differently from the app.
-`scan.py` now captures with `Camera.Core.Basler_Camera_Cls` (window, processing, undistortion), and
+`scan.py` captures with `Camera.Core.Basler_Camera_Cls` (window, processing, undistortion), and
 says in its docstring and output that its frame carries no provenance and is not a reference.
 `calibrate.py --capture` keeps its own path on purpose — it needs frames before undistortion — and
 applies the application's processing profile to them.
 
-*Corrected 2026-10-13:* a reference is no longer made from a capture set. `make_reference.py` shoots it
-itself, through the same camera path, and its sidecar records what the camera reported: see *A new reference
-is the mean of 8 frames…* below. The provenance and the load's checks are unchanged; the sidecar gains
-`frames`, `station` and `compared_with`, which the load does not check.
+*History:* a reference was first made from a capture set's `_raw.png`, copied byte for byte (until
+2026-10-13), and a reference with no sidecar loaded with a WARNING until `Image_Background_001` with
+its sidecar was in force (2026-09-28).
 
 **Revisit if** lighting becomes measurable (a reading from the lamp or a light meter could replace the
 typed `Camera.Lighting` and close the gap above); or references are shared between cameras (the checks
 would then need the hardware id as well as the window).
-Tests `test/Configuration/test_core.py` (the sidecar checks), `test/Camera/test_reference_harnesses.py`
-(the tool against a stand-in camera; `scan.py` against a stand-in).
+Tests `test/Configuration/test_core.py` (the sidecar checks,
+`test_a_reference_without_a_sidecar_fails_the_load_naming_what_is_unknown`),
+`test/Camera/test_reference_harnesses.py` (the tool against a stand-in camera; `scan.py` against a
+stand-in).
 
 ## A new reference is the mean of 8 frames, shot by the tool, and refused if the application finds anything on it
 
@@ -718,26 +611,29 @@ Tests `test/Configuration/test_core.py::test_a_reference_replaced_under_its_side
 
 ## The run-summary CSV is named after the loaded configuration
 
-`logger/log_<id>.csv` takes `<id>` from the configuration file the run loaded
-(`Config_<id>.yaml` → `log_<id>.csv`, `Logger.Core.Csv_Filename_For_Config`). It used to come from
-a hardware-id constant in `Logger/Core.py` that duplicated the id already in the config filename
-— two sources of truth, and loading a different YAML would have appended that camera's runs into
-the other camera's summary: silent, and corrupting the data rather than failing. `App/run.py`
-now holds one `config_path` and passes it to the logger, the classification reader and the
-config-loaded log line. `config_path` is required on `Session_Logger_Cls` (keyword-only, no
-default), for the same reason `verdict_colored` is; `None` is an explicit "no configuration"
-and writes to `log_unconfigured.csv`, which belongs to no hardware. **A configuration change
-therefore starts a new CSV** — different hardware, different summary, which is the intent. The
-shipped config produces the existing name, so current files continue unchanged.
-Tests `test/Logger/test_core.py::test_csv_filename_follows_the_hardware_of_the_loaded_configuration` (*Corrected 2026-10-08:* renamed from `…follows_the_loaded_configuration`),
+`logger/log_<Hardware>.csv` takes `<Hardware>` from the configuration file the run loaded, the hardware part of
+`Config_<Hardware>_Mode_<Mode>.yaml` (`Logger.Core.Csv_Filename_For_Config`, through
+`Configuration.Core.Hardware_And_Mode`). Every mode on one camera shares the file, which is safe because the row is a
+time account. It used to come from a hardware-id constant in `Logger/Core.py` that duplicated the id already in the
+file name — two sources of truth, and loading a different YAML would have appended that camera's runs into the other
+camera's summary: silent, and corrupting the data rather than failing. `App/run.py` holds one `config_path` and passes
+it to the logger and the configuration-loaded log line. `config_path` is required on `Session_Logger_Cls`
+(keyword-only, no default), for the same reason `verdict_colored` is; `None` is an explicit "no configuration" and
+writes to `log_unconfigured.csv`, which belongs to no hardware. **Another camera therefore starts a new CSV** —
+different hardware, different summary, which is the intent.
+
+**The CSV path is fixed when the logger starts**, so the CONFIGURATION dialog greys out configurations for other
+hardware; changing camera means restarting with `--config`. **Revisit** the greying if the CSV path is ever resolved
+at shutdown rather than at startup.
+Tests `test/Logger/test_core.py::test_csv_filename_follows_the_hardware_of_the_loaded_configuration`,
 `::test_logger_requires_the_configuration_to_be_stated`.
 
 ## Run-summary CSV: six time-account columns; an older format is archived, never appended to
 
 The CSV is cut to `log_file, application_start, application_stop, cycle_time, total_session_time,
-idle_time` — the run's time account: when the application ran, for how long, how much of that a
-camera was connected (*corrected 2026-10-07:* how much of it the station worked, scan to the end of
-analysis, under format version 2), and how much it was idle (`cycle_time == total_session_time + idle_time`
+idle_time` — the run's time account: when the application ran, for how long, how much of it the
+station worked (the summed cycles, each a scan to the end of its analysis, under format version 2;
+before it, the time a camera was connected), and how much it was idle (`cycle_time == total_session_time + idle_time`
 exactly, every duration derived from the whole-second values the row prints). Counts, errors,
 confidence and inference figures, the run id, the Clear count and the JSON detail cells are gone;
 the `.txt` log beside each row still records every event, and the capture sets carry the per-image
@@ -774,18 +670,16 @@ overwritten; the row is the time account), `test/Logger/test_core.py`.
 ## Object measurement: mm per pixel, our own angle convention, and a symmetric case with a square exception
 
 Each masked object is measured from the minimum-area rotated rectangle of its mask
-(`Vision.Utilities.Measure`), converted through the calibration file's `Calibration.Conversion_Factor`
-(*Corrected 2026-10-08:* this named `Camera.Calibration.Conversion_Factor`, which is not a key path).
+(`Vision.Utilities.Measure`), converted through the calibration file's `Calibration.Conversion_Factor`.
 
 - **The factor is millimetres per pixel.** The YAML labels it `[mm/px]`, and the calibration
-  derives it as `square_size_mm / mean corner spacing in px`
-  (`Calibration.Core.__Get_Pixel_To_MM_Factor`; *Corrected 2026-10-08:* now `__Solve_Factor` and
-  `__Solve_Scale`) — so `mm = px × factor`, per axis. Two physical
-  cross-checks agree: 1920 px × 0.098 ≈ 188 mm field width, and K's focal length 3886 px × 0.098
-  mm/px ≈ 381 mm working distance. Nothing applied the factor before this; it is read once through
-  `Read_Conversion_Factor`, passed as a `Scale_Str` (required, keyword-only, like the classification
-  flag) to the vision backend, and recorded with its units at capture-set level. **No factor means
-  no measurement**, with a WARNING on the configuration-loaded line — never a size from a default.
+  derives it from the flat boards' corner spacing (`Calibration.Core.__Solve_Factor` and
+  `__Solve_Scale`) — so `mm = px × factor`, per axis. Two physical cross-checks agreed with the
+  single-view calibration of that time (before 2026-09-28, 0.098 mm/px): 1920 px × 0.098 ≈ 188 mm
+  field width, and K's focal length 3886 px × 0.098 mm/px ≈ 381 mm working distance. It is read once
+  by the configuration loader (`Configuration.Core.__Read_Conversion_Factor`), passed as a
+  `Scale_Str` (required, keyword-only, like the classification flag) to the vision backend, and
+  recorded with its units at capture-set level. **No factor means no measurement**, with a WARNING on the configuration-loaded line — never a size from a default.
 - **Per-axis conversion, pixel-centre correction.** Each side's pixel vector is converted with its
   own axis factor before its length is taken. Contour points sit on pixel centres, so a filled
   200 px block spans 199 px between its boundary pixels; one pixel is added to each side, or every
@@ -794,10 +688,8 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   counter-clockwise *as seen on screen*, in [0°, 180°) — computed from the rectangle's corners, not
   from `minAreaRect`'s angle, whose convention changed between OpenCV versions. A test pins
   +30° → 30, −30° → 150, 181° → 1.
-- **Precision from the scale.** *Superseded 2026-09-28 (next entry):* sizes were rounded to one
-  pixel's size, `floor(−log10(mm/px))` decimals — 0.098 mm/px → 0.1 mm — when measured, so the stored
-  value was rounded too. The recalibration to 0.10208 mm/px tipped that to 0 decimals, and sizes were
-  stored and shown in whole millimetres with nothing to flag it.
+- **Precision** is in [*Sizes keep full precision; only the display rounds, to a fixed two
+  decimals*](#sizes-keep-full-precision-only-the-display-rounds-to-a-fixed-two-decimals).
 - **Rotationally symmetric parts report a diameter and no angle.** `minAreaRect` assigns a round
   part an orientation that changes on noise, so a drawn rectangle would appear to spin on a part
   that has not moved. The test is elongation — the square root of the mask's second-moment
@@ -905,9 +797,8 @@ frame under the distorted name. The camera clears the original before every grab
 cannot pair a new frame with the previous frame's original. `keep_raw` governs both frames; the
 retention estimate rises from ~8 to ~12 MB per set (~600 MB at 50 sets).
 
-**Why now:** the calibration is about to be redone, and a frame kept only undistorted is tied to the
-lens model that undistorted it; the original can be re-undistorted under whichever calibration ends up
-in force.
+**Why:** a frame kept only undistorted is tied to the lens model that undistorted it; the original
+can be re-undistorted under whichever calibration is in force later.
 Tests `test/UI/test_capture.py` (`test_distorted_frame_is_kept_with_a_sidecar_saying_so`,
 `test_no_distorted_frame_without_one_and_it_is_evicted_with_its_set`),
 `test/UI/test_logging_coverage.py::test_the_scanned_frames_distorted_original_reaches_the_capture_set`,
@@ -940,12 +831,12 @@ Tests `test/Calibration/test_core.py`.
 
 ## Calibration: many views solved together, the factor from flat boards' undistorted corners
 
-The calibration in force came from **one** chessboard image. A single, near-frontal view cannot
-separate the principal point from the board's position (a shifted principal point and a translated
-board give the same image), and the optimiser put it ~800 px from the image centre. The factor was
-then taken from that image's raw, distorted corners and applied to undistorted frames.
-`Calibration.Core` now solves over a set, and `Example/Camera/calibrate.py` is only its harness:
-`--capture DIR` records frames, `--images DIR` solves them.
+`Calibration.Core` solves the lens model over a set of views, and `Example/Camera/calibrate.py` is
+only its harness: `--capture DIR` records frames, `--images DIR` solves them. A single, near-frontal
+view cannot separate the principal point from the board's position (a shifted principal point and a
+translated board give the same image): the single-view calibration in force until 2026-09-28 had its
+principal point ~800 px from the image centre, and its factor was taken from that image's raw,
+distorted corners and applied to undistorted frames.
 
 - **All views feed the lens model; only flat views feed the factor.** Every detected image goes into
   one `cv2.calibrateCamera`. The factor comes only from `flat_*` images (boards lying on the table),
@@ -975,21 +866,22 @@ then taken from that image's raw, distorted corners and applied to undistorted f
   count, not tilt: 0.149 % at 6 views, 0.085 % at 12, 0.057 % at 24, 0.039 % at 40 (0.1 px noise).
   A spread above **0.1 %** (one pixel on a ~1000 px, 100 mm part) is reported as position-dependent
   rather than averaged away, with the map — a gradient across it suggests the table is not parallel
-  to the sensor. Capture 40+ views. *Corrected 2026-09-25: this said 20+, read from the medians
-  alone; at 24 views the 90th percentile is 0.103 %, over the limit on noise alone, and at 40 it is
-  0.065 % (see "The printed calibration board stays 11 × 8" below).*
+  to the sensor. Capture 40+ views: at 24 views the 90th percentile is 0.103 %, over the limit on
+  noise alone, and at 40 it is 0.065 % (see "The printed calibration board stays 11 × 8" below; 20+,
+  read from the medians alone, was too few).
 - **Sub-pixel.** The detector's own `CALIB_CB_ACCURACY` refinement; `cornerSubPix` afterwards
   measured worse (previous entry).
 - **Square size and reference plane are stated, not assumed.** `--board-squares`, `--square-mm` and
   `--board-height-mm` are required with no defaults, and every result repeats that a printed board
   must be calipered (0.5–1 % printer scaling is the same order as the errors being removed). The
   board's height above the table is recorded with the result: the factor is exact in that plane only.
-- **Nothing switches over by itself.** The result is written to a new
-  `<config>_calib-<date>.yaml` — the source's header, the new K, coefficients and factor, and a
-  `Solved` record (date, image directory, views by kind, RMS, square size, board height). The
-  configuration in force is overwritten only with `--write-config`, and the harness says that
-  `App/run.py` hardcodes its path, so adoption is a separate, deliberate step after comparing old
-  against new.
+- **Nothing switches over by itself.** Every result is a new file,
+  `Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml` — the new K, coefficients
+  and factor, the sensor window, and a `Solved` record (date, image directory, views by kind, RMS,
+  square size, board height). A calibration is never written over (`--write-config` and
+  `--write-calibration` refuse, naming this); the harness prints the station file's `Calibration`
+  line to change, so adoption is a separate, deliberate step after comparing old against new
+  ([*The configuration is a chain of references, mode → station → calibration, each kind in its own folder*](#the-configuration-is-a-chain-of-references-mode--station--calibration-each-kind-in-its-own-folder)).
 
 The old `Checkerboard_Calibration_Cls` is gone, and with it the parameter named `inner_corners`
 that actually received the square counts; the board is now given as `--board-squares 11x8`, named
@@ -1003,62 +895,51 @@ file written with the source untouched.
 
 ## File headers carry JIC Smart Factory; the style's origin credit stays
 
-Every file header now reads `Copyright (c) <year> JIC Smart Factory` (each file keeps its own year:
-2023 ×6, 2024 ×1, 2025 ×79) and `Author   : JIC Smart Factory`, aligned with `File Name:`; the
-`Email` and `Github` lines are gone. The sweep covered every tracked file — `src/`, tests, examples,
-`App/run.py` — and the style skill's header templates (`assets/header.txt` in both forms,
-`module_template.py`, `script_template.py`, and the skeleton in `SKILL.md`), because files written
-from them are ours. Every `File Name:` line already matched its file's path. There is no root
-`LICENSE`, and the style checker's header rule checks only for the MIT block and the `File Name:`
-basename, so no author string is encoded anywhere that would fail.
-*Corrected 2026-09-26:* there is a root `LICENSE` now — the one the GitHub repository was created
-with, carried over when the two histories were joined — and it reads `Copyright (c) 2026 JIC Smart
-Factory` like the headers; as created it named Roman Parak, which the sweep above never saw.
+Every file header reads `Copyright (c) <year> JIC Smart Factory` (each file keeps its own year) and
+`Author   : JIC Smart Factory`, aligned with `File Name:`; there are no `Email` or `Github` lines. The root `LICENSE`
+(the one the GitHub repository was created with) reads `Copyright (c) 2026 JIC Smart Factory` like the headers. The
+style skill's checker requires the holder named here.
 
-**Deliberately unchanged:** the skill's `SKILL.md` and `README.md` lines saying the style is derived
-from `rparak/RoLE`, "MIT License, © 2023 Roman Parak". They credit where the style came from, in
-another repository; rewriting them would misstate that origin.
-*Note 2026-10-23:* the style skill's `SKILL.md`, `README.md`, `assets/` templates and checker are no
-longer in this repository. The personal skill project-style-rpx (`~/.claude/skills/`, private
-repository `rparak/rp-claude-skills`) holds them, and its checker also requires the holder named
-here; this repository keeps only `.claude/skills/project-style-rpx/references/project.md` and
-`check_style.json`. The RoLE credit is in project.md > *Header and checker*.
+**Deliberately unchanged:** the credit that the style is derived from `rparak/RoLE`, "MIT License, © 2023 Roman
+Parak". It credits where the style came from, in another repository; rewriting it would misstate that origin. The
+style skill is the personal skill project-style-rpx (`~/.claude/skills/`, private repository
+`rparak/rp-claude-skills`); this repository keeps only `.claude/skills/project-style-rpx/references/project.md` and
+`check_style.json`, and the RoLE credit is in project.md > *Header and checker*.
+*History:* the sweep that replaced the earlier author lines covered every tracked file and the skill's templates, then
+in this repository; the `LICENSE`, joined later from the GitHub repository, still named Roman Parak until 2026-09-26.
 
 ## The describer is Gemma 4 E4B, prompted, behind a describer seam
 
 *Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
-Stage 4 (the per-object description and the one background sentence) moves from Florence-2 to
-**Gemma 4 E4B-it**, the local `models/gemma-4-e4b-it-4bit`. Segmentation stays on FastSAM.
+Stage 4 (the per-object description and the one background sentence) is **Gemma 4 E4B-it**, the
+local `models/gemma-4-e4b-it-4bit`. Segmentation is FastSAM.
 
 - **What the weights are.** `config.json` says `gemma4` / `Gemma4ForConditionalGeneration`; the
   README names `google/gemma-4-E4B-it` (revision `fee6332`), converted to MLX by
   `mlx-community`. The language model is 4-bit affine (group 64, 3.7 GB packed); the vision tower
-  (0.33 GB) and an unused audio tower (0.61 GB) stay bf16. It runs through **MLX on the Metal GPU**
-  (`mlx` 0.32.2, `mlx-vlm` 0.7.2, pinned exactly in `requirements.txt` for Apple-silicon macOS —
-  the machine that drives the camera), not PyTorch MPS. Measured on the M2 Pro: load ~3.3 s, peak
-  5.15 GB loaded and 5.9 GB while generating, 2.1–2.7 s per object crop.
+  (0.33 GB) and an unused audio tower (0.61 GB) stay bf16. It runs through **MLX** (`mlx` 0.32.2,
+  `mlx-vlm` 0.7.2, pinned exactly in `requirements.txt`), on the Metal GPU on Apple silicon, not
+  PyTorch MPS; the platforms are in *Platform: three states — measured, target, not a target*.
+  Measured on the M2 Pro: load ~3.3 s, peak 5.15 GB loaded and 5.9 GB while generating, 2.1–2.7 s
+  per object crop.
 - **The seam.** `Vision.Describers`: every describer answers `Describe(crop, purpose)` with
-  purpose `object` or `background` and maps it to its own input — Florence to a task token
-  (`<MORE_DETAILED_CAPTION>` / `<CAPTION>`), Gemma to a prompt. The pipeline never sees a token or
-  a prompt. `Vision.Core.CONST_DESCRIBER` selects `gemma` (default), `florence` (kept reachable so
-  both run over the same frames; `Example/Vision/analyze.py --describer`) or the model-free
+  purpose `object` or `background` and maps it to its own input — Gemma to a prompt. The pipeline
+  never sees a prompt. `Vision.Core.CONST_DESCRIBER` selects `gemma` (default) or the model-free
   `fallback`, which the weight-free tests use. Each describer loads its runtime lazily.
-- **The prompts are data.** `Configuration/Describer_Prompts.yaml` holds the `Object` and
-  `Background` prompts, read through `Read_Describer_Prompts`; a missing or empty prompt stops the
-  load before the weights are touched — there is no built-in wording.
+- **The prompts are data.** The mode file's `Description.Prompts` holds the `Object` and
+  `Background` prompts, read by `Configuration.Core.Load_Configuration`; a missing or empty prompt
+  fails the load before the weights are touched — there is no built-in wording.
 - **Deterministic.** The weights' own generation config samples (temperature 1.0, top-k 64,
   top-p 0.95). The describer decodes greedily (`temperature=0.0`) with thinking off, so the same
   crop and prompt give the same text: repeated runs, and runs on other threads, were identical.
   A model loaded on one worker thread describes on later ones (measured), which is how the app
   uses it.
-- **The Task field names the producer.** The Live Task row and each capture set's `task` record
-  what produced the reading: `part inspection` (Gemma), `detailed caption` (Florence),
-  `model-free description` (fallback). History shows each set's own value, so older sets keep
-  `detailed caption`. `Analysis_Str`'s *default* Task (a reading nothing produced) is still
-  `detailed caption`, pinned by `test/Parameters/test_vision.py` and the characterization baseline; left for a
-  deliberate decision. (*Corrected 2026-10-18:* decided since, in `e0c5a03`: the default is empty, a reading nothing
-  produced names no model, pinned by `test/Parameters/test_vision.py::test_analysis_str_defaults`.)
+- **The Task field names the producer.** The Live Task row and each capture set's `task` carry the
+  mode's `Identity.Task` (*kind – detail*), or `part inspection` when the mode has none; the
+  fallback describer's readings carry `model-free description`. History shows each set's own value,
+  so older sets keep theirs (`detailed caption` from Florence-2). `Analysis_Str`'s default Task is
+  empty: a reading nothing produced names no model (`test/Parameters/test_vision.py::test_analysis_str_defaults`).
 
 **How the object prompt was chosen** (measured, temperature 0, on the `Image_002` rust-stained
 plate, the `Image_007` clean plate and four plastic parts of `Image_001`): the starting prompt
@@ -1076,19 +957,17 @@ colour and finish ("A deep teal surface presents a uniform, matte finish."); the
 under the Apache License 2.0 (https://ai.google.dev/gemma/docs/gemma_4_license). The repository's
 code is MIT; the weights are not, and are not redistributed with it: `models/` is gitignored, so
 they sit in the working tree but are not in the repository. Anyone shipping them does so under
-Apache 2.0's conditions. (Florence-2, while it remains, is MIT.) *Corrected 2026-09-24:* this
-entry first said the Gemma Terms of Use, taken from the `license: gemma` tag on the mlx-community
-conversion; that tag looks like converter boilerplate — upstream `google/gemma-4-E4B-it` is
-`apache-2.0`, and the Gemma Terms of Use state they do not govern Gemma 4 (README > Licence note).
+Apache 2.0's conditions. The `license: gemma` tag on the mlx-community conversion looks like
+converter boilerplate: upstream `google/gemma-4-E4B-it` is `apache-2.0`, and the Gemma Terms of Use
+state they do not govern Gemma 4 (README > Licence note).
+*History:* Stage 4 moved here from Florence-2, which stayed reachable behind the seam for a
+seven-frame comparison and was then removed (*Florence-2 is removed; Gemma is the only describer*);
+the prompts were first in `Configuration/Describer_Prompts.yaml`.
 
-**Revisit if** the comparison over all seven frames (Phase 2) shows the new model worse somewhere;
-the Florence path went in Phase 3, and the pipeline class, then `Florence_Vision_Cls`, was
-renamed `Vision_Pipeline_Cls`.
-Tests `test/Vision/test_describers.py` (with a stand-in `mlx_vlm`: the data-file prompts, greedy
-decoding, thinking off, RGB input, loud failures, Florence's token mapping, the Task labels),
+Tests `test/Vision/test_describers.py` (with a stand-in `mlx_vlm`: the prompts, greedy decoding,
+thinking off, RGB input, loud failures, the Task labels),
 `test/UI/test_history.py::test_each_set_shows_the_task_that_produced_it`,
-`test/integration/test_pipeline.py::test_pipeline_real_describer_smoke` (both describers, when their
-weights exist).
+`test/integration/test_pipeline.py::test_pipeline_real_describer_smoke` (when the weights exist).
 
 ## The background strip is removed, not retuned
 
@@ -1101,61 +980,43 @@ on", wrote **none** in the prompt trials. Its one mention of the surface was par
 own description — the red block's "two circular holes … each appearing to have a passage allowing
 a view of a bright green surface through them" — and the strip deleted that whole sentence,
 taking the holes with it. A safeguard with no job left and a real cost is removed, not retuned:
-the function, its noun lists, its patterns and its test are gone, and `Object_Description` now
-only peels a template lead-in and applies the substance substitution.
-
-- **Kept at the time:** the substance substitution (wood / paper / cardboard → metal). The
-  seven-frame comparison then confirmed it never fires on Gemma's text, and it was removed too
-  (see "The substance substitution is removed"). The background-sentence validator (one sentence, ≤ 20
-  words, else the neutral sentence) also stays.
-- **Consequence while Florence is reachable:** Florence's captions keep their table phrases
-  ("A hex bolt on a green surface."), which is what the comparison should see.
+the function, its noun lists, its patterns and its test are gone. The background-sentence validator
+(one sentence, ≤ 20 words, else the neutral sentence) stays. The substance substitution and the
+caption lead-ins went after it (*The substance substitution is removed*, *The caption lead-ins are
+removed*).
 Tests `test/Reporting/test_core.py::test_a_sentence_naming_the_surface_is_kept_whole`,
-`::test_object_description_detail_reading_and_fallback` (*Corrected 2026-10-08:* renamed from `test_describe_…`),
+`::test_object_description_detail_reading_and_fallback`,
 `test/integration/test_pipeline.py::test_pipeline_camera_to_reporting`.
-
 
 ## The label distiller peels Gemma's opener — and the label is still weak
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
-
-Gemma opens every description "The object is a …" (all 15 objects of the seven frames), which the
-Florence lead-ins do not cover; the distiller cut at " is " and every label — which feeds `type=`
-in the log — read `object`. `Reporting.CONST_LABEL_OPENERS` ("the object is", "the part is",
-"the object appears to be", …) is now peeled **for the label only**; the object line keeps the
-model's full sentence ("The object is a rectangular metallic plate, …").
-
-**The result is still poor, and is reported rather than patched per phrase.** Across the fifteen
-objects: usable 5 (circular ring, metallic bolt or screw, rectangular metallic plate, rectangular
-plate, and the two washers, cut at "… washer or"); a single adjective 8 (rectangular ×4, small ×3,
-flat); wrong 1 (dark blue). The cause is structural: the distiller cuts at the first comma, which
-suited Florence's phrasing, and Gemma lists adjectives with commas ("a rectangular, flat plate").
-Fixing that by more boundary rules would be tuning a heuristic to one model's style.
-**Open:** ask the model for the name directly — a third, short prompt ("name the part in at most
-three words") in `Describer_Prompts.yaml`, one more short generation per object — instead of
-distilling it from the description.
-Test `test/Vision/Utilities/test_caption.py::test_condense_label_peels_gemmas_opener_but_the_line_keeps_it`.
+Superseded by [*The label runs up to the head noun (supersedes the comma cut)*](#the-label-runs-up-to-the-head-noun-supersedes-the-comma-cut)
+and [*The object label keeps the model's alternatives, and reads the phrasings that broke it*](#the-object-label-keeps-the-models-alternatives-and-reads-the-phrasings-that-broke-it):
+the comma cut is replaced, and asking the model for the name was measured and rejected. The full entry is in git at
+`a85215c`.
 
 ## The label runs up to the head noun (supersedes the comma cut)
 
 *Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
 
-The first opener fix left 8 of 15 labels a single adjective, because the distiller cut at the
-first comma and Gemma lists adjectives with commas ("a rectangular, flat plate"). The problem was
-the extraction rule, not missing information, so the fix is the rule — not a second generation per
-object to ask for a name the sentence already contains. The label is now the noun phrase **up to
-its head noun**, which ends an English noun phrase:
+The label (`Condense_Label`) is the noun phrase **up to its head noun**, which ends an English noun
+phrase, after Gemma's opener ("The object is a …", `CONST_LABEL_OPENERS`) is peeled for the label
+only; the object line keeps the model's full sentence. A cut at the first comma left 8 of 15 labels
+a single adjective, because Gemma lists adjectives with commas ("a rectangular, flat plate"). The
+problem was the extraction rule, not missing information, so the fix is the rule — not a second
+generation per object to ask for a name the sentence already contains.
 
 - a comma **continues** the adjective run, and **ends** the phrase only when the next word opens a
   clause — an "-ing" participle ("ring, appearing …") or a hedge (`CONST_LABEL_HEDGES`: likely,
   possibly, …);
-- " of " is a boundary ("plate of a bright metal"); one word after " or " is an alternative noun
-  and goes ("washer or spacer" → "washer"), more words mean " or " joined modifiers and only
-  "or <modifier>" goes ("plastic or ceramic component" → "plastic component");
+- " of " is a boundary ("plate of a bright metal");
 - a trailing past participle of five letters or more goes ("part rendered in …"), but never an
   "-ing" word — many part names end in it (ring, bearing, bushing, housing, fitting, spring; an
   "-ing" rule first turned "circular ring" into "circular") — nor a short "-ed" word ("red");
 - the **last** four words are kept, where the noun is.
+
+The alternative after " or " and the bare " in " are now ruled by *The object label keeps the
+model's alternatives, and reads the phrasings that broke it*.
 
 All fifteen objects of the seven frames: circular ring; somewhat amorphous plastic part (was "dark
 blue" — the colour is gone); circular metallic washer; rectangular flat part; white rectangular
@@ -1163,11 +1024,7 @@ plastic component; metallic bolt; roughly octagonal metal washer; circular metal
 elongated piece; rectangular metallic plate ×2; rectangular plate; rectangular flat piece; small
 square metallic plate; rectangular flat plate. Every label ends in a part noun. The vague ones
 ("part", "piece") are Gemma's own words, and objects 7 and 8 — hex nuts — are "washer" because
-Gemma calls them washers: the label is faithful to the text, and the text is wrong there. Known
-limit, not special-cased: a bare " in " is not a boundary ("a threaded rod coated in oil" keeps
-"coated in oil"). The Florence captions distil as before ("hex bolt", "washer", "two brass
-fittings"); the long M6 example now reads "m6 stainless steel screw", and the stranded-"n" quirk
-is pinned on a short caption where it still shows.
+Gemma calls them washers: the label is faithful to the text, and the text is wrong there.
 Test `test/Vision/Utilities/test_caption.py::test_condense_label_takes_the_phrase_up_to_its_head_noun`.
 
 ## The substance substitution is removed
@@ -1210,34 +1067,18 @@ from `requirements.txt` (nothing of ours imports them; `mlx-vlm` declares its ow
 its licence. `models/florence2-large-ft/` on disk is unused and can be deleted.
 
 **Kept on purpose:** capture sets written by Florence keep `task: detailed caption` (History shows
-each set's own value); the caption lead-ins (`CONST_LABEL_LEADINS`, Florence's template phrasing),
-which Gemma's text never triggers but the label distiller and the characterization baseline still
-exercise. The object crop padding, set when Florence described a cut-out part poorly, has since
+each set's own value). Florence's caption lead-ins went later ([*The caption lead-ins are
+removed*](#the-caption-lead-ins-are-removed)).
+The object crop padding, set when Florence described a cut-out part poorly, has since
 been measured for Gemma (see *The object crop padding stays at 0.20 for Gemma*). The
 characterization baseline does not move.
 
 ## Consequence of Gemma via MLX: the application is supported on Apple-silicon macOS only
 
-Choosing Gemma 4 E4B as a 4-bit MLX conversion pins the platform. The describer was run and
-measured only on macOS on Apple silicon (Metal): ≈2.2 s per object, ≈9.4 GB peak for the whole
-application, word-for-word identical text across runs. Those are the only figures that exist, so
-that is the only platform the application is supported on. The README's "Packaging for Windows"
-section (a PyInstaller recipe) described a capability that no longer holds and is replaced by a
-"Platform" section.
-
-**A correction to the record:** during Phase 1 this was stated as "MLX exists only for macOS on
-Apple silicon". That was wrong: `mlx` 0.32.2 publishes Linux (x86_64, aarch64) and Windows (amd64,
-arm64) wheels with `cpu` and `cuda` extras. The constraint is therefore *unverified*, not
-*impossible*: whether the 4-bit model and `mlx-vlm`'s Gemma 4 code run on those backends, how fast
-(a CPU backend would be far slower) and whether the text stays deterministic are unknown.
-`requirements.txt` keeps installing `mlx` / `mlx-vlm` only on Apple-silicon macOS, so an install
-elsewhere does not pretend to be supported; the describer then stops with a message.
-
-To run elsewhere: MLX's CUDA/CPU backend on that platform, verified and re-measured on the seven
-frames; or a PyTorch build of the same model (`google/gemma-4-E4B-it` through `transformers`)
-behind `Describer_Backend_Cls`, likewise re-measured; or a different describer. The rest of the
-application (Qt, OpenCV, FastSAM/PyTorch, pypylon) is portable. No macOS packaging recipe has been
-verified; the application runs from source.
+Superseded by [*Platform: three states — measured, target, not a target*](#platform-three-states--measured-target-not-a-target)
+and [*Linux: MLX's CUDA backend, E4B on every card with ≥ 11 GB, refusal instead of a silent CPU fallback*](#linux-mlxs-cuda-backend-e4b-on-every-card-with--11-gb-refusal-instead-of-a-silent-cpu-fallback):
+MLX publishes Linux wheels, and the application runs on Linux on MLX's CUDA backend. The full entry is in git at
+`a85215c`.
 
 ## The caption lead-ins are removed
 
@@ -1262,28 +1103,27 @@ Tests `test/Reporting/test_core.py::test_the_description_is_kept_as_written_and_
 ## Platform: three states — measured, target, not a target
 
 "Supported" and "verified" are kept apart, because "chosen not to support" and "not yet
-verified" are different things. The previous entry treated every platform but Apple silicon as
-one unverified state; the platforms are now scoped separately:
+verified" are different things. Each platform has its own state; the measured figures are in
+README > Platform:
 
-- **macOS on Apple silicon — supported, measured.** MLX on the Apple GPU (Metal): 2.22 s per
-  object warm, 9.41 GB peak for the whole application, output identical word for word across
-  runs, processes and memory pressure.
-- **Linux — a supported target, unmeasured.** MLX runs there on a different backend (CUDA or
-  CPU), and nothing has been run on it: speed, memory and whether the text comes out identical
-  are unknown. On Linux `mlx` installs no compute backend by itself — the backend is an extra
-  (`mlx[cuda12]`, `[cuda13]` or `[cpu]`) chosen for the machine — so `requirements.txt` keeps
-  its macOS-only line, and the Linux line is added with the first measured Linux machine. The
-  README gives the install command meanwhile. Becoming *measured* means the same run over the
-  `Data/Images/Test` frames: time per object, peak memory, word-for-word stability.
+- **macOS on Apple silicon — supported, measured.** MLX on the Apple GPU (Metal), output identical
+  word for word across runs, processes and memory pressure.
+- **Linux — supported, verified on one machine (2026-09-29).** MLX's CUDA backend on an NVIDIA GPU
+  (*Linux: MLX's CUDA backend, E4B on every card with ≥ 11 GB, refusal instead of a silent CPU
+  fallback*). On Linux `mlx` installs no compute backend by itself — the backend is an extra
+  (`mlx[cuda12]`, `[cuda13]` or `[cpu]`) chosen for the machine, from one file per backend under
+  `requirements/` that `install.sh` selects.
 - **Windows — not a target, untested.** Nothing known prevents it (`mlx` publishes Windows
   wheels), but it is not supported and has never been tried.
 
 **Determinism is measured, not guaranteed.** Greedy decoding makes the sampler deterministic;
 it does not make the arithmetic identical across backends. A different backend can produce
 different text through floating-point differences inside the model, so word-for-word identical
-output is a measured property of the Apple-silicon build. On any new platform, everything pinned
+output is a measured property of each build. On any new platform, everything pinned
 to exact description text — tests and the characterization baseline — must be re-verified
 before it is trusted there.
+*History:* Linux was a supported target, unmeasured, with only the macOS line in `requirements.txt`, until the
+2026-09-29 run.
 
 ## Control stylesheets: every state rule names its fill and its label
 
@@ -1293,113 +1133,77 @@ if `:checked` is written later. A rule wins only for the properties it names. Pr
 leaves out still come from whichever rule is next in line.
 
 This broke every segmented control. The shared segment stylesheet had a hover rule that set
-only the background (`#f6f5fa`) and a `:checked` rule that set the fill to ink and the label to
-white. On a selected segment under the cursor, the hover rule won the background and `:checked`
-still supplied the label: **white on `#f6f5fa`, 1.08:1.** Pressing counts as hovering, so a press
+only the background and a `:checked` rule that set the fill to ink and the label to white. On a
+selected segment under the cursor, the hover rule won the background and `:checked` still supplied
+the label: **white on a near-white hover fill, 1.08:1.** Pressing counts as hovering, so a press
 on a selected segment failed in the same way. The rules looked correct in the file. The failure
 only showed in what Qt painted, and only when someone hovered.
 
 **The rule adopted:** a state rule sets the background *and* the label together, and a hover
 rule is scoped to `:checked` or `:!checked`. Then no state can pick up a label colour chosen for
-a different fill, whichever rule Qt ranks first. `Tool_Button_Cls` follows the same rule.
+a different fill, whichever rule Qt ranks first. `Tool_Button_Cls` follows the same rule. The
+trap had gone off in one class (`Segmented_Control_Cls`, shared by every segmented control); the
+tool buttons were rewritten as pairs anyway, so adding a label colour to some state later cannot set
+it off.
 
-**How far it reached:** one rule, in one class (`Segmented_Control_Cls`). It showed up in four
-places (view switch, Log filter, Annotated/Mask toggle, Captures filter) only because they share
-the class. ANALYZE was the obvious suspect, since it is filled like a selected segment and its
-hover rule also set only the background. It measured **11.23:1**. Nothing else on an enabled
-button set a competing label colour, so there was nothing to leak. The pattern was a trap that
-had gone off in one place, not a bug in every stylesheet. The tool buttons were rewritten as
-pairs anyway, so adding a label colour to some state later cannot set it off.
+**The controls today** are outlined in the one purple `#640ABA`, as the brand's buttons are: a plain
+button and an unselected segment in a 1 px purple rule (neighbouring segments share one), ANALYZE in
+a 2 px one, all on the white card with a purple label (9.15:1). A hovered plain button fills
+grey-lilac (6.79:1), a pressed one periwinkle (5.71:1); a selected segment, and a hovered or pressed
+ANALYZE, fill purple under a white label (9.15:1). With one purple there is no darker hover fill, so
+a selected segment's hover keeps the selected look: clicking it does nothing. Disabled labels are
+`#B4A6BE` (2.30:1, exempt), their rule the divider grey-lilac.
 
 **Measured, not read.** `test/UI/test_control_contrast.py` builds the real window and drives
 every control through rest, hover, pressed, focus, disabled, and disabled with the cursor on it.
 Segmented controls are measured with a segment selected and one unselected. It renders each state
-at 2× and measures the label area's pixels. Two traps for anyone writing such a test:
+at 2× and measures the label area's pixels. Every enabled state is held to **4.5:1**. Its
+self-check that every hover changes pixels exempts the selected segments by name and still holds
+every other control to it. Two traps for anyone writing such a test:
 
 - In Qt 5.15, `QPushButton` reports hover only after a `MouseMove` while `WA_UnderMouse` is set.
   Setting the attribute alone renders the resting state, and the test passes without testing
   anything.
-- A control the app keeps hidden, such as the view toggle before an analysis, can render stale
+- A control the app keeps hidden, such as the view selector before an analysis, can render stale
   the first time. The test shows it first.
-
-Every enabled state is held to **4.5:1**. The lowest is 10.08:1, a focused selected segment.
 
 **Disabled states are exempt from 4.5:1, by decision.** Low contrast is how a disabled control
 says it is unavailable. Holding it to 4.5:1 would make it look active. It is held instead to
 looking different from its enabled self: ΔE76 ≥ 12 in label or fill, the project's distinctness
 floor. It must also look the same whether or not the cursor is on it, so a CONNECT that disables
 itself under the pointer stays visibly disabled. The exemption is a named constant in the test
-(`CONST_EXEMPT_STATES`) with its reason. Measured disabled values:
+(`CONST_EXEMPT_STATES`) with its reason. **Exempt means the fill or the rule signals, not that the
+label disappears:** a disabled label should read as greyed, never as the fill's own colour.
+*History:* before the JIC Smart Factory palette (2026-10-14) the controls were filled, not outlined;
+disabled ANALYZE first shipped with a label at 1.46:1 on its fill, nearly invisible, and was given
+the muted ink.
 
-| disabled | label on fill | contrast | ΔE to enabled (label / fill) |
-|---|---|---|---|
-| unselected segment, plain button | `#b6b2ca` on `#ffffff` | 2.06:1 | 59.7 / 0.0 |
-| selected segment | `#b6b2ca` on `#2b2455` | 6.87:1 | 29.5 / 0.0 |
-| ANALYZE (primary) | `#8983a6` (`CONST_INK_MUTE`) on `#cbc8db` | 2.19:1 | 48.1 / 68.0 |
-
-**Exempt means the fill signals, not that the label disappears.** Disabled ANALYZE first shipped
-with a `#f2f1f6` label on its `#cbc8db` fill: 1.46:1, ΔE 5.3 from the enabled label. It was nearly
-invisible instead of looking greyed out. It was not a deliberate pairing. Both values arrived as
-bare literals in a commit about the Annotated/Mask toggle (`94b74fa`), with no comment or reason,
-apparently each lightened on its own to "fade" the button. The fill already carries the disabled
-signal (ΔE 68 from enabled), so the label is now the existing `CONST_INK_MUTE`: 2.19:1, clearly
-muted and still readable. The more legible `#6b6590` (3.30:1) was turned down because it would
-add a colour to the palette for one state, for little gain. A disabled label should read as
-greyed. It should not be the fill's own colour.
-
-Revisit this if a disabled control has no fill change to carry the signal, since then the label
-has to do it alone. Also revisit it if the console moves to a different Qt version. The hover
+Revisit this if a disabled control has no fill or rule change to carry the signal, since then the
+label has to do it alone. Also revisit it if the console moves to a different Qt version. The hover
 simulation was checked against Qt 5.15's `QPushButton` only, so on another version, confirm the
 hovered renders still differ from the resting ones first. The test's self-check fails if they
 don't.
 
-*Corrected 2026-10-14, the JIC Smart Factory palette:* the controls are outlined in the one purple `#640ABA`, as the
-brand's buttons are: a plain button and an unselected segment in a 1 px purple rule (neighbouring segments share
-one), ANALYZE in a 2 px one, all on the white card with a purple label (9.15:1). A hovered plain button fills
-grey-lilac (6.79:1), a pressed one periwinkle (5.71:1); a selected segment, and a hovered or pressed ANALYZE, fill
-purple under a white label (9.15:1). With one purple there is no darker hover fill, so a selected segment's hover
-keeps the selected look: clicking it does nothing. The harness's self-check that every hover changes pixels exempts
-the selected segments by name and still holds every other control to it. Disabled labels are `#B4A6BE` (2.30:1,
-exempt), their rule the divider grey-lilac.
-
 ## One configuration file per mode, one calibration per camera, decided before the first CONNECT
 
-*Corrected 2026-10-11: the camera block and the background reference are no longer in the mode file. They
-are the station's, in `Station_<Hardware>.yaml` beside it, shared by every mode and never overridden by one
-([*The station file holds the camera and the reference…*](#the-station-file-holds-the-camera-and-the-reference-and-a-mode-file-never-overrides-it)).
-The rest of this entry stands.*
-
-*Corrected 2026-10-13: the calibration is no longer found by the hardware beside the mode file, and is no
-longer optional. The station file names it (`Calibration`), the mode file names the station (`Station`),
-each kind in its own folder; nothing loads uncalibrated, and `calibrate.py` reads the station's camera alone,
-so a new camera can still be calibrated. `Write_Calibration` now refuses any existing file
-([*The configuration is a chain of references…*](#the-configuration-is-a-chain-of-references-mode--station--calibration-each-kind-in-its-own-folder)).
-"Calibration lives once per camera, and is optional as a whole" below is superseded by that entry; the
-rest stands.*
-
-**The layout.** A configuration is one file per mode on one camera:
-`Config_<Hardware>_Mode_<Mode>.yaml`. The hardware comes first so camera-specific data still
-separates by camera, and the mode comes after so it stays visible. It holds everything a user
-may change without touching code:
-
-- segmentation, fusion and the background reference
-- the describer's model, prompts and limits
-- the configuration's display name, model set and Task
-- the confidence thresholds
-- the camera block: acquisition settings, and the camera, lens and lighting as a person names them
-
+**The layout.** A configuration is one file per mode on one camera,
+`Config_<Hardware>_Mode_<Mode>.yaml`, in `Configuration/Mode/`. The hardware comes first so
+camera-specific data still separates by camera, and the mode comes after so it stays visible. It
+holds what a mode may change without touching code: segmentation and fusion, the describer's model,
+prompts and limits, the display name, model set and Task, and the confidence thresholds. The camera,
+the background reference and the calibration in force are the station's, never the mode's
+([*The station file holds the camera and the reference, and a mode file never overrides it*](#the-station-file-holds-the-camera-and-the-reference-and-a-mode-file-never-overrides-it)),
+and the files name each other
+([*The configuration is a chain of references, mode → station → calibration, each kind in its own folder*](#the-configuration-is-a-chain-of-references-mode--station--calibration-each-kind-in-its-own-folder)):
+one calibration file per solve, every mode on the station reading it, and nothing loads uncalibrated.
 Every value that moved into the file from a module constant kept its value. The shipped file sets
 each one explicitly, and `test/Configuration` pins them.
 
-**One reader, the whole file.** `Configuration.Core.Load_Configuration` is the **only** reader. It
-supersedes the readers named in earlier entries (`Read_Classification_Enabled`,
-`Read_Conversion_Factor`, `Read_Describer_Prompts`) and `Describer_Prompts.yaml`. It validates the
-whole file and raises once with every problem listed, so a file wrong halfway through is never
-applied halfway.
+**One reader, the whole chain.** `Configuration.Core.Load_Configuration` is the **only** reader. It
+validates the whole chain and raises once with every problem listed, so a file wrong halfway through
+is never applied halfway.
 
-- A **required** field has no default: its absence fails the load, naming it. The required fields
-  are the hardware, both model paths, both prompts, the display name and model set, the camera's
-  acquisition settings and the background reference.
+- A **required** field has no default: its absence fails the load, naming it.
 - An **optional** field takes its documented default and says so in the log.
 - A value that is **present but invalid** fails the load. **This strictness is deliberate.** The old
   readers read a non-boolean `Classification.Enabled` as false, and a negative conversion factor as
@@ -1408,34 +1212,17 @@ applied halfway.
 - An **unrecognised key** is a warning, because a misspelt optional field would otherwise default
   in silence.
 
-**Calibration lives once per camera, and is optional as a whole.**
-- It is in `Calibration_<Hardware>.yaml`, and every mode naming that hardware reads it. With a copy
-  inside each mode file, recalibrating one mode would leave the other measuring with a stale scale,
-  silently. That is the failure the measurement work exists to prevent.
-- A hardware **without** a calibration file loads with a warning to run `calibrate.py`. Frames are
-  not undistorted, because the camera passes them through when there is no K. Objects are not
-  measured. This is the honest degraded state. It is also what lets `calibrate.py --capture` run for
-  a new camera: otherwise the tool that produces calibration would refuse to run without one.
-- A calibration file that **exists** must be complete.
-- `calibrate.py` writes the calibration file and nothing else. `Write_Calibration` refuses to
-  overwrite keys it doesn't own; its predecessor assumed its block was last in the file and rewrote
-  everything below it.
+**The background reference is stated, never discovered.** The station's `Background.Reference` is
+required, and its file must exist. The reference decides every background-subtraction result, and
+without it the pipeline loses one of its two fusion cues. The glob (`Image_Background_*.png`) and its
+highest-index selection rule were **removed**, along with `--background` on `run.py` and
+`analyze.py`. They existed to resolve an ambiguity — several references, which one? — that the field
+ends. Two ways of choosing the reference would bring the ambiguity back, so **do not reintroduce
+discovery as a convenience**. The reference is logged beside the calibration on every load and
+recorded in every capture set.
 
-**The background reference is stated, never discovered.** `Segmentation.Background.Reference` is
-required, and its file must exist. It is the one path checked at load, because the repository
-tracks it; models are only checked when they load. The reference decides every
-background-subtraction result, and without it the pipeline loses one of its two fusion cues.
-
-The glob (`Image_Background_*.png`) and its highest-index selection rule were **removed**, along
-with `--background` on `run.py` and `analyze.py`. They existed to resolve an ambiguity — several
-references, which one? — that the field now ends. Two ways of choosing the reference would bring
-the ambiguity back, so **do not reintroduce discovery as a convenience**. The reference is logged
-beside the calibration on every load and recorded in every capture set.
-
-**Keyed by hardware.** The run-summary CSV is `log_<Hardware>.csv`, which keeps the existing file
-name, and two modes share it. That is safe because the row is a time account. The CSV path is fixed
-when the logger starts, so the dialog greys out configurations for other hardware; changing camera
-means restarting with `--config`.
+**Keyed by hardware.** The run-summary CSV is `log_<Hardware>.csv`, shared by the modes on one camera
+(*The run-summary CSV is named after the loaded configuration*).
 
 **Configuration is decided before the first CONNECT, and fixed for the run.**
 - CONNECT is disabled until a configuration is loaded: the camera settings, the calibration and the
@@ -1466,7 +1253,7 @@ loaded. Measured on the real weights:
 
 | Measurement | Result |
 |---|---|
-| Load on a worker thread | 6.8 s (*Corrected 2026-09-26:* 9.4–10.0 s since the load also warms up the models — see *The first analysis's one-time costs are paid at configuration load*; 6.8 s was the load without it) |
+| Load on a worker thread, with the warm-up (*The first analysis's one-time costs are paid at configuration load*) | 9.4–10.0 s |
 | Analyse on another thread | 5.8 s, with no load stage |
 | GPU memory after a failed swap and reload | back at 5.15 GB |
 
@@ -1474,10 +1261,13 @@ loaded. Measured on the real weights:
 numbers coloured by the thresholds in force **now**, not those in force when it was captured. That
 is defensible because the thresholds are a viewing preference. The numbers themselves are stored
 unchanged, and each set names its configuration.
+*History:* the mode file once held the camera block and the background reference
+(`Segmentation.Background.Reference`), and the calibration was found by hardware beside it
+(`Calibration_<Hardware>.yaml`) and was optional; both moved to the station chain (2026-10-11 and
+2026-10-13).
 
 Revisit the startup-only rule if a configuration ever has to change mid-run (it would need
-per-configuration run data). Revisit the hardware greying if the CSV path is ever resolved at
-shutdown rather than at startup.
+per-configuration run data).
 
 ## The object crop padding stays at 0.20 for Gemma
 
@@ -1561,7 +1351,7 @@ table — is **not built**.
 
 ## `Verdict`'s confidence branch stays dormant: a mask score is not a confidence
 
-`Reporting.Core.Verdict` degrades the operator badge to `'Low confidence' / 'warn'` when any
+`Reporting.Core.Badges` (whose first badge `Verdict` returns) degrades the operator badge to `'Low confidence' / 'warn'` when any
 detection's `Confidence` is below 0.35. Nothing sets `Confidence`: the describer (Gemma, like
 Florence-2 before it) emits no score, and the FastSAM mask score is stored in the separate
 `Detection_Str.Segmenter_Score`. So the branch never fires, and that is deliberate.
@@ -1580,7 +1370,7 @@ Tests `test/Reporting/test_core.py::test_verdict_levels` (the branch itself, fed
 ## Analysis requires a background reference; the whole-frame detector was removed
 
 Every path through `Vision_Pipeline_Cls.Analyze` runs stage 1, background subtraction against the
-configured `Segmentation.Background.Reference`, which the configuration requires. There is no analysis
+station's `Background.Reference`, which the configuration requires. There is no analysis
 without a reference.
 
 **Why.** Until commit `58bed68` a second detector, `CONST_DETECTOR == 'florence'`, ran Florence-2's
@@ -1611,8 +1401,7 @@ put its heading below the text it headed until it got its own tokens (commit `3c
 History use **separate** token sets on purpose — Live is glanced at across a workbench and runs large
 (descriptions 12.5 pt), History is read up close while comparing two images (10.5 pt) — so the same
 description is deliberately a different size in the two views, and tuning one distance cannot move
-the other. Chrome was never put on the scale (32 of its `Font()` calls use literal sizes, most off the
-scale); holding it to one now would be a restyle of every widget, with no reading hierarchy at stake.
+the other. Chrome was never put on the scale (its `Font()` calls use literal sizes, most off the scale); holding it to one now would be a restyle of every widget, with no reading hierarchy at stake.
 
 **Revisit if** a chrome element starts carrying content (it then takes a named token), if the
 chrome's literal sizes start drifting into visible inconsistency between widgets of one kind (a case
@@ -1622,31 +1411,13 @@ Tests `test/UI/test_history.py::test_info_panel_type_hierarchy_heading_is_larges
 
 ## models/ is out of reach of the installer tests, and the suite fails if it changes
 
-On 2026-09-24 the repository's `models/` was emptied during a working session: the Gemma weights
-(5.1 GB) and FastSAM, both git-ignored and so beyond git's reach. On 2026-09-25 it was emptied
-again, the 12B included. **Both times it was manual, confirmed by the user:** they deleted `models/`
-by hand and put it back themselves. It was not a code problem either time. `logger/` went the
-first afternoon, in circumstances consistent with the same manual tidying, but that is not
-confirmed. The logs are not recoverable.
-
-The suite was ruled out both times. The second time it was the `models_untouched` fixture below: it
-takes the inventory of `models/` before the first test and compares it after the last, so every green
-run that session was itself the evidence that the suite had not touched the weights. The first time,
-before the fixture existed, it took an investigation: `git worktree remove --force` does not follow a
-symlinked `models/`; nothing in the suite, the harnesses or the installer deletes a directory (the
-installer's only destructive operations are `rm -f` of its own temporary and `.part` files, replacing
-the FastSAM file, and `hf --force-download` over single Gemma files).
-Both restores were checked file by file against the manifests in `install.sh`.
-
-**What the investigation did find** is one real exposure, now closed: the installer tests sourced the
-real `install.sh`, so `CONST_ROOT` pointed at the real repository until each test overrode it. Every
-test did — but by convention only, and a test that forgot would have run the installer's writes
-against the real `models/`. That was not the cause, but it is removed by construction rather than by
-discipline.
-
-Two measures make `models/` structurally out of reach of the suite, instead of a note asking to be
-careful. Neither can stop a manual deletion; the second answers, on the run itself, whether the suite
-made one:
+The repository's `models/` (the Gemma weights and FastSAM, git-ignored and so beyond git's reach) is
+structurally out of reach of the suite, instead of a note asking to be careful. On 2026-09-24 and
+2026-09-25 it was emptied during working sessions; **both times it was manual, confirmed by the
+user**, and the suite was ruled out (the second time by the fixture below; the first by an
+investigation: nothing in the suite, the harnesses or the installer deletes a directory). Both
+restores were checked file by file against the manifests in `install.sh`. The investigation found
+one real exposure, now closed by construction rather than by discipline:
 
 - **The installer tests source a copy of `install.sh` inside their sandbox.** `CONST_ROOT` is resolved
   from the script's own location, so the copy's root *is* the sandbox from its first line. Before, the
@@ -1658,11 +1429,12 @@ made one:
   when the weights are present), so there is nothing further to prevent — but a repeat is now attributed
   to the run that caused it, immediately.
 
+Neither can stop a manual deletion; the second answers, on the run itself, whether the suite made one.
+
 **Revisit if** the guard ever fails (it then names the run and the files), or if a test ever needs to
 write under `models/` (it must use its own `tmp_path`, and the guard would fail it otherwise).
 Tests `test/Install/test_install.py::test_the_sandboxed_script_resolves_its_root_to_the_sandbox`; the
 `models_untouched` fixture in `test/conftest.py` runs with every session.
-
 
 ## The architecture diagram is generated from the theme, carries the real logo, and is linked from the README
 
