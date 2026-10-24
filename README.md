@@ -304,10 +304,10 @@ each object before stage 4, then describes it with what the checks found. The th
 
 ## Repository layout
 
-`Data/` is input and output, `images/` documentation, `models/` yours to supply; below, also how figures are rebuilt.
-
 <details>
-<summary><b>The folders</b>: what is committed, what is git-ignored, and the packages under <code>src/</code></summary>
+<summary><b>The folders</b>: what is committed, what is git-ignored, the packages under <code>src/</code>, the figures</summary>
+
+`Data/` is input and output, `images/` is documentation, and only `models/` is supplied by you.
 
 ```text
 App/run.py                the application (entry point)
@@ -355,8 +355,10 @@ expectations: they refer to the frames by name.
 
 ## Authors
 
-Roman Parák ([rparak](https://github.com/rparak)), the author, with the contributors
-[LukasMoravansky](https://github.com/LukasMoravansky), [vojtechmarek13](https://github.com/vojtechmarek13) and [piifl](https://github.com/piifl).
+<table><tr><td align="center"><a href="https://github.com/rparak"><img src="https://avatars.githubusercontent.com/rparak" width="120px;" alt="Roman Parak"/><br /><strong>Roman Parak</strong></a><br />Author</td>
+<td align="center"><a href="https://github.com/LukasMoravansky"><img src="https://avatars.githubusercontent.com/LukasMoravansky" width="120px;" alt="Lukas Moravansky"/><br /><strong>Lukas Moravansky</strong></a><br />Contributor</td>
+<td align="center"><a href="https://github.com/vojtechmarek13"><img src="https://avatars.githubusercontent.com/vojtechmarek13" width="120px;" alt="Vojtěch Marek"/><br /><strong>Vojtěch Marek</strong></a><br />Contributor</td>
+<td align="center"><a href="https://github.com/piifl"><img src="https://avatars.githubusercontent.com/piifl" width="120px;" alt="Filip Rusnak"/><br /><strong>Filip Rusnak</strong></a><br />Contributor</td></tr></table>
 
 ## Funding
 

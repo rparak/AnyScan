@@ -40,7 +40,7 @@ The one list of what makes a change update the README (feature-manager's `projec
 | a limitation found, measured or lifted | *Limitations* (and KNOWN_ISSUES, the DD) | - |
 | a root entry, a folder, a committed asset | *Repository layout* (its `<details>`, with the packages under `src/`) | - |
 | the test layers or their commands | *Tests* | - |
-| an author or a contributor added (the owner's word only) | *Authors* | - |
+| an author or a contributor added or renamed (the owner's words only) | *Authors* (a cell: avatar, name, role) | - |
 
 ## Statuses
 
@@ -79,10 +79,19 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
 - **Commands** are written for the environment `./install.sh` creates, activated with
   `source .venv/bin/activate` right after it (`python ...`, `pytest`).
 - **Authors** stands just before *Funding* (readme-writer has no Authors rule; its Acknowledgements, who
-  contributed or funded, sit there): Roman Parák, the author, linked to https://github.com/rparak, then the
-  contributors LukasMoravansky, vojtechmarek13 and piifl, each shown by their GitHub username linked to their
-  profile, no full name invented (the owner's ruling, 2026-10-24). `LICENSE`'s copyright holder (JIC Smart
-  Factory) is separate and unchanged.
+  contributed or funded, sit there). It is one HTML table row of four centred cells, in this order, each the
+  GitHub avatar (`https://avatars.githubusercontent.com/<username>`, `width="120px;"`, alt the name), the
+  name in bold linked to the profile, and the role below: Roman Parak, Author (`rparak`); Lukas Moravansky,
+  Contributor (`LukasMoravansky`); Vojtěch Marek, Contributor (`vojtechmarek13`); Filip Rusnak, Contributor
+  (`piifl`). The names and roles are the owner's words, exactly (the owner's ruling, 2026-10-24); none is
+  added or changed without the owner. `LICENSE`'s copyright holder (JIC Smart Factory) is separate and
+  unchanged.
+- **Checker exception, Authors only** (the owner's ruling, 2026-10-24): `check_readme.py` treats each
+  avatar as a figure and reports 8 ERRORs on the four cells, `alt-text` (2-3 words, 12 needed) and
+  `caption` (no "Figure N:"). They are allowed there and nowhere else: an avatar is an identifying
+  portrait, not a figure, so its alt is the person's name and it carries no caption. The checker has no
+  per-section suppression, so the baseline is 8 errors, every one on an Authors cell; any other ERROR is
+  a defect. The avatars are external images (GitHub's avatar service), the README's only ones.
 - **Funding** reads: "AnyScan was developed at JIC within the EDIH-DIGIMAT project.", Figure 2, its
   caption, then the EU disclaimer word for word as `Funding_Row_Cls.DISCLAIMER` holds it. The window's
   band does not carry the disclaimer; the README and Figure 2's source do.
@@ -113,7 +122,7 @@ Commands:
 
 ```bash
 .venv/bin/python -m pytest -q test/UI/test_brand_figures.py test/UI/test_funding_band.py
-.venv/bin/python ~/.claude/skills/readme-writer/scripts/check_readme.py README.md   # 0 errors, 1 warning (above)
+.venv/bin/python ~/.claude/skills/readme-writer/scripts/check_readme.py README.md   # 8 errors (the Authors exception, above), 1 warning
 <throwaway python with cmarkgfm> ~/.claude/skills/readme-writer/scripts/render_readme.py README.md   # 0 leftovers, 2026-10-24
 ```
 
