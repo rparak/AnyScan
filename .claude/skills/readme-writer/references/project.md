@@ -8,8 +8,8 @@ name, so a copy here would be ignored and drift.
 
 - **Main reader: the person setting up and running a station** - Setup, Run, Configuration, Captures
   on the rig, Platform.
-- Others: integrators (Configuration, the records, Swapping a component), maintainers (Tests,
-  Detection logic, Repository and Source layout), funders and partners (Funding).
+- Others: integrators (Configuration, Swapping a component), maintainers (Tests, Detection logic,
+  Repository layout), funders and partners (Funding).
 
 ## Sources of numbers
 
@@ -17,7 +17,7 @@ name, so a copy here would be ignored and drift.
 |---|---|---|
 | Platform: per-object times, memory peaks, GPU minimum, identical output across runs | DD entries of the measured runs (macOS; Linux 2026-09-29, commit `3cec51a`) | - (by hand) |
 | Limitations: size errors, scale, the side-wall term, tolerances | the DD and KNOWN_ISSUES entries behind each limitation (not linked) | - (by hand) |
-| Model and download sizes (5.2 GB, 140 MB, 346 MB) | `install.sh` constants and the Setup instructions | - (by hand) |
+| Model and download sizes (5.2 GB, 145 MB, 346 MB) | `install.sh` constants and the Setup instructions | - (by hand) |
 | The test set: 41 frames, `Image_055`-`095` | `Data/Images/Test/` | `test/integration/test_pipeline.py::test_the_inventory_names_every_frame_of_the_test_set` |
 | The EU disclaimer | `UI.Widgets.Funding_Row_Cls.DISCLAIMER` | `test/UI/test_funding_band.py` |
 
@@ -34,11 +34,11 @@ The one list of what makes a change update the README (feature-manager's `projec
 | the theme, the type scale, the pixel icons, a logo | Figure 1 and Figure 2 | `.venv/bin/python Example/UI/architecture_diagram.py` |
 | the funding logos or `Funding_Row_Cls.DISCLAIMER` | *Funding* (Figure 2 and the disclaimer, word for word) | `.venv/bin/python Example/UI/architecture_diagram.py` |
 | `install.sh`, `requirements*.txt`, a model or its size | *Setup*, *Platform* | - |
-| an option of `App/run.py` or an `Example/` script | *Run*, *Captures on the rig* | - |
+| an option of `App/run.py` or an `Example/` script | *Run*, *Captures on the rig*, *Tests* | - |
 | a configuration file name, kind or link | *Configuration* | - |
 | a measured run on a platform | *Platform* (the table and its numbers) | - |
 | a limitation found, measured or lifted | *Limitations* (and KNOWN_ISSUES, the DD) | - |
-| a root entry, a folder, a committed asset | *Repository layout*, *Source layout* | - |
+| a root entry, a folder, a committed asset | *Repository layout* (its `<details>`, with the packages under `src/`) | - |
 | the test layers or their commands | *Tests* | - |
 
 ## Statuses
@@ -65,10 +65,18 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
 
 ## Rules
 
-- **The diagram** is shown at the top, before Setup, with the paragraph that says two cues are fused
-  and links *Detection logic* and *Source layout*.
-- **Detection logic** walks the stages in `text` diagrams naming each stage's module and function;
-  `.claude/project-docs/SPEC.md` > *Pipeline stages* lists them one line each, and the two agree.
+- **The top block**: Figure 1 and its caption, the paragraph that says two cues are fused and links
+  *Detection logic* and the poster, one `[!IMPORTANT]` alert repeating only the must-not-miss part of
+  *Limitations*, then the Contents line.
+- **Detection logic** states the stages briefly: the shared stages in one `text` block naming each
+  stage's module and function, and the catalogue stages, one numbered item each with their thresholds,
+  in a `<details>` block; `.claude/project-docs/SPEC.md` > *Pipeline stages* lists them one line each,
+  and the two agree.
+- **Headings cited from elsewhere stay as they are**: *Setup*, *Platform*, *Limitations* and *Licence
+  note* are named in operator messages and code comments ("README > Setup"), and SPEC links `#setup`,
+  `#limitations`, `#platform` and `#detection-logic` (checked by `test_capabilities_doc.py`).
+- **Commands** are written for the environment `./install.sh` creates, activated with
+  `source .venv/bin/activate` right after it (`python ...`, `pytest`).
 - **Funding** reads: "AnyScan was developed at JIC within the EDIH-DIGIMAT project.", Figure 2, its
   caption, then the EU disclaimer word for word as `Funding_Row_Cls.DISCLAIMER` holds it. The window's
   band does not carry the disclaimer; the README and Figure 2's source do.
@@ -78,9 +86,11 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
   `.claude/project-docs/`, and never the Claude Code skills. A fact the README needs is stated where it
   is used; a reader who needs more reads the code and its comments.
 - The root layout is project-style-rpx `project.md` > *Root*; this file does not repeat it.
-- **Departures, kept for now**: the length (765 visible lines against the generic 250 budget, no
-  `<details>`), the owner's ruling of 2026-10-23.
-- **Checker false positive**: `5.0.0.93` (line ~54, the opencv-python-headless version) is reported as
+- **Length**: within the generic 250-line budget (250 visible lines, 2026-10-24), with four `<details>`
+  blocks: the setup by hand, the catalogue stages, the Linux measurement and the repository's folders
+  (the owner's ruling of 2026-10-24, lifting the 2026-10-23 departure). Platforms, `./install.sh`,
+  the alert and the limitations stay visible.
+- **Checker false positive**: `5.0.0.93` (line ~62, the opencv-python-headless version) is reported as
   an IP address; it is a version.
 
 ## README tests
@@ -97,8 +107,8 @@ Commands:
 
 ```bash
 .venv/bin/python -m pytest -q test/UI/test_brand_figures.py test/UI/test_funding_band.py
-.venv/bin/python ~/.claude/skills/readme-writer/scripts/check_readme.py README.md   # 0 errors, 2 warnings (above)
-<throwaway python with cmarkgfm> ~/.claude/skills/readme-writer/scripts/render_readme.py README.md   # 0 leftovers, 2026-10-23
+.venv/bin/python ~/.claude/skills/readme-writer/scripts/check_readme.py README.md   # 0 errors, 1 warning (above)
+<throwaway python with cmarkgfm> ~/.claude/skills/readme-writer/scripts/render_readme.py README.md   # 0 leftovers, 2026-10-24
 ```
 
 ## Pointers

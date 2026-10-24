@@ -81,7 +81,7 @@ and *Formats*, and are not repeated here.
 
 `Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) runs each frame through four numbered stages,
 then composes and measures. The numbers are the ones the README and the mode file's comments use.
-[README > Detection logic](../../README.md#detection-logic) has the diagram and the detail.
+[README > Detection logic](../../README.md#detection-logic) has the stages and their thresholds.
 
 - **Before the stages: undistortion.** When a calibration is in force, the camera undistorts every
   frame before anything else sees it.
