@@ -10,10 +10,10 @@ the same name, so a copy here would be ignored and drift.
 AnyScan has no `.claude/project-docs/SPEC.md` (project-style-rpx `project.md` > *Records*). Where the
 generic skill says SPEC, read:
 
-- **`docs/capabilities.md`** - what the application does, its configuration tables, views, records and
+- **`.claude/project-docs/SPEC.md`** - what the application does, its configuration tables, views, records and
   hardware; held to the code by `test/integration/test_capabilities_doc.py`.
-- **`docs/design-decisions.md`** (DD) - why; **`KNOWN_ISSUES.md`** - what is open;
-  **`docs/capture-checklist.md`** - what only the rig can show.
+- **`.claude/project-docs/design-decisions.md`** (DD) - why; **`.claude/project-docs/KNOWN_ISSUES.md`** - what is open;
+  **`.claude/project-docs/capture-checklist.md`** - what only the rig can show.
 
 ## What the output is
 
@@ -57,15 +57,15 @@ frame of three.
 
 - *Filtering after identification instead of changing segmentation*: decide what to keep once the
   objects are found and identified, rather than retuning the stage that finds them. See
-  [*A catalogue mode identifies by similarity, and an object of the part's shape that does not look like it is NOK*](../../../../docs/design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok):
+  [*A catalogue mode identifies by similarity, and an object of the part's shape that does not look like it is NOK*](../../../project-docs/design-decisions.md#a-catalogue-mode-identifies-by-similarity-and-an-object-of-the-parts-shape-that-does-not-look-like-it-is-nok):
   FastSAM and the fusion keep finding every object; DINOv2 and the rule decide which is the part.
 - *Measuring a threshold before moving it*: see
-  [*The colour-name saturation cutoff is 120…*](../../../../docs/design-decisions.md#the-colour-name-saturation-cutoff-is-120-and-was-not-tuned-for-the-red-block),
-  [*The object crop padding stays at 0.20 for Gemma*](../../../../docs/design-decisions.md#the-object-crop-padding-stays-at-020-for-gemma),
-  and route 2 in [*Touching parts merge before the closing*](../../../../KNOWN_ISSUES.md#touching-parts-merge-before-the-closing):
+  [*The colour-name saturation cutoff is 120…*](../../../project-docs/design-decisions.md#the-colour-name-saturation-cutoff-is-120-and-was-not-tuned-for-the-red-block),
+  [*The object crop padding stays at 0.20 for Gemma*](../../../project-docs/design-decisions.md#the-object-crop-padding-stays-at-020-for-gemma),
+  and route 2 in [*Touching parts merge before the closing*](../../../project-docs/KNOWN_ISSUES.md#touching-parts-merge-before-the-closing):
   a larger `Image_Size` looked like the fix and cost frames that counted correctly.
 - *A larger model that wasn't better*: see
-  [*Gemma 4 12B was measured against E4B and is not better…*](../../../../docs/design-decisions.md#gemma-4-12b-was-measured-against-e4b-and-is-not-better-e4b-stays-the-describer).
+  [*Gemma 4 12B was measured against E4B and is not better…*](../../../project-docs/design-decisions.md#gemma-4-12b-was-measured-against-e4b-and-is-not-better-e4b-stays-the-describer).
 
 ## Domain checklist
 
@@ -74,28 +74,28 @@ Each item links to where it happened here. Read the record; it is not retold.
 **Vision**
 
 - [ ] Lighting and the reference match:
-      [*The background reference carries its provenance…*](../../../../docs/design-decisions.md#the-background-reference-carries-its-provenance-harnesses-capture-through-the-apps-path).
+      [*The background reference carries its provenance…*](../../../project-docs/design-decisions.md#the-background-reference-carries-its-provenance-harnesses-capture-through-the-apps-path).
 - [ ] Calibration and the frame window match:
-      [*The configuration sets the camera's sensor window*](../../../../docs/design-decisions.md#the-configuration-sets-the-cameras-sensor-window).
+      [*The configuration sets the camera's sensor window*](../../../project-docs/design-decisions.md#the-configuration-sets-the-cameras-sensor-window).
 - [ ] Precision shown versus precision measured:
-      [*Sizes keep full precision…*](../../../../docs/design-decisions.md#sizes-keep-full-precision-only-the-display-rounds-to-a-fixed-two-decimals)
+      [*Sizes keep full precision…*](../../../project-docs/design-decisions.md#sizes-keep-full-precision-only-the-display-rounds-to-a-fixed-two-decimals)
       and [README > Limitations](../../../../README.md#measurements-are-repeatable-not-absolute).
 - [ ] Results from one table's frames generalising:
-      [*The fusion's parameters are validated on one table under one light*](../../../../KNOWN_ISSUES.md#the-fusions-parameters-are-validated-on-one-table-under-one-light).
+      [*The fusion's parameters are validated on one table under one light*](../../../project-docs/KNOWN_ISSUES.md#the-fusions-parameters-are-validated-on-one-table-under-one-light).
 - [ ] Parts touching:
-      [*Touching parts merge before the closing*](../../../../KNOWN_ISSUES.md#touching-parts-merge-before-the-closing)
-      and [*The closing never joins two components*](../../../../docs/design-decisions.md#the-closing-never-joins-two-components).
+      [*Touching parts merge before the closing*](../../../project-docs/KNOWN_ISSUES.md#touching-parts-merge-before-the-closing)
+      and [*The closing never joins two components*](../../../project-docs/design-decisions.md#the-closing-never-joins-two-components).
 
 **AI**
 
 - [ ] Prompts that prime the answer (expected values, checklists recited back): the checklist echo in
-      [*Gemma 4 12B was measured against E4B…*](../../../../docs/design-decisions.md#gemma-4-12b-was-measured-against-e4b-and-is-not-better-e4b-stays-the-describer),
-      and [*Gemma reads some through-holes as "a central green element"*](../../../../KNOWN_ISSUES.md#gemma-reads-some-through-holes-as-a-central-green-element),
+      [*Gemma 4 12B was measured against E4B…*](../../../project-docs/design-decisions.md#gemma-4-12b-was-measured-against-e4b-and-is-not-better-e4b-stays-the-describer),
+      and [*Gemma reads some through-holes as "a central green element"*](../../../project-docs/KNOWN_ISSUES.md#gemma-reads-some-through-holes-as-a-central-green-element),
       where wording tuned to one frame made another worse.
 - [ ] A describer is not a detector:
       [README > Limitations](../../../../README.md#the-describer-is-not-a-defect-detector).
 - [ ] Model comparisons on the same crops and settings:
-      [*E4B stays the describer on both machines…*](../../../../docs/design-decisions.md#e4b-stays-the-describer-on-both-machines-the-owners-choice-one-wrong-statement-ahead-of-the-12b).
+      [*E4B stays the describer on both machines…*](../../../project-docs/design-decisions.md#e4b-stays-the-describer-on-both-machines-the-owners-choice-one-wrong-statement-ahead-of-the-12b).
 - [ ] Provenance of weights: the pinned revision and the licence check in
       [README > Describer model](../../../../README.md#describer-model) and [Licence note](../../../../README.md#licence-note).
 - [ ] Gemma is not deterministic (MLX on macOS, the GPU on Linux): a before/after comparison of its
@@ -107,13 +107,13 @@ Each item links to where it happened here. Read the record; it is not retold.
       accuracy. See the catalogue entry above, *Why step 3 has no lower bound*: a same-sized foreign
       object reads NOK, not Warning, because that is the safer error.
 - [ ] A test set changed without its inventory:
-      [*A replaced image never keeps its name*](../../../../docs/design-decisions.md#a-replaced-image-never-keeps-its-name).
+      [*A replaced image never keeps its name*](../../../project-docs/design-decisions.md#a-replaced-image-never-keeps-its-name).
 
 **Software**
 
 - [ ] Worker threads and close paths:
-      [*A worker's thread is joined before the slot that takes its result lets the worker go*](../../../../docs/design-decisions.md#a-workers-thread-is-joined-before-the-slot-that-takes-its-result-lets-the-worker-go)
-      and [*Closing waits for a running worker…*](../../../../docs/design-decisions.md#closing-waits-for-a-running-worker-stops-an-analysis-before-its-next-object-and-has-an-escape).
+      [*A worker's thread is joined before the slot that takes its result lets the worker go*](../../../project-docs/design-decisions.md#a-workers-thread-is-joined-before-the-slot-that-takes-its-result-lets-the-worker-go)
+      and [*Closing waits for a running worker…*](../../../project-docs/design-decisions.md#closing-waits-for-a-running-worker-stops-an-analysis-before-its-next-object-and-has-an-escape).
 - [ ] Configuration fields that do nothing:
       [project-style-rpx project.md > *A field must be read…*](../../project-style-rpx/references/project.md#a-field-must-be-read-by-something-that-can-change-behaviour-).
 - [ ] Machine-specific values committed:
@@ -122,13 +122,13 @@ Each item links to where it happened here. Read the record; it is not retold.
 ## Report rows
 
 Beyond the generic report: **Records** - any change to a capture set, the run-summary CSV, the station
-event file or the session log's markers; **Docs** - which `docs/capabilities.md` rows, which DD entry,
+event file or the session log's markers; **Docs** - which `.claude/project-docs/SPEC.md` rows, which DD entry,
 which KNOWN_ISSUES or README > Limitations entry; **Risks** - what cannot be tested without the rig
-(`docs/capture-checklist.md`).
+(`.claude/project-docs/capture-checklist.md`).
 
 ## Configuration
 
-A new section in a mode, station or calibration file needs a row in `docs/capabilities.md`; its test
+A new section in a mode, station or calibration file needs a row in `.claude/project-docs/SPEC.md`; its test
 fails until the row exists.
 
 ## Tests
@@ -148,7 +148,7 @@ fails until the row exists.
 
 ## Docs - in the same commit as the behaviour
 
-- **`docs/capabilities.md` is reviewed for every commit that changes `src/`, `App/`,
+- **`.claude/project-docs/SPEC.md` is reviewed for every commit that changes `src/`, `App/`,
   `Configuration/` or `Example/`.** Required, never skipped. Read the sections the change touches,
   prose and hardware table included, then either:
   - **It affects a capability.** Update the document. A behaviour that changed under the same name

@@ -8,7 +8,7 @@ the rule; this file does not repeat it. The brand-independent UI rules and their
 code, the token test, contrast, density, colour relationships) are project-style-rpx
 `references/ui.md` and `.claude/skills/project-style-rpx/references/project.md` > *UI*. Where the
 skill and this code disagree, the code is the truth; correct the skill. On a machine without the
-personal skill, the rules are read from this file, the code and `docs/design-decisions.md` (DD).
+personal skill, the rules are read from this file, the code and `.claude/project-docs/design-decisions.md` (DD).
 
 This folder has no `SKILL.md` on purpose: a personal skill wins over a project skill of the same name,
 so a copy here would be ignored and drift.

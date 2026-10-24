@@ -18,7 +18,7 @@ says what each part of `src/` holds.
 
 What the application does — its stages, modes, views, configuration sections, calibration, records,
 and what has and has not been verified on hardware — is mapped in
-[docs/capabilities.md](docs/capabilities.md), which links back here for setup.
+[.claude/project-docs/SPEC.md](.claude/project-docs/SPEC.md), which links back here for setup.
 
 ## Setup
 
@@ -46,7 +46,7 @@ branches have not run on any machine. Those paths are covered by tests with stub
 If you are the first to take one of them, you are its first real run: if it fails, or finishes but
 the application does not start, please report it with the installer's full output. Only that
 report can confirm the path. What ran on Linux, and what did not, is recorded in
-docs/design-decisions.md, *The installer on Linux: detection and the Gemma download ran, the rest
+.claude/project-docs/design-decisions.md, *The installer on Linux: detection and the Gemma download ran, the rest
 did not*.
 
 By hand instead, create an isolated environment and install the runtime + test dependencies
@@ -172,7 +172,7 @@ Everything a user can change without touching code lives in one file per mode,
 its catalogue item, `Data/Catalogue/<item>/<item>.yaml`, which the loader reads by the same rules. The
 hardware comes first so
 camera-specific data still separates by camera; the mode comes after, so it is visible. What each
-section of the file controls is in [docs/capabilities.md](docs/capabilities.md#configuration), and the
+section of the file controls is in [.claude/project-docs/SPEC.md](.claude/project-docs/SPEC.md#configuration), and the
 file's own comments give every field's default and unit.
 
 **A station sets its own station-event directory in a local copy of the mode file, never in the
@@ -252,8 +252,8 @@ saying so.
 
 Two limitations affect any decision built on this application's output. Both stand **unverified in
 this version**: nothing here checks them against ground truth, and none of the captures in
-[docs/capture-checklist.md](docs/capture-checklist.md) changes that. Behaviours that show up in the
-text but decide nothing are in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+[.claude/project-docs/capture-checklist.md](.claude/project-docs/capture-checklist.md) changes that. Behaviours that show up in the
+text but decide nothing are in [.claude/project-docs/KNOWN_ISSUES.md](.claude/project-docs/KNOWN_ISSUES.md).
 
 ### Measurements are repeatable, not absolute
 
@@ -286,7 +286,7 @@ part is within a stated tolerance does not, except where the catalogue bullet be
   are right.
 - **Catalogue mode:** the owner chose to check the catalogue part's outline against tolerances
   anyway, with the scale moved to the part's top face
-  ([*A catalogue mode measures at its part's top face*](docs/design-decisions.md#a-catalogue-mode-measures-at-its-parts-top-face)).
+  ([*A catalogue mode measures at its part's top face*](.claude/project-docs/design-decisions.md#a-catalogue-mode-measures-at-its-parts-top-face)).
   On the current test set, every instance reads within: the 22 mounting plates −0.77 to +0.76 mm off
   60 × 40 (tolerance ±1.5), with their centres up to 46.3 mm from the frame centre. **Not verified:** the
   parts were not calipered, so "within" means consistent with nominal, not a measured truth. **Not
@@ -358,7 +358,7 @@ Three are still to do:
 5. a **moving hand under SCAN**, which checks that a scan of a moving scene is refused on the rig.
 
 The procedures, the conditions and what to record alongside each frame are in
-[docs/capture-checklist.md](docs/capture-checklist.md). Items 1 and 2 are repeated when the camera,
+[.claude/project-docs/capture-checklist.md](.claude/project-docs/capture-checklist.md). Items 1 and 2 are repeated when the camera,
 the lens or the mount changes. None of them verifies the
 measurements (see [Limitations](#limitations)).
 
@@ -527,11 +527,11 @@ with what the checks found:
       Analysis_Str
 ```
 
-The thresholds are measured, not chosen: the record of each is in `docs/design-decisions.md`, and
-`docs/capabilities.md` > *Pipeline stages* lists the stages in one line each.
+The thresholds are measured, not chosen: the record of each is in `.claude/project-docs/design-decisions.md`, and
+`.claude/project-docs/SPEC.md` > *Pipeline stages* lists the stages in one line each.
 
 Every analysis needs a reference-background capture; there is no background-free
-detection path (see `KNOWN_ISSUES.md`).
+detection path (see `.claude/project-docs/KNOWN_ISSUES.md`).
 
 ## Repository layout
 
@@ -576,7 +576,7 @@ frames and the reference are tracked; the calibration captures (about 4 MB a fra
 the analysis output are not — a calibration records the directory it was solved from. Adding a
 frame to, or renumbering one in, `Data/Images/Test/` changes what every pinned expectation refers
 to, so it is a deliberate move made with the pins, never a side effect of a tool — and a frame is
-added under a new name, never written over an old one (docs/design-decisions.md, *A replaced image
+added under a new name, never written over an old one (.claude/project-docs/design-decisions.md, *A replaced image
 never keeps its name*). Only `models/` is user-supplied.
 
 **Changing the logo.** Replace `images/anyscan-logo.svg` with the delivered file, then rebuild in this

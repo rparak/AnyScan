@@ -39,12 +39,13 @@ Description:
 # The entries git tracks at the root.
 #   Unit [Set<string>]
 CONST_ROOT_ENTRIES = {'.claude', '.gitattributes', '.gitignore', 'App', 'CLAUDE.md', 'Configuration', 'Data',
-                      'Example', 'KNOWN_ISSUES.md', 'LICENSE', 'README.md', 'docs', 'images', 'install.sh', 'logger',
-                      'models', 'pytest.ini', 'requirements', 'requirements.txt', 'src', 'test'}
-# The records, which this project keeps in docs/ and at the root instead of .claude/project-docs/ (a
-# recorded departure), relative to the root.
+                      'Example', 'LICENSE', 'README.md', 'images', 'install.sh', 'logger', 'models', 'pytest.ini',
+                      'requirements', 'requirements.txt', 'src', 'test'}
+# The records, in .claude/project-docs/ (the generic place, with the capture checklist as a fourth),
+# relative to the root.
 #   Unit [Tuple<string>]
-CONST_RECORDS = ('docs/capabilities.md', 'docs/design-decisions.md', 'docs/capture-checklist.md', 'KNOWN_ISSUES.md')
+CONST_RECORDS = ('.claude/project-docs/SPEC.md', '.claude/project-docs/design-decisions.md',
+                 '.claude/project-docs/KNOWN_ISSUES.md', '.claude/project-docs/capture-checklist.md')
 
 
 def test_the_root_holds_only_the_declared_entries(project_root) -> None:
@@ -60,14 +61,16 @@ def test_the_root_holds_only_the_declared_entries(project_root) -> None:
                                                                         sorted(CONST_ROOT_ENTRIES - entries))
 
 
-def test_the_records_are_in_docs_and_none_in_project_docs(project_root) -> None:
+def test_the_records_are_in_project_docs_and_none_in_docs(project_root) -> None:
     """
     Description:
-        The records live where CLAUDE.md and the style project reference say: docs/ and KNOWN_ISSUES.md.
-        A .claude/project-docs/ beside them would split the records in two (and turn the
-        project-bootstrap skill's mode test).
+        The records live where CLAUDE.md and the style project reference say: .claude/project-docs/,
+        tracked by git (the .gitignore keeps the rest of .claude/ out). A docs/ folder beside them would
+        split the records in two.
     """
 
-    for path in CONST_RECORDS:
-        assert os.path.isfile(os.path.join(project_root, path)), path
-    assert not os.path.exists(os.path.join(project_root, '.claude', 'project-docs'))
+    result = subprocess.run(['git', 'ls-files', *CONST_RECORDS], cwd=project_root, capture_output=True, text=True,
+                            timeout=60)
+    assert result.returncode == 0, result.stderr
+    assert sorted(result.stdout.split()) == sorted(CONST_RECORDS)
+    assert not os.path.exists(os.path.join(project_root, 'docs'))

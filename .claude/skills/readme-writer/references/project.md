@@ -10,7 +10,7 @@ name, so a copy here would be ignored and drift.
   on the rig, Platform.
 - Others: integrators (Configuration, the records, Swapping a component), maintainers (Tests,
   Detection logic, Repository and Source layout), funders and partners (Funding). What the
-  application does in full is `docs/capabilities.md`, linked from the top.
+  application does in full is `.claude/project-docs/SPEC.md`, linked from the top.
 
 ## Sources of numbers
 
@@ -44,7 +44,7 @@ The one list of what makes a change update the README (feature-manager's `projec
 
 ## Statuses
 
-`docs/capabilities.md` > *Verified on hardware, and not yet* is the source of truth; the README uses its
+`.claude/project-docs/SPEC.md` > *Verified on hardware, and not yet* is the source of truth; the README uses its
 words exactly (the owner's ruling, 2026-10-23): **Verified, measured** (macOS), **Verified on one
 machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the text, *verified* /
 *not verified* / *unverified* with what was run. A status changed in one place changes in both.
@@ -67,14 +67,13 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
 - **The diagram** is shown at the top, before Setup, with the paragraph that says two cues are fused
   and links *Detection logic* and *Source layout*.
 - **Detection logic** walks the stages in `text` diagrams naming each stage's module and function;
-  `docs/capabilities.md` > *Pipeline stages* lists them one line each, and the two agree.
+  `.claude/project-docs/SPEC.md` > *Pipeline stages* lists them one line each, and the two agree.
 - **Funding** reads: "AnyScan was developed at JIC within the EDIH-DIGIMAT project.", Figure 2, its
   caption, then the EU disclaimer word for word as `Funding_Row_Cls.DISCLAIMER` holds it. The window's
   band does not carry the disclaimer; the README and Figure 2's source do.
 - **Limitations** follow project-style-rpx `project.md` > *Records*: two limitations, each the
   consequence first, then the evidence, then whether it is verified; the section links
-  `KNOWN_ISSUES.md`.
-- `docs/` is public, so the README links `docs/capabilities.md` and the DD freely.
+  `.claude/project-docs/KNOWN_ISSUES.md`.
 - The root layout is project-style-rpx `project.md` > *Root*; this file does not repeat it.
 - **Departures, kept for now**: the length (772 visible lines against the generic 250 budget, no
   `<details>`), the owner's ruling of 2026-10-23.

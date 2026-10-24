@@ -67,7 +67,7 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
 ## Never touched
 
 - **`models/`**: weights, and the installer tests' fixture; the suite fails if it changes
-  ([*models/ is out of reach of the installer tests…*](../../../../docs/design-decisions.md#models-is-out-of-reach-of-the-installer-tests-and-the-suite-fails-if-it-changes)).
+  ([*models/ is out of reach of the installer tests…*](../../../project-docs/design-decisions.md#models-is-out-of-reach-of-the-installer-tests-and-the-suite-fails-if-it-changes)).
 - **Captures and data**: `Data/` (the pinned test set, references and their sidecars, answer key),
   `logger/` contents, calibration capture sets.
 - **`src/Transformation/`**: inherited, excluded in `check_style.json` with its reason. Findings in it
@@ -95,7 +95,7 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
   `.gitkeep` files that keep a required directory in a fresh clone (`logger/Station_Events/.gitkeep`:
   the shipped configuration does not load without it), and
   `.claude/skills/project-style-rpx/references/check_style.json`.
-- **Docs**: a file or name cited in `docs/`, `KNOWN_ISSUES.md` or the README is a reader of that name;
+- **Docs**: a file or name cited in `.claude/project-docs/` or the README is a reader of that name;
   removing the thing corrects the citation in the same step.
 
 ## Proof patterns from this project
@@ -104,23 +104,23 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
   and `analyze.main` (D 21 → B 7) along their own steps. `Load_Configuration` was compared with the
   committed loader on 1,052 mutated mode files (175 loaded, 877 refused, identically, down to the
   error text and its order); `Calibrate` on four synthetic view sets with OpenCV pinned to one thread
-  ([*Two calibrations of the same images agree only to the last digits…*](../../../../docs/design-decisions.md#two-calibrations-of-the-same-images-agree-only-to-the-last-digits--read-a-small-difference-as-noise));
+  ([*Two calibrations of the same images agree only to the last digits…*](../../../project-docs/design-decisions.md#two-calibrations-of-the-same-images-agree-only-to-the-last-digits--read-a-small-difference-as-noise));
   `analyze.main` on a real run, timings and stamps masked.
 - **Reliability**, from where it happened here:
   - a worker's thread released while still running - the UI suite hung or crashed in about 4 runs of
-    53 ([*A worker's thread is joined before the slot that takes its result lets the worker go*](../../../../docs/design-decisions.md#a-workers-thread-is-joined-before-the-slot-that-takes-its-result-lets-the-worker-go));
+    53 ([*A worker's thread is joined before the slot that takes its result lets the worker go*](../../../project-docs/design-decisions.md#a-workers-thread-is-joined-before-the-slot-that-takes-its-result-lets-the-worker-go));
   - a close that destroys a running thread, `QThread: Destroyed while thread is still running`
-    ([*Closing waits for a running worker…*](../../../../docs/design-decisions.md#closing-waits-for-a-running-worker-stops-an-analysis-before-its-next-object-and-has-an-escape);
+    ([*Closing waits for a running worker…*](../../../project-docs/design-decisions.md#closing-waits-for-a-running-worker-stops-an-analysis-before-its-next-object-and-has-an-escape);
     its fix added a visible stopping state, so it was a feature);
-  - a loss the hardware never reports ([*A lost connection is detected by the camera, not only by DISCONNECT*](../../../../docs/design-decisions.md#a-lost-connection-is-detected-by-the-camera-not-only-by-disconnect));
-  - a failure surfaced as the wrong error ([*The configuration sets the camera's sensor window*](../../../../docs/design-decisions.md#the-configuration-sets-the-cameras-sensor-window),
-    and [*`Basler_Cls` connection code raises and catches bare `Exception`*](../../../../KNOWN_ISSUES.md#basler_cls-connection-code-raises-and-catches-bare-exception)).
+  - a loss the hardware never reports ([*A lost connection is detected by the camera, not only by DISCONNECT*](../../../project-docs/design-decisions.md#a-lost-connection-is-detected-by-the-camera-not-only-by-disconnect));
+  - a failure surfaced as the wrong error ([*The configuration sets the camera's sensor window*](../../../project-docs/design-decisions.md#the-configuration-sets-the-cameras-sensor-window),
+    and [*`Basler_Cls` connection code raises and catches bare `Exception`*](../../../project-docs/KNOWN_ISSUES.md#basler_cls-connection-code-raises-and-catches-bare-exception)).
 - **Stress run** for an intermittent fault: 30 runs of `test/UI` under a 300 s alarm, `faulthandler`
   on and a native `sample <pid>` of any hung run (pytest's capture swallows `faulthandler_timeout`
   dumps): `perl -e 'alarm shift; exec @ARGV' 300 .venv/bin/python -m pytest test/UI -q -p no:cacheprovider`.
 - **Functionality the user sees** (a view, a record, a configuration field even if it does nothing, a
   harness in `Example/`, a new message, state or close sequence) is for feature-manager.
-- Every step that changes `src/`, `App/`, `Configuration/` or `Example/` reviews `docs/capabilities.md`
+- Every step that changes `src/`, `App/`, `Configuration/` or `Example/` reviews `.claude/project-docs/SPEC.md`
   (feature-manager `project.md` > *Docs*): normally the *Last reviewed* line moves, with
   *Capabilities: no change (optimization: <kind>)* in the message.
 

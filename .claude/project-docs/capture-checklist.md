@@ -76,7 +76,7 @@ boards (the lens model only). The tilts are what pin the principal point: the sy
 at least 10°.
 
 **Needed.** The 12 mm calibration chessboard (11 × 8 squares), printed from
-[`Checkerboard_11x8_12mm_A4.pdf`](../Data/Calibration/Checkerboard_11x8_12mm_A4.pdf) and mounted on glass or ≥ 3 mm
+[`Checkerboard_11x8_12mm_A4.pdf`](../../Data/Calibration/Checkerboard_11x8_12mm_A4.pdf) and mounted on glass or ≥ 3 mm
 aluminium (page 2 of the PDF says how, and why flatness matters), a caliper, and something to hold
 it tilted. Before anything else, measure **both** scale rulers on page 1: each must be 120.0 mm. If
 either is not, do not use the board; fix the printer scaling and reprint.
@@ -142,7 +142,7 @@ was corrected to the current name. The next reference is `_002`.
 **Why.** The reference is an undistorted frame, so it belongs to one lens model and one sensor window:
 a new calibration puts its geometry out of date. Shot through the application's camera path, with its
 provenance from what the camera reported, it is a verified artefact rather than a guess. It is the mean of
-8 frames: sizes then depend half as much on which frame was grabbed (docs/design-decisions.md, *A new
+8 frames: sizes then depend half as much on which frame was grabbed (design-decisions.md, *A new
 reference is the mean of 8 frames…*).
 
 **Conditions.** The calibration in force (adopted, application restarted), shipped configuration, shipped
@@ -297,7 +297,7 @@ appear to come from a camera that still reads connected. The loss itself ends no
 2026-10-07). It is detected two ways: the application asks pylon once a second whether
 the device was removed (`InstantCamera.IsCameraDeviceRemoved`), and a Scan whose grab fails on a
 removed device reports the loss. Both are tested only with a stand-in device. **Whether pylon reports
-the removal on this GigE camera, and how fast, is unverified** (docs/design-decisions.md, *A lost
+the removal on this GigE camera, and how fast, is unverified** (design-decisions.md, *A lost
 connection is detected by the camera, not only by DISCONNECT*).
 
 **Conditions.** Configuration loaded, CONNECT done, no Scan or Analyze running. Note the clock time to
@@ -333,7 +333,7 @@ the second at each step.
 ## 5. Live preview and SCAN: a moving hand is refused
 
 **Why.** SCAN takes its frame only once two consecutive frames show no movement, and refuses after about a
-second (docs/design-decisions.md, *A scan waits for a still scene…*). The thresholds come from the still table's
+second (design-decisions.md, *A scan waits for a still scene…*). The thresholds come from the still table's
 noise on this camera; the refusal itself is tested only on scripted and synthetic frames.
 
 **Conditions.** Configuration loaded, CONNECT done, a part on the table.
@@ -351,7 +351,7 @@ noise on this camera; the refusal itself is tested only on scripted and syntheti
 6. ANALYZE a scanned frame with several parts, standing at the operator's place. The grid must sweep the frame from
    the top-left about once a second, the same over the parts as over the table, with the parts still visible under
    it, *ANALYZING…* in the head, nothing in the image's corner; it must stop the moment the result appears. Note
-   whether it reads calmly on the rig's screen or distracts (docs/design-decisions.md, *ANALYZE sweeps a decorative
+   whether it reads calmly on the rig's screen or distracts (design-decisions.md, *ANALYZE sweeps a decorative
    pixel grid over the frame…*).
 
 **Record alongside:**

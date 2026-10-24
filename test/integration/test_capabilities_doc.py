@@ -52,7 +52,7 @@ from Logger.Station_Events import CONST_STATION_EVENT_TYPES, CONST_CYCLE_START, 
 Description:
     Initialization of constants.
 
-    docs/capabilities.md describes what the application does, and a capability document that is
+    .claude/project-docs/SPEC.md describes what the application does, and a capability document that is
     wrong is worse than none. These tests hold it to the code in both directions: everything the
     code names (src/ packages, configuration sections, modes, views, records) is in the document, and every
     configuration key the document names is in a configuration file. Its prose and its hardware
@@ -60,7 +60,7 @@ Description:
 """
 # The document under test, relative to the repository root.
 #   Unit [string]
-CONST_CAPABILITIES_DOC = os.path.join('docs', 'capabilities.md')
+CONST_CAPABILITIES_DOC = os.path.join('.claude', 'project-docs', 'SPEC.md')
 
 # A backticked span, and inside one a dotted configuration key path ('Segmentation.Fusion',
 # 'General.Station_Events.Directory'). A path is only checked when its first segment is a section the
@@ -121,7 +121,7 @@ def Section(text: str, heading: str) -> str:
 
     lines = text.split('\n')
     level = len(heading) - len(heading.lstrip('#'))
-    assert heading in lines, "docs/capabilities.md has no '%s' section." % heading
+    assert heading in lines, ".claude/project-docs/SPEC.md has no '%s' section." % heading
     start = lines.index(heading) + 1
     end = len(lines)
     for i in range(start, len(lines)):
@@ -183,7 +183,7 @@ def Table_First_Column(body: str, header: str) -> tp.List[str]:
         if collecting:
             spans = CONST_CODE_SPAN.findall(cells[0])
             names.extend(spans if spans else [cells[0]])
-    assert found, "docs/capabilities.md has no table headed '%s'." % header
+    assert found, ".claude/project-docs/SPEC.md has no table headed '%s'." % header
 
     return names
 
@@ -416,7 +416,7 @@ def test_every_key_path_the_document_names_exists_in_a_configuration_file(projec
              if match.split('.')[0] in roots}
 
     assert named, 'The document names no configuration key path; the pattern no longer matches it.'
-    assert named <= keys, 'docs/capabilities.md names keys no configuration file has: %s.' % sorted(named - keys)
+    assert named <= keys, '.claude/project-docs/SPEC.md names keys no configuration file has: %s.' % sorted(named - keys)
 
 
 def Src_Packages(project_root: str) -> tp.List[str]:
@@ -544,7 +544,7 @@ def test_every_relative_link_and_anchor_resolves(project_root) -> None:
         elif anchor and anchor not in Anchors(path):
             broken.append(target)
 
-    assert broken == [], 'Broken links in docs/capabilities.md: %s' % broken
+    assert broken == [], 'Broken links in .claude/project-docs/SPEC.md: %s' % broken
 
 
 def Git(project_root: str, *arguments: str) -> subprocess.CompletedProcess:
@@ -580,7 +580,7 @@ def test_every_code_change_since_the_last_review_updated_the_document(project_ro
 
     doc = Read_Text(os.path.join(project_root, CONST_CAPABILITIES_DOC))
     match = CONST_LAST_REVIEWED.search(doc)
-    assert match, "docs/capabilities.md has no 'Last reviewed against the code at commit `<hash>`' line."
+    assert match, ".claude/project-docs/SPEC.md has no 'Last reviewed against the code at commit `<hash>`' line."
     reviewed = match.group(1)
     if Git(project_root, 'merge-base', '--is-ancestor', reviewed, 'HEAD').returncode != 0:
         pytest.fail('The last-reviewed commit %s is not in this branch\'s history (rewritten, or a shallow '
@@ -592,7 +592,7 @@ def test_every_code_change_since_the_last_review_updated_the_document(project_ro
                   if CONST_CAPABILITIES_DOC.replace(os.sep, '/') not in
                   Git(project_root, 'show', '--name-only', '--format=', commit).stdout.split('\n')]
 
-    assert unreviewed == [], ('Commits changing the code since the last review (%s) left docs/capabilities.md '
+    assert unreviewed == [], ('Commits changing the code since the last review (%s) left .claude/project-docs/SPEC.md '
                               'untouched: %s. Review the document against each: update it, or, when no '
                               'capability changed, move its Last reviewed line, in the same commit.'
                               % (reviewed, ', '.join(unreviewed)))

@@ -44,7 +44,7 @@ Description:
 CONST_SKILLS_DIR = os.path.join('.claude', 'skills')
 
 # The skills whose project layer this repository keeps, each with the sections its references/project.md
-# must hold. project-bootstrap has none on purpose: it is for new repositories (CLAUDE.md).
+# must hold. project-bootstrap has none on purpose: it is for new repositories.
 #   Unit [Dict<string, Tuple<string>>]
 CONST_PROJECT_LAYERS = {
     'project-style-rpx': ('## Header and checker', '## Layout and layers', '## Root', '## Configuration',
@@ -115,7 +115,7 @@ def test_claude_md_names_every_project_layer_and_the_checker(project_root) -> No
     """
     Description:
         CLAUDE.md is where a session learns the layout: it names each skill with a project layer, the
-        checker by its personal path, and says project-bootstrap does not apply.
+        checker by its personal path, and where the internal records are.
     """
 
     with open(os.path.join(project_root, 'CLAUDE.md'), encoding='utf-8') as file:
@@ -123,4 +123,4 @@ def test_claude_md_names_every_project_layer_and_the_checker(project_root) -> No
     for skill in CONST_PROJECT_LAYERS:
         assert '`%s`' % skill in text, 'CLAUDE.md does not name %s.' % skill
     assert '~/.claude/skills/project-style-rpx/scripts/check_style.py' in text
-    assert '`project-bootstrap` skill does not apply' in text
+    assert '`.claude/project-docs/`' in text

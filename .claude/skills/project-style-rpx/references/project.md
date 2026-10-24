@@ -7,7 +7,7 @@ brand-independent UI rules - are the personal skill **project-style-rpx**
 `scripts/check_style.py`. How the interface looks is the personal skill **jic-sf-ui-style** (the JIC
 Smart Factory style, taken from this application). This file overrides both where they differ, and its
 rules hold without them: on a machine without the personal skills, the rules are read from this file,
-the code and `docs/design-decisions.md` (DD).
+the code and `.claude/project-docs/design-decisions.md` (DD).
 
 This folder has no `SKILL.md` on purpose: a personal skill wins over a project skill of the same name
 (Claude Code docs, *Resolve skills that share a name*), so a copy here would be ignored and drift.
@@ -39,8 +39,8 @@ test/<Domain>/           mirroring src/; test/integration/ for cross-module cont
                          test/Install/ for the installer
 Configuration/           Mode/, Station/, Calibration/ (references > Configuration)
 Data/                    the test frames, the catalogue items, results
-docs/                    design-decisions.md, capabilities.md, capture-checklist.md (Records)
-images/                  the README's figures, generated
+images/                  the README's figures, generated, and the project poster
+.claude/project-docs/    SPEC.md, design-decisions.md, KNOWN_ISSUES.md, capture-checklist.md (Records)
 ```
 
 The imports between `src/` packages (2026-09-24), which is also the rule:
@@ -64,23 +64,23 @@ UI                               → everything above          (App/run.py → U
   today). `UI/Capture.py` is Qt-free too, so a capture set can be read without a UI.
 - A domain module never holds the UI or the logger: it reports through callbacks injected by the
   caller (`Set_Log_Callback`, `stage_cb`, `progress_cb`), and its failures are `*_Error_Cls` sentences.
-- `src/Transformation/` is inherited (rparak/RoLE), under its own convention, reached only from
-  `Example/`; the app never imports it (README > Source layout). The checker excludes it.
+- `src/Transformation/` is inherited (rparak/RoLE), under its own convention; nothing in the
+  repository imports it (README > Source layout). The checker excludes it.
 
 ## Root ✅
 
 The root holds `.claude`, `.gitattributes`, `.gitignore`, `App`, `CLAUDE.md`, `Configuration`, `Data`,
-`Example`, `KNOWN_ISSUES.md`, `LICENSE`, `README.md`, `docs`, `images`, `install.sh`, `logger`,
-`models`, `pytest.ini`, `requirements`, `requirements.txt`, `src`, `test`. Pinned by
-`test/integration/test_root_layout.py`, which also holds the records in `docs/` and no
-`.claude/project-docs/`. The exceptions to the generic list, each with its reason (kept, the
-owner's ruling of 2026-10-23):
+`Example`, `LICENSE`, `README.md`, `images`, `install.sh`, `logger`, `models`, `pytest.ini`,
+`requirements`, `requirements.txt`, `src`, `test`. Pinned by `test/integration/test_root_layout.py`,
+which also holds the records in `.claude/project-docs/` and no `docs/`. The exceptions to the generic
+list, each with its reason (the owner's rulings of 2026-10-23 and 2026-10-24):
 
 - `App/` - the application's entry point and its committed assets, apart from the domain code.
 - `Configuration/` and `Data/` - the configuration folder and the inputs (test frames, references,
-  catalogue items); `Data/Results/` and `Data/Images/Calibration/` are git-ignored outputs.
-- `docs/` and `KNOWN_ISSUES.md` - the records (Records).
-- `images/` - the README images (the generic default name is `Media/`).
+  catalogue items, the calibration board's PDF in `Data/Calibration/`); `Data/Results/` and
+  `Data/Images/Calibration/` are git-ignored outputs.
+- `images/` - the one media folder: the README's figures and the project poster (the generic default
+  name is `Media/`).
 - `logger/` and `models/` - the session logs and the model weights, git-ignored apart from their
   `.gitkeep` files, which keep the directories a fresh clone needs.
 - `requirements/` - the Linux variants of `requirements.txt` (CPU, CUDA 12, CUDA 13) the installer
@@ -264,21 +264,24 @@ disagreement is a question, not a new rule. ✅ = `test/Install/test_install.py`
   (`test/Camera/test_reference_harnesses.py` has the pattern).
 - The skills' frontmatter and this file are held by `test/integration/test_skills.py`.
 
-## Records - `docs/`, `README.md`, `KNOWN_ISSUES.md`
+## Records - `.claude/project-docs/`, `README.md`
 
-**A departure, kept** (the owner's ruling, 2026-10-23): the records are in `docs/` and
-`KNOWN_ISSUES.md` at the root, not in `.claude/project-docs/`, and there is no SPEC. Why:
-`docs/capabilities.md` plays the SPEC's part and is public - the README links it, and
-`test/integration/test_capabilities_doc.py` holds it to the code (sections, views, packages, records,
-every link); dozens of citations in the code, the tests and the records point into `docs/`; and a
-move would change the public page for no gain in what the files say. `CLAUDE.md` says so, so the
-project-bootstrap skill (whose mode test is a SPEC in `.claude/project-docs/`) does not apply.
+The records are where the generic skill puts them, `.claude/project-docs/`, with one more:
+`capture-checklist.md`, what only the rig can capture or check. `SPEC.md` is held to the code by
+`test/integration/test_capabilities_doc.py` (sections, views, packages, records, every link, and the
+review line).
+
+**SPEC's sections are not numbered** (a departure from `references/markdown.md`, the owner's ruling of
+2026-10-24): its section names (*Pipeline stages*, *Configuration*, *Verified on hardware, and not
+yet*, ...) are stable anchors, cited by name from the code, the tests, the records and the skills'
+project layers; numbering them would change every one of those citations for no gain in what they
+point at.
 
 | File | Records |
 |---|---|
-| `docs/design-decisions.md` | Deliberate choices whose reason is not visible in the code |
-| `README.md` > *Limitations* | The limitations that affect a decision built on the output: a `###` heading, **the consequence first**, bold, then the evidence with the measured numbers, then plainly whether it is verified; the section links `KNOWN_ISSUES.md` |
-| `KNOWN_ISSUES.md` | Open behaviours that show up in the text or numbers but decide nothing: **Impact:**, **Pinned by:**, **Not fixed here:**, **What would answer it:**; on a fix the entry goes and the resolution moves to the DD |
+| `.claude/project-docs/design-decisions.md` | Deliberate choices whose reason is not visible in the code |
+| `README.md` > *Limitations* | The limitations that affect a decision built on the output: a `###` heading, **the consequence first**, bold, then the evidence with the measured numbers, then plainly whether it is verified; the section links `.claude/project-docs/KNOWN_ISSUES.md` |
+| `.claude/project-docs/KNOWN_ISSUES.md` | Open behaviours that show up in the text or numbers but decide nothing: **Impact:**, **Pinned by:**, **Not fixed here:**, **What would answer it:**; on a fix the entry goes and the resolution moves to the DD |
 
 **New DD entries use the generic shape** - **Why**, **Alternatives**, **Revisit if** and the pinning
 tests (project-style-rpx `references/markdown.md`). **Older entries are not backfilled** (a recorded
@@ -356,7 +359,7 @@ jic-sf-ui-style, in `.claude/skills/jic-sf-ui-style/references/project.md`.
 
 ## Departures from the generic skill
 
-- Records in `docs/` and `KNOWN_ISSUES.md` at the root, no SPEC (Records).
+- SPEC's sections are named, not numbered, and a fourth record, the capture checklist (Records).
 - Older DD entries keep their shape; new ones use the generic one (Records).
 - Scripts tested by topic, not one file per script (Tests).
 - `Parameters` holds the shared `*_Str` structures and tokens (Layout and layers).

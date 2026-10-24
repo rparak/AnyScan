@@ -3,10 +3,10 @@
 Open behaviours of the pipeline that show up in its text or its numbers, recorded so they are
 recognised when they appear. Nobody decides anything on them. **The two limitations that do affect
 decisions — sizes are repeatable, not absolute; the describer is not a defect detector — are in the
-README, under [Limitations](README.md#limitations).**
+README, under [Limitations](../../README.md#limitations).**
 
 Each entry states the behaviour, what it affects, and why it is not fixed. An entry is removed when
-the behaviour is fixed, and the resolution is recorded in `docs/design-decisions.md`.
+the behaviour is fixed, and the resolution is recorded in `design-decisions.md`.
 
 ## `Basler_Cls` connection code raises and catches bare `Exception`
 
@@ -22,9 +22,9 @@ sentence), and a bare `except Exception` can mask an unexpected error as a routi
   is internal to the driver. One path is already narrowed: a setting the camera refuses or
   does not keep (the sensor window) raises `Basler_Settings_Error_Cls`, reported as it stands
   rather than as "no camera", and a failed configure closes the device before raising
-  (docs/design-decisions.md, *The configuration sets the camera's sensor window*). So is a camera
+  (design-decisions.md, *The configuration sets the camera's sensor window*). So is a camera
   another program holds: it raises `Basler_In_Use_Error_Cls` at once, not retried, reported as in use
-  (docs/design-decisions.md, *A new reference is the mean of 8 frames…*).
+  (design-decisions.md, *A new reference is the mean of 8 frames…*).
 - **Not fixed here:** the style pass gave `Basler_Cls` types, docstrings and
   `CONST_*` naming but deliberately did not restructure the connection's control flow —
   rewriting it changes behaviour on a hardware path with little automated coverage. Narrow
@@ -56,7 +56,7 @@ were removed in `c69b909`.
 This entry used to describe a coverage gate and a mask dilation (`CONST_FILTER_CHANGE_COVERAGE`,
 `CONST_SEG_MASK_DILATE_KERNEL`) tuned on synthetic scenes. **Neither exists any more.** The gate
 was replaced by fusion: an object survives on *either* cue, FastSAM or background subtraction, so no
-coverage threshold decides whether a FastSAM mask counts (docs/design-decisions.md, *The fusion
+coverage threshold decides whether a FastSAM mask counts (design-decisions.md, *The fusion
 needs both cues*).
 
 What decides detection now is set in the configuration:
@@ -452,7 +452,7 @@ wording will fix.
 The run-summary CSV (`log_<Hardware>.csv`) gets its row from `Session_Logger_Cls.Close`, so a run that
 never closes (killed with SIGKILL, a power loss, a hard crash) has a complete `.txt` log but no row, and
 nothing adds one later. The daily station event file had the same gap and closes it with an export ledger
-(docs/design-decisions.md, *The daily station event file is exported from the session log at close*):
+(design-decisions.md, *The daily station event file is exported from the session log at close*):
 every log the ledger does not name is exported at the next start.
 
 - **Impact:** the CSV under-counts runs and their time after an abnormal exit. The `.txt` log of that run
@@ -540,7 +540,7 @@ capture `20261015-143622_s1`, object 3: a back with no holes, NOK, no hole mark.
   its log lines still say so, and its note says why the marks are absent.
 - **Not fixed here:** DINOv2's best turn against the side's reference picked the wrong end on 3 of 21 plates (the test
   set and this capture's front) with every hole in view (margins up to 0.020, overlapping the right ones), and on object 3 its margin is 0.0022; a
-  mark at a guessed end may be wrong (docs/design-decisions.md, *A missing hole is placed only by a hole found*).
+  mark at a guessed end may be wrong (design-decisions.md, *A missing hole is placed only by a hole found*).
   A confidence gate on that margin (0.025) was measured on these 21 plates, where it would place 6, all correctly,
   and was not built (owner's ruling, 2026-10-15): one table, one light, and 0.003 between the worst wrong margin and
   the next right one. It can be revisited once more rig captures give the margins on more plates.
@@ -564,7 +564,7 @@ without calipers that is not a verification of the size.)
   that match the plate, 61.28 × 39.75 mm at 51 mm and 60.60 × 40.57 mm at 59 mm, and misled the operator). The
   session log's verdict line still gives the distance and the radius.
 - **Not fixed here:** only rig captures can verify it: mounting plates in the corners of the view and along its
-  edges (docs/capture-checklist.md, 3d). If they read within tolerance there, `CONST_VERIFIED_RADIUS_MM` widens to
+  edges (capture-checklist.md, 3d). If they read within tolerance there, `CONST_VERIFIED_RADIUS_MM` widens to
   them.
 - **Pinned by:** `test/Vision/Utilities/test_classify.py::test_the_verdict_does_not_depend_on_where_the_part_lies`,
   `test/Reporting/test_core.py::test_a_size_checked_outside_the_verified_zone_is_noted_in_the_log_only`.
@@ -590,7 +590,7 @@ pass at DPR 2. The mark is not the cause.
 ## The inspection area's insets rest on plates measured mostly by the right edge
 
 A catalogue mode judges only inside the station's inspection area: the frame inset by 10 mm from its top and bottom
-edges and 13 mm from its left and right (`Inspection_Area` in the station file; docs/design-decisions.md, *A catalogue
+edges and 13 mm from its left and right (`Inspection_Area` in the station file; design-decisions.md, *A catalogue
 mode judges only inside the inspection area*). The insets were chosen on 2026-10-16 from the 72 fully visible
 mounting plates of the test set and the three capture sets on disk, as the smallest at which every size, hole-position
 and hole-diameter error of the plates inside stays within half its tolerance. What that rests on:
@@ -621,7 +621,7 @@ and hole-diameter error of the plates inside stays within half its tolerance. Wh
 - **Impact:** a part placed by the left or bottom edge of the area, or in its corners, is judged on errors measured
   mostly by the right edge and the top; the area may be larger, or need to be smaller, there. An upright plate a
   little off the middle row is a Warning, to be moved and scanned again.
-- **Not fixed here:** only rig captures can tell (docs/capture-checklist.md, 3d: plates along the area's left and
+- **Not fixed here:** only rig captures can tell (capture-checklist.md, 3d: plates along the area's left and
   bottom edges and in its four corners, clean and stained fronts and backs; plates cut by the frame's border and
   foreign objects cut by it, for the outside-area Warning). If the plates there measure within half of every
   tolerance, the insets stand, or shrink where they allow.
@@ -641,7 +641,7 @@ into, and a full 1920 × 1200 frame is 2.3 MB.
 - **Not fixed here:** a faster preview at this link would need a camera setting that differs between preview and scan
   (binning, a smaller window), which the owner ruled out, and would show something other than the frame the scan
   takes. A dedicated gigabit network card for the GigE camera would allow a much faster preview without changing any
-  camera setting; revisit then (docs/design-decisions.md, *The preview's frame rate is the GigE adapter's, not the
+  camera setting; revisit then (design-decisions.md, *The preview's frame rate is the GigE adapter's, not the
   camera's*, has what to raise and re-measure).
 - **Pinned by:** nothing automated (a property of the network hardware); `Example/Camera/preview_check.py` measures it.
 
@@ -649,7 +649,7 @@ into, and a full 1920 × 1200 frame is 2.3 MB.
 
 Outside the inspection area an object the verdict rule does not identify resembles the part only when its similarity
 is at least 0.657, its mean saturation at most 76.3 and its visible extent at most 73.6 mm
-(`Classify.Resembles_Part`; docs/design-decisions.md, *A foreign object is told by what it is, not where it lies*).
+(`Classify.Resembles_Part`; design-decisions.md, *A foreign object is told by what it is, not where it lies*).
 The most cut plate measured, a stained front 88.5 mm out with a corner off the right border (`20261016-070632_8`),
 scored 0.668, 0.011 above the threshold. A plate with less of it in view (only a corner) was never measured and may
 score under it.
@@ -659,7 +659,7 @@ score under it.
   `warning_kind` `foreign`; it is drawn in the amber either way (one colour for every Warning since 2026-10-16), its
   verdict is a Warning either way, and the operator moves it either way.
 - **Not fixed here:** only captures can tell: plates cut by each border with less and less of them in view
-  (docs/capture-checklist.md, 3d), and foreign objects of the plate's grey cut by it.
+  (capture-checklist.md, 3d), and foreign objects of the plate's grey cut by it.
 - **Pinned by:** `test/Vision/Utilities/test_classify.py::test_an_object_resembles_the_part_by_the_rule_or_outside_by_every_position_free_cue`
   (the cut-plate case).
 
@@ -669,7 +669,7 @@ DINOv2's similarity of the fingerprinted front to the front reference falls with
 0.81–0.89 within 30 mm, 0.67–0.78 at 50–67 mm, mostly below `Identify_Similarity` (0.75). There it is NOK for its stains, with
 its side and holes right, and its reason adds "It has the part's outline but does not look like the part" (captures
 `20261015-170251_s1` frames 12, 13, 15, 18, 19, 20 and `20261015-143622_s1`). The rule is deliberate (an object of the
-part's shape that does not look like it is NOK, docs/design-decisions.md).
+part's shape that does not look like it is NOK, design-decisions.md).
 
 The drop below 0.75 is the stains', not the position's (capture `20261015-180933_s1`, 2026-10-15): five clean fronts
 58–62.5 mm out score 0.83–0.87 (0.92–1.00 near the centre) and read OK with no such clause; a stained front at the same
@@ -688,7 +688,7 @@ clause; inside the area a stained front still scores down to 0.73 (`20261015-170
 ## The several-parts ratio and the mode file still say Unspecified
 
 Since 2026-10-16 an object whose area is 1.7 times the part's or more is a Warning of kind Several parts
-(docs/design-decisions.md, *Three states for the operator, a Warning with its kind*), but the configuration field
+(design-decisions.md, *Three states for the operator, a Warning with its kind*), but the configuration field
 that sets the ratio keeps its old name, `Catalogue.Unspecified_Area_Ratio` (`Identification_Parameters_Str`,
 `Catalogue_Result_Str`, `Configuration.Core`'s field table and its validation message), and the shipped mounting-plate
 mode file still describes it in the old words: its header names the states "OK, NOK, Unspecified or Warning", and the

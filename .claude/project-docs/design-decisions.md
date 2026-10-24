@@ -2,7 +2,7 @@
 
 The reasoning behind the non-obvious choices in the vision port, so the next person does
 not undo them. Each entry states the decision, the reason, and what would justify
-revisiting it. This is the counterpart to [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md), which
+revisiting it. This is the counterpart to [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md), which
 records open behaviours, and to README > Limitations, which records the two limitations that
 affect decisions; this file records deliberate choices whose motivation is not visible in the
 code. A change that contradicts one of these should cite
@@ -145,7 +145,7 @@ changing *detection* to populate a *status* field. **Revisit by** giving the
 background-subtraction cue its own confidence (normalised change magnitude or mask-edge
 sharpness) so every object scores from whichever cue found it; until then the coverage
 fraction is the honest disclosure.
-Commit `5def2d0`; [`KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) "confidence status metric is partial"; tests `test/UI/test_status_metrics.py::test_status_confidence_denominator_is_the_scored_count_not_the_total`, `::test_status_confidence_is_no_value_when_no_object_has_a_score` (*Corrected 2026-10-08:* renamed from `test_confidence_…`).
+Commit `5def2d0`; [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) "confidence status metric is partial"; tests `test/UI/test_status_metrics.py::test_status_confidence_denominator_is_the_scored_count_not_the_total`, `::test_status_confidence_is_no_value_when_no_object_has_a_score` (*Corrected 2026-10-08:* renamed from `test_confidence_…`).
 
 ## The fusion needs both cues — the previous test set's `Image_001` proved it in both directions
 
@@ -2660,7 +2660,7 @@ scan's cycle as a lost connection, not as a stale frame on a camera still marked
   and let the backend do the disconnecting, so they exercise the code the real camera goes through.
 
 **Unverified on the hardware.** Whether pylon reports the removal on this GigE camera, and how fast, has
-not been tried: `docs/capture-checklist.md` item 4 is the cable-pull check. This entry is one commit so it
+not been tried: `capture-checklist.md` item 4 is the cable-pull check. This entry is one commit so it
 can be reverted on its own if that check fails.
 
 **Revisit if** the cable pull shows pylon does not report the removal, or reports it too slowly to count
@@ -2913,7 +2913,7 @@ by breaking what it names, 14 mutations in all.
 
 ## The capabilities document is a map, and a test holds it to the code
 
-Decided 2026-10-08. `docs/capabilities.md` says what the application does: the pipeline stages, the
+Decided 2026-10-08. `SPEC.md` says what the application does: the pipeline stages, the
 modes, the views, what each configuration section controls, calibration, the records it writes, and
 what has been verified on hardware. It explains nothing twice. A reason links here, an open behaviour
 links to `KNOWN_ISSUES.md`, and setup links to the README. The README's list of what each mode-file
