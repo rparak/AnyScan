@@ -562,6 +562,7 @@ Data/Images/Test/         the 41 frames analyze.py runs on (Image_055-095, each 
                           (test/Vision/Utilities/data/answer_key_1061966.json)
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored
+Data/Calibration/         the calibration board to print, Checkerboard_11x8_12mm_A4.pdf (generate_checkerboard.py) — committed
 Data/Results/             analyze.py and scan.py output — git-ignored
 images/                   documentation illustrations for this README — committed
   anyscan-logo.svg          the AnyScan logo as the JIC Smart Factory designer delivered it (outlined)

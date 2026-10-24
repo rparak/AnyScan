@@ -76,7 +76,7 @@ boards (the lens model only). The tilts are what pin the principal point: the sy
 at least 10°.
 
 **Needed.** The 12 mm calibration chessboard (11 × 8 squares), printed from
-[`Checkerboard_11x8_12mm_A4.pdf`](Checkerboard_11x8_12mm_A4.pdf) and mounted on glass or ≥ 3 mm
+[`Checkerboard_11x8_12mm_A4.pdf`](../Data/Calibration/Checkerboard_11x8_12mm_A4.pdf) and mounted on glass or ≥ 3 mm
 aluminium (page 2 of the PDF says how, and why flatness matters), a caliper, and something to hold
 it tilted. Before anything else, measure **both** scale rulers on page 1: each must be 120.0 mm. If
 either is not, do not use the board; fix the printer scaling and reprint.

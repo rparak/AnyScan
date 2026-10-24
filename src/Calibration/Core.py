@@ -67,7 +67,7 @@ CONST_CALIB_MANIFEST = 'capture.json'
 # corner by a couple of squares still qualifies. It is the FALLBACK: the detector is first asked
 # for the board's whole inner grid, because growing from this minimum with CALIB_CB_LARGER does not
 # reliably reach the whole board. On 100 rendered camera views of the printed 11 x 8 board (tilted
-# 0-45 deg, docs/Checkerboard_11x8_12mm_A4.pdf) the minimum grid read 86 whole, the rest as partial
+# 0-45 deg, Data/Calibration/Checkerboard_11x8_12mm_A4.pdf) the minimum grid read 86 whole, the rest as partial
 # grids down to 3 x 5 (~30 corners instead of 70); asking for the whole grid read all 100 whole, 100
 # turned 90 deg too, at the same cost (~240 ms a view) and the same accuracy (mean corner error
 # against ground truth 0.032 px against 0.033 px on 40 rendered views).

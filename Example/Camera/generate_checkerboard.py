@@ -85,10 +85,10 @@ CONST_RULER_SQUARES = 10
 # 0.083 %, under Calibration.Core.CONST_CALIB_FACTOR_UNIFORM_PCT (0.1 %).
 #   Unit [float] (mm)
 CONST_AXIS_TOLERANCE_MM = 0.1
-# The PDF written by default: under docs/, beside capture-checklist.md (item 1 needs the board),
-# where it is read and printed and never mistaken for input data.
+# The PDF written by default: under Data/Calibration/, the calibration's committed input (the board
+# printed for calibrate.py --capture), apart from the git-ignored capture sets in Data/Images/Calibration/.
 #   Unit [string]
-CONST_OUTPUT_FILE = os.path.join(CONST_PROJECT_ROOT, 'docs', 'Checkerboard_%dx%d_%dmm_A4.pdf'
+CONST_OUTPUT_FILE = os.path.join(CONST_PROJECT_ROOT, 'Data', 'Calibration', 'Checkerboard_%dx%d_%dmm_A4.pdf'
                                  % (CONST_BOARD_SQUARES + (int(CONST_SQUARE_MM),)))
 # PDF points per millimetre (72 points per inch, 25.4 mm per inch).
 #   Unit [float]

@@ -47,7 +47,7 @@ Description:
     per-axis spread of the undistorted table-plane scale across the frame — the quantity
     measurement depends on.
 
-    The board is the printed one (docs/Checkerboard_11x8_12mm_A4.pdf, from generate_checkerboard.py),
+    The board is the printed one (Data/Calibration/Checkerboard_11x8_12mm_A4.pdf, from generate_checkerboard.py),
     and the study assumes every visible corner is detected. For this board that is nearly true:
     Calibration.Core.Detect_Board reads it whole in most views (test/Camera/test_generate_checkerboard.py)
     and a partial grid only means fewer corners. It is NOT true for a board larger than the field,

@@ -55,7 +55,7 @@ Description:
 #   Unit [string]
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 CONST_GENERATOR = os.path.join(CONST_PROJECT_FOLDER, 'Example', 'Camera', 'generate_checkerboard.py')
-CONST_COMMITTED_PDF = os.path.join(CONST_PROJECT_FOLDER, 'docs', 'Checkerboard_11x8_12mm_A4.pdf')
+CONST_COMMITTED_PDF = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Calibration', 'Checkerboard_11x8_12mm_A4.pdf')
 # The camera's scale: 12 mm squares are ~122 px at 0.098 mm/px, and the sensor window it sees.
 #   Unit [float] (px/mm) / [Vector<int> 1x2] (px)
 CONST_PX_PER_MM = 1.0 / 0.098

@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `0f8fdf6` (2026-10-23).
+Last reviewed against the code at commit `6379465` (2026-10-24).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -375,7 +375,7 @@ machine only.
 Calibrations are kept side by side in `Configuration/Calibration/`, one file per solve,
 `Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml`. The one in force is the one the station file names, and every
 mode on the station reads it. `Example/Camera/calibrate.py` writes them and nothing else does: `--capture`
-records frames of the printed 11 × 8 board (`docs/Checkerboard_11x8_12mm_A4.pdf`), and `--images` solves the
+records frames of the printed 11 × 8 board (`Data/Calibration/Checkerboard_11x8_12mm_A4.pdf`), and `--images` solves the
 set, reporting per view and overall. Every result is a new file — a calibration is never written over — and the
 tool prints the station file's line to change to put it in force; it never edits the station file. It reads
 only the station's camera, so it runs on a station with no calibration yet. Nothing else loads uncalibrated: a
