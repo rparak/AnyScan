@@ -362,7 +362,7 @@ expectations: they refer to the frames by name.
 
 ## Funding
 
-AnyScan was developed at JIC within the EDIH-DIGIMAT project.
+Developed within internal research at JIC Smart Factory.
 
 ![EDIH-DIGIMAT; Ministry of Industry and Trade of the Czech Republic; Funded by the European Union](images/anyscan-funding.svg)
 
