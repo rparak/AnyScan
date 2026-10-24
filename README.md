@@ -22,7 +22,7 @@ gives the stages. The project poster is [images/anyscan-poster.pdf](images/anysc
 **Contents:** [Setup](#setup) · [Run](#run) · [Configuration](#configuration) · [Limitations](#limitations) ·
 [Captures on the rig](#captures-on-the-rig) · [Tests](#tests) · [Detection logic](#detection-logic) ·
 [Platform](#platform) · [Repository layout](#repository-layout) · [Swapping a component](#swapping-a-component) ·
-[Funding](#funding) · [Licence note](#licence-note)
+[Authors](#authors) · [Funding](#funding) · [Licence note](#licence-note)
 
 ## Setup
 
@@ -210,9 +210,8 @@ pytest                 # the default run
 pytest --runslow       # also runs the `slow` failure-path tests (need the weights)
 ```
 
-With the FastSAM and Gemma weights the default run includes a smoke test through the real `Analyze`; without them
-it prints `REAL VISION PATH NOT VERIFIED` and passes.
-`test/Vision/test_characterize.py` holds the model-free logic to a golden file; after an intended change:
+With the FastSAM and Gemma weights the default run smoke-tests the real `Analyze`; without them it prints
+`REAL VISION PATH NOT VERIFIED` and passes. `test/Vision/test_characterize.py` has a golden file; after an intended change:
 
 ```bash
 pytest test/Vision/test_characterize.py --update-golden
@@ -269,8 +268,6 @@ each object before stage 4, then describes it with what the checks found. The th
 
 ## Platform
 
-The describer, Gemma 4 E4B in 4-bit **MLX** (`mlx` / `mlx-vlm`), decides where AnyScan runs; the rest is portable.
-
 | Platform | Status | What is known |
 |---|---|---|
 | **macOS, Apple silicon** | **Verified, measured** | MLX on the Apple GPU (Metal), on a 16 GB M2 Pro. 2.20 s per object (warm), 9.35 GB pipeline peak, output identical word for word across runs, processes and memory pressure. |
@@ -279,9 +276,9 @@ The describer, Gemma 4 E4B in 4-bit **MLX** (`mlx` / `mlx-vlm`), decides where A
 
 - **Determinism does not travel**: greedy decoding fixes the sampler, but another backend can still change the text
   through floating-point differences. No test pins live describer text, so the suite passes on both.
-- **The models**: Gemma 4 E4B at revision `475b908`, on which the prompts were tuned, and in the catalogue modes
-  DINOv2 base at `f9e44c8`, which only compares each object with the item's reference images. No packaging recipe
-  has been verified on any platform; run from source.
+- **The models**: the describer, Gemma 4 E4B in 4-bit **MLX** at revision `475b908`, decides where AnyScan runs; the
+  rest is portable. DINOv2 base (`f9e44c8`, catalogue modes) only compares objects with the item's reference images.
+  No packaging recipe has been verified on any platform; run from source.
 
 <details>
 <summary><b>The Linux measurement</b>: the machine, the installer's run and the numbers</summary>
@@ -350,13 +347,16 @@ expectations: they refer to the frames by name.
 
 ## Swapping a component
 
-Both hardware-facing parts sit behind an interface, so a replacement touches one class:
-
 - **Camera**: subclass `Camera_Backend_Cls` (`src/Camera/Core.py`) and implement `_Open`, `_Close` and `_Grab`,
   which returns an **RGB NumPy array**, the exchange format for the whole application.
 - **Describer**: subclass `Describer_Backend_Cls` (`src/Vision/Describers.py`), implement `Load` and
   `Describe(crop, purpose)`, and create it where `Vision.Core` creates `Gemma_Describer_Cls`. Every sentence the
   operator reads is still written by the report composer (`src/Reporting/Core.py`).
+
+## Authors
+
+Roman Parák ([rparak](https://github.com/rparak)), the author, with the contributors
+[LukasMoravansky](https://github.com/LukasMoravansky), [vojtechmarek13](https://github.com/vojtechmarek13) and [piifl](https://github.com/piifl).
 
 ## Funding
 

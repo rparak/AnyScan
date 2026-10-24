@@ -9,7 +9,7 @@ name, so a copy here would be ignored and drift.
 - **Main reader: the person setting up and running a station** - Setup, Run, Configuration, Captures
   on the rig, Platform.
 - Others: integrators (Configuration, Swapping a component), maintainers (Tests, Detection logic,
-  Repository layout), funders and partners (Funding).
+  Repository layout), funders and partners (Authors, Funding).
 
 ## Sources of numbers
 
@@ -40,6 +40,7 @@ The one list of what makes a change update the README (feature-manager's `projec
 | a limitation found, measured or lifted | *Limitations* (and KNOWN_ISSUES, the DD) | - |
 | a root entry, a folder, a committed asset | *Repository layout* (its `<details>`, with the packages under `src/`) | - |
 | the test layers or their commands | *Tests* | - |
+| an author or a contributor added (the owner's word only) | *Authors* | - |
 
 ## Statuses
 
@@ -77,6 +78,11 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
   `#limitations`, `#platform` and `#detection-logic` (checked by `test_capabilities_doc.py`).
 - **Commands** are written for the environment `./install.sh` creates, activated with
   `source .venv/bin/activate` right after it (`python ...`, `pytest`).
+- **Authors** stands just before *Funding* (readme-writer has no Authors rule; its Acknowledgements, who
+  contributed or funded, sit there): Roman Parák, the author, linked to https://github.com/rparak, then the
+  contributors LukasMoravansky, vojtechmarek13 and piifl, each shown by their GitHub username linked to their
+  profile, no full name invented (the owner's ruling, 2026-10-24). `LICENSE`'s copyright holder (JIC Smart
+  Factory) is separate and unchanged.
 - **Funding** reads: "AnyScan was developed at JIC within the EDIH-DIGIMAT project.", Figure 2, its
   caption, then the EU disclaimer word for word as `Funding_Row_Cls.DISCLAIMER` holds it. The window's
   band does not carry the disclaimer; the README and Figure 2's source do.
