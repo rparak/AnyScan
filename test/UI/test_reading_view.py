@@ -286,7 +286,7 @@ def test_a_judged_object_shows_its_verdict_between_label_and_description(qt_app,
     judged = Detection_Str(Label='plate', Bbox=(0, 0, 8, 8), Sentence='A machined plate.', Cue='both', Verdict='NOK',
                            Dimension_Checks=[Check_Dimension('length', 62.0, 60.0, 1.5)],
                            Catalogue=Catalogue_Result_Str(Similarity=0.91, Side='front', Identify_Similarity=0.75,
-                                                          Area_Ratio=1.0, Unspecified_Area_Ratio=1.7,
+                                                          Area_Ratio=1.0, Several_Parts_Area_Ratio=1.7,
                                                           Center_Distance_Mm=80.0, Verified_Radius_Mm=74.3))
     window = _Window_With(reference_background_path,
                           Analysis_Str(Objects=[judged, _Object('A washer.')], Background='A surface.',

@@ -174,10 +174,9 @@ class Identification_Parameters_Str:
     #   Unit [float]
     Identify_Similarity: float = 0.75
     # The area, as a multiple of the part's nominal area, from which an object is a Warning, several parts (touching
-    # or lying close together), and not judged; named for Unspecified, the state it gave until 2026-10-16. The
-    # request's value.
+    # or lying close together), and not judged. The request's value.
     #   Unit [float]
-    Unspecified_Area_Ratio: float = 1.7
+    Several_Parts_Area_Ratio: float = 1.7
 
 
 @dataclass

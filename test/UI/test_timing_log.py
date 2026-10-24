@@ -493,7 +493,7 @@ def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_a
                              Dimension_Checks=[Check_Dimension('length', 62.0, 60.0, 1.5),
                                                Check_Dimension('width', 40.0, 40.0, 1.5)],
                              Catalogue=Catalogue_Result_Str(Similarity=similarity, Side='front', Identify_Similarity=0.75,
-                                                            Area_Ratio=1.0, Unspecified_Area_Ratio=1.7,
+                                                            Area_Ratio=1.0, Several_Parts_Area_Ratio=1.7,
                                                             Center_Distance_Mm=distance, Verified_Radius_Mm=74.3,
                                                             Warning_Kind='foreign' if verdict == 'Warning' else ''))
 

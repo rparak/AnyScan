@@ -19,9 +19,9 @@
 #   Catalogue mode:
 #     This mode inspects one catalogue item, the mounting plate (the Catalogue block below).
 #     Every object is found and described as in Segment Anything, measured at the item's
-#     top face, compared with the item's reference images (DINOv2) and judged: OK, NOK,
-#     Unspecified or Warning (design-decisions.md). A judged part's holes and stains
-#     are checked on the side up.
+#     top face, compared with the item's reference images (DINOv2) and judged: OK, NOK
+#     or Warning, a Warning with its kind (design-decisions.md). A judged part's holes
+#     and stains are checked on the side up.
 #
 #   The station:
 #     The camera, its acquisition settings and sensor window, the empty-surface
@@ -114,9 +114,10 @@ Catalogue:
   # Warning. Measured on the 41 test frames: every item 0.79-1.00, every other object at most 0.66.
   # Default: 0.75
   Identify_Similarity: 0.75
-  # The area, as a multiple of the item's nominal area, from which an object is Unspecified:
-  # probably several parts together, not judged. Must be above 1. Default: 1.7
-  Unspecified_Area_Ratio: 1.7
+  # The area, as a multiple of the item's nominal area, from which an object is a Warning,
+  # several parts: probably parts touching or lying close together, not judged. Must be above
+  # 1. Default: 1.7
+  Several_Parts_Area_Ratio: 1.7
 
 # Confidence severity thresholds [%]: below Warn_Below a confidence shows (and logs) as a
 # warning, below Error_Below as an error. Must be 0 <= Error_Below < Warn_Below <= 100.

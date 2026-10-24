@@ -500,12 +500,17 @@ CONST_CATALOGUE_FIELDS = (
 CONST_CATALOGUE_BLOCK_FIELDS = (
     (('Catalogue', 'Identifier'), ('Identification', 'Model_Path'), 'path', True),
     (('Catalogue', 'Identify_Similarity'), ('Identification', 'Identify_Similarity'), 'unit', False),
-    (('Catalogue', 'Unspecified_Area_Ratio'), ('Identification', 'Unspecified_Area_Ratio'), 'positive', False),
+    (('Catalogue', 'Several_Parts_Area_Ratio'), ('Identification', 'Several_Parts_Area_Ratio'), 'positive', False),
 )
 # The block that once switched the verdict UI on. It is no longer read: a configuration classifies when
 # it has a Catalogue block. A file that still holds it is told so, not just warned of a misspelling.
 #   Unit [Tuple<string>]
 CONST_REMOVED_CLASSIFICATION_PATH = ('General', 'Classification')
+# Mode-file keys renamed, (old path, new path). A file that still uses the old one is read as the new, with a
+# WARNING to rename it, so a station's own copy keeps loading; one that holds both is refused, since one of the two
+# values would go unused. Unspecified_Area_Ratio was named for the state it gave until 2026-10-16.
+#   Unit [Tuple<Tuple<Tuple<string>>>]
+CONST_RENAMED_PATHS = ((('Catalogue', 'Unspecified_Area_Ratio'), ('Catalogue', 'Several_Parts_Area_Ratio')),)
 # The sides a catalogue item has reference images of, in order, under <item>/reference_image/.
 #   Unit [Tuple<string>]
 CONST_CATALOGUE_SIDES = ('front', 'back')
@@ -556,6 +561,35 @@ def __Lookup(data: tp.Any, path: tp.Tuple[str, ...]) -> tp.Tuple[bool, tp.Any]:
             return False, None
         data = data[key]
     return True, data
+
+
+def __Read_Renamed_Keys(data: tp.Dict[str, tp.Any], problems: tp.List[str],
+                        notes: tp.List[tp.Tuple[str, str]]) -> None:
+    """
+    Description:
+        Move every key still under its old name (CONST_RENAMED_PATHS) to its new one, in place, and warn
+        to rename it. A file holding both names fails: one value would go unused.
+
+    Args:
+        (1) data [Dict<string, Any>]: The parsed mode file, changed in place.
+        (2) problems [Vector<string>]: Collects what is wrong.
+        (3) notes [Vector<Tuple<string, string>>]: Collects the (level, message) notes.
+    """
+
+    for old, new in CONST_RENAMED_PATHS:
+        present, _value = __Lookup(data, old)
+        if not present:
+            continue
+        _found, parent = __Lookup(data, old[:-1])
+        old_key, new_key = '.'.join(old), '.'.join(new)
+        if __Lookup(data, new)[0]:
+            problems.append('%s and %s are both set: %s is the old name of %s, so keep only %s'
+                            % (old_key, new_key, old_key, new_key, new_key))
+            del parent[old[-1]]
+            continue
+        parent[new[-1]] = parent.pop(old[-1])
+        notes.append(('WARNING', '%s is the old name of %s and is read as it; rename it in the file.'
+                                 % (old_key, new_key)))
 
 
 def __Known_Paths(paths: tp.Iterable[tp.Tuple[str, ...]]) -> tp.Set[tp.Tuple[str, ...]]:
@@ -1558,9 +1592,9 @@ def __Check_Identification(Configuration_Str: Configuration_Str, resolution: tp.
     identification = Configuration_Str.Identification
     if identification.Model_Path:
         identification.Model_Path = __Resolve_Model_Path(identification.Model_Path)
-    if identification.Unspecified_Area_Ratio <= 1.0:
-        problems.append('Catalogue.Unspecified_Area_Ratio must be above 1, or the part itself would be a Warning, '
-                        'several parts (found %r)' % identification.Unspecified_Area_Ratio)
+    if identification.Several_Parts_Area_Ratio <= 1.0:
+        problems.append('Catalogue.Several_Parts_Area_Ratio must be above 1, or the part itself would be a Warning, '
+                        'several parts (found %r)' % identification.Several_Parts_Area_Ratio)
     if Configuration_Str.Catalogue is None or resolution is None:
         return
     for reference in Configuration_Str.Catalogue.References:
@@ -1709,6 +1743,9 @@ def __Load_Mode(config_path: str, reference_problems: tp.Optional[tp.List[str]])
     # 1\ The file name and the Hardware field must agree.
     hardware, mode = __Read_Hardware(data, config_path, problems)
     Configuration_Str_i.Hardware, Configuration_Str_i.Mode = hardware, mode
+
+    # 1b\ A key under its old name is read under its new one.
+    __Read_Renamed_Keys(data, problems, notes)
 
     # 2\ Every setting in the field table.
     __Read_Fields(data, Configuration_Str_i, CONST_FIELDS, problems, notes)

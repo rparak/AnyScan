@@ -463,7 +463,7 @@ with what the checks found:
   recognition ........................ Identifier.Dino_Identifier_Cls, Classify.Best_Match
            |  each object's upright crop, turned, against the     + Classify.Classify
            |  item's reference image of each side (DINOv2). The
-           |  rule: area >= Unspecified_Area_Ratio x the part's -> Warning, several parts;
+           |  rule: area >= Several_Parts_Area_Ratio x the part's -> Warning, several parts;
            |  similarity >= Identify_Similarity -> OK, or NOK if the outline fails;
            |  else the outline alone within tolerance -> NOK; else Warning, foreign object
            v

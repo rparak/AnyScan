@@ -61,7 +61,7 @@ CONST_SCALE = Scale_Str(Mm_Per_Px_X=0.1, Mm_Per_Px_Y=0.1)
 CONST_FRAME = (1920, 1200)
 CONST_ITEM = Catalogue_Item_Str(Name='mounting_plate', Thickness_Mm=8.0, Tolerance_Mm=1.5,
                                 Outline=Catalogue_Outline_Str(Length_Mm=60.0, Width_Mm=40.0, Tolerance_Mm=1.5))
-CONST_THRESHOLDS = Identification_Parameters_Str(Model_Path='/x', Identify_Similarity=0.75, Unspecified_Area_Ratio=1.7)
+CONST_THRESHOLDS = Identification_Parameters_Str(Model_Path='/x', Identify_Similarity=0.75, Several_Parts_Area_Ratio=1.7)
 
 
 def _Part(rects: tp.List[tp.Tuple[int, int, int, int]]) -> Detection_Str:
@@ -141,7 +141,7 @@ def test_the_evidence_is_kept_with_the_thresholds_it_was_judged_by() -> None:
     result = det.Catalogue
     assert result.Area_Ratio == pytest.approx(1.0)
     assert result.Center_Distance_Mm == pytest.approx(np.hypot(0.05, 0.05))     # pixel centres: 959.5, 599.5
-    assert (result.Identify_Similarity, result.Unspecified_Area_Ratio, result.Verified_Radius_Mm) == \
+    assert (result.Identify_Similarity, result.Several_Parts_Area_Ratio, result.Verified_Radius_Mm) == \
         (0.75, 1.7, CONST_VERIFIED_RADIUS_MM)
 
 

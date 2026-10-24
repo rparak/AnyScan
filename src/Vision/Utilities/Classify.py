@@ -43,7 +43,7 @@ Description:
     and NumPy injected. The rule, in order (design-decisions.md, "A catalogue mode identifies by
     similarity, and an object of the part's shape that does not look like it is NOK"):
 
-        (1) area >= Unspecified_Area_Ratio x the part's      -> Warning, several parts (touching or close)
+        (1) area >= Several_Parts_Area_Ratio x the part's    -> Warning, several parts (touching or close)
         (2) similarity >= Identify_Similarity                  -> the part: OK when every dimension
                                                                   check passes, else NOK
         (3) outline within the part's tolerance (below (2))    -> the part, NOK: its shape, not its look
@@ -643,11 +643,12 @@ def Classify(det: Detection_Str, similarity: float, side: str, Catalogue_Item_St
     names = {entry.Side: entry.Name for entry in Catalogue_Item_Str.Sides}
     det.Catalogue = Catalogue_Result_Str(Similarity=similarity, Side=side, Side_Name=names.get(side, side),
                                          Identify_Similarity=thresholds.Identify_Similarity,
-                                         Area_Ratio=area_ratio, Unspecified_Area_Ratio=thresholds.Unspecified_Area_Ratio,
+                                         Area_Ratio=area_ratio,
+                                         Several_Parts_Area_Ratio=thresholds.Several_Parts_Area_Ratio,
                                          Center_Distance_Mm=Center_Distance_Mm(det, frame_size, scale),
                                          Verified_Radius_Mm=CONST_VERIFIED_RADIUS_MM)
     outline_within = bool(det.Dimension_Checks) and all(check.Within for check in det.Dimension_Checks)
-    if area_ratio >= thresholds.Unspecified_Area_Ratio:
+    if area_ratio >= thresholds.Several_Parts_Area_Ratio:
         det.Verdict, det.Catalogue.Warning_Kind = 'Warning', 'several_parts'
     elif similarity >= thresholds.Identify_Similarity:
         det.Verdict = 'OK' if outline_within else 'NOK'

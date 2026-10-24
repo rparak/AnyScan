@@ -375,7 +375,7 @@ def _Judged(verdict: str, similarity: float = 0.94, distance: float = 30.0,
                          Dimension_Checks=checks if checks is not None else [Check_Dimension('length', 60.2, 60.0, 1.5),
                                                                              Check_Dimension('width', 40.1, 40.0, 1.5)],
                          Catalogue=Catalogue_Result_Str(Similarity=similarity, Side='front', Identify_Similarity=0.75,
-                                                        Area_Ratio=area, Unspecified_Area_Ratio=1.7,
+                                                        Area_Ratio=area, Several_Parts_Area_Ratio=1.7,
                                                         Center_Distance_Mm=distance, Verified_Radius_Mm=74.3,
                                                         Warning_Kind=kind, Outside_Area=kind == 'outside',
                                                         Resembles=verdict != 'Warning' or kind != 'foreign'))

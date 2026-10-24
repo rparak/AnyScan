@@ -1538,16 +1538,15 @@ def test_a_catalogue_block_without_its_identifier_fails(tmp_path: tp.Any) -> Non
 
 @pytest.mark.parametrize('key, value, words', [
     ('Identify_Similarity', 1.5, 'Catalogue.Identify_Similarity must be a number from 0 to 1'),
-    ('Unspecified_Area_Ratio', 1.0, r'Catalogue.Unspecified_Area_Ratio must be above 1, or the part itself would be a '
-                                    r'Warning, several parts \(found 1.0\)'),
-    ('Unspecified_Area_Ratio', -2, 'Catalogue.Unspecified_Area_Ratio must be a number above 0'),
+    ('Several_Parts_Area_Ratio', 1.0, r'Catalogue.Several_Parts_Area_Ratio must be above 1, or the part itself would '
+                                      r'be a Warning, several parts \(found 1.0\)'),
+    ('Several_Parts_Area_Ratio', -2, 'Catalogue.Several_Parts_Area_Ratio must be a number above 0'),
 ])
 def test_an_invalid_identification_threshold_fails(tmp_path: tp.Any, key: str, value: tp.Any, words: str) -> None:
     """
     Description:
-        The thresholds are validated: a similarity outside 0..1 fails, and the several-parts ratio
-        (Unspecified_Area_Ratio, its old name) of 1 or less fails too — at 1 the part itself would be a Warning,
-        several parts, as the message says.
+        The thresholds are validated: a similarity outside 0..1 fails, and the several-parts ratio of 1 or less
+        fails too — at 1 the part itself would be a Warning, several parts, as the message says.
     """
 
     mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
@@ -1563,12 +1562,71 @@ def test_the_identification_thresholds_default_to_the_measured_values(tmp_path: 
     """
 
     mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
-    del mode['Catalogue']['Identify_Similarity'], mode['Catalogue']['Unspecified_Area_Ratio']
+    del mode['Catalogue']['Identify_Similarity'], mode['Catalogue']['Several_Parts_Area_Ratio']
     config = Load_Configuration(_Write(tmp_path, mode, calibration))
-    assert (config.Identification.Identify_Similarity, config.Identification.Unspecified_Area_Ratio) == (0.75, 1.7)
+    assert (config.Identification.Identify_Similarity, config.Identification.Several_Parts_Area_Ratio) == (0.75, 1.7)
     notes = [message for _level, message in config.Notes]
     assert any('Catalogue.Identify_Similarity not set; using the default 0.75' in m for m in notes)
-    assert any('Catalogue.Unspecified_Area_Ratio not set; using the default 1.7' in m for m in notes)
+    assert any('Catalogue.Several_Parts_Area_Ratio not set; using the default 1.7' in m for m in notes)
+
+
+def _Ratio_Mode(**keys: float) -> tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, tp.Any]]:
+    """The shipped catalogue mode with its several-parts ratio given under exactly the keys passed."""
+    mode, calibration = _Catalogue_Mode(CONST_CATALOGUE_MODES[0][0])
+    for name in ('Several_Parts_Area_Ratio', 'Unspecified_Area_Ratio'):
+        mode['Catalogue'].pop(name, None)
+    mode['Catalogue'].update(keys)
+    return mode, calibration
+
+
+def test_the_several_parts_ratio_is_read_under_its_name(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Catalogue.Several_Parts_Area_Ratio, named for the Warning it gives, is the ratio, with no warning.
+    """
+
+    config = Load_Configuration(_Write(tmp_path, *_Ratio_Mode(Several_Parts_Area_Ratio=2.5)))
+    assert config.Identification.Several_Parts_Area_Ratio == 2.5
+    assert not [m for level, m in config.Notes if level == 'WARNING' and 'Area_Ratio' in m]
+
+
+def test_the_old_name_of_the_several_parts_ratio_still_loads_with_a_deprecation_warning(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        A mode file written before the rename, with Catalogue.Unspecified_Area_Ratio, keeps loading: its value is
+        the ratio, and the load warns once, naming the old key and the new one.
+    """
+
+    config = Load_Configuration(_Write(tmp_path, *_Ratio_Mode(Unspecified_Area_Ratio=2.5)))
+    assert config.Identification.Several_Parts_Area_Ratio == 2.5
+    warnings = [m for level, m in config.Notes if level == 'WARNING' and 'Area_Ratio' in m]
+    assert len(warnings) == 1, warnings
+    assert ('Catalogue.Unspecified_Area_Ratio is the old name of Catalogue.Several_Parts_Area_Ratio' in warnings[0]
+            and 'rename it' in warnings[0]), warnings[0]
+
+
+def test_the_several_parts_ratio_under_both_names_fails_naming_both(tmp_path: tp.Any) -> None:
+    """
+    Description:
+        Both keys at once would leave one value silently unused, so the load fails, naming both.
+    """
+
+    with pytest.raises(Configuration_Error_Cls, match=r'Catalogue.Unspecified_Area_Ratio and '
+                                                      r'Catalogue.Several_Parts_Area_Ratio are both set'):
+        Load_Configuration(_Write(tmp_path, *_Ratio_Mode(Unspecified_Area_Ratio=2.5, Several_Parts_Area_Ratio=1.7)))
+
+
+def test_the_shipped_catalogue_mode_speaks_of_the_three_states() -> None:
+    """
+    Description:
+        The mounting-plate mode file names the states the application shows (OK, NOK, Warning with its kind) and
+        the ratio by its current name: Unspecified, a state it no longer has, appears nowhere in it.
+    """
+
+    with open(os.path.join(CONST_SHIPPED_MODE_DIR, CONST_CATALOGUE_MODES[0][0]), 'r', encoding='utf-8') as f:
+        text = f.read()
+    assert 'Unspecified' not in text
+    assert 'Several_Parts_Area_Ratio:' in text
 
 
 @pytest.mark.parametrize('name, item', [(n, i) for n, i, _t, _o in CONST_CATALOGUE_MODES], ids=lambda x: str(x))

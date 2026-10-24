@@ -42,7 +42,7 @@ CONST_VERDICTS = ('OK', 'NOK', 'Warning')
 # A Warning's kinds, as (the record's 'warning_kind', the name the operator reads), in the order they are listed:
 # 'outside', a part whose outline leaves the station's inspection area (Catalogue_Result_Str.Outside_Area, Resembles);
 # 'foreign', an object that is not the part, wherever it lies; 'several_parts', an area of at least the mode's
-# Unspecified_Area_Ratio times the part's (parts touching or lying close together, found as one object);
+# Several_Parts_Area_Ratio times the part's (parts touching or lying close together, found as one object);
 # 'side_unknown', a part whose side up neither its look nor its holes tell, read differently on each side;
 # 'side_mismatch', a part whose holes show one side up and its look the other. Each kind's action is in its reason
 # (Reporting.Reason_Sentence). The three last were one state, Unspecified, until 2026-10-16.
@@ -237,7 +237,7 @@ class Catalogue_Result_Str(object):
     # part's top face, and the ratio from which an object is a Warning, several parts (the mode's).
     #   Unit [float] / [float]
     Area_Ratio: float = 0.0
-    Unspecified_Area_Ratio: float = 0.0
+    Several_Parts_Area_Ratio: float = 0.0
     # The object's centre's distance from the frame centre, and the distance up to which the size checks
     # were verified on real frames (Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM).
     #   Unit [float] (mm)

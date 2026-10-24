@@ -12,7 +12,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
-Last reviewed against the code at commit `c69c221` (2026-10-24).
+Last reviewed against the code at commit `77298de` (2026-10-24).
 
 Nothing here is explained twice: where a reason or a limit matters, this file links to it.
 `test/integration/test_capabilities_doc.py` checks this file against the code (see
@@ -347,7 +347,7 @@ unit. This table says what each section of a mode file controls.
 | `Station` | The station file this mode runs on: a file name in `Configuration/Station/`, never a path. | Yes |
 | `General` | Settings that are neither hardware nor a pipeline stage. | — |
 | `General.Station_Events` | The directory of the daily station event files. It must exist and be writable at load, and is fixed for the run. | Yes |
-| `Catalogue` | A catalogue mode's item (`Item`, its file under `Data/Catalogue/`, with its reference images), the DINOv2 directory (`Identifier`) and the verdict rule's two thresholds. Its presence makes the mode a catalogue mode, which classifies and needs a calibration with a factor and a board height. | No (`Item`, `Identifier` required within it) |
+| `Catalogue` | A catalogue mode's item (`Item`, its file under `Data/Catalogue/`, with its reference images), the DINOv2 directory (`Identifier`) and the verdict rule's two thresholds (`Identify_Similarity`, `Several_Parts_Area_Ratio`; the ratio's old name, Unspecified, is still read, with a WARNING to rename it, and both names at once fail the load). Its presence makes the mode a catalogue mode, which classifies and needs a calibration with a factor and a board height. | No (`Item`, `Identifier` required within it) |
 | `Identity` | What the UI calls the configuration (`Display_Name`, in the dialog) and its models (`Model_Set`, in the header pill), and the `Task` a reading is labelled with. | Yes (`Task` optional) |
 | `Confidence` | The warning and error thresholds [%] below which a confidence is shown and logged as such. | No |
 | `Segmentation` | Stages 1–3: the FastSAM weights and inference settings. | Yes (`Model`) |

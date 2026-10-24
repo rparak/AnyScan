@@ -2654,7 +2654,7 @@ Decided 2026-10-11 (catalogue phase B), on the owner's rulings. Every object Fas
 compared with the catalogue item's two reference images by DINOv2 base and judged by
 `Vision.Utilities.Classify.Classify`, in this order:
 
-1. **Warning, several parts** — its area is at least `Catalogue.Unspecified_Area_Ratio` (1.7) times the part's
+1. **Warning, several parts** — its area is at least `Catalogue.Several_Parts_Area_Ratio` (1.7) times the part's
    nominal area: probably several parts together. Not judged; its reason says to separate them.
 2. **The part, by its look** — similarity at least `Catalogue.Identify_Similarity` (0.75), whatever its size:
    **OK** when its outline is within tolerance, **NOK** when not. A wrong-sized part is therefore NOK, not a
@@ -4301,7 +4301,7 @@ each is now a kind of its own with the action the operator takes:
 |---|---|---|---|
 | `outside` | Outside area | a part (it resembles the plate) whose outline leaves the inspection area (`Settle_Area`) | move it fully inside the area and scan again |
 | `foreign` | Foreign object | not the part: rule step 4 inside the area, or outside it without the plate's cues (`Classify`, `Settle_Area`) | remove it from the surface |
-| `several_parts` | Several parts | was Unspecified, cause `area`: an area of `Unspecified_Area_Ratio` (1.7) times the part's or more, parts touching or lying close together found as one object (`Classify`) | separate the parts and scan again |
+| `several_parts` | Several parts | was Unspecified, cause `area`: an area of `Several_Parts_Area_Ratio` (1.7) times the part's or more, parts touching or lying close together found as one object (`Classify`) | separate the parts and scan again |
 | `side_unknown` | Side unclear | was Unspecified, cause `side`, `undecided`: neither DINOv2's margin nor a hole tells the side, and the per-side readings disagree (`Settle_Side`) | move it nearer the centre and scan again |
 | `side_mismatch` | Side mismatch | was Unspecified, cause `side`, `conflict`: a hole only one side has shows that side, and DINOv2 tells the other by its margin (`Settle_Side`) | check that it is the part and scan it again nearer the centre |
 
@@ -4344,8 +4344,22 @@ Annotated and Mask views, Scene Understanding and the Trends chart.
 **Given up.** The colour no longer tells a part to move from an object to remove; the words do. A part whose side
 could not be told no longer shows the holes and stains its checks found; its reason says what to do.
 
-**Not changed.** Segment Anything (no verdicts). The configuration field keeps its name, `Unspecified_Area_Ratio`, and
-the shipped mode file's comment still names Unspecified, to leave the mode files alone.
+**Not changed.** Segment Anything (no verdicts).
+
+**The ratio's name follows the state** (2026-10-24). The field was `Catalogue.Unspecified_Area_Ratio`, named for the
+state it gave until the three states; it is now `Catalogue.Several_Parts_Area_Ratio`, and the shipped mode file's
+header and comment speak of the three states. **Why the old name still loads:** a station keeps its own copy of the
+mode file (README > Configuration), and a rename that refused it would stop that station at its next start for a
+word. So the loader reads the old key as the new one and warns, once per load, to rename it
+(`Configuration.Core.CONST_RENAMED_PATHS`); a file holding both is refused, naming both, since one of the two values
+would otherwise go unused without a word. **Rejected:** keeping the old name (a reader of the file meets a state the
+application no longer shows), and a silent alias (the old name would never leave the copies). No record carries the
+name: the ratio is not written into a capture set, so older sets are untouched. **Revisit if** no station file
+carries the old name any more: the alias and its warning can go. Pinned by
+`test/Configuration/test_core.py::test_the_several_parts_ratio_is_read_under_its_name`,
+`::test_the_old_name_of_the_several_parts_ratio_still_loads_with_a_deprecation_warning`,
+`::test_the_several_parts_ratio_under_both_names_fails_naming_both` and
+`::test_the_shipped_catalogue_mode_speaks_of_the_three_states`.
 
 **Revisit if** an operator needs a Warning's kind at a glance on the frame (a kind letter on the chip, not a colour);
 a fourth kind of Warning appears (it needs a name and an action, never a colour); or the mode file is next edited (then

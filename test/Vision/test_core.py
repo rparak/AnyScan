@@ -638,7 +638,7 @@ def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference
 
     plate, small = result.Objects
     assert plate.Catalogue is not None and small.Catalogue is not None
-    assert plate.Catalogue.Identify_Similarity == 0.75 and plate.Catalogue.Unspecified_Area_Ratio == 1.7
+    assert plate.Catalogue.Identify_Similarity == 0.75 and plate.Catalogue.Several_Parts_Area_Ratio == 1.7
     assert plate.Catalogue.Side in ('front', 'back')
     assert (small.Verdict, small.Catalogue.Warning_Kind) == ('Warning', 'foreign')
     assert plate.Catalogue.Similarity == 1.0 and small.Catalogue.Similarity == 0.0
