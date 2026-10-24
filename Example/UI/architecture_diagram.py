@@ -520,8 +520,8 @@ def Draw_Architecture(logo_svg: str) -> str:
           'light, table and inspection area). The station names its calibration (undistortion and mm per pixel) '
           'and the empty-surface reference, and a catalogue mode also names its catalogue item (the part, its '
           'checks and its reference images). Every analysis is recorded with its images and results, alongside '
-          'the session log, a run summary and the daily station events. Built at JIC within the EDIH-DIGIMAT '
-          'project, funded by the European Union.</desc>')
+          'the session log, a run summary and the daily station events. Developed within internal research at '
+          'JIC Smart Factory. Funded by the European Union.</desc>')
     c.Blank()
     c.Open('<defs>')
     c.Open('<style>')
