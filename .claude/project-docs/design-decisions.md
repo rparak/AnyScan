@@ -1666,68 +1666,34 @@ Tests `test/Install/test_install.py::test_the_sandboxed_script_resolves_its_root
 
 ## The architecture diagram is generated from the theme, carries the real logo, and is linked from the README
 
-`images/anyscan-architecture.svg` went 111 commits without an update, because nothing linked to
-it. It still showed the old "AnyScan-VLM" wordmark, the stages as a chain, a mask-filter stage
-that no longer exists, and the Summary field retired in the very commit that added it. The new
-diagram draws only what the code does: the two cues side by side into the fusion, what each
-stage hands on (the cue attribution, the Enhanced_Crop, the background sentence), where each
-configuration section enters, the shared formatter and renderer, and the import layers with the
-Qt-free boundary. It now sits at the top of the README, where a stale diagram gets noticed.
+`images/anyscan-architecture.svg` sits at the top of the README, where a stale diagram gets noticed, and draws only
+what the code does, at overview level, so a reader sees in a few seconds what AnyScan is and how it works: capture
+(a live preview, then a fresh frame once nothing moves, undistorted by the software after the grab), find objects
+(the two cues fused), describe and measure each object, and the desktop application with its four views. A
+catalogue row adds Recognise, the inspection area (only a part wholly inside is judged; one outside is told apart
+as a part or a foreign object, `Resembles_Part`), Check (the size, the holes with each bore centred in its
+countersink less the camera's predicted shift, the stains, on the side found up, `Decide_Side`) and a state for
+each object: OK, NOK or Warning, a Warning with its kind, as the badges and History show it; the description's
+guard against the checks (`Guard_Description`) is the row's note. A "set up by" row shows the chain the loader
+reads, mode → station → calibration, as arrows: the station holds the reference and the inspection area, and the
+calibration, which is required, gives the undistortion and the mm/px. A Records card under the application shows
+the capture sets, the run CSV and the session log, because History and Log are views of those records. The
+wording is held to the real limits: the describer describes objects (no defect or pass/fail claim), and the
+measurement is "in mm, when the camera is calibrated" with no accuracy adjective (README > Limitations).
 
-*Updated 2026-09-27: redesigned as a top-level overview.* The aim is that a reader sees in a
-few seconds what AnyScan is and how it works; the detailed version (class names, configuration
-sections, import layers) repeated what README > Detection logic and Source layout already say. It now shows six blocks only: capture, find objects
-(the two cues fused), describe and measure per object, the desktop app with its four views,
-and the configuration under the stages it sets. It carries the JIC mark (as in the top bar) and
-the EDIH-DIGIMAT mark on the funding band, both embedded from `App/assets/` as base64 PNG, so
-the SVG stays self-contained. The wording is held to the real limits: the describer describes
-objects (no defect or pass/fail claim), and the measurement is "in mm, when the camera is
-calibrated" with no accuracy adjective (README > Limitations).
-
-*Updated 2026-09-28: what sets the stages up, and what a run leaves behind.* The single
-"Configuration" block said one YAML file per camera and mode sets up every stage. That stopped
-being true when the calibration moved to its own file per camera, and it never showed the
-reference background, without which no analysis runs. The row under the flow is now a "set up
-by" group of three cards. Configuration. Calibration: optional, and it gives the undistortion
-and the mm/px. Reference: required. That split is the loader's. A missing calibration file is a
-warning (`__Read_Calibration`), and the frame is then not undistorted and nothing is measured. A
-missing reference fails the load. Capture says the frame is undistorted "when calibrated", in
-the passive: the software does it after the grab (`Basler_Camera_Cls._Grab`), not the camera. A
-Records card under the app shows the capture sets, the run CSV and the session log, because
-History and Log are views of those records. The flow itself is unchanged.
-
-"Optional" is the code's rule, not the rig's. The reference's sidecar records the calibration it
-was undistorted with, and the load refuses a mismatch. With the committed reference, removing
-the calibration therefore fails the load. The card states the general rule. This entry states
-the coupling.
-
-*Updated 2026-10-16: the live preview, the inspection area and the catalogue checks.* Read from the code,
-the diagram was missing or showing wrongly: Capture said nothing of the live preview or the stillness check before a
-scan; the catalogue row had no inspection area (only a part wholly inside is judged, and one outside is told apart
-as a part or a foreign object by similarity, size and colour, `Resembles_Part`); Recognise claimed the side was told
-by the reference images alone, where it is their margin, else the countersinks (`Decide_Side`), and only for a part
-inside the area, so the side moved to Check; Check said only "the checks its item defines", not the size, the holes
-with each bore centred in its countersink less the camera's predicted shift (`__Concentricity`) and the stains; the
-four verdicts OK, NOK, Warning, Unspecified are shown as five states, a Warning by its kind (Outside area, Foreign
-object), as the badges and History do; the description's guard against the check findings (`Guard_Description`) was
-missing; and the set-up row named the chain mode, station, calibration only in words, with the inspection area
-not under the station. Inspection area is a new card, stacked under Recognise as Describe sits over Measure; the side
-joined Check, the guard the row's note, the chain two arrows, and the area the Station card, so the level of
-abstraction stays the overview's. The figure grew from 1255 to 1425 px high; the new icon, a dashed frame around a
-block, is drawn on the same 12 × 12 grid. Rendered in Firefox with the fallback fonts and looked at: no overlap, no
-clipped text, no crossing arrow.
-
-**Revisit if** the calibration becomes required (the card says "optional"), or if a stage, an
-input or a record is added or removed: the diagram draws each one.
+*History:* the first diagram went 111 commits without an update because nothing linked to it; a detailed version
+(class names, configuration sections, import layers) was replaced on 2026-09-27 by this overview, which was brought
+up to the live preview, the inspection area and the catalogue checks on 2026-10-16 (the figure grew from 1255 to
+1425 px high; rendered in Firefox with the fallback fonts and looked at: no overlap, no clipped text, no crossing
+arrow).
 
 - **It is generated, not drawn: regenerating is the way to change it.**
   `Example/UI/architecture_diagram.py` writes it. The colours come from `Parameters/Theme.py`, and
   the type scale and font fallbacks from `UI/Utilities/Style.py`. The generator is what ties the
   figure to the palette. A hand-edited SVG would drift the moment the theme moved, the same
   failure as the hand-copied ink value and the duplicated hardware id. The font fallback lists
-  were moved out of `Load_Fonts` into `Style.CONST_FONT_UI_CANDIDATES` /
-  `CONST_FONT_MONO_CANDIDATES` for the same reason: otherwise the generator would have carried its
-  own copy of the font stack.
+  live in `Style.CONST_FONT_UI_CANDIDATES` / `CONST_FONT_MONO_CANDIDATES` for the same reason:
+  otherwise the generator would carry its own copy of the font stack.
 - **Two tests guard the SVG, and each does a different job. Keep both.**
   - `test_the_diagram_is_the_generators_output` compares the whole committed file with the
     generator's output (`--check` does the same from the command line). It is the stronger guard:
@@ -1736,63 +1702,56 @@ input or a record is added or removed: the diagram draws each one.
     overlaps the first test but is not redundant. Its failure names the offending colour, whereas
     the whole-file test only says "stale or hand-edited". That clearer message is its remaining
     value.
-- **The layout is checked against fallback font metrics, not Inter.** The README shows the SVG
+- **The layout is checked against fallback font metrics.** The README shows the SVG
   through `<img>`, which cannot load web fonts, so most readers see Helvetica/Arial and Courier.
-  The spacing was set and reviewed with those faces, at README width (900 px since the
-  2026-09-27 redesign, rendered with `rsvg-convert`) on white and on GitHub dark (`#0d1117`). Do not tighten it on a machine that has Inter or JetBrains Mono installed: it
-  would fit there and overflow for everyone else. The logo itself no longer depends on fonts: its
-  text is outlined (see *The logo's text is outlined*), so it has the same ink in every
-  renderer and the old `overflow: visible` on the logo slot is gone.
+  The spacing was set and reviewed with those faces, at README width (900 px, rendered with
+  `rsvg-convert`) on white and on GitHub dark (`#0d1117`). Do not tighten it on a machine that has the UI
+  fonts installed: it would fit there and overflow for everyone else. The logo itself does not depend on
+  fonts: its text is outlined (see *The logo's text is outlined*), so it has the same ink in every renderer.
 - **The logos are copied inline, not referenced.** An SVG loaded through `<img>` never fetches
   another file, so a referenced logo would draw nothing. The AnyScan logo and the JIC Smart Factory logo are inlined
   as SVG (between `logo:` and `jic:` marker comments, which the token test leaves out: they are brand artwork in their
-  own colour), and the funding band's marks are embedded as base64 PNG for the same reason; the generator reads them
-  from `images/` and `App/assets/`, so a changed mark makes the committed SVG stale and the whole-file test fails.
-  There are three copies of the AnyScan logo: `images/`, `App/assets/` and the one the generator inlines. A test holds
-  all three equal. After a new logo run `Example/UI/build_logo.py`, then regenerate.
-- **The card icons are pixel icons.** *Updated 2026-10-14, the owner's choice from renders:* the stroked line icons
-  (24-unit grid, round caps) are replaced by icons in the JIC Smart Factory guide's pixel style, each a 12 × 12 grid
-  drawn as one path of 3 px squares (`CONST_ICONS`, `CONST_ICON_SIZE` 36). At the line icons' 28 px a cell would be
-  2.33 px and the grid smeared; at 3 px a cell they stay legible at README width. A test holds every grid to
-  12 × 12 at whole-pixel cells (`test_the_diagram_icons_are_twelve_by_twelve_pixel_grids`). *Corrected 2026-10-18:*
-  the grids are no longer the generator's own `CONST_ICONS`: they moved, unchanged, into the set the application
-  draws too, `UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS`, and the regenerated diagram is byte-identical
-  (*Every icon is a pixel icon from one set*).
-- **The logo's colour is its own.** *Corrected 2026-10-14:* the delivered logo is one purple, `#640ABA`, the JIC
-  Smart Factory primary; until then the logo kept a palette that predated the theme (indigo and the magenta
-  `#D6006E`). The diagram draws it as delivered whatever the theme is.
+  own colour), and the funding band's traced SVG logos are inlined from `App/assets/` the same way; the generator
+  reads them from `images/` and `App/assets/`, so a changed mark makes the committed SVG stale and the whole-file
+  test fails. There are three copies of the AnyScan logo: `images/`, `App/assets/` and the one the generator inlines.
+  A test holds all three equal. After a new logo run `Example/UI/build_logo.py`, then regenerate.
+- **The card icons are pixel icons**, the owner's choice from renders (2026-10-14): each a 12 × 12 grid drawn as one
+  path of 3 px squares (`CONST_ICON_SIZE` 36), from the set the application draws too,
+  `UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS` (*Every icon is a pixel icon from one set*). At 3 px a cell they stay
+  legible at README width; at the replaced line icons' 28 px a cell would be 2.33 px and the grid smeared. A test
+  holds every grid to 12 × 12 at whole-pixel cells (`test_the_diagram_icons_are_twelve_by_twelve_pixel_grids`).
+- **The logo's colour is its own:** the delivered logo is one purple, `#640ABA`, the JIC Smart Factory primary, and
+  the diagram draws it as delivered whatever the theme is.
 
-**Revisit if** the logo is redesigned (rebuild it with `Example/UI/build_logo.py`, regenerate), or
-if the code changes what the diagram shows. The generator holds the colours; the content is
-still written by hand in the generator, and the README link is what keeps it in view.
+**Revisit if** a stage, an input or a record is added or removed (the diagram draws each one), or the logo is
+redesigned (rebuild it with `Example/UI/build_logo.py`, regenerate). The generator holds the colours; the content
+is still written by hand in the generator, and the README link is what keeps it in view.
 Tests `test/UI/test_brand_figures.py` (`test_the_three_logo_copies_are_identical`,
 `test_the_diagram_is_the_generators_output`, `test_the_diagram_draws_only_theme_tokens`,
-`test_the_readme_shows_the_diagram`).
+`test_the_readme_shows_the_diagram`, `test_the_diagram_icons_are_twelve_by_twelve_pixel_grids`).
 
 ## The logo's text is outlined, so the logo has the same width in every font setup
 
-`images/anyscan-logo.svg` is the AnyScan logo as the JIC Smart Factory designer delivered it (2026-10-14), committed
-byte for byte: one purple, `#640ABA`, the mark as filled shapes, and the wordmark and tagline as three outlined
-paths, so it carries no `<text>`. Its viewBox is 609.8 × 140 units; the mark's corners reach the top and the bottom,
-and the ink ends 5.9 units inside the right edge. The previous logo (indigo and magenta, outlined from
-`images/source/anyscan-logo-text.svg` in Inter by Inkscape) and its text source are removed.
+`images/anyscan-logo.svg` is the AnyScan logo as the JIC Smart Factory designer delivered it, committed byte for
+byte: one purple, `#640ABA`, the mark as filled shapes, and the wordmark and tagline as three outlined paths, so it
+carries no `<text>`. Its viewBox is 609.8 × 140 units; the mark's corners reach the top and the bottom, and the ink
+ends 5.9 units inside the right edge. The mark (delivered 2026-10-18) is ten filled rectangles and one square frame
+(an even-odd path), all straight edges, in one group: two solid corners (top left, bottom right), the frame, an
+I-shaped base under it and three bars beside it.
 
-*Corrected 2026-10-18:* the designer delivered a new mark; the wordmark, the tagline, the colour and the proportions
-are unchanged. The mark is now ten filled rectangles and one square frame (an even-odd path), all straight edges, in
-one group: two solid corners (top left, bottom right), the frame, an I-shaped base under it and three bars beside it.
-The previous mark (four stroked corner brackets, an inner bounding box, a "1" tag and an L-shaped object with three
-holes, drawn in a `translate(0,8)` group) is in git history only. `build_logo.py` needed no change for it: its output
-from the new logo is byte for byte the wordmark and mark files delivered with it. The window icon became the mark on
-a transparent ground (*The window icon is the mark on a transparent ground, grid-fitted at each size*).
+*History:* the first logo (indigo and magenta, outlined in Inter by Inkscape from a text source) was replaced by the
+delivered one on 2026-10-14, and its mark (stroked corner brackets around an L-shaped object) by the new mark on
+2026-10-18, with the wordmark, tagline, colour and proportions unchanged; `build_logo.py` needed no change for it.
 
 The application's copies are derived, never edited: `python Example/UI/build_logo.py` copies the logo to
 `App/assets/anyscan-logo.svg` and writes `App/assets/anyscan-logo-wordmark.svg` (the logo without its tagline, which
 the top bar draws), `App/assets/anyscan-mark.svg` (the mark alone: the empty viewport, the icon's source) and
-`App/assets/anyscan-mark.ico` (the mark on a transparent ground, rendered at each of 16-256 px). The derivation is string
-surgery on the delivered file, so every byte it keeps is the designer's: the text is the three top-level paths after
-the mark's groups, the tagline the one starting below y 107.5. No font and no Inkscape are involved, so it reproduces
-on any machine. **Reproduced:** the derived wordmark and mark are byte for byte the files delivered with the logo
-(2026-10-18), and a rebuild into an empty directory reproduces the committed SVGs.
+`App/assets/anyscan-mark.ico` (the mark on a transparent ground, rendered at each of 16-256 px: *The window icon is
+the mark on a transparent ground, grid-fitted at each size*). The derivation is string surgery on the delivered
+file, so every byte it keeps is the designer's: the text is the three top-level paths after the mark's groups, the
+tagline the one starting below y 107.5. No font and no Inkscape are involved, so it reproduces on any machine.
+**Reproduced:** the derived wordmark and mark are byte for byte the files delivered with the logo (2026-10-18), and
+a rebuild into an empty directory reproduces the committed SVGs.
 
 The JIC mark beside it is the JIC Smart Factory horizontal logo in purple (`App/assets/jic-smart-factory.svg`, the
 designer's file), at 26 px, about half the AnyScan logo's height as on the poster. The grey variant is for dark
@@ -1809,9 +1768,9 @@ In the top bar the logo, the divider and the JIC mark are spaced `AnyScan_Window
 off the spacing. The architecture diagram follows the same rule (`Header_Positions` in
 `Example/UI/architecture_diagram.py`), scaled from the lockup to the diagram's logo.
 
-`Style.Load_Svg` takes an SVG's aspect ratio from its viewBox, read as real numbers (*Corrected 2026-10-14:* it read
-Qt's `defaultSize()`, which truncates to whole units, so the delivered logo's 609.8 units were drawn as 609 and the
-logo was squeezed 0.13 % across; the test comparing the mark with the logo's mark found it).
+`Style.Load_Svg` takes an SVG's aspect ratio from its viewBox, read as real numbers: Qt's `defaultSize()` truncates
+to whole units, so the delivered logo's 609.8 units were drawn as 609 and the logo squeezed 0.13 % across (found by
+the test comparing the mark with the logo's mark).
 
 **Revisit if** the logo is redesigned: commit the new delivered file as `images/anyscan-logo.svg`, run
 `Example/UI/build_logo.py` (it stops if the file is no longer three text paths after the mark), then regenerate the
@@ -1824,123 +1783,43 @@ Tests `test/UI/test_brand_figures.py` (`test_the_logo_renders_the_same_in_any_de
 
 ## Gemma 4 12B was measured against E4B and is not better; E4B stays the describer
 
-*Evidence from the previous test set* — the seven frames removed in `eb00508` (recoverable from `eb00508^`; their names do not match `Data/Images/Test`). *Not re-run on the current set: it needs the describer run and its text read. The `Image_NNN` names below refer to that set.*
-
-The obvious intuition is that a bigger model describes better. It was measured on 2026-09-25,
-and it does not hold here. `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09` (6.77 GB, the same
-4-bit MLX format; the pinned `mlx-vlm` 0.7.2 loads its `gemma4_unified` architecture) ran the
-seven frames on the M2 Pro. It had the same pipeline, the same crops and the same prompts as
-E4B; only `Description.Model` differed. E4B was re-run in the same session and reproduced its
-recorded baseline (2.20 s per object against 2.22; `Image_001` 20.7 s against 20.6), so the
-comparison is like for like.
-
-| | E4B | 12B |
-|---|---|---|
-| Warm time per object | 2.20 s | **5.46 s** (2.5×) |
-| `Image_001` (9 objects) | 20.7 s | 50.4 s |
-| Pipeline peak footprint | 9.35 GB | 10.45 GB |
-| Load | 7.2 s | 7.5 s |
-| Word-for-word identical, within and across processes | yes | yes |
-
-- **What the 12B fixed:**
-  - It names the rust on `Image_002` as rust ("brown and orange discoloration, appearing as rust
-    or tarnish"); E4B said "brown, earthy-toned stains or deposits".
-  - No invented "particulate matter" on the dark plates `Image_003` / `Image_005`, E4B's likely
-    glint artefacts.
-  - It calls `Image_001` object 7 a hexagonal nut, one of the two hex nuts E4B misses (object 8
-    is still a "ring").
-  - It reports a small real mark on `Image_006`'s corner, checked on the frame.
-- **What it broke:**
-  - **Three of `Image_001`'s four plastic parts read as metal.** Object 5, the white plastic
-    part, becomes "a small, rectangular metallic component with a silver-colored finish";
-    object 9 has "a blueish-green metallic appearance"; object 4 "a metallic, slightly textured
-    surface"; object 2 gets no material at all. That is the property the prompts were measured
-    against, and E4B reads those parts as plastic.
-  - It calls the square `Image_006` (47.8 × 47.0 mm) "rectangular"; E4B said square.
-  - It misses the concentric machining marks that dominate `Image_004`.
-  - It repeats the prompt's condition checklist back in about ten of fifteen lines ("free of
-    any visible rust, stains, or significant scratches").
-- **The cost:** 2.5× the time per object, and +1.1 GB.
-
-**Model or wording?**
-- **The checklist echo is the wording.** The 12B follows "look carefully for discolouration,
-  stains, rust, tarnish …" more literally than E4B does.
-- **The plastics failure is, in our judgement, mostly the model.** Both models received the same
-  crops and the same prompt, which asks for "apparent material" without suggesting one, and E4B
-  reads those parts correctly from it.
-- **The wording may still contribute.** The prompt's condition list is metal vocabulary (rust,
-  tarnish), and it was tuned on E4B, so it may prime a model that follows lists more literally.
-  **Only a prompt experiment separates the two:** a 12B-specific wording, measured on the same
-  four plastic parts and the Image_002 / Image_007 plates. The 12B weights stay in
-  `models/gemma-4-12B-it-4bit/` for that.
-
-**Its provenance is a weaker link, not an equivalent choice.**
-- E4B's card names its source, `google/gemma-4-E4B-it` at revision `fee6332`, where the licence
-  was checked.
-- The 12B's card names no base model, revision or licence. Its `tokenizer.json` is byte-identical
-  to `google/gemma-4-12B-it`'s and its text configuration matches field for field (its chat
-  template and processor configuration differ). That is plausible, not proven.
-
-**Decision:** E4B stays the describer on macOS and is the default on Linux. The 12B is available
-only as `./install.sh --model 12b`, which prints the provenance gap and these results when the
-flag is given. *Corrected 2026-10-08:* `--model` was removed on 2026-09-29 and the 12B is no longer
-supported (*No longer supported (2026-09-29)*, under *E4B stays the describer on both machines*);
-`test/Install/test_install.py` now pins `--model` as an unknown option.
-**Revisit if** a 12B-specific prompt fixes the plastics without losing the rust and the clean
-plate. Then it is an argument for the 12B on macOS too, at 2.5× the time per object.
+Superseded by [*E4B stays the describer on both machines: the owner's choice, one wrong statement ahead of the
+12B*](#e4b-stays-the-describer-on-both-machines-the-owners-choice-one-wrong-statement-ahead-of-the-12b): the 12B
+is no longer supported, and its Mac measurement is kept there as evidence. The full entry is in git at `a85215c`.
 
 ## Linux: MLX's CUDA backend, E4B on every card with ≥ 11 GB, refusal instead of a silent CPU fallback
 
 A request to move Linux to PyTorch with a separate 12B build was checked against the repository
-first. Linux already runs on **MLX's CUDA backend** (see *Platform: three states*), and the 12B
-exists as a 4-bit MLX conversion the pinned `mlx-vlm` loads. So both platforms share one
+first. Linux already runs on **MLX's CUDA backend** (see *Platform: three states*), so both platforms share one
 describer and one weight format, and nothing new is written.
 
-The PyTorch alternative would have needed:
-- a second describer behind `Describe(crop, purpose)`;
-- a way for the configuration to select it;
-- and, for the best 16 GB fit, a 23.9 GB download (`google/gemma-4-12B-it-qat-q4_0-unquantized`,
-  quantised to NF4 at load).
+**Rejected.** PyTorch on Linux: it would have needed a second describer behind `Describe(crop, purpose)`, a way
+for the configuration to select it, and, for the best 16 GB fit of the 12B, a 23.9 GB download
+(`google/gemma-4-12B-it-qat-q4_0-unquantized`, quantised to NF4 at load). Google's own 4-bit `…-qat-w4a16-ct` looks
+smaller, but its safetensors header shows a 6.13 GB 4-bit decoder plus bf16 token embeddings and a *separate* bf16
+`lm_head`, 2 GB each: 10.26 GB of weights, built for vLLM. A file-size estimate would have missed that.
 
-Google's own 4-bit `…-qat-w4a16-ct` looks smaller, but its safetensors header shows a 6.13 GB
-4-bit decoder plus bf16 token embeddings and a *separate* bf16 `lm_head`, 2 GB each: 10.26 GB of
-weights, built for vLLM. A file-size estimate would have missed that.
-
-- **E4B on every Linux card, the 12B only on request.** The first Linux run should change one
-  variable, Metal to CUDA, with the model measured on the Mac. The 12B would add a second
-  variable, with a known regression (*Gemma 4 12B was measured against E4B*).
+- **E4B on every Linux card.** The first Linux run changed one variable, Metal to CUDA, with the model measured on
+  the Mac (the 12B is no longer supported: *E4B stays the describer on both machines*).
 - **The card is read, not just the driver.** `nvidia-smi --query-gpu=memory.total,memory.used`
   on GPU 0, the device MLX and PyTorch use:
-  - **the minimum is 11 GiB** (11,264 MiB): E4B plus FastSAM is estimated at ~8.5 GB, and 12 GB
-    cards report ~12,280 MiB;
-  - **`--model 12b` needs 15 GiB**: it is estimated at ~10.5 GB (6.77 GB of weights, ~0.25 GB of
-    KV cache at the ≤ 280 image tokens every crop is resized to, plus the generation working
-    set, two CUDA contexts and FastSAM), and 16 GB cards report ~16,300 MiB;
-  - **a card already using more than 1.5 GB** (a display, another process) gets a warning.
-
-  These are estimates: nothing has run on Linux. *Corrected 2026-10-08:* the 2026-09-29 Linux run
-  measured a 9.5 GB whole-application peak, which the 11 GiB floor clears (*The installer on Linux:
-  detection and the Gemma download ran, the rest did not*); the `--model 12b` bullets here and below
-  describe an option removed that day.
+  - **the minimum is 11 GiB** (11,264 MiB, `CONST_MIN_VRAM_MIB`): the whole application peaked at 9.5 GB of GPU
+    memory on the 2026-09-29 Linux run (*The installer on Linux: detection and the Gemma download ran, the rest did
+    not*), and 12 GB cards report ~12,280 MiB;
+  - **a card already using more than 1.5 GB** (`CONST_BUSY_VRAM_MIB`; a display, another process) gets a warning.
 - **No silent CPU fallback.** A machine without a usable NVIDIA GPU (no driver, a failing
-  `nvidia-smi`, an old driver, compute capability below 7.5, too little memory) now stops. The
+  `nvidia-smi`, an old driver, compute capability below 7.5, too little memory) stops. The
   message names the reason and the 11 GB minimum, and suggests `--cpu`. A silent fallback
   installs successfully and then leaves the operator with inference too slow to use, not knowing
   why. `--cpu` takes the CPU path with that warning; with a usable GPU it is not needed, and the
   GPU builds are installed.
-- **The installer never edits a configuration.** After `--model 12b` a configuration still naming
-  E4B keeps loading. The installer names the file, the field (`Description.Model`) and the value
-  that would use the 12B.
-- **Both manifests are pinned and verified.** Each file's published size and hash (LFS SHA-256,
-  or git blob SHA-1) at the pinned revision. The 12B manifest was checked against the 12B
-  downloaded for the measurement.
+- **The manifest is pinned and verified.** Each file's published size and hash (LFS SHA-256,
+  or git blob SHA-1) at the pinned revision.
 
-**Revisit when** a Linux machine runs it: replace the estimates with measured peaks, re-derive
-the thresholds from them, and re-verify every exact-text pin on the CUDA backend.
+**Revisit when** a machine runs the full Linux install, the CUDA 12 path or the CPU path: re-derive the thresholds
+from its measured peaks, and re-verify every exact-text pin on the CUDA backend.
 Tests `test/Install/test_install.py` (the refusal and `--cpu` for every no-GPU case, the memory
-floors, the busy-card warning, `--model` parsing, the 12B notice, its download directory, and the
-configuration message).
-
+floors, the busy-card warning, `--model` refused as unknown).
 
 ## The Log view holds the newest 1,000 lines, because each row made every later one slower
 
@@ -1970,10 +1849,8 @@ sluggish in the afternoon with nothing to connect it to the log.
 - **A scrolled-up reader is not moved.** When a row above the viewport is dropped, the scroll
   position moves up by its height, so the line at the top of the viewport stays the same.
 - **1,000 is the knee, not a limit of the design.** It keeps a new line near 1 ms and the view
-  near 50 MB of rows. A first measurement showed memory still climbing after the fix; that was the
-  measurement, not a leak — dropped rows are freed by `deleteLater`, which only runs when the event
-  loop does, and the script never started one. Processing the deferred deletes (as the application's
-  own loop does) the memory levels off.
+  near 50 MB of rows. Dropped rows are freed by `deleteLater`, which runs only when the event loop does: a
+  measurement without the loop shows memory still climbing, which is the measurement, not a leak.
 
 **Revisit if** someone wants more lines on screen: re-run the measurement above first and raise
 the cap only as far as the per-line time stays acceptable — or render the log with a model/view
@@ -1981,7 +1858,6 @@ the cap only as far as the per-line time stays acceptable — or render the log 
 Tests `test/UI/test_log_view.py::test_the_view_keeps_the_newest_lines_and_says_the_rest_are_in_the_file`,
 `::test_seeding_from_a_long_file_renders_only_its_last_lines`,
 `::test_dropping_old_lines_does_not_move_what_a_scrolled_up_reader_sees`.
-
 
 ## Two calibrations of the same images agree only to the last digits — read a small difference as noise
 
@@ -2021,28 +1897,21 @@ Tests `test/Calibration/test_core.py` (the synthetic solves the table was measur
 ## The printed calibration board stays 11 × 8 at 12 mm; a board larger than the field needs ChArUco
 
 The board is generated by `Example/Camera/generate_checkerboard.py` into
-`Data/Calibration/Checkerboard_11x8_12mm_A4.pdf`, the calibration's committed input (*corrected 2026-10-24*: it
-was under `docs/` as a document to print; it moved when `docs/` went, apart from the ignored capture sets in
-`Data/Images/Calibration/`),
-and the calibration set is 40+ views, not a larger board.
+`Data/Calibration/Checkerboard_11x8_12mm_A4.pdf`, the calibration's committed input, and the calibration set is
+40+ views, not a larger board.
 
 **Why.** A larger board looked better and is not usable with this detector.
 
 - On the synthetic study's model, which assumes every visible corner is detected, a 20 × 13 board
   (240 × 156 mm, overhanging the ~188 × 118 mm field) cut the factor's spread about fourfold:
   0.015 / 0.028 % (median / 90th percentile) at 12 views against 11 × 8's 0.085 / 0.138 %.
-- The real detector does not read it. `Detect_Board` calls `findChessboardCornersSBWithMeta` with the
-  minimum grid (4 × 3) and `CALIB_CB_LARGER`, and that growth stops beyond ~15 columns and where the
-  board leaves the frame. On 12 rendered camera views (122 px squares, flat and tilted 10–35°) 11 × 8
-  was read whole every time; 20 × 13 came back as grids from 3 × 5 to 17 × 3, 17 × 11 likewise.
-  Passing the full grid finds a large board only when all of it is in view, which a board larger
-  than the field never is.
+- The real detector does not read it. Grown from the minimum grid (4 × 3, `CALIB_CB_LARGER`), the detection stops
+  beyond ~15 columns and where the board leaves the frame. On 12 rendered camera views (122 px squares, flat and
+  tilted 10–35°) 11 × 8 was read whole every time; 20 × 13 came back as grids from 3 × 5 to 17 × 3, 17 × 11
+  likewise. Passing the full grid (what `Detect_Board` now asks first: next entry) finds a large board only when
+  all of it is in view, which a board larger than the field never is.
 - Views buy what the board cannot: 11 × 8 spreads 0.057 / 0.103 % at 24 views, 0.039 / 0.065 % at 40,
   0.028 / 0.056 % at 60 — under the 0.1 % limit from 40.
-- Even 11 × 8 was not always read whole while the detector grew from its minimum grid: over a sweep
-  of rendered views tilted 0–45°, 86 of 100 whole, the rest partial grids of ~30 corners instead of 70.
-  *Corrected 2026-09-25: this said 83; that count came from an earlier version of the test's camera
-  view.* The detector is now told the board (next entry) and reads all 100 whole.
 - The page carries a scale ruler on **each** axis, 10 squares long, and says not to use a board where
   either is not 120.0 mm. Printers can scale the feed and head directions differently, and the solver
   takes the x and y factors from one `--square-mm`, so a one-axis error would go into one factor
@@ -2052,6 +1921,8 @@ and the calibration set is 40+ views, not a larger board.
 - The board with its one-square white border is 120 mm tall against a ~118 mm field; the detector
   was measured not to mind, so the border is not shrunk to fit.
 
+*History:* the PDF was under `docs/` as a document to print until `docs/` went (2026-10-24).
+
 **Revisit if** a board larger than the field is wanted: that means ChArUco (`cv2.aruco.CharucoDetector`,
 in the installed OpenCV), whose marker IDs make a partial, overhanging view detect completely —
 replacing the detection in `Calibration.Core` and its tests, and checked on rendered views of the
@@ -2059,7 +1930,6 @@ printed board before anyone prints it.
 Tests `test/Camera/test_generate_checkerboard.py` (the page rendered and read by `Detect_Board` across
 a tilt sweep; nothing in the quiet zone; both rulers exactly ten squares; the calipered placeholder;
 the committed PDF reproduced), `test/Camera/test_reference_harnesses.py::test_each_camera_script_imports_from_any_working_directory`.
-
 
 ## The calibration detector is told the board and asks for all of it first
 
@@ -2139,11 +2009,11 @@ the wait, not move it out of the scan; **warming up after the dialog reports the
 ANALYZE could then start while the warm-up still holds the models, which would need a lock between
 the two for a saving of seconds.
 
-*Updated 2026-09-27:* the load now logs where its time went, after the unchanged `Models loaded … (x s)`
+**The load logs where its time went**, after the `Models loaded … (x s)`
 line: one line per model (`Model FastSAM-x.pt loaded in 1.11 s.`, or `… kept, not reloaded.` for a model
 the configuration shares with the previous one) and one for the warm-up's parts (`Warm-up took 3.24 s:
 reference 0.04 s, first FastSAM pass 1.17 s, background sentence 2.03 s.`). A warm-up that stops early is
-no longer silent at the load: that line becomes a WARNING naming the reason and saying the first analysis
+not silent at the load: that line becomes a WARNING naming the reason and saying the first analysis
 pays the rest. Each analysis's timing line marks the first one after a load (`(first after load)`), so
 whether the warm-up worked can be read from the log. In 12 processes on 2026-09-27 (`Image_001`, window
 path) the first analysis was not slower than the second: the difference ranged from −711 to +127 ms.
@@ -2216,8 +2086,8 @@ than set the tagline beside the wordmark at 9 pt or keep it outlined at 7 pt; th
 and the wordmark are sharp at every height tried (0.57-0.76 of the mark's ink and 0.62-0.72 of the wordmark's at full
 contrast from 48 to 66 px), so the height is set by the tagline alone.
 
-*Corrected 2026-10-14:* until the delivered logo, this entry was "The logo is 59 px on a low-density display": 59 px
-put the previous logo's 4-unit brackets on whole pixels. That reason went with that logo.
+*History:* until the delivered logo the low-density height was 59 px, which put the previous logo's 4-unit brackets
+on whole pixels.
 
 **Revisit if** the logo is redesigned (its tagline's share of the height sets the 1x size), if the type floor
 changes, or when the window re-reads its screen's ratio on a screen change.
@@ -2230,45 +2100,39 @@ Tests `test/UI/test_header.py::test_the_logo_puts_its_tagline_at_9_pt_on_a_low_d
 ## Text clears 4.5:1 on its ground: the muted ink, status words and error text on the viewport
 
 Every enabled text in the console is at least 4.5:1 (WCAG AA) against the ground it is drawn on, at any
-density. Three changes, all in `Parameters/Theme.py`:
+density. The tokens, all in `Parameters/Theme.py`:
 
-- `CONST_INK_MUTE` is `#706a8c` (was `#8983a6`): the same LCh hue and chroma at L* 46.6 instead of
-  56.4. 5.09:1 on the card, 4.69:1 on the control hover, 4.60:1 on the page (was 3.58, 3.29, 3.24).
+- `CONST_INK_MUTE` is `#6F5783` (the purple's hue at L\* 41, chroma 28): 6.24:1 on white, 4.63:1 on the grey-lilac.
 - A status word is drawn in its colour's text twin: `Theme.Status_Text_Color` maps `CONST_OK` to
-  `CONST_OK_INK` and `CONST_WARN` to `CONST_WARN_INK` (`CONST_STATUS_TEXT_COLORS`), 5.02:1 each (was
-  3.30 and 3.19). The two widgets that put a status colour on words read it: `Stat_Cell_Cls.Set_Value`
-  and the header pill's `__Pill_Style`. The status cell's dot keeps the bright colour (a graphic, held
-  to 3:1). The call sites still pass the status colour.
-- `CONST_ERROR_ON_DARK` (`#fc5e4c`, `CONST_LOG_ERROR`'s hue lightened) for red text on the indigo
-  viewport, the failed set's History thumbnail: 4.61:1 (was 2.18:1 with `CONST_LOG_ERROR`).
+  `CONST_OK_INK` (`#00711B`) and `CONST_WARN` to `CONST_WARN_INK` (`#7C5B00`) (`CONST_STATUS_TEXT_COLORS`), the
+  JIC green's and amber's hues at L\* 41, 6.2:1. The two widgets that put a status colour on words read it:
+  `Stat_Cell_Cls.Set_Value` and the header pill's `__Pill_Style`. The status cell's dot keeps the bright colour, at
+  L\* 60.5 (3.1:1, the graphic floor). The call sites still pass the status colour.
+- The viewport is the grey-lilac `CONST_VIEWPORT` (`#E1DCE6`), its text the purple (6.79:1), and a failed set's
+  History thumbnail says so in the Log's error colour `CONST_LOG_ERROR` (`#BE0362`, 4.61:1).
 
-`CONST_PRIMARY_DISABLED_TEXT` keeps the old muted value `#8983a6` as its own literal, so the disabled
-ANALYZE label looks as it did. Disabled controls stay exempt (see *Control stylesheets*). The JIC mark
-(then `brand-jic-mute.png`) was artwork tinted with the old value and was not re-tinted.
-`images/anyscan-architecture.svg` takes `CONST_INK_MUTE` from the theme and was regenerated.
+`CONST_PRIMARY_DISABLED_TEXT` is an alias of `CONST_CONTROL_DISABLED_TEXT` (`#B4A6BE`): disabled controls stay exempt
+(see *Control stylesheets*). `images/anyscan-architecture.svg` takes `CONST_INK_MUTE` from the theme.
 
 **Why.** The 2026-09-29 audit of every text style found 38 flagged on a 1x monitor; 23 of them were
 `CONST_INK_MUTE` as a text colour (status-strip labels, the "Configuration not loaded." chip, empty
 states, timestamps, History's notes and captions), and the status words were in the bright verdict
 colours. Contrast is defined on colour values, so it applies at every density; a 1x screen makes it
-worse, because anti-aliasing leaves small text below its token's contrast (a 10 px label in the old muted
+worse, because anti-aliasing leaves small text below its token's contrast (a 10 px label in the then muted
 ink rendered at 3.40:1 at DPR 1, 3.58:1 at DPR 2). A density-dependent palette was rejected: the theme
-is the one Qt-free palette the vision renderer and the diagram share. The Mac look changes: muted text is
-darker. The failed-set thumbnail cannot be reached in the application today (found 2026-09-29, not
-fixed here): a partial set's metadata carries no run id, and History lists only the current run's sets;
-the test renders the thumbnail widget itself.
+is the one Qt-free palette the vision renderer and the diagram share. The failed-set thumbnail cannot be reached in
+the application today (found 2026-09-29): a partial set's metadata carries no run id, and History lists only the
+current run's sets; the test renders the thumbnail widget itself.
+
+*History:* the 2026-09-29 fix set the muted ink to `#706a8c` (from `#8983a6`) and red text on the then dark indigo
+viewport to `CONST_ERROR_ON_DARK`; the JIC Smart Factory palette (2026-10-14) gave the values above and removed
+`CONST_ERROR_ON_DARK` with the dark viewport.
 
 **Revisit if** a text colour or a ground changes, or a new surface carries text: the test measures what
 is drawn, so a new pair below 4.5:1 fails it.
 Tests `test/UI/test_text_contrast.py::test_every_enabled_text_clears_the_floor`,
 `::test_every_text_ground_is_a_theme_token`, `::test_every_flagged_text_was_measured` (one text of every
 flagged style reached); buttons in every state are measured by `test/UI/test_control_contrast.py`.
-
-*Corrected 2026-10-14, the JIC Smart Factory palette:* the muted ink is `#6F5783` (the purple's hue at L\* 41,
-chroma 28: 6.24:1 on white, 4.63:1 on the grey-lilac); the status words are the JIC green's and amber's hues at L\* 41
-(`#00711B`, `#7C5B00`, 6.2:1), their dots at L\* 60.5 (3.1:1, the graphic floor). The viewport is no longer dark:
-it is the grey-lilac `#E1DCE6`, its text the purple (6.79:1), and a failed set's thumbnail says so in the Log's
-error colour `#BE0362` (4.61:1), so `CONST_ERROR_ON_DARK` is removed.
 
 ## The UI fonts are bundled: static Public Sans and JetBrains Mono at the four weights the UI requests
 
@@ -2318,13 +2182,15 @@ height, and the ink of "n".
 
 For GT Super Display, Newsreader at opsz 72 was closest (x/cap 0.713 against 0.722, width −0.9 %, overlap 0.551),
 ahead of Playfair Display (0.563 overlap, but much finer hairlines) and Fraunces (−13.7 % wide). The owner chose to
-leave the serif out of the application: its largest heading is a 15.5 pt card title. Words are set in Public Sans and the
-monospace face (JetBrains Mono) only for machine values, times, sizes, the resolution and the Log's columns, where
-fixed-width digits keep a column still. *Corrected 2026-10-14:* the badge's chips ('No frame', 'Idle', the verdicts),
-the empty Camera View's instruction, the busy overlay's status and History's empty-pane message were monospace with no
-recorded reason; they are set in Public Sans
-(`test/UI/test_fonts.py::test_chips_and_the_empty_camera_view_are_set_in_the_ui_face`). The GT files were only read for
-the comparison, from the owner's `design/` folder, which stays out of git.
+leave the serif out of the application: its largest heading is a 15.5 pt card title. Words are set in Public Sans,
+the badge's chips ('No frame', 'Idle', the verdicts), the empty Camera View's instruction, the busy overlay's status
+and History's empty-pane message included (`test/UI/test_fonts.py::test_chips_and_the_empty_camera_view_are_set_in_the_ui_face`);
+the monospace face (JetBrains Mono) is only for machine values, times, sizes, the resolution and the Log's columns,
+where fixed-width digits keep a column still. The GT files were only read for the comparison, from the owner's
+`design/` folder, which stays out of git.
+
+*History:* until 2026-10-14 the chips, the empty view's instruction, the overlay's status and History's empty-pane
+message were monospace with no recorded reason.
 
 **Revisit if** the brand's typefaces change, or GT America becomes distributable with the application.
 Tests `test/UI/test_fonts.py::test_the_ui_and_monospace_families_resolve_to_the_bundled_fonts`.
@@ -2339,8 +2205,7 @@ the same limit as the logo (a screen change does not rebuild fonts; *The logo is
 display, so its tagline is 9 pt*). It raises ten chrome styles, all 7.5-8.5 pt: the frame and stage badges (`Widgets.py`
 `Badge_Cls`), the status-strip labels (`Stat_Cell_Cls`), the funding note (`Funding_Row_Cls`), History's
 card time, card count and failed thumbnail (`History.py` `Thumb_Card_Cls`), and in `History_View_Cls`
-its rolling-window note, image captions and connection group label and count. (*Corrected 2026-10-08:*
-these were cited by line number, which had drifted.) Content sizes
+its rolling-window note, image captions and connection group label and count. Content sizes
 (`CONST_TYPE_SCALE`, smallest 9.5 pt) are not touched.
 
 **Why.** On a 1x monitor a regular-weight 7.5-8.5 pt text is 10-11 px, and at that size 0.02-0.05 of its
@@ -2348,8 +2213,8 @@ ink reaches full contrast, in Noto Sans and in the then bundled Inter alike; at 
 (measured 2026-09-29, offscreen renders pixel-identical to xcb). Bundling Inter did not change that, so the
 floor is independent of the face. A 2x display draws these sizes with 15-17 device px per em and keeps them;
 there the window is pixel-identical to the window without the floor. The cost at DPR 1: the minimum window
-size grows from 1454 x 1034 to 1511 x 1036 px (96 dpi); no label is clipped at it. Applying the floor only
-to regular weights was considered (the two bold uppercase labels gain little, 0.36 to 0.40) and not done:
+size grew from 1454 x 1034 to 1511 x 1036 px (96 dpi, measured 2026-09-29); no label is clipped at it. Applying the
+floor only to regular weights was considered (the two bold uppercase labels gain little, 0.36 to 0.40) and not done:
 one rule is easier to hold than two.
 
 **Revisit if** a chrome size is changed or added below 9 pt (the floor hides it at DPR 1 but not on a
@@ -2381,8 +2246,8 @@ large enough to be sharp at every density (*The logo is taller on a low-density 
 They are (0.009 of the tagline's ink at full contrast at 54 px). Live text is hinted by FreeType at 9 pt and above,
 where the lockup puts it at DPR 1. Public Sans, the UI face, is the open font closest to the logo's GT America
 (*The UI is set in Public Sans*), so the live tagline is within a pixel of the outlined one.
-*Corrected 2026-10-14:* until the delivered logo this entry was "The header's wordmark and tagline are live text":
-the previous logo's wordmark and tagline were both live, in Inter Display and Inter, over its mark.
+
+*History:* the previous logo's wordmark and tagline were both live text, in Inter Display and Inter, over its mark.
 
 **Revisit if** the logo is redesigned (the tagline's origin and size follow the new outlines; the header test holds
 them), or when Qt 6 is adopted (it draws fractional sizes).
@@ -2392,8 +2257,10 @@ Tests `test/UI/test_header.py::test_the_lockup_matches_the_outlined_logo` (both 
 
 ## E4B stays the describer on both machines: the owner's choice, one wrong statement ahead of the 12B
 
-**Decided by the owner, 2026-09-29: keep Gemma 4 E4B.** The shipped configuration names it, and one
-configuration is shared by both machines, so History and Trends compare like with like.
+**Decided by the owner, 2026-09-29: keep Gemma 4 E4B.** `gemma-4-e4b-it-4bit` is the only describer; Gemma 4 12B
+and E4B 8-bit are not supported (`./install.sh --model` and `evaluate_describer.py --describer-model` were removed
+that day). The shipped configuration names it, and one configuration is shared by both machines, so History and
+Trends compare like with like. The comparisons below are the evidence for the choice.
 
 The comparison rests on an answer key, `Data/Images/Test/All/answer_key.json` (the key and its eight frames
 are no longer in the repository, recoverable from `1061966`; the current set has no key yet). It names, for each of the 37
@@ -2402,8 +2269,7 @@ material and colour, each with its source (`CONST_INVENTORY`, judged from the cr
 physical part). The owner confirmed every entry on 2026-09-29. The scoring rules, the synonym patterns, the
 naming cues and the other materials are data in the key. `Vision.Utilities.Evaluation` is its only reader
 and scorer, and `Example/Vision/evaluate_describer.py` runs the configured describer through the
-application's path and scores it (`--describer-model` swapped the model in memory, not in the file, for
-these comparisons; removed on 2026-09-29).
+application's path and scores it.
 
 Both models ran the same crops (identical pixel for pixel) with the shipped prompts. Totals over all 37
 objects, as the scorer gives them and as checked by hand (every "not stated" was read; the scorer agrees
@@ -2430,20 +2296,22 @@ with the hand check on every one). Every object counts, by the owner's choice: t
   "washer or cap / flange / ring", the two larger hex nuts, the red block twice), ties on correct materials,
   and misreads plastic as metal; E4B hedges more, misnames parts rather than materials, and is 1.7× faster
   with 2.1 GB less GPU memory.
-- **Stable:** both gave identical text in two separate processes. The Mac comparison (*Gemma 4 12B was
-  measured against E4B and is not better*) found the same plastic-as-metal pattern on the previous test set.
+- **Stable:** both gave identical text in two separate processes.
+- **The same pattern on the Mac** (2026-09-25, the previous test set's seven frames, recoverable from `eb00508^`;
+  `mlx-community/gemma-4-12B-it-4bit` @ `73bcf09`, 6.77 GB, same pipeline, crops and prompts): the 12B took 5.46 s
+  per warm object against E4B's 2.20 s (2.5×) and 10.45 GB peak against 9.35 GB; it named rust as rust and a hex
+  nut E4B missed, but read three of `Image_001`'s four plastic parts as metal and repeated the prompt's condition
+  checklist in about ten of fifteen lines. Its model card names no base model, revision or licence (its
+  `tokenizer.json` is byte-identical to `google/gemma-4-12B-it`'s: plausible, not proven).
 - **The prompts were tuned on E4B.** The object prompt's condition list is metal vocabulary (rust,
   tarnish), which may prime a model that follows lists literally. A 12B-specific prompt could narrow the
   material gap; that is untested.
-- **How the scorer got here (2026-09-29).** Three corrections, each changing only scores a hand check had
-  already found wrong: (1) feature words are no type claim ("the outer white ring", "a concentric ring
-  design"); (2) conflicting names are a hedge, not stated ("washer or cap": E4B's six large washers,
-  21 -> 15 correct); (3) a type counts as claimed wherever a naming cue introduces it ("suggesting it is a
-  component or mold insert", in a second sentence), a material outside metal and plastic named alone is
-  wrong ("felt or fabric"), and synonyms count in the plural ("strips"); (4) material hedges score as
-  type hedges do: the right material beside any other is not stated ("plastic or composite", "metallic or
-  ceramic": E4B's comb and robot, the 12B's washer and robot, 28 -> 26 correct for each). Scoring on the
-  app's short label (`Condense_Label`) was tried and rejected: it dropped names the text gives.
+- **The scorer's rules** (2026-09-29), each fixed where a hand check had found a score wrong: feature words are no
+  type claim; conflicting names, and the right material beside another, are a hedge, not stated; a type counts as
+  claimed wherever a naming cue introduces it; a material outside metal and plastic named alone is wrong; synonyms
+  count in the plural.
+
+**Rejected.** Scoring on the app's short label (`Condense_Label`): it dropped names the text gives.
 
 **The 8-bit E4B is not better: don't switch.** `mlx-community/gemma-4-e4b-it-8bit` at revision
 `4255b21bd9a9d3fc807ef7abd80373f5e3a52a73` (8.91 GB, every file checked against its published hash) ran
@@ -2471,11 +2339,13 @@ through the same script, twice, with identical text. On the same 37 objects:
   worth measuring while it scores worse here.
 
 **Why.** On all 37 objects, with the hand-checked scorer, E4B makes 7 wrong statements and the 12B 8, so the
-count alone barely separates them (a first reading, 4 against 8, rested on 35 objects and a scorer that
-missed invented names). The owner chose E4B on the kind of error and the cost: the 12B names ten more part
+count alone barely separates them. The owner chose E4B on the kind of error and the cost: the 12B names ten more part
 types but calls six plastic parts metal, while E4B hedges, and its errors are part names; E4B is 1.7x
 faster (0.65 against 1.10 s per object here; 2.2 against 5.5 s on the Mac) with 2.1 GB less GPU memory;
 the prompts were tuned on it; and keeping it leaves every stored description comparable.
+
+*History:* a first reading, 4 wrong statements against 8, rested on 35 objects and a scorer that missed invented
+names; four scorer corrections (above) gave the counts in the tables.
 
 **Revisit if** a 12B-specific prompt is tried (score both again), the prompts are rewritten
 (re-run both models), a new describer or E4B conversion is proposed (score it with the script against the
@@ -2486,16 +2356,12 @@ Tests `test/Vision/Utilities/test_evaluation.py` (on this key, kept byte for byt
 `test/Vision/Utilities/data/answer_key_1061966.json` since its frames left the repository: it records the
 owner's answers, and each scoring rule, including `::test_a_wrong_name_after_the_first_sentence_counts`,
 `::test_a_material_outside_metal_and_plastic_is_wrong_alone`, `::test_a_plural_synonym_counts`); the run
-itself needs the weights and is the script, not a test.
-
-**No longer supported (2026-09-29):** Gemma 4 12B and E4B 8-bit. `gemma-4-e4b-it-4bit` is the only describer;
-`./install.sh --model` and `evaluate_describer.py --describer-model` were removed. The comparisons above remain
-the evidence for the choice.
+itself needs the weights and is the script, not a test; `test/Install/test_install.py::test_the_removed_model_option_is_refused`.
 
 ## The object label keeps the model's alternatives, and reads the phrasings that broke it
 
 `Condense_Label` (`src/Vision/Utilities/Caption.py`), the short label the session log writes as
-`Object detected: type=...` (and the panel shows only when a description is empty), now:
+`Object detected: type=...` (and the panel shows only when a description is empty):
 - keeps an alternative after "or" ("circular metallic washer or cap"), with
   `CONST_LABEL_ALTERNATIVE_WORDS` (2) more words than `CONST_LABEL_MAX_WORDS`, instead of dropping it and
   stating the first name as certain;
@@ -2505,18 +2371,18 @@ the evidence for the choice.
   " appearing", " featuring"; `CONST_LABEL_BOUNDARIES`);
 - does not end the adjective run at a hyphenated "-ing" word ("metallic-looking object").
 
-**Why.** In the real window (`docs/evidence/label-2026-09-29/` at commit `2607804`: grabs of Image_003 and
-Image_005 and their log lines; *Corrected 2026-10-14:* the folder was removed from the tree, and this cited
-it as present, so it is read from history, `git show 2607804:docs/evidence/label-2026-09-29/`) the label
-only reaches the log; History stores the full description and no label. There it
-read `type=this` for "This is a small, stylized robot figure", and `type=circular metallic washer` for
+**Why.** In the real window (grabs of Image_003 and Image_005 and their log lines, in git:
+`git show 2607804:docs/evidence/label-2026-09-29/`) the label only reaches the log; History stores the full
+description and no label. There it read `type=this` for "This is a small, stylized robot figure", and
+`type=circular metallic washer` for
 "washer or cap". On the 111 descriptions of three describers (E4B 4-bit and 8-bit, the 12B) the old rules
 left 6 / 12 / 1 labels that name no part; these leave 3 / 4 / 0. Scored against the answer key (37
 objects) the E4B 4-bit label goes from 17 / 3 / 17 to 14 / 3 / 20 (correct / wrong / not stated): the six
 kept hedges ("washer or cap") are not stated by design, as in the description scores, and every other
-"not stated" is a generic word ("circular", "part"), checked by hand. Asking the model for a "Name:" line
-instead (a prompt change) was measured and rejected: 10 of its 37 names were wrong ("Dental impression
-tray", "Electronic Connector"), and it changes every stored description.
+"not stated" is a generic word ("circular", "part"), checked by hand.
+
+**Rejected.** Asking the model for a "Name:" line instead (a prompt change), measured: 10 of its 37 names were
+wrong ("Dental impression tray", "Electronic Connector"), and it changes every stored description.
 
 **Revisit if** the describer's phrasing changes (a new model or prompt), or something other than the log
 starts to show the label.
@@ -2555,42 +2421,28 @@ Tests `test/Install/test_install.py` (the stubbed branches); commit `3cec51a` fo
 
 Decided 2026-10-03. An external system tracks the station's uptime from one CSV per day,
 `<General.Station_Events.Directory>/YYYY-MM-DD.csv`: `station_id,event_type,ts`, with `SF4`,
-`STATION_ON` / `STATION_OFF` (application start and stop) and `CYCLE_START` / `CYCLE_DONE` (one camera
-connection, CONNECT to its end), and `ts` in UTC to the second. `Logger/Station_Events.py` is the one
-module that writes it. The run-summary CSV (`log_<Hardware>.csv`) is unchanged.
-
-*Corrected 2026-10-07:* a cycle is no longer a connection but a scan, or a re-analysis, to the end of its
-analysis. The connection markers are gone, and the scan and analysis markers replace them. The cycles are
+`STATION_ON` / `STATION_OFF` (application start and stop) and `CYCLE_START` / `CYCLE_DONE` (a scan, or a
+re-analysis, to the end of its analysis: *A cycle is a scan to the end of its analysis, not a camera connection*),
+and `ts` in UTC to the second. `Logger/Station_Events.py` is the one module that writes it. The cycles are
 `Logger.Core.Cycles`, the one computation behind this file and the run-summary CSV's `total_session_time`.
-See *A cycle is a scan to the end of its analysis, not a camera connection*. The bullets on markers and
-connection ends below describe the file until that date.
 
 - **Exported, not live.** The file is generated from a finished session log (`log_*.txt`), read through
   the logger's own `Parse_Line`: the run-summary CSV's mechanism with a different structure. The logger's
   `Set_Close_Callback` runs the export after `Close` has written `Application stopped` and closed the
   file, so every close path exports: the window, the launcher's try/finally, atexit and SIGINT/SIGTERM.
-  `STATION_ON` takes its time from the log's start line, which the logger now writes itself at its start
-  time (it was `App/run.py`'s), so the log, the `.txt` name and the CSV's `application_start` agree.
-- **Matched on markers, not wording.** The five lines that open or close the run or a connection end in
-  a fixed token (`#run-start`, `#run-stop`, `#connection-start`, `#connection-end`; `Logger.Core`'s
-  `CONST_MARKER_*`). The markers name the log's own events; the mapping to the four station events is
-  `Station_Events`'. A line can be reworded freely; one that loses its marker fails
-  `test_every_way_a_connection_ends_closes_its_cycle_and_closing_ends_it_before_station_off`. (*Corrected
-  2026-10-18:* that test went in `f304ed5`, when a cycle became a scan to the end of its analysis and the connection
-  markers were removed; the markers are pinned since by `test/Logger/test_station_events.py`, e.g.
-  `::test_several_scans_each_close_their_own_cycle_and_are_summed` and
-  `::test_a_camera_connection_is_no_cycle_and_a_quoted_marker_is_no_event`.)
-- **Every way a connection ends closes its cycle**, because each one writes `#connection-end` in the log:
-  DISCONNECT; a lost connection (`Log_Camera_Connection_Lost`); a CONNECT while a connection is still
-  open (the logger closes the old one); closing the application while connected (`CYCLE_DONE` before
-  `STATION_OFF`). A failed CONNECT opens no connection in the logger, so it writes nothing. The export
-  can only see a loss the log records: *A lost connection is detected by the camera, not only by
-  DISCONNECT* is what makes the application record one.
+  `STATION_ON` takes its time from the log's start line, which the logger writes itself at its start
+  time, so the log, the `.txt` name and the CSV's `application_start` agree.
+- **Matched on markers, not wording.** The lines that open or close the run, a scan or an analysis end in a fixed
+  token (`#run-start`, `#run-stop`, `#scan-start`, `#scan-end`, `#scan-failed`, `#analysis-start`,
+  `#analysis-end`; `Logger.Core`'s `CONST_MARKER_*`). The markers name the log's own events; the mapping to the
+  four station events is `Station_Events`'. A line can be reworded freely; one that loses its marker fails
+  `test/Logger/test_station_events.py` (e.g. `::test_several_scans_each_close_their_own_cycle_and_are_summed`,
+  `::test_a_camera_connection_is_no_cycle_and_a_quoted_marker_is_no_event`).
 - **Crashed runs, and runs whose export failed, are exported at the next start.** The ledger
   `logger/station_events_exported.txt` names every exported log. At startup every `log_*.txt` it does not
   name is exported, oldest first, except this run's own log and a log another running instance still
   holds (the logger keeps an exclusive `flock` on its live log). A crashed log has no `#run-stop` and may
-  have an open connection: it exports `STATION_ON` / `CYCLE_START` with no pair, and nothing is invented to
+  have an open cycle: it exports `STATION_ON` / `CYCLE_START` with no pair, and nothing is invented to
   close them. That unpaired row is what the YAML comment tells the external system an abnormal exit looks
   like.
 - **The ledger line is written only after the rows.** An export that fails (a share unmounted, a full
@@ -2630,6 +2482,9 @@ apart.
 
 The live-log lock is `fcntl` only: Windows is not a target (the installer stops on it, README > Platform).
 
+*History:* until 2026-10-07 a cycle was one camera connection, CONNECT to its end, marked `#connection-start` /
+`#connection-end`; rows before that date bracket connections.
+
 **Revisit if** the external system's owner agrees to UTC file names, or a second station joins (station
 id into the configuration).
 Tests `test/Logger/test_station_events.py` (format, order, UTC, midnight, the repeated hour, crashes, the
@@ -2640,14 +2495,11 @@ failure on the strip),
 
 ## A lost connection is detected by the camera, not only by DISCONNECT
 
-Decided 2026-10-03. Before this, nothing made the camera's `Connected` false except DISCONNECT. A Basler
-grab failure left the camera "connected", so the scan handler's lost-connection branch could not run
-outside tests, whose fake cameras disconnected themselves. That was the Camera cell's old fault: a state
-updated by the button, not by what happened. The station event file (the entry above) can only close a
-cycle the log records ending, so a loss nobody detects would keep counting a dead connection as a
-working cycle. *Corrected 2026-10-07:* a connection no longer defines a cycle, so a loss closes none by
-itself. The detection still matters for cycles. A Scan on a removed device fails its capture and ends that
-scan's cycle as a lost connection, not as a stale frame on a camera still marked connected.
+Decided 2026-10-03. The camera's `Connected` turns false when the device is gone, not only on DISCONNECT, so the
+Camera cell and the log show what happened rather than what the button did. A Scan on a removed device fails its
+capture and ends that scan's cycle as a lost connection, not as a stale frame on a camera still marked connected.
+Before this, a Basler grab failure left the camera "connected", so the scan handler's lost-connection branch could
+not run outside tests, whose fake cameras disconnected themselves.
 
 - **The backend reports a removed device.** `Camera_Backend_Cls._Device_Removed` is part of the per-device
   SPI (always False for a saved frame; for Basler, pylon's `InstantCamera.IsCameraDeviceRemoved`, where a
@@ -2854,10 +2706,9 @@ deferral, the suite itself aborts with Qt's message.
 
 ## The Camera View's heatmap: the background difference, fixed 0–128 scale, cividis, screen only
 
-Decided 2026-10-07. The Camera View has a third view beside Annotated and Mask: **Heatmap**. For each
-pixel it shows how much the frame differs from the reference, the background cue before thresholding. It
-is the diagnostic for why an object was or was not found: shadows, glare, low-contrast parts, where two
-parts merge.
+Decided 2026-10-07. The Camera View's **Heatmap** render shows, for each pixel, how much the frame differs from the
+reference: the background cue before thresholding. It is the diagnostic for why an object was or was not found:
+shadows, glare, low-contrast parts, where two parts merge.
 
 - **The image is the one stage 1 thresholds, not a recomputed one.** `Background_Foreground` is split
   into `Background_Difference` (the per-channel absolute difference, blurred 5×5, as grey, 0–255) and
@@ -2865,9 +2716,9 @@ parts merge.
   Otsu's own. `Analyze` calls the two halves and puts that very array on `Analysis_Str.Heatmap`, so the
   legend's threshold mark applies to exactly the pixels shown. `Background_Foreground` stays as their
   composition for the callers that want only the mask.
-- **A fixed scale, not normalised per frame.** It runs linearly from 0 to 128 grey levels, and a value
-  above 128 takes the top colour (the legend says "≥ 128"). Per-frame normalisation would paint an empty
-  frame's noise as hot as a part.
+- **A fixed scale, not normalised per frame.** It runs linearly from 0 to 128 grey levels
+  (`CONST_DIFFERENCE_SCALE_MAX`), and a value above 128 takes the top colour (the legend says "≥ 128").
+  Per-frame normalisation would paint an empty frame's noise as hot as a part.
   - The scale's basis, the 8 frames of `Data/Images/Test/All` (no longer in the repository, recoverable from `1061966`) under the lighting
     of 2026-10-07, not re-measured on the current set: background
     median 6–7, the busiest frames' 90th percentile 56–75, Otsu 30–65 (the floor of 28 never bound),
@@ -2879,12 +2730,12 @@ parts merge.
 - **The legend marks the threshold applied, named by what set it:** "Otsu 51", or "floor 28" when the
   floor wins. The legend is a grey-lilac panel (the viewport's colour) with its words in the purple (6.79:1), the
   threshold's name included; the threshold's tick through the colour bar is white (`Theme.CONST_LEGEND_MARK`), which
-  reads across the bar's dark end. *Corrected 2026-10-15:* the threshold's name was white on the panel, 1.35:1, left
-  over from the dark viewport before the brand palette.
-- **Cividis, defined in `Parameters/Theme.py`.** It is held to ΔE ≥ 12 (`CONST_ANNOTATE_MIN_DELTA_E`)
-  against the OK and NOK verdict colours (box, ink and fill), the status colours and their text twins, and
-  the log and on-dark error colours. Viridis fails that: ΔE 4.2 from the OK ink and 12.0 from `CONST_OK`.
-  Inferno and plasma pass near the reserved amber and red. Cividis's closest is 12.5, the OK ink.
+  reads across the bar's dark end.
+- **Cividis, defined in `Parameters/Theme.py`.** Every one of its 256 colours is held to ΔE ≥ 12
+  (`CONST_ANNOTATE_MIN_DELTA_E`) against the OK and NOK verdict colours (box, ink and fill), the status colours and
+  their text twins, and the log's error colour (`test_theme`); the closest today is ΔE 25.0, against `CONST_WARN`
+  (computed 2026-10-24). Viridis failed that floor against the palette of the time (ΔE 4.2 from the OK ink,
+  measured 2026-10-07).
   - It is defined as 17 anchors from matplotlib's map, expanded to 256 colours in L*a*b*. Lightness rises
     from L* 13.8 to 91.3.
   - Uniformity is held as rising lightness, not even CIE76 steps. Both viridis and cividis are uneven in
@@ -2894,17 +2745,13 @@ parts merge.
   History, not in the validation harness.
 - **The view toggle:** the Heatmap segment is disabled for a reading with no heatmap, and the chosen view
   is kept for the next one.
-
-**A second source later.** A future mode will show DINOv2 similarity to a reference part. The heatmap's
-data and legend are a Qt-free `Heatmap_Str` (values, scale, title, unit, marks), filled by the stage that
-computes it. The view only renders a `Heatmap_Str`, so a second source changes no UI code. There is **no
-configuration field for the source**: with one source it would have one legal value. When a second
-exists, **the source should follow what the mode can actually compute, not the `Classification` flag**.
-A catalogue mode may identify parts by geometry alone, with no similarity model, while a classifying
-mode might not have a reference part to compare against.
+- **One renderer for a second source.** The heatmap's data and legend are a Qt-free `Heatmap_Str` (values, scale,
+  title, unit, marks), filled by the stage that computes it, and the view only renders a `Heatmap_Str`: the DINOv2
+  similarity overlay is the second source, its own render with its own legend (*The similarity overlay shows where a
+  part looks unlike its reference, and decides nothing*). There is no configuration field for the source.
 
 **Revisit if** the side-light session moves the background or object ranges (re-derive the 0–128 scale),
-or a second heatmap source is added (then decide the source by the mode's capability, as above).
+or another heatmap source is added (it follows what the mode can compute, not a field).
 Tests `test/Parameters/test_theme.py` (lightness rises, distinct from the reserved colours),
 `test/Vision/Utilities/test_heatmap.py` (the fixed scale, one value one colour across frames),
 `test/Vision/Utilities/test_segmentation.py::test_the_threshold_applied_is_returned_with_which_one_set_it`,
@@ -2916,34 +2763,22 @@ by breaking what it names, 14 mutations in all.
 
 ## The capabilities document is a map, and a test holds it to the code
 
-Decided 2026-10-08. `SPEC.md` says what the application does: the pipeline stages, the
-modes, the views, what each configuration section controls, calibration, the records it writes, and
-what has been verified on hardware. It explains nothing twice. A reason links here, an open behaviour
-links to `KNOWN_ISSUES.md`, and setup links to the README. The README's list of what each mode-file
-section holds moved into it, so there is one copy. The README keeps the file names, the loader's checks
-and how a station keeps its own copy.
+Decided 2026-10-08. `SPEC.md` says what the application does, explains nothing twice, and links a reason here, an
+open behaviour to `KNOWN_ISSUES.md` and setup to the README. The README's list of what each mode-file section
+holds moved into it, so there is one copy. The rule that holds it to the code (the checks and the recorded review)
+is SPEC.md's own section, [*Keeping this file true*](SPEC.md#keeping-this-file-true), and is not repeated here.
 
-**Why.** A capability document that is wrong is worse than none, because a reader trusts it instead
-of the code. So everything in it that the code names is checked in both directions:
-`test/integration/test_capabilities_doc.py` compares its tables with the mode and calibration files'
-sections, the mode files, the view switch, the Camera View renders, the Live card and Trends chart
-titles, the capture-set suffixes, the run-summary columns and the station event types. Every
-configuration key path it writes must exist in a file, and every link and anchor must resolve. Fields
-below a section are left to the files' own comments, which a test already holds to the code's
-defaults. Proven by 17 mutations, each failing the test it targets: a row or heading removed from the
-document, and a section, key, view label, chart title or CSV column changed in the code.
+**Why.** A reader trusts a capability document instead of the code, so everything in it that the code names is
+checked in both directions by `test/integration/test_capabilities_doc.py`. Fields below a section are left to the
+files' own comments, which a test already holds to the code's defaults. Proven by 17 mutations, each failing the
+test it targets: a row or heading removed from the document, and a section, key, view label, chart title or CSV
+column changed in the code. A name check cannot catch a behaviour changed under an unchanged name, which is why a
+review is required and recorded in the file. The review rule was proven in a scratch clone: a code-only commit and
+a harness-only commit fail, a code commit with a doc change or a moved line passes, a tests-only commit passes, a
+line naming a commit not in the history fails, and a copy without git history skips with its reason.
 
-**A review is required and recorded** (added 2026-10-08, the same day). Names going out of step are
-caught, but a behaviour changed under an unchanged name is not. So the document carries a *Last reviewed
-against the code at commit* line, and every later commit that changes `src/`, `App/`, `Configuration/` or
-`Example/` must change the document too: its content, or, when no capability changed, that line, with
-*Capabilities: no change* and the reason in the message. A review that is skipped then fails a test; a
-careless one does not, and stays the reviewer's responsibility. Tests and docs alone are exempt, since
-they describe no capability. A commit message alone was rejected as the record, because nothing can
-check it reliably; a file change in the commit can be checked. Proven in a scratch clone: a code-only
-commit and a harness-only commit fail, a code commit with a doc change or a moved line passes, a
-tests-only commit passes, a line naming a commit not in the history fails, and a copy without git
-history skips with its reason.
+**Rejected.** A commit message alone as the record of the review: nothing can check it reliably; a file change in
+the commit can be checked.
 
 **Revisit if** the test fails on wording rather than on a capability (then it checks the wrong thing),
 a capability that matters has no name in the code for the test to read, or the review line is moved
@@ -2953,42 +2788,39 @@ Tests `test/integration/test_capabilities_doc.py`.
 ## A catalogue mode is a Catalogue block naming an item folder, and the configuration picks checks, never their order
 
 Decided 2026-10-11, from the owner's catalogue-mode request (in Czech) and the owner's answers to its
-*Before building* points. Phase A of five is built: the item, the mode files, the outline
-check. The rest is the agreed design, recorded here so the later phases build to it.
+*Before building* points; built in five phases (A: the item, the mode files and the outline check; B:
+identification and the states; C: the holes; D: the stains and the describer; E: the reason sentence, the
+features and the overlay).
 
 - **The item is a folder.** `Data/Catalogue/<item>/<item>.yaml` holds the part's thickness, tolerance and
-  checks; its reference images will sit beside it in `reference_image/` (phase B). The file is named after
+  checks; its reference images sit beside it in `reference_image/`. The file is named after
   its folder and the load refuses one that is not, so a copied folder is never inspected under the old
   name. `Configuration.Core` reads it (`Load_Catalogue`, and through `Load_Configuration`), by the mode
   file's rules: REQUIRED fields, documented defaults, invalid values fail, unknown keys warn.
 - **A `Catalogue` block selects the mode.** A mode file with `Catalogue.Item` is a catalogue mode; one
-  without is Segment Anything, unchanged. One mode file per item
-  (`Config_<Hardware>_Mode_Mounting_Plate.yaml`). The request coupled the mode
-  to `General.Classification.Enabled`; that switch already exposes the verdict UI with nothing behind it,
-  so the owner chose to let the block select the mode and to remove the switch. Removed with the states in
-  phase B (2026-10-11).
+  without is Segment Anything. One mode file per item (`Config_<Hardware>_Mode_Mounting_Plate.yaml`). The request
+  coupled the mode to `General.Classification.Enabled`; that switch exposed the verdict UI with nothing behind it,
+  so the owner chose to let the block select the mode, and the switch is removed.
 - **The configuration picks checks and sets their parameters; it never describes an algorithm.** Each
-  block under `Checks` selects one ready-made check module (`Outline`, `Holes`, `Stain`, the last two built
-  in phases C and D) with the parameters it reads. No OpenCV call sequence, and **no order**: the checks are
-  independent and the verdict will require all of them, so an order field could not change a result
-  (project-style-rpx structure.md: no field that cannot take effect). A defect check is optional per item: an item may
-  define none yet, and one is added later with no code change.
-- **One home per value.** The Gemma prompt for an item lives in the item file only (`Describer.Prompt`, phase
-  D); the request's override in the mode file would give the same text two homes.
-- **The agreed split for the later phases.** FastSAM and the fusion keep finding the objects and their
-  outlines (41 of 41 frames counted correctly); DINOv2 base, run locally, will identify which object is
-  the item and which side is up, since its 14 px patches cannot give an outline to measure. Deterministic
-  checks decide (dimensions, hole counts, a stain by colour); Gemma confirms, and a disagreement is logged, never decisive. The four states are OK, NOK,
-  Unspecified (area ≥ 1.7× the item's) and Warning (not the item); Warning takes the amber, Unspecified the
-  neutral detection colour.
+  block under `Checks` selects one ready-made check module (`Outline`, `Holes`, `Stain`) with the parameters it
+  reads. No OpenCV call sequence, and **no order**: the checks are independent and the verdict requires all of
+  them, so an order field could not change a result (project-style-rpx structure.md: no field that cannot take
+  effect). A defect check is optional per item: an item may define none yet, and one is added later with no code
+  change.
+- **One home per value.** The Gemma prompt for an item lives in the item file only (`Describer.Prompt`);
+  the request's override in the mode file would give the same text two homes.
+- **The split.** FastSAM and the fusion find the objects and their outlines (41 of 41 frames counted correctly);
+  DINOv2 base, run locally, identifies which object is the item and which side is up, since its 14 px patches
+  cannot give an outline to measure. Deterministic checks decide (dimensions, hole counts, a stain by colour);
+  Gemma describes, and a contradiction is logged, never decisive. The states are those of *Three states for the
+  operator, a Warning with its kind*.
 - **Expected verdicts are labelled for the frames that exist.** `test/integration/test_pipeline.py`
-  `CONST_EXPECTED_VERDICTS` gives each object of the 41 frames its state, on the owner's rulings. No frame
-  shows a defect the later checks look for (a hole out of place, two parts touching), and the owner chose
-  no placeholder tests for frames that do not exist. The two frames that are the item's reference images
+  `CONST_EXPECTED_VERDICTS` gives each object of the 41 frames its state, on the owner's rulings, and the owner
+  chose no placeholder tests for frames that do not exist. The two frames that are the item's reference images
   (055, 056) are reported apart: the harness finds them by content.
 
 **Why.** The request asked for configuration-only changes for new parts; a configuration that sequences
-OpenCV calls is a program without tests. Recording the split now keeps phase B from building localisation
+OpenCV calls is a program without tests. Recording the split kept identification from building localisation
 into DINOv2, where the request first put it.
 
 **Revisit if** a check turns out to depend on another's result (then the dependency is code, still not
@@ -3020,8 +2852,8 @@ object on the 41 frames the item's size.
   0.06 % (y). Using K moves the correction by that fraction of itself: 0.0015 mm on 60 mm. Computing the
   new matrix in the loader would take OpenCV and the camera layer's alpha into the configuration layer,
   which sits below both.
-- **Every object is measured at the item's face**, not only the item: which object is the item is not
-  decided until phase B, and a size shown must be the size checked. Other objects' sizes are off by the
+- **Every object is measured at the item's face**, not only the item: the scale is applied before any object is
+  identified, and a size shown must be the size checked. Other objects' sizes are off by the
   difference between their height and the item's, about 0.28 % per millimetre.
 - **The parts are not calipered.** The owner's ruling: treat them as nominal, so a part within tolerance
   reads within. "Within tolerance" here means consistent with nominal, not a verified size; README >
@@ -3035,8 +2867,7 @@ Tests `test/Configuration/test_core.py::test_the_scale_at_a_height_follows_the_p
 `::test_a_mode_without_a_catalogue_block_is_not_a_catalogue_mode`,
 `test/Vision/Utilities/test_dimensions.py`,
 `test/Vision/test_core.py::test_a_catalogue_mode_checks_each_measured_object_and_segment_anything_does_not`,
-`test/integration/test_pipeline.py::test_the_outline_passes_exactly_the_catalogue_parts` (slow, 82 cases).
-
+`test/integration/test_pipeline.py::test_the_outline_passes_exactly_the_catalogue_parts` (slow, 41 cases).
 
 ## A catalogue mode identifies by similarity, and an object of the part's shape that does not look like it is NOK
 
@@ -3044,20 +2875,24 @@ Decided 2026-10-11 (catalogue phase B), on the owner's rulings. Every object Fas
 compared with the catalogue item's two reference images by DINOv2 base and judged by
 `Vision.Utilities.Classify.Classify`, in this order:
 
-1. **Unspecified** — its area is at least `Catalogue.Unspecified_Area_Ratio` (1.7) times the part's nominal
-   area: probably several parts together. Not judged; it says to separate them.
+1. **Warning, several parts** — its area is at least `Catalogue.Unspecified_Area_Ratio` (1.7) times the part's
+   nominal area: probably several parts together. Not judged; its reason says to separate them.
 2. **The part, by its look** — similarity at least `Catalogue.Identify_Similarity` (0.75), whatever its size:
    **OK** when its outline is within tolerance, **NOK** when not. A wrong-sized part is therefore NOK, not a
    Warning.
 3. **The part, by its shape** — below 0.75, but its outline within the part's tolerance: **NOK**, "it has
    the part's outline but does not look like the part".
-4. **Warning** — anything else: not the part, found and described, not supposed to be there.
+4. **Warning, foreign object** — anything else: not the part, found and described, not supposed to be there.
+
+The states, their kinds and where they show are *Three states for the operator, a Warning with its kind*; the
+inspection area that settles a part outside it is *A catalogue mode judges only inside the inspection area*.
 
 **Why 0.75.** Measured on the 41 frames (fallback describer, the class token's cosine, the best of four
 quarter turns and both sides): every mounting plate 0.79–1.00, the fingerprint-stained fronts lowest; every
 other object at most 0.673 (the red block against the plate's back), the 50 × 50 square plates 0.23–0.43
 (re-checked 2026-10-13). 0.75 sits in that gap. The side is the reference that scored highest: right on all 22
-plates, the smallest margin at least 0.08.
+plates, the smallest margin at least 0.08 (the side up is decided by that margin, else the holes: *The side up is
+DINOv2's only by its margin…*).
 
 **Why step 3 has no lower bound.** Objects that are not the part reach 0.673 against it, close under the
 plates' 0.79. The owner chose no floor: an object of the part's size that does not look like it
@@ -3070,33 +2905,19 @@ is flagged as a failed part, never passed or ignored), and the thin threshold is
   plate cuts its holes off. The normalisation is the processor's own.
 - **The size checks' verified zone.** Every judged mounting plate on the test set lies within 46.32 mm of the
   frame centre (Image_072, measured the way the check measures). Beyond `CONST_VERIFIED_RADIUS_MM` (46.4) an OK
-  or NOK judged on its size carries the note "the size check is not verified here", with its distance. The
-  verdict stands: a NOK stays NOK, the note explains it (the owner's ruling). *Corrected 2026-10-15:* the note is
-  in the session log only, no longer in Scene Understanding (*The size note is in the log only…*). *Corrected 2026-10-13:* it was
-  74.3 mm, measured on more parts than the mounting plates (*The catalogue holds only the mounting plate*).
-  Plates captured farther out, in the corners of the view, would widen it (capture checklist).
-- **Where the verdict shows.** The frame and the mask (Warning in the status amber — the one place amber marks
-  an object, `Parameters/Theme.py` — Unspecified in the neutral colour, with the mask's darker neutral
-  outline), the Scene Understanding panel and file (`Reporting.Verdict_Lines`: the state, its evidence, each
-  reason it is not OK with measured and expected values), and the log (one line per object, Warning and
-  Unspecified at WARNING). Trends counts only OK as OK: a Warning did not pass. The status badge and History's
-  filter still speak OK/NOK only (KNOWN_ISSUES).
-  *Corrected 2026-10-11 (phase B.1), the owner's wording:* Scene Understanding shows `State: <state>.` and a
-  `Reason:` line per reason (a Warning: "The object should not be on the surface."; an Unspecified object: why
-  it could not be judged and what to do; a NOK: each failed dimension with measured and expected values, or
-  "It has the part's outline but does not look like the part."), then the size note; no similarity there —
-  it stays in the log, with the side. An OK or NOK part's description says which side is up. The badge states
-  the worst verdict (NOK in the NOK ink on its tint, the 'fail' level; Unspecified, then Warning, in amber;
-  all OK in green), and Trends charts OK, NOK, Warning and Unspecified. Only History's filter is left
-  (KNOWN_ISSUES). *Corrected 2026-10-11 (phase E):* a NOK has one `Reason:` sentence and its values are in the
-  log (*A NOK reads as one sentence…*); History filters by state (*Three states for the operator, a Warning with
-  its kind*).
-- **What it does not judge yet.** The stain and the holes. The five stained-plate frames read OK until the
-  stain check (phase D); their expected NOK is a strict xfail naming it. *Corrected 2026-10-11:* the holes are
-  judged since phase C, the stain since phase D (*A judged part's stains are a colour band…*); the stained
-  plates read NOK and their marks are lifted.
+  or NOK judged on its size carries the note "the size check is not verified here", with its distance, in the
+  session log only (*The size note is in the log only, not in Scene Understanding*). The verdict stands: a NOK
+  stays NOK, the note explains it (the owner's ruling). Plates captured farther out, in the corners of the view,
+  would widen it (capture checklist).
+- **Where the verdict shows.** Scene Understanding gives `State: …` and one `Reason:` sentence (*A NOK reads as one
+  sentence, and its values go to the log part by part*); the similarity is in the log, with the side, never in
+  the panel. An OK or NOK part's description says which side is up.
 - **Confidence stays a mask score.** The similarity is shown as "similarity", never as Confidence
   ([*`Verdict`'s confidence branch stays dormant…*](#verdicts-confidence-branch-stays-dormant-a-mask-score-is-not-a-confidence)).
+
+*History:* the verified radius was 74.3 mm until the catalogue held only the mounting plate (2026-10-13), and the
+size note was in Scene Understanding until 2026-10-15; steps 1 and 4 were the states Unspecified and Warning
+until the three states (2026-10-16).
 
 **Revisit if** a new item or a new lighting puts an item below 0.75 or another object above it (re-measure
 with the harness, which reports the states per frame), a part is placed farther than 46.4 mm from the centre
@@ -3131,34 +2952,32 @@ missing-weights sentence; slow: unit rows, repeatable, the two sides apart).
 
 ## The station file holds the camera and the reference, and a mode file never overrides it
 
-*Corrected 2026-10-13: the station is no longer found by the mode file's `Hardware`: the mode file names it
-(`Station`), and it lives in `Configuration/Station/`. It now also names the calibration in force, which a mode
-file cannot override either. A local copy of a mode file no longer keeps the station beside it
-([*The configuration is a chain of references…*](#the-configuration-is-a-chain-of-references-mode--station--calibration-each-kind-in-its-own-folder)).
-The no-overrides rule stands.*
+Decided 2026-10-11 (catalogue phase B.1), on the owner's rulings. What belongs to the camera, the light and the
+table is in one station file, `Configuration/Station/Station_<Hardware>[_<Name>].yaml`, named by the mode file's
+`Station` and shared by every mode that names it: the camera, lens and lighting as a person names them, the
+acquisition settings (`Camera.Custom_Cfg`), the sensor window, the empty-surface reference
+(`Background.Reference`), the inspection area and the calibration in force. How the files are found and checked
+is [*The configuration is a chain of references, mode → station → calibration, each kind in its own
+folder*](#the-configuration-is-a-chain-of-references-mode--station--calibration-each-kind-in-its-own-folder).
 
-Decided 2026-10-11 (catalogue phase B.1), on the owner's rulings. What belongs to the camera, the light and
-the table moved out of the mode files into one station file per hardware,
-`Configuration/Station_<Hardware>.yaml`: the camera, lens and lighting as a person names them, the
-acquisition settings (`Camera.Custom_Cfg`), the sensor window, and the empty-surface reference
-(`Background.Reference`, until now `Segmentation.Background.Reference` in each mode). `Load_Configuration`
-finds it by the mode file's `Hardware`, as it finds `Calibration_<Hardware>.yaml` — no second name to keep in
-step — and checks that the station file names the same hardware. It is REQUIRED.
-
-- **No overrides.** A mode file that holds `Camera` or a background reference fails to load and names the
-  station file, even when the value equals the station's. The window, the calibration and the reference's
+- **No overrides.** A mode file that holds `Camera`, `Calibration` or a background reference fails to load and
+  names the station file, even when the value equals the station's. The window, the calibration and the reference's
   provenance are all checked against the camera settings; with one source they cannot disagree, and two
   modes on one camera cannot shoot at different exposures against one reference without anyone noticing.
-  The alternative — overrides merged over the station — would have made every one of those checks read
-  the merged value, and a per-mode exposure would have made the shared reference wrong for that mode.
 - **The reference is the station's** because it was shot from this camera, under this light, on this
   table, and every mode differences against it. The mode keeps the difference's parameters (Otsu floor,
   opening, dilation): those are processing, not the scene.
 - **Machine-specific values stay out of the repository.** The station file is committed, so it holds
   nothing true of one machine only; the station-event directory stays in the local copy of the mode file
-  (README > Configuration), which now keeps the station file beside it as it keeps the calibration.
+  (README > Configuration).
 
-**Revisit if** a second camera arrives (its own `Station_<Hardware>.yaml`, nothing else changes), a mode
+**Rejected.** Overrides merged over the station: every one of those checks would have had to read the merged
+value, and a per-mode exposure would have made the shared reference wrong for that mode.
+
+*History:* until 2026-10-13 the station file was `Configuration/Station_<Hardware>.yaml`, found by the mode file's
+`Hardware`, and the reference was `Segmentation.Background.Reference` in each mode until 2026-10-11.
+
+**Revisit if** a second camera arrives (its own station file, named by its modes), a mode
 genuinely needs other acquisition settings (that is another station, or a measured case for overrides,
 not a quiet exception), or a second table or light shares the camera (then the reference may need to be
 per table, and the station split).
@@ -3166,57 +2985,51 @@ Tests `test/Configuration/test_core.py` (`test_a_mode_file_never_overrides_the_s
 mismatched station file, its unknown keys, every mode reading the one station, its documented defaults),
 `test/integration/test_capabilities_doc.py::test_the_station_table_names_every_section_of_the_station_file`.
 
-
 ## A catalogue item is the single tracked source for its part, and its descriptions wait for the describer
 
 Decided 2026-10-11 (catalogue phase B.1), on the owner's rulings. Each item file holds what the request
-said about the part, in a schema phases C and D extend rather than reshape:
+said about the part:
 
 - `Name` (REQUIRED) — the item as a person names it; the configuration-loaded line names it.
 - `Description`, `Measurement_Rules` (optional, default empty) — the part as a whole, and how a dimension
   is read on it beyond its nominal value (the plate's symmetry).
 - `Sides` (REQUIRED: exactly `front` and `back`, the reference images' names) — each a `Name` (REQUIRED)
-  and a `Description`. The `Name` is read now: a judged part's description gains "It lies with its <Name>
-  up.", from the side the checks used, never the describer's. (*Corrected 2026-10-15:* that side is DINOv2's by
-  its margin, else the holes', *The side up is DINOv2's only by its margin…*.)
+  and a `Description`. A judged part's description gains "It lies with its <Name> up.", from the side the checks
+  used (*The side up is DINOv2's only by its margin…*), never the describer's.
 - `Defects` (optional, default none: a part whose defective examples may not exist yet) — each a `Name`,
   the `Side` it is looked for on, what it `Looks_Like` and what is `Not_A_Defect`.
 - `Checks` — what the code measures (`Outline`, `Holes`, `Stain`), kept apart from what a person or
   the describer looks for.
 
-**A dated exception to "a field must be read".** `Description`, `Measurement_Rules`, each side's
-`Description` and `Defects` are loaded and validated now (a wrong side, a missing name, an unknown key in a
-side or a defect fails the item) and read by nothing until the describer uses them in phase D. The owner
-chose this over keeping them as comments: validated fields cannot drift unnoticed, comments would have had
-to become fields anyway, and the item file is then the one place the part is described. The exception ends
-when phase D reads them; until then the item files' headers say so.
+Each side's `Description` and the `Defects` fill the describer's prompt (*The describer is told what the checks
+found, never a number…*), and they may hold no number.
 
-*Corrected 2026-10-11 (phase D):* each side's `Description` and the `Defects` are read: they fill the
-describer's prompt (*The describer is told what the checks found, never a number…*), and they may hold no
-number. `Description` and `Measurement_Rules` are still read by nothing: they hold the dimensions, which the
-owner ruled the describer may not get. The exception continues for those two, for people reading the file,
-until the owner decides whether they stay.
+**A dated exception to "a field must be read".** `Description` and `Measurement_Rules` are loaded and validated (an
+unknown key or a wrong value fails the item) and read by nothing: they hold the dimensions, which the owner ruled
+the describer may not get. They stay for people reading the file, until the owner decides whether they stay; the
+item file's header says so. The owner chose validated fields over comments: validated fields cannot drift
+unnoticed, and the item file is then the one place the part is described.
 
-**Revisit if** phase D does not read a field (remove it, the rule applies again), or a part has a side
-without a reference image (then `Sides` follows the references, not a fixed pair).
+**Revisit if** the owner decides on `Description` and `Measurement_Rules` (read them, or remove them and the rule
+applies again), or a part has a side without a reference image (then `Sides` follows the references, not a fixed
+pair).
 Tests `test/Configuration/test_core.py` (`test_the_item_carries_its_description_sides_and_defects`,
 `test_an_invalid_description_fails_the_item`, `test_an_item_with_no_defects_described_loads`, the documented
 defaults), `test/Reporting/test_core.py::test_a_judged_part_says_which_side_is_up_in_the_catalogues_words`,
 `test/Vision/Utilities/test_classify.py::test_the_side_is_named_in_the_catalogues_words`,
 `test/Vision/test_core.py::test_a_catalogue_mode_judges_every_object_by_the_rule`.
 
-
 ## A judged part's holes are counted where the catalogue puts them, by FastSAM on its upright crop
 
 Decided 2026-10-11 (catalogue phase C), on the owner's rulings. Each part judged OK or NOK has its holes checked
-on the side found up (`Vision.Utilities.Holes`; *corrected 2026-10-15:* DINOv2's by its margin, else the
-holes', and a stepped hole measured at its step from the top face's edges, *The side up is DINOv2's only by its
-margin…*): FastSAM runs again, through the loaded segmenter, on the
-part's upright crop; a round mask inside the crop is a hole candidate; each catalogue group (`Checks.Holes.<side>`)
-counts the candidates of its diameter and, when it has positions, near one; each counted hole's diameter, edge
-distances and pitch are checked against the tolerance. A hole missing, extra or out of tolerance makes the part
-NOK, one `Reason:` per finding. (*Corrected 2026-10-11, phase E:* one sentence for all findings, the values in
-the log.)
+on the side found up (*The side up is DINOv2's only by its margin…*; `Vision.Utilities.Holes`): FastSAM runs
+again, through the loaded segmenter, on the part's upright crop; a round mask inside the crop is a hole candidate;
+each catalogue group (`Checks.Holes.<side>`) counts the candidates of its diameter and, when it has positions,
+near one; each counted hole's diameter, edge distances and pitch are checked against the tolerance, a stepped hole
+measured at its step from the top face's edges, and its bore's offset from its step (*A stepped hole's bore is
+checked for its offset from its step, the camera's shift taken out*). A hole missing, extra or out of tolerance
+makes the part NOK, all findings in one `Reason:` sentence and the values in the log (*A NOK reads as one
+sentence…*).
 
 **Why FastSAM on the crop.** Measured on the 22 mounting plates of the 41 frames (re-checked 2026-10-13): every
 hole (12 fronts, 2 countersinks and 2 through-holes each; 10 backs, 2 through-holes each, 68 in all), and no
@@ -3237,45 +3050,43 @@ classical detector was not needed at these scores.
   from the front and 6.05-6.26 from the back, so the back's opening is wider than its bore — by the look a chamfer
   or deburring. Not measured with a pin gauge. The catalogue's tolerances are unchanged (the owner's ruling):
   every hole is within them, the narrowest margin 0.77 mm (a back through-hole's diameter).
-- **Not checked:** the countersink's centering on its through-hole (0.12-1.05 mm apart in the image, the bore seen
-  at an angle; the catalogue gives no tolerance). (*Corrected 2026-10-15:* checked since, with the camera's shift
-  taken out, *A stepped hole's bore is checked for its offset from its step…*.)
 
 **Revisit if** a part with a hole in the wrong place turns up (then report candidates outside every position), a
 plate's holes are measured with a pin gauge (then the bias has its number), the lighting changes (re-measure the
 roundness), or the crop pass's 134 ms per part matters (then one FastSAM pass could serve
 both).
 Tests `test/Vision/Utilities/test_holes.py`, `test/Configuration/test_core.py` (the groups, their validation),
-`test/Reporting/test_core.py::test_a_nok_names_its_holes_in_one_sentence` (renamed in `18cf4be`, one reason sentence),
+`test/Reporting/test_core.py::test_a_nok_names_its_holes_in_one_sentence`,
 `test/Vision/test_core.py` (the crop segmented once per judged part, a part without its holes NOK),
 `test/integration/test_pipeline.py::test_every_mounting_plate_shows_all_its_holes_within_tolerance` (slow).
-
 
 ## Exposure, gain and white balance are fixed: the automatic modes are switched off and read back
 
 Decided 2026-10-11, on the owner's instruction. On connect `Camera.Basler` switches off `ExposureAuto`,
 `GainAuto` and `BalanceWhiteAuto`, sets the station file's exposure (10 000 µs), gain (10) and white-balance
 ratios (red 0.95, green 0.90, blue 1.20), then reads the three modes back; a camera that keeps one on is
-refused, naming it, and every connect logs them. Until now exposure and white balance were switched off but not
-read back, and gain auto was never set — the camera's power-up default (Off on this model) was trusted.
+refused, naming it, and every connect logs them.
+
+- **The white-balance ratios are read back**, one colour at a time, and logged with the tolerance used; a ratio
+  more than half the `BalanceRatio` node's step from the station file's is refused, naming the colour. The camera
+  rounds each ratio to that step, so an exact match would refuse a correctly set camera; a node reporting no step is
+  checked to 1/128 (half of an assumed 1/64 step).
+- **Gamma and the colour preset are read, never written.** Both are read and logged on every connect, and the
+  station file may pin them (`Camera.Custom_Cfg.Gamma`, `Light_Source_Preset`): a camera that reads otherwise, or
+  lacks the node, is refused, naming both values. The pin checks the camera's power-up user set rather than
+  overriding it. Gamma is pinned to 1; `Light_Source_Preset` stays unpinned, because the a2A1920-51gcPRO has no
+  `LightSourcePreset` node: it reads "not available", which is logged and is not an error while unpinned (a pin
+  could never match it).
+- **Confirmed on the rig, 2026-10-13:** the three automatic modes Off, Gamma 1, no ratio step reported (so the
+  1/128 fallback applies), and the ratios read back as 0.949951, 0.899902 and 1.19995 (within about 0.00005 of
+  0.95, 0.90, 1.20).
 
 **Why.** The background difference, the colour names and the stain check (a hue and saturation band, measured
-under these settings) all assume the camera does not adjust itself between frames.
+under these settings) all assume the camera does not adjust itself between frames, and a changed user set would
+change the colours without a word.
 
-**Not controlled:** gamma and the colour preset (`LightSourcePreset`) are not set; they come from the camera's
-power-up user set. They are not automatic, but a changed user set would change the colours without a word.
-*Corrected 2026-10-11, on the owner's instruction:* both are read and logged on every connect, and the station
-file may pin them (`Camera.Custom_Cfg.Gamma`, `Light_Source_Preset`): a camera that reads otherwise, or lacks the
-node, is refused, naming both values. They are read, never written, so the pin checks the user set rather than
-overriding it. *Pinned 2026-10-13, from the rig's connect log:* Gamma 1. `Light_Source_Preset` stays unpinned:
-the a2A1920-51gcPRO has no `LightSourcePreset` node, so it reads "not available", which is logged and is not an
-error while unpinned (a pin could never match it). The rig confirmed the three automatic modes Off the same day.
-*Added 2026-10-13, on the owner's instruction:* the white-balance ratios are read back too, one colour at a time,
-and logged with the tolerance used; a ratio more than half the `BalanceRatio` node's step from the station file's
-is refused, naming the colour. The camera rounds each ratio to that step, so an exact match would refuse a
-correctly set camera; a node reporting no step is checked to 1/128 (half of an assumed 1/64 step).
-*Confirmed on the rig 2026-10-13:* this camera reports no step for `BalanceRatio`, so the 1/128 fallback applies,
-and it reads the ratios back as 0.949951, 0.899902 and 1.19995 (within about 0.00005 of 0.95, 0.90, 1.20).
+*History:* until 2026-10-11 exposure and white balance were switched off but not read back, and gain auto was never
+set (the camera's power-up default, Off on this model, was trusted).
 
 **Revisit if** the camera's user set is changed, the camera is replaced by a model with a colour-preset node (then
 pin it), the rig's connect line shows a ratio step coarser than expected, or a stain or colour measurement drifts
@@ -3292,25 +3103,23 @@ Tests `test/Camera/test_basler.py::test_a_camera_that_keeps_an_automatic_mode_is
 ## A judged part's stains are a colour band on its upright crop, from 1 mm²
 
 Decided 2026-10-11 (catalogue phase D), the threshold the owner's. `Checks.Stain.<side>` lists a colour band
-(OpenCV HSV: hue 5–30, saturation from 50, value from 40), the least area (1 mm²) and an edge band left out
-(1 mm). `Vision.Utilities.Stain` takes the judged part's upright crop, leaves out the edge band and every hole
-the hole check found (its diameter with 0.5 mm more), opens the band's pixels (3 × 3: lines and specks go), and
-each connected area of 1 mm² or more is a stain; one makes the part NOK, the reason giving the count, the
-largest and the total ("7 stains on the machined front, the largest 152.22 mm², 201.55 mm² in all.").
+(OpenCV HSV: hue 5–30, saturation from 50, value from 40), the least area (1 mm²), an edge band left out
+(1 mm) and a merge distance (`Merge_Mm`, 3 mm). `Vision.Utilities.Stain` takes the judged part's upright crop,
+leaves out the edge band and every hole the hole check found (its diameter with 0.5 mm more), opens the band's
+pixels (3 × 3: lines and specks go), and joins fragments within `Merge_Mm` into one stain region, counted, boxed
+and reported as one. A region is a stain when it holds a fragment of 1 mm² or more; one makes the part NOK ("There
+are two stains on the machined front.", *A NOK reads as one sentence…*).
 
-**Measured on the 12 mounting-plate fronts of the test set** (the crops the check gets): the five
-fingerprinted plates' largest stain 144–157 mm²; every clean front has no band pixel left after the opening,
-at any size. No false acceptance, no false rejection; the threshold sits over 100 times under the smallest
-stain found. The papillary lines are not used (about 5 px apart at this scale): colour alone separates them
-here.
+**Measured on the 12 mounting-plate fronts of the test set** (the crops the check gets): on the five
+fingerprinted fronts (two fingerprints each by eye) the check finds exactly two regions, the largest 149–158 mm²;
+every clean front has no band pixel left after the opening, at any size. No false acceptance, no false rejection;
+the threshold sits over 100 times under the smallest stain found. The papillary lines are not used (about 5 px
+apart at this scale): colour alone separates them here.
 
-*Corrected 2026-10-11 (phase E), on the owner's instruction:* a fingerprint's ridges broke it into fragments, so
-Image_059's two fingerprints read as seven stains. Fragments within `Merge_Mm` (3 mm) are now one stain region,
-counted, boxed and reported as one; a region is a stain only when it holds a fragment of 1 mm² or more, so what
-makes a part NOK is unchanged. Measured on the five fingerprinted fronts (two fingerprints each by eye): 2–4 mm
-gives exactly two regions on every one, 1 mm three or four, 5 mm joins the two across the hole on 074 and 076;
-3 mm is the middle. The regions' largest 149–158 mm². The reason now reads "There are two stains on the
-machined front." (*A NOK reads as one sentence…*).
+**Why 3 mm.** A fingerprint's ridges break it into fragments (Image_059's two fingerprints read as seven
+stains unmerged). 2–4 mm gives exactly two regions on every fingerprinted front, 1 mm three or four, 5 mm joins the
+two across the hole on 074 and 076; 3 mm is the middle. The merge changes no verdict: what makes a part NOK is the
+1 mm² fragment.
 
 **Why colour, not the describer.** A describer is not a detector (README > Limitations), and the stain is a
 texture with no boundary FastSAM would give.
@@ -3326,90 +3135,64 @@ hairlines, colours outside the band, the order, the rule), `test/integration/tes
 
 Decided 2026-10-11 (catalogue phase D), on the owner's rulings: the describer may only confirm and describe,
 never decide or contradict the verdict, and gets the appearance and the defects as context but no dimension
-or number. In a catalogue mode the objects are now judged before they are described (the judgement's time is
-still left out of the latency). A judged part (OK, NOK) is described with the item's `Describer.Prompt`, filled
-by `Reporting.Describer_Prompt` with the side up (DINOv2's), that side's description and defects, and what the
-checks found in words (`Reporting.Findings`: "found yellow-brown stains on its machined front; describe them
-and where they are", "found fewer through-holes than the part has"). A Warning or an Unspecified object gets the
-mode's own prompt. The loader refuses a digit or a number word (two to twelve, pair, half…) in a side's
-description, a defect or the prompt. `Reporting.Guard_Description` then drops, sentence by sentence, one with
-a digit and one contradicting a check that ran (a stain claimed on a clean side or denied on a stained one; a
-count of holes, or holes "in each corner", when the hole count failed); each drop is an audit warning in the log with the describer's
-full text. The verdict, State and Reasons come from the checks only.
+or number. In a catalogue mode the objects are judged before they are described (the judgement's time is
+left out of the latency).
 
-**Measured with Gemma 4 E4B on 24 judged parts of 15 frames** (2026-10-11: 7 mounting-plate fronts, 4 of them
-stained, and 17 parts of an item since removed, 5 of them NOK for missing holes — *The catalogue holds only the
-mounting plate*):
-- **First run**, the catalogue's sides still counting ("Four small blind holes…"): on all five parts missing
-  holes Gemma wrote "four small blind holes in each corner"; the first guard let it through, and dropped one
-  correct sentence ("clean of any staining").
-- **After** the number words were taken out of what it is given and the guard extended: it still wrote
-  "small blind holes in each corner" on the five — the guard dropped all five; no other drop; no contradiction
-  left in the text shown; no digit. The stains were described and placed ("concentrated on the left side").
-  1.9–3.7 s per judged part on the M-series GPU.
-- **Before phase D** (the side description and defects without the findings, then with them, on the 12
-  fronts): 0 contradictions, but 11–12 of 12 recited the catalogue's sizes as seen, among them the 8 mm
-  thickness, invisible from above — why no number reaches it.
+- **The prompt.** A judged part (OK, NOK) is described with the item's `Describer.Prompt`, filled by
+  `Reporting.Describer_Prompt` with the side up (the side the checks used: *The side up is DINOv2's only by its
+  margin…*), that side's description and defects, and what the checks found in words (`Reporting.Findings`), every
+  hole group named found or not, with no digit: "found no through-holes on its unmachined back", "found both
+  countersinks and both through-holes on its machined front", "only one", "all the", "more … than the part has",
+  "found yellow-brown stains on its machined front; describe them and where they are". It ends with
+  `CONST_DESCRIBER_CHECKS_RULE` ("Describe holes and stains only as features you see on the part, for example 'two
+  stepped holes'; never mention the checks, a verification, a confirmation or a detection."). A part outside the
+  inspection area gets `CONST_DESCRIBER_OUTSIDE_PROMPT`, with no hole or stain fact (its material, shape and surface
+  alone); any other object, the mode's own object prompt. The loader refuses a digit or a number word (two to
+  twelve, pair, half…) in a side's description, a defect or the prompt.
+- **The guard** (`Reporting.Guard_Description`, `__Guard_Clause`) splits each sentence into clauses and reads each
+  mention of a hole kind (`CONST_GUARD_HOLE_KINDS`: countersink or stepped hole, counterbore, through-hole, plain
+  hole) or a stain (`CONST_GUARD_STAIN`; "stainless" is not a stain) with the words just before it (a negator, "free
+  of", a count, "each", "missing", "extra"; stopping at a word that starts another phrase) and after it ("are
+  absent", "are missing", "in each corner", "would be"). A sentence contradicts the checks when it claims holes of a
+  kind the check did not find (a kind the side has none of included), a count other than it found, holes it found
+  absent, a stain it did not find, or the side clean or free of stains or defects where it found a stain (or, for
+  "no defects", a hole group off), or when it names the checks (`CONST_GUARD_CHECKS`: automatic, automated, check,
+  checked, verif…, confirm…, detect…). A stain denied for part of the side only ("while the other face shows no
+  such staining", `CONST_GUARD_PART_OF_SIDE`) is not read as the side claimed clean: the check gives no region to
+  hold it to.
+- **Asked again once.** A text contradicting the checks is described once more, its prompt followed by the
+  findings restated (`Restated_Prompt`, `Vision.Core.__Guard`); a sentence still contradicting is dropped, the rest
+  kept. A sentence with a digit is dropped without asking again. The ask, its answer and each drop are audit
+  warnings in the log with the describer's full text. The verdict, State and Reason come from the checks only.
 
 **The guard is words, not understanding.** It catches the sentences measured and their kind; a paraphrase it
 has not seen can pass, and a correct sentence using a pattern's words can be dropped (logged either way:
 KNOWN_ISSUES).
 
+**Measured.**
+- **2026-10-11, Gemma 4 E4B on 24 judged parts of 15 frames** (7 mounting-plate fronts, 4 of them stained, and 17
+  parts of an item since removed, 5 of them NOK for missing holes — *The catalogue holds only the mounting plate*),
+  1.9–3.7 s per judged part on the M-series GPU: with the catalogue's sides still counting ("Four small blind
+  holes…") Gemma wrote "four small blind holes in each corner" on all five parts missing holes; with the number
+  words taken out of what it is given it still wrote "small blind holes in each corner", and the guard dropped all
+  five, no other drop, no digit. Before the findings were given, 11–12 of 12 fronts recited the catalogue's sizes
+  as seen, among them the 8 mm thickness, invisible from above — why no number reaches it.
+- **2026-10-15, the 10 mounting-plate capture frames** (sets `20261015-131258_s1`, `-143622_s1`, `-160433_s1`; 22
+  objects, 15 judged), Gemma 4 E4B on the RTX 5070 Ti through MLX. The per-mention guard and the findings in words
+  were made for an unmachined back with no through-hole found, where Gemma wrote "…and features through-holes
+  without countersinks" and the per-sentence guard kept it. On the stored descriptions the guard changed 4 of 15 (the
+  four backs with no hole found), no right claim dropped. Live, those four contradicted the checks on the first
+  answer and, asked again, all four answered without a hole; told every group found, Gemma recited the check on 5 of
+  the other 11. With the checks rule: checks named in 0 of 15 texts shown, no contradiction on a first answer, no
+  intervention, the six stained fronts still describing their stains, all 22 verdicts as stored. One false trigger
+  ("…while the other face shows no such staining", true) led to the part-of-side exemption.
+- **What the ask again costs** when it fires, forced on each of the 15 judged crops: median 0.71 s, 0.50–1.02 s
+  (first answers 0.61–0.96 s; 575–699 input, 55–123 output tokens). It is part of the object's description time,
+  so of the inference time.
 
-*Corrected 2026-10-15 — the guard reads each mention, the describer is told every hole group, and is asked again
-once.* On capture `20261015-160433_s1`, object 1 (an unmachined back, NOK: no through-hole found) Gemma wrote "…and
-features through-holes without countersinks", and the guard kept it. **The cause:** it judged a check per sentence,
-on one flag (any hole group off), with two patterns — a fault word ("missing", "extra") near "hole", or a count or
-"each" before it. A bare plural presence ("features through-holes") matched neither, so nothing was claimed; and the
-negation was the sentence's ("without" belonged to the countersinks), so even a match would have read the
-through-holes as denied. Gemma had been told "found fewer through-holes than the part has", never "none", beside the
-side's own description "Smooth through-holes without countersink", which it echoed. Now:
-- **The guard** (`Guard_Description`, `__Guard_Clause`) splits each sentence into clauses and reads each mention of a
-  hole kind (`CONST_GUARD_HOLE_KINDS`: countersink or stepped hole, counterbore, through-hole, plain hole) or a stain
-  with the words just before it (a negator, "free of", a count, "each", "missing", "extra"; stopping at a word that
-  starts another phrase) and after it ("are absent", "are missing", "in each corner", "would be"). It drops a sentence
-  claiming holes of a kind the check did not find (a kind the side has none of included), a count other than it
-  found, holes it found absent, a stain it did not find, or the side clean or free of stains or defects where it
-  found a stain (or, for "no defects", a hole group off). "Stainless" is not a stain.
-- **The findings** name every hole group in words, found or not, no digit: "found no through-holes on its
-  unmachined back", "found both countersinks and both through-holes on its machined front", "only one", "all the",
-  "more … than the part has".
-- **Asked again once.** A text contradicting a check is described once more, its prompt followed by the findings
-  restated (`Restated_Prompt`, `Vision.Core.__Guard`); a sentence still contradicting is dropped, the rest kept. A
-  sentence with a digit alone is dropped without asking again. The ask, its answer and each drop are audit warnings.
-  The verdict is never touched.
-
-**Measured** on the 10 mounting-plate capture frames (sets `20261015-131258_s1`, `-143622_s1`, `-160433_s1`; 22
-objects, 15 judged; *corrected 2026-10-15:* first given as 25), Gemma 4 E4B on the RTX 5070 Ti through MLX:
-- **The new guard on the stored descriptions:** 4 of 15 changed — the four backs with no hole found, each losing the
-  "…features through-holes without countersink(s/ing)" sentence; 11 kept word for word. No right claim dropped; each
-  dropped sentence also held a right clause ("straight edges … narrow chamfer"). "Near where holes would be" kept.
-- **Live, with the new findings:** the same four contradicted the checks on the first answer (the findings alone did
-  not stop the echo); asked again, all four answered without a hole, and nothing was dropped. The other 11: no
-  intervention. All 22 verdicts as stored. The first wording of the ask ("Describe the part again") drew a second
-  paragraph after the first on two parts; "write the description once more, in place of the last one: one short
-  flowing paragraph" drew one on all four.
-- **Seen:** told every group found, Gemma recited the check on 5 of the 11 ("the automatic check confirmed the
-  presence of both countersinks and both through-holes"): true, but the checklist echo. Fixed below.
-
-*Corrected 2026-10-15 — holes and stains are described as features seen, never as the checks'* (the owner's ruling:
-keep the facts for every part, never let the describer mention the checks). The prompt ends with
-`CONST_DESCRIBER_CHECKS_RULE` ("Describe holes and stains only as features you see on the part, for example 'two
-stepped holes'; never mention the checks, a verification, a confirmation or a detection."), and the guard treats a
-sentence naming them (`CONST_GUARD_CHECKS`: automatic, automated, check, checked, verif…, confirm…, detect…) as a
-contradiction: asked again once, then left out, the verdict untouched. A stain denied for part of the side only
-("while the other face shows no such staining", `CONST_GUARD_PART_OF_SIDE`) is no longer read as the side claimed
-clean: the check gives no region to hold it to. **Measured** live on the same 22 objects (15 judged), Gemma 4 E4B,
-RTX 5070 Ti:
-- **Checks mentioned in the text shown: 0 of 15** (5 of 11 before). No intervention at all: no contradiction on a
-  first answer, the four backs with no hole included (the rule changed those answers too); the six stained fronts
-  still describe their stains. All 22 verdicts as stored.
-- **A false trigger found and fixed:** before the part-of-side exemption, one retry fired on capture
-  `20261015-131258_s1` frame 6, object 2 — "…while the other face shows no such staining", true (both its stains lie
-  on one half). The retry's text passed whole; nothing was lost, but the sentence was right.
-- **What the ask again costs** when it fires: one more describer call plus the guard, forced on each of the 15 judged
-  crops: median 0.71 s, 0.50–1.02 s (first answers 0.61–0.96 s; 575–699 input, 55–123 output tokens). It is part of
-  the object's description time, so of the inference time.
+**Rejected.** The first wording of the ask ("Describe the part again"): it drew a second paragraph after the first
+on two parts; "write the description once more, in place of the last one: one short flowing paragraph" drew one on
+all four.
 
 **Revisit if** the describer model or the prompt changes (measure again: contradictions shown, asks again, drops,
 false drops), a check is added (its words join the guard's: `CONST_GUARD_HOLE_KINDS`, `CONST_GUARD_STAIN`), the drops
