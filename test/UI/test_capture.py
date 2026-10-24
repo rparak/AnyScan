@@ -31,7 +31,7 @@ import numpy as np
 import pytest
 # Custom Lib.: AnyScan — the per-analysis capture writer
 #   ../UI/Capture
-from UI.Capture import Capture_Writer_Cls
+from UI.Capture import Capture_Writer_Cls, CONST_CAPTURE_CLASSES_HEADER, Discover_Capture_Sets, Read_Capture_Set
 
 """
 Description:
@@ -302,3 +302,48 @@ def test_a_session_directory_removed_during_eviction_is_skipped(tmp_path, monkey
     monkeypatch.undo()
     assert (evicted, created) == ([], 'B')
     assert (tmp_path / 'B' / 'b1_raw.png').exists()
+
+
+# The classes file's header as sets written before 2026-10-24 carry it (it cited docs/design-decisions.md).
+#   Unit [string]
+CONST_OLD_CLASSES_HEADER = (
+    '# NOT class labels. Each id is a per-frame object INDEX: object N in the Scene\n'
+    '# Understanding text is id N-1, a handle for finding and hand-correcting that\n'
+    '# object. The SAME id means a DIFFERENT part in every frame, so the YOLO <set>.txt\n'
+    '# files must NOT be used for training as-is (see docs/design-decisions.md). They\n'
+    '# become a dataset only once ids are reassigned by real class.\n')
+
+
+def test_the_classes_header_names_its_decision_and_no_repository_path() -> None:
+    """
+    Description:
+        The header travels with the data, outside the repository, so it names the design decision by its
+        title and no path that can go stale (docs/design-decisions.md went stale when the records moved).
+    """
+
+    assert 'per-frame indices, NOT classes' in CONST_CAPTURE_CLASSES_HEADER
+    assert 'docs/' not in CONST_CAPTURE_CLASSES_HEADER and '.md' not in CONST_CAPTURE_CLASSES_HEADER
+    assert all(line.startswith('#') for line in CONST_CAPTURE_CLASSES_HEADER.splitlines())
+
+
+def test_a_session_with_the_old_classes_header_carries_on_and_reads_back_the_same(tmp_path) -> None:
+    """
+    Description:
+        A session written before the header changed keeps working: its classes file still counts its ids
+        (header lines start with '#'), so a frame with no more objects leaves it byte for byte as it was,
+        one with more rewrites it under the current header; and a set in it reads back the same either way.
+    """
+
+    writer = Capture_Writer_Cls(str(tmp_path))
+    _Write(writer, 's', 'set1', yolo=['0 0.25 0.5 0.1 0.2', '1 0.75 0.5 0.1 0.2'])
+    classes = tmp_path / 's' / 'classes.txt'
+    classes.write_text(CONST_OLD_CLASSES_HEADER + '0\n1\n')
+    before = Read_Capture_Set(str(tmp_path / 's'), 's', 'set1')
+
+    _Write(writer, 's', 'set2', yolo=['0 0.25 0.5 0.1 0.2'])
+    assert classes.read_text() == CONST_OLD_CLASSES_HEADER + '0\n1\n'
+    _Write(writer, 's', 'set3', yolo=['0 0.2 0.5 0.1 0.2', '1 0.5 0.5 0.1 0.2', '2 0.8 0.5 0.1 0.2'])
+    assert classes.read_text() == CONST_CAPTURE_CLASSES_HEADER + '0\n1\n2\n'
+
+    assert Read_Capture_Set(str(tmp_path / 's'), 's', 'set1') == before
+    assert sorted(found.Set_Id for found in Discover_Capture_Sets(str(tmp_path))) == ['set1', 'set2', 'set3']

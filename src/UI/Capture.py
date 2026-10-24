@@ -123,8 +123,9 @@ CONST_CAPTURE_CLASSES_HEADER = (
     '# NOT class labels. Each id is a per-frame object INDEX: object N in the Scene\n'
     '# Understanding text is id N-1, a handle for finding and hand-correcting that\n'
     '# object. The SAME id means a DIFFERENT part in every frame, so the YOLO <set>.txt\n'
-    '# files must NOT be used for training as-is (see docs/design-decisions.md). They\n'
-    '# become a dataset only once ids are reassigned by real class.\n')
+    '# files must NOT be used for training as-is (AnyScan\'s design decision "The YOLO\n'
+    '# <set>.txt ids are per-frame indices, NOT classes"). They become a dataset only\n'
+    '# once ids are reassigned by real class.\n')
 
 
 @dataclass

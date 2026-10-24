@@ -226,7 +226,10 @@ This is the kind of file someone will point a training script at, so state it pl
 **these files must not be used for training as-is.** The same id means a *different* part in
 every frame, so a class built from them is an arbitrary mix; a `classes.txt` beside the
 captures lists the ids in order (currently the per-frame object indices) and carries the
-same warning in its own header, so the caution travels with the data. They become a real
+same warning in its own header, so the caution travels with the data; the header names this entry by its
+title, never by a path, since the data outlives the repository's layout (an older header citing
+`docs/design-decisions.md` still counts and reads back the same:
+`test_capture.py::test_a_session_with_the_old_classes_header_carries_on_and_reads_back_the_same`). They become a real
 dataset only once ids are reassigned by actual class. A catalogue mode's verdicts (OK, NOK,
 Warning) are states, not classes, and do not change this. **Revisit when** a classifier assigns
 each object a class: the id then comes from the class, and this note is rewritten — the id stops
