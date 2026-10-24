@@ -97,7 +97,7 @@ Each item links to where it happened here. Read the record; it is not retold.
 - [ ] Model comparisons on the same crops and settings:
       [*E4B stays the describer on both machines…*](../../../project-docs/design-decisions.md#e4b-stays-the-describer-on-both-machines-the-owners-choice-one-wrong-statement-ahead-of-the-12b).
 - [ ] Provenance of weights: the pinned revision and the licence check in
-      [README > Describer model](../../../../README.md#describer-model) and [Licence note](../../../../README.md#licence-note).
+      [README > Platform](../../../../README.md#platform) and [Licence note](../../../../README.md#licence-note).
 - [ ] Gemma is not deterministic (MLX on macOS, the GPU on Linux): a before/after comparison of its
       text is a judgement on the same crops, never a byte comparison.
 

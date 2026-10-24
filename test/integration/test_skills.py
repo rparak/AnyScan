@@ -23,8 +23,11 @@
 
 # System (Default)
 import os
+import re
 import json
 import glob
+# Typing (Support for type hints)
+import typing as tp
 # pytest (One case per project layer)
 import pytest
 
@@ -56,6 +59,16 @@ CONST_PROJECT_LAYERS = {
     'readme-writer': ('## Readers', '## Sources of numbers', '## Triggers', '## Statuses', '## Figures',
                       '## README tests'),
 }
+# A citation of a README section in prose, "README > <section>": the section's name follows, and where it
+# ends is found against the README's headings.
+#   Unit [Pattern]
+CONST_README_CITATION = re.compile(r'README > (\S(?:(?!README > )[^\n"])*)')
+# A Markdown link to the README with an anchor, "(<relative path>README.md#<anchor>)".
+#   Unit [Pattern]
+CONST_README_LINK = re.compile(r'\]\(([^)#\s]*README\.md)#([^)\s]+)\)')
+# A README heading that can be linked: level 2 or 3, outside a code fence.
+#   Unit [Pattern]
+CONST_README_HEADING = re.compile(r'^#{2,3} (.+?)\s*$')
 
 
 def test_the_skills_directory_holds_exactly_the_declared_project_layers(project_root) -> None:
@@ -109,6 +122,127 @@ def test_the_style_checker_configuration_is_complete_and_reasoned(project_root) 
     assert set(config) == {'licence', 'holder', 'class_roots', 'test_roots', 'check_roots', 'exclude'}
     assert config['holder'] == 'JIC Smart Factory'
     assert all(entry.get('reason', '').strip() for entry in config['exclude'])
+
+
+def _Readme_Headings(text: str) -> tp.Tuple[tp.List[str], tp.Set[str]]:
+    """
+    Description:
+        The README's level-2 and level-3 headings, outside code fences, and the anchors GitHub gives them:
+        lower case, punctuation other than '-' and '_' removed, spaces as hyphens, a repeated one
+        suffixed -1, -2.
+
+    Args:
+        (1) text [string]: The README.
+
+    Returns:
+        (1) parameter [List<string>]: The headings' text, in order.
+        (2) parameter [Set<string>]: Their anchors.
+    """
+
+    headings, anchors, seen, fenced = [], set(), {}, False
+    for line in text.splitlines():
+        if line.lstrip().startswith('```'):
+            fenced = not fenced
+            continue
+        match = None if fenced else CONST_README_HEADING.match(line)
+        if match is None:
+            continue
+        headings.append(match.group(1))
+        anchor = re.sub(r'[^\w\- ]', '', match.group(1).lower()).replace(' ', '-')
+        anchors.add(anchor if anchor not in seen else '%s-%d' % (anchor, seen[anchor]))
+        seen[anchor] = seen.get(anchor, 0) + 1
+    return headings, anchors
+
+
+def _Stale_Readme_References(root: str, layers: tp.List[str]) -> tp.List[str]:
+    """
+    Description:
+        Every reference to a README section in the given files that the README does not hold: a
+        "README > <section>" citation whose words start with no heading of the README (a heading must
+        end at a word's end), and a link to README.md#<anchor> whose path is not the root README or
+        whose anchor no heading has.
+
+    Args:
+        (1) root [string]: The repository's root, with README.md.
+        (2) layers [List<string>]: The files to read, relative to the root.
+
+    Returns:
+        (1) parameter [List<string>]: One 'file:line: reference' per stale reference; empty when none is.
+    """
+
+    with open(os.path.join(root, 'README.md'), encoding='utf-8') as file:
+        headings, anchors = _Readme_Headings(file.read())
+    readme = os.path.realpath(os.path.join(root, 'README.md'))
+    stale = []
+    for layer in layers:
+        with open(os.path.join(root, layer), encoding='utf-8') as file:
+            lines = file.read().splitlines()
+        for number, line in enumerate(lines, 1):
+            for match in CONST_README_CITATION.finditer(line):
+                cited = match.group(1)
+                if not any(re.match(re.escape(h) + r'(?![\w])', cited) for h in headings):
+                    stale.append('%s:%d: README > %s' % (layer, number, cited.rstrip()))
+            for match in CONST_README_LINK.finditer(line):
+                target = os.path.realpath(os.path.join(root, os.path.dirname(layer), match.group(1)))
+                if target != readme or match.group(2) not in anchors:
+                    stale.append('%s:%d: %s#%s' % (layer, number, match.group(1), match.group(2)))
+    return stale
+
+
+def _Project_Layer_Files(root: str) -> tp.List[str]:
+    """
+    Description:
+        Every file of the skills' project layers: each references/project.md and check_style.json.
+
+    Args:
+        (1) root [string]: The repository's root.
+
+    Returns:
+        (1) parameter [List<string>]: The files, relative to the root, sorted.
+    """
+
+    found = glob.glob(os.path.join(root, CONST_SKILLS_DIR, '*', 'references', '*'))
+    return sorted(os.path.relpath(path, root) for path in found if path.endswith(('.md', '.json')))
+
+
+def test_every_readme_section_the_project_layers_cite_exists(project_root) -> None:
+    """
+    Description:
+        The project layers cite README sections by name ("README > Platform") and link to them by anchor
+        (README.md#platform); a README rewrite that renames, merges or drops a section must update them.
+        Every citation must start with one of the README's level-2 or level-3 headings, and every link
+        must reach the root README and an anchor one of its headings has. The layers were found pointing
+        at "Describer model" and "Source layout" after both sections were folded into others.
+    """
+
+    layers = _Project_Layer_Files(project_root)
+    assert '.claude/skills/project-style-rpx/references/check_style.json' in layers
+    assert _Stale_Readme_References(project_root, layers) == []
+
+
+def test_a_stale_readme_reference_is_reported(project_root, tmp_path) -> None:
+    """
+    Description:
+        The check finds what it is for: in a scratch copy of the layout, a citation of a section the
+        README does not have, a link to a missing anchor and a link that misses the README are each
+        reported, and the citations and links that match are not.
+    """
+
+    (tmp_path / 'README.md').write_text('# T\n\n## Platform\n\n```bash\n## Not a heading\n```\n\n'
+                                        '### Measurements are repeatable, not absolute\n', encoding='utf-8')
+    layer = tmp_path / '.claude' / 'skills' / 'x' / 'references'
+    layer.mkdir(parents=True)
+    (layer / 'project.md').write_text(
+        'README > Platform. README > Platforms. README > Not a heading.\n'
+        '[a](../../../../README.md#platform) [b](../../../../README.md#describer-model)\n'
+        '[c](../../../README.md#platform) [d](../../../../README.md#measurements-are-repeatable-not-absolute)\n',
+        encoding='utf-8')
+
+    stale = _Stale_Readme_References(str(tmp_path), ['.claude/skills/x/references/project.md'])
+    assert stale == ['.claude/skills/x/references/project.md:1: README > Platforms.',
+                     '.claude/skills/x/references/project.md:1: README > Not a heading.',
+                     '.claude/skills/x/references/project.md:2: ../../../../README.md#describer-model',
+                     '.claude/skills/x/references/project.md:3: ../../../README.md#platform']
 
 
 def test_claude_md_names_every_project_layer_and_the_checker(project_root) -> None:

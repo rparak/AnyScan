@@ -65,7 +65,7 @@ UI                               → everything above          (App/run.py → U
 - A domain module never holds the UI or the logger: it reports through callbacks injected by the
   caller (`Set_Log_Callback`, `stage_cb`, `progress_cb`), and its failures are `*_Error_Cls` sentences.
 - `src/Transformation/` is inherited (rparak/RoLE), under its own convention; nothing in the
-  repository imports it (README > Source layout). The checker excludes it.
+  repository imports it (README > Repository layout). The checker excludes it.
 
 ## Root ✅
 
