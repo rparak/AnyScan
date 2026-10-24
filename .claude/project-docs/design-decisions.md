@@ -3,10 +3,13 @@
 The reasoning behind the non-obvious choices in the vision port, so the next person does
 not undo them. Each entry states the decision, the reason, and what would justify
 revisiting it. This is the counterpart to [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md), which
-records open behaviours, and to README > Limitations, which records the two limitations that
+records open behaviours, and to README > Limitations, which records the three limitations that
 affect decisions; this file records deliberate choices whose motivation is not visible in the
-code. A change that contradicts one of these should cite
-why the reason no longer holds.
+code. A change that contradicts one of these should cite why the reason no longer holds.
+
+Each entry states the decision in force. An earlier state is at most one *History* line, and an
+entry whose decision was replaced is a pointer to the entry that replaced it; the full earlier text
+of every entry is in git (folded 2026-10-24; the last unfolded version is at `a85215c`).
 
 ## The label mask is black ground, tinted fill, verdict contour
 
@@ -3086,8 +3089,8 @@ is flagged as a failed part, never passed or ignored), and the thin threshold is
   the worst verdict (NOK in the NOK ink on its tint, the 'fail' level; Unspecified, then Warning, in amber;
   all OK in green), and Trends charts OK, NOK, Warning and Unspecified. Only History's filter is left
   (KNOWN_ISSUES). *Corrected 2026-10-11 (phase E):* a NOK has one `Reason:` sentence and its values are in the
-  log (*A NOK reads as one sentence…*); History filters by the four states (*History filters by the four
-  states…*).
+  log (*A NOK reads as one sentence…*); History filters by state (*Three states for the operator, a Warning with
+  its kind*).
 - **What it does not judge yet.** The stain and the holes. The five stained-plate frames read OK until the
   stain check (phase D); their expected NOK is a strict xfail naming it. *Corrected 2026-10-11:* the holes are
   judged since phase C, the stain since phase D (*A judged part's stains are a colour band…*); the stained
@@ -3446,22 +3449,23 @@ Tests `test/Reporting/test_core.py` (`::test_a_nok_has_one_reason_sentence_for_i
 
 ## A judged part's features are marked on the frame, pass or fail, numbered as the log's parts, and saved as its parts
 
-Decided 2026-10-11 (catalogue phase E), as the request asks and the owner approved. Each judged part's features
-(`Parameters.Vision.Feature_Str`) are built where its checks run — each hole found and each hole expected and not
-found (`Vision.Utilities.Holes.Hole_Features`) and each stain region (`Check_Stain`) — on the upright crop, then taken to the frame through the inverse of the crop's warp (`Classify.Crop_To_Frame`) and
-numbered as the object's parts. `Annotate.Draw_Annotated` draws them on the annotated frame (Live, the saved
-`_annotated.png`, the harness), each in ONE colour — the pass colour (the OK verdict's indigo) or the fail colour
-(the NOK verdict's magenta), the colours that already mark the objects, so a feature's colour means what an
-object's does — at one line weight, 2 px on a 1920 px frame, half the object's box:
+Decided 2026-10-11 (catalogue phase E), as the request asks and the owner approved; the marks below are the owner's
+rulings of 2026-10-13. Each judged part's features (`Parameters.Vision.Feature_Str`) are built where its checks run —
+each hole found and each hole expected and not found (`Vision.Utilities.Holes.Hole_Features`) and each stain region
+(`Check_Stain`) — on the upright crop, then taken to the frame through the inverse of the crop's warp
+(`Classify.Crop_To_Frame`) and numbered as the object's parts. `Annotate.Draw_Annotated` draws them on the annotated
+frame (Live, the saved `_annotated.png`, the harness), each in ONE colour — the pass colour (the OK purple `#640ABA`)
+or the fail colour (the NOK orange-red `#FF6540`), the colours that already mark the objects, so a feature's colour
+means what an object's does — at one line weight, 2 px on a 1920 px frame, half the object's box, with no halo.
 
 Every feature has a box along the part's axes — its edges are the upright crop's, taken to the frame — so it turns
 with the part:
 
 - **A hole found:** its box solid, tight round its outline, and its outline solid: the FastSAM mask's contour,
   simplified under a pixel, so it follows the hole's real shape.
-- **A hole expected and not found:** in magenta at its expected position, its box (tight round the catalogue's
-  circle) and a circle of the catalogue's diameter, both DASHED — the only dashed feature marks — so a missing hole
-  never reads as a found hole out of tolerance (solid).
+- **A hole expected and not found:** in the fail colour at its expected position, its box (tight round the
+  catalogue's circle) and a circle of the catalogue's diameter, both DASHED — the only dashed feature marks — so a
+  missing hole never reads as a found hole out of tolerance (solid).
 - **A stain:** its box along the part's axes, round all its pixels (`Check_Stain`), solid, and its pixels under a
   35 % tint of the fail colour, so its shape shows.
 - **Its number:** every feature carries its part number (`3.1`, `3.2` for object 3) on a chip like the object's,
@@ -3474,44 +3478,37 @@ with the part:
   is taken; edges within 5° of each other are equally level and the one running right from the corner is taken
   (both running right: the one rising). A chip may lie over a neighbouring outline (a through-hole's over its
   countersink's ring), never over another chip: one that would come within 2 px of an earlier chip of its object
-  slides along its edge, away from the corner, until it does not. Numbering stays group by group (countersinks 1.1,
-  1.2, then through-holes 1.3, 1.4), as the log lists them.
+  slides along its edge, away from the corner, until it does not. The slide is for the tolerance limits: at nominal
+  sizes the through-hole's chip sits 29.7 px below the countersink's (22 px of chip and the gap), at a 10.5 mm
+  countersink round a 7.5 mm through-hole 14.9 px, and on the test set's front (Image_055) it slides 6 px to keep
+  the gap. Numbering stays group by group (countersinks 1.1, 1.2, then through-holes 1.3, 1.4), as the log lists
+  them. The outline's measured sides carry no L and W tags.
 
-*Corrected 2026-10-13, the owner's rulings (second revision):* the first version (`32418bc`) drew a found hole's
-box dashed and axis-aligned on the frame, a stain's box along the stain's own slant, and moved a chip up and left to
-free space off its box. Every found feature's box is now solid and along the part, and a chip stays on its box. Two
-corner rules were tried first and dropped: the top-left of the part's upright crop (which corner that is flips with
-the crop's 180° ambiguity: across nine turns of two real plates it landed on one corner or the opposite one), and
-that corner fixed by the identifier's turn (right on all 18 synthetic turns, but 180° off on 2 of the test set's 22
-plates, Image_076 and Image_079). The corner nearest the object's chip needs no orientation at all. A chip sliding
-along its edge is for the tolerance limits: at nominal sizes the through-hole's chip sits 29.7 px below the
-countersink's (22 px of chip and the gap), at a 10.5 mm countersink round a 7.5 mm through-hole 14.9 px, and on the
-test set's front (Image_055) it slides 6 px to keep the gap.
+**No halo: the marks stand out by hue, not brightness — the owner's decision (2026-10-13).** Measured 2026-10-13 with
+the colours then in force (an indigo pass and a magenta fail, before the JIC palette; the palette's contrasts are in
+*The palette is the JIC Smart Factory brand's*), on the plate surface 3–8 px outside each hole (Image_055 front,
+Image_056 dark back, Image_080 stained front): the pass colour's CIE76 ΔE against the ground was 49.5, 53.7 and 48.8
+(10th percentile 44.1, 49.2, 44.4) and the fail colour's 84.8, 91.0 and 84.1, four times the renderer's 12 floor
+(`CONST_ANNOTATE_MIN_DELTA_E`) on the dark back as on the light front; the luminance contrast was only about 2:1 on
+every ground, below the 3:1 usually asked of a graphic. The owner accepted that, and that it is weaker for a
+colour-blind viewer, over a halo, which is a second colour beside every mark. In the Camera View at the default
+window (1720 x 1020, the frame shown at 0.45 scale) the 2 px lines draw about 1 px wide and stay unbroken on the dark
+back, a dashed outline still reads dashed, and a feature chip's numeral is about 6 px tall; 1 px lines were rejected
+as likely to fade there.
 
-*Corrected 2026-10-13, the owner's ruling, reversing the one of 2026-10-11:* the frame now numbers the parts. On
-2026-10-11 failing parts were numbered on the frame, then every part, and the outline's measured sides were tagged
-L and W; the owner ruled that both cluttered the frame, and they were removed. The numbers are back as smaller chips
-on their features' boxes, never over each other; the L and W tags stay removed. *Corrected 2026-10-13, same ruling:*
-until then a hole was marked by a solid square of its diameter plus 0.5 mm, a missing hole by a dashed square, and
-every mark stood on a 2 px light halo (the theme's card colour); the square is now only the box recorded in
-`_objects.json` (`CONST_HOLE_MARK_MARGIN_MM`), and the halo is gone.
+**Rejected.** Two chip-corner rules: the top-left of the part's upright crop (which corner that is flips with the
+crop's 180° ambiguity: across nine turns of two real plates it landed on one corner or the opposite one), and that
+corner fixed by the identifier's turn (right on all 18 synthetic turns, but 180° off on 2 of the test set's 22
+plates, Image_076 and Image_079); the corner nearest the object's chip needs no orientation at all. A thin dark
+outline under every mark, as the poster lays one under each defect box (2026-10-14): the orange-red is 1.2:1 against
+bright aluminium and rust-stained metal (median), and a 2 px outline lifts every mark there to 3.5:1 in `#640ABA`;
+the owner compared renders of Image_074 and Image_076 with and without it and chose none, by eye (*The palette is the
+JIC Smart Factory brand's*).
 
-*Reconsidered 2026-10-14 with the JIC Smart Factory palette, and kept:* the marks are now the purple (pass) and the
-orange-red (fail). The poster lays a thin dark outline under each defect box, so an outline under every mark was
-measured on the test frames: the orange-red is 1.2:1 against bright aluminium and rust-stained metal (median), and a
-2 px outline lifts every mark there to 3.5:1 in `#640ABA` (6.4:1 in the darker `#2D0557`, which the owner then
-dropped from the palette). The owner compared renders of Image_074 and Image_076 with and without the outline and
-chose none, by eye, despite the 1.2:1: the ruling below stands (*The palette is the JIC Smart Factory brand's*).
-
-**No halo: the marks stand out by hue, not brightness — the owner's decision (2026-10-13).** Measured on the plate
-surface 3–8 px outside each hole (Image_055 front, Image_056 dark back, Image_080 stained front), the indigo's CIE76
-ΔE against the ground is 49.5, 53.7 and 48.8 (10th percentile 44.1, 49.2, 44.4) and the magenta's 84.8, 91.0 and
-84.1, four times the renderer's 12 floor (`CONST_ANNOTATE_MIN_DELTA_E`) on the dark back as on the light front; the
-luminance contrast is only about 2:1 on every ground (indigo 2.1, 2.2, 1.9), below the 3:1 usually asked of a
-graphic. The owner accepted that, and that it is weaker for a colour-blind viewer, over a halo, which is a second
-colour beside every mark. In the Camera View at the default window (1720 x 1020, the frame shown at 0.45 scale) the
-2 px lines draw about 1 px wide and stay unbroken on the dark back, a dashed outline still reads dashed, and a
-feature chip's numeral is about 6 px tall; 1 px lines were rejected as likely to fade there.
+*History:* the first version (`32418bc`, 2026-10-11) drew a found hole's box dashed and axis-aligned on the frame, a
+hole as a square of its diameter plus 0.5 mm on a 2 px light halo, a stain's box along the stain's own slant, and
+moved chips off their boxes; the frame numbered the failing parts, then every part, then none, until the 2026-10-13
+rulings. The 0.5 mm square survives only as the box recorded in `_objects.json` (`CONST_HOLE_MARK_MARGIN_MM`).
 
 The label mask has none of it: it shows the segmentation. The parts are saved in `_objects.json` as each object's
 `parts`, an additive field (owner's ruling): an older set loads with none, the CSVs are unchanged. A hole's outline
@@ -3525,16 +3522,16 @@ is drawn, not saved: History shows the saved `_annotated.png`.
 - **Rendered and looked at** (2026-10-13, second revision): Image_055 (front), Image_056 (dark back), Image_080
   (the two fingerprints as two tinted boxes along the plate, chips 1.5 and 1.6); SYNTHETIC frames: Image_055 with
   one through-hole painted out (inpainted; `Part 1.4 · through-hole: not found at its expected position`, a dashed
-  magenta box and circle inside the found countersink 1.1), the Image_055 and Image_056 plates turned 135°, 215° and
-  260° and pasted on the background reference (all judged OK, every chip level within 45°), and Image_055's
-  concentric pair redrawn at the tolerance limits (chip 1.3 slides 20 px along its own top edge). In the Camera View
-  widget, rendered offscreen at the default window (0.45 scale), the lines draw about 1 px and stay unbroken, a
-  level chip's numeral is about 6 px tall, and a chip turned near 45° reads but softer. No mounting plate of the test
-  set misses a hole, so only the synthetic frame shows one.
+  box and circle in the fail colour inside the found countersink 1.1), the Image_055 and Image_056 plates turned
+  135°, 215° and 260° and pasted on the background reference (all judged OK, every chip level within 45°), and
+  Image_055's concentric pair redrawn at the tolerance limits (chip 1.3 slides 20 px along its own top edge). In the
+  Camera View widget, rendered offscreen at the default window (0.45 scale), the lines draw about 1 px and stay
+  unbroken, a level chip's numeral is about 6 px tall, and a chip turned near 45° reads but softer. No mounting plate
+  of the test set misses a hole, so only the synthetic frame shows one.
 
 **Revisit if** a mark or a number is misread on the rig's screen (a chip turned near 45° first), an operator cannot
-tell indigo from the dark back (the halo's case), a chip slides off its box on a crowded part, or a feature kind is
-added.
+tell the pass purple from the dark back (the halo's case), a chip slides off its box on a crowded part, or a feature
+kind is added.
 Tests `test/Vision/Utilities/test_annotate.py::test_a_found_holes_box_and_outline_are_solid_in_one_colour_thinner_than_the_object_without_a_halo`,
 `::test_a_missing_hole_is_a_dashed_box_and_circle_where_a_found_one_is_solid`,
 `::test_a_stains_box_along_the_part_is_solid_and_its_pixels_tinted`,
@@ -3574,22 +3571,7 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_similarity_grid_is_the_b
 
 ## History filters by the four states, and the Trends threshold line is neutral
 
-Decided 2026-10-11 (catalogue phase E), resolving the two KNOWN_ISSUES entries left for it. History's filter has a
-segment per state — All, OK, NOK, Warning, Unspecified, each with its count — and lists a set under every state
-its objects took; a card is outlined in its worst state's colour (the status badge's order: NOK, Unspecified,
-Warning, OK). The confidence chart's warning-threshold line is drawn in the neutral mid ink instead of the amber
-a Warning object's dot takes; the error line keeps its deep red, which no verdict uses.
-*Corrected 2026-10-18:* the "neutral mid ink" had become the OK purple with the palette; both threshold lines are now
-the neutral grey ink in two dash patterns (*The Confidence chart draws the two means, told apart by their form*).
-
-*Corrected 2026-10-16:* the filter is All, OK, NOK, Warning again, three states, a Warning of any kind (an older set's
-Unspecified object included) under Warning; the worst-state order is NOK, Warning, OK (*Three states for the operator, a Warning with its kind*).
-
-**Revisit if** a fifth state is added, or the threshold lines need telling apart by more than their dash.
-Tests `test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
-`::test_a_set_is_outlined_in_its_worst_state`,
-`test/UI/test_trends_view.py::test_both_threshold_lines_are_a_neutral_grey_in_two_dash_patterns` (it replaced
-`test_the_warning_threshold_line_is_not_the_warning_verdicts_amber`, 2026-10-18).
+Superseded by [*Three states for the operator, a Warning with its kind*](#three-states-for-the-operator-a-warning-with-its-kind): History's filter is All, OK, NOK and Warning, and the threshold lines are in [*Trends draws square markers, 2 px lines, and the run mean as hollow squares on top*](#trends-draws-square-markers-2-px-lines-and-the-run-mean-as-hollow-squares-on-top). The full entry is in git at `a85215c`.
 
 
 ## The catalogue holds only the mounting plate
@@ -3662,22 +3644,19 @@ the requirements install), `test/UI/test_opencv_check.py` (`App/run.py` stopping
 Decided 2026-10-13, on the owner's request and rulings. `Configuration/` holds three folders, one per kind:
 `Mode/` (`Config_<Hardware>_Mode_<Mode>.yaml`), `Station/` (`Station_*.yaml`) and `Calibration/`
 (`Calibration_*.yaml`). A mode file names its station (`Station`, REQUIRED); the station file names its
-calibration (`Calibration`, REQUIRED). Nothing is found by convention any more: the loader no longer builds
-`Station_<Hardware>.yaml` and `Calibration_<Hardware>.yaml` beside the mode file
-(`Configuration.Core.__Read_Reference`, `Load_Configuration`).
+calibration (`Calibration`, REQUIRED). Nothing is found by convention: the loader never builds a station or
+calibration file name from the mode file's (`Configuration.Core.__Read_Reference`, `Load_Configuration`).
 
 - **A reference is a file name, never a path**, of its kind (`Station_*.yaml`, `Calibration_*.yaml`), resolved
   in its kind's folder of the repository (`Station_Directory`, `Calibration_Directory`) wherever the file
   holding it is. A local copy of a mode file kept outside the repository — a station's, for its own
-  station-event directory — reads the shipped station and calibration with nothing beside it. Until now that
-  copy needed both files symlinked beside it; a path in a reference would make a copy read something else.
+  station-event directory — reads the shipped station and calibration with nothing beside it; a path in a
+  reference would make a copy read something else.
 - **Each link is checked, and a failure names both files**: the station's `Hardware` must be the mode's; the
   calibration's `Hardware`, `Resolution` and `Offset` must be the station's. A missing reference fails the load
   with the line to add, where, and the files of that kind for the hardware.
 - **Nothing loads uncalibrated.** A station that names no calibration fails, in the application and every
-  harness. Until now a hardware without a calibration file loaded with a warning, not undistorted and not
-  measured, so that `calibrate.py` could run on a new camera. That one case now has its own reader,
-  `Load_Station_Camera`: the mode's Hardware and Station, and the station's camera — names, acquisition
+  harness. `calibrate.py`, which must run on a new camera, has its own reader, `Load_Station_Camera`: the mode's Hardware and Station, and the station's camera — names, acquisition
   settings, window — validated as `Load_Configuration` validates them; no reference image, no calibration.
 - **The calibration stays a file of its own, never inside the station file**: the station file is written by
   hand, with comments, and the calibration is written by a tool; and separate files keep every older
@@ -3692,14 +3671,12 @@ calibration (`Calibration`, REQUIRED). Nothing is found by convention any more: 
 - **A mode file cannot override the station**: `Calibration` joins `Camera` and the background reference among
   the keys a mode file holding fails on, naming the station file.
 
-**Migration.** The four files moved with `git mv`. The calibration in force was renamed after its solve,
-`Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_20260928-110755.yaml`, so every calibration is named the way the
-tool names them; its content is unchanged. Each mode file gained `Station:`, the station `Calibration:`. Older
-records are untouched and still read: a capture set records the mode file's *name*, the reference, the hardware,
-window and factor, and nothing resolves a recorded name back to a file. The reference sidecar's
-`calibration.file` (`Calibration_<Hardware>.yaml`) is history; its check compares the lens model's fingerprint,
-which the rename does not change. From 2026-10-13 a capture set also records the file names of its station and its
-calibration (`_objects.json` `station`, `calibration`): calibrations are switched by one line, so the conversion
+**Older records.** The calibration in force is named after its solve,
+`Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_20260928-110755.yaml`, as the tool names them (renamed 2026-10-13,
+content unchanged). A capture set records the mode file's *name*, the reference, the hardware, window and factor, and
+nothing resolves a recorded name back to a file; the reference sidecar's `calibration.file` is history, and its check
+compares the lens model's fingerprint. Since 2026-10-13 a capture set also records the file names of its station and
+its calibration (`_objects.json` `station`, `calibration`): calibrations are switched by one line, so the conversion
 factor alone no longer says which one measured a set. A set written before reads both as empty
 (`test/UI/test_configuration_dialog.py::test_each_capture_set_records_its_station_and_calibration`).
 
@@ -3738,8 +3715,7 @@ Tests `test/UI/test_square_corners.py::test_no_ui_corner_is_rounded`, `::test_no
 The console, the frame's marks and the architecture diagram take their colours from the JIC Smart Factory guide
 (`Parameters/Theme.py`): the purple `#640ABA` for all text, outlines, the selected segment and the OK verdict; the
 grey-lilac `#E1DCE6` for rules, the control hover, the viewport and the neutral's word ground; its text twin `#655E6D`
-for the neutral (Unspecified; since 2026-10-15 the detect-only box is the logo purple, *Every chip carries a white
-numeral*); the
+for the neutral ink (the detect-only box is the logo purple, *Every chip carries a white numeral*); the
 periwinkle `#C2C9FF` for a pressed button, the scroll handle and the OK verdict's word ground; and from the wider
 JIC palette in the same guide the orange-red `#FF6540` (NOK), the amber `#FFC226` (Warning) and the green
 `#3DBE4C` (system health only). One purple: the owner dropped the poster's dark purple `#2D0557` everywhere, the
@@ -3748,8 +3724,8 @@ for words are derived in each colour's hue at L\* 41 (6.2:1 on white, 4.6:1 on t
 `#FFEF85` is decoration and is no token.
 
 - **On the frame.** OK is the purple, as the poster marks a detected part; NOK the orange-red, as it marks a defect;
-  Warning the amber; Unspecified the neutral `#655E6D` (*corrected 2026-10-16:* the sky blue `#33A3FF`, *Unspecified
-  is a sky blue, a verdict colour outside the brand palette*); every object of a detect-only mode the logo purple `#640ABA`.
+  Warning the amber, every kind (*Three states for the operator, a Warning with its kind*); every object of a
+  detect-only mode the logo purple `#640ABA`.
   A chip is filled with its box's colour, as on the poster, with a plain white numeral on every chip (*Every chip
   carries a white numeral*). The box stays the
   dashed axis-aligned box around the solid rotated outline of a measured part; corner brackets (the AnyScan mark's
@@ -3757,8 +3733,8 @@ for words are derived in each colour's hue at L\* 41 (6.2:1 on white, 4.6:1 on t
 - **Words on a verdict.** The badge and the diagram's verdict labels set the purple on the verdict's ground where it
   reads at ≥ 4.5:1 (Warning's amber) and on a tint of it otherwise: the part tag's periwinkle for OK (5.71:1), the
   defect tag's `#FFD9D0` for NOK (7.01:1; the purple on the solid orange-red is 3.13:1) and the grey-lilac for the
-  neutral (6.79:1; the purple on `#655E6D` is 1.47:1). Trends draws each verdict's series in its text twin (the boxes are under 3:1 as lines on white) and the
-  total in the muted purple-grey, since OK is the purple. *Corrected 2026-10-16:* the charts, legends and History filter now use each state's frame colour itself (*Each state has one colour in every view*).
+  neutral (6.79:1; the purple on `#655E6D` is 1.47:1). The charts, their legends and History's filter draw each state
+  in its frame colour itself (*Each state has one colour in every view*); until 2026-10-16 they used the text twins.
 
 **Why, measured.** Per-pixel WCAG ratio on the test frames (055, 062, 063, 065, 072, 074, 076, 080; 60,000 pixels
 per surface; plate interiors from each object's own mask, eroded 7 px; the table outside the dilated masks). Median
@@ -3770,8 +3746,6 @@ rust-stained metal `#999298` (61), a stain `#786354` (44).
 | OK `#640ABA` | 1.3 | 3.5 | 1.3 | 3.0 | 1.6 |
 | NOK `#FF6540` | 2.4 | 1.2 | 3.9 | 1.2 | 1.9 |
 | Warning `#FFC226` | 4.3 | 1.6 | 7.0 | 1.9 | 3.5 |
-| Unspecified `#E1DCE6` (until 2026-10-15) | 5.1 | 1.9 | 8.4 | 2.2 | 4.2 |
-| Neutral `#655E6D` (from 2026-10-15) | 1.1 | 2.4 | 1.8 | 1.3 (mid-grey metal) | |
 | green `#3DBE4C` (not chosen for OK) | 2.8 | 1.2 | 4.7 | 1.3 | 2.3 |
 
 - No single colour can reach 3:1 against both the dark plate and the aluminium (relative luminance ≥ 0.227 and
@@ -3783,7 +3757,7 @@ rust-stained metal `#999298` (61), a stain `#786354` (44).
   and Image_077, over thicker lines or a lighter purple for the frame's marks.
 - Green was not chosen for OK although it does not vanish on the table (2.8:1, ΔE 60): its hue is 28° from the
   table's teal, against 119° for the periwinkle that was first proposed, and the poster marks a detection purple.
-- The four boxes are ≥ ΔE 58 apart; NOK and Warning are ΔE 27 under deuteranopia, where the words and the weights
+- The three state boxes are ≥ ΔE 58 apart; NOK and Warning are ΔE 27 under deuteranopia, where the words and the weights
   carry them as before.
 - Every enabled text clears 4.5:1 on its ground and every control state does, measured from rendered pixels
   (`test_text_contrast.py`, `test_control_contrast.py`).
@@ -3800,7 +3774,7 @@ Tests `test/Parameters/test_theme.py::test_verdict_colour_comes_from_the_one_con
 ## Every chip carries a white numeral
 
 A chip on the frame is filled with its box's colour and carries its number in plain white, in every state and every
-mode, an object's chip and a feature's alike: on the OK purple 9.15:1, on Unspecified's `#655E6D` 6.22:1, on the NOK
+mode, an object's chip and a feature's alike: on the OK purple 9.15:1, on the NOK
 orange-red 2.92:1 and on Warning's amber 1.62:1. The two below 4.5:1 are the owner's accepted exceptions for these
 short bold numerals (NOK since 2026-10-14, Warning since 2026-10-15). No chip has its own numeral colour and none a
 rim (`Theme.CONST_CHIP_NUMERAL`).
@@ -3814,10 +3788,7 @@ alike, so a rim has to be grown from the drawn numeral's pixels, not drawn as a 
 **The detect-only box: the logo purple** (the owner's choice, 2026-10-15). Segment Anything draws every object in
 one box colour, `CONST_DETECTION_BOX = CONST_LOGO_INK` (`#640ABA`), with the plain white numeral (9.15:1). It is the
 OK verdict's colour, accepted because a detect-only mode shows no verdict at all, so nothing there can be read as a
-pass; the neutral stays distinct from the verdicts within a catalogue mode, where Unspecified keeps `#655E6D`
-(`CONST_UNSPECIFIED_BOX`, ΔE 87 / 80 / 95 from OK / NOK / Warning), split off from the token the two had shared. The
-label mask's neutral pair is derived from `#655E6D`, unchanged, in both modes. *Corrected 2026-10-16:* Unspecified is
-now the sky blue `#33A3FF` with its own ink and mask fill; `#655E6D` and its derived pair stay the detect-only mode's. Measured for the detect-only box
+pass. The detect-only label mask keeps the neutral pair derived from `#655E6D`. Measured for the detect-only box
 (capture `20261015-143622_s1`, the table median `#176550`; the metals from *The palette is the JIC Smart Factory
 brand's*; WCAG ratio, ΔE76), each with a plain white numeral:
 
@@ -3827,7 +3798,7 @@ brand's*; WCAG ratio, ΔE76), each with a plain white numeral:
 | periwinkle `#C2C9FF` | 1.60 | 4.34, 66.5 | 1.62, 29.1 | 1.89, 32.9 | 2.45, 39.2 |
 | grey-lilac `#E1DCE6` (empty-view grey) | 1.35 | 5.17, 60.6 | 1.92, 22.3 | 2.25, 27.2 | 2.92, 35.0 |
 | `#97929B` (grey, white at 3:1) | 3.04 | 2.29, 40.4 | 1.17, 4.9 | 1.00, 1.8 | 1.29, 8.5 |
-| `#655E6D` (until 2026-10-15) | 6.22 | 1.12, 37.0 | 2.40, 25.6 | 2.05, 21.1 | 1.58, 14.9 |
+| `#655E6D` (the box until 2026-10-15) | 6.22 | 1.12, 37.0 | 2.40, 25.6 | 2.05, 21.1 | 1.58, 14.9 |
 
 - The purple reads on the table by hue (1.31:1, ΔE 120.7), as the OK purple does in a catalogue mode, and is the
   strongest of the five on the metals.
@@ -3839,11 +3810,10 @@ brand's*; WCAG ratio, ΔE76), each with a plain white numeral:
 **Revisit if** a box colour changes (each ratio is pinned), a numeral is misread on the rig's screen, or a detect-only
 frame is mistaken for a judged one.
 Tests `test/Parameters/test_theme.py::test_every_chip_numeral_is_white`,
-`::test_the_detect_only_box_is_the_logo_purple`,
-`::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline` (the neutral's distinctness test went in `73daf5b`),
+`::test_the_detect_only_box_is_the_logo_purple`, `::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline`,
+`::test_the_palette_keeps_the_brands_rules`,
 `test/Vision/Utilities/test_annotate.py::test_verdict_colored_false_draws_one_neutral_colour_not_verdicts`,
-`::test_neutral_mask_pair_is_derived_light_fill_and_darker_outline`, `::test_the_palette_keeps_the_brands_rules`,
-`test/Vision/Utilities/test_annotate.py::test_each_chip_is_its_box_colour_with_a_white_numeral`,
+`::test_each_chip_is_its_box_colour_with_a_white_numeral`,
 `test/UI/test_history.py::test_detect_only_sets_have_no_filter_and_a_neutral_outline` (History's set outline stays the
 ink `#655E6D`).
 
@@ -3859,11 +3829,9 @@ SVGs*). The rest of the band carries the brand's pixel motif (*The funding band 
 Heights: the Ministry's logo and the EU emblem 46 px, the EDIH-DIGIMAT wordmark 24 px, chosen so the three look
 equal by eye, not by pixel height. The EU logo is the heavy one, its flag a solid white block: at 56 px it carried twice
 the wordmark's ink (6099 px² against 3035); at 46 px it carries 4120, about 1.4×. The Ministry's text sets the floor:
-its capitals are 6.7 px at 1x at 46 px (8.2 at 56, 6.4 at 44, the smallest that still reads). The owner first chose
-44/44/26 (variant B of three, 48/48/24 and 44/44/24 the others); on the renders the Ministry's logo looked noticeably
-smaller than the wordmark, so it grew to 46 px and the wordmark shrank to 24 px. The EU emblem is as tall as the
-Ministry's logo, so it is at least the size of the biggest other logo by height, as the EU's visibility rules ask (it
-was 30 px against the Ministry's 36 before 2026-10-15). The Ministry's lion is white, its field dropped, as Czech
+its capitals are 6.7 px at 1x at 46 px (8.2 at 56, 6.4 at 44, the smallest that still reads). The EU emblem is as
+tall as the Ministry's logo, so it is at least the size of the biggest other logo by height, as the EU's visibility
+rules ask. The Ministry's lion is white, its field dropped, as Czech
 ministries show their logo on dark grounds; the field with the lion cut out was the alternative shown. The band is six
 motif cells, 90 px, at every window width, whatever the logos' heights; they are centred in it.
 
@@ -3877,16 +3845,15 @@ architecture diagram's band, which reads the window's logo list (`Funding_Row_Cl
 poster's arrangement: the logos, a faint rule and the disclaimer under it in two lines, white at 76 %
 (`CONST_BAND_TEXT_ALPHA`, 5.72:1). The text is kept once, as `Funding_Row_Cls.DISCLAIMER`.
 
-*Corrected 2026-10-14:* earlier the same day this entry was "The application shows the EU emblem alone; the diagram's
-band keeps the project's logos": the window showed the white EU emblem and the disclaimer in one slim row, and a light
-band was to follow with the colour emblem. On the station's screen the owner chose the poster's footer instead.
-*Corrected 2026-10-15:* the band was the PNG logos at 20/36/30 px, solid white rules and the disclaimer in full white
-on one full-width line under a rule; the Ministry's lion was black. The owner chose variant B of three rendered (logos
-48, 56 or 64 px; rules 28, 20 or 14 %; disclaimer 84, 76 or 70 %). For a few hours that day the disclaimer sat beside
-the logos in the fewest balanced lines that fit (two at 1920 px, three at the minimum width); the owner then removed it
-from the window's band, kept it in the README and the diagram, centred the logo group and gave the band the pixel
-motif. Later that day the Ministry's and the EU's logos went from 56 to 46 px. This
-entry was titled "The funding band is the poster's: …".
+**Rejected.** Logo heights of 44/44/26 px (the owner's first choice; on the renders the Ministry's logo looked
+noticeably smaller than the wordmark), 48/48/24 and 44/44/24, and 56 px for the Ministry's and the EU's; the rule's 20 %
+and the disclaimer's 76 % are variant B of three rendered (rules 28, 20 or 14 %; disclaimer 84, 76 or 70 %). The EU
+emblem and the disclaimer alone in one slim row, a light band with the colour emblem to follow (the owner chose the
+poster's footer on the station's screen, 2026-10-14). The disclaimer in the window's band, on one full-width line or
+beside the logos.
+
+*History:* until 2026-10-15 the band was the PNG logos at 20/36/30 px with solid white rules, the disclaimer in full
+white and a black lion; the entry was titled "The funding band is the poster's: …".
 
 **Revisit if** the funding or its publicity rules change (the disclaimer may be required on screen), or official
 vector logos are supplied.
@@ -3910,8 +3877,8 @@ In the band: cells of 15 px (the band's 90 px are six), each half a grid anchore
 removes squares next to the logos and never reshuffles the pattern. A cell at an end is filled with a chance of 30 %,
 falling linearly to nothing 16 cells in, by a fixed hash of its row and column (the same on every machine); 40 % of the
 squares are in the stronger of two tints. The tints are white at 7 % and 12 % (`MOTIF_ALPHA`), tone on tone like the
-guide's. The owner chose this, variant A, over B (42 %, thinning over 24 cells, white at 10 % and 18 %; *corrected
-2026-10-15:* offered as "the poster's share", which is 9 of 24 cells, 38 %): 33 squares at both 1920 px and the
+guide's. The owner chose this, variant A, over B (42 %, thinning over 24 cells, white at 10 % and 18 %; the poster's
+own share is 9 of 24 cells, 38 %): 33 squares at both 1920 px and the
 minimum width, against 66 and 58.
 
 No square comes within 28 px of a logo (`CLEAR_SPACE`), at least the EU emblem's protection area, which "must remain
@@ -3949,28 +3916,20 @@ Tests `test/UI/test_empty_view_motif.py`,
 
 ## The busy overlay is the Camera View's grey-lilac, with a pixel icon for each task
 
-While the camera connects, a frame is captured or a frame is analysed, the Camera View lays its own grey-lilac
-`#E1DCE6` over the frame at 70 % (`Theme.CONST_BUSY_SCRIM`, `CONST_BUSY_SCRIM_ALPHA`), so the frame shows through
-faintly and the view reads as the empty Camera View. The step's words and a pixel icon are the purple `#640ABA`,
-directly on the overlay with nothing behind them. It replaced the purple at 62 % under white words and a white
-spinner (2026-10-15).
+While the camera connects (CONNECT), and while a close waits for a scan or an analysis to end, the Camera View lays
+its own grey-lilac `#E1DCE6` over the frame at 70 % (`Theme.CONST_BUSY_SCRIM`, `CONST_BUSY_SCRIM_ALPHA`), so the frame
+shows through faintly and the view reads as the empty Camera View. The step's words and a pixel icon are the purple
+`#640ABA`, directly on the overlay with nothing behind them. Nothing else lays it: a scan shows its fresh frames
+(*SCAN drops the previous result the moment it is pressed…*), an analysis sweeps a grid (*ANALYZE sweeps a decorative
+pixel grid over the frame…*), and the overlay is never shown over the live preview.
 
-- **The icon names the task**, in the brand's pixel style: whole 5 px cells on a grid
-  (`UI.Utilities.Pixel_Motif.CONST_BUSY_ICONS`, `Busy_Cells`). *Corrected 2026-10-18:* the camera (11 × 8) and the
-  magnifier (10 × 10) were drawings of their own; they are the architecture diagram's 12 × 12 camera and magnifier
-  now, from the one set (`CONST_PIXEL_ICONS`, cycles in `CONST_BUSY_STEPS`), centred on their ink, with the blinking
-  lens a 2 × 2 centre and the glint the same three cells (*Every icon is a pixel icon from one set*). A camera while connecting and capturing blinks its
-  lens (600 ms); a magnifier while preparing and analysing moves a glint across its lens (360 ms a step, then a
-  rest). Unlit cells are the purple at 18 %. The capture runs on the GUI thread, so its camera stays still. *Corrected
-  2026-10-16:* the scan runs on a worker now (*The live preview is a worker that drops frames…*), so its camera blinks
-  as the connect's does; the overlay is never shown over the live preview. *Corrected again 2026-10-16:* a scan no
-  longer lays the overlay over the view at all; it shows its fresh frames under the same camera icon in a corner
-  marker (*SCAN drops the previous result the moment it is pressed…*). *Corrected 2026-10-16, a third time:* an
-  analysis no longer lays the overlay either: a decorative grid sweeps the frame instead (*ANALYZE sweeps a decorative
-  pixel grid over the frame…*). The overlay is left for CONNECT and for a close waiting for a scan or an analysis to
-  end, whose words say so. The
-  owner chose this, variant B, over a pixel loader whose 3 × 3 squares lit in turn (A), from 1x renders of the
-  window and animated captures of both.
+- **The icon names the task**, in the brand's pixel style: the camera and the magnifier of the one icon set
+  (`UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS`, cycles in `CONST_BUSY_STEPS`, drawn by `Busy_Cells` in whole 5 px
+  cells), centred on their ink (*Every icon is a pixel icon from one set*). The camera, while connecting or while a
+  close waits for a scan, blinks its 2 × 2 lens (600 ms); the magnifier, while a close waits for an analysis, moves a
+  three-cell glint across its lens (360 ms a step, then a rest). Unlit cells are the purple at 18 %. The owner chose
+  this, variant B, over a pixel loader whose 3 × 3 squares lit in turn (A), from 1x renders of the window and
+  animated captures of both.
 - **Over the empty view** (connecting), the empty state's mark and instruction are not painted: through the
   overlay they sat under the step's words. Its corner cluster stays.
 - **The words are below 4.5:1 over dark frames, by the owner's choice.** Measured over all 41 test frames, the
@@ -3979,6 +3938,10 @@ spinner (2026-10-15).
   `#0C2627`), 3.30:1 over black, 7.21:1 over the lightest pixel. 4.5:1 everywhere in the centre needs 78 %, and
   over black 82 %; 62 %, the owner's first choice, gave 3.92:1 over the table. The owner chose 70 % so the frame
   shows through.
+
+*History:* until 2026-10-15 the overlay was the purple at 62 % under white words and a white spinner; until
+2026-10-16 it also covered a scan and an analysis; until 2026-10-18 its camera and magnifier were drawings of their
+own.
 
 **Revisit if** the busy words must clear 4.5:1 everywhere (78 % in the frame's centre), the work surface gets
 darker, or a new busy task needs its own icon.
@@ -4020,8 +3983,8 @@ Every SVG logo the window shows is rendered by a `QSvgRenderer` into the widget'
 AnyScan lockup's mark and wordmark (`Widgets.Logo_Lockup_Cls`), the JIC Smart Factory logo (`Widgets.Svg_Image_Cls`)
 and the mark in the empty Camera View (`Viewport_Cls`). The vectors land on the device pixels they are drawn on, at
 any device pixel ratio, and no logo is a pixmap scaled to fit. A pixmap of a logo is rendered only to measure its ink
-(`Style.Ink_Insets`), never drawn. *Corrected 2026-10-15:* the funding band's three logos, then PNG pixmaps, are
-traced SVGs drawn the same way (*The band's logos are traced SVGs*), and no label in the window shows a pixmap.
+(`Style.Ink_Insets`), never drawn. The funding band's three logos are traced SVGs drawn the same way (*The band's
+logos are traced SVGs*; PNG pixmaps until 2026-10-15), and no label in the window shows a pixmap.
 
 **Why.** On the station's 1x display the logos looked blurred. Measured offscreen (the share of a logo's ink pixels at
 full contrast, as the window draws it, against the same SVG rendered directly at the drawn device size):
@@ -4037,8 +4000,8 @@ into pixmaps at the application's ratio and rounded to whole-pixel widths, which
 pixel differences); where the application's ratio differs from the window's screen, Qt then scales such a pixmap when
 drawing it, which offscreen could not reproduce. Rendering at paint time removes both. What remains at 1x is the
 logos' own geometry: their edges fall between pixels at these sizes (the AnyScan mark and wordmark 0.70, the JIC logo
-0.63 of their ink at full contrast). *Followed up 2026-10-14:* on a 1x display the two header logos' marks are now
-grid-fitted (*The header logos are grid-fitted on a 1x display*).
+0.63 of their ink at full contrast); on a 1x display the two header logos' marks are grid-fitted for it (*The header
+logos are grid-fitted on a 1x display*).
 
 **Revisit if** a logo is added (render it through `Svg_Image_Cls`).
 Tests `test/UI/test_logo_rendering.py` (each SVG logo against a direct render, at DPR 1 and again at DPR 2; the
@@ -4048,20 +4011,22 @@ previous pixmap code fails every one), `test/UI/test_header.py`.
 
 On a display of device pixel ratio 1 the AnyScan lockup and the JIC Smart Factory logo are drawn with their mark's
 straight edges on whole pixels (`UI.Utilities.Grid_Fit.Fit_Svg`, through `Widgets.Svg_Renderer_For`): the AnyScan mark
-(every shape left of 152 units, `Style.CONST_LOGO_MARK_RIGHT`) and the J-I-C bars (left of 452, `CONST_JIC_MARK_RIGHT`).
-The SVG is fitted for the exact drawn height, once, and rendered as vectors. Rectangles, polygons and straight paths are
-fitted, filled ones through one map per axis (an edge shared by two shapes stays shared; a stroke under 10 px keeps its
-rounded width, so equal strokes stay equal), stroked ones with a whole-pixel stroke centred so both its edges land on
-pixels. Each edge moves by under a pixel. The lettering (curves, and everything right of the mark) is drawn exactly
-as delivered (so was the previous mark's numeral; the current mark has none), and at any other ratio the whole logo is.
+(every shape left of 152 units, `Style.CONST_LOGO_MARK_RIGHT`) and the J-I-C bars (left of 452,
+`UI.Core.CONST_JIC_MARK_RIGHT`). The SVG is fitted for the exact drawn height, once, and rendered as vectors.
+Rectangles, polygons and straight paths are fitted: filled ones through one map per axis, so an edge shared by two
+shapes stays shared; stroked ones with a whole-pixel stroke centred so both its edges land on pixels. A gap or stroke
+under `thin_px` keeps its rounded width, so equal strokes stay equal: 10 px for the J-I-C bars
+(`Grid_Fit.CONST_THIN_PX`), 0 for the AnyScan mark (`Style.CONST_LOGO_MARK_THIN_PX`), whose every edge goes to its own
+nearest pixel. Each edge moves by under a pixel. The lettering (curves, and everything right of the mark) is drawn
+exactly as delivered, and at any other ratio the whole logo is.
 
 **Why.** On the station's 1x screen the header logos still looked soft after they were rendered as vectors at their
 drawn size: their edges fall between pixels. The owner asked first for drawn sizes whose main edges land on whole
-pixels; measured, no size does it, because the edges are not on a regular grid (the AnyScan mark's edges at 9, 18, 19,
-23, 32 … 131, 140 of its 140 units): the best heights near the header put 52 % (63 px) or 50 % (77 px) of the mark's
-edge length within 0.1 px of a pixel against 23 % at 69 px, and 37 % of the J-I-C bars' (34 px) against 8 %. The owner
-chose grid-fitting at the drawn sizes. Measured on direct renders (the share of the mark's ink pixels fully covered,
-and partly covered):
+pixels; measured (2026-10-14, on the AnyScan mark then delivered), no size does it, because the edges are not on a
+regular grid: the best heights near the header put 52 % (63 px) or 50 % (77 px) of the mark's edge length within
+0.1 px of a pixel against 23 % at 69 px, and 37 % of the J-I-C bars' (34 px) against 8 %. The owner chose
+grid-fitting at the drawn sizes. Measured on direct renders (the share of the mark's ink pixels fully covered, and
+partly covered; the AnyScan rows measured 2026-10-14 on the mark then delivered):
 
 | Logo | before | after |
 |---|---|---|
@@ -4070,27 +4035,25 @@ and partly covered):
 | J-I-C bars, 33 px (96 dpi) | 0.72, 0.28 | 1.00, 0.00 |
 | J-I-C bars, 35 px (100 dpi) | 0.75, 0.28 | 1.00, 0.00 |
 
-At 69 px the brackets are a 4 px stroke (4.43 delivered), the mark's three bars 3 px each (3.45), its frame 2 px
-(2.46); at 33 px each J-I-C bar is 6 px (6.47) and the C's and J's feet are level with the I's.
+At 33 px each J-I-C bar is 6 px (6.47) and the C's and J's feet are level with the I's.
 
-*Corrected 2026-10-18:* the mark delivered that day is fitted edge by edge (`Style.CONST_LOGO_MARK_THIN_PX` = 0, passed
-to `Fit_Svg` as `thin_px`; the J-I-C bars keep `Grid_Fit.CONST_THIN_PX`, 10 px). Nearly every gap of the new mark is
-under 10 px at the header's height, so chaining their rounded widths carried the error across the mark: measured on
-the fitted SVG, it drew 71 × 69 px at 69 px and 71 × 72 at 72, with edges up to 2.0 px from where the delivered file
-puts them. Each edge to its own nearest pixel keeps it 69 × 69 and 72 × 72 with every edge within 0.5 px; the cost is
-at 69 px only, where the top bar is 5 px beside two of 6 (5.75 delivered) and the base's feet 5 and 4 px (4.6); at
+**The current AnyScan mark** (delivered 2026-10-18) is fitted edge by edge because nearly every gap of it is under
+10 px at the header's height, so chaining their rounded widths carried the error across the mark: measured on the
+fitted SVG, it drew 71 × 69 px at 69 px and 71 × 72 at 72, with edges up to 2.0 px from where the delivered file puts
+them. Each edge to its own nearest pixel keeps it 69 × 69 and 72 × 72 with every edge within 0.5 px; the cost is at
+69 px only, where the top bar is 5 px beside two of 6 (5.75 delivered) and the base's feet 5 and 4 px (4.6); at
 72 px every bar is 6 px. The owner chose square over equal bars. Shown header at 1x, 2493 px window: 0 of the mark's
-1491 ink pixels blended. Tests `test/UI/test_grid_fit.py::test_with_no_thin_gap_every_edge_goes_to_its_own_nearest_pixel`,
-`::test_the_header_logos_marks_land_on_whole_pixels_at_1x` (the mark square, no edge moved more than 0.5 px) and
-`test/UI/test_logo_rendering.py::test_at_1x_the_header_marks_have_no_half_covered_pixel` (the mark's ink drawn square;
-nothing is set aside any more, as the new mark has no numeral).
+1491 ink pixels blended.
 
 **Revisit if** the logos are redesigned (the mark's right edge, and whether its shapes are still straight), or the
 station moves to a display of another ratio, where the logos are drawn as delivered.
 Tests `test/UI/test_grid_fit.py` (equal strokes stay equal where rounding each edge alone would not; a translated
-relative path; curves and the lettering left as delivered; both logos' marks on whole pixels at 69, 72, 33 and 35 px),
-`test/UI/test_logo_rendering.py::test_at_1x_the_header_marks_have_no_half_covered_pixel` and the DPR 1 and DPR 2
-vector-identity tests, `test/UI/test_header.py` (the fitted lockup still within 1 device px of the outlined logo).
+relative path; curves and the lettering left as delivered; both logos' marks on whole pixels at 69, 72, 33 and 35 px;
+`::test_with_no_thin_gap_every_edge_goes_to_its_own_nearest_pixel`,
+`::test_the_header_logos_marks_land_on_whole_pixels_at_1x`, the mark square, no edge moved more than 0.5 px),
+`test/UI/test_logo_rendering.py::test_at_1x_the_header_marks_have_no_half_covered_pixel` (the mark's ink drawn square)
+and the DPR 1 and DPR 2 vector-identity tests, `test/UI/test_header.py` (the fitted lockup still within 1 device px of
+the outlined logo).
 
 ## A missing hole is placed only by a hole found
 
@@ -4161,18 +4124,16 @@ NOK for "through-hole 1.2" (frames 17, 19), never for its stains. Three changes,
 
 1. **The side.** DINOv2's best side holds when its margin over the other is at least `CONST_SIDE_MARGIN` (0.265).
    Below it, a found hole that only one side's groups count shows that side (`Holes.Side_Evidence`: the mounting
-   plate's countersinks are the front's alone). Against a decisive margin the holes conflict, and the part is
-   Unspecified. With neither, the part is judged on both sides, and a verdict that differs by side is Unspecified
-   (`Decide_Side`, `Settle_Side`). Absence is never evidence: a front missing its countersinks shows no side.
+   plate's countersinks are the front's alone). Against a decisive margin the holes conflict: a Warning, side
+   mismatch. With neither, the part is judged on both sides, and a verdict that differs by side is a Warning, side
+   unclear (`Decide_Side`, `Settle_Side`; *Three states for the operator, a Warning with its kind*). Absence is never evidence: a front missing its countersinks shows no side.
 2. **Hole positions.** A hole inside a larger hole of another group, a through-hole in its countersink, is measured at
    the step's centre on the top face (`Holes.Seat_Holes`). Every edge distance is taken from the top face's edges,
    with the side wall the camera sees off the axis left out (`Classify.Wall_Widths`, from the pinhole model: the
    thickness, K and the top face's scale; no new field).
-3. **The region.** A judged part whose centre lies beyond `CONST_JUDGED_RADIUS_MM` (66.7 mm, the farthest measured) is
-   Unspecified, with its findings still marked (`Settle_Radius`). Each Unspecified reason names its cause
-   (`Catalogue_Result_Str.Unspecified_Cause`). *Corrected 2026-10-16:* replaced by the station's inspection area
-   (*A catalogue mode judges only inside the inspection area*). The radius hid two stains found on six whole
-   plates 68–81 mm out as Unspecified, and judged plates cut by the frame's border, which the area refuses.
+3. **The region** is the station's inspection area (*A catalogue mode judges only inside the inspection area*). The
+   radius rule made with this decision (66.7 mm, the farthest measured) was replaced by it on 2026-10-16: it hid two
+   stains found on six whole plates 68–81 mm out, and judged plates cut by the frame's border.
 
 **Why, measured.** Measured on the 72 mounting-plate frames: the 41 of the test set and the 31 of the captures
 `20261015-131258_s1`, `-143622_s1`, `-160433_s1` and `-170251_s1`. They hold 63 plates, 3.4–66.6 mm out. Each stage was
@@ -4203,8 +4164,7 @@ recorded through the application's pipeline, by wrapping its functions in `Visio
   1.5): the outline was 41.31 mm across against 39.3–40.2 near the centre. The bore's shift had hidden it before. The
   wall predicted 0.93 mm, and with it left out the reading is 15.6.
 
-**Before and after**, on the same 72 frames, 208 objects (*corrected 2026-10-15:* first written as 214). Of the 204 that
-were right before, every one is still
+**Before and after**, on the same 72 frames, 208 objects. Of the 204 that were right before, every one is still
 right: all 150 of the test set match `CONST_EXPECTED_VERDICTS`, and the hole-less block of the part's outline stays
 NOK on both sides. Four wrong OKs are now NOK for their stains (frames 2, 5, 16, 21). Four NOKs now give the right
 reason (frames 13, 17, 18, 19): the false through-hole fault is gone and the stains are named. Every plate's side is
@@ -4212,9 +4172,8 @@ right. After the fix the worst edge distance is 0.60–0.78 mm off nominal in ev
 66.6 mm. Not measured: the left, top and bottom edges beyond 51 mm, the corners, a clean front beyond 35 mm, and a
 part with a defective stepped hole (KNOWN_ISSUES).
 
-**Given up**, then restored. A bore off-centre inside its own countersink was no longer caught by its position; since
-the same day it is checked against its countersink's axis (*A stepped hole's bore is checked for its offset from its
-step…*). A stained front by the edge still reads "does not look like the
+**Given up.** A bore off-centre inside its own countersink is no longer caught by its position; it is checked against
+its countersink's axis instead (*A stepped hole's bore is checked for its offset from its step…*). A stained front by the edge still reads "does not look like the
 part", with a right verdict (KNOWN_ISSUES).
 
 **Revisit if** rig captures at 50–67 mm on the left, top and bottom or in the corners (capture checklist 3d) show a
@@ -4229,9 +4188,7 @@ Tests `test/integration/test_edge_of_view.py` (frames 1, 16, 17 and 19 of the ca
 `::test_the_side_wall_is_seen_only_on_the_edges_facing_the_optical_axis`,
 `test/Vision/Utilities/test_holes.py::test_a_through_hole_in_its_countersink_is_measured_at_the_countersinks_centre`,
 `::test_a_hole_only_one_side_has_shows_that_side`, `::test_edge_distances_are_from_the_top_face_not_the_side_wall`,
-`test/Reporting/test_core.py::test_a_warning_on_the_part_says_why_it_was_not_judged_and_what_to_do` (*corrected
-2026-10-16:* a part whose sides disagree is a Warning, side unclear, and one whose holes and look disagree a Warning,
-side mismatch, no longer Unspecified (*Three states for the operator, a Warning with its kind*)).
+`test/Reporting/test_core.py::test_a_warning_on_the_part_says_why_it_was_not_judged_and_what_to_do`.
 
 ## A stepped hole's bore is checked for its offset from its step, the camera's shift taken out
 
@@ -4301,13 +4258,11 @@ hole-less block, was NOK on both sides. The radius is removed and replaced:
 2. **The rule.** A catalogue mode gives OK or NOK only to an object whose mask lies wholly inside the area
    (`Classify.Inside_Area`, `Settle_Area`, last in `Vision.Core.__Classify_Objects`). Any other object, a part cut by
    the frame's border included (the area is inset from it), is a Warning, `Catalogue_Result_Str.Outside_Area` set:
-   "It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again." A part
-   identified there (OK or NOK by the rule before it) kept its checks, run where it is visible, its marks in the
-   Warning colour and "Seen there: …" in its reason, as information. *Corrected 2026-10-16:* no check runs outside
-   the area any more, so it has no marks and that sentence alone (*A part outside the inspection area is not
-   checked*).
+   "It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again." No
+   check runs on it and nothing but its outline, outer box and chip is drawn (*A part outside the inspection area is
+   not checked*).
 3. **Where it shows.** The Camera View draws the area, a 1 px solid line, square corners, no fill, over the empty
-   view once a catalogue configuration is loaded, the scanned frame and the Annotated render
+   view once a catalogue configuration is loaded, the live preview, the scanned frame and the Annotated render
    (`UI.Widgets.Paint_Inspection_Area`, which a live preview can call), on screen only: the images saved to the
    logger never carry it. Segment Anything shows none. Over a camera image it is the amber `#FFD880`
    (`CONST_INSPECTION_AREA`): 4.71:1 on the table (median `#236A56`), 1.18:1 against the Warning amber, from which
@@ -4315,23 +4270,11 @@ hole-less block, was NOK on both sides. The radius is removed and replaced:
    (`CONST_INSPECTION_AREA_EMPTY`): the amber is 1.01:1 on that grey-lilac `#E1DCE6`, the purple 6.79:1. The owner
    chose both by eye on 2026-10-16, from renders of both amber candidates (`#FFCD59`: 4.32:1 on the table, 1.09:1
    against the Warning amber, 1.10:1 on the empty view).
-3a. **Foreign objects look different.** Added 2026-10-16, the owner's request: a Warning inside the area, an object
-   that should not be on the surface at all, is drawn on the frame (its outline, outer box and chip, white numeral)
-   in a grey of the brand's grey-lilac family (`CONST_FOREIGN_BOX`, `Annotate.Foreign`), so it is told from a
-   catalogued part that only lies outside the area, which keeps the Warning amber. *Corrected 2026-10-16:* first
-   written as "every object outside the area is amber", which drew the red block cut by the border amber; the colour
-   now follows what the object is (*A foreign object is told by what it is, not where it lies*). The verdict, the counts and
-   the badge (`Foreign object · n`) are unchanged. The label mask keeps the Warning colours for both: in that hue no
-   fill clears the mask's floors (ΔE 25 from the box, 4.5:1 on black) against a box of L* 64-79. *Corrected
-   2026-10-16:* fills in the hue that clear them exist, at L* 49 and chroma 28 or more (`#846B98`), a muted violet;
-   the mask now takes the grey's derived pair (*A Warning is shown, counted and recorded by its kind*). Three candidates,
-   rendered on `Image_059` beside an Unspecified frame and an outside-area amber frame, against the table / the white
-   numeral / Unspecified's `#655E6D`: `#C9BFD2` 3.63 / 1.77 / 3.52:1 (ΔE 37.7), `#B4A6BE` (the existing disabled
-   label token) 2.80 / 2.30 / 2.71:1 (ΔE 29.3), `#A396AE` 2.30 / 2.79 / 2.23:1 (ΔE 23.4); `#B4A6BE` stands until
-   the owner chooses on the rig. A lighter grey reads better on the table and worse under its numeral: no grey of
-   this family reaches 3:1 against both (it would need a relative luminance of at least 0.44 and at most 0.30).
-4. **The words.** The badge names the Warnings: `Foreign object · n`, `Outside the area · n`, or `Warning · n` for
-   both. Trends and History keep one Warning series, described as objects not judged.
+3a. **What the object is.** A Warning that does not resemble the part is a foreign object, inside the area or
+   outside; it is drawn in the amber like every Warning and told apart by its kind and reason (*A foreign object is
+   told by what it is, not where it lies*; *Three states for the operator, a Warning with its kind*).
+4. **The words.** The badge counts every Warning together, `Warning · n`; each object's state names its kind
+   (`State: Warning – Outside area.`). Trends and History keep one Warning series.
 5. **The side's readings.** A part whose side could not be told and is NOK on both readings keeps the readings
    (`Catalogue_Result_Str.Side_Readings`) and its reason gives what they share; with nothing shared, each reading's
    findings with its side named ("Read with its machined front up, …; read with its unmachined back up, …."), so a
@@ -4376,10 +4319,9 @@ foreign object cut by the border (KNOWN_ISSUES, *The inspection area's insets re
 right edge*).
 
 **Placing a plate.** The area is 101.2 mm high, so a plate standing with its long side upright (60 mm) can move only
-about ±20 mm up or down from the frame's middle row and still be judged; lying with its long side across, ±30 mm. A
-live preview with the area drawn (`Paint_Inspection_Area`) would let the operator place it before the scan; today
-the area shows on the empty view and on the scanned frame. *Corrected 2026-10-16:* PREVIEW now shows the table live
-with the area drawn by that call (*The live preview is a worker that drops frames…*).
+about ±20 mm up or down from the frame's middle row and still be judged; lying with its long side across, ±30 mm.
+PREVIEW shows the table live with the area drawn by the same call (`Paint_Inspection_Area`; *The live preview is a
+worker that drops frames…*), so the operator places the plate before the scan.
 
 **Rejected.** A similarity rule for cut objects, threshold and visible evidence combined (the owner's first plan):
 dropped by the owner for the area before it was measured. A rule tolerating a slightly cut plate: unmeasured, and a
@@ -4389,8 +4331,7 @@ size tolerance.
 
 **Revisit if** captures along the area's left and bottom edges and in its corners (capture checklist 3d) read beyond
 half a tolerance inside it, or well within it outside it; the camera, the lens, the table height or the item changes
-(the insets are this station's); or a live preview is built (it calls `Paint_Inspection_Area`). *Built 2026-10-16;
-the insets stand: the preview draws the same area.*
+(the insets are this station's).
 Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_frame_inset_by_the_stations_insets`,
 `::test_only_an_object_wholly_inside_the_inspection_area_is_judged`,
 `::test_an_object_without_a_mask_is_never_inside_the_area`,
@@ -4404,23 +4345,18 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_inspection_area_is_the_f
 
 ## A foreign object is told by what it is, not where it lies
 
-*Corrected 2026-10-16:* what an object is still decides its kind and its reason, unchanged, but no longer its colour: a
-foreign object is drawn in the amber like every Warning, the grey `#B4A6BE` retired as a verdict colour; it reads
-`State: Warning – Foreign object.` and is recorded as `warning_kind` `foreign`, and the badge counts it in
-`Warning · n` (*Three states for the operator, a Warning with its kind*).
-
 Decided 2026-10-16, on the owner's rig test (capture `20261016-111250_s1`): the red block, cut by the frame's top border,
-was drawn in the amber of a part outside the inspection area, though DINOv2 had not found it like the plate. The cause:
-`Annotate.Foreign` took the colour from where the object lay (a Warning inside the area), and `Settle_Area` replaced
-the rule's "not the part" with the outside-area Warning, so nothing kept what the object was. Now
-`Catalogue_Result_Str.Resembles` keeps it (`Classify.Resembles_Part`, before `Settle_Area`): an object the verdict rule
-identifies (OK, NOK, Unspecified) resembles the part; one it does not, outside the area, where a cut or far plate
-scores under the rule's 0.75, resembles it only when every cue that does not depend on where it lies says so. A
-Warning that does not resemble the part is a foreign object: grey wherever it lies, inside the area or outside, cut or
-not ("The object should not be on the surface." inside; "It is not the part and lies outside the inspection area:
-remove it from the surface." outside); one that does is the amber part outside the area, to move inside. The badge
-counts by the same (`Foreign object · n`, `Outside the area · n`); the log gives the cues of every object outside
-the area.
+was taken for a part outside the inspection area (move it inside), though DINOv2 had not found it like the plate:
+`Settle_Area` replaced the rule's "not the part" with the outside-area Warning, so nothing kept what the object was.
+Now `Catalogue_Result_Str.Resembles` keeps it (`Classify.Resembles_Part`, before `Settle_Area`): an object the verdict
+rule identifies (OK, NOK, or a Warning of the part: several parts, side unclear, side mismatch) resembles the part; one it does not, outside the area, where a cut or far plate scores
+under the rule's 0.75, resembles it only when every cue that does not depend on where it lies says so. A Warning that
+does not resemble the part is a foreign object wherever it lies, inside the area or outside, cut or not:
+`State: Warning – Foreign object.`, `warning_kind` `foreign`, and a reason to remove it ("It is not the part, so it
+should not be there: remove it from the surface." inside; "It is not the part and lies outside the inspection area:
+remove it from the surface." outside). One that does is a part outside the area, to move inside. Both are drawn in
+the amber and counted in `Warning · n`; the words tell them apart (*Three states for the operator, a Warning with its
+kind*). The log gives the cues of every object outside the area.
 
 **The cues, measured** on every object outside the area or cut by the frame's border in the test set and the five
 mounting-plate captures on disk (`20261015-170251_s1` frames 12–21, its frames 1–11 no longer on disk;
@@ -4443,14 +4379,17 @@ countersunk hole. **Gemma:** never needed: the measured cues decide every object
 is not built and its consistency was not measured.
 
 **Before and after**, on the same 92 frames, 210 objects, through the application's pipeline: no verdict changes. 43
-objects change colour and reason, every one a foreign object outside the area, from amber and "move it inside" to
-grey and "remove it": the red block cut by the top border on the rig's frames 2, 4, 5 and 6, and 39 foreign objects
-of the test set lying over the area's edge. The 43 plates outside or cut keep the amber and their reasons.
+objects change their reason, every one a foreign object outside the area, from "move it inside" to "remove it": the
+red block cut by the top border on the rig's frames 2, 4, 5 and 6, and 39 foreign objects of the test set lying over
+the area's edge. The 43 plates outside or cut keep their reasons.
+
+*History:* until the three states (2026-10-16) a foreign object was also drawn in a grey of its own, `#B4A6BE`, and
+counted in a badge of its own.
 
 **Revisit if** a plate cut more than any measured (only a corner in view) scores under 0.657 and reads foreign (a
-wrong colour and reason, never a verdict: it is a Warning either way); a foreign object of the plate's grey and size
-scores 0.657 or more outside the area; or the catalogue item changes (the saturation bound is the mounting plate's grey
-metal under this light, and the similarity threshold its references').
+wrong reason, never a verdict: it is a Warning either way); a foreign object of the plate's grey and size scores 0.657
+or more outside the area; or the catalogue item changes (the saturation bound is the mounting plate's grey metal under
+this light, and the similarity threshold its references').
 Tests `test/Vision/Utilities/test_classify.py::test_an_object_resembles_the_part_by_the_rule_or_outside_by_every_position_free_cue`,
 `::test_the_colour_and_extent_cues_read_the_mask`,
 `test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`,
@@ -4467,8 +4406,8 @@ is NOK for any reason, the purple `#640ABA` when OK); its solid rotated outline 
 orange-red only when the outline is out of tolerance and the purple whenever it is within, though the part is NOK for a
 stain, a hole, a missing hole or its look (`Annotate.__Outline_Color`). Its feature marks keep their own colours: a
 stain and a missing hole the orange-red, a hole the orange-red only when it fails its check. Warnings keep their single
-colour, and the label mask keeps the verdict colour. *Corrected 2026-10-16:* every Warning is the amber, whatever its
-kind, and none has feature marks, a part whose side could not be told included (*Three states for the operator, a Warning with its kind*).
+colour (*Three states for the operator, a Warning with its kind*): every Warning is the amber, whatever its kind, with
+no feature marks. The label mask keeps the verdict colour.
 
 **Why.** The frame then says which check failed: a NOK plate with its stains marked and a purple outline was NOK for
 the stains, not its size, where an all-orange part read as wrong in every respect.
@@ -4480,7 +4419,7 @@ Tests `test/Vision/Utilities/test_annotate.py::test_a_judged_parts_outline_carri
 
 ## A part outside the inspection area is not checked
 
-Decided 2026-10-16, on the owner's request. A catalogue part outside the inspection area (the amber Warning: it
+Decided 2026-10-16, on the owner's request. A catalogue part outside the inspection area (a Warning, outside area: it
 resembles the part, by the rule or by the measured cues, and lies over the area's edge) has no hole or stain check run
 on it at all (`Vision.Core.__Classify_Objects` settles it before the hole search): no FastSAM on its crop, no side from
 its holes, no stain check, no feature. On the frame only its rotated outline, its dashed outer box and its chip are
@@ -4489,7 +4428,8 @@ move it fully inside the area and scan again." alone, without the "Seen there" f
 evidence for it. Its describer prompt holds no hole or stain fact (`Reporting.CONST_DESCRIBER_OUTSIDE_PROMPT`: its
 material, its shape and its surface only, no holes, countersinks, stains, marks or numbers), and the guard leaves out
 any sentence of its description that names a hole, a countersink or a stain (`CONST_GUARD_OUTSIDE_WHY`), logged, never
-asked again. Which objects are amber and which grey is unchanged (*A foreign object is told by what it is…*).
+asked again. Which objects are parts outside the area and which are foreign objects is unchanged (*A foreign object is
+told by what it is…*).
 
 **Why.** Findings named outside the area read as a verdict the station does not give there, and the checks cost time
 on a part the operator must move anyway. Measured, the identification stage on the 34 frames of
@@ -4512,148 +4452,39 @@ Tests `test/Vision/test_core.py::test_a_part_outside_the_area_is_not_checked_and
 
 ## Unspecified is a sky blue, a verdict colour outside the brand palette
 
-*Superseded 2026-10-16* (*Three states for the operator, a Warning with its kind*): Unspecified is no longer a state. Its causes are Warnings of their own kinds, drawn in
-the amber, and the blue `#33A3FF`, its badge ground `#C6E4FF` and its mask fill `#748DB1` are removed from the theme.
-The entry is kept for the measurements and for reading older records.
-
-Decided 2026-10-16, on the owner's request: Unspecified (not judged: probably several parts, or a side that cannot be
-told) is the sky blue `#33A3FF` (`Theme.CONST_UNSPECIFIED_BOX`), outside the brand palette like the NOK orange-red and
-the Warning amber, replacing the neutral `#655E6D`, which read 1.03:1 on the green table and all but vanished there.
-Everywhere Unspecified is drawn it takes the blue through the theme's tokens: the outline, the outer box, the chip
-(white numeral) and any feature mark on the frame (`Verdict_Color`); the label mask, outlined in the blue
-(`Mask_Outline_Color` now returns every verdict's box, the neutral special case gone) and filled with its own tint
-`#748DB1`; the status badge, `Not judged · n` on its own level `'unspecified'` and its own ground `#C6E4FF`
-(`CONST_UNSPECIFIED_LABEL_GROUND`; it was Warning's amber); the Trends series and its legend in its
-text twin `#0065A9` (`CONST_UNSPECIFIED_INK`; *corrected 2026-10-16:* the blue itself, the twin removed); History's outline of a set whose worst state is Unspecified; the
-README's architecture diagram, regenerated.
-
-**Measured** (WCAG ratio, ΔE76): on the table (median `#236A56`) 2.39:1 (ΔE 69.8); its white numeral 2.68:1, an
-accepted exception like the orange-red's 2.92 and the amber's 1.62; against the OK purple `#640ABA` 3.41:1 (ΔE 74.9),
-the NOK `#FF6540` 1.09:1 (ΔE 118.9), the Warning amber `#FFC226` 1.66:1 (ΔE 133.5), the foreign grey `#B4A6BE` 1.17:1
-(ΔE 45.1), the area's amber `#FFD880` 1.97:1 (ΔE 105.0); the old `#655E6D` 2.32:1 (ΔE 52.9). Its text twin is its hue
-at L* 41 (6.11:1 on white), as the NOK and Warning inks are; the mask fill in its hue at 0.40 of its chroma clears every
-floor (ΔE 33.3 from the box, 47.3 from white, 6.19:1 on black); the badge ground carries the purple words at 6.95:1 and
-lies ΔE 18.5 from OK's periwinkle ground (the badge's words tell them apart too).
-
-**Kept, not a verdict:** the neutral ink `#655E6D` (`CONST_DETECTION_INK`) stays where it never meant Unspecified: a
-detect-only mode's per-object dots in Trends (`UI.Views.Trends`), History's outline of a detect-only set
-(`UI.Views.History`), and the label mask's derived neutral pair for a detect-only mode, outline `#817A8A` and fill
-`#CEC6D7` (`Neutral_Mask_Colors`). The grey-lilac badge ground it had (`CONST_DETECTION_LABEL_GROUND`) is removed,
-unused.
-
-**Revisit if** a capture shows the blue lost on a surface it lies on (it reads by hue on the table, ΔE 69.8), or an
-operator reads it as OK's periwinkle on the badge.
-Tests `test/Parameters/test_theme.py::test_every_warning_is_the_amber_and_the_retired_state_colours_are_gone`,
-`::test_every_catalogue_state_has_its_colour`, `::test_every_chip_numeral_is_white`,
-`::test_the_detect_only_box_is_the_logo_purple`,
-`::test_label_mask_fill_is_a_visible_tint_of_its_box`,
-`test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`,
-`::test_each_chip_is_its_box_colour_with_a_white_numeral`,
-`test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
-`test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`,
-`test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output`.
+Superseded by [*Three states for the operator, a Warning with its kind*](#three-states-for-the-operator-a-warning-with-its-kind): Unspecified is no longer a state, its causes are Warnings of their own kinds in the amber, and its blue is removed from the theme. The full entry is in git at `a85215c`.
 
 ## A Warning is shown, counted and recorded by its kind
 
-*Superseded 2026-10-16, except the record* (*Three states for the operator, a Warning with its kind*): a Warning is shown, counted, charted and filtered as one state, in
-the amber, its kind told in words (`State: Warning – <kind>.`); only point 1, the `warning_kind` in the record, stands,
-extended with the new kinds. `Reporting.Shown_State`, `Theme.State_Color`, the foreign badge ground and mask pair and the
-History kind filters are removed.
-
-Decided 2026-10-16, on the owner's request: the two kinds of Warning, a part outside the inspection area and a
-foreign object, could not be told apart once a reading was counted, charted or stored. Each object's shown state is
-its verdict, a catalogue Warning being one of its kinds (`Reporting.Shown_State`: 'Outside' when it resembles the part,
-else 'Foreign'), and everything that counts or shows Warnings now uses it:
-
-1. **The record.** Each Warning object in `_objects.json` carries `warning_kind`, `outside` or `foreign` (`UI.Capture`);
-   an older set without it reads as a plain Warning, unchanged (`Capture_Object_Str.Warning_Kind` empty).
-2. **Trends.** The single Warning series is two: `Outside area` in the amber's twin `#7C5B00` and `Foreign object` in
-   the grey's dark shade `#4F4952` (`Theme.CONST_FOREIGN_INK`), the five state series adding up to the total; each
-   confidence dot takes its state's colour (`Theme.State_Color`). *Corrected 2026-10-16:* both in their frame colours,
-   `#FFC226` and `#B4A6BE` (*Each state has one colour in every view*).
-3. **History.** The Warning filter is two, Outside area and Foreign object, each with its count; a set written before
-   the kind was recorded is listed under both, so no set drops out of a filter it matched; a set's outline is its
-   worst state's colour, a part outside the area amber (an older plain Warning too), a foreign object grey.
-4. **The badges.** One badge per Warning kind there (`Reporting.Badges`): `Outside the area · n` on the amber (level
-   `warn`) and `Foreign object · n` on `#CAC0D3` (level `foreign`), never one badge counting both; the window shows the
-   second beside the first. NOK and Not judged still take the badge alone, as the worst state. *Corrected 2026-10-16:*
-   every state that needs the operator now has its badge at once, NOK beside the others (*Each state has one colour in
-   every view*).
-5. **The mask.** A foreign object is filled `#DBCCE5` and outlined `#897C93`, the grey's pair derived as the
-   detect-only neutral's (`Neutral_Mask_Colors`); a part outside the area keeps the amber's.
-
-**Measured** (superseded 2026-10-16 by the frame colours, *Each state has one colour in every view*). The Trends series on the white card, and against each other (ΔE76, lowest pair first): Total `#6F5783`
-6.24:1, OK `#640ABA` 9.15:1, NOK `#BA260B` 6.23:1, Outside area `#7C5B00` 6.26:1, Foreign object `#4F4952` 8.72:1,
-Unspecified `#0065A9` 6.11:1; Foreign–Total ΔE 23.8, Unspecified–Total 28.2, Foreign–Unspecified 40.1, NOK–Outside 50.5,
-Outside–Foreign 53.9, every other pair above 68. The foreign line is the grey's hue at L* 32, chroma 6, the shade
-farthest from every other series that stays the grey family and clears 4.5:1 (a near-black at L* 25 would be farther,
-ΔE 32.5, and no longer the grey). The mask's foreign pair: ΔE 30.1 between outline and fill, the fill 21.5 from white
-and 13.78:1 on black, the outline 5.37:1 on black; the fill ΔE 35.5 from OK's, 29.9 from Unspecified's, 77.1 from the
-amber's. The frame's grey `#B4A6BE` cannot be its own mask outline with a grey fill: in its hue a fill that clears the
-floors lies only at L* 49 and chroma 28 or more (`#846B98`), a muted violet at the 4.5:1 floor on black, so the outline
-is the derived darker grey, as on a detect-only mask. The foreign badge ground carries the purple words at 5.23:1 (the
-grey box itself 3.98:1).
-
-**Revisit if** a third kind of Warning appears; an older record's plain Warning is better shown under neither kind; or
-the two badges crowd the reading card's head on the rig's screen.
-Tests `test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
-`test/Reporting/test_trends.py::test_every_warning_is_counted_as_one_state_but_neither_ok_nor_nok`,
-`test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
-`test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
-`::test_a_warning_records_its_kind_and_an_older_set_reads_into_the_three_states`,
-`test/UI/test_reading_view.py::test_every_badge_shows_at_once_and_wraps_rather_than_clip`,
-`::test_the_badge_paints_each_verdict_level_legibly`,
-`test/Vision/Utilities/test_annotate.py::test_the_catalogue_states_render_in_their_colours_on_both_images`.
+Superseded by [*Three states for the operator, a Warning with its kind*](#three-states-for-the-operator-a-warning-with-its-kind): every Warning is shown, counted, charted and filtered as one state in the amber, its kind told in words; the record's `warning_kind` is kept there. The full entry is in git at `a85215c`.
 
 ## Each state has one colour in every view
 
-*Corrected 2026-10-16:* the rule stands with three states, OK `#640ABA`, NOK `#FF6540` and Warning `#FFC226`
-(`Theme.Verdict_Color`); the badges are `NOK · n` and `Warning · n`, or `All OK` (*Three states for the operator, a Warning with its kind*).
+Decided 2026-10-16, on the owner's rig test. Every view draws a catalogue state in exactly its frame mark's colour, so
+the operator learns one colour per state: OK `#640ABA`, NOK `#FF6540` and Warning `#FFC226` (`Theme.Verdict_Color`; a
+state's ink is its box), in the Camera View's marks, the Trends series and legend samples, and History's filter swatches
+and set outlines. No darker chart variant of a state is drawn in any chart, legend or filter; `CONST_WARN_INK`
+`#7C5B00` stays the status pill's and the log's amber text, no state's. No marker carries a darker edge: Trends' filled
+squares are their colour to the edge (*Trends draws square markers…*), and History's filter swatches are edged at
+1.25 px in their own colour. Every badge that needs the operator shows at once, `NOK · n` beside `Warning · n`, so a
+Warning is never hidden behind a NOK (`Reporting.Badges`), in a row that wraps right-aligned onto a second line when
+the reading card's head is too narrow (`UI.Widgets.Badge_Row_Cls`, `Flow_Layout_Cls`). The state colours, with the
+inspection area's, are tabulated in `.claude/skills/jic-sf-ui-style/references/project.md` > *AnyScan's state colours*.
 
-*Corrected 2026-10-18, on the owner's instruction:* no marker carries a darker edge any more. The Trends series markers
-and legend swatches and History's filter swatches are edged at 1.25 px in their own colour, and a confidence dot,
-translucent, takes no stroke (a same-colour stroke would overlap its fill as a denser ring) and is drawn 0.625 px
-larger instead, so its size is unchanged. `Theme.Chart_Edge` and its L* 25 constant are removed. The state lines keep
-their 3 px (`CONST_STATE_LINE_W`). Given up: the 11:1 the dark edge gave a light state's marker on the white card; the
-amber marker now reads at its own 1.62:1. Tests `test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
-`::test_the_confidence_dots_take_their_states_frame_colour_with_no_darker_edge`,
-`test/UI/test_history.py::test_each_state_filter_carries_its_states_frame_colour`,
-`test/Parameters/test_theme.py::test_the_palette_keeps_the_brands_rules`.
+**Measured.** On the white card: OK 9.15:1, NOK 2.92:1, Warning 1.62:1. Between the series (ΔE76): NOK–Warning 58.1,
+every other pair 68 or more. The badge row was looked at in the window at 1920 × 1080, 1720 × 1020 and the window's
+minimum (measured 2026-10-16: 1575 × 1054), with the four badges there were then: they wrapped onto two right-aligned
+rows at every size.
 
-Decided 2026-10-16, on the owner's rig test. Every view draws a catalogue state in exactly its frame mark's colour, so the
-operator learns one colour per state: the Camera View's marks, the Trends series, legend swatches and confidence dots,
-the History filter's swatches and set outlines: OK `#640ABA`, NOK `#FF6540`, Outside area `#FFC226`, Foreign object
-`#B4A6BE`, Unspecified `#33A3FF` (`Theme.State_Color`; a state's ink is its box). The darker chart variants `#BA260B`,
-`#7C5B00`, `#4F4952` and `#0065A9` are gone from every chart, legend and filter (`CONST_UNSPECIFIED_INK` and
-`CONST_FOREIGN_INK` removed; `CONST_WARN_INK` stays the status pill's and the log's amber text, no state's). On the white
-card the light ones are drawn as themselves on a 3 px line (`Trends.CONST_STATE_LINE_W`; the Total keeps 2 px) with
-markers of radius 4, dots and legend swatches edged at 1.25 px in their own hue's dark shade at L* 25 (`Theme.Chart_Edge`).
-And every badge that needs the operator shows at once, so a part to move is never hidden behind a NOK: NOK, Outside the
-area, Foreign object and Not judged, in that order (`Reporting.Badges`), in a row that wraps right-aligned onto a second
-line when the reading card's head is too narrow (`UI.Widgets.Badge_Row_Cls`, `Flow_Layout_Cls`).
+**Given up.** The 11:1 that a dark edge at L* 25 (`Theme.Chart_Edge`, removed on the owner's instruction, 2026-10-18)
+gave a light state's marker on the white card; the amber marker now reads at its own 1.62:1.
 
-**Measured.** On the white card, each series without and with its edge: OK 9.15:1 (edge `#5300A3` 11.07:1), NOK 2.92:1
-(`#7A0E00` 11.11:1), Outside area 1.62:1 (`#4D3800` 11.16:1), Foreign object 2.30:1 (`#42374B` 11.17:1), Unspecified
-2.68:1 (`#003E6C` 11.02:1); the Total `#6F5783` 6.24:1. Between the series (ΔE76): Foreign object–Total 32.2, Foreign
-object–Unspecified 45.1, Unspecified–Total 45.2, NOK–Outside area 58.1, every other pair 68 or more. Rendered and looked
-at: the Trends view after 14 real scans of mixed results (the test set and the rig's captures), every state but
-Unspecified present, none occurring on these frames. The badge row in the window at 1920 × 1080, 1720 × 1020 and the
-window's minimum, 1575 × 1054 (it does not shrink further; a 1366 × 768 screen does not hold it, a limit older than this
-branch): four badges wrap onto two right-aligned rows at every size, three fit one row from 1720 wide.
+*History:* the rule was first made with five states (Outside area, Foreign object and Unspecified each with a colour)
+and darker chart edges; the three states and the 2026-10-18 rulings reduced it to the above.
 
-**The branch's colours,** recorded together (`.claude/skills/jic-sf-ui-style/references/project.md` > *AnyScan's state colours* has the table):
-the inspection area `#FFD880` on camera images and the purple `#640ABA` on the empty view (*A catalogue mode judges only
-inside the inspection area*); the foreign grey `#B4A6BE` with its badge ground `#CAC0D3` and mask pair `#DBCCE5` /
-`#897C93` (*A foreign object is told by what it is…*, *A Warning is shown, counted and recorded by its kind*); the
-Unspecified blue `#33A3FF` with its badge ground `#C6E4FF` and mask fill `#748DB1` (*Unspecified is a sky blue…*); the
-judged part's outline in the size check's colour (*A judged part's marks each carry their own check*); the chart edges
-above.
-
-**Revisit if** a light state's line is lost on the rig's screen despite its width and edges (the amber line itself is
-1.62:1), or the Foreign object and Total series (ΔE 32.2) are confused there.
+**Revisit if** a light state's line is lost on the rig's screen (the amber line itself is 1.62:1).
 Tests `test/Parameters/test_theme.py::test_every_catalogue_state_has_its_colour`, `::test_the_palette_keeps_the_brands_rules`,
 `test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
-`::test_the_confidence_dots_take_their_states_frame_colour_with_no_darker_edge`,
 `test/UI/test_history.py::test_each_state_filter_carries_its_states_frame_colour`,
 `test/Reporting/test_core.py::test_the_badges_show_every_state_that_needs_the_operator`,
 `test/UI/test_reading_view.py::test_every_badge_shows_at_once_and_wraps_rather_than_clip`.
@@ -4713,9 +4544,8 @@ Tests `test/Camera/test_stillness.py`, `test/Camera/test_preview.py::test_a_scan
 
 Decided 2026-10-16, on the owner's request. PREVIEW, among the action buttons before SCAN (named so beside the header's
 Live tab), shows the table live in the Camera View with the inspection area on it (`Paint_Inspection_Area`, the same
-call as on a scanned frame) and `●  LIVE PREVIEW` in white on the purple (9.15:1). *Corrected 2026-10-16:* the marker
-was drawn in the view's top-left corner; it is in the Camera View's head now (*ANALYZE sweeps a decorative pixel grid
-over the frame, and the Camera View's head names its state*). Preview frames are processed and
+call as on a scanned frame) and `●  LIVE PREVIEW` in white on the purple (9.15:1) in the Camera View's head (*ANALYZE
+sweeps a decorative pixel grid over the frame, and the Camera View's head names its state*). Preview frames are processed and
 undistorted as a scan's, so the area lies where the scan will judge. The owner's choices: ANALYZE is disabled while the
 preview runs, so nobody analyses a frame other than the one in view; PREVIEW toggles, stopping it shows the last scanned
 frame and its result again; a scan refused for movement is a WARNING with a `Moving` badge, not an error, and brings the
@@ -4739,10 +4569,9 @@ so at most one notification is ever on its way to the window, which takes the ne
 records only *Live preview started.* and why it stopped), the run statistics or a capture set, and the busy overlay
 is never shown over them.
 
-**The scan left the GUI thread.** It used to grab on the GUI thread behind a static overlay (`Viewport_Cls.Set_Busy`,
-now removed): one 0.32 s grab. Waiting for a still scene takes 0.59–1.13 s, so the scan is a worker with the
-animated overlay, and a close during a scan waits for it. *Corrected 2026-10-16:* no overlay; the scan shows its
-fresh frames under a SCANNING marker (*SCAN drops the previous result the moment it is pressed…*). A test that presses SCAN waits for the scan through the
+**The scan runs on a worker.** Waiting for a still scene takes 0.59–1.13 s, against the single 0.32 s grab it replaced
+on the GUI thread, so the scan is a worker that shows its fresh frames under the SCANNING marker (*SCAN drops the
+previous result the moment it is pressed…*), and a close during a scan waits for it. A test that presses SCAN waits for the scan through the
 `scan` and `wait_for_scan` fixtures (`test/conftest.py`).
 
 **Measured** in the window, offscreen, on the rig's camera on the development Linux machine (Ryzen 9 9950X3D), 30 s of
@@ -4793,15 +4622,14 @@ frame and renders again — the behaviour wanted for PREVIEW pressed again — j
 longer read it — and its renders from the view and the reading from Scene Understanding, which says *Scanning…*
 with a *Scanning* badge; the head's badge says *Scanning…*. While the scan waits for a still scene the view paints
 each fresh frame the check grabs (`Capture_Still`'s frame callback, `Scan_Worker_Cls` handing them on through the
-preview's one-frame mailbox, `Frame_Mailbox_Cls`) under a corner marker: the busy overlay's camera icon, its lens
-blinking, and `SCANNING…` in white on the purple (`Viewport_Cls.Start_Live('scan')`), with no scrim over the image.
-*Corrected 2026-10-16:* the marker is in the Camera View's head now, not in the image's corner (*ANALYZE sweeps a
-decorative pixel grid over the frame, and the Camera View's head names its state*).
+preview's one-frame mailbox, `Frame_Mailbox_Cls`) under the `SCANNING…` marker in the Camera View's head, white on
+the purple with the camera pixel icon, its lens blinking (`Viewport_Cls.Start_Live('scan')`; *ANALYZE sweeps a
+decorative pixel grid over the frame, and the Camera View's head names its state*), with no scrim over the image.
 The scan ends on the new scanned frame. Refused for movement, it leaves its last fresh frame on screen with the
 *Moving* message (the head's badge *Not scanned*; ANALYZE has no frame) and resumes the preview when it came from
 it; stopping that preview shows the same fresh frame. The previous result never comes back. PREVIEW pressed again
 still returns to the last scanned frame and its result, as decided: only SCAN drops them. The run's statistics stay;
-CLEAR resets them. The header pill reads *Camera connected* (was *Camera live*), so "live" names only the preview.
+CLEAR resets them. The header pill reads *Camera connected*, so "live" names only the preview.
 
 Between the press and the preview's last frame in flight (at most one frame period, about 0.27 s on the rig) the view
 keeps the newest preview frame, the table as it is now, under LIVE PREVIEW; it is never the old result.
@@ -4839,9 +4667,7 @@ analysis runs on its worker, the Camera View sweeps a grid over the frame instea
   translucent everywhere: a pixel keeps at least 40 % of the frame (a line), a cell's fill 70 %. The purple itself at
   22 % was tried first and read slate-blue on the green table, not light.
 - **Decoration, independent of the frame.** Every lit cell looks the same, over a part or the table. Only the frame's
-  size enters the drawing. *An earlier version of the same day tinted the cells over objects more strongly, from
-  stage 1's foreground mask against the cached reference (4.7 ms, outside the analysis's time); the owner removed it,
-  with every reference to the background difference, so the grid cannot be read as a detection.*
+  size enters the drawing, so the grid cannot be read as a detection.
 - **It stops at once.** The slot that takes the result, the failure or a close's stop stops the grid before it paints
   (`__Stop_Analysis_View`), so the next paint is the result or the bare frame; a close during an analysis lays the busy
   overlay with its stopping sentence instead. The analysis's step (*Segmenting…*, *Analysing object 3 of 8…*) moved
@@ -4849,20 +4675,17 @@ analysis runs on its worker, the Camera View sweeps a grid over the frame instea
 - **On screen only.** The grid is painted over the frame in `paintEvent`, never into an image: the view holds a copy of
   the frame (`Rgb_To_Qimage`), and the capture set is written from the frame array and `Render_Views`.
 
-**The head names the state.** LIVE PREVIEW, SCANNING… and ANALYZING… were — the first two — drawn in the image's
-top-left corner. All three are now one widget in the Camera View's head, after the title (`UI.Widgets.State_Marker_Cls`,
-fed by `Viewport_Cls.Marker_Changed`): white on the purple (9.15:1), one size for the three (the widest's, 145 x 28 px),
+**The head names the state.** LIVE PREVIEW, SCANNING… and ANALYZING… are one widget in the Camera View's head, after
+the title (`UI.Widgets.State_Marker_Cls`, fed by `Viewport_Cls.Marker_Changed`): white on the purple (9.15:1), one
+size for the three (the widest's),
 the busy overlay's camera icon (its lens blinking) for the scan and its magnifier (the glint stepping) for the analysis.
 Nothing but the analysis grid is drawn over the frame; the empty view's instruction and the busy overlay (CONNECT, a
 close) are not over an image.
 
-*Corrected 2026-10-23:* the marker keeps its size in the head while hidden (`setRetainSizeWhenHidden`). On macOS (Qt
-5.15.14, offscreen) it is 27 px tall against the title's 26 px line, so showing it grew the head from 42 to 43 px and
-took the pixel from the view (560 to 559 px, in the test's window 560 to 558), which never returned once the marker
-hid: the frame moved when the state was named, and `test_analyze_starts_the_grid_and_marks_analyzing_in_the_head`,
-comparing the view's grabs before and during ANALYZE, failed there. The recorded Linux runs passed it, consistent with
-the title's line being as tall as the marker under FreeType's metrics; not re-measured on Linux. The view is now one
-height in every state (559 px at 1280 x 800 on macOS); the window's minimum size is unchanged (1579 x 1029).
+The marker keeps its size in the head while hidden (`setRetainSizeWhenHidden`), so the view is one height in every
+state: on macOS (Qt 5.15.14, offscreen) the 27 px marker is taller than the title's 26 px line, and showing it took a
+pixel from the view that never returned (found 2026-10-23 by
+`test_analyze_starts_the_grid_and_marks_analyzing_in_the_head`).
 
 **Cost, measured** on the development machine (RTX 5070 Ti, the real window on xcb at 1920 x 1080, a test frame through
 `File_Camera_Cls`, runs alternating with the grid and without any animation, the inference time from the log):
@@ -4880,7 +4703,9 @@ rendered once); what remains is the repaint itself, so a tick repaints only the 
 (+54 ms on Image_065, against +75 ms with whole-view repaints). The busy overlay it replaces, stepping every 120 ms,
 measured the same as the day's earlier grid (715 against 710 ms, Image_055). Not measured on the rig's machine or screen.
 
-**Rejected.** Tinting the cells over objects (above: the owner's call). A 3.6 s or 6 s loop, tried first as "calm":
+**Rejected.** Tinting the cells over objects more strongly, from stage 1's foreground mask against the cached
+reference (4.7 ms, outside the analysis's time): the owner removed it, with every reference to the background
+difference, so the grid cannot be read as a detection. A 3.6 s or 6 s loop, tried first as "calm":
 analyses here take 0.7-3 s, so a single-part analysis showed only the wave's first corner; the owner set 0.5 s per
 crossing, as the reference. A marker in the image's corner: it covers the frame being judged.
 
@@ -4915,11 +4740,12 @@ Everywhere the operator meets it:
   the area had is now every Warning's (`Annotate.__Draw_Features` draws only OK and NOK parts' marks). A part whose side
   could not be told was checked and keeps its features in the record and its readings for the reason, only undrawn.
 - **Scene Understanding.** `State: Warning – <kind>.` (`Reporting.State_Word`), ending in a full stop as
-  `State: OK.` and `State: NOK.` do (*corrected 2026-10-18*, the owner's ruling: it had none), then its reason
+  `State: OK.` and `State: NOK.` do (the owner's ruling, 2026-10-18), then its reason
   with the action (`Reporting.__Warning_Sentence`); the log line leads with the same state, at WARNING.
 - **Badges.** One per state present: `NOK · n` (`fail`) and `Warning · n` (`warn`, every kind counted together), or
   `All OK` (`ok`). The levels `foreign` and `unspecified` are gone; a badge given either paints the idle card.
-- **Trends.** OK, NOK and Warning (plus Total), adding up to the total; each confidence dot its verdict's colour.
+- **Trends.** OK, NOK and Warning (plus Total), adding up to the total; the Confidence chart draws no state (*Trends
+  draws square markers, 2 px lines, and the run mean as hollow squares on top*).
 - **History.** Filters All, OK, NOK, Warning; a set is outlined in its worst state, NOK then Warning then OK.
 - **Retired colours.** The foreign grey `#B4A6BE` (badge `#CAC0D3`, mask `#DBCCE5` / `#897C93`) and the Unspecified blue
   `#33A3FF` (badge `#C6E4FF`, mask `#748DB1`) are removed as tokens from the frame, the mask, the badges, Trends and
@@ -4966,7 +4792,6 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_verdict_follows_the_rule
 `test/UI/test_reading_view.py::test_the_badge_paints_each_verdict_level_legibly`,
 `::test_every_badge_shows_at_once_and_wraps_rather_than_clip`,
 `test/UI/test_trends_view.py::test_a_catalogue_run_charts_ok_nok_and_warning`,
-`::test_the_confidence_dots_take_their_states_frame_colour_with_no_darker_edge`,
 `test/UI/test_history.py::test_each_state_filter_lists_every_set_holding_that_state`,
 `::test_a_warning_records_its_kind_and_an_older_set_reads_into_the_three_states`,
 `::test_a_set_is_outlined_in_its_worst_state`, `::test_each_state_filter_carries_its_states_frame_colour`,
@@ -4974,100 +4799,65 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_verdict_follows_the_rule
 
 ## The Confidence chart draws the two means, told apart by their form
 
-Decided 2026-10-18, on the owner's request. The Confidence chart in Trends draws two series, the frame mean and the
-run mean, and nothing per object: the per-object score dots are removed. They were coloured by state with no legend
-entry, and jittered sideways within their column, so the last image's dots reached beyond the last analysed image.
-
-- **Told apart by their form, in neutral colours.** The frame mean is a 1.5 px solid line with a marker at every
-  analysed image (`CONST_INK_MUTE` `#6F5783`, 6.24:1 on white; the marker's edge is its own fill colour). The run mean
-  is a 5 px dashed line without markers (`Theme.Detection_Mask_Outline()` `#817A8A`, 4.13:1, above the 3:1 a graphic
-  needs), drawn under the frame mean. Neither is a verdict colour: they lie ΔE 68–90 from OK, NOK and Warning. Neutral
-  greys cannot lie far apart (ΔE 21.8 and 1.51:1 between these two, the theme's farthest pair; `#655E6D` is ΔE 18.7
-  from the muted ink), so the form carries the difference: where the means are equal, after a few similar frames, the
-  thin dark line and its markers run along a lighter band that the dashes' gaps break. The legend draws each series
-  as a sample of its own line, a dash, a gap and a dash long, never a square swatch.
-- **The threshold lines stay, labelled.** The dashed lines at 80 % and 60 % are the configuration's
-  `Confidence.Warn_Below` and `Error_Below`, the one pair that colours every confidence number in the application
-  (`Parameters.Vision.Confidence_Severity`: the object labels, the frame mean, the session mean and its log crossings).
-  They are used, so they are labelled at the plot's right end, in their colour: "Warning below 80 %" and "Error below
-  60 %" (from the thresholds in force).
-- **The chart takes no classification flag** (`Confidence_Chart_Cls.Set_Data`): it draws no verdict in any mode.
-
-**Rendered and looked at**, from the window and the pipeline: the Trends view after the same rig frame analysed four
-times (`20261016-174059_6`: both means 97 % at every image) and after eight frames of `Data/Images/Test` (means 93–98 %,
-apart from the fifth image on).
-
-*Corrected 2026-10-18, on the owner's ruling:* the threshold lines and their labels are no longer the soft ink (the OK
-purple since the palette change) and the log's error red: both are the neutral grey ink `CONST_DETECTION_INK`
-`#655E6D` (6.22:1 on white), told apart by their dash, 6 px dash and 4 px gap at the warning threshold, 2 px and 3 px at
-the error threshold, and by their labels. The charts' own secondary text that was the soft ink, the axis titles, the
-legend labels and the hover's secondary lines ('This image', the per-state counts, 'Scored', 'Unscored'), is that grey
-too, the owner's choice among: the charts' text only, every use of `CONST_INK_SOFT`, or none. `CONST_INK_SOFT`'s other
-uses stay the brand purple by the one-purple rule: the Live view's key labels (`Widgets`), History's connection
-headers, the configuration dialog's stage line, and the architecture diagram's arrows, card text and State icon. Tests
-`::test_both_threshold_lines_are_a_neutral_grey_in_two_dash_patterns`,
-`::test_the_charts_own_text_is_a_neutral_grey_not_the_ok_purple`.
-
-**Revisit if** an operator confuses the run mean's band with a threshold line (both dashed, 5 px against 1 px and
-labelled), or the theme gains a neutral far enough from the muted ink for the two means to differ by colour as well.
-Tests `test/UI/test_trends_view.py::test_the_confidence_chart_draws_only_the_frame_and_run_means`,
-`::test_the_two_means_are_told_apart_when_they_are_equal`, `::test_each_threshold_line_is_labelled_with_what_it_means`,
-`::test_unscored_objects_are_absent_from_the_confidence_chart`.
-
-*Corrected 2026-10-18, on the owner's rule:* the means are no longer told apart by width. Every series line of the
-Trends view, in both charts, is one width and every marker one size (`Trends.CONST_SERIES_LINE_W` 3 px,
-`CONST_SERIES_MARKER_RADIUS` 4 px, 8 px across), the values the light states were given on 2026-10-16 so the amber
-Warning reads on the white card (*Each state has one colour in every view*); the Total, drawn at 2 px with 5 px
-markers until then, the frame mean at 1.5 px with 7 px markers and the run mean at 5 px take them too, and the legend
-samples, every one a line sample now (the Detected objects chart's squares included), take the same. The frame mean
-and the run mean differ by pattern and colour only: solid with markers, dashed (9 px dash, 6 px gap) without. At one
-width the run mean drawn under the frame mean would vanish where the two are equal, so it is drawn over the frame
-mean's line and under its markers: there the run mean's grey alternates with the frame mean's ink along the line
-(1.51:1 between them), and the markers show the frame mean. The threshold lines stay 1 px guides. Tests
-`::test_every_series_in_both_charts_has_one_line_width_and_one_marker_size`,
-`::test_each_legend_sample_has_the_width_and_marker_size_of_its_line`,
-`::test_the_two_means_are_told_apart_when_they_are_equal`.
+Superseded by [*Trends draws square markers, 2 px lines, and the run mean as hollow squares on top*](#trends-draws-square-markers-2-px-lines-and-the-run-mean-as-hollow-squares-on-top): the two entries are merged there, with the means' current lines, markers and colours and the labelled threshold lines. The full entry is in git at `a85215c`.
 
 ## Trends draws square markers, 2 px lines, and the run mean as hollow squares on top
 
-Decided 2026-10-18, on the owner's request, replacing the one 3 px width and 8 px round marker of the day before
-(*The Confidence chart draws the two means, told apart by their form*, its last correction). Every series in both
-Trends charts, Total, OK, NOK, Warning, the frame mean and the run mean, is a 2 px line with a 7 px SQUARE marker at
-every analysed image, laid on the pixel grid (`Trends.Marker_Rect`, `Draw_Marker`), matching the application's square
-corners and pixel style; filled squares are their colour to the edge. The legend samples take the same width and
-square. The threshold guides stay 1 px.
+Decided 2026-10-18, on the owner's requests. Every series in both Trends charts, Total, OK, NOK, Warning, the frame mean
+and the run mean, is a 2 px line with a 7 px SQUARE marker at every analysed image, laid on the pixel grid
+(`Trends.CONST_SERIES_LINE_W`, `CONST_SERIES_MARKER_PX`, `Marker_Rect`, `Draw_Marker`), matching the application's
+square corners and pixel style; filled squares are their colour to the edge. The legend draws each series as a sample
+of its own line at that width with its square. The threshold guides stay 1 px.
 
-In the Confidence chart the two series share the square and its size and differ by pattern, colour and fill: the frame
-mean a solid line in the dark neutral `#655E6D` (`CONST_DETECTION_INK`) with filled squares; the run mean a dashed line
-(6 px dash, 4 px gap) in the light neutral `#B4A6BE` (`CONST_CONTROL_DISABLED_TEXT`) with hollow squares, a 2 px ring
-round a transparent inside, its own line clipped out of the squares (`Outside_Markers`), so the inside shows the card.
-The run mean is drawn on top: where the two means are equal, each image reads as a dark square inside a light outline,
-and along the line the light dashes alternate with the dark line.
+- **The Confidence chart draws the two means and nothing per object.** The per-object score dots are removed: they
+  were coloured by state with no legend entry, and jittered sideways within their column, so the last image's dots
+  reached beyond the last analysed image. The chart takes no classification flag (`Confidence_Chart_Cls.Set_Data`):
+  it draws no verdict in any mode.
+- **The means are told apart by pattern, colour and fill,** in neutral greys, never a verdict colour: the frame mean a
+  solid line in the dark neutral `#655E6D` (`CONST_DETECTION_INK`) with filled squares; the run mean a dashed line
+  (6 px dash, 4 px gap) in the light neutral `#9890A0` (`Theme.CONST_CHART_LIGHT_INK`) with hollow squares, a 2 px
+  ring round a transparent inside, its own line clipped out of the squares (`Outside_Markers`), so the inside shows
+  the card. The run mean is drawn on top: where the two means are equal, each image reads as a dark square inside a
+  light outline, and along the line the light dashes alternate with the dark line.
+- **The threshold lines stay, labelled, in the neutral grey.** The dashed lines at 80 % and 60 % are the
+  configuration's `Confidence.Warn_Below` and `Error_Below`, the one pair that colours every confidence number in the
+  application (`Parameters.Vision.Confidence_Severity`: the object labels, the frame mean, the session mean and its
+  log crossings). Both are the neutral grey ink `#655E6D`, told apart by their dash (6 px dash and 4 px gap at the
+  warning threshold, 2 px and 3 px at the error threshold) and by their labels at the plot's right end, "Warning below
+  80 %" and "Error below 60 %" (from the thresholds in force). The charts' own secondary text, the axis titles, the
+  legend labels and the hover's secondary lines ('This image', the per-state counts, 'Scored', 'Unscored'), is that
+  grey too, the owner's choice among: the charts' text only, every use of `CONST_INK_SOFT`, or none. `CONST_INK_SOFT`'s
+  other uses stay the brand purple by the one-purple rule: the Live view's key labels (`Widgets`), History's connection
+  headers, the configuration dialog's stage line, and the architecture diagram's arrows, card text and State icon.
 
-**Measured** (WCAG ratio on white): the dark `#655E6D` 6.22:1; the light `#B4A6BE` 2.30:1; between them 2.71:1, ΔE 29.3;
-the light grey is ΔE 77–91 from OK, NOK and Warning, the dark 80–95. **Below a floor, by choice:** 2.30:1 is under the
-3:1 that WCAG 1.4.11 asks of a graphic on its ground; the run mean reads by its square rings and dashes, and its hover
-text is the dark grey (2.30:1 would fail text). **A retired colour, back by request:** `#B4A6BE` was the foreign object's
-grey until the three states retired it from Trends (*Three states for the operator, a Warning with its kind*); it is no
-verdict colour now, and Trends uses it for a mean, not a state.
+**Measured** (WCAG ratio on white): the dark `#655E6D` 6.22:1, ΔE 80–95 from OK, NOK and Warning; the light `#9890A0`
+3.07:1; between them 2.02:1, ΔE 19.9. `#9890A0` is the lightest colour of the dark ink's own hue and chroma (L* 61,
+C* 10) that clears the 3:1 a graphic needs on white (one L* lighter falls under 3:1). The theme had no grey in
+between: `#817A8A` (the mask outline) is 4.13:1 but only 1.51:1 from the dark ink; the example `#8C8494` 3.59:1 and
+1.73:1. Where the two means are equal the light 2 px ring still reads round the dark filled square (2.02:1).
 
-**Rendered and looked at**, from the window and the pipeline: the same rig frame four times (equal means, 97 %) and
-eight frames of `Data/Images/Test` (means 93–98 %, apart from the fifth image).
+**Rendered and looked at**, from the window and the pipeline: the same rig frame (`20261016-174059_6`) analysed four
+times (equal means, 97 %) and eight frames of `Data/Images/Test` (means 93–98 %, apart from the fifth image on).
 
-*Corrected 2026-10-18, on the owner's request:* the run mean's light grey is `#9890A0`, a new token,
-`Theme.CONST_CHART_LIGHT_INK`, not `#B4A6BE`, so its hollow outline reads on its own and the retired foreign grey is out
-of Trends again. It is the lightest colour of the dark ink's own hue and chroma (L* 61, C* 10) that clears the 3:1 a
-graphic needs on white: 3.07:1 on white, 2.02:1 and ΔE 19.9 against `#655E6D` (one L* lighter falls under 3:1). The
-theme had no grey in between: `#817A8A` (the mask outline) is 4.13:1 but only 1.51:1 from the dark ink; the example
-`#8C8494` 3.59:1 and 1.73:1. Where the two means are equal the light 2 px ring still reads round the dark filled square
-(2.02:1). The "below a floor" and "a retired colour, back" notes above no longer apply. Tests
-`test/Parameters/test_theme.py::test_the_charts_light_ink_is_the_lightest_of_the_dark_inks_hue_that_clears_3_to_1`,
-`test/UI/test_trends_view.py::test_the_confidence_chart_draws_only_the_frame_and_run_means`.
+**Rejected.** Telling the means apart by width: a 1.5 px frame mean with markers over a 5 px dashed run mean in
+`#817A8A`, then one 3 px width with 8 px round markers; replaced by the owner's rule of one width and one square
+marker. The disabled-label grey `#B4A6BE` for the run mean: 2.30:1 on white, under the 3:1 a graphic needs, and the
+retired foreign object's grey.
 
-**Revisit if** the light run mean is lost on the rig's screen (3.07:1), or a hollow square is read as an empty result.
+*History:* until 2026-10-18 the threshold lines were the soft ink (the OK purple since the palette) and the log's error
+red, and the Confidence chart drew per-object dots; this entry merges *The Confidence chart draws the two means, told
+apart by their form*.
+
+**Revisit if** the light run mean is lost on the rig's screen (3.07:1), a hollow square is read as an empty result, an
+operator confuses the run mean's dashes with a threshold line (2 px against 1 px, and labelled), or the theme gains a
+neutral far enough from the dark ink for the two means to differ by colour alone.
 Tests `test/UI/test_trends_view.py::test_every_series_in_both_charts_has_one_line_width_and_one_marker_size`,
 `::test_each_legend_sample_has_the_width_and_marker_size_of_its_line`, `::test_the_two_means_are_told_apart_when_they_are_equal`,
-`::test_a_run_mean_marker_is_hollow_and_shows_the_card_inside`, `::test_the_confidence_chart_draws_only_the_frame_and_run_means`.
+`::test_a_run_mean_marker_is_hollow_and_shows_the_card_inside`, `::test_the_confidence_chart_draws_only_the_frame_and_run_means`,
+`::test_each_threshold_line_is_labelled_with_what_it_means`, `::test_unscored_objects_are_absent_from_the_confidence_chart`,
+`::test_both_threshold_lines_are_a_neutral_grey_in_two_dash_patterns`,
+`::test_the_charts_own_text_is_a_neutral_grey_not_the_ok_purple`,
+`test/Parameters/test_theme.py::test_the_charts_light_ink_is_the_lightest_of_the_dark_inks_hue_that_clears_3_to_1`.
 
 ## Every icon is a pixel icon from one set
 
