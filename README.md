@@ -14,11 +14,7 @@ measurement, and in a catalogue mode its state.
 The diagram shows how a frame becomes a reading in both modes, at the top level. Two independent cues are
 fused, so an object is kept if **either** one finds it. [Detection logic](#detection-logic)
 walks through the same stages in detail, and [Source layout](#source-layout--the-app-and-the-shared-library)
-says what each part of `src/` holds.
-
-What the application does — its stages, modes, views, configuration sections, calibration, records,
-and what has and has not been verified on hardware — is mapped in
-[.claude/project-docs/SPEC.md](.claude/project-docs/SPEC.md), which links back here for setup.
+says what each part of `src/` holds. The project poster is [images/anyscan-poster.pdf](images/anyscan-poster.pdf).
 
 ## Setup
 
@@ -45,9 +41,7 @@ install has not run on Linux, the Gemma download has not run on macOS, and the C
 branches have not run on any machine. Those paths are covered by tests with stubbed commands only.
 If you are the first to take one of them, you are its first real run: if it fails, or finishes but
 the application does not start, please report it with the installer's full output. Only that
-report can confirm the path. What ran on Linux, and what did not, is recorded in
-.claude/project-docs/design-decisions.md, *The installer on Linux: detection and the Gemma download ran, the rest
-did not*.
+report can confirm the path. What ran on Linux, and what did not, is in [Platform](#platform).
 
 By hand instead, create an isolated environment and install the runtime + test dependencies
 (Python 3.10 or newer; tested on 3.10–3.12, developed and characterized on 3.10):
@@ -171,9 +165,8 @@ Everything a user can change without touching code lives in one file per mode,
 `Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Seg_Anything.yaml`. A catalogue mode's file also names
 its catalogue item, `Data/Catalogue/<item>/<item>.yaml`, which the loader reads by the same rules. The
 hardware comes first so
-camera-specific data still separates by camera; the mode comes after, so it is visible. What each
-section of the file controls is in [.claude/project-docs/SPEC.md](.claude/project-docs/SPEC.md#configuration), and the
-file's own comments give every field's default and unit.
+camera-specific data still separates by camera; the mode comes after, so it is visible. The file's
+own comments say what each section controls and give every field's default and unit.
 
 **A station sets its own station-event directory in a local copy of the mode file, never in the
 shipped one.** The shipped file keeps `logger/Station_Events`. A station copies the mode file to a
@@ -250,10 +243,9 @@ saying so.
 
 ## Limitations
 
-Two limitations affect any decision built on this application's output. Both stand **unverified in
-this version**: nothing here checks them against ground truth, and none of the captures in
-[.claude/project-docs/capture-checklist.md](.claude/project-docs/capture-checklist.md) changes that. Behaviours that show up in the
-text but decide nothing are in [.claude/project-docs/KNOWN_ISSUES.md](.claude/project-docs/KNOWN_ISSUES.md).
+Three limitations affect any decision built on this application's output. They stand **unverified in
+this version**: nothing here checks them against ground truth, and none of the
+[captures on the rig](#captures-on-the-rig) changes that.
 
 ### Measurements are repeatable, not absolute
 
@@ -285,14 +277,13 @@ part is within a stated tolerance does not, except where the catalogue bullet be
   against parts of known size. A good fit shows that the lens model is consistent, not that the sizes
   are right.
 - **Catalogue mode:** the owner chose to check the catalogue part's outline against tolerances
-  anyway, with the scale moved to the part's top face
-  ([*A catalogue mode measures at its part's top face*](.claude/project-docs/design-decisions.md#a-catalogue-mode-measures-at-its-parts-top-face)).
+  anyway, with the scale moved from the calibration board's plane to the part's top face.
   On the current test set, every instance reads within: the 22 mounting plates −0.77 to +0.76 mm off
   60 × 40 (tolerance ±1.5), with their centres up to 46.3 mm from the frame centre. **Not verified:** the
   parts were not calipered, so "within" means consistent with nominal, not a measured truth. **Not
   measured:** a plate farther from the frame centre than 46.4 mm, where the side-wall term above predicts up
   to about 1 mm more, beyond the plates' 0.73 mm margin; a size checked there is noted in the session log, not on
-  screen, and judged as anywhere else (KNOWN_ISSUES).
+  screen, and judged as anywhere else.
 - Sizes are shown to 0.01 mm as a formatting choice: one pixel is about 0.10 mm, and the error above
   is up to about 1.5 mm, so the second decimal — and the first — says nothing about accuracy.
 
@@ -320,9 +311,9 @@ one. Treat surface condition in the text as a hint that may be absent, never as 
 **An OK means the part passed the checks its catalogue item lists — not that nothing else is wrong.**
 What a catalogue mode does not check, it cannot fail:
 
-- **A hole drilled where the catalogue puts none is not reported** (KNOWN_ISSUES): holes are counted near
+- **A hole drilled where the catalogue puts none is not reported**: holes are counted near
   their expected positions only.
-- **A stain is caught by its colour, measured under this light** (KNOWN_ISSUES): a yellow-brown area of
+- **A stain is caught by its colour, measured under this light**: a yellow-brown area of
   1 mm² or more on the mounting plate's front. A stain of another colour, or this colour under another light,
   is not verified.
 - **A part outside the inspection area is never judged.** Only a part whose whole outline lies inside the
@@ -331,14 +322,14 @@ What a catalogue mode does not check, it cannot fail:
   on it: a stain on a part outside the area is neither marked nor named until it is moved inside. The area is about 101 mm high, so a plate standing with its long
   side vertical can move only about ±20 mm up or down; place parts by the line on the empty view or the scanned
   frame, or on the live preview (PREVIEW) while placing it. The insets were measured mostly by the right edge and the top
-  of the view; along the left and bottom edges and in the corners they are not verified (KNOWN_ISSUES).
+  of the view; along the left and bottom edges and in the corners they are not verified.
 - **The Similarity tab is not a defect map.** It shows where a judged part looks unlike its reference to
   DINOv2: the fingerprints show, but so does glare, and missing holes do not.
   No verdict reads it.
 - **The describer's words are guarded, not trusted.** In a catalogue mode it is told what the checks found
   and given no number, and may describe holes and stains only as features it sees, never the checks; a
   description contradicting the hole or the stain check, or naming the checks, is asked for once more, and a
-  sentence still contradicting, or with a number, is dropped and logged, by reading words (KNOWN_ISSUES). The
+  sentence still contradicting, or with a number, is dropped and logged, by reading words, so a paraphrase can pass. The
   verdict and its reasons never come from it.
 
 Verified on the 41 test frames only (2026-10-11), with every hole within tolerance.
@@ -357,9 +348,11 @@ Three are still to do:
 4. the **cable pull**, which checks that a lost connection is detected, during the live preview too;
 5. a **moving hand under SCAN**, which checks that a scan of a moving scene is refused on the rig.
 
-The procedures, the conditions and what to record alongside each frame are in
-[.claude/project-docs/capture-checklist.md](.claude/project-docs/capture-checklist.md). Items 1 and 2 are repeated when the camera,
-the lens or the mount changes. None of them verifies the
+Each is captured through the application (CONFIGURATION → Load, CONNECT, then SCAN → ANALYZE per
+frame), with nothing moved between CONNECT and the item's last frame; every ANALYZE writes a capture set
+under `logger/captures/<connection>/`, whose `_raw.png` is the frame to keep. The calibration board is
+`Data/Calibration/Checkerboard_11x8_12mm_A4.pdf` (its page 2 says how to print and mount it). Items
+1 and 2 are repeated, in that order, when the camera, the lens or the mount changes. None of them verifies the
 measurements (see [Limitations](#limitations)).
 
 ## Tests
@@ -527,11 +520,10 @@ with what the checks found:
       Analysis_Str
 ```
 
-The thresholds are measured, not chosen: the record of each is in `.claude/project-docs/design-decisions.md`, and
-`.claude/project-docs/SPEC.md` > *Pipeline stages* lists the stages in one line each.
+The thresholds are measured, not chosen.
 
 Every analysis needs a reference-background capture; there is no background-free
-detection path (see `.claude/project-docs/KNOWN_ISSUES.md`).
+detection path.
 
 ## Repository layout
 
@@ -557,15 +549,16 @@ Example/                  runnable scripts (scan, calibrate, calibration_tilt_st
                           build_fonts)
 Data/Images/Test/         the 41 frames analyze.py runs on (Image_055-095, each a capture set's
                           _raw.png, the undistorted frame — never its _distorted.png), and the tests' pinned set —
-                          committed. No answer key yet: the previous set's named objects on frames
-                          that are gone, and is kept as the scoring tests' data
+                          committed. It has no answer key yet; the previous set's, which names objects on
+                          frames that are gone, is kept as the scoring tests' data
                           (test/Vision/Utilities/data/answer_key_1061966.json)
 Data/Images/Background/   the empty-surface reference(s) and their provenance sidecars — committed
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture) — git-ignored
 Data/Calibration/         the calibration board to print, Checkerboard_11x8_12mm_A4.pdf (generate_checkerboard.py) — committed
 Data/Results/             analyze.py and scan.py output — git-ignored
-images/                   documentation illustrations for this README — committed
+images/                   the README's figures and the project poster — committed
   anyscan-logo.svg          the AnyScan logo as the JIC Smart Factory designer delivered it (outlined)
+  anyscan-poster.pdf        the project poster
 models/                   model weights — you supply these, NOT committed
   gemma-4-e4b-it-4bit/      Gemma 4 E4B (MLX), downloaded per Setup (git-ignored)
   FastSAM/FastSAM-x.pt      FastSAM, downloaded per Setup (git-ignored)
@@ -576,8 +569,7 @@ frames and the reference are tracked; the calibration captures (about 4 MB a fra
 the analysis output are not — a calibration records the directory it was solved from. Adding a
 frame to, or renumbering one in, `Data/Images/Test/` changes what every pinned expectation refers
 to, so it is a deliberate move made with the pins, never a side effect of a tool — and a frame is
-added under a new name, never written over an old one (.claude/project-docs/design-decisions.md, *A replaced image
-never keeps its name*). Only `models/` is user-supplied.
+added under a new name, never written over an old one. Only `models/` is user-supplied.
 
 **Changing the logo.** Replace `images/anyscan-logo.svg` with the delivered file, then rebuild in this
 order. The diagram embeds the logo, so regenerating it before the logo is rebuilt would copy the old one.

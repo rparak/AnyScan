@@ -280,7 +280,7 @@ point at.
 | File | Records |
 |---|---|
 | `.claude/project-docs/design-decisions.md` | Deliberate choices whose reason is not visible in the code |
-| `README.md` > *Limitations* | The limitations that affect a decision built on the output: a `###` heading, **the consequence first**, bold, then the evidence with the measured numbers, then plainly whether it is verified; the section links `.claude/project-docs/KNOWN_ISSUES.md` |
+| `README.md` > *Limitations* | The limitations that affect a decision built on the output: a `###` heading, **the consequence first**, bold, then the evidence with the measured numbers, then plainly whether it is verified; the README links no internal record |
 | `.claude/project-docs/KNOWN_ISSUES.md` | Open behaviours that show up in the text or numbers but decide nothing: **Impact:**, **Pinned by:**, **Not fixed here:**, **What would answer it:**; on a fix the entry goes and the resolution moves to the DD |
 
 **New DD entries use the generic shape** - **Why**, **Alternatives**, **Revisit if** and the pinning
