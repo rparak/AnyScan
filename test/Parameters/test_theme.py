@@ -275,7 +275,7 @@ def test_every_chip_numeral_is_white() -> None:
     """
     Description:
         A chip on the frame is filled with its box (a verdict's, or the detect-only neutral) and its numeral is plain
-        white on every one (docs/design-decisions.md, "Every chip carries a white numeral"): no per-chip exception and
+        white on every one (design-decisions.md, "Every chip carries a white numeral"): no per-chip exception and
         no rim. The ratios are pinned so a change to a box colour revisits them: the purple 9.15:1, and the owner's
         accepted exceptions, the NOK orange-red 2.92:1 and Warning's amber 1.62:1, every Warning's whatever its kind.
     """

@@ -296,7 +296,7 @@ def test_a_side_with_no_hole_found_places_none_since_its_end_cannot_be_told() ->
         A side with no hole of any group found (capture 20261015-143622_s1's object 3, a back with no holes): the
         through-holes' mirrored positions are not centred on the part, and with nothing found the outline does not
         say which end is which (DINOv2's best turn against the reference picked the wrong end on 3 of 21 plates
-        (the test set and the capture's front) even with their holes in view; docs/design-decisions.md), so no position is invented. Reporting.Core
+        (the test set and the capture's front) even with their holes in view; design-decisions.md), so no position is invented. Reporting.Core
         says so in the object's note.
     """
 

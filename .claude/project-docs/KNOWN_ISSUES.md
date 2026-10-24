@@ -696,9 +696,10 @@ field's comment says an object "is Unspecified".
 
 - **Impact:** none on a verdict; a reader of the mode file or the field's name meets a state the application no longer
   shows.
-- **Not fixed here:** the two mode files carry uncommitted local edits on the rig (the station events directory), and
-  renaming the field means editing the shipped file; the owner chose to leave them until then (2026-10-18).
-- **What closes it:** when the mode files are next committed, rename the field to match Several parts (for example
+- **Not fixed here:** renaming a configuration field is a change of its own (feature-manager): the loader, the
+  structures, the tests and the shipped files move together. (Both mode files are committed as the rig runs them,
+  with the shipped `logger/Station_Events`.)
+- **What closes it:** rename the field to match Several parts (for example
   `Several_Parts_Area_Ratio`) in the mode file, the loader's field table, `Identification_Parameters_Str`,
   `Catalogue_Result_Str` and the tests, decide whether an older mode file's `Unspecified_Area_Ratio` is still read, and
   reword the header and the field's comment; then remove this entry.

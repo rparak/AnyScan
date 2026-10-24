@@ -57,7 +57,7 @@ Description:
     through-hole's centre lay 0.12-0.36 mm from its countersink's within 10 mm of the frame centre, 0.8-1.15 mm at 60 mm
     and 1.30 mm at 66.6 mm, growing with the distance, while every hole stayed round (0.883-0.916) and its diameter
     within 6.12-6.25 mm. Its short-edge distance read up to 19.37 mm against 17.5 ± 1.5; the countersink's, on the top
-    face, 17.22-18.59 mm at every distance (docs/design-decisions.md). The bore is then checked for its own offset from
+    face, 17.22-18.59 mm at every distance (design-decisions.md). The bore is then checked for its own offset from
     its step's axis, the camera's shift predicted from the bore's depth taken out (__Concentricity).
 """
 
@@ -615,7 +615,7 @@ def __Missing_Places(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], 
         It is anchored at the positions holding its own holes or, with none of its own, at those holding another
         group's found holes (a through-hole at its countersink). With no anchor at all none is placed: the mirrored
         positions are not centred on the part, and which end of the part is which cannot be told from its outline
-        (docs/design-decisions.md, KNOWN_ISSUES).
+        (design-decisions.md, KNOWN_ISSUES).
 
         An unpositioned group's are the centres of other groups' holes it would surround (a countersink at its
         through-hole), found or placed, the first ones without one of its own.

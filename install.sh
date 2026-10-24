@@ -81,7 +81,7 @@ CONST_MLX_CUDA13_MIN_DRIVER='580'
 CONST_MLX_CUDA_MIN_COMPUTE_CAP='7.5'
 # The VRAM GPU 0 must have, read from nvidia-smi (MiB). The describer's model and FastSAM share
 # the card. Measured on Linux (2026-09-29, CUDA 13): the whole application peaks at 9.5 GB of GPU
-# memory, 6.99 GB of it MLX (docs/design-decisions.md, "E4B stays the describer on both machines"),
+# memory, 6.99 GB of it MLX (design-decisions.md, "E4B stays the describer on both machines"),
 # so 11 GiB is the floor, with room above that peak (12 GB cards report ~12,280 MiB).
 #   Unit [MiB]
 CONST_MIN_VRAM_MIB='11264'

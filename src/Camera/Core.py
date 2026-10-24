@@ -876,7 +876,7 @@ class Basler_Camera_Cls(Camera_Backend_Cls):
             pylon's own verdict on the open device (InstantCamera.IsCameraDeviceRemoved): for a GigE
             camera it turns true once the heartbeat times out after the cable is pulled or the power
             lost. An SDK call that itself fails is not taken as a removal. Not yet verified on the
-            hardware: docs/capture-checklist.md has the cable-pull check.
+            hardware: capture-checklist.md has the cable-pull check.
 
         Returns:
             (1) parameter [bool]: True when pylon reports the device removed.

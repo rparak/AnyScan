@@ -328,7 +328,7 @@ def test_self_check_hover_is_really_rendered(records) -> None:
         harness is broken and this fails loudly. And every control's hover is expected to change
         its pixels today — one that stops doing so either lost its hover style or its forcing —
         but a selected segment's: clicking it does nothing, and in the one purple its hover keeps
-        the selected look (docs/design-decisions.md, "The palette is the JIC Smart Factory brand's").
+        the selected look (design-decisions.md, "The palette is the JIC Smart Factory brand's").
     """
 
     by_key = {(r['control'], r['selection'], r['state']): r for r in records}

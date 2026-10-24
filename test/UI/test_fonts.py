@@ -40,7 +40,7 @@ import UI.Utilities.Style as Style
 
 """
 Description:
-    The bundled UI fonts (docs/design-decisions.md, "The UI fonts are bundled"): after Style.Load_Fonts the
+    The bundled UI fonts (design-decisions.md, "The UI fonts are bundled"): after Style.Load_Fonts the
     UI family resolves to Public Sans and the monospace family to JetBrains Mono, from App/assets/fonts/, and every
     weight the UI code requests draws its own face of each, with the matching style name. The weights are
     read from the UI source, so a weight added to the code without a face fails here.

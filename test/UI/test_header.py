@@ -60,7 +60,7 @@ Description:
     and from the divider to the JIC mark's first ink, found in the grabbed pixels, not in the SVG.
 
     The lockup is the delivered logo without its tagline (an SVG) and the tagline as live text where the logo
-    outlines it (docs/design-decisions.md, "The header draws the delivered logo and sets its tagline as live
+    outlines it (design-decisions.md, "The header draws the delivered logo and sets its tagline as live
     text"). It must draw as the outlined logo (images/anyscan-logo.svg) does at the same height, its tagline in the
     bundled Public Sans, and at DPR 1 be tall enough that the tagline is 9 pt and hinted. Each is measured here in
     the grabbed pixels against a render of the outlined logo at the same height.
@@ -71,7 +71,7 @@ Description:
     fresh interpreter, so the height, the gaps and the lockup's layout are measured at both ratios.
 """
 CONST_CONFIGURATION = dataclasses.replace(Load_Configuration(CONST_DEFAULT_CONFIG_FILE), Scale=None)
-# The chosen gap (docs/design-decisions.md, "The logo's text is outlined"): the funding band's 32 px
+# The chosen gap (design-decisions.md, "The logo's text is outlined"): the funding band's 32 px
 # around its divider. Pinned here, so a change of the constant is a change of this decision.
 #   Unit [px]
 CONST_EXPECTED_GAP = 32

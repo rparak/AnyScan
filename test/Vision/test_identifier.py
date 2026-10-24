@@ -90,7 +90,7 @@ def test_the_references_embed_to_unit_vectors_that_tell_the_sides_apart(require_
         With the pinned weights, on the CPU: each reference crop is a unit vector; embedding the same crops
         again gives the same vectors; a crop matches itself turned upright better than its other side; and
         the front and back of each item are told apart (the measured side margin on the test set is at
-        least 0.08, docs/design-decisions.md). Slow because it runs DINOv2.
+        least 0.08, design-decisions.md). Slow because it runs DINOv2.
     """
 
     for mode in ('Mounting_Plate',):

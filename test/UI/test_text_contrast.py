@@ -70,7 +70,7 @@ Description:
     Parameters.Theme when the test runs, never copied here.
 
     The same walk records each text's resolved point size: on a low-density display (DPR 1, this run) no
-    text is below 9 pt (Style.CONST_TYPE_FLOOR_LOW_DENSITY, docs/design-decisions.md, "A 9 pt type floor
+    text is below 9 pt (Style.CONST_TYPE_FLOOR_LOW_DENSITY, design-decisions.md, "A 9 pt type floor
     on a low-density display"). The module runs itself again at DPR 2 (QT_SCALE_FACTOR=2), where the
     contrast is measured once more and the window must draw exactly the pixels it draws with no floor.
 
@@ -89,7 +89,7 @@ CONST_GRAPHIC_FLOOR = 3.0
 #   Unit [string]
 CONST_DOT = '●'
 # One text of every style the 2026-09-29 audit flagged that is a label or painted text, so the walk is
-# known to have reached each of them (docs/design-decisions.md, "Text clears 4.5:1 ..."). The funding band's
+# known to have reached each of them (design-decisions.md, "Text clears 4.5:1 ..."). The funding band's
 # disclaimer left the window on 2026-10-15 (its band carries logos only).
 #   Unit [Tuple<string>]
 CONST_FLAGGED_TEXTS = (

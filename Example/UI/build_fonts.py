@@ -40,10 +40,10 @@ from fontTools.varLib import instancer
 """
 Description:
     Build the console's bundled UI fonts into App/assets/fonts/: static Public Sans (the UI face, the open
-    font closest to the brand's GT America Standard: docs/design-decisions.md, "The UI is set in Public
+    font closest to the brand's GT America Standard: design-decisions.md, "The UI is set in Public
     Sans") and JetBrains Mono at the four weights the UI requests (Regular 400, Medium 500, SemiBold 600,
     Bold 700), and each family's SIL Open Font License text, which the OFL requires to travel with the
-    fonts. Style.Load_Fonts registers every .ttf in that directory (docs/design-decisions.md, "The UI fonts
+    fonts. Style.Load_Fonts registers every .ttf in that directory (design-decisions.md, "The UI fonts
     are bundled").
 
     google/fonts carries only the variable fonts, and Qt 5.15 uses a variable font's default instance

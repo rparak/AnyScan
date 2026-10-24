@@ -103,7 +103,7 @@ Description:
     (stage 1), so a reference capture must exist. Masks and boxes are in full-frame
     pixels, so there is no crop-to-frame remap to get wrong. Each object records the
     cue(s) that located it in Detection_Str.Cue; Confidence stays None (see
-    docs/design-decisions.md, 'Verdict's confidence branch stays dormant') and the verdict handles unscored objects.
+    design-decisions.md, 'Verdict's confidence branch stays dormant') and the verdict handles unscored objects.
 
     Note:
         This module is Qt-free. Analyze accepts an RGB image as a NumPy array; the

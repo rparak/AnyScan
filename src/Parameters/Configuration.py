@@ -123,7 +123,7 @@ class Description_Parameters_Str:
     # Each object's crop is padded outward by this fraction of its longer side before it is
     # enhanced and described — context around the part, at the cost of pulling neighbours in
     # (which is why the crop is isolated). Set when Florence-2 described a cut-out part poorly;
-    # measured for Gemma: see docs/design-decisions.md.
+    # measured for Gemma: see design-decisions.md.
     #   Unit [float] (fraction of the longer side)
     Object_Crop_Padding: float = 0.20
     # The background sentence is replaced by a neutral one when it runs past these limits.
@@ -148,7 +148,7 @@ class Inspection_Area_Str:
     # (2026-10-16), each inset from 10 to 15 mm: the smallest at which every size, hole-position and hole-diameter
     # error of the plates inside stays within half its tolerance, bar one plate 14 mm from the centre (0.77 mm of
     # 0.75, inside every candidate). The short edges bind at 13 (a plate 55.9 mm out read 0.89 mm long); the long
-    # edges never bind, so they take the range's floor (docs/design-decisions.md, *A catalogue mode judges only
+    # edges never bind, so they take the range's floor (design-decisions.md, *A catalogue mode judges only
     # inside the inspection area*).
     #   Unit [float] (mm)
     Long_Edge_Inset_Mm: float = 10.0
@@ -170,7 +170,7 @@ class Identification_Parameters_Str:
     # The similarity at and above which an object is identified as the part, whatever its size. Measured
     # on the 41 frames of Data/Images/Test (2026-10-11, re-checked 2026-10-13): every mounting plate 0.79-1.00
     # (the stained fronts lowest), every other object at most 0.673 (the red block against the plate's back),
-    # the 50 x 50 square plates 0.23-0.43. docs/design-decisions.md has the rule.
+    # the 50 x 50 square plates 0.23-0.43. design-decisions.md has the rule.
     #   Unit [float]
     Identify_Similarity: float = 0.75
     # The area, as a multiple of the part's nominal area, from which an object is a Warning, several parts (touching
@@ -281,7 +281,7 @@ class Configuration_Str:
         Description:
             Whether this configuration judges objects (OK / NOK / Warning) and shows the
             verdict UI: exactly when it is a catalogue mode. The switch that once said so,
-            General.Classification.Enabled, is removed (docs/design-decisions.md).
+            General.Classification.Enabled, is removed (design-decisions.md).
 
         Returns:
             (1) parameter [bool]: True in a catalogue mode.

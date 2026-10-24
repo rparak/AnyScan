@@ -41,7 +41,7 @@ Description:
     (Reporting.Describer_Prompt). A future model plugs in behind the same interface. The describer
     loads its runtime lazily (Load), so importing this module pulls no heavy library. (Florence-2, the
     previous describer, was removed after the comparison over the seven frames of the previous test
-    set, eb00508^ — docs/design-decisions.md.)
+    set, eb00508^ — design-decisions.md.)
 """
 # The two things a describer is asked to describe.
 #   Unit [string]

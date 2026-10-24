@@ -41,7 +41,7 @@ Description:
 
     The two thresholds were measured on this camera at the station file's settings (exposure
     10000 us, gain 10 dB, BayerRG8, 1920 x 1200) with Example/Camera/preview_check.py: see
-    docs/design-decisions.md, *A scan waits for a still scene*.
+    design-decisions.md, *A scan waits for a still scene*.
 """
 # How much smaller each side of a frame is made before the comparison: 1920 x 1200 becomes 480 x 300.
 #   Unit [int]

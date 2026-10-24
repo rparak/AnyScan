@@ -28,7 +28,7 @@ import typing as tp
 
 """
 Description:
-    The brand's pixel motif for the funding band (docs/design-decisions.md, "The funding band carries the brand's pixel
+    The brand's pixel motif for the funding band (design-decisions.md, "The funding band carries the brand's pixel
     motif"): small squares on a square grid, as in the JIC Smart Factory style guide and on the AnyScan poster, where
     whole cells are filled singly or in short runs, densest at the format's edge and thinning towards its content (the
     poster's top-right cluster fills 9 of its 6 x 4 cells, in two tints).
@@ -129,7 +129,7 @@ def Corner_Cells(right: int, top: int, cell: int) -> tp.List[tp.Tuple[int, int, 
             for row, line in enumerate(CONST_POSTER_CORNER) for column, mark in enumerate(line) if mark != '.']
 
 
-# The brand's pixel icons, the ONE set the application and the architecture diagram draw (docs/design-decisions.md,
+# The brand's pixel icons, the ONE set the application and the architecture diagram draw (design-decisions.md,
 # "Every icon is a pixel icon from one set"): in the JIC Smart Factory guide's pixel style (its IKONY pages), each a
 # 12 x 12 grid read row by row, one square cell per mark, drawn in one colour (no icon font, no third-party set, so no
 # licence to carry). '#' is a cell every drawing fills, '.' an empty one. A digit d is a cell only the busy icons draw
@@ -179,7 +179,7 @@ CONST_PIXEL_ICONS = {
 # The side of every icon's grid.
 #   Unit [int] (cells)
 CONST_ICON_GRID = 12
-# The busy icons (docs/design-decisions.md, "The busy overlay is the Camera View's grey-lilac"), drawn large on the busy
+# The busy icons (design-decisions.md, "The busy overlay is the Camera View's grey-lilac"), drawn large on the busy
 # overlay and small in the Camera View head's state marker: each a key of CONST_PIXEL_ICONS with its cycle. The camera
 # (connecting, scanning) blinks its lens; the magnifier (a close stopping an analysis, the ANALYZING… marker) moves a
 # glint across its lens.
@@ -229,7 +229,7 @@ def Busy_Cells(kind: str, tick: int, dim: float) -> tp.List[tp.Tuple[int, int, f
             for column, row, mark in marked]
 
 
-# The analysis grid's wave (docs/design-decisions.md, "ANALYZE sweeps a decorative pixel grid over the frame"): square
+# The analysis grid's wave (design-decisions.md, "ANALYZE sweeps a decorative pixel grid over the frame"): square
 # cells on the frame, lit along a band of diagonals that enters at the top-left corner and leaves at the bottom-right,
 # fading behind it in steps, then a short rest on the clean frame, as in the reference animation. Decoration only: it
 # never depends on the frame. The band and each fade step are fractions of the grid's diagonals, so the wave looks the

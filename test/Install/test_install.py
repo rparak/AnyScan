@@ -59,7 +59,7 @@ Description:
         fetched the v8.4.0 asset with the real curl, verified the .part file, moved it into
         place (no .part left), and a second call skipped it as present and verified.
     Real, on Linux / RTX 5070 Ti (16 GB, driver 595.91.07) / Python 3.11.16 (2026-09-29;
-    docs/design-decisions.md, "The installer on Linux: ..."):
+    design-decisions.md, "The installer on Linux: ..."):
       - detection (./install.sh --detect-only): the CUDA 13 branch, mlx[cuda13] and the cu130
         PyTorch build, 15.9 GB on GPU 0.
       - the Gemma download: Ensure_Gemma fetched E4B with the real hf and verified every file.

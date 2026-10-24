@@ -56,7 +56,7 @@ Description:
     The ledger ('station_events_exported.txt' beside the logs) names each exported log, one per line. A
     log's line is written only AFTER all its rows are written, so a failed export is simply not marked and
     the next start retries it. A crash between the rows and the ledger line exports that log twice — two
-    fsynced writes wide, accepted (docs/design-decisions.md). When no ledger exists yet, every log already
+    fsynced writes wide, accepted (design-decisions.md). When no ledger exists yet, every log already
     there is recorded as handled without exporting: logs older than the markers carry no events.
 
     Qt-free. It never holds the session logger: it returns what happened, and the caller logs it.

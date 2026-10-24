@@ -360,7 +360,7 @@ def test_the_basler_backend_asks_pylon_whether_the_device_was_removed() -> None:
     Description:
         The Basler backend's removal check is pylon's IsCameraDeviceRemoved on the open device; an SDK
         call that itself fails is not taken as a removal, and with no device open nothing is removed.
-        (Not yet verified on the hardware: docs/capture-checklist.md has the cable-pull check.)
+        (Not yet verified on the hardware: capture-checklist.md has the cable-pull check.)
     """
 
     class _Device_Cls(object):

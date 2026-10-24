@@ -33,7 +33,7 @@ import UI.Utilities.Style as Style
 Description:
     UI.Utilities.Grid_Fit moves a logo mark's straight edges onto whole device pixels at a scale, keeps equal strokes
     equal and shared edges shared, honours a group's translate, and leaves curves and everything right of the mark as
-    delivered (docs/design-decisions.md, "The header logos are grid-fitted on a 1x display"). Checked on small SVGs whose
+    delivered (design-decisions.md, "The header logos are grid-fitted on a 1x display"). Checked on small SVGs whose
     answer is worked out by hand, and on the two header logos at their 1x heights.
 """
 # A synthetic mark at a scale of 0.36 px per unit: three bars 7 units tall (2.52 px), placed so that rounding each edge on

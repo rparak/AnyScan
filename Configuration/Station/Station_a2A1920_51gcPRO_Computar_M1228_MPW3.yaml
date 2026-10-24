@@ -102,7 +102,7 @@ Background:
 # the frame centre, drawn in the Camera View (never into the saved images) so the operator knows where to place
 # parts. An object whose outline leaves it is a Warning, not judged, and no hole or stain check runs on it. Each inset is in mm at the part's top face, converted with the calibration's scale;
 # the area left must hold the catalogue part in any rotation, or the configuration fails to load. Read only by a
-# catalogue mode. Measured on this rig (2026-10-16, docs/design-decisions.md, "A catalogue mode judges only inside
+# catalogue mode. Measured on this rig (2026-10-16, design-decisions.md, "A catalogue mode judges only inside
 # the inspection area"): the smallest insets from 10 to 15 mm at which the plates inside measured within half of
 # every tolerance.
 Inspection_Area:

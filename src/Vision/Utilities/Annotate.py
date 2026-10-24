@@ -812,7 +812,7 @@ def Seg_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
 
         The class id is the object's 0-BASED index, exactly as in the box file (Yolo_Lines):
         a per-frame handle, not a class — the same warning and caveat apply, so these files
-        must not be used for training as-is (see docs/design-decisions.md).
+        must not be used for training as-is (see design-decisions.md).
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.

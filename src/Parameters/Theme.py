@@ -38,7 +38,7 @@ Description:
     the vision layer must never import UI/, or a UI/ import would sit inside a path
     that has to stay Qt-free and one careless addition would drag Qt into it.
 """
-# The palette is the JIC Smart Factory brand's (docs/design-decisions.md, "The palette is the JIC Smart Factory
+# The palette is the JIC Smart Factory brand's (design-decisions.md, "The palette is the JIC Smart Factory
 # brand's, one purple, measured on the frames"): its purple #640ABA, grey-lilac #E1DCE6 and periwinkle #C2C9FF, and
 # from the wider JIC palette in the same guide its orange-red #FF6540, amber #FFC226 and green #3DBE4C. Where a guide
 # colour is too light for text, its text twin is derived in the colour's own LCh hue at the lightness that clears
@@ -90,14 +90,14 @@ CONST_SCRIM       = CONST_INK
 CONST_SCRIM_ALPHA = 0.16
 # The busy overlay laid over the Camera View while the camera connects or a close waits for a worker: the view's
 # own grey-lilac at 70 %, so the frame shows through faintly and the view reads as the empty Camera View, with the
-# step's words and the pixel icon in the purple directly on it (docs/design-decisions.md, "The busy overlay is the
+# step's words and the pixel icon in the purple directly on it (design-decisions.md, "The busy overlay is the
 # Camera View's grey-lilac"). The icon's unlit cells are the purple at a low opacity.
 #   Unit [string] (hex colour) / [float] (opacity 0..1)
 CONST_BUSY_SCRIM       = '#E1DCE6'
 CONST_BUSY_SCRIM_ALPHA = 0.70
 CONST_BUSY_INK         = CONST_INK
 CONST_BUSY_DIM_ALPHA   = 0.18
-# The analysis grid swept over the frame while ANALYZE runs (docs/design-decisions.md, "ANALYZE sweeps a decorative
+# The analysis grid swept over the frame while ANALYZE runs (design-decisions.md, "ANALYZE sweeps a decorative
 # pixel grid over the frame"): decoration, the same in every cell. Each lit cell is a light translucent purple inside 1 px
 # lines in the brand's periwinkle, so the frame being analysed always shows through; the fade behind the wave draws
 # them at lower opacities (UI.Utilities.Pixel_Motif.CONST_WAVE_FADE).
@@ -126,7 +126,7 @@ CONST_LOGO_INK      = '#640ABA'
 # (JIC #3DBE4C) means connected and ready, amber (JIC #FFC226) degraded; both are too light for a dot on white
 # (2.42:1 and 1.62:1), so each is used as a dot in its hue at L* 60.5 (3.1:1, the 3:1 graphic floor) and as words
 # in its hue at L* 41 (6.2:1). Green never marks an object: on the green table it would sit 28 degrees of hue from
-# the surface (docs/design-decisions.md).
+# the surface (design-decisions.md).
 #   Unit [string] (hex colour)
 CONST_OK            = '#1EA838'   # connected, ready
 CONST_OK_INK        = '#00711B'
@@ -163,7 +163,7 @@ CONST_BAND_TEXT     = '#FFFFFF'
 #   Unit [float] (0..1)
 CONST_BAND_LINE_ALPHA = 0.20
 CONST_BAND_TEXT_ALPHA = 0.76
-# The poster's pixel cluster, painted in the empty Camera View's top-right corner (docs/design-decisions.md, "The
+# The poster's pixel cluster, painted in the empty Camera View's top-right corner (design-decisions.md, "The
 # empty Camera View carries the poster's pixel cluster"): tone on tone, as the funding band's white squares are on the
 # purple, the purple at two low opacities on the view's grey-lilac, so the squares read as a texture in its own hue.
 # Decoration only.
@@ -219,7 +219,7 @@ CONST_MASK_FILL_WINDOW_MARGIN = 0.5
 #                                                                               by hue on the table, ΔE 36)
 #   No single colour can reach 3:1 against both the dark plate and the aluminium (it would need relative
 #   luminance >= 0.227 and <= 0.085). An outline under the marks lifts them on bright metal (to 3.5:1 in this
-#   purple); the owner chose by eye, from renders of these frames, to draw none (docs/design-decisions.md).
+#   purple); the owner chose by eye, from renders of these frames, to draw none (design-decisions.md).
 #   The four boxes are >= ΔE 58 apart (NOK-Warning ΔE 27 under deuteranopia, where the words carry the
 #   difference).
 #
@@ -258,7 +258,7 @@ CONST_OK_LABEL_GROUND = '#C2C9FF'
 CONST_NOK_LABEL_GROUND = '#FFD9D0'
 
 # The numeral on a chip on the frame (an object's and a feature's), filled with its box as on the poster: white, plain,
-# on every chip, in every state and every mode (docs/design-decisions.md, "Every chip carries a white numeral"): on the
+# on every chip, in every state and every mode (design-decisions.md, "Every chip carries a white numeral"): on the
 # purple 9.15:1, on the orange-red 2.92:1 and on Warning's amber 1.62:1, the owner's
 # accepted exceptions for these short bold numerals.
 #   Unit [string] (hex colour)
@@ -270,7 +270,7 @@ CONST_CHIP_NUMERAL = '#FFFFFF'
 # a Warning frame: 4.71:1 on the table (median #236A56), 1.18:1 against the Warning amber, which it is told from by
 # its 1 px against the frame's 2 px. Over the empty view the amber vanishes on the grey-lilac (1.01:1), so there it is
 # the brand purple (CONST_INK, 6.79:1 on #E1DCE6). The owner's choice of 2026-10-16 between #FFD880 and #FFCD59 (4.32:1
-# on the table, 1.10:1 on the empty view), from renders (docs/design-decisions.md).
+# on the table, 1.10:1 on the empty view), from renders (design-decisions.md).
 #   Unit [string] (hex colour)
 CONST_INSPECTION_AREA = '#FFD880'
 CONST_INSPECTION_AREA_EMPTY = CONST_INK

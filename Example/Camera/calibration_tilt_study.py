@@ -52,7 +52,7 @@ Description:
     Calibration.Core.Detect_Board reads it whole in most views (test/Camera/test_generate_checkerboard.py)
     and a partial grid only means fewer corners. It is NOT true for a board larger than the field,
     which the detector reads as fragments, so this study cannot be used to size a larger board
-    (docs/design-decisions.md, the ChArUco entry). Swapping in a 20 x 13 board here lowers every
+    (design-decisions.md, the ChArUco entry). Swapping in a 20 x 13 board here lowers every
     error and keeps the curve's shape (collapse at one tilted view, plateau from 8-10 deg), so the
     thresholds do not depend on the board.
 """

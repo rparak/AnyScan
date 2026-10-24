@@ -31,6 +31,6 @@
 # Whether the verdict UI is shown when a view is built without being told: no. A configuration
 # classifies exactly when it is a catalogue mode (Configuration_Str.Classifies); the window passes
 # that to each view, and this is only the views' default before it does. The configuration switch
-# that once set it, General.Classification.Enabled, is removed (docs/design-decisions.md).
+# that once set it, General.Classification.Enabled, is removed (design-decisions.md).
 #   Unit [bool]
 CONST_CLASSIFICATION_ENABLED_DEFAULT = False

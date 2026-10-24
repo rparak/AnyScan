@@ -25,7 +25,7 @@
 #     is the side sentence of a judged object's description; the side's Description and its
 #     Defects go to the describer through Describer.Prompt. Description and
 #     Measurement_Rules are for people: validated at load, read by nothing (the dated
-#     exception in docs/design-decisions.md, 2026-10-11). What the describer is given holds
+#     exception in design-decisions.md, 2026-10-11). What the describer is given holds
 #     no number (the loader refuses one): it is told the appearance, never a dimension.
 #
 #   Checks:

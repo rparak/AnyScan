@@ -69,7 +69,7 @@ General:
   #   - The name is the local date but ts is UTC, as the contract specifies, so they disagree near
   #     midnight: an event at 00:30 local in summer has ts 22:30Z of the PREVIOUS date. Find an event
   #     by the file's local date, not by ts's date. (Naming by the UTC date would keep each file's ts
-  #     on one date; the contract is the external system's — see docs/design-decisions.md.)
+  #     on one date; the contract is the external system's — see design-decisions.md.)
   #   - The log records local time without a zone. In the hour that repeats when summer time ends
   #     (02:00-03:00 twice), a time is read as its first, summer-time occurrence: an event in the
   #     second pass gets a ts one hour early.
@@ -145,7 +145,7 @@ Description:
   Background_Crop_Margin: 0.12
   # Each object's crop is padded outward by this fraction of its longer side before it is
   # described: context around the part, at the cost of pulling neighbours in (the crop is then
-  # isolated). Measured for Gemma: see docs/design-decisions.md. Default: 0.20
+  # isolated). Measured for Gemma: see design-decisions.md. Default: 0.20
   Object_Crop_Padding: 0.20
   # The background sentence is replaced by a neutral one when it runs past these limits.
   # Defaults: 20 and 1
@@ -155,7 +155,7 @@ Description:
   # REQUIRED, both. The prompts sent with each image. They are DATA: iterate the wording here,
   # never in code.
   #
-  # How the wording was chosen (Phase 0 of the describer swap, docs/design-decisions.md):
+  # How the wording was chosen (Phase 0 of the describer swap, design-decisions.md):
   #   measured on the Image_002 (rust-stained) and Image_007 (clean) plates and on four
   #   plastic parts of Image_001, at temperature 0 — frames of the previous test set (eb00508^;
   #   the names do not match Data/Images/Test), not re-run on the current one.

@@ -2243,7 +2243,7 @@ def Svg_Renderer_For(painter: QPainter, path: str, delivered: QSvgRenderer, heig
     Description:
         The renderer to draw a logo with on a painter: on a device of pixel ratio 1 its mark grid-fitted to whole pixels at
         the drawn height (UI.Utilities.Grid_Fit, built once per height and kept in `fitted`), on any other the SVG as
-        delivered (docs/design-decisions.md, "The header logos are grid-fitted on a 1x display").
+        delivered (design-decisions.md, "The header logos are grid-fitted on a 1x display").
 
     Args:
         (1) painter [QPainter(object)]: The painter it will be drawn with.
@@ -2274,7 +2274,7 @@ class Svg_Image_Cls(QWidget):
     Description:
         An SVG logo at a height, its width the viewBox's aspect, rendered as vectors by a QSvgRenderer whenever the
         widget paints: it lands on the device pixels it is drawn on at any device pixel ratio, and is never a raster
-        scaled to fit (docs/design-decisions.md, "Logos are rendered as vectors at paint time"). On a 1x display its
+        scaled to fit (design-decisions.md, "Logos are rendered as vectors at paint time"). On a 1x display its
         mark, every shape left of mark_right, is grid-fitted to whole pixels (Svg_Renderer_For).
     """
 
@@ -2340,7 +2340,7 @@ class Logo_Lockup_Cls(QWidget):
         Style.CONST_LOGO_TAGLINE_SIZE, scaled to the lockup's height), in the logo's colour. Outlined, the tagline is a
         picture whose stems fall between pixels at DPR 1, where nothing can hint them; live text goes through the
         platform's rasteriser, which hints it at 9 pt and above, the size Style.Logo_Height gives it on a
-        low-density display (docs/design-decisions.md, "The header draws the delivered logo and sets its tagline as
+        low-density display (design-decisions.md, "The header draws the delivered logo and sets its tagline as
         live text").
 
         The size is logo geometry, converted to points through the widget's own logical DPI so the pixel size
@@ -2415,7 +2415,7 @@ class Funding_Row_Cls(Card_Cls):
         The project and funding obligation, as part of the product: a solid purple band with its logos centred as one
         group, the EDIH-DIGIMAT wordmark, a faint vertical rule, and the Ministry of Industry and Trade's logo with the
         EU emblem and "Funded by the European Union". The logos are solid white SVGs traced
-        from the white PNGs (no official vector files exist; docs/design-decisions.md, "The band's logos are traced
+        from the white PNGs (no official vector files exist; design-decisions.md, "The band's logos are traced
         SVGs"), rendered as vectors at paint time; the Ministry's lion is white without its field, as Czech ministries
         show their logo on dark grounds. The EU emblem is as tall as the Ministry's logo, so it is at least the size of
         the biggest other logo, as the EU's visibility rules ask. The rest of the band carries the brand's pixel motif

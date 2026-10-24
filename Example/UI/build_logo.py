@@ -38,7 +38,7 @@ Description:
         App/assets/anyscan-logo.svg           the logo, byte for byte
         App/assets/anyscan-logo-wordmark.svg  the logo without its tagline, in the logo's own viewBox: the
                                               top bar draws it and sets the tagline beside it as live text
-                                              (docs/design-decisions.md, "The header draws the delivered logo
+                                              (design-decisions.md, "The header draws the delivered logo
                                               and sets its tagline as live text")
         App/assets/anyscan-mark.svg           the mark alone (the empty viewport, and the source of the icon)
         App/assets/anyscan-mark.ico           the window and taskbar icon: the mark alone on a transparent ground,

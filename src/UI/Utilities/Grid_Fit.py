@@ -28,7 +28,7 @@ import typing as tp
 
 """
 Description:
-    Grid-fitting of a logo's mark for a 1x display (docs/design-decisions.md, "The header logos are grid-fitted on a 1x
+    Grid-fitting of a logo's mark for a 1x display (design-decisions.md, "The header logos are grid-fitted on a 1x
     display"). An SVG drawn at a scale puts its edges between pixels, where they are drawn half-covered and read soft,
     and no single scale puts an irregular set of edges on whole pixels. Fit_Svg moves each straight edge of the mark to a
     whole device pixel: rectangles, polygons and paths of straight segments only (M, L, H, V, Z, absolute or relative),

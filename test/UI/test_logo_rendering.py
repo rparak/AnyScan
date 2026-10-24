@@ -54,11 +54,11 @@ from UI.Utilities.Grid_Fit import CONST_THIN_PX, Fit_Svg
 """
 Description:
     Every SVG logo the window shows is rendered as vectors at its final size in device pixels, never drawn from a
-    pixmap, scaled or not (docs/design-decisions.md, "Logos are rendered as vectors at paint time"): the AnyScan lockup's
+    pixmap, scaled or not (design-decisions.md, "Logos are rendered as vectors at paint time"): the AnyScan lockup's
     mark and wordmark, the JIC Smart Factory logo and the mark in the empty Camera View. Each is grabbed from the shown
     window and compared with the same SVG rendered directly into an image of the grabbed size; a raster scaled to fit,
     or one rounded to a whole-pixel width, differs (measured before this rule: up to 76, 229 and 70 levels at DPR 1).
-    At DPR 1 the two header logos are drawn with their mark grid-fitted (UI.Utilities.Grid_Fit, docs/design-decisions.md,
+    At DPR 1 the two header logos are drawn with their mark grid-fitted (UI.Utilities.Grid_Fit, design-decisions.md,
     "The header logos are grid-fitted on a 1x display"), so there the reference is the fitted SVG.
     The module runs at the session's device pixel ratio and once more at DPR 2 in a fresh interpreter.
 """

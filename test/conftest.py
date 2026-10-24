@@ -618,7 +618,7 @@ def models_untouched() -> tp.Iterator[None]:
         file removed, added or resized fails the run, naming each one — so a change is attributed to
         this run the moment it happens, not discovered later. (models/ was emptied by hand on 2026-09-24
         and again on 2026-09-25 — manual both times, not code; this fixture is what showed, run by run,
-        that the suite had not done it. See docs/design-decisions.md.)
+        that the suite had not done it. See design-decisions.md.)
     """
 
     before = _Models_Inventory()

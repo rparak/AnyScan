@@ -368,7 +368,7 @@ class Detection_Str(object):
     # The segmenter's own confidence for this mask, or None. Kept DISTINCT from
     # Confidence on purpose: Confidence drives the operator 'Low confidence' verdict
     # and is reserved for a detection/classification score, which the segmenter does
-    # not emit. See docs/design-decisions.md, 'Verdict's confidence branch stays dormant'.
+    # not emit. See design-decisions.md, 'Verdict's confidence branch stays dormant'.
     #   Unit [float]
     Segmenter_Score: tp.Optional[float] = None
     # Which of the two fused cues located this object: 'fastsam' (the segmenter only),
@@ -666,7 +666,7 @@ class Confidence_Thresholds_Str(object):
         Note:
             They are a VIEWING preference, applied to whatever is on screen: a past capture set
             shown in History is coloured by the thresholds in force now, not the ones in force
-            when it was captured (docs/design-decisions.md).
+            when it was captured (design-decisions.md).
     """
 
     # Below this a confidence is a warning.

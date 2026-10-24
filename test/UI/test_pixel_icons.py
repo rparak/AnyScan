@@ -51,7 +51,7 @@ from Configuration.Core import Load_Configuration, CONST_DEFAULT_CONFIG_FILE
 
 """
 Description:
-    Every icon is a pixel icon from one set (docs/design-decisions.md, "Every icon is a pixel icon from one set"): the
+    Every icon is a pixel icon from one set (design-decisions.md, "Every icon is a pixel icon from one set"): the
     application's heads, its model pill and state markers and the README's architecture diagram all draw
     UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS, each icon at a whole number of pixels a cell, so it stays crisp. Measured
     on what is painted: the window's grabs and the committed SVG.

@@ -63,7 +63,7 @@ Description:
     checks); the files that set the stages up (the mode names the station, the station the calibration,
     and the catalogue item and the reference); and the records the application writes and reads back. No
     class, model or product names, no configuration fields, no number; README > Detection logic and
-    docs/capabilities.md have the detail. Each card
+    SPEC.md have the detail. Each card
     carries a pixel icon from the application's own set (UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS), so the figure
     and the console never draw two versions of one icon, and the figure needs no icon set or its licence.
 

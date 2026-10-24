@@ -56,7 +56,7 @@ Description:
 # and tilted 10-35 deg, Calibration.Core.Detect_Board returned the full 10 x 7 grid in 12 of 12
 # frames. A board larger than the field does NOT work with that detector: from its minimum grid,
 # CALIB_CB_LARGER stops growing beyond ~15 columns and where the board leaves the frame, so the same
-# test on 20 x 13 returned grids from 3 x 5 to 17 x 3 (see docs/design-decisions.md, ChArUco is the
+# test on 20 x 13 returned grids from 3 x 5 to 17 x 3 (see design-decisions.md, ChArUco is the
 # route to a larger board). The factor's uniformity is bought with views instead: 11 x 8 spreads
 # 0.057 / 0.103 % (median / 90th percentile) at 24 views, over the 0.1 % limit, and 0.039 / 0.065 %
 # at 40 (calibration_tilt_study.py's camera, 0.1 px noise, 40 seeds) — hence 40+ views.

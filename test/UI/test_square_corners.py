@@ -31,7 +31,7 @@ import typing as tp
 """
 Description:
     Every corner the UI draws is square, as the JIC Smart Factory brand draws its blocks, buttons and rules
-    (docs/design-decisions.md, "Corners are square, as the brand draws them"). This scans the UI modules' code for a
+    (design-decisions.md, "Corners are square, as the brand draws them"). This scans the UI modules' code for a
     stylesheet 'border-radius' or a painted rounded rectangle (drawRoundedRect, addRoundedRect); a comment may name
     them. The architecture diagram's generator is held the same way, for an SVG 'rx'.
 """
