@@ -7,16 +7,6 @@ KNOWN_ISSUES.
 
 ## Open
 
-- **R1 - Skills in the repository** (owner, 2026-10-29; in progress on branch `skills-in-repo`). The six skills
-  ship in `.claude/skills/` with generic `SKILL.md` files and AnyScan's `references/project.md` layers; the
-  personal copies are excluded from `~/.claude/skills` by its sparse checkout (the owner runs the command). Design:
-  design-decisions, *The skills ship in the repository*. The owner's answers of 2026-10-29: jic-sf-ui-style taken at
-  `ec7af02` unchanged and allowed to name AnyScan and JIC (Q1); bootstrap mode dropped from the four SKILL.md files
-  (Q2); the checker's and readme-writer's script tests in the suite, not jic-sf-ui-style's template tests (Q3);
-  handovers pasted, never stored, in the generic text (Q4); a branch per revision, fast-forwarded into `main` by the
-  owner after acceptance and pushed by the owner (Q5); AnyScan's own `check_readme.json` with the four avatars
-  exempt (Q6); the dependency defects below go to R3 (Q7); a support-brief stub naming R2 (Q8); jic-sf-ui-style
-  excluded from the personal skills on this machine and on the station (Q9). Awaiting acceptance.
 - **R2 - The support-chat brief** (owner, 2026-10-29): support-brief's project layer (now a stub) and
   `.claude/project-docs/SUPPORT_CHAT.md`, its first run.
 - **R3 - Cleanup: one entry point, layout test, dependencies** (owner, 2026-10-29). Includes, found in R1:
@@ -34,3 +24,4 @@ KNOWN_ISSUES.
 
 | Revision | Delivered | Commits | Accepted |
 |---|---|---|---|
+| R1 | Skills in the repository: six skills in `.claude/skills/` with generic `SKILL.md` files and AnyScan's `references/project.md` layers, their LICENSE, the rewritten skills test, the records and the third-party inventory; the personal copies excluded by sparse checkout (design-decisions, *The skills ship in the repository*). Full record, with the owner's answers Q1-Q9 of 2026-10-29: `git show c454237:.claude/project-docs/FEATURES.md` | `6820f20`…`c454237`, closed by the commit that adds this row | accepted by the owner 2026-10-29 |

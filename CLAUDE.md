@@ -45,7 +45,7 @@ Two tiers of checks (times measured on the Apple M2 Pro, 2026-10-29):
 .venv/bin/python -m pytest -q                                                   # 1529 collected, 198 s
 .venv/bin/python .claude/skills/project-style-rpx/scripts/check_style.py src App Example test   # 11 known issues, 2 s
 # Before the owner's acceptance and any push: the real models too.
-.venv/bin/python -m pytest -q --runslow                                         # 535 s (R0, before the skills' tests joined)
+.venv/bin/python -m pytest -q --runslow                                         # 1529 collected, 528 s
 ```
 
 ## Work rules
