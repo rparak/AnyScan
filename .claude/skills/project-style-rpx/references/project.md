@@ -75,8 +75,13 @@ UI                               → everything above but Calibration  (App/run.
 The root holds `.claude`, `.gitattributes`, `.gitignore`, `App`, `CLAUDE.md`, `Configuration`, `Data`,
 `Example`, `LICENSE`, `README.md`, `images`, `install.sh`, `logger`, `models`, `pytest.ini`,
 `requirements`, `requirements.txt`, `src`, `test`. Pinned by `test/integration/test_root_layout.py`,
-which also holds the records in `.claude/project-docs/` and no `docs/`. The exceptions to the generic
-list, each with its reason (the owner's rulings of 2026-10-23 and 2026-10-24):
+which also holds the records in `.claude/project-docs/` (with `FEATURES.md` and `SUPPORT_CHAT.md`) and no `docs/`,
+refuses two tracked paths that differ only in letter case, and reads `git status` for what is not tracked (the
+owner, 2026-10-29, R3): an untracked root entry fails, and an ignored one must be `.venv` (install.sh), `.pytest_cache`
+(pytest), `.DS_Store` (Finder) or `design` (the brand sources, on the development Mac only). Nothing the application
+or its tools write lands in the root: their output goes under `logger/`, `Data/`, `Configuration/Calibration/`,
+`App/assets/`, `images/`, `models/` or `test/crash_records/`, or to an absolute path a configuration names. The
+exceptions to the generic list, each with its reason (the owner's rulings of 2026-10-23 and 2026-10-24):
 
 - `App/` - the application's entry point and its committed assets, apart from the domain code.
 - `Configuration/` and `Data/` - the configuration folder and the inputs (test frames, references,
