@@ -1,0 +1,16 @@
+## =========================================================================== ##
+#   Description:
+#     {{What this file configures, in one or two sentences.}}
+#     Read only by {{src/Configuration/Core.py}} ({{Load_Configuration}}); written by hand.
+#
+#   REQUIRED: every field is required; a missing or invalid field fails the load, naming it.
+#   Units: in brackets after each field's comment; converted once by the loader to the canonical
+#     units (project-style-rpx references/yaml.md, the project reference > Units).
+#   Paths: relative to the repository root.
+## =========================================================================== ##
+
+# {{What this section covers.}}
+{{Section}}:
+  # {{What the field means and why it has this value}}. Source: {{manual page, measurement, the
+  # owner and date}}. [{{unit}}] REQUIRED.
+  {{Field}}: {{value}}

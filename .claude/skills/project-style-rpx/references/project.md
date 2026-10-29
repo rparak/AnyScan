@@ -243,7 +243,9 @@ disagreement is a question, not a new rule. ✅ = `test/Install/test_install.py`
 
 ## Tests
 
-- `pytest.ini`: `testpaths = test`, `--import-mode=importlib`, the `slow` marker.
+- `pytest.ini`: `testpaths = test` plus the two shipped checkers' tests (`.claude/skills/project-style-rpx/scripts`,
+  `.claude/skills/readme-writer/scripts`; not jic-sf-ui-style's template tests, owner 2026-10-29),
+  `--import-mode=importlib`, the `slow` marker.
 - Shared fixtures in `test/conftest.py`: the repository root, the reference frame and its shape;
   `src/`, `App/` and `Example/Vision` are on the path, so tests import harness code.
 - A test that needs the model weights goes through **`require_weights`** (`test/conftest.py`): it runs
