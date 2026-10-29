@@ -1,9 +1,7 @@
 # project-optimize: project reference for AnyScan
 
-AnyScan's part of the personal skill **project-optimize**; it overrides that skill where they differ.
-Conventions are project-style-rpx's, commits feature-manager § 8. This folder has no `SKILL.md` on
-purpose: a personal skill wins over a project skill of the same name, so a copy here would be ignored
-and drift.
+AnyScan's part of **project-optimize** (`SKILL.md`, beside this folder); it overrides that skill where
+they differ. Conventions are project-style-rpx's, commits feature-manager § 8 and `CLAUDE.md`.
 
 ## Outputs compared byte for byte
 
@@ -66,10 +64,12 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
 
 ## Never touched
 
-- **`models/`**: weights, and the installer tests' fixture; the suite fails if it changes
+- **`models/`**: the weights; a session fixture in `test/conftest.py` (`models_untouched`) fails the suite if
+  it changes
   ([*models/ is out of reach of the installer tests…*](../../../project-docs/design-decisions.md#models-is-out-of-reach-of-the-installer-tests-and-the-suite-fails-if-it-changes)).
-- **Captures and data**: `Data/` (the pinned test set, references and their sidecars, answer key),
-  `logger/` contents, calibration capture sets.
+- **Captures and data**: `Data/` (the pinned test set, the edge crops, references and their sidecars),
+  the describer's answer key (`test/Vision/Utilities/data/answer_key_1061966.json`), `logger/` contents,
+  calibration capture sets.
 - **`src/Transformation/`**: inherited, excluded in `check_style.json` with its reason. Findings in it
   are reported under their own heading, never acted on.
 - **The repository root as a workspace.** Reviewers, mutations and reproductions run in a scratch
@@ -82,9 +82,11 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
 
 - **Qt dispatch**: methods marked `# << QT OVERRIDE >> #`, slots passed to `.connect(...)`, and paint
   paths that read a value a grep does not obviously link (the status cell's `dot_color`).
-- **Attribute lookups by string**: `getattr(obj, 'Name', …)` in `src/UI/Core.py`,
-  `src/UI/Views/Trends.py` and `src/Camera/Core.py`; search for the name as a string literal too.
-- **Configuration keys**: a `*_Str` field is read through `Configuration/Core.py`'s `CONST_FIELDS`
+- **Attribute lookups by string**: `getattr(...)` in `src/UI/Core.py`, `src/UI/Views/Trends.py`,
+  `src/Camera/Core.py`, `src/Camera/Basler.py` (camera node names from variables and tuples),
+  `src/Configuration/Core.py` (dotted key paths), `src/Vision/Segmenter.py` and `src/Vision/Describers.py`
+  (2026-10-29: 23 calls); search for the name as a string literal too.
+- **Configuration keys**: a `*_Str` field is read through `src/Configuration/Core.py`'s `CONST_FIELDS`
   table and the YAML; a key is used if `Load_Configuration` maps it and a reader changes behaviour on it.
 - **Entry points**: `App/run.py`, every script in `Example/`, and `install.sh` (which names
   `requirements/*.txt` and model paths).
@@ -130,11 +132,12 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
 |---|---|---|
 | `analyze.py --no-describe`, detect-only, 41 frames | 26 s wall (two runs: 26.3, 25.9) | Apple M2 Pro, 2026-10-23 |
 | `analyze.py --no-describe`, catalogue, 41 frames | 42 s wall (42.6, 41.8) | Apple M2 Pro, 2026-10-23 |
-| the default suite, `pytest -q` (1231 passed, 186 skipped) | 199 s | Apple M2 Pro, 2026-10-23 |
-| the full suite, `pytest -q --runslow` (1421 passed, 2 skipped: the DPR 2 halves of two density tests, run in their DPR 2 re-runs; 1 xfailed) | 578 s | Apple M2 Pro, 2026-10-23 |
+| the default suite, `pytest -q` (1343 passed, 186 skipped; 1529 collected, the skills' 88 checker tests included) | 198 s, run alone | Apple M2 Pro, 2026-10-29 |
+| the full suite, `pytest -q --runslow` (1423 passed, 2 skipped: the DPR 2 halves of two density tests, run in their DPR 2 re-runs; 1 xfailed; 7 failed on the uncommitted skill copy R1 then replaced; before the skills' tests joined) | 535 s, with a read-only agent beside it | Apple M2 Pro, 2026-10-29 |
 
 ## Interpreter and tools
 
-- Project python: `.venv/bin/python` (`CLAUDE.md`); `-I` for anything run against scratch copies.
+- Project python: `.venv/bin/python` (`CLAUDE.md`), Python 3.10.10 on the development Mac (2026-10-29); `-I`
+  for anything run against scratch copies.
 - Explicit python for throwaway environments (radon, cmarkgfm): `/opt/homebrew/bin/python3`.
 - Code folders for radon: `src App Example`.

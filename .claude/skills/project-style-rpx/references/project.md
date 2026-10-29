@@ -2,30 +2,31 @@
 
 The conventions of this repository that the generic skill leaves to the project, as the code follows
 them. The generic rules - Python, tests, structure, YAML, the installer, Markdown and the
-brand-independent UI rules - are the personal skill **project-style-rpx**
-(`~/.claude/skills/project-style-rpx/`, private repository `rparak/rp-claude-skills`), with its checker
-`scripts/check_style.py`. How the interface looks is the personal skill **jic-sf-ui-style** (the JIC
-Smart Factory style, taken from this application). This file overrides both where they differ, and its
-rules hold without them: on a machine without the personal skills, the rules are read from this file,
-the code and `.claude/project-docs/design-decisions.md` (DD).
+brand-independent UI rules - are this skill's `SKILL.md` and references, beside this file, with its
+checker `scripts/check_style.py`. The brand skill, how the interface looks, is **jic-sf-ui-style** (the
+JIC Smart Factory style, taken from this application), in `.claude/skills/jic-sf-ui-style/`. This file
+overrides both where they differ; the reasons are in `.claude/project-docs/design-decisions.md` (DD).
 
-This folder has no `SKILL.md` on purpose: a personal skill wins over a project skill of the same name
-(Claude Code docs, *Resolve skills that share a name*), so a copy here would be ignored and drift.
-✅ = enforced (the checker, a test, the configuration loader); 📄 = documentation only. A practice
+The skills ship in this repository (DD *The skills ship in the repository*); the personal copies of the
+same names are kept out of `~/.claude/skills` by its sparse checkout, so these are the ones a session
+loads. ✅ = enforced (the checker, a test, the configuration loader); 📄 = documentation only. A practice
 followed inconsistently is under **Unsettled**, not written as a rule.
 
 ## Header and checker
 
 - Holder: **JIC Smart Factory** - `Copyright (c) <year> JIC Smart Factory`, `Author   : JIC Smart
-  Factory`; licence MIT. Each file keeps its own copyright year (DD *File headers carry JIC Smart
-  Factory*). The `#`-comment header form; the `"""` form is not used here.
+  Factory`; licence MIT, and `LICENSE` names JIC Smart Factory too. Each file keeps its own copyright
+  year (DD *File headers carry JIC Smart Factory*): 2023 to 2026 are in use (2026-10-29: 2023 in 2
+  files, 2024 in 1, 2025 in 112, 2026 in 32); a new file takes the current year. The `#`-comment header
+  form; the `"""` form is not used here. The skills' own files are under `.claude/skills/LICENSE` (MIT,
+  Roman Parak) and are not checked.
 - The naming and docstring style descends from rparak/RoLE; where RoLE differs (no exceptions, no
   tests, a docstring header) this project does not follow it.
 - `check_style.json` (this folder): class roots `src`, `App`, `Example`; test root `test`; check
   roots `src`, `App`, `Example`, `test`; one exclusion, `src/Transformation` (below), with its reason.
 - Command, from the repository root:
-  `.venv/bin/python ~/.claude/skills/project-style-rpx/scripts/check_style.py`. It reports 11 known
-  issues (2026-10-23), all listed under Unsettled: 9 Qt overrides without `Args:` and `Style.py`'s
+  `.venv/bin/python .claude/skills/project-style-rpx/scripts/check_style.py`. It reports 11 known
+  issues (2026-10-23, again 2026-10-29), all listed under Unsettled: 9 Qt overrides without `Args:` and `Style.py`'s
   `FONT_UI` / `FONT_MONO`. A change must add none.
 
 ## Layout and layers 📄 (✅ for Qt)
@@ -38,8 +39,10 @@ Example/<Domain>/        the scripts folder (Camera/, Vision/, UI/): harnesses, 
 test/<Domain>/           mirroring src/; test/integration/ for cross-module contracts and the pipeline,
                          test/Install/ for the installer
 Configuration/           Mode/, Station/, Calibration/ (references > Configuration)
-Data/                    the test frames, the catalogue items, results
-images/                  the README's figures, generated, and the project poster
+Data/                    Images/Test (the pinned frames), Images/Edge (the regression crops),
+                         Images/Background (the references), Catalogue/, Calibration/ (the board's PDF);
+                         Results/ and Images/Calibration/ are git-ignored
+images/                  the media folder: the README's figures, generated, and the project poster
 .claude/project-docs/    SPEC.md, design-decisions.md, KNOWN_ISSUES.md, capture-checklist.md (Records)
 ```
 
@@ -51,7 +54,7 @@ Camera, Configuration, Reporting → Parameters
 Calibration                      → Camera, Parameters
 Logger                           → Configuration     (Logger.Station_Events → Logger.Core)
 Vision                           → Camera, Reporting, Parameters
-UI                               → everything above          (App/run.py → UI and the domain)
+UI                               → everything above but Calibration  (App/run.py → UI and the domain)
 ```
 
 - **`Parameters` sits below every other layer**: `*_Str` dataclasses and plain tokens, no behaviour
@@ -111,7 +114,7 @@ No module parses YAML for itself; tools in `Example/` go through these readers t
   needs them, in every layer, so a bare import stays cheap and Qt-free (`Segmenter.py`,
   `Describers.py`, `Camera/Core.py`).
 - `src/Vision/Utilities/` functions take `cv2` and `np` as parameters rather than importing them
-  (`Draw_Annotated(..., cv2, np, ...)`, `Fuse_Objects`, `Measure`), and so do the `Vision` functions
+  (`Draw_Annotated(..., cv2, np, ...)`, `Fuse_Objects`, `Measure_Mask`, `Measure_Objects`), and so do the `Vision` functions
   that call them: those modules stay importable and testable without OpenCV. **Elsewhere a
   module-level `import cv2` / `import numpy as np` is the norm** (`UI/Core.py`,
   `Camera/Utilities/Image_Processing.py`, `Configuration/Core.py`) - not a violation.
@@ -134,7 +137,7 @@ The rule is the generic skill's (structure.md, yaml.md). Here:
 Three kinds under `Configuration/`, each in its own folder and linked by name: a mode file,
 `Mode/Config_<Hardware>_Mode_<Mode>.yaml` (one per mode), names its station (`Station`); a station
 file, `Station/Station_<Hardware>[_<Name>].yaml` (the camera, its acquisition settings and window, the
-background reference - shared by the modes naming it, never overridden by one; written by hand), names
+background reference, the inspection area - shared by the modes naming it, never overridden by one; written by hand), names
 its calibration (`Calibration`); and a calibration,
 `Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml` (one per solve, written by `calibrate.py`,
 never written over). A reference is a file name, never a path, resolved in its kind's folder of the
@@ -156,7 +159,7 @@ same rules. ✅ = enforced by `Configuration.Core.Load_Configuration` / `Write_C
 - Section order: the mode file's is `Hardware, Station, General, Identity, Confidence, Segmentation,
   Description, Evaluation`, a catalogue mode's `Catalogue` block after `Identity` (shared because the
   catalogue modes were copied from the first; nothing checks it). The station file's is `Hardware,
-  Calibration, Camera, Background`; the calibration's is fixed by its writer.
+  Calibration, Camera, Background, Inspection_Area`; the calibration's is fixed by its writer.
 - **Loading** ✅, beyond the generic rules: a **harness-only** field (the `Evaluation` block:
   `Evaluation.Frames`, read by `analyze.py`, never by the application) is optional, and the loader only
   resolves it - data the application never touches must not stop it loading; the harness that reads
@@ -264,7 +267,10 @@ disagreement is a question, not a new rule. ✅ = `test/Install/test_install.py`
   `test_<script>.py` per script (a recorded departure).
 - Script tests run the script in a fresh interpreter from an unrelated working directory
   (`test/Camera/test_reference_harnesses.py` has the pattern).
-- The skills' frontmatter and this file are held by `test/integration/test_skills.py`.
+- The skills are held by `test/integration/test_skills.py`: the six folders and LICENSE, each SKILL.md's name
+  and description, each skill's files and its project.md sections, every pointer resolving, no project term
+  in a generic file, the README sections the project layers cite, and CLAUDE.md naming the skills and the
+  checker.
 
 ## Records - `.claude/project-docs/`, `README.md`
 
@@ -369,6 +375,11 @@ jic-sf-ui-style, in `.claude/skills/jic-sf-ui-style/references/project.md`.
   `test/conftest.py` and, in scripts, a path built from `__file__`.
 - Root entries beyond the generic list, each with its reason (Root).
 - `src/Transformation/` is excluded from the checker (Header and checker).
+- **Python 3.10**, not the generic 3.11: the `.venv` `install.sh` creates runs 3.10.10 on the development Mac
+  (2026-10-29); the Linux machine ran 3.11.16 (README > Platform).
+- **`images/`** is the media folder (the generic default is `Media/`).
+- The two check tiers, their commands and their measured times are in `CLAUDE.md` > Commands, the one place
+  they are written.
 
 ## Unsettled - not rules yet
 

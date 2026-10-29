@@ -1,9 +1,8 @@
 # feature-manager: project reference for AnyScan
 
-AnyScan's part of the procedure in the personal skill **feature-manager**; it overrides that skill
-where they differ. The language rule (notes in Czech or Slovak, everything written in English) is in
-`CLAUDE.md`. This folder has no `SKILL.md` on purpose: a personal skill wins over a project skill of
-the same name, so a copy here would be ignored and drift.
+AnyScan's part of the procedure in **feature-manager** (`SKILL.md`, beside this folder); it overrides
+that skill where they differ. The language rule (notes in Czech or Slovak, everything written in
+English) and the work rules (a branch per revision, pushing, attribution) are in `CLAUDE.md`.
 
 ## Records
 
@@ -24,7 +23,9 @@ station, recorded in the capture set, the run-summary CSV and the daily station 
 
 None. AnyScan drives no hardware beyond the camera it reads; a person acts on its verdicts. What a
 verdict may claim is bounded by README > Limitations (sizes are repeatable, not absolute; the
-describer is not a defect detector).
+describer is not a defect detector; a catalogue mode checks only what its item lists). The sentence a
+result carries is the README's own warning (README.md, the `[!IMPORTANT]` alert under Figure 1): a
+verdict is advice to the operator, verified only as SPEC > *Verified on hardware, and not yet* states.
 
 ## Always "large" (ask before building)
 
@@ -104,7 +105,7 @@ Each item links to where it happened here. Read the record; it is not retold.
 **Evaluation**
 
 - [ ] The metric that matters: in quality control, false acceptance (a bad part passed), not overall
-      accuracy. See the catalogue entry above, *Why step 3 has no lower bound*: a same-sized foreign
+      accuracy. See *Why step 3 has no lower bound* in the DD entry linked under *Typical better levers*: a same-sized foreign
       object reads NOK, not Warning, because that is the safer error.
 - [ ] A test set changed without its inventory:
       [*A replaced image never keeps its name*](../../../project-docs/design-decisions.md#a-replaced-image-never-keeps-its-name).
@@ -137,11 +138,12 @@ fails until the row exists.
   inventory, xfails and doc citations with it.
 - A UI change is rendered offscreen and looked at (truncated text, clipping, contrast); a passing
   region-diff test does not show that.
-- Skips (weights absent) are reported as skips. Before a commit: `pytest -q --runslow` (`CLAUDE.md`).
+- Skips (weights absent) are reported as skips. The two tiers and their commands are in `CLAUDE.md` > Commands.
 
 ## Commits
 
-- Never committed: `models/` (weights; the installer tests' fixture), `logger/` contents,
+- Never committed: `models/` (the weights; a session fixture in `test/conftest.py` checks that the suite
+  leaves it as it found it), `logger/` contents,
   `Data/Results/`, `Data/Images/Calibration/` (git-ignored).
 - Only as its own deliberate change, with its report: the pinned test set `Data/Images/Test/`, the
   background references and their sidecars.

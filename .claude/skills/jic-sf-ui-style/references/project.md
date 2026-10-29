@@ -1,17 +1,16 @@
 # jic-sf-ui-style: project reference for AnyScan
 
-AnyScan's bindings of the JIC Smart Factory style (the personal skill **jic-sf-ui-style**, which was
-taken from this application): which module does each job, its views and their state colours, its
+AnyScan's bindings of the JIC Smart Factory style (**jic-sf-ui-style**, `SKILL.md` beside this folder,
+which was taken from this application): which module does each job, its views and their state colours, its
 vision overlays and their measurements, its catalogue wording, its logos and band, and the test that
 holds each rule here (✅ a test, 📄 documentation only). Each section names the skill page that holds
 the rule; this file does not repeat it. The brand-independent UI rules and their bindings here (Qt
 code, the token test, contrast, density, colour relationships) are project-style-rpx
 `references/ui.md` and `.claude/skills/project-style-rpx/references/project.md` > *UI*. Where the
-skill and this code disagree, the code is the truth; correct the skill. On a machine without the
-personal skill, the rules are read from this file, the code and `.claude/project-docs/design-decisions.md` (DD).
-
-This folder has no `SKILL.md` on purpose: a personal skill wins over a project skill of the same name,
-so a copy here would be ignored and drift.
+skill and this code disagree, the code is the truth; the skill is corrected upstream in
+`rparak/rp-claude-skills` and taken over as a deliberate change. The reasons are in
+`.claude/project-docs/design-decisions.md` (DD). The skill's generic files are rp-claude-skills `ec7af02`
+unchanged; they name AnyScan and JIC by design, the one skill allowed to (owner, 2026-10-29).
 
 ## Modules
 
@@ -117,8 +116,9 @@ Do not copy the skill's templates here: they were generalised from these modules
 - The marker (`●  LIVE PREVIEW`, `SCANNING…`, `ANALYZING…`) is `UI.Widgets.State_Marker_Cls`, fed by
   `Viewport_Cls.Marker_Changed`; a new state the view must name joins `CONST_STATES` (DD *ANALYZE
   sweeps a decorative pixel grid over the frame…*). The grid and the busy overlay are `Viewport_Cls`
-  (`Start_Analysis`, `Start_Busy`), their values in `Theme.CONST_GRID_*`, `CONST_BUSY_*` and
-  `Pixel_Motif.CONST_WAVE_*`.
+  (`Start_Analysis`, `Start_Busy`), their colours in `Theme.CONST_GRID_*` and `CONST_BUSY_*`, their timing in `Style.CONST_GRID_TICK_MS`,
+  `CONST_GRID_COLUMNS` and `CONST_BUSY_TICK_MS`, and the motion in `Pixel_Motif.CONST_WAVE_*` and
+  `CONST_BUSY_STEPS`.
 - ✅ `test/UI/test_analysis_grid.py::test_the_grid_is_the_same_drawing_over_two_different_frames`,
   `::test_no_state_label_is_drawn_inside_the_image`, `::test_the_three_states_share_one_marker_in_the_head`,
   `::test_the_grid_stops_when_the_analysis_ends`.

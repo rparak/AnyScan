@@ -1,8 +1,7 @@
 # readme-writer: project reference for AnyScan
 
-AnyScan's README decisions; they override the personal skill **readme-writer** where they differ.
-This folder has no `SKILL.md` on purpose: a personal skill wins over a project skill of the same
-name, so a copy here would be ignored and drift.
+AnyScan's README decisions; they override **readme-writer** (`SKILL.md`, beside this folder) where they
+differ. The checker's reasoned exceptions are in `check_readme.json`, beside this file.
 
 ## Readers
 
@@ -89,9 +88,12 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
 - **Checker exception, Authors only** (the owner's ruling, 2026-10-24): `check_readme.py` treats each
   avatar as a figure and reports 8 ERRORs on the four cells, `alt-text` (2-3 words, 12 needed) and
   `caption` (no "Figure N:"). They are allowed there and nowhere else: an avatar is an identifying
-  portrait, not a figure, so its alt is the person's name and it carries no caption. The checker has no
-  per-section suppression, so the baseline is 8 errors, every one on an Authors cell; any other ERROR is
-  a defect. The avatars are external images (GitHub's avatar service), the README's only ones.
+  portrait, not a figure, so its alt is the person's name and it carries no caption. The four avatars are
+  listed in `check_readme.json` as `uncaptioned_figures`, each with its reason (owner, 2026-10-29), which
+  turns their 4 caption ERRORs into INFO lines. The checker exempts a listed figure from the caption only,
+  not from the alt text, so the baseline is 4 ERRORs, `alt-text` on the four avatars (measured 2026-10-29),
+  and 1 warning (`5.0.0.93 looks like an IP address`, the OpenCV pin); any other ERROR is a defect. The avatars are external images (GitHub's avatar
+  service), the README's only ones.
 - **Funding** reads: "Developed within internal research at JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT project shows small and medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts." (the owner's words,
   2026-10-24, the README's only sentence on where AnyScan was developed; Figure 1's description
   carries the same sentence, then "Funded by the European Union.", from its generator), Figure 2, its
@@ -130,8 +132,8 @@ Commands:
 
 ```bash
 .venv/bin/python -m pytest -q test/UI/test_brand_figures.py test/UI/test_funding_band.py
-.venv/bin/python ~/.claude/skills/readme-writer/scripts/check_readme.py README.md   # 8 errors (the Authors exception, above), 1 warning
-<throwaway python with cmarkgfm> ~/.claude/skills/readme-writer/scripts/render_readme.py README.md   # 0 leftovers, 2026-10-24
+.venv/bin/python .claude/skills/readme-writer/scripts/check_readme.py README.md   # 4 errors (the avatars' alt text, above), 1 warning
+<throwaway python with cmarkgfm> .claude/skills/readme-writer/scripts/render_readme.py README.md   # 0 leftovers, 2026-10-24
 ```
 
 ## Pointers
