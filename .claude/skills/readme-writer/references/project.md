@@ -139,6 +139,55 @@ Commands:
 <throwaway python with cmarkgfm> .claude/skills/readme-writer/scripts/render_readme.py README.md   # 0 leftovers, 2026-10-24
 ```
 
+## Third-party components
+
+The confirmed inventory R4 writes the README's third-party section from (R1, 2026-10-29). Versions: the pin in
+`requirements.txt` / `install.sh`, then what `.venv` held on the development Mac. Licences were read from each
+package's installed metadata or licence file, from the model card at the pinned revision (Hugging Face API), or from
+the file in the repository; each row names its source. **Unconfirmed** means not read at the source in R1. The
+README's *Licence note* already covers Gemma, DINOv2 and the fonts (README > Licence note); this table is wider.
+
+| Component | Version | What AnyScan uses it for | Arrives | Licence | Source of the licence | Licence | Project |
+|---|---|---|---|---|---|---|---|
+| PyQt5 | `>=5.15` / 5.15.11 | the desktop window and its widgets | pip | **GPL-3.0** (or Riverbank's commercial licence) | metadata "GPL v3" | [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html), [Riverbank FAQ](https://www.riverbankcomputing.com/commercial/license-faq) | [PyQt](https://www.riverbankcomputing.com/software/pyqt/) |
+| Qt 5 libraries (PyQt5-Qt5) | with PyQt5 / 5.15.19 | the Qt runtime under PyQt5 | pip | LGPL-3.0 | dist-info `LICENSE` | [LGPL-3.0](https://www.gnu.org/licenses/lgpl-3.0.html) | [Qt licensing](https://www.qt.io/licensing/) |
+| PyQt5_sip | with PyQt5 / 12.19.0 | PyQt5's binding layer | pip | BSD-2-Clause | metadata | in the package | [sip](https://github.com/Python-SIP/sip) |
+| numpy | `>=2.2` / 2.2.6 | image and number arrays | pip | BSD-3-Clause | dist-info `LICENSE.txt` | [licence](https://numpy.org/doc/stable/license.html) | numpy.org |
+| opencv-python-headless | `==5.0.0.93` | image processing, undistortion, drawing | pip | Apache-2.0 | metadata, `cv2/LICENSE.txt` | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [opencv-python](https://github.com/opencv/opencv-python) |
+| Pillow | `>=10.0` / 12.3.0 | image files | pip | MIT-CMU | metadata | [LICENSE](https://github.com/python-pillow/Pillow/blob/main/LICENSE) | python-pillow.org |
+| PyYAML | `>=6.0` / 6.0.3 | reading the configuration files | pip | MIT | metadata | [LICENSE](https://github.com/yaml/pyyaml/blob/main/LICENSE) | pyyaml.org |
+| pypylon | `>=3.0` / 26.8 | talking to the Basler camera | pip | BSD-3-Clause text for its own code; metadata classifier "Other/Proprietary License" | dist-info `LICENSE` (Copyright Basler AG) | [LICENSE](https://github.com/basler/pypylon/blob/master/LICENSE) | [pypylon](https://github.com/basler/pypylon) |
+| Basler pylon runtime | inside the pypylon 26.8 wheel | the camera driver pypylon calls | pip, bundled | **Basler pylon End-User License Agreement (proprietary)** | `pypylon/pylon.framework/Versions/A/Resources/License.txt` | **unconfirmed**: Basler's download page refused scripted reads (403) | baslerweb.com |
+| huggingface_hub | `>=1.30` / 1.33.0 | downloading Gemma and DINOv2 at install | pip | Apache-2.0 | metadata | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [huggingface_hub](https://github.com/huggingface/huggingface_hub) |
+| torch | `>=2.3` / 2.14.0 | runs FastSAM and DINOv2 | pip | BSD-3-Clause, with Apache-2.0, BSL-1.0 and MIT parts | metadata `License-Expression` | [LICENSE](https://github.com/pytorch/pytorch/blob/main/LICENSE) | pytorch.org |
+| transformers | **not declared** / 5.17.0, through mlx-vlm | loads DINOv2 (`src/Vision/Identifier.py`) | pip, transitive (R3 defect) | Apache-2.0 | metadata | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [transformers](https://github.com/huggingface/transformers) |
+| ultralytics | `>=8.2` / 8.4.123 | runs the FastSAM segmenter | pip | **AGPL-3.0** | metadata, dist-info `LICENSE` | [ultralytics licence](https://www.ultralytics.com/license), [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html) | [ultralytics](https://github.com/ultralytics/ultralytics) |
+| mlx, mlx-metal | `==0.32.2` | runs Gemma on the GPU | pip | MIT | metadata | [LICENSE](https://github.com/ml-explore/mlx/blob/main/LICENSE) | [mlx](https://github.com/ml-explore/mlx) |
+| mlx[cuda12 / cuda13 / cpu] (Linux) | no version in `requirements/`; bound by `mlx==0.32.2` (`install.sh`, one pip call) | the Linux backend | pip | MIT, as mlx | **unconfirmed** separately (not installed on the Mac) | as mlx | as mlx |
+| mlx-vlm | `==0.7.2` | Gemma's vision-language interface | pip | MIT | metadata | in the package | [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) |
+| pytest | `>=7.0` / 9.1.1 | the test suite | pip | MIT | metadata | [LICENSE](https://github.com/pytest-dev/pytest/blob/main/LICENSE) | pytest.org |
+| fontTools | **not declared** / 4.65.0, through matplotlib | `Example/UI/build_fonts.py` (maintenance) | pip, transitive (R3) | MIT | metadata | [LICENSE](https://github.com/fonttools/fonttools/blob/main/LICENSE) | [fonttools](https://github.com/fonttools/fonttools) |
+| FastSAM-x weights | ultralytics assets `v8.4.0`, SHA-256 pinned in `install.sh` | finds the objects in the frame | `install.sh` download | **AGPL-3.0** | the ultralytics/assets repository's licence (GitHub API); the original CASIA-IVA-Lab/FastSAM `LICENSE` is AGPL-3.0 too | [ultralytics licence](https://www.ultralytics.com/license) | [release](https://github.com/ultralytics/assets/releases/tag/v8.4.0), [FastSAM](https://github.com/CASIA-IVA-Lab/FastSAM) |
+| Gemma 4 E4B, 4-bit MLX | `mlx-community/gemma-4-e4b-it-4bit@475b908` | writes each object's description | `install.sh` download | **unconfirmed** until the owner reads the licence page: the conversion's card says `license: gemma`; the base `google/gemma-4-E4B-it@fee6332` card says `apache-2.0` with the link below | both model cards at those revisions (Hugging Face API, 2026-10-29) | [Gemma 4 licence](https://ai.google.dev/gemma/docs/gemma_4_license) | [base model](https://huggingface.co/google/gemma-4-E4B-it), [conversion](https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit) |
+| DINOv2 base | `facebook/dinov2-base@f9e44c8` | recognises the catalogued part | `install.sh` download | Apache-2.0 | model card at that revision (Hugging Face API) | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [model](https://huggingface.co/facebook/dinov2-base) |
+| Public Sans | the google/fonts commit pinned in `build_fonts.py` | the UI typeface | in the repository (`App/assets/fonts/`) | OFL-1.1 | `PublicSans-OFL.txt` beside the files | [OFL](https://openfontlicense.org) | [Public Sans](https://github.com/uswds/public-sans) |
+| JetBrains Mono | the same commit | the UI's monospace face | in the repository | OFL-1.1 | `JetBrainsMono-OFL.txt` | [OFL](https://openfontlicense.org) | [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) |
+| JIC Smart Factory logo | `App/assets/jic-smart-factory.svg` | the header's brand mark | in the repository | usage rules, not a licence | jic-sf-ui-style `assets/logos/USAGE.md`; the owner's source of the rules **unconfirmed** | - | jic.cz |
+| EDIH-DIGIMAT, Ministry of Industry and Trade, EU emblem | traced SVGs in `App/assets/` | the funding band and Figure 2 (a funding obligation) | in the repository | the funders' usage and visibility rules | `USAGE.md`; the EU's [visibility rules](https://commission.europa.eu/funding-tenders/managing-your-project/communicating-and-raising-eu-visibility_en); the other two sources **unconfirmed** | - | edih-digimat.cz, mpo.gov.cz |
+| `src/Transformation/` | inherited | nothing imports it | in the repository | MIT | file headers ("Copyright (c) 2023 JIC Smart Factory"); the style's origin credit, DD *File headers carry JIC Smart Factory* | `LICENSE` | [RoLE](https://github.com/rparak/RoLE) |
+
+**Copyleft and non-open terms**, in plain words, not a legal conclusion:
+
+- **PyQt5 (GPL-3.0)**: whoever distributes AnyScan together with PyQt5 distributes the combination under GPL-3.0's
+  conditions. AnyScan's MIT code may be combined with it; a closed or commercial redistribution needs Riverbank's
+  commercial licence.
+- **ultralytics and the FastSAM-x weights (AGPL-3.0)**: using them is free, but whoever distributes a modified
+  version, or offers it to users over a network, must provide its source under AGPL-3.0.
+- **The Basler pylon runtime (proprietary EULA)**: it comes inside the pypylon wheel under Basler's own terms, which
+  govern its use and redistribution.
+- **Gemma 4**: the licence AnyScan states for it rests on the base model's card until the owner has read the
+  licence page; the conversion's `gemma` tag disagrees with it.
+
 ## Pointers
 
 `CLAUDE.md` > *Skills*; feature-manager `project.md` > *Docs*.
