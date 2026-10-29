@@ -146,6 +146,10 @@ fails until the row exists.
 
 - What is never committed, and what is committed only as its own deliberate change: project-style-rpx
   `project.md` > *Root*, the one list.
+- **The owner's configuration edits stay the owner's.** The owner's own edits to files under `Configuration/` (mode,
+  station and calibration files) are never staged or committed by a session unless the owner names them. This is
+  `SKILL.md` > *Commits* (the owner's uncommitted hunks are never staged) applied to the files a station tunes by
+  hand.
 
 ## Docs - in the same commit as the behaviour
 
@@ -168,3 +172,5 @@ fails until the row exists.
 - **KNOWN_ISSUES**: an open behaviour found is recorded; one the change fixes is removed, and the
   resolution goes to the DD.
 - **README**: the triggers are in `.claude/skills/readme-writer/references/project.md` > Triggers.
+- **`SUPPORT_CHAT.md`**: when an accepted change alters what the brief states (the state, numbers, commands, rules,
+  roles, modules or open items), refresh it with the support-brief skill.

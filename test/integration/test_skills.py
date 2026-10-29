@@ -52,7 +52,7 @@ CONST_SKILLS_DIR = os.path.join('.claude', 'skills')
 CONST_SKILLS_EXTRA = ('LICENSE',)
 
 # Each shipped skill: the files it must hold (relative to its folder) and the sections its references/project.md
-# must hold. support-brief's project layer is a stub until R2 (FEATURES.md).
+# must hold.
 #   Unit [Dict<string, Dict<string, Tuple<string>>>]
 CONST_SKILLS = {
     'project-style-rpx': {
@@ -87,7 +87,7 @@ CONST_SKILLS = {
         'sections': ('## Modules', "## AnyScan's state colours", '## The vision overlays', '## Unsettled')},
     'support-brief': {
         'files': ('SKILL.md', 'references/project.md'),
-        'sections': ('## Status',)},
+        'sections': ('## Where the brief lives', '## Length', '## When it is refreshed', '## What holds it')},
 }
 # The longest description Claude Code accepts in a skill's frontmatter.
 #   Unit [-]
