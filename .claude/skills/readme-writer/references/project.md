@@ -53,7 +53,10 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
 - Script: `Example/UI/architecture_diagram.py` writes `images/anyscan-architecture.svg` (Figure 1)
   and `images/anyscan-funding.svg` (Figure 2), from the theme's tokens, `Style.py`'s type scale and
   font fallbacks, and the pixel icon set; regenerated, never edited by hand. `Example/UI/build_logo.py`
-  derives the logo copies from `images/anyscan-logo.svg`.
+  derives the logo copies in `App/assets/` from `images/anyscan-logo.svg`, never edited by hand either.
+  After replacing the logo, run `build_logo.py` first, then `architecture_diagram.py` (the diagram embeds
+  the logo); `test/UI/test_brand_figures.py` fails when they disagree. This is the one place the
+  regeneration rule is written; project-style-rpx and jic-sf-ui-style point here.
 - Folder: `images/` (the generic default is `Media/`; project-style-rpx `project.md` > *Root*).
 - Light and dark: each figure carries its own opaque ground (a white card, the purple band), so no
   `<picture>` variants. **Unchecked** on GitHub's dark theme until the owner looks at both figures

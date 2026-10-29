@@ -142,11 +142,8 @@ fails until the row exists.
 
 ## Commits
 
-- Never committed: `models/` (the weights; a session fixture in `test/conftest.py` checks that the suite
-  leaves it as it found it), `logger/` contents,
-  `Data/Results/`, `Data/Images/Calibration/` (git-ignored).
-- Only as its own deliberate change, with its report: the pinned test set `Data/Images/Test/`, the
-  background references and their sidecars.
+- What is never committed, and what is committed only as its own deliberate change: project-style-rpx
+  `project.md` > *Root*, the one list.
 
 ## Docs - in the same commit as the behaviour
 

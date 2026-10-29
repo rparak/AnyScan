@@ -64,12 +64,10 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
 
 ## Never touched
 
-- **`models/`**: the weights; a session fixture in `test/conftest.py` (`models_untouched`) fails the suite if
-  it changes
+- **Everything project-style-rpx `project.md` > *Root* lists** as never committed or committed only as its
+  own deliberate change (the weights, the captures, the pinned data and the golden files), and the
+  describer's answer key (`test/Vision/Utilities/data/answer_key_1061966.json`)
   ([*models/ is out of reach of the installer tests…*](../../../project-docs/design-decisions.md#models-is-out-of-reach-of-the-installer-tests-and-the-suite-fails-if-it-changes)).
-- **Captures and data**: `Data/` (the pinned test set, the edge crops, references and their sidecars),
-  the describer's answer key (`test/Vision/Utilities/data/answer_key_1061966.json`), `logger/` contents,
-  calibration capture sets.
 - **`src/Transformation/`**: inherited, excluded in `check_style.json` with its reason. Findings in it
   are reported under their own heading, never acted on.
 - **The repository root as a workspace.** Reviewers, mutations and reproductions run in a scratch
@@ -122,9 +120,8 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
   dumps): `perl -e 'alarm shift; exec @ARGV' 300 .venv/bin/python -m pytest test/UI -q -p no:cacheprovider`.
 - **Functionality the user sees** (a view, a record, a configuration field even if it does nothing, a
   harness in `Example/`, a new message, state or close sequence) is for feature-manager.
-- Every step that changes `src/`, `App/`, `Configuration/` or `Example/` reviews `.claude/project-docs/SPEC.md`
-  (feature-manager `project.md` > *Docs*): normally the *Last reviewed* line moves, with
-  *Capabilities: no change (optimization: <kind>)* in the message.
+- The SPEC review on a code change: feature-manager `project.md` > *Docs*, the one place. An optimization
+  step's message reads *Capabilities: no change (optimization: <kind>)*.
 
 ## Slow paths and timings
 

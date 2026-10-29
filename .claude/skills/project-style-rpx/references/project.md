@@ -90,6 +90,13 @@ list, each with its reason (the owner's rulings of 2026-10-23 and 2026-10-24):
   chooses between.
 - `pytest.ini` - the test runner reads it from the root; `.gitattributes` - the line-ending rules.
 
+**Never committed** (git-ignored; this list is the one place it is written): the model weights in `models/`
+(a session fixture, `models_untouched` in `test/conftest.py`, fails the suite if a test changes them),
+`logger/` contents, `Data/Results/`, `Data/Images/Calibration/`, `.venv/`. **Committed only as its own
+deliberate change, with its report**: the pinned test set `Data/Images/Test/`, the edge regression crops
+`Data/Images/Edge/`, the background references and their sidecars, the golden files
+(`test/Vision/data/characterization.txt`, `test/Logger/data/golden_header.csv`).
+
 ## Formats - one reader and writer each 📄
 
 Each on-disk format is parsed by exactly one module - the one that writes it - and everything else
@@ -277,7 +284,7 @@ disagreement is a question, not a new rule. ✅ = `test/Install/test_install.py`
 The records are where the generic skill puts them, `.claude/project-docs/`, with one more:
 `capture-checklist.md`, what only the rig can capture or check. `SPEC.md` is held to the code by
 `test/integration/test_capabilities_doc.py` (sections, views, packages, records, every link, and the
-review line).
+review line; the rule for the review line is feature-manager `project.md` > *Docs*).
 
 **SPEC's sections are not numbered** (a departure from `references/markdown.md`, the owner's ruling of
 2026-10-24): its section names (*Pipeline stages*, *Configuration*, *Verified on hardware, and not
@@ -321,8 +328,8 @@ jic-sf-ui-style, in `.claude/skills/jic-sf-ui-style/references/project.md`.
 - The tokens are in `src/Parameters/Theme.py`, so the application and the vision renderer (the
   exported annotated image and label mask) share one palette.
 - The README's architecture diagram takes its colours from the theme and its type scale and font
-  fallbacks from `Style.py`, through `Example/UI/architecture_diagram.py`; it is regenerated, never
-  edited by hand (✅ `test/UI/test_brand_figures.py`).
+  fallbacks from `Style.py`; how it is regenerated is readme-writer `project.md` > *Figures*
+  (✅ `test/UI/test_brand_figures.py`).
 - ✅ `test/UI/test_colour_tokens.py` scans every UI module (except `Style.py`).
 
 ### Controls and text clear 4.5:1, measured ✅

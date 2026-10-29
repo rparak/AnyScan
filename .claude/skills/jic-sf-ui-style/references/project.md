@@ -128,8 +128,8 @@ Do not copy the skill's templates here: they were generalised from these modules
 - The density check and the type floor are bound in project-style-rpx `project.md` > *One density check*.
 - The header's lockup is `Widgets.Logo_Lockup_Cls`: `App/assets/anyscan-logo-wordmark.svg` plus the
   live tagline at `Style.CONST_LOGO_TAGLINE_ORIGIN` and `CONST_LOGO_TAGLINE_SIZE`, in
-  `CONST_LOGO_INK`. The logo's copies are derived from `images/anyscan-logo.svg` by
-  `Example/UI/build_logo.py`; never hand-edit them or move the tagline's constants apart from the
+  `CONST_LOGO_INK`. The logo's copies are generated (readme-writer `project.md` > *Figures*, the one
+  place for regenerating the logo and the figures); never move the tagline's constants apart from the
   outlines (DD *The header draws the delivered logo and sets its tagline as live text*).
   ✅ `test/UI/test_header.py` holds the live lockup to the outlined logo within 1 device px at both
   densities; `test/UI/test_brand_figures.py` holds the derived files to the logo.
