@@ -138,7 +138,8 @@ def test_module_is_qt_free() -> None:
         The composer imports no Qt — it is a reusable domain module.
     """
 
-    source = open(Reporting.__file__).read()
+    with open(Reporting.__file__) as handle:
+        source = handle.read()
     assert 'PyQt' not in source
     assert 'import cv2' not in source
     assert 'import torch' not in source

@@ -113,7 +113,8 @@ def test_module_is_qt_free() -> None:
         owns the ndarray -> QImage conversion.
     """
 
-    source = open(Camera_Core.__file__).read()
+    with open(Camera_Core.__file__) as handle:
+        source = handle.read()
     assert 'PyQt' not in source
     assert 'QImage' not in source
 

@@ -216,7 +216,8 @@ def test_evicting_the_displayed_history_set_is_logged(qt_app, reference_backgrou
     _Private(window, '__Refresh_History')(['setX', 'setY'])      # setX was evicted
     logger.Close()
 
-    content = open(logger.Path, 'r', encoding='utf-8').read()
+    with open(logger.Path, 'r', encoding='utf-8') as handle:
+        content = handle.read()
     assert 'shown in History (setX) was evicted' in content
 
 
@@ -294,7 +295,8 @@ def test_classification_flag_flows_to_the_written_set(qt_app, reference_backgrou
 
         path = os.path.join(os.path.dirname(logger.Path), 'captures', 'sess1',
                             'set1_objects.json')
-        data = json.loads(open(path, 'r', encoding='utf-8').read())
+        with open(path, 'r', encoding='utf-8') as handle:
+            data = json.loads(handle.read())
         assert data['classification'] is enabled
         logger.Close()
 
@@ -351,7 +353,8 @@ def test_startup_names_the_configuration_it_offers_and_claims_nothing_loaded(tmp
     result = subprocess.run([sys.executable, '-c', driver], capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr[-2000:]
     (log_path,) = _glob.glob(os.path.join(str(tmp_path), 'log_*.txt'))
-    log = open(log_path, encoding='utf-8').read()
+    with open(log_path, encoding='utf-8') as handle:
+        log = handle.read()
     assert "Configuration found: 'Cfg. Segment Anything' (%s)" % CONST_CONFIGURATION.Name in log
     for claim in ('Loaded configuration', 'reads calibration', 'Classification is', 'Measuring objects',
                   'will not be measured'):
@@ -401,4 +404,5 @@ def test_sigterm_ends_an_idle_application_without_waiting_for_an_event(tmp_path)
     assert result.returncode == -signal.SIGTERM, result.stderr[-2000:]
     (log_path,) = [os.path.join(str(tmp_path), name) for name in os.listdir(str(tmp_path))
                    if name.startswith('log_') and name.endswith('.txt')]
-    assert open(log_path, encoding='utf-8').read().splitlines()[-1].endswith('Application stopped. #run-stop')
+    with open(log_path, encoding='utf-8') as handle:
+        assert handle.read().splitlines()[-1].endswith('Application stopped. #run-stop')

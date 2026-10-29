@@ -206,12 +206,14 @@ def test_a_reference_is_the_mean_of_eight_frames_and_loads_with_its_provenance(t
     assert camera.calls == ['connect', 'disconnect'] and camera.frames == []
     expected = np.rint(np.stack(frames).astype(np.float64).mean(axis=0)).astype(np.uint8)
     assert np.array_equal(cv2.imread(output), expected)
-    assert json.loads(open(Reference_Sidecar_Path(output)).read()) == sidecar
+    with open(Reference_Sidecar_Path(output)) as handle:
+        assert json.loads(handle.read()) == sidecar
     assert (sidecar['source'], sidecar['frames'], sidecar['window']) == ('camera', 8, CONST_WINDOW)
     assert sidecar['station'] == os.path.basename(_Station(mode))
     assert sidecar['calibration']['file'] == 'Calibration_%s_Test.yaml' % CONST_HARDWARE
     assert sidecar['compared_with']['reference'].endswith('Image_Background_001.png')
-    assert sidecar['compared_with']['image_sha256'] == hashlib.sha256(open(in_force, 'rb').read()).hexdigest()
+    with open(in_force, 'rb') as handle:
+        assert sidecar['compared_with']['image_sha256'] == hashlib.sha256(handle.read()).hexdigest()
     assert 'not_compared' not in sidecar
 
     Load_Configuration(_Configuration_For(tmp_path, output))
@@ -322,11 +324,13 @@ def test_the_station_file_is_not_edited_and_the_line_to_change_is_printed(tmp_pa
     references.mkdir()
     mode = _Configuration_For(tmp_path, _In_Force(references, 70))
     station = _Station(mode)
-    before = open(station, 'rb').read()
+    with open(station, 'rb') as handle:
+        before = handle.read()
     code, _make_reference = _Run_Main(monkeypatch, mode, references, _Frames())
     out = capsys.readouterr().out
     assert code == 0
-    assert open(station, 'rb').read() == before
+    with open(station, 'rb') as handle:
+        assert handle.read() == before
     line = [number for number, text in enumerate(before.decode('utf-8').splitlines(), 1)
             if text.strip().startswith('Reference:')][0]
     assert '[INFO] The station file was NOT edited' in out

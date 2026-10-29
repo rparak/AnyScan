@@ -132,7 +132,8 @@ def test_module_has_no_toplevel_heavy_import() -> None:
         pure text. This is what lets App/run.py import it without pulling the runtime.
     """
 
-    source = open(Caption.__file__).read()
+    with open(Caption.__file__) as handle:
+        source = handle.read()
     assert 'PyQt' not in source
     assert '\nimport torch' not in source
     assert '\nimport cv2' not in source

@@ -421,7 +421,8 @@ def test_a_log_another_running_instance_holds_is_left_to_it(tmp_path) -> None:
     Pending_Export_Str = Export_Pending(str(tmp_path), str(events), 'log_this_run.txt', CONST_ZONE)
     assert Pending_Export_Str.Live == [os.path.basename(other.Path)] and Pending_Export_Str.Exported == []
     assert not os.path.exists(str(events / '2026-09-25.csv'))
-    assert os.path.basename(other.Path) not in open(Ledger_Path(str(tmp_path)), encoding='utf-8').read()
+    with open(Ledger_Path(str(tmp_path)), encoding='utf-8') as handle:
+        assert os.path.basename(other.Path) not in handle.read()
     other.Close()
 
 
@@ -460,7 +461,8 @@ def test_a_failed_export_is_left_out_of_the_ledger_and_the_next_start_exports_it
     logger = _Run(tmp_path, [('2026-09-25 07:00:00', ''), ('2026-09-25 07:30:00', 'stop')])
     with pytest.raises(Station_Events_Error_Cls, match='could not be exported to %s' % re.escape(str(events))):
         Export_Log(logger.Path, str(events), CONST_ZONE)
-    assert os.path.basename(logger.Path) not in open(Ledger_Path(str(tmp_path)), encoding='utf-8').read()
+    with open(Ledger_Path(str(tmp_path)), encoding='utf-8') as handle:
+        assert os.path.basename(logger.Path) not in handle.read()
 
     events.mkdir()
     for start in ('log_next.txt', 'log_after_that.txt'):
@@ -489,7 +491,8 @@ def test_a_failure_at_startup_is_reported_per_log_and_the_others_still_export(tm
     ((name, message),) = Pending_Export_Str.Failed
     assert name == os.path.basename(first.Path) and 'retried at the next start' in message
     assert Pending_Export_Str.Exported == [os.path.basename(second.Path)]
-    assert name not in open(Ledger_Path(str(tmp_path)), encoding='utf-8').read()
+    with open(Ledger_Path(str(tmp_path)), encoding='utf-8') as handle:
+        assert name not in handle.read()
 
 
 def test_the_first_start_records_the_logs_already_there_without_exporting_them(tmp_path) -> None:

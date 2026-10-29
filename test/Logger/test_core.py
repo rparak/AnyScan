@@ -413,7 +413,8 @@ def test_orphan_events_are_warnings(tmp_path: tp.Any) -> None:
 
     assert len(Session_Logger.Sessions) == 0
     assert len(Session_Logger.Errors) == 0
-    content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
+    with open(Session_Logger.Path, 'r', encoding='utf-8') as handle:
+        content = handle.read()
     assert '[WARNING] Camera disconnected, but no connection was open.' in content
     assert '[WARNING] An error resolution arrived with no matching error (error_id=999).' in content
     Session_Logger.Close()
@@ -563,7 +564,8 @@ def test_an_analysis_running_at_shutdown_is_counted_to_the_stop(tmp_path: tp.Any
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
     assert row['total_session_time'] == '00:30:00'
 
-    content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
+    with open(Session_Logger.Path, 'r', encoding='utf-8') as handle:
+        content = handle.read()
     assert '(closed at shutdown)' in content
 
 
@@ -582,7 +584,8 @@ def test_connections_are_not_counted_as_work(tmp_path: tp.Any) -> None:
     clock.now = _T('10:07:30'); Session_Logger.Log_Camera_Disconnected()    # 150 s
     clock.now = _T('10:10:00'); Session_Logger.Close()
 
-    content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
+    with open(Session_Logger.Path, 'r', encoding='utf-8') as handle:
+        content = handle.read()
     assert 'Connection 1 ended after 00:01:00.' in content and 'Connection 2 ended after 00:02:30.' in content
     row = _Read_Rows(Session_Logger.Csv_Path)[0]
     assert row['total_session_time'] == '00:00:00' and row['idle_time'] == '00:10:00'
@@ -698,7 +701,8 @@ def test_csv_write_failure_is_logged_and_not_raised(tmp_path: tp.Any) -> None:
     Session_Logger.Close()   # must not raise
 
     assert not os.path.exists(unreachable_csv)
-    content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
+    with open(Session_Logger.Path, 'r', encoding='utf-8') as handle:
+        content = handle.read()
     assert '[ERROR  ] Failed to write the run-summary CSV row' in content
     assert content.rstrip().endswith('Application stopped. #run-stop')
 
@@ -713,13 +717,14 @@ def test_txt_has_no_run_summary_block(tmp_path: tp.Any) -> None:
     Session_Logger, clock, stop_time = _Build_Reference_Run(tmp_path)
     clock.now = stop_time; Session_Logger.Close()
 
-    content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
+    with open(Session_Logger.Path, 'r', encoding='utf-8') as handle:
+        content = handle.read()
     assert 'RUN SUMMARY' not in content
     assert 'Camera connected. Connection 1 started.' in content
     assert content.rstrip().endswith('Application stopped. #run-stop')
 
 
-def test_line_sink_receives_separated_fields_and_the_matching_line(tmp_path: tp.Any) -> None:
+def test_line_sink_receives_separated_fields_and_the_matching_line(tmp_path: tp.Any, session_logger: tp.Any) -> None:
     """
     Description:
         The sink is handed each line's fields ALREADY SEPARATED (a Log_Line_Str) plus the
@@ -731,8 +736,8 @@ def test_line_sink_receives_separated_fields_and_the_matching_line(tmp_path: tp.
     """
 
     clock = Clock_Cls(_T('08:00:00'))
-    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
-                                        install_handlers=False)
+    Session_Logger = session_logger(config_path=None, log_dir=str(tmp_path), clock=clock,
+                                    install_handlers=False)
     received = []
 
     Session_Logger.Log_Info('Before the sink is attached.')      # seeds the file only
@@ -747,12 +752,13 @@ def test_line_sink_receives_separated_fields_and_the_matching_line(tmp_path: tp.
     assert warn_rec.Level == CONST_LEVEL_WARNING and warn_rec.Message == 'A warning.'
 
     # The accompanying line equals the file line without the trailing newline (same string).
-    file_lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()
+    with open(Session_Logger.Path, 'r', encoding='utf-8') as handle:
+        file_lines = handle.read().splitlines()
     assert info_line in file_lines and warn_line in file_lines
     assert info_line == '2026-09-12 08:00:00 [INFO   ] After the sink is attached.'
 
 
-def test_a_sink_failure_never_prevents_the_write_to_disk(tmp_path: tp.Any) -> None:
+def test_a_sink_failure_never_prevents_the_write_to_disk(tmp_path: tp.Any, session_logger: tp.Any) -> None:
     """
     Description:
         The sink is wrapped: a sink that raises on every call must not stop the line reaching
@@ -761,8 +767,8 @@ def test_a_sink_failure_never_prevents_the_write_to_disk(tmp_path: tp.Any) -> No
     """
 
     clock = Clock_Cls(_T('09:15:00'))
-    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
-                                        install_handlers=False)
+    Session_Logger = session_logger(config_path=None, log_dir=str(tmp_path), clock=clock,
+                                    install_handlers=False)
 
     def _Explode(_record, _line) -> None:
         raise RuntimeError('the view blew up')
@@ -771,7 +777,8 @@ def test_a_sink_failure_never_prevents_the_write_to_disk(tmp_path: tp.Any) -> No
     Session_Logger.Log_Info('This must still reach the file.')   # must not raise
     Session_Logger.Log_Error('And so must this.')               # must not raise
 
-    content = open(Session_Logger.Path, 'r', encoding='utf-8').read()
+    with open(Session_Logger.Path, 'r', encoding='utf-8') as handle:
+        content = handle.read()
     assert 'This must still reach the file.' in content
     assert 'And so must this.' in content
 
@@ -792,7 +799,8 @@ def test_parse_line_round_trips_real_lines(tmp_path: tp.Any) -> None:
     Session_Logger.Log_Error('Backend timed out')
     Session_Logger.Close()
 
-    lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()[1:]   # after the start line
+    with open(Session_Logger.Path, 'r', encoding='utf-8') as handle:
+        lines = handle.read().splitlines()[1:]   # after the start line
     info = Parse_Line(lines[0])
     assert (info.Date, info.Time, info.Level, info.Message, info.Parsed) == \
         ('2026-09-12', '10:20:30', CONST_LEVEL_INFO, 'A plain event.', True)
@@ -857,7 +865,7 @@ def test_parse_line_handles_a_stray_continuation_line_defensively() -> None:
     assert not stray.Parsed and stray.Message == 'second line of some older, unescaped entry'
 
 
-def test_newline_in_message_is_escaped_to_one_file_line(tmp_path: tp.Any) -> None:
+def test_newline_in_message_is_escaped_to_one_file_line(tmp_path: tp.Any, session_logger: tp.Any) -> None:
     """
     Description:
         A message containing line breaks is written as ONE physical file line: the breaks are
@@ -868,14 +876,15 @@ def test_newline_in_message_is_escaped_to_one_file_line(tmp_path: tp.Any) -> Non
     """
 
     clock = Clock_Cls(_T('11:00:00'))
-    Session_Logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path), clock=clock,
-                                        install_handlers=False)
+    Session_Logger = session_logger(config_path=None, log_dir=str(tmp_path), clock=clock,
+                                    install_handlers=False)
     received = []
     Session_Logger.Set_Line_Sink(lambda record, line: received.append((record, line)))
     Session_Logger.Log_Error('driver failed:\nstack line one\r\nstack line two')
 
     # One event -> one physical line, with the breaks escaped visibly (after the start line).
-    lines = open(Session_Logger.Path, 'r', encoding='utf-8').read().splitlines()[1:]
+    with open(Session_Logger.Path, 'r', encoding='utf-8') as handle:
+        lines = handle.read().splitlines()[1:]
     assert len(lines) == 1
     assert '\\n' in lines[0] and '\\r' in lines[0]
     assert 'stack line one' in lines[0] and 'stack line two' in lines[0]
@@ -930,7 +939,8 @@ def _Last_Log_Line(tmp_path: tp.Any) -> str:
 
     logs = [name for name in os.listdir(tmp_path) if name.endswith('.txt')]
     assert len(logs) == 1, logs
-    return open(os.path.join(tmp_path, logs[0]), 'r', encoding='utf-8').read().splitlines()[-1]
+    with open(os.path.join(tmp_path, logs[0]), 'r', encoding='utf-8') as handle:
+        return handle.read().splitlines()[-1]
 
 
 def test_sigterm_closes_the_run_and_still_terminates_the_process(tmp_path: tp.Any) -> None:

@@ -46,7 +46,7 @@ from UI.Core import AnyScan_Window_Cls
 from UI.Views.Log import Log_View_Cls
 #   ../UI/Capture
 from UI.Capture import Discover_Capture_Sets
-# Custom Lib.: AnyScan domain — the camera base, the pipeline, the timing, the logger
+# Custom Lib.: AnyScan domain — the camera base, the pipeline, the timing
 #   ../Camera/Core
 from Camera.Core import Camera_Backend_Cls
 #   ../Vision/Core
@@ -58,8 +58,6 @@ from Vision.Utilities.Timing import Build_Timing
 from Parameters.Vision import (Analysis_Str, CONST_TIMING_STAGES, CONST_STAGE_BACKGROUND, CONST_STAGE_SEGMENTATION,
                                CONST_STAGE_SEGMENTATION_POST, CONST_STAGE_FUSION, CONST_STAGE_CROPS,
                                CONST_STAGE_DESCRIPTIONS)
-#   ../Logger/Core
-from Logger.Core import Session_Logger_Cls
 # Custom Lib.: AnyScan — the configuration layer
 #   ../Configuration/Core
 from Configuration.Core import Load_Configuration, Mode_Directory, CONST_DEFAULT_CONFIG_FILE
@@ -130,9 +128,9 @@ def _Configuration(runtime):
         Description=dataclasses.replace(config.Description, Model_Path=runtime.describer_path))
 
 
-def _Window(tmp_path, config, vision=None) -> AnyScan_Window_Cls:
-    """A window with a real logger in tmp_path; `vision` replaces its backend when given."""
-    logger = Session_Logger_Cls(config_path=None, log_dir=str(tmp_path / 'log'), install_handlers=False)
+def _Window(session_logger, tmp_path, config, vision=None) -> AnyScan_Window_Cls:
+    """A window with a real logger in tmp_path, closed by the fixture; `vision` replaces its backend when given."""
+    logger = session_logger(config_path=None, log_dir=str(tmp_path / 'log'), install_handlers=False)
     window = AnyScan_Window_Cls(camera=_Idle_Camera_Cls(), logger=logger, Configuration_Str=config)
     if vision is not None:
         setattr(window, CONST_MANGLE + '__vision', vision)
@@ -222,7 +220,7 @@ CONST_INJECTIONS = {CONST_STAGE_SEGMENTATION: ('knob', 'inference_s'),
 
 
 @pytest.mark.parametrize('stage', list(CONST_INJECTIONS))
-def test_a_delay_in_one_stage_shows_in_that_stage_only(qt_app, tmp_path, monkeypatch, received, fake_runtimes,
+def test_a_delay_in_one_stage_shows_in_that_stage_only(qt_app, tmp_path, session_logger, monkeypatch, received, fake_runtimes,
                                                         reference_background, make_synthetic_frame, stage) -> None:
     """
     Description:
@@ -233,7 +231,7 @@ def test_a_delay_in_one_stage_shows_in_that_stage_only(qt_app, tmp_path, monkeyp
     """
 
     vision = _Loaded_Pipeline(fake_runtimes)
-    window = _Window(tmp_path, _Configuration(fake_runtimes), vision)
+    window = _Window(session_logger, tmp_path, _Configuration(fake_runtimes), vision)
     frame = _Frame(reference_background, make_synthetic_frame)
     _result, before = _Analyze(window, vision, frame, received, 1)
 
@@ -257,7 +255,7 @@ def test_a_delay_in_one_stage_shows_in_that_stage_only(qt_app, tmp_path, monkeyp
         assert [times[key] >= CONST_DELAY_MS for times in _Object_Times(after)] == [True, True]
 
 
-def test_device_work_is_charged_to_the_stage_that_queued_it(qt_app, tmp_path, received, fake_runtimes,
+def test_device_work_is_charged_to_the_stage_that_queued_it(qt_app, tmp_path, session_logger, received, fake_runtimes,
                                                             reference_background, make_synthetic_frame) -> None:
     """
     Description:
@@ -269,7 +267,7 @@ def test_device_work_is_charged_to_the_stage_that_queued_it(qt_app, tmp_path, re
     """
 
     vision = _Loaded_Pipeline(fake_runtimes)
-    window = _Window(tmp_path, _Configuration(fake_runtimes), vision)
+    window = _Window(session_logger, tmp_path, _Configuration(fake_runtimes), vision)
     frame = _Frame(reference_background, make_synthetic_frame)
     _Analyze(window, vision, frame, received, 1)                  # nothing queued by the warm-up is left
 
@@ -284,7 +282,7 @@ def test_device_work_is_charged_to_the_stage_that_queued_it(qt_app, tmp_path, re
     assert first['tokens'] == second['tokens'] == (408, 65)
 
 
-def test_the_logged_numbers_add_up_to_the_logged_total(qt_app, tmp_path, received, fake_runtimes) -> None:
+def test_the_logged_numbers_add_up_to_the_logged_total(qt_app, tmp_path, session_logger, received, fake_runtimes) -> None:
     """
     Description:
         Stage times whose rounded values do not sum to the rounded total (eight stages of 1.9 ms each
@@ -293,7 +291,7 @@ def test_the_logged_numbers_add_up_to_the_logged_total(qt_app, tmp_path, receive
         total is the 'finished in' number.
     """
 
-    window = _Window(tmp_path, _Configuration(fake_runtimes))
+    window = _Window(session_logger, tmp_path, _Configuration(fake_runtimes))
     timing = Build_Timing(17, {name: 0.0019 for name in CONST_TIMING_STAGES}, [], False)
     _Finish(window, Analysis_Str(Latency_Ms=17, Timing=timing, Verdict='Empty', Verdict_Level='idle'),
             np.zeros((40, 60, 3), np.uint8), 1)
@@ -304,14 +302,14 @@ def test_the_logged_numbers_add_up_to_the_logged_total(qt_app, tmp_path, receive
     assert any(_Message(line).startswith('Analysis 1 finished in 17 ms.') for line in received)
 
 
-def test_stages_that_overlap_are_reported_not_clamped(qt_app, tmp_path, received, fake_runtimes) -> None:
+def test_stages_that_overlap_are_reported_not_clamped(qt_app, tmp_path, session_logger, received, fake_runtimes) -> None:
     """
     Description:
         When the stages sum to more than the total (a stage counted twice), 'other' is logged
         negative, the numbers still add up, and a WARNING line says the timing does not add up.
     """
 
-    window = _Window(tmp_path, _Configuration(fake_runtimes))
+    window = _Window(session_logger, tmp_path, _Configuration(fake_runtimes))
     timing = Build_Timing(15, {CONST_STAGE_BACKGROUND: 0.010, CONST_STAGE_SEGMENTATION: 0.010}, [], False)
     _Finish(window, Analysis_Str(Latency_Ms=15, Timing=timing, Verdict='Empty', Verdict_Level='idle'),
             np.zeros((40, 60, 3), np.uint8), 1)
@@ -348,7 +346,7 @@ def _Load_Through_Dialog(window, path: str) -> None:
     assert not dialog.Loading
 
 
-def test_a_configuration_load_logs_each_model_and_the_warm_up(qt_app, tmp_path, configuration_root, received,
+def test_a_configuration_load_logs_each_model_and_the_warm_up(qt_app, tmp_path, session_logger, configuration_root, received,
                                                              fake_runtimes) -> None:
     """
     Description:
@@ -360,7 +358,7 @@ def test_a_configuration_load_logs_each_model_and_the_warm_up(qt_app, tmp_path, 
     first = _Mode_File(Mode_Directory(), 'Seg_Anything', fake_runtimes)
     second = _Mode_File(Mode_Directory(), 'Inspect', fake_runtimes)
     fake_runtimes.segmenter_load_s, fake_runtimes.describer_load_s = 0.3, 0.5
-    window = _Window(tmp_path, Load_Configuration(first))
+    window = _Window(session_logger, tmp_path, Load_Configuration(first))
 
     _Load_Through_Dialog(window, first)
     messages = [_Message(line) for line in received]
@@ -387,7 +385,7 @@ def test_a_configuration_load_logs_each_model_and_the_warm_up(qt_app, tmp_path, 
                                                'Model gemma-4-e4b-it-4bit kept, not reloaded.']
 
 
-def test_a_warm_up_that_stops_early_is_a_warning(qt_app, tmp_path, configuration_root, received, fake_runtimes) -> None:
+def test_a_warm_up_that_stops_early_is_a_warning(qt_app, tmp_path, session_logger, configuration_root, received, fake_runtimes) -> None:
     """
     Description:
         When the warm-up fails (here FastSAM's first pass, on the reference), the configuration still
@@ -397,7 +395,7 @@ def test_a_warm_up_that_stops_early_is_a_warning(qt_app, tmp_path, configuration
 
     path = _Mode_File(Mode_Directory(), 'Seg_Anything', fake_runtimes)
     fake_runtimes.segment_raises = True
-    window = _Window(tmp_path, Load_Configuration(path))
+    window = _Window(session_logger, tmp_path, Load_Configuration(path))
 
     _Load_Through_Dialog(window, path)
     warm_up = [line for line in received if 'Warm-up took ' in line]
@@ -408,7 +406,7 @@ def test_a_warm_up_that_stops_early_is_a_warning(qt_app, tmp_path, configuration
     assert getattr(window, CONST_MANGLE + '__vision').Models_Loaded
 
 
-def test_the_first_analysis_after_each_load_is_marked(qt_app, tmp_path, received, fake_runtimes,
+def test_the_first_analysis_after_each_load_is_marked(qt_app, tmp_path, session_logger, received, fake_runtimes,
                                                      reference_background, make_synthetic_frame) -> None:
     """
     Description:
@@ -419,7 +417,7 @@ def test_the_first_analysis_after_each_load_is_marked(qt_app, tmp_path, received
 
     config = _Configuration(fake_runtimes)
     vision = _Loaded_Pipeline(fake_runtimes)
-    window = _Window(tmp_path, config, vision)
+    window = _Window(session_logger, tmp_path, config, vision)
     frame = _Frame(reference_background, make_synthetic_frame)
 
     marks = [_Timing(_Analyze(window, vision, frame, received, 1)[1])['first'],
@@ -431,7 +429,7 @@ def test_the_first_analysis_after_each_load_is_marked(qt_app, tmp_path, received
     assert marks == [True, False, True, False]
 
 
-def test_the_inference_time_readers_see_what_they_saw_before(qt_app, tmp_path, monkeypatch, received, fake_runtimes,
+def test_the_inference_time_readers_see_what_they_saw_before(qt_app, tmp_path, session_logger, monkeypatch, received, fake_runtimes,
                                                             reference_background, make_synthetic_frame) -> None:
     """
     Description:
@@ -447,7 +445,7 @@ def test_the_inference_time_readers_see_what_they_saw_before(qt_app, tmp_path, m
     config = _Configuration(fake_runtimes)
     fake_runtimes.describer_load_s = CONST_DELAY_S
     vision = Vision_Pipeline_Cls(Configuration_Str=config)                   # never preloaded
-    window = _Window(tmp_path, config, vision)
+    window = _Window(session_logger, tmp_path, config, vision)
     frame = _Frame(reference_background, make_synthetic_frame)
 
     cold, lines = _Analyze(window, vision, frame, received, 1)
@@ -470,7 +468,7 @@ def test_the_inference_time_readers_see_what_they_saw_before(qt_app, tmp_path, m
     assert {cap.Set_Id: cap.Inference_Ms for cap in Discover_Capture_Sets(root)}['set3'] == result.Latency_Ms
 
 
-def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_app, tmp_path, received,
+def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_app, tmp_path, session_logger, received,
                                                                             reference_background,
                                                                             make_synthetic_frame) -> None:
     """
@@ -486,7 +484,7 @@ def test_a_catalogue_analysis_logs_each_verdict_and_its_identification_time(qt_a
     import os
     config = Load_Configuration(os.path.join(Mode_Directory(), 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_'
                                                                'Mounting_Plate.yaml'))
-    window = _Window(tmp_path, config)
+    window = _Window(session_logger, tmp_path, config)
 
     def _Judged(verdict: str, similarity: float, distance: float) -> Detection_Str:
         return Detection_Str(Label='plate', Bbox=(10, 10, 20, 20), Verdict=verdict, Sentence='A plate.',

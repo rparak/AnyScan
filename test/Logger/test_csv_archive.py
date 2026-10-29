@@ -133,8 +133,10 @@ def test_an_older_format_file_is_archived_unchanged_and_a_new_one_started(tmp_pa
     assert archive.read_bytes() == old
     rows = _Rows(canonical)
     assert rows[0] == CONST_CSV_COLUMNS and len(rows) == 2
-    assert open(canonical, 'rb').read().startswith(CONST_CSV_BOM.encode('utf-8'))
-    text = open(logger.Path, encoding='utf-8').read()
+    with open(canonical, 'rb') as handle:
+        assert handle.read().startswith(CONST_CSV_BOM.encode('utf-8'))
+    with open(logger.Path, encoding='utf-8') as handle:
+        text = handle.read()
     assert 'log_unconfigured_until_2026-09-20.csv' in text and 'older column set' in text
     assert '%d columns' % len(columns) in text
 
@@ -153,7 +155,8 @@ def test_a_current_format_file_is_appended_to_not_archived(tmp_path) -> None:
     assert (tmp_path / ('log_unconfigured.csv' + CONST_CSV_VERSION_SUFFIX)).read_text() == '2\n'
     assert not any('_until_' in name for name in os.listdir(tmp_path))
     for logger in (first, second):
-        assert 'older column set' not in open(logger.Path, encoding='utf-8').read()
+        with open(logger.Path, encoding='utf-8') as handle:
+            assert 'older column set' not in handle.read()
 
 
 @pytest.mark.parametrize('version, read_as', [(None, 1), ('1\n', 1), ('two\n', 0)],
@@ -182,8 +185,10 @@ def test_a_current_header_of_another_format_version_is_archived_with_its_version
     else:
         assert archived_version.read_text() == version
     assert len(_Rows(canonical)) == 2
-    assert open(canonical + CONST_CSV_VERSION_SUFFIX, encoding='utf-8').read() == '2\n'
-    text = open(logger.Path, encoding='utf-8').read()
+    with open(canonical + CONST_CSV_VERSION_SUFFIX, encoding='utf-8') as handle:
+        assert handle.read() == '2\n'
+    with open(logger.Path, encoding='utf-8') as handle:
+        text = handle.read()
     assert 'was format version %d, whose rows mean something else' % read_as in text
     assert 'log_unconfigured_until_2026-09-20.csv' in text
 

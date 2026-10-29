@@ -283,6 +283,15 @@ def solved(render):
     return Calibrate(views, CONST_RENDER_SQUARE, 0.0, CONST_SQUARES)
 
 
+def _Read_Bytes(paths):
+    """Each file's bytes, in order, every file closed after its read."""
+    contents = []
+    for path in paths:
+        with open(path, 'rb') as handle:
+            contents.append(handle.read())
+    return contents
+
+
 def _True_Factor():
     """The true mm/px of the table plane in the application's undistorted (alpha = 1) space."""
     new_K, _ = cv2.getOptimalNewCameraMatrix(CONST_RENDER_K, CONST_RENDER_D, CONST_RENDER_SIZE, 1,
@@ -475,13 +484,13 @@ def test_result_goes_to_a_new_calibration_file_and_leaves_the_one_in_force(tmp_p
 
     import yaml
     mode, station, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
-    before = [open(path, 'rb').read() for path in (mode, station, in_force)]
+    before = _Read_Bytes((mode, station, in_force))
     output = os.path.join(Calibration_Directory(), 'Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_20260923-100000.yaml')
     record = {'date': '2026-09-23T10:00:00', 'images': str(tmp_path), 'rms_px': solved.Rms_Px,
               'views': {'total': 11, 'flat': 3, 'tilted': 8}, 'square_mm': 12.0, 'board_height_mm': 4.5}
     assert Write_Calibration(Calibration_Parameters(solved, (0, 0)), hardware='a2A1920_51gcPRO_Computar_M1228_MPW3',
                              header_source=in_force, output_path=output, record=record)
-    assert [open(path, 'rb').read() for path in (mode, station, in_force)] == before
+    assert _Read_Bytes((mode, station, in_force)) == before
     with open(output, 'r', encoding='utf-8') as handle:
         written = yaml.safe_load(handle)['Calibration']
     assert written['Solved']['Views'] == {'Total': 11, 'Flat': 3, 'Tilted': 8}
@@ -509,7 +518,7 @@ def test_images_harness_writes_a_new_calibration_and_prints_the_station_line(tmp
 
     calibrate = _Calibrate_Script()
     mode, station, in_force = _Configuration_Copy(tmp_path, CONST_RENDER_SIZE)
-    before = [open(path, 'rb').read() for path in (mode, station, in_force)]
+    before = _Read_Bytes((mode, station, in_force))
     existing = sorted(os.listdir(Calibration_Directory()))
     images = tmp_path / 'images'
     images.mkdir()
@@ -518,7 +527,7 @@ def test_images_harness_writes_a_new_calibration_and_prints_the_station_line(tmp
 
     assert calibrate.Images_Main(str(images), CONST_SQUARES, 12.0, 0.0, mode) == 0
     out = capsys.readouterr().out
-    assert [open(path, 'rb').read() for path in (mode, station, in_force)] == before
+    assert _Read_Bytes((mode, station, in_force)) == before
     (written,) = sorted(set(os.listdir(Calibration_Directory())) - set(existing))
     assert re.fullmatch(r'Calibration_a2A1920_51gcPRO_Computar_M1228_MPW3_\d{8}-\d{6}\.yaml', written)
     assert 'PRINCIPAL POINT' in out and 'Caliper' in out

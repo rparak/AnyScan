@@ -240,7 +240,8 @@ def test_stored_size_keeps_full_precision_while_the_displayed_text_is_rounded(tm
     raw = np.zeros((40, 60, 3), np.uint8)
     Capture_Writer_Cls(str(tmp_path)).Write('s', 'set', raw, raw, raw, 'text', [], [], metadata, 'stamp', cv2, np,
                                             distorted_bgr=None, undistortion=None)
-    record = json.load(open(glob.glob(os.path.join(str(tmp_path), 's', 'set_objects.json'))[0]))
+    with open(glob.glob(os.path.join(str(tmp_path), 's', 'set_objects.json'))[0]) as handle:
+        record = json.load(handle)
     stored = record['objects'][0]['measurement']
     assert (stored['width_mm'], stored['height_mm']) == (part.Measurement.Width_Mm, part.Measurement.Height_Mm)
     assert 'decimals' not in stored
@@ -334,12 +335,14 @@ def test_stored_set_records_the_measurements_and_the_scale_that_produced_them(tm
     assert Object_Size(stored.Objects[1]) == Object_Size(nut) == 'A/F %.2f mm' % nut.Measurement.Diameter_Mm
     import json, glob, os
     path = glob.glob(os.path.join(str(tmp_path), 's', 'with_objects.json'))[0]
-    record = json.load(open(path))
+    with open(path) as handle:
+        record = json.load(handle)
     assert record['conversion_factor']['units'] == CONST_SCALE_UNITS == 'mm/px'
 
     for obj in record['objects']:                                      # a pre-convention record
         del obj['measurement']['across_flats'], obj['measurement']['hexagonality']
-    json.dump(record, open(path, 'w'))
+    with open(path, 'w') as handle:
+        json.dump(record, handle)
     legacy = {cap.Set_Id: cap for cap in Discover_Capture_Sets(str(tmp_path))}['with'].Objects[1]
     assert not legacy.Measurement.Across_Flats and legacy.Measurement.Hexagonality is None
     assert Object_Size(legacy) == 'Ø %.2f mm' % nut.Measurement.Diameter_Mm

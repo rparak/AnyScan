@@ -82,7 +82,8 @@ def test_module_is_qt_free() -> None:
         takes an ndarray image, never a QImage.
     """
 
-    source = open(Vision_Core.__file__).read()
+    with open(Vision_Core.__file__) as handle:
+        source = handle.read()
     # No Qt import anywhere (the word QImage may still appear in prose describing
     # the UI boundary; what matters is that nothing imports or constructs it).
     assert 'import PyQt' not in source and 'from PyQt' not in source

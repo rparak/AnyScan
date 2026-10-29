@@ -52,7 +52,8 @@ def test_module_is_qt_free() -> None:
         reusable without a UI.
     """
 
-    source = open(Trends.__file__).read()
+    with open(Trends.__file__) as handle:
+        source = handle.read()
     assert 'PyQt' not in source
 
 

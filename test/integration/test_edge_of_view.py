@@ -119,7 +119,8 @@ def _Frame(name: str, reference_path: str) -> tp.Any:
     path = os.path.join(CONST_EDGE_FRAMES, name + '.json')
     if not os.path.isfile(path):
         pytest.fail('%s is missing from %s' % (name, os.path.abspath(CONST_EDGE_FRAMES)))
-    manifest = json.load(open(path))
+    with open(path) as handle:
+        manifest = json.load(handle)
     frame = cv2.imread(reference_path)
     if frame is None or [frame.shape[1], frame.shape[0]] != manifest['frame_size']:
         pytest.fail('the reference %s does not match the frame size %s of %s' % (reference_path, manifest['frame_size'], name))
@@ -158,7 +159,8 @@ def test_the_inventory_names_every_frame_and_crop_of_the_edge_set() -> None:
     assert sorted(name[:-5] for name in files if name.endswith('.json')) == sorted(CONST_EDGE_VERDICTS)
     named = []
     for name in CONST_EDGE_VERDICTS:
-        manifest = json.load(open(os.path.join(CONST_EDGE_FRAMES, name + '.json')))
+        with open(os.path.join(CONST_EDGE_FRAMES, name + '.json')) as handle:
+            manifest = json.load(handle)
         width, height = manifest['frame_size']
         assert len(manifest['crops']) == len(CONST_EDGE_VERDICTS[name]), name
         for crop in manifest['crops']:

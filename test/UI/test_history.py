@@ -204,16 +204,20 @@ def test_a_warning_records_its_kind_and_an_older_set_reads_into_the_three_states
     _Write_Full(writer, 'sessionA', 'set_unspecified', classification=True, verdicts=('Unspecified', 'NOK'))
     _Write_Full(writer, 'sessionA', 'set_later', classification=True, verdicts=('Warning-outside', 'OK'))
     session = os.path.join(str(tmp_path), 'sessionA')
-    records = {name: json.load(open(os.path.join(session, name + '_objects.json')))['objects']
-               for name in ['set_' + kind for kind in kinds] + ['set_older', 'set_unspecified']}
+    records = {}
+    for name in ['set_' + kind for kind in kinds] + ['set_older', 'set_unspecified']:
+        with open(os.path.join(session, name + '_objects.json')) as handle:
+            records[name] = json.load(handle)['objects']
     for kind in kinds:
         assert [(record['verdict'], record.get('warning_kind')) for record in records['set_' + kind]] == \
             [('Warning', kind), ('OK', None)], kind
     assert 'warning_kind' not in records['set_older'][0] and records['set_unspecified'][0]['verdict'] == 'Unspecified'
     later = os.path.join(session, 'set_later_objects.json')
-    data = json.load(open(later))
+    with open(later) as handle:
+        data = json.load(handle)
     data['objects'][0]['warning_kind'] = 'glare'
-    json.dump(data, open(later, 'w'))
+    with open(later, 'w') as handle:
+        json.dump(data, handle)
     read = {name: [(obj.Verdict, obj.Warning_Kind) for obj in Read_Capture_Set(session, 'sessionA', name).Objects]
             for name in ['set_' + kind for kind in kinds] + ['set_older', 'set_unspecified', 'set_later']}
     for kind in kinds:
@@ -767,7 +771,8 @@ def test_a_set_recorded_in_a_mode_that_no_longer_ships_loads_and_shows(qt_app, t
     import shutil
     from UI.Capture import Read_Capture_Set
     record = os.path.join(os.path.dirname(__file__), 'data', 'removed_mode_objects.json')
-    data = json.load(open(record, encoding='utf-8'))
+    with open(record, encoding='utf-8') as handle:
+        data = json.load(handle)
     session, set_id = data['session_id'], data['set_id']
     folder = tmp_path / session
     folder.mkdir()

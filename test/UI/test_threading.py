@@ -383,14 +383,16 @@ def test_closing_during_an_analysis_stops_it_before_its_next_object_then_closes(
         qInstallMessageHandler(None)
     assert not vision.returned.is_set() and vision.described < 8
     assert not any('Destroyed while thread is still running' in message for message in messages), messages
-    log = open(logger.Path, encoding='utf-8').read()
+    with open(logger.Path, encoding='utf-8') as handle:
+        log = handle.read()
     assert re.search(r'Analysis 1 stopped at close after %d of 8 objects\. Capture set \S+\. #analysis-end'
                      % vision.described, log)
     assert exported == [logger.Path] and log.rstrip().endswith('Application stopped. #run-stop')
     assert [event.Event_Type for event in Read_Events(logger.Path)] == ['STATION_ON', 'CYCLE_START', 'CYCLE_DONE',
                                                                         'STATION_OFF']
     (note,) = glob.glob(os.path.join(str(tmp_path), 'captures', '*', '*_understanding.txt'))
-    assert 'Analysis STOPPED at close after %d of 8 objects' % vision.described in open(note, encoding='utf-8').read()
+    with open(note, encoding='utf-8') as handle:
+        assert 'Analysis STOPPED at close after %d of 8 objects' % vision.described in handle.read()
     assert glob.glob(os.path.join(str(tmp_path), 'captures', '*', '*_raw.png'))
 
 
@@ -415,7 +417,8 @@ def test_a_close_arriving_as_the_analysis_finishes_closes_once_with_the_whole_re
     window.close()                                         # the result is still queued
     assert window.isVisible()
     _Pump(qt_app, lambda: not window.isVisible())
-    log = open(logger.Path, encoding='utf-8').read()
+    with open(logger.Path, encoding='utf-8') as handle:
+        log = handle.read()
     assert 'Analysis 1 finished in ' in log and 'stopped at close' not in log
     assert exported == [logger.Path] and log.count('Application stopped.') == 1
 
@@ -435,7 +438,8 @@ def test_closing_while_connecting_waits_for_the_camera_then_closes(qt_app, tmp_p
     window.close()
     _Pump(qt_app, lambda: False, seconds=0.3)
     assert window.isVisible() and thread.isRunning()
-    assert 'Close requested while connecting to the camera' in open(logger.Path, encoding='utf-8').read()
+    with open(logger.Path, encoding='utf-8') as handle:
+        assert 'Close requested while connecting to the camera' in handle.read()
     camera.answer.set()
     _Pump(qt_app, lambda: not window.isVisible())
     assert not window.isVisible() and thread.isFinished() and exported == [logger.Path]
@@ -523,7 +527,8 @@ def test_closing_never_destroys_a_running_thread_and_exits_cleanly(tmp_path, ref
     assert run.returncode == 0, (run.returncode, run.stderr[-2000:])
     assert run.stdout.split().count('exported') == 1
     (log,) = glob.glob(str(tmp_path / 'log' / 'log_*.txt'))
-    text = open(log, encoding='utf-8').read()
+    with open(log, encoding='utf-8') as handle:
+        text = handle.read()
     assert text.rstrip().endswith('Application stopped. #run-stop')
     with open(glob.glob(str(tmp_path / 'log' / '*.csv'))[0], encoding='utf-8-sig') as summary:
         assert len(summary.read().splitlines()) == 2                        # the header and this run's row

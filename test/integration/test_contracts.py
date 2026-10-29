@@ -127,6 +127,7 @@ def test_domain_source_has_no_qt_import(project_root) -> None:
     for domain in ('Camera', 'Vision', 'Reporting'):
         pattern = os.path.join(project_root, 'src', domain, '**', '*.py')
         for path in glob.glob(pattern, recursive=True):
-            source = open(path).read()
+            with open(path) as handle:
+                source = handle.read()
             assert 'import PyQt' not in source and 'from PyQt' not in source, \
                 f'a Qt import reappeared in {path}'

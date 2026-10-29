@@ -736,8 +736,10 @@ def test_fastsam_corrupt_is_downloaded_again_and_verified(sandbox):
     process = sandbox.Run(_Fastsam_Snippet(sandbox, reference) + 'Ensure_Fastsam')
 
     assert process.returncode == 0
-    assert 'https://example.invalid/FastSAM-x.pt' in open(record).read()
-    assert open(target, 'rb').read() == reference
+    with open(record) as handle:
+        assert 'https://example.invalid/FastSAM-x.pt' in handle.read()
+    with open(target, 'rb') as handle:
+        assert handle.read() == reference
     assert not os.path.exists(target + '.part')
     assert 'checksum does not match' in _Levels(process, 'WARNING')[0]
 
@@ -750,7 +752,8 @@ def test_fastsam_bad_download_replaces_nothing(sandbox):
     process = sandbox.Run(_Fastsam_Snippet(sandbox, reference) + 'Ensure_Fastsam')
 
     assert process.returncode == 1
-    assert open(target, 'rb').read() == b'fastsam-old!!!!'
+    with open(target, 'rb') as handle:
+        assert handle.read() == b'fastsam-old!!!!'
     assert not os.path.exists(target + '.part')
     assert 'nothing was replaced' in _Levels(process, 'ERROR')[0]
 
@@ -840,10 +843,12 @@ def test_gemma_fetches_only_the_mismatched_file(sandbox):
     process = sandbox.Run(_Gemma_Snippet(sandbox) + 'Ensure_Gemma')
 
     assert process.returncode == 0
-    call = open(record).read().split()
+    with open(record) as handle:
+        call = handle.read().split()
     assert 'tokenizer.json' in call and 'config.json' not in call and 'model.safetensors' not in call
     assert '--force-download' in call and '--revision' in call
-    assert open(os.path.join(directory, 'tokenizer.json'), 'rb').read() == CONST_GEMMA_FIXTURE['tokenizer.json']
+    with open(os.path.join(directory, 'tokenizer.json'), 'rb') as handle:
+        assert handle.read() == CONST_GEMMA_FIXTURE['tokenizer.json']
     assert 'Gemma file tokenizer.json is present but its checksum does not match' in _Levels(process, 'WARNING')[0]
 
 
@@ -852,7 +857,8 @@ def test_gemma_missing_directory_fetches_everything(sandbox):
     process = sandbox.Run(_Gemma_Snippet(sandbox) + 'Ensure_Gemma')
 
     assert process.returncode == 0
-    call = open(record).read().split()
+    with open(record) as handle:
+        call = handle.read().split()
     assert all(name in call for name in CONST_GEMMA_FIXTURE)
     assert not _Levels(process, 'WARNING')
 
@@ -891,7 +897,8 @@ def test_dinov2_missing_is_fetched_at_its_pinned_revision_and_verified(sandbox):
     process = sandbox.Run(_Dinov2_Snippet(sandbox) + 'Ensure_Dinov2')
 
     assert process.returncode == 0
-    call = open(record).read().split()
+    with open(record) as handle:
+        call = handle.read().split()
     assert call[:2] == ['download', 'facebook/dinov2-base']
     assert call[call.index('--revision') + 1] == 'f9e44c814b77203eaa57a6bdbbd535f21ede1415'
     assert call[call.index('--local-dir') + 1] == os.path.join(sandbox.Root, 'models', 'dinov2-base')
@@ -1025,7 +1032,10 @@ def _Opencv_Venv(sandbox: Sandbox_Cls, *state: str, gui: str = '', headless: str
 def _Pip_Calls(sandbox: Sandbox_Cls) -> tp.List[str]:
     """The pip commands the stub .venv ran, in order."""
     path = os.path.join(sandbox.Root, 'opencv', 'calls')
-    return open(path).read().splitlines() if os.path.exists(path) else []
+    if not os.path.exists(path):
+        return []
+    with open(path) as handle:
+        return handle.read().splitlines()
 
 
 def test_the_gui_opencv_is_removed_and_the_headless_pin_reinstalled_whole(sandbox):

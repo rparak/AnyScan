@@ -260,7 +260,10 @@ disagreement is a question, not a new rule. ✅ = `test/Install/test_install.py`
 
 - `pytest.ini`: `testpaths = test` plus the two shipped checkers' tests (`.claude/skills/project-style-rpx/scripts`,
   `.claude/skills/readme-writer/scripts`; not jic-sf-ui-style's template tests, owner 2026-10-29),
-  `--import-mode=importlib`, the `slow` marker.
+  `--import-mode=importlib`, the `slow` marker, and `filterwarnings` making a `ResourceWarning` an error, with
+  pytest's unraisable-exception warning, the form a leak garbage-collected later takes ✅ (R3, 2026-10-29).
+- A test closes what it opens: a file with `with open(...)` (or `with Image.open(...)`), a session logger through
+  the **`session_logger`** fixture (`test/conftest.py`), which closes every logger it built in a `finally`.
 - Shared fixtures in `test/conftest.py`: the repository root, the reference frame and its shape;
   `src/`, `App/` and `Example/Vision` are on the path, so tests import harness code.
 - A test that needs the model weights goes through **`require_weights`** (`test/conftest.py`): it runs

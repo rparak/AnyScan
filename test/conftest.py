@@ -589,6 +589,34 @@ def require_weights(request: pytest.FixtureRequest) -> tp.Callable[[tp.List[str]
     return _Require
 
 
+@pytest.fixture
+def session_logger() -> tp.Iterator[tp.Callable[..., tp.Any]]:
+    """
+    Description:
+        Builds session loggers for a test and closes every one it built in a finally, whether the test
+        passed or failed: a logger left open keeps its log file open until garbage collection, which
+        pytest.ini turns into an error (ResourceWarning). Close() is idempotent, so a test that closes
+        its logger itself may still build it here.
+
+    Returns:
+        (1) parameter [function]: (**arguments) -> Session_Logger_Cls, the arguments as the class takes them.
+    """
+
+    from Logger.Core import Session_Logger_Cls
+    loggers = []
+
+    def _Build(**arguments: tp.Any) -> tp.Any:
+        logger = Session_Logger_Cls(**arguments)
+        loggers.append(logger)
+        return logger
+
+    try:
+        yield _Build
+    finally:
+        for logger in loggers:
+            logger.Close()
+
+
 def _Models_Inventory() -> tp.Dict[str, int]:
     """
     Description:

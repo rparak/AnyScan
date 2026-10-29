@@ -430,28 +430,28 @@ def test_the_icon_is_the_mark_on_a_transparent_ground_crisp_at_16_and_32_px(qt_a
         by more than three quarters is inked, and none it covers by less than a quarter.
     """
 
-    icon = Image.open(CONST_ICON)
-    assert sorted(icon.info['sizes']) == [(s, s) for s in CONST_ICON_SIZES]
-    renderer = QSvgRenderer(CONST_MARK)
-    ink = Theme.CONST_LOGO_INK.lstrip('#')
-    for size in CONST_ICON_SIZES:
-        icon.size = (size, size)
-        frame = np.array(icon.copy().convert('RGBA'))
-        alpha = frame[..., 3]
-        assert alpha[0, size - 1] == 0 and alpha[size - 1, 0] == 0, '%d px: the icon\'s ground is not transparent' % size
-        assert tuple(frame[0, 0, :3]) == (int(ink[0:2], 16), int(ink[2:4], 16), int(ink[4:6], 16)), size
-        if size not in (16, 32):
-            continue
-        assert set(np.unique(alpha)) <= {0, 255}, '%d px: the icon has half-covered pixels' % size
-        direct = QImage(size, size, QImage.Format_ARGB32)
-        direct.fill(Qt.transparent)
-        painter = QPainter(direct)
-        painter.setRenderHint(QPainter.Antialiasing)
-        renderer.render(painter, QRectF(0.0, 0.0, size, size))
-        painter.end()
-        coverage = _Pixels(direct)[:size, :size, 3] / 255.0
-        assert not ((coverage > 0.75) & (alpha == 0)).any(), '%d px: the icon misses a pixel the mark covers' % size
-        assert not ((coverage < 0.25) & (alpha > 0)).any(), '%d px: the icon inks a pixel the mark leaves empty' % size
+    with Image.open(CONST_ICON) as icon:
+        assert sorted(icon.info['sizes']) == [(s, s) for s in CONST_ICON_SIZES]
+        renderer = QSvgRenderer(CONST_MARK)
+        ink = Theme.CONST_LOGO_INK.lstrip('#')
+        for size in CONST_ICON_SIZES:
+            icon.size = (size, size)
+            frame = np.array(icon.copy().convert('RGBA'))
+            alpha = frame[..., 3]
+            assert alpha[0, size - 1] == 0 and alpha[size - 1, 0] == 0, '%d px: the icon\'s ground is not transparent' % size
+            assert tuple(frame[0, 0, :3]) == (int(ink[0:2], 16), int(ink[2:4], 16), int(ink[4:6], 16)), size
+            if size not in (16, 32):
+                continue
+            assert set(np.unique(alpha)) <= {0, 255}, '%d px: the icon has half-covered pixels' % size
+            direct = QImage(size, size, QImage.Format_ARGB32)
+            direct.fill(Qt.transparent)
+            painter = QPainter(direct)
+            painter.setRenderHint(QPainter.Antialiasing)
+            renderer.render(painter, QRectF(0.0, 0.0, size, size))
+            painter.end()
+            coverage = _Pixels(direct)[:size, :size, 3] / 255.0
+            assert not ((coverage > 0.75) & (alpha == 0)).any(), '%d px: the icon misses a pixel the mark covers' % size
+            assert not ((coverage < 0.25) & (alpha > 0)).any(), '%d px: the icon inks a pixel the mark leaves empty' % size
 
 
 def test_the_live_tagline_is_the_logos() -> None:

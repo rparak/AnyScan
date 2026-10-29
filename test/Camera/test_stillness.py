@@ -147,5 +147,6 @@ def test_module_is_qt_free() -> None:
         The check belongs to the camera layer, which imports no Qt.
     """
 
-    source = open(Stillness.__file__, encoding='utf-8').read()
+    with open(Stillness.__file__, encoding='utf-8') as handle:
+        source = handle.read()
     assert 'PyQt' not in source and 'QImage' not in source
