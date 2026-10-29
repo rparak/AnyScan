@@ -17,7 +17,7 @@ opening). It is a demonstrator of JIC Smart Factory, through which the EDIH-DIGI
 visual inspection can work on their own parts (README > Funding).
 
 - **Repository:** github.com/rparak/AnyScan, private. It becomes public at R5 with JIC Smart Factory's and
-  EDIH-DIGIMAT's approval, which R4 records in KNOWN_ISSUES (the owner, `FEATURES.md`, R2). Code MIT (`LICENSE`),
+  EDIH-DIGIMAT's approval, which R4 records in KNOWN_ISSUES (DD *The owner's statements of 2026-10-29*). Code MIT (`LICENSE`),
   models and fonts under their own licences (README > Licence note).
 - **Release:** tag `v1.0`, annotated, on `651d060` (2026-10-24), also on origin. It moves to the release commit at R5,
   with the owner's approval (`FEATURES.md`, R5).
@@ -44,7 +44,7 @@ visual inspection can work on their own parts (README > Funding).
   catalogue item, `Data/Catalogue/mounting_plate`). Four views: Live, Trends, History, Log (SPEC > UI views).
 - **Platforms:** Apple-silicon macOS, measured, where development runs (Apple M2 Pro). Linux with an NVIDIA GPU,
   verified on one machine (RTX 5070 Ti, CUDA 13, 2026-09-29), which is station `SF4` and was in real use on
-  2026-10-29. Windows never tried (SPEC > Verified on hardware, the owner, `FEATURES.md`, R2).
+  2026-10-29. Windows never tried (SPEC > Verified on hardware, DD *The owner's statements of 2026-10-29*).
 - **Checks:** 1533 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
   203 s by default and 553 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands).
 - **Revisions:** R1 (skills in the repository) accepted 2026-10-29. R2 (this brief) in progress (`FEATURES.md`).
@@ -64,7 +64,7 @@ table, the left edge and corners of the inspection area, the cable pull, a movin
 ### Validation evidence, use at the station on 2026-10-29
 
 What was tested: two sessions of real use at JIC Smart Factory on station `SF4` (`CONST_STATION_ID`,
-`src/Logger/Station_Events.py:67`), the Linux machine with the RTX 5070 Ti (the owner, `FEATURES.md`, R2). Source:
+`src/Logger/Station_Events.py:67`), the Linux machine with the RTX 5070 Ti (DD *The owner's statements of 2026-10-29*). Source:
 AnyScan-Media archive, captures/20261029-142803_s2 and captures/20261029-143904_s1, and SPEC > Verified on hardware,
 *Use at the station, both modes, 2026-10-29*.
 
@@ -198,7 +198,7 @@ confidence intervals. A comparison needs repeated runs, and accuracy needs a lab
 (feature-manager `references/project.md` > Physical system and safety). Bring it in, and escalate to a qualified
 engineer, if a verdict is ever to gate a part without a person.
 
-**E. Real-time and deployment (in).** Inference on station `SF4` (Linux, RTX 5070 Ti, the owner, `FEATURES.md`, R2)
+**E. Real-time and deployment (in).** Inference on station `SF4` (Linux, RTX 5070 Ti, DD *The owner's statements of 2026-10-29*)
 on 2026-10-29: median 3,156 ms (Seg_Anything) and 1,725 ms (Mounting_Plate) (`inference_ms` in the archive's
 records). Interfaces: GigE to the camera, the daily station event CSV (`station_id,event_type,ts`, DD *The daily
 station event file…*). Rollback is open, for R5.

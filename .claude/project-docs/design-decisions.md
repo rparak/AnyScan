@@ -4540,3 +4540,33 @@ Pinned by `test/integration/test_skills.py`: exactly the six skills and `LICENSE
 description of at most 1024 characters with no `<` or `>`; each skill's files and project.md sections; every pointer
 resolving; no project term in a generic file; the README sections the project layers cite; CLAUDE.md naming the
 skills and the in-repo checker. Each rule was broken once (R1, 12 mutations in a scratch copy).
+
+## The owner's statements of 2026-10-29
+
+**Decision.** The owner stated the following on 2026-10-29, during R2. The repository cannot show them, and the
+records rely on them, so they are kept here:
+
+1. **Station `SF4` is the Linux machine with the RTX 5070 Ti** (CUDA 13) verified on 2026-09-29 (SPEC > *Verified on
+   hardware, and not yet*); `SF4` is `CONST_STATION_ID` in `src/Logger/Station_Events.py`. Both sessions of
+   2026-10-29 and the 11 UI screenshots in the AnyScan-Media archive come from it. Development and the R2 replay ran
+   on macOS (Apple M2 Pro).
+2. **The two sessions are real use at JIC Smart Factory**: AnyScan-Media archive, captures/20261029-142803_s2 and
+   captures/20261029-143904_s1. The three folders deleted from the archive held irrelevant data, not test sessions.
+3. **Every captured object is JIC Smart Factory's**: every object in the captures and screenshots is its property,
+   with no partner or customer parts.
+4. **Publication is approved by JIC Smart Factory and EDIH-DIGIMAT.** The repository stays private until R5
+   publishes it; R4 records the approval in KNOWN_ISSUES (`FEATURES.md`, R4 and R5).
+5. **Gemma 4 E4B is Apache-2.0**, per its base model card, google/gemma-4-E4B-it. R4 writes it into the third-party
+   inventory (readme-writer `references/project.md` > *Third-party components*), which still marks it unconfirmed.
+
+**Why.** SPEC > *Verified on hardware, and not yet*, the support-chat brief (`SUPPORT_CHAT.md`) and the R4 and R5
+items cite these statements. A tracker entry collapses to its row once its revision is accepted, and what is still
+true moves to the SPEC, design-decisions or KNOWN_ISSUES (project-style-rpx `references/markdown.md` >
+*FEATURES.md*). Ownership, approval and licence are not capabilities, so they belong here rather than in the SPEC.
+
+**Alternatives.** Keep them only in R2's full record, behind `git show 6d6f068:.claude/project-docs/FEATURES.md`:
+rejected by the owner (2026-10-29, R3 Part A), since facts that current records cite would be reachable only through
+history. Put them in the SPEC: it states what the application does and what was verified, not who owns a part.
+
+**Revisit if** the owner corrects a statement, a second station joins `SF4`, either approval is withdrawn, or the
+base model card's licence changes. Nothing pins these statements in a test: they are the owner's word, not the code's.
