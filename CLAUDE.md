@@ -10,8 +10,8 @@ commit messages, code, comments and every file - is in English.
 ## Internal docs
 
 `.claude/project-docs/`: `SPEC.md` (what the application does, held to the code by
-`test/integration/test_capabilities_doc.py`), `design-decisions.md`, `KNOWN_ISSUES.md` and
-`capture-checklist.md` (what only the rig can show).
+`test/integration/test_capabilities_doc.py`), `design-decisions.md`, `KNOWN_ISSUES.md`,
+`capture-checklist.md` (what only the rig can show) and `FEATURES.md` (the tracker).
 
 ## Skills
 
@@ -35,8 +35,25 @@ Use `.venv/bin/python`, the environment `install.sh` creates; never a bare `pyth
 
 ```bash
 ./install.sh                                                                    # creates .venv and fetches the models
-.venv/bin/python -m pytest -q                                                   # everyday: skips the slow tests, about 3.5 min
-.venv/bin/python -m pytest -q --runslow                                         # before a commit: the real models too, about 10 min
-.venv/bin/python .claude/skills/project-style-rpx/scripts/check_style.py src App Example test   # 11 known issues
 .venv/bin/python App/run.py                                                     # the application
 ```
+
+Two tiers of checks (times measured on the Apple M2 Pro, 2026-10-29):
+
+```bash
+# Per commit: the default suite (the skills' checker tests included) and the style checker.
+.venv/bin/python -m pytest -q                                                   # 1529 collected, 198 s
+.venv/bin/python .claude/skills/project-style-rpx/scripts/check_style.py src App Example test   # 11 known issues, 2 s
+# Before the owner's acceptance and any push: the real models too.
+.venv/bin/python -m pytest -q --runslow                                         # 535 s (R0, before the skills' tests joined)
+```
+
+## Work rules
+
+- **A branch per revision** (R1 is `skills-in-repo`): the work is committed there in small commits,
+  staged by name. After the owner's acceptance the owner fast-forwards it into `main` and pushes; a
+  session never pushes.
+- **No force-push**, except a tag moved with the owner's approval.
+- **No attribution trailers** in commits or pull requests, as `.claude/settings.json` sets.
+- The tracker is `.claude/project-docs/FEATURES.md`: each revision's line, and its acceptance with the
+  date.
