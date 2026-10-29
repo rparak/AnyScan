@@ -13,6 +13,8 @@ In `.claude/project-docs/`, as the generic skill says, with one more (project-st
   held to the code by `test/integration/test_capabilities_doc.py`. Its sections are named, not numbered.
 - **`design-decisions.md`** (DD) - why; **`KNOWN_ISSUES.md`** - what is open;
   **`capture-checklist.md`** - what only the rig can show.
+- **`FEATURES.md`** - the tracker: a line per revision (R1, R2, …), the owner's answers with their dates, and its
+  acceptance with the date.
 
 ## What the output is
 

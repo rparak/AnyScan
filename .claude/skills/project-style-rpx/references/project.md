@@ -282,7 +282,8 @@ disagreement is a question, not a new rule. ✅ = `test/Install/test_install.py`
 ## Records - `.claude/project-docs/`, `README.md`
 
 The records are where the generic skill puts them, `.claude/project-docs/`, with one more:
-`capture-checklist.md`, what only the rig can capture or check. `SPEC.md` is held to the code by
+`capture-checklist.md`, what only the rig can capture or check. The project keeps a tracker,
+`FEATURES.md` (since R1, 2026-10-29): a line per revision R1, R2, …, and its acceptance with the date. `SPEC.md` is held to the code by
 `test/integration/test_capabilities_doc.py` (sections, views, packages, records, every link, and the
 review line; the rule for the review line is feature-manager `project.md` > *Docs*).
 

@@ -905,9 +905,9 @@ style skill's checker requires the holder named here.
 
 **Deliberately unchanged:** the credit that the style is derived from `rparak/RoLE`, "MIT License, © 2023 Roman
 Parak". It credits where the style came from, in another repository; rewriting it would misstate that origin. The
-style skill is the personal skill project-style-rpx (`~/.claude/skills/`, private repository
-`rparak/rp-claude-skills`); this repository keeps only `.claude/skills/project-style-rpx/references/project.md` and
-`check_style.json`, and the RoLE credit is in project.md > *Header and checker*.
+style skill is project-style-rpx, shipped in this repository since R1 (*The skills ship in the repository*, below,
+which supersedes the earlier layout: a personal skill with only its project layer kept here); the RoLE credit is in
+`.claude/skills/project-style-rpx/references/project.md` > *Header and checker*.
 *History:* the sweep that replaced the earlier author lines covered every tracked file and the skill's templates, then
 in this repository; the `LICENSE`, joined later from the GitHub repository, still named Roman Parak until 2026-09-26.
 
@@ -4499,3 +4499,44 @@ Tests `test/UI/test_pixel_icons.py` (`test_every_icon_in_the_window_comes_from_t
 `::test_the_diagram_icons_are_twelve_by_twelve_pixel_grids`,
 `test/UI/test_busy_overlay.py::test_the_task_icon_is_painted_cell_for_cell_in_the_purple_above_the_step`,
 `test/UI/test_pixel_motif.py::test_a_busy_icon_animates_only_its_step_cells`.
+
+## The skills ship in the repository
+
+**Decision.** Six skills ship in `.claude/skills/<skill>/` - `project-style-rpx`, `feature-manager`,
+`project-optimize`, `readme-writer`, `jic-sf-ui-style` and `support-brief` - each a generic `SKILL.md` with its
+generic references, assets and scripts, and its `references/project.md`, which holds every AnyScan decision for that
+skill, each rule in one place (owner, 2026-10-29; R1, `.claude/project-docs/FEATURES.md`). The skills' licence is
+`.claude/skills/LICENSE`, MIT, Copyright (c) 2026 Roman Parak. The personal copies of the same names are excluded
+from `~/.claude/skills` by its sparse checkout, which the owner runs, on this machine and on the station; a personal
+skill of a shipped skill's name would otherwise take precedence. **This supersedes** the earlier layout, in which the
+skills were personal (`~/.claude/skills/`, private repository `rparak/rp-claude-skills`) and this repository kept
+only each skill's project layer, with "never a `SKILL.md`" held by `test/integration/test_skills.py` (stated under
+*File headers carry JIC Smart Factory*, above, and in `CLAUDE.md`; both corrected).
+
+**Sources**, compared file by file in R1's Part A (2026-10-29): the generic text is rp-claude-skills at
+`ec7af027e36d263740161451341fbe93e1a442ea` (read from a temporary clone, never by changing `~/.claude/skills`), with
+the generic edits a later in-repo copy (another project's, 2026-10-28) made after it: the in-repo skills layout in
+`structure.md`, readme-writer's two new structure rules, the handover pasted and never stored, project-optimize's
+review of what can go. That copy's own project text was not taken. jic-sf-ui-style is `ec7af02` unchanged and the
+one skill allowed to name AnyScan and JIC, since it was taken from this application (owner, Q1). Bootstrap mode is
+dropped from the four RP skills (Q2): this repository is set up, and its files (`bootstrap.md`, the templates) are
+not shipped. `references/ui.md` is shipped (AnyScan has a Qt UI). The checker's and readme-writer's script tests run
+in the suite through `pytest.ini` `testpaths` (88 tests, about 1 s); jic-sf-ui-style's template tests do not (Q3):
+outside a project that copied the templates and fonts, 2 of their 46 fail. readme-writer's `check_readme.json` is
+AnyScan's own (Q6).
+
+**Why.** Whoever clones the repository gets the conventions, checkers and procedures its records cite, at the
+versions they were written against; the checks no longer depend on a private repository installed on one machine
+(R0 found the style checker's documented path missing on this machine, behind the sparse checkout).
+
+**Alternatives.** Keep the skills personal with only their project layers here (the previous layout): rejected by the
+owner, the project would not be self-contained. SKILL.md files with the project's decisions written in (as that other in-repo copy does): rejected, a generic SKILL.md can be compared with its upstream and copied unchanged, and the project's part stays in
+one file per skill. A git submodule of rp-claude-skills: it would ship every skill and need the private repository.
+
+**Revisit if** a personal skill of a shipped skill's name is installed again (it would take precedence), or an
+upstream change in rp-claude-skills should be taken over: a deliberate change, the scripts compared byte for byte.
+
+Pinned by `test/integration/test_skills.py`: exactly the six skills and `LICENSE`; each SKILL.md's name and a
+description of at most 1024 characters with no `<` or `>`; each skill's files and project.md sections; every pointer
+resolving; no project term in a generic file; the README sections the project layers cite; CLAUDE.md naming the
+skills and the in-repo checker. Each rule was broken once (R1, 12 mutations in a scratch copy).
