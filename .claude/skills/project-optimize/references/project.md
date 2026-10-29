@@ -125,12 +125,14 @@ Checked on two real runs of each mode: identical after the filter, 2026-10-23.
 
 ## Slow paths and timings
 
+The two check tiers, the default suite and `--runslow`, with their collected count and measured times, are in
+`CLAUDE.md` > Commands, the one place they are written (project-style-rpx `references/project.md`). The other slow
+paths:
+
 | Path | Time | Machine, date |
 |---|---|---|
 | `analyze.py --no-describe`, detect-only, 41 frames | 26 s wall (two runs: 26.3, 25.9) | Apple M2 Pro, 2026-10-23 |
 | `analyze.py --no-describe`, catalogue, 41 frames | 42 s wall (42.6, 41.8) | Apple M2 Pro, 2026-10-23 |
-| the default suite, `pytest -q` (1343 passed, 186 skipped; 1529 collected, the skills' 88 checker tests included) | 198 s, run alone | Apple M2 Pro, 2026-10-29 |
-| the full suite, `pytest -q --runslow` (1423 passed, 2 skipped: the DPR 2 halves of two density tests, run in their DPR 2 re-runs; 1 xfailed; 7 failed on the uncommitted skill copy R1 then replaced; before the skills' tests joined) | 535 s, with a read-only agent beside it | Apple M2 Pro, 2026-10-29 |
 
 ## Interpreter and tools
 

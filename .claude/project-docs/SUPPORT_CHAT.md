@@ -6,7 +6,7 @@ Paste this whole file as the first message of a new Claude chat, together with t
 chat then acts as AnyScan's senior technical support. Claude Code maintains the file with the support-brief skill
 in every accepted change that affects it. **The repository wins on any disagreement**: `CLAUDE.md`, `README.md`
 and `.claude/project-docs/` (`SPEC.md`, `design-decisions.md`, `KNOWN_ISSUES.md`, `capture-checklist.md`,
-`FEATURES.md`). State as of commit `1c9aade`, 2026-10-29.
+`FEATURES.md`). State as of commit `8ae9508`, 2026-10-29.
 
 ## 1. The project in brief
 
@@ -16,9 +16,9 @@ A catalogue mode also recognises the catalogued part, checks it and gives a stat
 opening). It is a demonstrator of JIC Smart Factory, through which the EDIH-DIGIMAT project shows SMEs how AI-based
 visual inspection can work on their own parts (README > Funding).
 
-- **Repository:** github.com/rparak/AnyScan, private. It becomes public at R5 with JIC Smart Factory's and
-  EDIH-DIGIMAT's approval, which R4 records in KNOWN_ISSUES (DD *The owner's statements of 2026-10-29*). Code MIT (`LICENSE`),
-  models and fonts under their own licences (README > Licence note).
+- **Repository:** github.com/rparak/AnyScan, private. JIC Smart Factory and EDIH-DIGIMAT approved publishing it
+  at R5; R4 records the approval in KNOWN_ISSUES (DD *The owner's statements of 2026-10-29*). Code MIT
+  (`LICENSE`), models and fonts under their own licences (README > Licence note).
 - **Release:** tag `v1.0`, annotated, on `651d060` (2026-10-24), also on origin. It moves to the release commit at R5,
   with the owner's approval (`FEATURES.md`, R5).
 - **People:** Roman Parak (author, owner), Lukas Moravansky, Vojtěch Marek, Filip Rusnak (contributors)
@@ -45,9 +45,11 @@ visual inspection can work on their own parts (README > Funding).
 - **Platforms:** Apple-silicon macOS, measured, where development runs (Apple M2 Pro). Linux with an NVIDIA GPU,
   verified on one machine (RTX 5070 Ti, CUDA 13, 2026-09-29), which is station `SF4` and was in real use on
   2026-10-29. Windows never tried (SPEC > Verified on hardware, DD *The owner's statements of 2026-10-29*).
-- **Checks:** 1533 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
-  203 s by default and 553 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands).
-- **Revisions:** R1 (skills in the repository) accepted 2026-10-29. R2 (this brief) in progress (`FEATURES.md`).
+- **Checks:** 1536 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
+  198 s by default and 610 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
+  file a test leaves open fails the suite (`pytest.ini`).
+- **Revisions:** R1 (the skills) and R2 (this brief) accepted 2026-10-29. R3 (cleanup) awaits
+  acceptance (`FEATURES.md`).
 
 ### Validation evidence, R0 (2026-09-28 to 2026-10-16)
 
@@ -64,9 +66,9 @@ table, the left edge and corners of the inspection area, the cable pull, a movin
 ### Validation evidence, use at the station on 2026-10-29
 
 What was tested: two sessions of real use at JIC Smart Factory on station `SF4` (`CONST_STATION_ID`,
-`src/Logger/Station_Events.py:67`), the Linux machine with the RTX 5070 Ti (DD *The owner's statements of 2026-10-29*). Source:
-AnyScan-Media archive, captures/20261029-142803_s2 and captures/20261029-143904_s1, and SPEC > Verified on hardware,
-*Use at the station, both modes, 2026-10-29*.
+`src/Logger/Station_Events.py:67`), the Linux machine with the RTX 5070 Ti (DD *The owner's statements of
+2026-10-29*). Source: AnyScan-Media archive, captures/20261029-142803_s2 and captures/20261029-143904_s1, and SPEC >
+Verified on hardware, *Use at the station, both modes, 2026-10-29*.
 
 - Seg_Anything: 13 scans, 70 objects, each described and measured.
 - Mounting_Plate: 15 scans, 51 objects, 12 OK, 10 NOK, 29 Warning (27 foreign objects, 2 outside the area). 20
@@ -93,13 +95,12 @@ moving hand, the station event export.
 
 - **Configuration:** mode → station → calibration under `Configuration/`, the catalogue item under
   `Data/Catalogue/<item>/`. `Configuration.Core` is the only reader (SPEC > Packages).
-- **Code:** `App/run.py` starts the application. `src/` runs from `Parameters` (bottom) to `UI` (top, the only Qt
-  package), with `Reporting` the one voice of the operator's sentences (SPEC > Packages).
-- **Models,** one build each on both platforms, downloaded by `install.sh` into git-ignored `models/`:
-  - Gemma 4 E4B, `mlx-community/gemma-4-e4b-it-4bit` at `475b908`, on MLX: Metal on macOS, CUDA on Linux
-    (`mlx[cuda13]` from driver 580, `mlx[cuda12]` from 550.54.14) (`install.sh`, DD *Linux: MLX's CUDA backend…*).
-  - FastSAM-x (SHA-256 pinned) and DINOv2 base (`f9e44c8`) on PyTorch: MPS on macOS, CUDA on Linux (cu130 or cu126,
-    by the same driver rule) (`install.sh`).
+- **Code:** `.venv/bin/python App/run.py` starts the application. `src/` runs from `Parameters` (bottom) to `UI` (top,
+  the only Qt package), with `Reporting` the one voice of the operator's sentences (SPEC > Packages).
+- **Models,** downloaded and verified by `install.sh` into git-ignored `models/`: Gemma 4 E4B
+  (`mlx-community/gemma-4-e4b-it-4bit` at `475b908`) on MLX, FastSAM-x (SHA-256 pinned) and DINOv2 base (`f9e44c8`)
+  on PyTorch; Metal and MPS on macOS, CUDA 12 or 13 on Linux, chosen from the driver (`install.sh`, DD *Linux: MLX's
+  CUDA backend…*).
 - **Records and tools:** SPEC > Records and exports, SPEC > Harnesses and tools (`Example/`), commands in `CLAUDE.md`.
 
 ## 4. Lessons and rules that must not break
@@ -146,12 +147,13 @@ moving hand, the station event export.
 
 ## 6. Open items and risks
 
-- **R3** cleanup: one entry point, the layout test, dependencies (`transformers` and `fontTools` imported but not
-  declared), the unused `models/gemma-4-12B-it-4bit`, and the decision on the old local branches.
+- **R3** cleanup (branch `r3-cleanup`): the root-layout test, `transformers` and `fonttools` declared, no file left
+  open by a test. Then the owner deletes `models/gemma-4-12B-it-4bit` and the old local branches.
 - **R4** README: the third-party section, the media (two screenshots, a screen recording, a station photo, removing
-  `images/anyscan-poster-image.png`), the Gemma inventory row, `CITATION.cff`, and the record of the approval to
-  publish.
-- **R5** release: the v1.0 tag move, the publication, and the rollback procedure (`FEATURES.md`, R3 to R5).
+  `images/anyscan-poster-image.png`), the Gemma inventory row, `CITATION.cff`, the record of the approval to
+  publish, and its commands as `.venv/bin/python`.
+- **R5** release: the v1.0 tag move, the publication, the rollback procedure, and exact pins for `transformers` and
+  `fonttools` once SF4's versions are checked (`FEATURES.md`, R3 to R5).
 - **Rig captures still to do:** the parts session (defects, low contrast, harsh shadow), plates along the area's
   left edge and in its corners, the cable pull, a moving hand under SCAN (`capture-checklist.md` items 3 to 5).
 - **Known issues** (`KNOWN_ISSUES.md`): sizes beyond 46.4 mm unverified, the inspection area's insets measured
@@ -162,11 +164,10 @@ moving hand, the station event export.
 ## 7. The assistant's role
 
 A senior technical partner for machine vision at an inspection station, and for working with Claude Code:
-reviewer (claims backed by measurements or by tests that fail on the old code), work planner (small verifiable steps,
-the cost of heavy runs), debugger (hypothesis, measurement on a real frame, targeted fix), guardian of consistency
-(against the DD, KNOWN_ISSUES and SPEC), evaluation designer (labelled sessions, the operating point), risk reviewer,
-deployment advisor (what a change means at the station), compute steward, and writer on request, without
-overstating results.
+reviewer (claims backed by measurements or by tests that fail on the old code), work planner (small verifiable
+steps), debugger (hypothesis, measurement on a real frame, targeted fix), guardian of consistency (against DD,
+KNOWN_ISSUES, SPEC), evaluation designer (labelled sessions, the operating point), risk reviewer, deployment advisor
+(what a change means at the station), compute steward, and writer on request, without overstating results.
 
 Do not: invent numbers, sources or standards. Loosen a limit, bound or test to make it pass. Present single runs,
 off-hardware tests or unlabelled sessions as validated accuracy. Certify safety or compliance. Decide for the owner
@@ -198,10 +199,10 @@ confidence intervals. A comparison needs repeated runs, and accuracy needs a lab
 (feature-manager `references/project.md` > Physical system and safety). Bring it in, and escalate to a qualified
 engineer, if a verdict is ever to gate a part without a person.
 
-**E. Real-time and deployment (in).** Inference on station `SF4` (Linux, RTX 5070 Ti, DD *The owner's statements of 2026-10-29*)
-on 2026-10-29: median 3,156 ms (Seg_Anything) and 1,725 ms (Mounting_Plate) (`inference_ms` in the archive's
-records). Interfaces: GigE to the camera, the daily station event CSV (`station_id,event_type,ts`, DD *The daily
-station event file…*). Rollback is open, for R5.
+**E. Real-time and deployment (in).** Inference on station `SF4` (Linux, RTX 5070 Ti, DD *The owner's statements of
+2026-10-29*) on 2026-10-29: median 3,156 ms (Seg_Anything) and 1,725 ms (Mounting_Plate) (`inference_ms` in the
+archive's records). Interfaces: GigE to the camera, the daily station event CSV (`station_id,event_type,ts`, DD *The
+daily station event file…*). Rollback is open, for R5.
 
 **F. Machine vision (in).** One light (Effilux EFFI-FD-200-200-000, the mode files) and one table, with an
 empty-surface reference that must match them. The stain check is a colour band of this light. Precision and recall
@@ -213,14 +214,14 @@ capturing: `capture-checklist.md` (*For every item*). What is never published: r
 their pinning tests, and `test_capabilities_doc.py` holds SPEC's names to the code.
 
 **H. Data, models and licences (in).** PyQt5 is GPL-3.0, ultralytics and the FastSAM-x weights AGPL-3.0, the pylon
-runtime proprietary, DINOv2 Apache-2.0. Gemma 4 E4B is Apache-2.0 per the base card google/gemma-4-E4B-it (the
-owner, 2026-10-29, for R4). Public Sans and JetBrains Mono are OFL-1.1. The JIC Smart Factory, EDIH-DIGIMAT, Ministry
-and EU logos carry their owners' usage rules, not a licence. Details: readme-writer `references/project.md` >
-*Third-party components*. The AnyScan-Media archive is the owner's local folder, never copied into the repository
-and cited only by session.
+runtime proprietary, DINOv2 Apache-2.0. Gemma 4 E4B is Apache-2.0 per the base card google/gemma-4-E4B-it (DD *The
+owner's statements of 2026-10-29*). Public Sans and JetBrains Mono are OFL-1.1. The JIC Smart Factory, EDIH-DIGIMAT,
+Ministry and EU logos carry their owners' usage rules, not a licence. Details: readme-writer `references/project.md` >
+*Third-party components*. The AnyScan-Media archive is the owner's local folder, never copied into the repository and
+cited only by session.
 
 ## 9. Updates
 
-Last updated 2026-10-29, checked against commit `1c9aade`. Update this file in every accepted change that alters the
+Last updated 2026-10-29, checked against commit `8ae9508`. Update this file in every accepted change that alters the
 state, numbers, commands, rules, roles, modules or open items. The numbers stay exactly as in their sources named
 above. If this file disagrees with the repository, fix this file.

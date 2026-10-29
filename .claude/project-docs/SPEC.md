@@ -187,7 +187,7 @@ it names. The modes shipped today:
   [*A catalogue mode is a Catalogue block…*](design-decisions.md#a-catalogue-mode-is-a-catalogue-block-naming-an-item-folder-and-the-configuration-picks-checks-never-their-order)).
   Within tolerance means consistent with nominal: the parts were not calipered
   ([README > Limitations](../../README.md#measurements-are-repeatable-not-absolute)).
-- **Without a camera**, `python App/run.py --frame <png>` analyses a saved frame of the reference's
+- **Without a camera**, `.venv/bin/python App/run.py --frame <png>` analyses a saved frame of the reference's
   size.
 
 ## Run sequence

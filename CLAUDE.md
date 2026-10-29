@@ -42,10 +42,10 @@ Two tiers of checks (times measured on the Apple M2 Pro, 2026-10-29):
 
 ```bash
 # Per commit: the default suite (the skills' checker tests included) and the style checker.
-.venv/bin/python -m pytest -q                                                   # 1533 collected, 203 s
+.venv/bin/python -m pytest -q                                                   # 1536 collected, 198 s
 .venv/bin/python .claude/skills/project-style-rpx/scripts/check_style.py src App Example test   # 11 known issues, 2 s
 # Before the owner's acceptance and any push: the real models too.
-.venv/bin/python -m pytest -q --runslow                                         # 1533 collected, 553 s
+.venv/bin/python -m pytest -q --runslow                                         # 1536 collected, 610 s
 ```
 
 ## Work rules
