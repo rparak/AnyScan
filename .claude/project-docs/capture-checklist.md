@@ -19,6 +19,10 @@ here: the sizes are repeatable, not absolute, and the describer is not a defect 
   and lighting, so each frame can be re-measured under any later calibration.
 - Do not move the camera, the lens or the light between CONNECT and the last frame of an item. If
   anything moves, note it and start the item again.
+- **Keep out of view** of the camera and of any screenshot: people and faces, name badges, business cards,
+  screens showing personal or confidential data, and parts that are not JIC Smart Factory's. If one is captured,
+  delete that capture set before the frames are used anywhere (readme-writer `references/project.md` > *Figures*
+  holds the same list for publishing).
 - `<set>` numbers restart at 1 on every CONNECT. With one CONNECT per item and no retakes, the number
   is the frame's position in the item's table. On a retake, write down the number that replaced it.
 

@@ -383,6 +383,9 @@ measured plates 50–66.6 mm out at
 59.97–61.27 × 39.89–41.31 mm, within tolerance, the side wall reaching about 1 mm on the edges facing the axis;
 without calipers that is not a verification of the size.)
 
+- **Evidence, at the station on 2026-10-29:** two plate judgements beyond 46.4 mm, their bounding-box centres 53.4 and
+  57.3 mm from the frame centre, read 60.47 × 40.64 and 60.04 × 40.25 mm, within tolerance (AnyScan-Media archive,
+  captures/20261029-143904_s1, frames 7 and 8). The plates were not calipered, so the radius is not widened.
 - **Impact:** an OK or a NOK on size beyond 46.4 mm rests on a size not verified there, and Scene Understanding no
   says so (the owner's ruling: a note there stood under sizes that match the plate and misled the operator;
   design-decisions, *The size note is in the log only*). The session log's verdict line gives the distance and the
@@ -419,6 +422,10 @@ and hole-diameter error of the plates inside stays within half its tolerance. Wh
   0.1 mm of the top (3 plates within 4 mm), 0.7 mm of the right (3 within 4.2 mm), 2.4 mm of the left (3 within
   6.1 mm), but only 4.7 mm of the bottom, and only one plate (`20261016-070930_21`) lies within 9 mm of it. Most of
   the plates measured by the edges, and every one that set the short-edge inset, lay by the **right** edge.
+- **At the station on 2026-10-29** (AnyScan-Media archive, captures/20261029-143904_s1, 20 plate judgements,
+  measured by their bounding boxes): one plate came 2.3 mm inside the area's bottom edge (12.3 mm from the frame's,
+  frame 7), against 4.7 mm before. The closest to the left edge stayed 39.4 mm inside the area (52.4 mm from the
+  frame's). The left edge and the corners are still unmeasured, and these plates were not calipered.
 - **The corners are not measured.** A plate wholly inside the area can lie up to about 67 mm from the frame centre
   (in a corner, its long side upright); the farthest judged inside lies 58.4 mm out. Between, nothing was measured.
 - **One plate exceeds the criterion wherever the area lies.** `Image_083`'s plate, 14.2 mm from the centre, reads
@@ -501,3 +508,18 @@ the area a stained front still scores down to 0.73 (`20261015-170602_4`, 52 mm o
   found could follow, if the owner wants one.
 - **Pinned by:** nothing: the clean fronts that pinned the clause's absence lie outside the inspection area, where no
   reason carries it, and the stained fronts' clause is not pinned.
+
+## The capture sets of 2026-10-29 are stamped one hour ahead
+
+Every capture set of 2026-10-29 records a `timestamp`, and a set id, one hour later than its files' modification times
+(3,599 to 3,601 s, all 28 sets of both sessions, AnyScan-Media archive, captures/20261029-142803_s2 and
+captures/20261029-143904_s1). The station's screenshots of that day show the same clock. The likely cause is a
+station still on summer time after 2026-10-25, in its time zone or in its clock. Which of the two is not known: the
+station was not checked yet.
+
+- **Impact:** read a set's time, its set id and the session log of that day one hour back before comparing them with
+  any other record. If only the time zone is wrong, the daily station event export's UTC `ts` is still right. If the
+  clock itself is wrong, `ts` is one hour off as well.
+- **Not fixed here:** it is a setting of the station, not of the code. Checking the station's time zone and clock
+  against a reference tells which, and a fix there leaves only the sets written before it affected.
+- **Pinned by:** nothing: no test can see the station's clock.

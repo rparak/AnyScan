@@ -58,6 +58,10 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
   the logo); `test/UI/test_brand_figures.py` fails when they disagree. This is the one place the
   regeneration rule is written; project-style-rpx and jic-sf-ui-style point here.
 - Folder: `images/` (the generic default is `Media/`; project-style-rpx `project.md` > *Root*).
+- **Nothing private is published.** Before any image, screenshot or recording goes into `images/`, every frame of it
+  is checked for people and faces, name badges, business cards, screens showing personal or confidential data, and
+  parts that are not JIC Smart Factory's. One that shows any of them is not published. `capture-checklist.md` holds
+  the same list for capturing.
 - Light and dark: each figure carries its own opaque ground (a white card, the purple band), so no
   `<picture>` variants. **Unchecked** on GitHub's dark theme until the owner looks at both figures
   there after the push (2026-10-23).
