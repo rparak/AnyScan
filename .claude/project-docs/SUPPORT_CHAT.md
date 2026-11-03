@@ -6,7 +6,7 @@ Paste this whole file as the first message of a new Claude chat, together with t
 chat then acts as AnyScan's senior technical support. Claude Code maintains the file with the support-brief skill
 in every accepted change that affects it. **The repository wins on any disagreement**: `CLAUDE.md`, `README.md`
 and `.claude/project-docs/` (`SPEC.md`, `design-decisions.md`, `KNOWN_ISSUES.md`, `capture-checklist.md`,
-`FEATURES.md`). State as of commit `ea534a5`, 2026-11-03.
+`FEATURES.md`). State as of commit `7205998`, 2026-11-03.
 
 ## 1. The project in brief
 
@@ -19,8 +19,8 @@ visual inspection can work on their own parts (README > Funding).
 - **Repository:** github.com/rparak/AnyScan, public from the v1.0 release (R5), as JIC Smart Factory and
   EDIH-DIGIMAT approved (DD *The owner's statements of 2026-10-29*). Code MIT (`LICENSE`), models and fonts under
   their own licences (README > Licence note). Cite it by `CITATION.cff`.
-- **Release:** tag `v1.0`, annotated, moved by the owner from `64c5561` to R5's release commit (`FEATURES.md`, R5;
-  `test/integration/test_citation.py` holds the tag to `CITATION.cff`).
+- **Release:** tag `v1.0`, annotated, on R6's release commit, re-created there after the history rewrite of
+  2026-11-03 (`FEATURES.md`, R6; `test/integration/test_citation.py` holds the tag to `CITATION.cff`).
 - **People:** Roman Parak (author, owner), Lukas Moravansky, Vojtěch Marek, Filip Rusnak (contributors)
   (README > Authors).
 - **Disclaimer the project states:** sizes are repeatable, not absolute, and their scale is not verified. The
@@ -49,7 +49,7 @@ visual inspection can work on their own parts (README > Funding).
   verified on one machine (RTX 5070 Ti, CUDA 13, 2026-09-29), which is station `SF4` and was in real use on
   2026-10-29. Windows never tried (SPEC > Verified on hardware, DD *The owner's statements of 2026-10-29*).
 - **Checks:** 1547 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
-  202 s by default and 530 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
+  202 s by default and 529 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
   file a test leaves open fails the suite (`pytest.ini`).
 - **Revisions:** R1 and R2 accepted 2026-10-29, R3, R4 and R5 2026-11-03. R6 (the poster dropped, history
   rewritten) is open (`FEATURES.md`).
@@ -144,7 +144,9 @@ moving hand, the station event export.
 
 - **R6:** the poster's PDFs embedded the GT fonts, whose public distribution embedded the EULA does not expressly
   grant, so the poster is dropped, every version removed from history, every cited hash mapped and `v1.0`
-  re-created; then the owner makes the repository public (DD *The poster is dropped…*).
+  re-created. Left to the owner: GitHub deleted and re-created, `main` and `v1.0` pushed, the collaborators
+  re-invited, then public; this Mac and SF4 re-cloned (DD *The poster is dropped…*). The README's *Workflow* is
+  the operator's sequence.
 - **Not checked on SF4 before the release:** the root-layout test, and the clock one hour ahead (`FEATURES.md`,
   KNOWN_ISSUES).
 - **Rig captures still to do:** the parts session (defects, low contrast, harsh shadow), plates along the area's
@@ -213,6 +215,6 @@ owner's local folder, never copied into the repository and cited only by session
 
 ## 9. Updates
 
-Last updated 2026-11-03, checked against commit `ea534a5`. Update this file in every accepted change that alters the
+Last updated 2026-11-03, checked against commit `7205998`. Update this file in every accepted change that alters the
 state, numbers, commands, rules, roles, modules or open items. The numbers stay exactly as in their sources named
 above. If this file disagrees with the repository, fix this file.

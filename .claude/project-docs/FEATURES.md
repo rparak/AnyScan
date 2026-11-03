@@ -9,11 +9,13 @@ KNOWN_ISSUES.
 
 - **R6 - The poster dropped, history rewritten** (owner, 2026-11-03): the poster's PDFs embedded the GT fonts, and
   JIC Smart Factory's Desktop EULA does not expressly grant publishing a PDF with them embedded (6.4). The poster is
-  dropped, every version leaves history (`images/anyscan-poster.pdf`, `images/AnyScan_poster.pdf`, `images/anyscan-poster-image.png`,
-  rewritten with git-filter-repo), every commit hash the records cite is mapped to its new one, and `v1.0` is
-  re-created on the new release commit before the repository is made public (design-decisions, *The poster is
-  dropped and every version removed from history*). The logo, the screenshots, the animation and the photo stay
-  (the EULA's 3.1 and 3.5). The README gains a *Workflow* section, from a fresh clone to the first analysis.
+  dropped, and every version left history on 2026-11-03 (`images/anyscan-poster.pdf`, `images/AnyScan_poster.pdf`,
+  `images/anyscan-poster-image.png`; git-filter-repo 2.47.0: 503 commits to 493, 10 empty ones dropped). Every
+  commit hash the records cite is mapped to its new one, and `v1.0` is re-created on the release commit, in a fresh
+  clone. The owner deletes and re-creates the GitHub repository, pushes it and makes it public (design-decisions,
+  *The poster is dropped and every version removed from history*). The logo, the screenshots, the animation and the
+  photo stay (the EULA's 3.1 and 3.5). The README gains a *Workflow* section, from a fresh clone to the first
+  analysis.
 - **Root-layout check on station SF4** (owner, 2026-11-03): `test/integration/test_root_layout.py`'s allowlist of
   ignored root entries and its untracked-entry check ran on macOS only. SF4 is not checked before the release. It is
   answered by `.venv/bin/python -m pytest test/integration/test_root_layout.py` on SF4.
