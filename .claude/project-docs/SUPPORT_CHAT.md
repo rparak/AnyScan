@@ -6,7 +6,7 @@ Paste this whole file as the first message of a new Claude chat, together with t
 chat then acts as AnyScan's senior technical support. Claude Code maintains the file with the support-brief skill
 in every accepted change that affects it. **The repository wins on any disagreement**: `CLAUDE.md`, `README.md`
 and `.claude/project-docs/` (`SPEC.md`, `design-decisions.md`, `KNOWN_ISSUES.md`, `capture-checklist.md`,
-`FEATURES.md`). State as of commit `f7b611c`, 2026-11-03.
+`FEATURES.md`). State as of commit `b112c01`, 2026-11-03.
 
 ## 1. The project in brief
 
@@ -16,11 +16,11 @@ A catalogue mode also recognises the catalogued part, checks it and gives a stat
 opening). It is a demonstrator of JIC Smart Factory, through which the EDIH-DIGIMAT project shows SMEs how AI-based
 visual inspection can work on their own parts (README > Funding).
 
-- **Repository:** github.com/rparak/AnyScan, private. JIC Smart Factory and EDIH-DIGIMAT approved publishing it
-  at R5; R4 records the approval in KNOWN_ISSUES (DD *The owner's statements of 2026-10-29*). Code MIT
-  (`LICENSE`), models and fonts under their own licences (README > Licence note).
-- **Release:** tag `v1.0`, annotated, on `651d060` (2026-10-24), also on origin. It moves to the release commit at R5,
-  with the owner's approval (`FEATURES.md`, R5).
+- **Repository:** github.com/rparak/AnyScan, public from the v1.0 release (R5), as JIC Smart Factory and
+  EDIH-DIGIMAT approved (DD *The owner's statements of 2026-10-29*). Code MIT (`LICENSE`), models and fonts under
+  their own licences (README > Licence note). Cite it by `CITATION.cff`.
+- **Release:** tag `v1.0`, annotated, moved by the owner from `651d060` to R5's release commit (`FEATURES.md`, R5;
+  `test/integration/test_citation.py` holds the tag to `CITATION.cff`).
 - **People:** Roman Parak (author, owner), Lukas Moravansky, Vojtěch Marek, Filip Rusnak (contributors)
   (README > Authors).
 - **Disclaimer the project states:** sizes are repeatable, not absolute, and their scale is not verified. The
@@ -48,10 +48,10 @@ visual inspection can work on their own parts (README > Funding).
 - **Platforms:** Apple-silicon macOS, measured, where development runs (Apple M2 Pro). Linux with an NVIDIA GPU,
   verified on one machine (RTX 5070 Ti, CUDA 13, 2026-09-29), which is station `SF4` and was in real use on
   2026-10-29. Windows never tried (SPEC > Verified on hardware, DD *The owner's statements of 2026-10-29*).
-- **Checks:** 1543 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
-  199 s by default and 536 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
+- **Checks:** 1547 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
+  202 s by default and 530 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
   file a test leaves open fails the suite (`pytest.ini`).
-- **Revisions:** R1 and R2 accepted 2026-10-29, R3 2026-11-03. R4 (README, licences, media) awaits acceptance
+- **Revisions:** R1 and R2 accepted 2026-10-29, R3 and R4 2026-11-03. R5 (release v1.0) awaits acceptance
   (`FEATURES.md`).
 
 ### Validation evidence, R0 (2026-09-28 to 2026-10-16)
@@ -142,12 +142,9 @@ moving hand, the station event export.
 
 ## 6. Open items and risks
 
-- **R4** (branch `r4-readme`): the README held to its sources, with a Validation section, the defect-detection split,
-  the licence notes and table, the station photo, the analysis animation (`Example/UI/analysis_animation.py`) and two
-  screenshots. The poster stays unlinked: six of its claims go beyond SPEC, and its source is the owner's to fix
-  (readme-writer `references/project.md` > *Figures*).
-- **R5** release: the v1.0 tag move, the publication, the rollback procedure, and `CITATION.cff`, whose author list
-  and any ORCID or e-mail are the owner's (`FEATURES.md`).
+- **R5** (branch `r5-release`): the corrected poster linked again, `CITATION.cff`, the README's gallery and rollback
+  block, the publication sweep. Left to the owner: the tag move, making the repository public, and the GT licence for
+  the two poster versions in history that embed the GT fonts (history is not rewritten, `FEATURES.md`).
 - **Not checked on SF4 before the release:** the root-layout test, and the clock one hour ahead (`FEATURES.md`,
   KNOWN_ISSUES).
 - **Rig captures still to do:** the parts session (defects, low contrast, harsh shadow), plates along the area's
@@ -198,7 +195,7 @@ engineer, if a verdict is ever to gate a part without a person.
 **E. Real-time and deployment (in).** Inference on station `SF4` (Linux, RTX 5070 Ti, DD *The owner's statements of
 2026-10-29*) on 2026-10-29: median 3,156 ms (Seg_Anything) and 1,725 ms (Mounting_Plate) (`inference_ms` in the
 archive's records). Interfaces: GigE to the camera, the daily station event CSV (`station_id,event_type,ts`, DD *The
-daily station event file…*). Rollback is open, for R5.
+daily station event file…*). Rollback: README > Setup, *Back to an earlier release*.
 
 **F. Machine vision (in).** One light (Effilux EFFI-FD-200-200-000, the mode files) and one table, with an
 empty-surface reference that must match them. The stain check is a colour band of this light. Precision and recall
@@ -216,6 +213,6 @@ owner's local folder, never copied into the repository and cited only by session
 
 ## 9. Updates
 
-Last updated 2026-11-03, checked against commit `f7b611c`. Update this file in every accepted change that alters the
+Last updated 2026-11-03, checked against commit `b112c01`. Update this file in every accepted change that alters the
 state, numbers, commands, rules, roles, modules or open items. The numbers stay exactly as in their sources named
 above. If this file disagrees with the repository, fix this file.
