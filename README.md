@@ -13,7 +13,7 @@ edited by hand. Read it top to bottom: the frame, the two cues and their fusion,
 measurement, and in a catalogue mode its state.
 
 Two independent cues are fused, so an object is kept if **either** one finds it. [Detection logic](#detection-logic)
-gives the stages. The project poster is [images/anyscan-poster.pdf](images/anyscan-poster.pdf).
+gives the stages.
 
 > [!IMPORTANT]
 > Sizes are repeatable, not absolute, and their scale is not verified. The describer is not a defect detector, and a
@@ -167,7 +167,8 @@ its part, within 46.4 mm of the frame centre.** A part's size varies with its th
 
 **A description without a stain is not evidence there isn't one.** Whether a stain, scratch or corrosion is reported
 depends on how the part is framed, and nothing in the output marks a miss. A defect no check names (a scratch, a
-dent) is detected by nothing.
+dent) is detected by nothing. A catalogue mode detects only its item's defined defects (for the mounting plate:
+stains on the machined front, missing through-holes, a size out of tolerance), within the limits of the next section.
 
 - **Evidence** (the previous test set, not re-run on the current one): one rust stain was named at crop paddings
   0.20 and 0.36 and missed at 0.00–0.12 and 0.28, identically on every run, a step with the framing. The shipped 0.20

@@ -65,15 +65,22 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
 - Light and dark: each figure carries its own opaque ground (a white card, the purple band), so no
   `<picture>` variants. **Unchecked** on GitHub's dark theme until the owner looks at both figures
   there after the push (2026-10-23).
-- The project poster, `images/anyscan-poster.pdf`, is linked from the top paragraph; it is the
-  delivered file, not generated.
+- The project poster, `images/anyscan-poster.pdf`, is the delivered file, not generated, and its source is outside
+  the repository. **It is not linked from the README** (R4, 2026-11-03): checked against SPEC > *Verified on
+  hardware, and not yet*, six of its claims go beyond the records. "Find defects" and "spot surface defects" are
+  unqualified, while only a catalogued item's defined defects are detected. "Quality control on every part" holds
+  only for the catalogued part inside the inspection area. The "Surface contamination … perspiration residue" text
+  and the "Surface contamination" NOK verdict name no check AnyScan has: it reports "two stains on the machined
+  front". "Counterbored" / "Counterbore" holes are countersinks in the catalogue item. "Not classified as a defect"
+  for the tool marks is a classification nothing makes. It is linked again once the owner's corrected poster holds
+  against SPEC.
 - Numbering: Figure 1 the architecture at the top, Figure 2 the funding row; captions
   `**Figure N:** …` directly below.
 
 ## Rules
 
 - **The top block**: Figure 1 and its caption, the paragraph that says two cues are fused and links
-  *Detection logic* and the poster, one `[!IMPORTANT]` alert repeating only the must-not-miss part of
+  *Detection logic*, one `[!IMPORTANT]` alert repeating only the must-not-miss part of
   *Limitations*, then the Contents line.
 - **Detection logic** states the stages briefly: the shared stages in one `text` block naming each
   stage's module and function, and the catalogue stages, one numbered item each with their thresholds,
