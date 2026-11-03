@@ -6,7 +6,7 @@ Paste this whole file as the first message of a new Claude chat, together with t
 chat then acts as AnyScan's senior technical support. Claude Code maintains the file with the support-brief skill
 in every accepted change that affects it. **The repository wins on any disagreement**: `CLAUDE.md`, `README.md`
 and `.claude/project-docs/` (`SPEC.md`, `design-decisions.md`, `KNOWN_ISSUES.md`, `capture-checklist.md`,
-`FEATURES.md`). State as of commit `8ae9508`, 2026-10-29.
+`FEATURES.md`). State as of commit `f7b611c`, 2026-11-03.
 
 ## 1. The project in brief
 
@@ -42,14 +42,17 @@ visual inspection can work on their own parts (README > Funding).
 
 - **Built:** two modes, Seg_Anything (classification off, SPEC:158, SPEC:167-169) and Mounting_Plate (the one
   catalogue item, `Data/Catalogue/mounting_plate`). Four views: Live, Trends, History, Log (SPEC > UI views).
+- **Defects:** a catalogued item's defined defects are detected (the plate's stains on real frames, missing holes and
+  sizes out of tolerance on synthetic inputs only). Open-set defect detection is not built (SPEC > Verified on
+  hardware).
 - **Platforms:** Apple-silicon macOS, measured, where development runs (Apple M2 Pro). Linux with an NVIDIA GPU,
   verified on one machine (RTX 5070 Ti, CUDA 13, 2026-09-29), which is station `SF4` and was in real use on
   2026-10-29. Windows never tried (SPEC > Verified on hardware, DD *The owner's statements of 2026-10-29*).
-- **Checks:** 1536 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
-  198 s by default and 610 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
+- **Checks:** 1543 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
+  199 s by default and 536 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
   file a test leaves open fails the suite (`pytest.ini`).
-- **Revisions:** R1 (the skills) and R2 (this brief) accepted 2026-10-29. R3 (cleanup) awaits
-  acceptance (`FEATURES.md`).
+- **Revisions:** R1 and R2 accepted 2026-10-29, R3 2026-11-03. R4 (README, licences, media) awaits acceptance
+  (`FEATURES.md`).
 
 ### Validation evidence, R0 (2026-09-28 to 2026-10-16)
 
@@ -65,26 +68,18 @@ table, the left edge and corners of the inspection area, the cable pull, a movin
 
 ### Validation evidence, use at the station on 2026-10-29
 
-What was tested: two sessions of real use at JIC Smart Factory on station `SF4` (`CONST_STATION_ID`,
-`src/Logger/Station_Events.py:67`), the Linux machine with the RTX 5070 Ti (DD *The owner's statements of
-2026-10-29*). Source: AnyScan-Media archive, captures/20261029-142803_s2 and captures/20261029-143904_s1, and SPEC >
-Verified on hardware, *Use at the station, both modes, 2026-10-29*.
+What was tested: two sessions of real use at JIC Smart Factory on station `SF4`, the Linux machine with the RTX 5070 Ti
+(DD *The owner's statements of 2026-10-29*). Source: AnyScan-Media archive, captures/20261029-142803_s2 and
+captures/20261029-143904_s1, SPEC > Verified on hardware, README > Validation.
 
-- Seg_Anything: 13 scans, 70 objects, each described and measured.
-- Mounting_Plate: 15 scans, 51 objects, 12 OK, 10 NOK, 29 Warning (27 foreign objects, 2 outside the area). 20
-  plate judgements (12 OK, 8 NOK), all 212 feature checks within tolerance, sizes 59.78–60.69 × 39.21–40.64 mm
-  against 60 × 40 ± 1.5 mm, stains reported in all 8 judgements of a stained front.
-- Two plate judgements beyond 46.4 mm (bounding-box centres 53.4 and 57.3 mm), within tolerance, not calipered. One
-  plate 2.3 mm inside the area's bottom edge, the closest to its left edge 39.4 mm inside (bounding boxes)
-  (KNOWN_ISSUES).
-- Code: a pre-release from `26af42e` to before `77298de`, whose only code change to v1.0 is the key rename
-  Unspecified_Area_Ratio to Several_Parts_Area_Ratio (`src/Parameters` included).
-- Reproduced offline by v1.0 (`651d060`) from the recorded _raw.png frames on 2026-10-29, method in the records
-  commit message: 121/121 objects, every verdict, warning kind and reason, sizes within 0.284 mm, confidence within 1
-  point. The station ran on CUDA (the owner's statement above) and the replay on Apple silicon (Metal and MPS), which
-  accounts for the confidence and size differences and for the description wording (15 of 121 identical). The
-  replay itself repeats exactly on the same machine.
-- No operator, part ID, expected result or calipered size was recorded, so it shows the station working, not its
+- Seg_Anything: 13 scans, 70 objects. Mounting_Plate: 15 scans, 51 objects, 12 OK, 10 NOK, 29 Warning (27 foreign
+  objects, 2 outside the area). 20 plate judgements (12 OK, 8 NOK), all 212 feature checks within tolerance, sizes
+  59.78–60.69 × 39.21–40.64 mm against 60 × 40 ± 1.5 mm, stains reported in all 8 judgements of a stained front.
+- Two plate judgements beyond 46.4 mm (53.4 and 57.3 mm), within tolerance, not calipered (KNOWN_ISSUES).
+- The station ran a pre-release whose only code change to v1.0 is a renamed key. v1.0 (`651d060`) reproduced it
+  offline: 121/121 objects, every verdict, warning kind and reason, sizes within 0.284 mm, confidence within 1 point.
+  The wording differs (15 of 121 identical): CUDA there, Metal and MPS in the replay.
+- No operator, part ID, expected result or calipered size was recorded: it shows the station working, not its
   accuracy.
 
 Cannot cite: accuracy or error rates, absolute sizes, v1.0 running live at the station (reproduced offline only),
@@ -147,13 +142,14 @@ moving hand, the station event export.
 
 ## 6. Open items and risks
 
-- **R3** cleanup (branch `r3-cleanup`): the root-layout test, `transformers` and `fonttools` declared, no file left
-  open by a test. Then the owner deletes `models/gemma-4-12B-it-4bit` and the old local branches.
-- **R4** README: the third-party section, the media (two screenshots, a screen recording, a station photo, removing
-  `images/anyscan-poster-image.png`), the Gemma inventory row, `CITATION.cff`, the record of the approval to
-  publish, and its commands as `.venv/bin/python`.
-- **R5** release: the v1.0 tag move, the publication, the rollback procedure, and exact pins for `transformers` and
-  `fonttools` once SF4's versions are checked (`FEATURES.md`, R3 to R5).
+- **R4** (branch `r4-readme`): the README held to its sources, with a Validation section, the defect-detection split,
+  the licence notes and table, the station photo, the analysis animation (`Example/UI/analysis_animation.py`) and two
+  screenshots. The poster stays unlinked: six of its claims go beyond SPEC, and its source is the owner's to fix
+  (readme-writer `references/project.md` > *Figures*).
+- **R5** release: the v1.0 tag move, the publication, the rollback procedure, and `CITATION.cff`, whose author list
+  and any ORCID or e-mail are the owner's (`FEATURES.md`).
+- **Not checked on SF4 before the release:** the root-layout test, and the clock one hour ahead (`FEATURES.md`,
+  KNOWN_ISSUES).
 - **Rig captures still to do:** the parts session (defects, low contrast, harsh shadow), plates along the area's
   left edge and in its corners, the cable pull, a moving hand under SCAN (`capture-checklist.md` items 3 to 5).
 - **Known issues** (`KNOWN_ISSUES.md`): sizes beyond 46.4 mm unverified, the inspection area's insets measured
@@ -213,15 +209,13 @@ capturing: `capture-checklist.md` (*For every item*). What is never published: r
 **G. Traceability (in).** SPEC > Verified on hardware maps each capability to its evidence, KNOWN_ISSUES entries name
 their pinning tests, and `test_capabilities_doc.py` holds SPEC's names to the code.
 
-**H. Data, models and licences (in).** PyQt5 is GPL-3.0, ultralytics and the FastSAM-x weights AGPL-3.0, the pylon
-runtime proprietary, DINOv2 Apache-2.0. Gemma 4 E4B is Apache-2.0 per the base card google/gemma-4-E4B-it (DD *The
-owner's statements of 2026-10-29*). Public Sans and JetBrains Mono are OFL-1.1. The JIC Smart Factory, EDIH-DIGIMAT,
-Ministry and EU logos carry their owners' usage rules, not a licence. Details: readme-writer `references/project.md` >
-*Third-party components*. The AnyScan-Media archive is the owner's local folder, never copied into the repository and
-cited only by session.
+**H. Data, models and licences (in).** README > Licence note: PyQt5 GPL-3.0, ultralytics and the FastSAM-x weights
+AGPL-3.0, the pylon runtime proprietary, each with what it means for reuse, and a table of every component. Gemma 4
+E4B is Apache-2.0 per its base card (DD *The owner's statements of 2026-10-29*). The AnyScan-Media archive is the
+owner's local folder, never copied into the repository and cited only by session.
 
 ## 9. Updates
 
-Last updated 2026-10-29, checked against commit `8ae9508`. Update this file in every accepted change that alters the
+Last updated 2026-11-03, checked against commit `f7b611c`. Update this file in every accepted change that alters the
 state, numbers, commands, rules, roles, modules or open items. The numbers stay exactly as in their sources named
 above. If this file disagrees with the repository, fix this file.

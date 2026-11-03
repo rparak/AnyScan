@@ -38,14 +38,14 @@ Use `.venv/bin/python`, the environment `install.sh` creates; never a bare `pyth
 .venv/bin/python App/run.py                                                     # the application
 ```
 
-Two tiers of checks (times measured on the Apple M2 Pro, 2026-10-29):
+Two tiers of checks (times measured on the Apple M2 Pro, 2026-11-03):
 
 ```bash
 # Per commit: the default suite (the skills' checker tests included) and the style checker.
-.venv/bin/python -m pytest -q                                                   # 1536 collected, 198 s
+.venv/bin/python -m pytest -q                                                   # 1543 collected, 199 s
 .venv/bin/python .claude/skills/project-style-rpx/scripts/check_style.py src App Example test   # 11 known issues, 2 s
 # Before the owner's acceptance and any push: the real models too.
-.venv/bin/python -m pytest -q --runslow                                         # 1536 collected, 610 s
+.venv/bin/python -m pytest -q --runslow                                         # 1543 collected, 536 s
 ```
 
 ## Work rules
