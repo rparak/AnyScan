@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use AnyScan, please cite it as below."
+type: software
+title: "AnyScan"
+abstract: >-
+  AnyScan is a desktop inspection station for one Basler camera looking down at a work surface. It finds every
+  object on the table, describes each one with a local vision-language model, measures it in mm and records the
+  analysis. A catalogue mode also recognises the catalogued part, checks it and gives a state: OK, NOK or Warning.
+authors:
+  - given-names: Roman
+    family-names: Parak
+    affiliation: JIC Smart Factory
+  - given-names: Lukas
+    family-names: Moravansky
+    affiliation: JIC Smart Factory
+  - given-names: Vojtěch
+    family-names: Marek
+    affiliation: JIC Smart Factory
+  - given-names: Filip
+    family-names: Rusnak
+    affiliation: JIC Smart Factory
+license: MIT
+repository-code: "https://github.com/rparak/AnyScan"
+version: "1.0"
+date-released: "2026-11-03"

@@ -40,9 +40,9 @@ Description:
 """
 # The entries git tracks at the root.
 #   Unit [Set<string>]
-CONST_ROOT_ENTRIES = {'.claude', '.gitattributes', '.gitignore', 'App', 'CLAUDE.md', 'Configuration', 'Data',
-                      'Example', 'LICENSE', 'README.md', 'images', 'install.sh', 'logger', 'models', 'pytest.ini',
-                      'requirements', 'requirements.txt', 'src', 'test'}
+CONST_ROOT_ENTRIES = {'.claude', '.gitattributes', '.gitignore', 'App', 'CITATION.cff', 'CLAUDE.md', 'Configuration',
+                      'Data', 'Example', 'LICENSE', 'README.md', 'images', 'install.sh', 'logger', 'models',
+                      'pytest.ini', 'requirements', 'requirements.txt', 'src', 'test'}
 # The git-ignored entries the root may hold, each with what puts it there: the virtual environment install.sh
 # creates, pytest's cache, Finder's folder metadata on macOS, and the owner's brand sources (/design/ in .gitignore,
 # on the development Mac only). Nothing the application or its tools write lands in the root: their output is under

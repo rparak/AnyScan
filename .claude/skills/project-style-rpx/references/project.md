@@ -72,8 +72,8 @@ UI                               → everything above but Calibration  (App/run.
 
 ## Root ✅
 
-The root holds `.claude`, `.gitattributes`, `.gitignore`, `App`, `CLAUDE.md`, `Configuration`, `Data`,
-`Example`, `LICENSE`, `README.md`, `images`, `install.sh`, `logger`, `models`, `pytest.ini`,
+The root holds `.claude`, `.gitattributes`, `.gitignore`, `App`, `CITATION.cff`, `CLAUDE.md`, `Configuration`,
+`Data`, `Example`, `LICENSE`, `README.md`, `images`, `install.sh`, `logger`, `models`, `pytest.ini`,
 `requirements`, `requirements.txt`, `src`, `test`. Pinned by `test/integration/test_root_layout.py`,
 which also holds the records in `.claude/project-docs/` (with `FEATURES.md` and `SUPPORT_CHAT.md`) and no `docs/`,
 refuses two tracked paths that differ only in letter case, and reads `git status` for what is not tracked (the
