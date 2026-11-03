@@ -27,7 +27,7 @@ station SF4 on 2026-10-29, not a live recording. The analysis took 19 s on the M
 > Sizes are repeatable, not absolute, and their scale is not verified. The describer is not a defect detector, and a
 > catalogue mode's OK covers only its item's checks. Read [Limitations](#limitations) before building on the output.
 
-**Contents:** [Setup](#setup) · [Run](#run) · [Configuration](#configuration) · [Limitations](#limitations) ·
+**Contents:** [Setup](#setup) · [Workflow](#workflow) · [Configuration](#configuration) · [Limitations](#limitations) ·
 [Validation](#validation) · [Tests](#tests) · [Detection logic](#detection-logic) ·
 [Platform](#platform) · [Repository layout](#repository-layout) · [Swapping a component](#swapping-a-component) ·
 [Authors](#authors) · [Funding](#funding) · [Licence note](#licence-note)
@@ -49,6 +49,9 @@ On Linux it stops, naming the card and its memory, when GPU 0 has less than 11 G
 run for real**: the full Linux install, the Gemma download on macOS, the DINOv2 download from scratch, the CUDA 12 and
 CPU branches and every refusal ran against stubs only. If one fails, please report it with the installer's output.
 
+<details>
+<summary><b>The three models, and setup by hand</b>: the environment, the OpenCV fix and the model downloads</summary>
+
 | Model, in `models/` (not tracked in git) | Used for | Download |
 |---|---|---:|
 | Gemma 4 E4B, `mlx-community/gemma-4-e4b-it-4bit` (4-bit MLX) | describing each object | 5.2 GB |
@@ -56,9 +59,6 @@ CPU branches and every refusal ran against stubs only. If one fails, please repo
 | DINOv2 base, `facebook/dinov2-base` | recognising the catalogue part (catalogue modes) | 346 MB |
 
 The window and the tests run without the weights. A missing one is reported, with what to do, when first used.
-
-<details>
-<summary><b>Setup by hand</b>: the environment, the OpenCV fix and the three model downloads</summary>
 
 Python 3.10 to 3.12, the installer's range (developed and characterized on 3.10, run on 3.11 on Linux, never on
 3.12):
@@ -134,16 +134,39 @@ only what differs. Git holds none of these:
 
 </details>
 
-## Run
+## Workflow
 
-```bash
-.venv/bin/python App/run.py
-```
+From a fresh clone to the first analysis, in order. Steps 2 and 3 set a station up once: repeat both when the camera,
+the lens, its focus or the mount changes, and step 3 alone when the light or the table changes.
 
-The console drives a Basler camera and the local Gemma describer, both real. The window still opens without either,
-so **CONNECT → SCAN → ANALYZE** degrades one step at a time. PREVIEW shows the table live, and SCAN clears the previous
-result, stops the preview and takes a frame once nothing moves (about 0.6 s). `F11` toggles fullscreen, `Esc` closes.
-Every ANALYZE writes a capture set under `logger/captures/<connection>/`.
+1. **Install**: `./install.sh` ([Setup](#setup)) writes `.venv/` and the three models into `models/`. It worked when it
+   prints `Setup complete in … s`. On Linux it stops when GPU 0 has less than 11 GB.
+2. **Calibrate the camera**, connected over GigE. Print `Data/Calibration/Checkerboard_11x8_12mm_A4.pdf`, caliper
+   one square, capture views of the board flat and tilted, and solve them:
+   ```bash
+   .venv/bin/python Example/Camera/calibrate.py --capture --board-squares 11x8    # f flat, t tilted, q quit
+   .venv/bin/python Example/Camera/calibrate.py --images Data/Images/Calibration/<timestamp> --board-squares 11x8 \
+       --square-mm <calipered> --board-height-mm <board height>                  # example: replace the <...>
+   ```
+   It writes a new `Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml`, reports each view and
+   the RMS (the rig's: 63 views, 0.45 px) and prints the station file's line to change. Change it. A set captured
+   at another sensor window or with another board is refused, and nothing is written.
+3. **Shoot the empty-surface reference** with the table clear: `.venv/bin/python Example/Camera/make_reference.py`
+   writes `Data/Images/Background/Image_Background_<NNN>.png` and its sidecar (8 frames, about 2.6 s) and prints the
+   station line to change. Change it. Anything part-sized left on the table is listed, and nothing is written.
+4. **Choose the mode**: `Configuration/Mode/Config_<Hardware>_Mode_Seg_Anything.yaml` finds, describes and measures
+   every object, `…_Mode_Mounting_Plate.yaml` also checks the mounting plate. A station runs its own copy
+   ([Configuration](#configuration)).
+5. **Start**: `.venv/bin/python App/run.py` (a station adds `--config <its copy>`), then CONFIGURATION → **Load**,
+   4.8 s on the Linux station ([Platform](#platform)). CONNECT becomes available. A broken file is named, with its line.
+6. **CONNECT** sets the camera's window, exposure, gain and white balance. A camera another program holds is named.
+7. **PREVIEW** (optional) shows the table live with the inspection area, about 3.7 frames a second on the rig.
+8. **SCAN** takes one frame once the scene is still, about 0.59 s on the rig, or none (*Not scanned*) after a second.
+9. **ANALYZE** finds, describes and measures each object, and in a catalogue mode gives each a state: 0.65 s per
+   object on the Linux station, 2.20 s on the M2 Pro. **CLEAR** resets the figures, `Esc` closes.
+10. **The results**, in `logger/`: each analysis's capture set in `captures/<connection>/` (the newest 50, listed in
+    History), the session log `log_<date>_<time>.txt` and the run summary `log_<Hardware>.csv`. Closing writes the
+    day's station events to `<station-event directory>/<YYYY-MM-DD>.csv`.
 
 <details>
 <summary><b>Without the camera, and one frame without the window</b>: <code>--frame</code> and <code>scan.py</code></summary>
@@ -205,21 +228,25 @@ Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml
 
 </details>
 
+<details>
+<summary><b>What each file holds</b>, and how the three are checked when they load</summary>
+
 - **Mode**: what a user changes without code (models, prompts, thresholds, and a catalogue mode's item,
   `Data/Catalogue/<item>/<item>.yaml`). Its comments give every field's default and unit.
 - **Station**: the camera, lens, lighting, sensor window, empty-surface reference, inspection area and the
   calibration in force. A mode file that holds any of these fails to load.
-- **Calibration**: a new file from every `Example/Camera/calibrate.py` run, which prints the station line to change.
-  Calibrate, and shoot a new empty-surface reference, whenever the camera, the lens, its focus or the mount changes.
+- **Calibration**: a new file from every `Example/Camera/calibrate.py` run ([Workflow](#workflow), step 2).
 
 `Configuration.Core.Load_Configuration` checks the three as a whole: a missing required field, a link that disagrees
 or a reference that does not match its sidecar fails the load, naming the file and the line. A missing optional field
-takes its default and is logged. **Changing the lamp without updating `Camera.Lighting` goes unnoticed.**
+takes its default and is logged. CONFIGURATION lists `Configuration/Mode/`, and **Load** applies one (on failure the
+previous one stays). After the first CONNECT it is fixed for the run.
 
-The application starts with its configuration named but not loaded: CONFIGURATION lists `Configuration/Mode/`, and
-**Load** applies one (on failure the previous one stays). After the first CONNECT it is fixed for the run. **A station
-sets its station-event directory in a local copy of the mode file, never the shipped one**: copy it outside the
-repository, keeping its name, change only `General.Station_Events.Directory`, and start with `--config <that copy>`.
+</details>
+
+**Changing the lamp without updating `Camera.Lighting` goes unnoticed.** **A station sets its station-event
+directory in a local copy of the mode file, never the shipped one**: copy it outside the repository, keeping its
+name, change only `General.Station_Events.Directory`, and start with `--config <that copy>`.
 
 ## Limitations
 
@@ -322,10 +349,9 @@ git diff test/Vision/data/characterization.txt
 
 ## Detection logic
 
-SCAN stops the preview and calls `Camera_Backend_Cls.Capture_Still` (`src/Camera/Core.py`): the first frame with no
-movement since the one before (`Camera.Utilities.Stillness.Is_Still`) is the scan's, undistorted when calibrated. If
-something still moves after about a second, none is taken. `Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) then
-runs the stages every mode shares (modules under `src/Vision/Utilities/` unless named):
+SCAN takes the first frame with no movement since the one before (`Camera.Utilities.Stillness.Is_Still`), and
+`Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) runs the stages every mode shares (modules under
+`src/Vision/Utilities/` unless named):
 
 
 <details>
@@ -383,11 +409,12 @@ values, except the 1 mm² stain area (the owner's ruling) and the 1.7 area ratio
 | **Linux** | **Verified on one machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer refuses below it). On an RTX 5070 Ti with the CUDA 13 backend: 0.65 s per object (warm), 9.5 GB GPU peak for the whole application, output identical word for word between two processes. Not compared with the Mac's text. |
 | **Windows** | **Never tried, not a target** | Nothing known prevents it (`mlx` publishes Windows wheels), but it is not supported. |
 
+<details>
+<summary><b>The models and the Linux measurement</b>: what decides where AnyScan runs, the machine, the installer's run and the numbers</summary>
+
 - **Determinism does not travel**: greedy decoding fixes the sampler, but another backend can still change the text
   through floating-point differences. No test pins live describer text.
 
-<details>
-<summary><b>The models and the Linux measurement</b>: what decides where AnyScan runs, the machine, the installer's run and the numbers</summary>
 
 - **The models**: the describer, Gemma 4 E4B in 4-bit **MLX** at revision `475b908`, decides where AnyScan runs, and the
   rest is portable. DINOv2 base (`f9e44c8`, catalogue modes) only compares objects with the item's reference images.

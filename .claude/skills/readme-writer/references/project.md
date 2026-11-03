@@ -33,7 +33,8 @@ The one list of what makes a change update the README (feature-manager's `projec
 | the theme, the type scale, the pixel icons, a logo | Figure 1 and Figure 11 | `.venv/bin/python Example/UI/architecture_diagram.py` |
 | the funding logos or `Funding_Row_Cls.DISCLAIMER` | *Funding* (Figure 11 and the disclaimer, word for word) | `.venv/bin/python Example/UI/architecture_diagram.py` |
 | `install.sh`, `requirements*.txt`, a model or its size | *Setup*, *Platform* | - |
-| an option of `App/run.py` or an `Example/` script | *Run*, *Validation*, *Tests* | - |
+| an option of `App/run.py` or an `Example/` script | *Workflow*, *Validation*, *Tests* | - |
+| a step of the operator's sequence, a tool's output path or message (`install.sh`, `calibrate.py`, `make_reference.py`, the window), or a time it quotes | *Workflow* (and SPEC > *Run sequence*) | - |
 | a run on the rig or at a station, or a capture still to do | *Validation* (and SPEC > *Verified on hardware, and not yet*) | - |
 | the window, the analysis or the mounting-plate mode as the clip shows them | Figure 3 | `.venv/bin/python Example/UI/analysis_animation.py --frame <set>_raw.png` |
 | a configuration file name, kind or link | *Configuration* | - |
@@ -71,7 +72,7 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   dropped (the station photo carried GPS tags), the station photo cropped above the monitor so no window or office
   shows. Each passed the publication rule below when it was added (R4, 2026-11-03). They are single-version: each
   carries its own ground.
-- **The gallery** (R5, 2026-11-03), in *Run*: three screenshots cropped to their view's panel
+- **The gallery** (R5, 2026-11-03), at the end of *Workflow*: three screenshots cropped to their view's panel
   (`images/anyscan-trends-catalogue.jpg`, `-history-catalogue.jpg` and `-mask-catalogue.jpg`, from the archive's
   UI/ screenshots of 2026-10-29 14-45-59, 14-46-13 and 14-45-38) and two crops of recorded frames
   (`images/anyscan-scan-nok-ok.jpg` from captures/20261029-143904_s1 set `20261029-144027_8`,
@@ -97,7 +98,7 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   the GT fonts, whose public distribution embedded in a PDF the EULA does not expressly grant (R6, 2026-11-03;
   design-decisions, *The poster is dropped and every version removed from history*).
 - Numbering, in document order: Figure 1 the architecture, Figure 2 the station photo and Figure 3 the animation,
-  all three in the top block; under *Run*, the gallery: Figures 4 to 6 visible (Trends, History, the NOK plate beside
+  all three in the top block; at the end of *Workflow*, the gallery: Figures 4 to 6 visible (Trends, History, the NOK plate beside
   the OK one), Figures 7 to 10 collapsed (the two Live screenshots, the Mask view, the Segment Anything frame);
   Figure 11 the funding row. Captions `**Figure N:** …` directly below, in the gallery `<b>Figure N:</b>`.
 
@@ -150,12 +151,19 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   `.claude/project-docs/`, and never the Claude Code skills. A fact the README needs is stated where it
   is used; a reader who needs more reads the code and its comments.
 - The root layout is project-style-rpx `project.md` > *Root*; this file does not repeat it.
-- **Length**: within the generic 250-line budget (250 visible lines, R5, 2026-11-03), with thirteen `<details>`
-  blocks: the setup by hand, back to an earlier release, `--frame` and `scan.py`, the gallery's second half, the
-  configuration's file names, the rig's validation, the golden file, the four shared stages, the catalogue stages,
-  the models and the Linux measurement, the repository's folders, swapping a component, and the third-party
-  components (the owner's rulings of 2026-10-24 and 2026-11-03, and R5's). The platforms, `./install.sh`, the top
-  block's figures, the gallery's first row, the alert, the limitations and the station's validation stay visible.
+- **Workflow** (R6, the owner, 2026-11-03), right after *Setup*: one numbered list from a fresh clone to the first
+  analysis (install, calibrate, the empty-surface reference, the mode, start, CONNECT, PREVIEW, SCAN, ANALYZE, the
+  results), each step with its command, what it writes, how to tell it worked and its common failure, and a time
+  only where one was measured. Each fact is stated once: *Configuration*, *Detection logic* and *Platform* hold the
+  details and are linked from the steps.
+- **Length**: within the generic 250-line budget (250 visible lines, R6, 2026-11-03), with fourteen `<details>`
+  blocks: the three models and setup by hand, back to an earlier release, `--frame` and `scan.py`, the gallery's
+  second half, the configuration's file names, what each configuration file holds, the rig's validation, the golden
+  file, the four shared stages, the catalogue stages, the models and the Linux measurement (with the determinism
+  note), the repository's folders, swapping a component, and the third-party components (the owner's rulings of
+  2026-10-24 and 2026-11-03, and R5's and R6's). The platforms, `./install.sh`, the Workflow, the top block's figures,
+  the gallery's first row, the alert, the lamp and station-copy rules, the limitations and the station's validation
+  stay visible.
 - **Checker false positive**: `5.0.0.93` (line ~62, the opencv-python-headless version) is reported as
   an IP address; it is a version.
 

@@ -196,8 +196,8 @@ it names. The modes shipped today:
    (`opencv-python`, or its Qt plugins in `cv2/qt/plugins`), which would make the window abort, and
    names the two commands that leave the headless build only. The configuration is validated as a whole, both models are
    loaded, and the first analysis's one-time costs are paid ("Warming up…"). CONNECT stays
-   unavailable until then. The README's *Order of a run* has the detail
-   ([README > Configuration](../../README.md#configuration)).
+   unavailable until then. The README's *Workflow* gives the whole sequence, from the install to the results
+   ([README > Workflow](../../README.md#workflow)).
 2. **CONNECT** — sets the camera's sensor window and its fixed exposure, gain and white balance (the
    automatic modes switched off and read back, a camera keeping one on refused; the white-balance ratios read
    back and refused beyond half the camera's step), reads gamma and the colour preset (logged; refused when the
