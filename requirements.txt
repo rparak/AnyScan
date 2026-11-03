@@ -72,7 +72,8 @@ ultralytics>=8.2
 # src/Vision/Identifier.py loads models/dinov2-base with transformers' AutoImageProcessor and
 # AutoModel. It also arrives through mlx-vlm, whose 0.7.2 requires transformers>=5.14.0, but the
 # identifier depends on it directly, so it is declared, with that floor. 5.17.0 is installed on the
-# development Mac (2026-10-29); the exact pin waits until the version on station SF4 is checked (R5).
+# development Mac (2026-10-29). The floor stays, as everywhere in this file: an exact pin changes what
+# installs on Linux and needs a Linux check first (the owner, 2026-11-03).
 transformers>=5.14.0
 
 # ---- tests -----------------------------------------------------------------
@@ -85,5 +86,5 @@ pytest>=7.0
 # Example/UI/build_fonts.py, which builds the bundled fonts in App/assets/fonts/, imports fontTools.
 # The application and the tests do not. It also arrives through ultralytics' matplotlib
 # (fonttools>=4.22.0, the floor declared here); 4.65.0 is installed on the development Mac
-# (2026-10-29). The exact pin waits until the version on station SF4 is checked (R5).
+# (2026-10-29). The floor stays, as everywhere in this file (the owner, 2026-11-03).
 fonttools>=4.22.0

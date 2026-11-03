@@ -7,36 +7,29 @@ KNOWN_ISSUES.
 
 ## Open
 
-- **R3 - Cleanup: one entry point, layout test, dependencies** (owner, 2026-10-29). Found in R1: `transformers`
-  (`src/Vision/Identifier.py`, DINOv2) and `fontTools` (`Example/UI/build_fonts.py`) are imported but not declared;
-  they arrive only through mlx-vlm and through ultralytics' matplotlib. `models/gemma-4-12B-it-4bit` (6.3 GB,
-  git-ignored) is referenced by nothing. The old local branches wait for a decision. The owner's answers to Part A
-  (2026-10-29):
-  - The application starts one way, `.venv/bin/python App/run.py`; SPEC says so now, the README in R4. The `win32`
-    branch in `App/run.py` stays.
-  - `test/integration/test_root_layout.py` also refuses untracked root entries, ignored root entries outside a
-    written allowlist and case-only duplicate paths, and holds `FEATURES.md` and `SUPPORT_CHAT.md` as records.
-  - `requirements.txt` declares `transformers>=5.14.0` and `fonttools>=4.22.0` (maintenance only), in its `>=` style.
-    Exact pins wait for R5.
-  - The 139 ResourceWarnings that the default run hides (all opened in tests) are fixed, and `pytest.ini` makes a
-    leak an error.
-  - project-optimize's timing table points to `CLAUDE.md` for the two check tiers.
-  - The owner's statements of 2026-10-29 move to design-decisions (*The owner's statements of 2026-10-29*), and the
-    brief is refreshed in R3.
-  - `models/gemma-4-12B-it-4bit` is deleted by the owner after R3's final runs. The old local branches
-    (`archive/github-original`, `main-pre-rebuild`, `warm-up-at-configuration-load`) are backed up as a bundle and
-    deleted by the owner; a session does neither.
-- **R4 - README** (owner, 2026-10-29), written with readme-writer: among other things a third-party section from the
-  inventory in `.claude/skills/readme-writer/references/project.md` > *Third-party components*. Carries the owner's
-  statement of 2026-10-29 that Gemma 4 E4B is Apache-2.0 (design-decisions, *The owner's statements of 2026-10-29*).
-  Also (owner, 2026-10-29): the README media (two screenshots, a screen recording, a station photo, and removing
-  `images/anyscan-poster-image.png`), the Gemma row of the inventory, `CITATION.cff`, and the record of JIC Smart
-  Factory's and EDIH-DIGIMAT's approval to publish, in KNOWN_ISSUES. From R3 (owner, 2026-10-29): the README's
-  commands in the one spelling `.venv/bin/python` (README lines 103, 113 to 115, 339 and 340, R3's numbering), and
-  `preview_check.py` in the repository layout's list of `Example/` scripts (lines 316 and 317).
+- **R4 - README, licences, media** (owner, 2026-10-29), written with readme-writer: the README's third-party section
+  from the inventory in `.claude/skills/readme-writer/references/project.md` > *Third-party components*, the media,
+  the commands in the one spelling `.venv/bin/python`, and `preview_check.py` in the layout. The owner's answers to
+  Part A (2026-11-03):
+  - The README is held to its sources: every finding of the claims audit is fixed (README:294 among them), and a
+    *Validation* section states what ran on real hardware and what did not.
+  - Defect detection is split in SPEC: a catalogued item's defined defects are built, open-set defect detection on
+    any part is not. The project poster is linked only if every claim on it holds against SPEC.
+  - Media: a station photo (cropped), the analysis animation (`Example/UI/analysis_animation.py`, regenerated, never
+    edited), two Live screenshots collapsed; `images/anyscan-poster-image.png` removed.
+  - One command spelling: no `activate` step, the tests as `.venv/bin/python -m pytest`.
+  - The approval to publish stays in one place, design-decisions (*The owner's statements of 2026-10-29*); there is no
+    KNOWN_ISSUES entry. `CITATION.cff` moves to R5.
 - **R5 - Release v1.0** (owner, 2026-10-29): the v1.0 tag moved to the release commit (owner-approved), the
-  publication of the repository, and a rollback procedure for the station. From R3 (owner, 2026-10-29): exact
-  `==` pins for `transformers` and `fonttools`, once the versions installed on SF4 have been checked.
+  publication of the repository, and a rollback procedure for the station. Also `CITATION.cff` (owner, 2026-11-03):
+  title, the authors as in README > Authors, JIC Smart Factory, MIT, the repository URL, the version and release
+  date, with a test; whether the three contributors are listed as authors, their affiliations and any ORCID or
+  e-mail are the owner's to give. `transformers` and `fonttools` keep their `>=` floors, as `requirements.txt` does
+  throughout: an `==` pin changes what installs on Linux and needs a Linux check first (project-style-rpx
+  `project.md` > *Installer*, open item) (owner, 2026-11-03).
+- **Root-layout check on station SF4** (owner, 2026-11-03): `test/integration/test_root_layout.py`'s allowlist of
+  ignored root entries and its untracked-entry check ran on macOS only. SF4 is not checked before the release. It is
+  answered by `.venv/bin/python -m pytest test/integration/test_root_layout.py` on SF4.
 
 ## Done
 
@@ -44,3 +37,4 @@ KNOWN_ISSUES.
 |---|---|---|---|
 | R1 | Skills in the repository: six skills in `.claude/skills/` with generic `SKILL.md` files and AnyScan's `references/project.md` layers, their LICENSE, the rewritten skills test, the records and the third-party inventory; the personal copies excluded by sparse checkout (design-decisions, *The skills ship in the repository*). Full record, with the owner's answers Q1-Q9 of 2026-10-29: `git show c454237:.claude/project-docs/FEATURES.md` | `6820f20`…`c454237`, closed by the commit that adds this row | accepted by the owner 2026-10-29 |
 | R2 | The support-chat brief: support-brief's project layer, `.claude/project-docs/SUPPORT_CHAT.md` (its first run, checked against `1c9aade`) and `test/integration/test_support_chat.py`; the records of the use at station SF4 on 2026-10-29 and its offline v1.0 replay. The owner's statements of 2026-10-29: design-decisions, *The owner's statements of 2026-10-29*. Full record: `git show 6d6f068:.claude/project-docs/FEATURES.md` | `a62ed77`, `6d6f068`, closed by the commit that adds this row | accepted by the owner 2026-10-29 |
+| R3 | Cleanup: the root-layout test (untracked and ignored root entries, case-only paths, all six records), `transformers` and `fonttools` declared, every file a test opens closed and a leak made an error (`pytest.ini`), the owner's statements of 2026-10-29 in design-decisions, the brief refreshed. Full record: `git show 85e8840:.claude/project-docs/FEATURES.md` | `f9ae320`…`85e8840`, closed by the commit that adds this row | accepted by the owner 2026-11-03 |
