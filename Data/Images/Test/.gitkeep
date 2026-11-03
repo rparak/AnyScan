@@ -11,7 +11,7 @@ by frame name. A frame's name is only meaningful inside that set — renumbering
 adding or moving frames changes what the pins test, so update them in the same change.
 A name once used is never given to another image: 001-013 belonged to the set before
 (All/, recoverable from git commit 1061966) and 014-054 to the same scenes' _distorted.png
-files (recoverable from 1580e92), so this set starts at 055.
+files (recoverable from e2b87bd), so this set starts at 055.
 
 Which file: a capture set's <set>_raw.png, the frame the application analysed. "Raw"
 means unannotated, not unprocessed: _raw.png is undistorted, and only it is comparable

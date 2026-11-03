@@ -42,7 +42,7 @@ default, the full 1936 × 1216 sensor), start the application, load the configur
 must read the line below, and the status bar 1920 × 1200. A camera that keeps an automatic mode on, a ratio
 outside the tolerance or a gamma other than 1 is refused at CONNECT, naming it. Anything else: stop and report
 it — every item below depends on the window. Repeat the check after any change to the camera's settings or
-firmware. **Last confirmed on the real camera on 2026-10-13** (`7d9ffe7`); the log read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain
+firmware. **Last confirmed on the real camera on 2026-10-13** (`43991e9`); the log read *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain
 10.00, BayerRG8, ExposureAuto Off, GainAuto Off, BalanceWhiteAuto Off, BalanceRatio Red 0.949951, Green 0.899902,
 Blue 1.19995 (± 0.0078125, the camera reports no step), Gamma 1, LightSourcePreset not available (read back from
 the camera; LightSourcePreset not pinned).* The three automatic modes are Off; Gamma 1 is pinned in the station
@@ -132,7 +132,7 @@ either.)
 
 ## 2. Empty-surface reference (the mean of 8 frames)
 
-**In force: `Data/Images/Background/Image_Background_001.png`**, shot on 2026-10-12 (commit `b131244`) from
+**In force: `Data/Images/Background/Image_Background_001.png`**, shot on 2026-10-12 (commit `8798dae`) from
 the capture set `20261012-170521_s1`, with no objects accepted. Its sidecar records the window (1920 × 1200 at
 (8, 8)), the fingerprint of the calibration in force (`…_20260928-110755.yaml`) and the lighting. The next
 reference is `_002`.

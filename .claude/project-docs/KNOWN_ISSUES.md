@@ -65,11 +65,11 @@ They are validated on real captures, every frame's count pinned against a by-eye
 confirmed by the owner 2026-10-11), all matching against the shipped reference
 (`Image_Background_001`). The three 2×2 grids of plates set close together (`Image_093`–`095`) come
 back as four objects each. The earlier sets of `1061966` and `eb00508^` matched too; the misses below were
-on `b5ca788^` and `1580e92`. 41 frames of one table, under one light, is a narrow base.
+on `b5ca788^` and `e2b87bd`. 41 frames of one table, under one light, is a narrow base.
 
 - **Seen on earlier sets:** parts that touch or nearly touch, and a dark rusted plate the background cue
   barely sees (2 % of it), carried by FastSAM alone (`b5ca788^`); an extra object in the bottom-right
-  corner on frames that skipped the undistortion the reference went through (`1580e92`; design-decisions,
+  corner on frames that skipped the undistortion the reference went through (`e2b87bd`; design-decisions,
   *A replaced image never keeps its name*, case 6).
 - **Not yet seen on real data:** parts close to the table's colour, and any other lighting.
 - **The failure signatures to watch:**
@@ -110,7 +110,7 @@ level right would fix 012 only.
    terminal strip; with a coverage cut it still splits a single plate (010) and leaves 009 and 011 joined.
 5. Splitting along FastSAM's leaf masks: the leaves are hole rings, smudges and limbs, not plates.
 
-The full measurements, per frame and per route, are in this file at `38d7c97`.
+The full measurements, per frame and per route, are in this file at `d9305b2`.
 
 - **Not fixed here:** left open deliberately. Two plates butted against each other is not a realistic
   inspection case.
@@ -292,7 +292,7 @@ pypylon._genicam, pypylon._pylon, PyQt5.QtCore, PyQt5.QtGui, PyQt5.QtWidgets, Py
 test that was running, the thread and the kind of error (an abort such as PyQt5's qFatal on an exception
 escaping a slot, or a segfault) are unknown. pytest's faulthandler prints that dump to stderr only between
 its configure and unconfigure, so it happened during the session, not at interpreter exit. The tree was
-`99c7e70` with the Trends change of `4f3a78b` uncommitted in it, pure-Python arithmetic in
+`ea13c6a` with the Trends change of `5f7825a` uncommitted in it, pure-Python arithmetic in
 `Reporting/Trends.py`. The same tree then passed 13 full runs in a row, as had about 20 full runs and a
 30-run stress loop of `test/UI` earlier that day. It has not recurred: the two records kept since
 (2026-10-11) hold no fatal-error dump (one run exited with failures, one was cut off mid-run).
@@ -328,7 +328,7 @@ differently moves the plate's colours; nothing checks that the band still fits.
 - **Impact:** under another light a clean part could show band pixels (a false NOK) or a stain could fall
   outside the band (a stain passed: the error that matters).
 - **Not fixed here:** a check of the band needs frames under another light (capture checklist); the camera's
-  settings are fixed and read back since `7dbab51`.
+  settings are fixed and read back since `cd28bb2`.
 - **Pinned by:** `test/Vision/Utilities/test_stain.py` (the band as shipped), the pipeline's verdicts on the
   test set (slow).
 

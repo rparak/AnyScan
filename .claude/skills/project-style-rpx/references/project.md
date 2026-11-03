@@ -200,9 +200,9 @@ source…*). It is not a precedent for any other field.
 
 ### Machine-specific values stay out of the repository 📄
 
-Instance: `8d8a13c` put the station's own events directory, an absolute path on the station machine, into the
+Instance: `ab40fcb` put the station's own events directory, an absolute path on the station machine, into the
 shipped `General.Station_Events.Directory`. The loader requires that directory to exist, so everywhere else
-the shipped configuration stopped loading and 17 test modules failed before any test ran. `9d44669`
+the shipped configuration stopped loading and 17 test modules failed before any test ran. `9d3b90a`
 put back `logger/Station_Events`; README > Configuration says how a station keeps its own copy (same
 file name, started with `--config`; its `Station` resolves in the repository, so nothing is copied
 beside it). Only a **required** path is caught, and only indirectly: the suite loads the shipped file.

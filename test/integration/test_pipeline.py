@@ -62,7 +62,7 @@ CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 # Proposed by eye and confirmed by the owner (2026-10-11). The frames are the 2026-10-09 capture
 # session's _raw.png files (the application's undistorted frames), numbered from 055: 001-013 belonged
 # to the set before (All/, recoverable from 1061966) and 014-054 to the same scenes' _distorted.png files
-# (recoverable from 1580e92), which are other images, so no name is reused. Each count was carried
+# (recoverable from e2b87bd), which are other images, so no name is reused. Each count was carried
 # across from its _distorted scene, paired by content: the frame here equals, pixel for pixel, the
 # application's undistortion of the frame it replaces. The blue double triangle, a terminal strip with
 # its screws, the flanged bushing and the slit lattice bracket are one part each.

@@ -19,7 +19,7 @@ visual inspection can work on their own parts (README > Funding).
 - **Repository:** github.com/rparak/AnyScan, public from the v1.0 release (R5), as JIC Smart Factory and
   EDIH-DIGIMAT approved (DD *The owner's statements of 2026-10-29*). Code MIT (`LICENSE`), models and fonts under
   their own licences (README > Licence note). Cite it by `CITATION.cff`.
-- **Release:** tag `v1.0`, annotated, moved by the owner from `651d060` to R5's release commit (`FEATURES.md`, R5;
+- **Release:** tag `v1.0`, annotated, moved by the owner from `64c5561` to R5's release commit (`FEATURES.md`, R5;
   `test/integration/test_citation.py` holds the tag to `CITATION.cff`).
 - **People:** Roman Parak (author, owner), Lukas Moravansky, Vojtěch Marek, Filip Rusnak (contributors)
   (README > Authors).
@@ -76,7 +76,7 @@ captures/20261029-143904_s1, SPEC > Verified on hardware, README > Validation.
   objects, 2 outside the area). 20 plate judgements (12 OK, 8 NOK), all 212 feature checks within tolerance, sizes
   59.78–60.69 × 39.21–40.64 mm against 60 × 40 ± 1.5 mm, stains reported in all 8 judgements of a stained front.
 - Two plate judgements beyond 46.4 mm (53.4 and 57.3 mm), within tolerance, not calipered (KNOWN_ISSUES).
-- The station ran a pre-release whose only code change to v1.0 is a renamed key. v1.0 (`651d060`) reproduced it
+- The station ran a pre-release whose only code change to v1.0 is a renamed key. v1.0 (`64c5561`) reproduced it
   offline: 121/121 objects, every verdict, warning kind and reason, sizes within 0.284 mm, confidence within 1 point.
   The wording differs (15 of 121 identical): CUDA there, Metal and MPS in the replay.
 - No operator, part ID, expected result or calipered size was recorded: it shows the station working, not its

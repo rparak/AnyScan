@@ -9,7 +9,7 @@ code. A change that contradicts one of these should cite why the reason no longe
 
 Each entry states the decision in force. An earlier state is at most one *History* line, and an
 entry whose decision was replaced is a pointer to the entry that replaced it; the full earlier text
-of every entry is in git (folded 2026-10-24; the last unfolded version is at `a85215c`).
+of every entry is in git (folded 2026-10-24; the last unfolded version is at `6c18f89`).
 
 ## The label mask is black ground, tinted fill, verdict contour
 
@@ -196,7 +196,7 @@ Commit `94b74fa`; tests `test/UI/test_camera_view.py::test_a_new_scan_makes_the_
 ## `strip_background` binds `surface` to a background noun instead of matching the word
 
 Superseded by [*The background strip is removed, not retuned*](#the-background-strip-is-removed-not-retuned): the strip
-had no job left once Gemma described the parts, and it cost real description. The full entry is in git at `a85215c`.
+had no job left once Gemma described the parts, and it cost real description. The full entry is in git at `6c18f89`.
 
 ## A failed analysis writes a PARTIAL capture set, on purpose
 
@@ -997,7 +997,7 @@ Superseded by [*The label runs up to the head noun (supersedes the comma
 cut)*](#the-label-runs-up-to-the-head-noun-supersedes-the-comma-cut)
 and [*The object label keeps the model's alternatives, and reads the phrasings that broke it*](#the-object-label-keeps-the-models-alternatives-and-reads-the-phrasings-that-broke-it):
 the comma cut is replaced, and asking the model for the name was measured and rejected. The full entry is in git at
-`a85215c`.
+`6c18f89`.
 
 ## The label runs up to the head noun (supersedes the comma cut)
 
@@ -1083,7 +1083,7 @@ Superseded by [*Platform: three states — measured, target, not a
 target*](#platform-three-states--measured-target-not-a-target)
 and [*Linux: MLX's CUDA backend, E4B on every card with ≥ 11 GB, refusal instead of a silent CPU fallback*](#linux-mlxs-cuda-backend-e4b-on-every-card-with--11-gb-refusal-instead-of-a-silent-cpu-fallback):
 MLX publishes Linux wheels, and the application runs on Linux on MLX's CUDA backend. The full entry is in git at
-`a85215c`.
+`6c18f89`.
 
 ## The caption lead-ins are removed
 
@@ -1562,7 +1562,7 @@ Tests `test/UI/test_brand_figures.py` (`test_the_logo_renders_the_same_in_any_de
 
 Superseded by [*E4B stays the describer on both machines: the owner's choice, one wrong statement ahead of the
 12B*](#e4b-stays-the-describer-on-both-machines-the-owners-choice-one-wrong-statement-ahead-of-the-12b): the 12B
-is no longer supported, and its Mac measurement is kept there as evidence. The full entry is in git at `a85215c`.
+is no longer supported, and its Mac measurement is kept there as evidence. The full entry is in git at `6c18f89`.
 
 ## Linux: MLX's CUDA backend, E4B on every card with ≥ 11 GB, refusal instead of a silent CPU fallback
 
@@ -3067,7 +3067,7 @@ bright aluminium and rust-stained metal (median), and a 2 px outline lifts every
 the owner compared renders of Image_074 and Image_076 with and without it and chose none, by eye (*The palette is the
 JIC Smart Factory brand's*).
 
-*History:* the first version (`32418bc`, 2026-10-11) drew a found hole's box dashed and axis-aligned on the frame, a
+*History:* the first version (`6531c05`, 2026-10-11) drew a found hole's box dashed and axis-aligned on the frame, a
 hole as a square of its diameter plus 0.5 mm on a 2 px light halo, a stain's box along the stain's own slant, and
 moved chips off their boxes; the frame numbered the failing parts, then every part, then none, until the 2026-10-13
 rulings. The 0.5 mm square survives only as the box recorded in `_objects.json` (`CONST_HOLE_MARK_MARGIN_MM`).
@@ -3137,7 +3137,7 @@ Superseded by [*Three states for the operator, a Warning with its
 kind*](#three-states-for-the-operator-a-warning-with-its-kind): History's filter is All, OK, NOK and Warning,
 and the threshold lines are in [*Trends draws square markers, 2 px lines, and the run mean as hollow squares
 on top*](#trends-draws-square-markers-2-px-lines-and-the-run-mean-as-hollow-squares-on-top). The full entry is
-in git at `a85215c`.
+in git at `6c18f89`.
 
 
 ## The catalogue holds only the mounting plate
@@ -3145,7 +3145,7 @@ in git at `a85215c`.
 Decided 2026-10-13, on the owner's instruction: the labyrinth was removed — its catalogue item, reference images
 and mode file, and the code only it used (the logo check, `Checks.Logo`, its frame marks and report lines, and
 `Example/Catalogue/logo_letters.py`). A catalogue mode is now the mounting-plate mode. Git history keeps the
-removed code (its last commit is `4865eee`).
+removed code (its last commit is `604e8ae`).
 
 - **Its plates in the test frames are Warnings.** The 41 frames stay the pinned set, used in Segment Anything and
   the mounting-plate mode. In the latter its 37 plates read Warning (similarity 0.23–0.43 against the plate's
@@ -4021,14 +4021,14 @@ Tests `test/Vision/test_core.py::test_a_part_outside_the_area_is_not_checked_and
 Superseded by [*Three states for the operator, a Warning with its
 kind*](#three-states-for-the-operator-a-warning-with-its-kind): Unspecified is no longer a state, its causes
 are Warnings of their own kinds in the amber, and its blue is removed from the theme. The full entry is in git
-at `a85215c`.
+at `6c18f89`.
 
 ## A Warning is shown, counted and recorded by its kind
 
 Superseded by [*Three states for the operator, a Warning with its
 kind*](#three-states-for-the-operator-a-warning-with-its-kind): every Warning is shown, counted, charted and
 filtered as one state in the amber, its kind told in words; the record's `warning_kind` is kept there. The
-full entry is in git at `a85215c`.
+full entry is in git at `6c18f89`.
 
 ## Each state has one colour in every view
 
@@ -4331,7 +4331,7 @@ without loss (`UI.Capture.__Read_State`): a plain Warning without a kind as a Wa
 and `foreign` as written; an `Unspecified` object as a Warning of kind `unspecified` (its cause was never recorded);
 any other kind string as written. The run-summary CSV and the station event file carry no verdicts and are unchanged.
 
-**Measured**, before (`main` at `464defd`) and after, the same 87 frames through the application's pipeline in the
+**Measured**, before (`main` at `1ed2a9d`) and after, the same 87 frames through the application's pipeline in the
 mounting-plate mode (fallback describer): the 41 of `Data/Images/Test`, the 15 rebuilt edge frames of
 `Data/Images/Edge` and the 31 raw frames of the rig's captures on disk, 231 objects. No OK or NOK changed (42 OK, 36
 NOK). Every other object took its kind one to one: 136 foreign objects (`foreign`), 16 parts outside the area
@@ -4388,7 +4388,7 @@ Tests `test/Vision/Utilities/test_classify.py::test_the_verdict_follows_the_rule
 Superseded by [*Trends draws square markers, 2 px lines, and the run mean as hollow squares on
 top*](#trends-draws-square-markers-2-px-lines-and-the-run-mean-as-hollow-squares-on-top): the two entries are
 merged there, with the means' current lines, markers and colours and the labelled threshold lines. The full
-entry is in git at `a85215c`.
+entry is in git at `6c18f89`.
 
 ## Trends draws square markers, 2 px lines, and the run mean as hollow squares on top
 
@@ -4569,7 +4569,7 @@ items cite these statements. A tracker entry collapses to its row once its revis
 true moves to the SPEC, design-decisions or KNOWN_ISSUES (project-style-rpx `references/markdown.md` >
 *FEATURES.md*). Ownership, approval and licence are not capabilities, so they belong here rather than in the SPEC.
 
-**Alternatives.** Keep them only in R2's full record, behind `git show 6d6f068:.claude/project-docs/FEATURES.md`:
+**Alternatives.** Keep them only in R2's full record, behind `git show 94af1e8:.claude/project-docs/FEATURES.md`:
 rejected by the owner (2026-10-29, R3 Part A), since facts that current records cite would be reachable only through
 history. Put them in the SPEC: it states what the application does and what was verified, not who owns a part.
 
