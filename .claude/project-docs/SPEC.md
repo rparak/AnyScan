@@ -485,6 +485,11 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
   the application's copies of the delivered logo (the logo without its tagline, the mark, and the icon: the mark on a
   transparent ground, grid-fitted at each of 16-256 px), and build the
   bundled fonts (Public Sans and JetBrains Mono).
+- `UI/analysis_animation.py` — write the README's animation, `images/anyscan-analysis.webp`: the window offscreen
+  replaying one recorded frame (`--frame`, as `App/run.py --frame`) through the shipped mounting-plate mode with the
+  real models, loaded through the Configuration dialog, then CONNECT, SCAN and ANALYZE, grabbed on events (each badge
+  change), never on a timer, with the window's clock frozen. The analysis plays in 3 s whatever it took, and the
+  clip in at most 10 s. Its session log and capture set go to a temporary directory.
 
 ## Known limitations
 

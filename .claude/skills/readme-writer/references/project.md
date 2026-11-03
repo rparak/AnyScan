@@ -57,6 +57,18 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
   After replacing the logo, run `build_logo.py` first, then `architecture_diagram.py` (the diagram embeds
   the logo); `test/UI/test_brand_figures.py` fails when they disagree. This is the one place the
   regeneration rule is written; project-style-rpx and jic-sf-ui-style point here.
+- **The animation**, `images/anyscan-analysis.webp`: written by `Example/UI/analysis_animation.py --frame <set>_raw.png`
+  (the README's replays set `20261029-144501_15` of the AnyScan-Media archive, captures/20261029-143904_s1),
+  regenerated, never edited. **It is the one figure not reproduced byte for byte** (the owner's ruling, 2026-11-03): it
+  runs the real models, so the panel's measured inference time differs between runs, and on another backend so may
+  the descriptions' wording. Its grabs follow events and its clock is frozen, so nothing else of the run shows.
+  `test/UI/test_analysis_animation.py` holds the script on the stand-in runtimes and the committed clip to the
+  README's limits: 960 px wide, at most 10 s, at most 5 MB. Its caption gives the analysis time the script printed.
+- **Photographs and screenshots** (`images/anyscan-station.jpg`, `images/anyscan-live-*.jpg`): taken from the
+  AnyScan-Media archive, not generated. They are exported as JPEG quality 85, 1600 px wide, with every metadata block
+  dropped (the station photo carried GPS tags), the station photo cropped above the monitor so no window or office
+  shows. Each passed the publication rule below when it was added (R4, 2026-11-03). They are single-version: each
+  carries its own ground.
 - Folder: `images/` (the generic default is `Media/`; project-style-rpx `project.md` > *Root*).
 - **Nothing private is published.** Before any image, screenshot or recording goes into `images/`, every frame of it
   is checked for people and faces, name badges, business cards, screens showing personal or confidential data, and
