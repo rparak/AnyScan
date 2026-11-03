@@ -23,10 +23,6 @@ Two independent cues are fused, so an object is kept if **either** one finds it 
 **Figure 3:** SCAN, then ANALYZE, replayed offscreen by `Example/UI/analysis_animation.py` on a frame recorded at
 station SF4 on 2026-10-29, not a live recording. The analysis took 19 s on the Mac and is shown in 3 s.
 
-> [!IMPORTANT]
-> Sizes are repeatable, not absolute, and their scale is not verified. The describer is not a defect detector, and a
-> catalogue mode's OK covers only its item's checks.
-
 **Contents:** [Setup](#setup) · [Workflow](#workflow) · [Configuration](#configuration) ·
 [Validation](#validation) · [Tests](#tests) · [Detection logic](#detection-logic) ·
 [Platform](#platform) · [Repository layout](#repository-layout) · [Swapping a component](#swapping-a-component) ·
