@@ -25,9 +25,9 @@ station SF4 on 2026-10-29, not a live recording. The analysis took 19 s on the M
 
 > [!IMPORTANT]
 > Sizes are repeatable, not absolute, and their scale is not verified. The describer is not a defect detector, and a
-> catalogue mode's OK covers only its item's checks. Read [Limitations](#limitations) before building on the output.
+> catalogue mode's OK covers only its item's checks.
 
-**Contents:** [Setup](#setup) · [Workflow](#workflow) · [Configuration](#configuration) · [Limitations](#limitations) ·
+**Contents:** [Setup](#setup) · [Workflow](#workflow) · [Configuration](#configuration) ·
 [Validation](#validation) · [Tests](#tests) · [Detection logic](#detection-logic) ·
 [Platform](#platform) · [Repository layout](#repository-layout) · [Swapping a component](#swapping-a-component) ·
 [Authors](#authors) · [Funding](#funding) · [Licence note](#licence-note)
