@@ -86,11 +86,16 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   is checked for people and faces, name badges, business cards, screens showing personal or confidential data, and
   parts that are not JIC Smart Factory's. One that shows any of them is not published. `capture-checklist.md` holds
   the same list for capturing.
+- **No published file embeds a commercial font program** (a PDF's embedded GT fonts, for one). Outlined lettering
+  and images made under JIC Smart Factory's GT licence are allowed (the logo, the screenshots, the animation, the
+  photo), as are the OFL fonts in `App/assets/fonts/` (R6, 2026-11-03; design-decisions, *The poster is dropped
+  and every version removed from history*).
 - Light and dark: each figure carries its own opaque ground (a white card, the purple band), so no
   `<picture>` variants. **Unchecked** on GitHub's dark theme until the owner looks at both figures
   there after the push (2026-10-23).
-- The project poster, `images/anyscan-poster.pdf`, is the owner's export (its source is outside the repository, its
-  metadata stripped), not generated; every claim on it holds against SPEC (checked 2026-11-03, R5).
+- There is no project poster. The owner dropped it, and every version was removed from history: its PDFs embedded
+  the GT fonts, whose public distribution embedded in a PDF the EULA does not expressly grant (R6, 2026-11-03;
+  design-decisions, *The poster is dropped and every version removed from history*).
 - Numbering, in document order: Figure 1 the architecture, Figure 2 the station photo and Figure 3 the animation,
   all three in the top block; under *Run*, the gallery: Figures 4 to 6 visible (Trends, History, the NOK plate beside
   the OK one), Figures 7 to 10 collapsed (the two Live screenshots, the Mask view, the Segment Anything frame);
@@ -101,7 +106,7 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 - **The top block**: Figure 1 and its caption, the paragraph that says two cues are fused and links
   *Detection logic*, the station photo (Figure 2, the README's first view of the system) and the animation
   (Figure 3) with their captions, one `[!IMPORTANT]` alert repeating only the must-not-miss part of *Limitations*,
-  then the Contents line (R4, 2026-11-03), which ends with the project poster's link (R5).
+  then the Contents line (R4, 2026-11-03).
 - **Detection logic** states the stages briefly: the shared stages named in one sentence, then in one `text` block
   naming each stage's module and function, collapsed (R5), and the catalogue stages, one numbered item each with
   their thresholds, in a `<details>` block; `.claude/project-docs/SPEC.md` > *Pipeline stages* lists them one line each,

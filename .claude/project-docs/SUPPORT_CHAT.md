@@ -6,7 +6,7 @@ Paste this whole file as the first message of a new Claude chat, together with t
 chat then acts as AnyScan's senior technical support. Claude Code maintains the file with the support-brief skill
 in every accepted change that affects it. **The repository wins on any disagreement**: `CLAUDE.md`, `README.md`
 and `.claude/project-docs/` (`SPEC.md`, `design-decisions.md`, `KNOWN_ISSUES.md`, `capture-checklist.md`,
-`FEATURES.md`). State as of commit `b112c01`, 2026-11-03.
+`FEATURES.md`). State as of commit `ea534a5`, 2026-11-03.
 
 ## 1. The project in brief
 
@@ -51,8 +51,8 @@ visual inspection can work on their own parts (README > Funding).
 - **Checks:** 1547 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
   202 s by default and 530 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
   file a test leaves open fails the suite (`pytest.ini`).
-- **Revisions:** R1 and R2 accepted 2026-10-29, R3 and R4 2026-11-03. R5 (release v1.0) awaits acceptance
-  (`FEATURES.md`).
+- **Revisions:** R1 and R2 accepted 2026-10-29, R3, R4 and R5 2026-11-03. R6 (the poster dropped, history
+  rewritten) is open (`FEATURES.md`).
 
 ### Validation evidence, R0 (2026-09-28 to 2026-10-16)
 
@@ -142,9 +142,9 @@ moving hand, the station event export.
 
 ## 6. Open items and risks
 
-- **R5** (branch `r5-release`): the corrected poster linked again, `CITATION.cff`, the README's gallery and rollback
-  block, the publication sweep. Left to the owner: the tag move, making the repository public, and the GT licence for
-  the two poster versions in history that embed the GT fonts (history is not rewritten, `FEATURES.md`).
+- **R6:** the poster's PDFs embedded the GT fonts, whose public distribution embedded the EULA does not expressly
+  grant, so the poster is dropped, every version removed from history, every cited hash mapped and `v1.0`
+  re-created; then the owner makes the repository public (DD *The poster is dropped…*).
 - **Not checked on SF4 before the release:** the root-layout test, and the clock one hour ahead (`FEATURES.md`,
   KNOWN_ISSUES).
 - **Rig captures still to do:** the parts session (defects, low contrast, harsh shadow), plates along the area's
@@ -213,6 +213,6 @@ owner's local folder, never copied into the repository and cited only by session
 
 ## 9. Updates
 
-Last updated 2026-11-03, checked against commit `b112c01`. Update this file in every accepted change that alters the
+Last updated 2026-11-03, checked against commit `ea534a5`. Update this file in every accepted change that alters the
 state, numbers, commands, rules, roles, modules or open items. The numbers stay exactly as in their sources named
 above. If this file disagrees with the repository, fix this file.

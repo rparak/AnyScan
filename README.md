@@ -30,7 +30,7 @@ station SF4 on 2026-10-29, not a live recording. The analysis took 19 s on the M
 **Contents:** [Setup](#setup) · [Run](#run) · [Configuration](#configuration) · [Limitations](#limitations) ·
 [Validation](#validation) · [Tests](#tests) · [Detection logic](#detection-logic) ·
 [Platform](#platform) · [Repository layout](#repository-layout) · [Swapping a component](#swapping-a-component) ·
-[Authors](#authors) · [Funding](#funding) · [Licence note](#licence-note) · [Poster](images/anyscan-poster.pdf)
+[Authors](#authors) · [Funding](#funding) · [Licence note](#licence-note)
 
 ## Setup
 
@@ -434,7 +434,7 @@ Data/Images/Background/   the empty-surface reference(s) and their provenance si
 Data/Images/Calibration/  calibration capture sets (calibrate.py --capture); git-ignored
 Data/Calibration/         the calibration board to print, Checkerboard_11x8_12mm_A4.pdf; committed
 Data/Results/             analyze.py and scan.py output; git-ignored
-images/                   the README's figures, photographs and screenshots, the logo and the poster; committed
+images/                   the README's figures, photographs and screenshots, and the logo; committed
 models/                   the model weights, downloaded per Setup; git-ignored
 ```
 

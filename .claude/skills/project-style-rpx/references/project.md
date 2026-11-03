@@ -42,7 +42,7 @@ Configuration/           Mode/, Station/, Calibration/ (references > Configurati
 Data/                    Images/Test (the pinned frames), Images/Edge (the regression crops),
                          Images/Background (the references), Catalogue/, Calibration/ (the board's PDF);
                          Results/ and Images/Calibration/ are git-ignored
-images/                  the media folder: the README's figures, generated, and the project poster
+images/                  the media folder: the README's figures, generated, photographs and screenshots
 .claude/project-docs/    SPEC.md, design-decisions.md, KNOWN_ISSUES.md, capture-checklist.md (Records)
 ```
 
@@ -87,7 +87,7 @@ exceptions to the generic list, each with its reason (the owner's rulings of 202
 - `Configuration/` and `Data/` - the configuration folder and the inputs (test frames, references,
   catalogue items, the calibration board's PDF in `Data/Calibration/`); `Data/Results/` and
   `Data/Images/Calibration/` are git-ignored outputs.
-- `images/` - the one media folder: the README's figures and the project poster (the generic default
+- `images/` - the one media folder: the README's figures, photographs and screenshots (the generic default
   name is `Media/`).
 - `logger/` and `models/` - the session logs and the model weights, git-ignored apart from their
   `.gitkeep` files, which keep the directories a fresh clone needs.

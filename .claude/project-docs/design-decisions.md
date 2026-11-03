@@ -4559,6 +4559,11 @@ records rely on them, so they are kept here:
 5. **Gemma 4 E4B is Apache-2.0**, per its base model card, google/gemma-4-E4B-it. R4 writes it into the third-party
    inventory (readme-writer `references/project.md` > *Third-party components*), which still marks it unconfirmed.
 
+The owner added on 2026-11-03, during R6:
+
+6. **JIC Smart Factory holds a licence for GT America and GT Super Display** (Grilli Type Desktop EULA).
+7. **The owner made the AnyScan logo**, as a JIC Smart Factory employee for this JIC project, under that licence.
+
 **Why.** SPEC > *Verified on hardware, and not yet*, the support-chat brief (`SUPPORT_CHAT.md`) and the R4 and R5
 items cite these statements. A tracker entry collapses to its row once its revision is accepted, and what is still
 true moves to the SPEC, design-decisions or KNOWN_ISSUES (project-style-rpx `references/markdown.md` >
@@ -4570,3 +4575,29 @@ history. Put them in the SPEC: it states what the application does and what was 
 
 **Revisit if** the owner corrects a statement, a second station joins `SF4`, either approval is withdrawn, or the
 base model card's licence changes. Nothing pins these statements in a test: they are the owner's word, not the code's.
+
+## The poster is dropped and every version removed from history
+
+There is no project poster. Its versions were set in GT America and GT Super Display (Grilli Type): two embedded the
+font programs in the PDF, the others rendered the letters as pixels. JIC Smart Factory holds the Desktop licence for
+both (*The owner's statements of 2026-10-29*, item 6), and the EULA permits embedding in a PDF (3.4), but it does not
+expressly grant the public distribution of a PDF with the fonts embedded, and rights it does not grant are reserved
+(6.4). The owner dropped the poster, and history was rewritten on 2026-11-03, before the repository was made public, to
+remove every version: `images/anyscan-poster.pdf`, `images/AnyScan_poster.pdf` and `images/anyscan-poster-image.png`,
+eight files in all, first committed 2026-10-03. Ten commits that held nothing else were dropped, and every later
+commit has a new hash; the records cite the new ones.
+
+What stays is permitted by the same EULA: the AnyScan logo, made by the owner under JIC's licence (item 7), as a logo
+(3.1) whose lettering is outlined (3.5), and the screenshots, the animation and the station photo, as images and
+videos (3.1). The design entries that say "as on the poster" describe the brand's design source on the owner's machine
+(`design/`, git-ignored), from which the palette, the chips and the pixel cluster were taken. They publish nothing.
+
+**Why.** A file in a public repository's history stays downloadable, so removing it from the tree alone would still
+publish it.
+
+**Alternatives.** Keep the poster on the strength of 3.4 (not chosen: public distribution is not expressly granted).
+Re-set it as a new file whose lettering is outlined or rendered, or set in the OFL fonts: possible later, under
+readme-writer's rule on published fonts.
+
+**Revisit if** Grilli Type expressly grants the public distribution of PDFs with embedded fonts, JIC's licence
+changes, or a poster is made again.
