@@ -30,10 +30,12 @@ The one list of what makes a change update the README (feature-manager's `projec
 | A change to | Updates | Then run |
 |---|---|---|
 | the pipeline's stages, cues or their modules | Figure 1, *Detection logic*, the top paragraph | `.venv/bin/python Example/UI/architecture_diagram.py` |
-| the theme, the type scale, the pixel icons, a logo | Figure 1 and Figure 2 | `.venv/bin/python Example/UI/architecture_diagram.py` |
-| the funding logos or `Funding_Row_Cls.DISCLAIMER` | *Funding* (Figure 2 and the disclaimer, word for word) | `.venv/bin/python Example/UI/architecture_diagram.py` |
+| the theme, the type scale, the pixel icons, a logo | Figure 1 and Figure 6 | `.venv/bin/python Example/UI/architecture_diagram.py` |
+| the funding logos or `Funding_Row_Cls.DISCLAIMER` | *Funding* (Figure 6 and the disclaimer, word for word) | `.venv/bin/python Example/UI/architecture_diagram.py` |
 | `install.sh`, `requirements*.txt`, a model or its size | *Setup*, *Platform* | - |
-| an option of `App/run.py` or an `Example/` script | *Run*, *Captures on the rig*, *Tests* | - |
+| an option of `App/run.py` or an `Example/` script | *Run*, *Validation*, *Tests* | - |
+| a run on the rig or at a station, or a capture still to do | *Validation* (and SPEC > *Verified on hardware, and not yet*) | - |
+| the window, the analysis or the mounting-plate mode as the clip shows them | Figure 3 | `.venv/bin/python Example/UI/analysis_animation.py --frame <set>_raw.png` |
 | a configuration file name, kind or link | *Configuration* | - |
 | a measured run on a platform | *Platform* (the table and its numbers) | - |
 | a limitation found, measured or lifted | *Limitations* (and KNOWN_ISSUES, the DD) | - |
@@ -45,13 +47,13 @@ The one list of what makes a change update the README (feature-manager's `projec
 
 `.claude/project-docs/SPEC.md` > *Verified on hardware, and not yet* is the source of truth; the README uses its
 words exactly (the owner's ruling, 2026-10-23): **Verified, measured** (macOS), **Verified on one
-machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the text, *verified* /
+machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux, SPEC's whole status, R4), **Never tried, not a target** (Windows); in the text, *verified* /
 *not verified* / *unverified* with what was run. A status changed in one place changes in both.
 
 ## Figures
 
 - Script: `Example/UI/architecture_diagram.py` writes `images/anyscan-architecture.svg` (Figure 1)
-  and `images/anyscan-funding.svg` (Figure 2), from the theme's tokens, `Style.py`'s type scale and
+  and `images/anyscan-funding.svg` (Figure 6), from the theme's tokens, `Style.py`'s type scale and
   font fallbacks, and the pixel icon set; regenerated, never edited by hand. `Example/UI/build_logo.py`
   derives the logo copies in `App/assets/` from `images/anyscan-logo.svg`, never edited by hand either.
   After replacing the logo, run `build_logo.py` first, then `architecture_diagram.py` (the diagram embeds
@@ -86,14 +88,16 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
   front". "Counterbored" / "Counterbore" holes are countersinks in the catalogue item. "Not classified as a defect"
   for the tool marks is a classification nothing makes. It is linked again once the owner's corrected poster holds
   against SPEC.
-- Numbering: Figure 1 the architecture at the top, Figure 2 the funding row; captions
-  `**Figure N:** …` directly below.
+- Numbering, in document order: Figure 1 the architecture, Figure 2 the station photo and Figure 3 the animation,
+  all three in the top block; Figures 4 and 5 the Live screenshots, collapsed under *Run*; Figure 6 the funding row.
+  Captions `**Figure N:** …` directly below.
 
 ## Rules
 
 - **The top block**: Figure 1 and its caption, the paragraph that says two cues are fused and links
-  *Detection logic*, one `[!IMPORTANT]` alert repeating only the must-not-miss part of
-  *Limitations*, then the Contents line.
+  *Detection logic*, the station photo (Figure 2, the README's first view of the system) and the animation
+  (Figure 3) with their captions, one `[!IMPORTANT]` alert repeating only the must-not-miss part of *Limitations*,
+  then the Contents line (R4, 2026-11-03).
 - **Detection logic** states the stages briefly: the shared stages in one `text` block naming each
   stage's module and function, and the catalogue stages, one numbered item each with their thresholds,
   in a `<details>` block; `.claude/project-docs/SPEC.md` > *Pipeline stages* lists them one line each,
@@ -101,34 +105,34 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
 - **Headings cited from elsewhere stay as they are**: *Setup*, *Platform*, *Limitations* and *Licence
   note* are named in operator messages and code comments ("README > Setup"), and SPEC links `#setup`,
   `#limitations`, `#platform` and `#detection-logic` (checked by `test_capabilities_doc.py`).
-- **Commands** are written for the environment `./install.sh` creates, activated with
-  `source .venv/bin/activate` right after it (`python ...`, `pytest`).
+- **Commands** use one spelling, the interpreter `./install.sh` creates: `.venv/bin/python …`, the tests as
+  `.venv/bin/python -m pytest`, the Hugging Face CLI as `.venv/bin/hf`, never an activated environment (the owner,
+  2026-11-03; `CLAUDE.md` spells them the same).
 - **Authors** stands just before *Funding* (readme-writer has no Authors rule; its Acknowledgements, who
   contributed or funded, sit there). It is one HTML table row of four centred cells, in this order, each the
-  GitHub avatar (`https://avatars.githubusercontent.com/<username>`, `width="120px;"`, alt the name), the
+  GitHub avatar (`https://avatars.githubusercontent.com/<username>`, `width="120px;"`, alt "GitHub avatar of <name>, <role> of AnyScan, linking to the GitHub profile
+  <username>", 12 words or more), the
   name in bold linked to the profile, and the role below: Roman Parak, Author (`rparak`); Lukas Moravansky,
   Contributor (`LukasMoravansky`); Vojtěch Marek, Contributor (`vojtechmarek13`); Filip Rusnak, Contributor
   (`piifl`). The names and roles are the owner's words, exactly (the owner's ruling, 2026-10-24); none is
   added or changed without the owner. `LICENSE`'s copyright holder (JIC Smart Factory) is separate and
   unchanged.
 - **Checker exception, Authors only** (the owner's ruling, 2026-10-24): `check_readme.py` treats each
-  avatar as a figure and reports 8 ERRORs on the four cells, `alt-text` (2-3 words, 12 needed) and
-  `caption` (no "Figure N:"). They are allowed there and nowhere else: an avatar is an identifying
-  portrait, not a figure, so its alt is the person's name and it carries no caption. The four avatars are
-  listed in `check_readme.json` as `uncaptioned_figures`, each with its reason (owner, 2026-10-29), which
-  turns their 4 caption ERRORs into INFO lines. The checker exempts a listed figure from the caption only,
-  not from the alt text, so the baseline is 4 ERRORs, `alt-text` on the four avatars (measured 2026-10-29),
-  and 1 warning (`5.0.0.93 looks like an IP address`, the OpenCV pin); any other ERROR is a defect. The avatars are external images (GitHub's avatar
-  service), the README's only ones.
+  avatar as a figure and would report a `caption` ERROR on each (no "Figure N:"). An avatar is an identifying
+  portrait, not a figure, so it carries no caption: the four avatars are listed in `check_readme.json` as
+  `uncaptioned_figures`, each with its reason (owner, 2026-10-29), which turns those ERRORs into INFO lines. Their
+  alt text has 12 words or more since R4 (2026-11-03), so the baseline is **0 ERRORs** and 1 warning
+  (`5.0.0.93 looks like an IP address`, the OpenCV pin); any ERROR is a defect. The avatars are external images
+  (GitHub's avatar service), the README's only ones.
 - **Funding** reads: "Developed within internal research at JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT project shows small and medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts." (the owner's words,
   2026-10-24, the README's only sentence on where AnyScan was developed; Figure 1's description
-  carries the same sentence, then "Funded by the European Union.", from its generator), Figure 2, its
+  carries the same sentence, then "Funded by the European Union.", from its generator), Figure 6, its
   caption, then the EU disclaimer word for word as `Funding_Row_Cls.DISCLAIMER` holds it. The window's
-  band does not carry the disclaimer; the README and Figure 2's source do.
+  band does not carry the disclaimer; the README and Figure 6's source do.
 - **No semicolons in prose** (readme-writer `style.md` > *Language*, the owner's rule of 2026-10-24;
   `check_readme.py` reports one as ERROR [semicolons]). The EU disclaimer has none, so it needs no
   exception. The semicolons left in the README are syntax, which the check skips: the FastSAM
-  `python -c` one-liner, the folders' `text` block and the avatars' `width="120px;"`. Figure 2's alt
+  `python -c` one-liner, the folders' `text` block and the avatars' `width="120px;"`. Figure 6's alt
   text and the funding SVG's `aria-label` (written by `Example/UI/architecture_diagram.py`) list the
   three logos the same way, with commas.
 - **Limitations** follow project-style-rpx `project.md` > *Records*: three limitations, each the
@@ -137,10 +141,11 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
   `.claude/project-docs/`, and never the Claude Code skills. A fact the README needs is stated where it
   is used; a reader who needs more reads the code and its comments.
 - The root layout is project-style-rpx `project.md` > *Root*; this file does not repeat it.
-- **Length**: within the generic 250-line budget (250 visible lines, 2026-10-24), with four `<details>`
-  blocks: the setup by hand, the catalogue stages, the Linux measurement and the repository's folders
-  (the owner's ruling of 2026-10-24, lifting the 2026-10-23 departure). Platforms, `./install.sh`,
-  the alert and the limitations stay visible.
+- **Length**: within the generic 250-line budget (249 visible lines, 2026-11-03), with ten `<details>` blocks:
+  the setup by hand, `--frame` and `scan.py`, the two Live screenshots, the configuration's file names, the golden
+  file, the catalogue stages, the models and the Linux measurement, the repository's folders, swapping a component,
+  and the third-party components (the owner's rulings of 2026-10-24 and 2026-11-03). The platforms, `./install.sh`,
+  the top block's figures, the alert, the limitations and the validation stay visible.
 - **Checker false positive**: `5.0.0.93` (line ~62, the opencv-python-headless version) is reported as
   an IP address; it is a version.
 
@@ -150,7 +155,8 @@ machine, 2026-09-29** (Linux), **Never tried, not a target** (Windows); in the t
 |---|---|
 | `test/UI/test_brand_figures.py::test_the_readme_shows_the_diagram` | Figure 1 is in the README |
 | `test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output` | Figure 1 is the script's output |
-| `test/UI/test_brand_figures.py::test_the_readme_funding_row_is_the_generators_and_self_contained` | Figure 2 is the script's output |
+| `test/UI/test_brand_figures.py::test_the_readme_funding_row_is_the_generators_and_self_contained` | Figure 6 is the script's output |
+| `test/UI/test_analysis_animation.py` | Figure 3's script, and the committed clip's width, length and size |
 | `test/UI/test_funding_band.py::test_the_disclaimer_is_kept_word_for_word_in_the_readme_and_the_diagram` | the EU disclaimer, word for word |
 | `test/integration/test_pipeline.py::test_the_inventory_names_every_frame_of_the_test_set` | the test set the README counts |
 
@@ -158,17 +164,18 @@ Commands:
 
 ```bash
 .venv/bin/python -m pytest -q test/UI/test_brand_figures.py test/UI/test_funding_band.py
-.venv/bin/python .claude/skills/readme-writer/scripts/check_readme.py README.md   # 4 errors (the avatars' alt text, above), 1 warning
-<throwaway python with cmarkgfm> .claude/skills/readme-writer/scripts/render_readme.py README.md   # 0 leftovers, 2026-10-24
+.venv/bin/python .claude/skills/readme-writer/scripts/check_readme.py README.md   # 0 errors, 1 warning (the version read as an IP, above)
+<throwaway python with cmarkgfm> .claude/skills/readme-writer/scripts/render_readme.py README.md   # 0 leftovers, 2026-11-03
 ```
 
 ## Third-party components
 
-The confirmed inventory R4 writes the README's third-party section from (R1, 2026-10-29). Versions: the pin in
+The confirmed inventory the README's third-party table is built from (R1, 2026-10-29; the README's *Licence note*
+since R4, 2026-11-03, a collapsed table of component, use, licence and link). Versions: the pin in
 `requirements.txt` / `install.sh`, then what `.venv` held on the development Mac. Licences were read from each
 package's installed metadata or licence file, from the model card at the pinned revision (Hugging Face API), or from
-the file in the repository; each row names its source. **Unconfirmed** means not read at the source in R1. The
-README's *Licence note* already covers Gemma, DINOv2 and the fonts (README > Licence note); this table is wider.
+the file in the repository; each row names its source. **Unconfirmed** means not read at the source in R1. A row
+changed here changes the README's table in the same commit.
 
 | Component | Version | What AnyScan uses it for | Arrives | Licence | Source of the licence | Licence | Project |
 |---|---|---|---|---|---|---|---|
@@ -183,20 +190,20 @@ README's *Licence note* already covers Gemma, DINOv2 and the fonts (README > Lic
 | Basler pylon runtime | inside the pypylon 26.8 wheel | the camera driver pypylon calls | pip, bundled | **Basler pylon End-User License Agreement (proprietary)** | `pypylon/pylon.framework/Versions/A/Resources/License.txt` | **unconfirmed**: Basler's download page refused scripted reads (403) | baslerweb.com |
 | huggingface_hub | `>=1.30` / 1.33.0 | downloading Gemma and DINOv2 at install | pip | Apache-2.0 | metadata | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [huggingface_hub](https://github.com/huggingface/huggingface_hub) |
 | torch | `>=2.3` / 2.14.0 | runs FastSAM and DINOv2 | pip | BSD-3-Clause, with Apache-2.0, BSL-1.0 and MIT parts | metadata `License-Expression` | [LICENSE](https://github.com/pytorch/pytorch/blob/main/LICENSE) | pytorch.org |
-| transformers | **not declared** / 5.17.0, through mlx-vlm | loads DINOv2 (`src/Vision/Identifier.py`) | pip, transitive (R3 defect) | Apache-2.0 | metadata | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [transformers](https://github.com/huggingface/transformers) |
+| transformers | `>=5.14.0` / 5.17.0 | loads DINOv2 (`src/Vision/Identifier.py`) | pip, declared (R3) | Apache-2.0 | metadata ("License: Apache 2.0 License"), dist-info `licenses/LICENSE` | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [transformers](https://github.com/huggingface/transformers) |
 | ultralytics | `>=8.2` / 8.4.123 | runs the FastSAM segmenter | pip | **AGPL-3.0** | metadata, dist-info `LICENSE` | [ultralytics licence](https://www.ultralytics.com/license), [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html) | [ultralytics](https://github.com/ultralytics/ultralytics) |
 | mlx, mlx-metal | `==0.32.2` | runs Gemma on the GPU | pip | MIT | metadata | [LICENSE](https://github.com/ml-explore/mlx/blob/main/LICENSE) | [mlx](https://github.com/ml-explore/mlx) |
 | mlx[cuda12 / cuda13 / cpu] (Linux) | no version in `requirements/`; bound by `mlx==0.32.2` (`install.sh`, one pip call) | the Linux backend | pip | MIT, as mlx | **unconfirmed** separately (not installed on the Mac) | as mlx | as mlx |
 | mlx-vlm | `==0.7.2` | Gemma's vision-language interface | pip | MIT | metadata | in the package | [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) |
 | pytest | `>=7.0` / 9.1.1 | the test suite | pip | MIT | metadata | [LICENSE](https://github.com/pytest-dev/pytest/blob/main/LICENSE) | pytest.org |
-| fontTools | **not declared** / 4.65.0, through matplotlib | `Example/UI/build_fonts.py` (maintenance) | pip, transitive (R3) | MIT | metadata | [LICENSE](https://github.com/fonttools/fonttools/blob/main/LICENSE) | [fonttools](https://github.com/fonttools/fonttools) |
+| fontTools | `>=4.22.0` / 4.65.0 | `Example/UI/build_fonts.py` (maintenance only) | pip, declared (R3) | MIT | metadata ("License: MIT"), dist-info `licenses/LICENSE` (Copyright (c) 2017 Just van Rossum); `LICENSE.external` covers the test fonts it bundles (OFL-1.1) | [LICENSE](https://github.com/fonttools/fonttools/blob/main/LICENSE) | [fonttools](https://github.com/fonttools/fonttools) |
 | FastSAM-x weights | ultralytics assets `v8.4.0`, SHA-256 pinned in `install.sh` | finds the objects in the frame | `install.sh` download | **AGPL-3.0** | the ultralytics/assets repository's licence (GitHub API); the original CASIA-IVA-Lab/FastSAM `LICENSE` is AGPL-3.0 too | [ultralytics licence](https://www.ultralytics.com/license) | [release](https://github.com/ultralytics/assets/releases/tag/v8.4.0), [FastSAM](https://github.com/CASIA-IVA-Lab/FastSAM) |
-| Gemma 4 E4B, 4-bit MLX | `mlx-community/gemma-4-e4b-it-4bit@475b908` | writes each object's description | `install.sh` download | **unconfirmed** until the owner reads the licence page: the conversion's card says `license: gemma`; the base `google/gemma-4-E4B-it@fee6332` card says `apache-2.0` with the link below | both model cards at those revisions (Hugging Face API, 2026-10-29) | [Gemma 4 licence](https://ai.google.dev/gemma/docs/gemma_4_license) | [base model](https://huggingface.co/google/gemma-4-E4B-it), [conversion](https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit) |
+| Gemma 4 E4B, 4-bit MLX | `mlx-community/gemma-4-e4b-it-4bit@475b908` | writes each object's description | `install.sh` download | Apache-2.0 | the owner's statement (design-decisions, *The owner's statements of 2026-10-29*); the base `google/gemma-4-E4B-it@fee6332` card says `apache-2.0` (Hugging Face API, 2026-10-29); the conversion's card says `license: gemma`, converter boilerplate | [Gemma 4 licence](https://ai.google.dev/gemma/docs/gemma_4_license) | [base model](https://huggingface.co/google/gemma-4-E4B-it), [conversion](https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit) |
 | DINOv2 base | `facebook/dinov2-base@f9e44c8` | recognises the catalogued part | `install.sh` download | Apache-2.0 | model card at that revision (Hugging Face API) | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [model](https://huggingface.co/facebook/dinov2-base) |
 | Public Sans | the google/fonts commit pinned in `build_fonts.py` | the UI typeface | in the repository (`App/assets/fonts/`) | OFL-1.1 | `PublicSans-OFL.txt` beside the files | [OFL](https://openfontlicense.org) | [Public Sans](https://github.com/uswds/public-sans) |
 | JetBrains Mono | the same commit | the UI's monospace face | in the repository | OFL-1.1 | `JetBrainsMono-OFL.txt` | [OFL](https://openfontlicense.org) | [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) |
 | JIC Smart Factory logo | `App/assets/jic-smart-factory.svg` | the header's brand mark | in the repository | usage rules, not a licence | jic-sf-ui-style `assets/logos/USAGE.md`; the owner's source of the rules **unconfirmed** | - | jic.cz |
-| EDIH-DIGIMAT, Ministry of Industry and Trade, EU emblem | traced SVGs in `App/assets/` | the funding band and Figure 2 (a funding obligation) | in the repository | the funders' usage and visibility rules | `USAGE.md`; the EU's [visibility rules](https://commission.europa.eu/funding-tenders/managing-your-project/communicating-and-raising-eu-visibility_en); the other two sources **unconfirmed** | - | edih-digimat.cz, mpo.gov.cz |
+| EDIH-DIGIMAT, Ministry of Industry and Trade, EU emblem | traced SVGs in `App/assets/` | the funding band and Figure 6 (a funding obligation) | in the repository | the funders' usage and visibility rules | `USAGE.md`; the EU's [visibility rules](https://commission.europa.eu/funding-tenders/managing-your-project/communicating-and-raising-eu-visibility_en); the other two sources **unconfirmed** | - | edih-digimat.cz, mpo.gov.cz |
 | `src/Transformation/` | inherited | nothing imports it | in the repository | MIT | file headers ("Copyright (c) 2023 JIC Smart Factory"); the style's origin credit, DD *File headers carry JIC Smart Factory* | `LICENSE` | [RoLE](https://github.com/rparak/RoLE) |
 
 **Copyleft and non-open terms**, in plain words, not a legal conclusion:
@@ -208,8 +215,8 @@ README's *Licence note* already covers Gemma, DINOv2 and the fonts (README > Lic
   version, or offers it to users over a network, must provide its source under AGPL-3.0.
 - **The Basler pylon runtime (proprietary EULA)**: it comes inside the pypylon wheel under Basler's own terms, which
   govern its use and redistribution.
-- **Gemma 4**: the licence AnyScan states for it rests on the base model's card until the owner has read the
-  licence page; the conversion's `gemma` tag disagrees with it.
+- **Gemma 4**: Apache-2.0, the owner's statement (design-decisions, *The owner's statements of 2026-10-29*), per the
+  base model's card; the conversion's `gemma` tag looks like converter boilerplate.
 
 ## Pointers
 

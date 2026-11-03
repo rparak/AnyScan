@@ -26,7 +26,7 @@ station, recorded in the capture set, the run-summary CSV and the daily station 
 None. AnyScan drives no hardware beyond the camera it reads; a person acts on its verdicts. What a
 verdict may claim is bounded by README > Limitations (sizes are repeatable, not absolute; the
 describer is not a defect detector; a catalogue mode checks only what its item lists). The sentence a
-result carries is the README's own warning (README.md, the `[!IMPORTANT]` alert under Figure 1): a
+result carries is the README's own warning (README.md, the `[!IMPORTANT]` alert in the top block): a
 verdict is advice to the operator, verified only as SPEC > *Verified on hardware, and not yet* states.
 
 ## Always "large" (ask before building)
