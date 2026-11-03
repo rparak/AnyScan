@@ -13,7 +13,6 @@ edited by hand. Read it top to bottom: the frame, the two cues and their fusion,
 measurement, and in a catalogue mode its state.
 
 Two independent cues are fused, so an object is kept if **either** one finds it ([Detection logic](#detection-logic)).
-The project poster is [images/anyscan-poster.pdf](images/anyscan-poster.pdf).
 
 ![The AnyScan station at JIC Smart Factory: on a desk, a black JIC Smart Factory enclosure beside an aluminium frame around the green table, and a monitor showing AnyScan's Live view in the mounting-plate catalogue mode, with a keyboard and a mouse](images/anyscan-station.jpg)
 
@@ -31,7 +30,7 @@ station SF4 on 2026-10-29, not a live recording. The analysis took 19 s on the M
 **Contents:** [Setup](#setup) · [Run](#run) · [Configuration](#configuration) · [Limitations](#limitations) ·
 [Validation](#validation) · [Tests](#tests) · [Detection logic](#detection-logic) ·
 [Platform](#platform) · [Repository layout](#repository-layout) · [Swapping a component](#swapping-a-component) ·
-[Authors](#authors) · [Funding](#funding) · [Licence note](#licence-note)
+[Authors](#authors) · [Funding](#funding) · [Licence note](#licence-note) · [Poster](images/anyscan-poster.pdf)
 
 ## Setup
 
@@ -106,6 +105,35 @@ directory. `models/.gitkeep` lists the expected directory contents.
 
 </details>
 
+<details>
+<summary><b>Back to an earlier release</b>: the tag, the reinstall, and what git does not hold</summary>
+
+On the station, with the application closed:
+
+```bash
+git status --short                 # a changed tracked file (Configuration/) blocks the checkout: copy it aside first
+git rev-parse --short HEAD         # note the commit you leave, to come back
+git fetch --tags
+git checkout <tag>                 # example: replace <tag> with the release, such as v1.0
+./install.sh
+```
+
+`./install.sh` installs that release's `requirements.txt` into the existing `.venv`. Only `opencv-python-headless`,
+`mlx` and `mlx-vlm` are pinned (`==`). The others are floors (`>=`), so a newer version already installed stays. It
+verifies FastSAM-x by its SHA-256 and Gemma and DINOv2 file by file at the revisions that release pins, and fetches
+only what differs. Git holds none of these:
+
+- the model weights in `models/` (the installer fetches them),
+- the station's own mode file, kept outside the repository and started with `--config`: a field that release
+  requires and the file lacks fails the load, naming the file and the line,
+- calibrations written by `calibrate.py` into `Configuration/Calibration/` and not committed, and its captures in
+  `Data/Images/Calibration/`,
+- the session logs, capture sets and station events in `logger/`, and the scans in `Data/Results/`.
+
+`git checkout <the noted commit>` and `./install.sh` return to where you were.
+
+</details>
+
 ## Run
 
 ```bash
@@ -131,18 +159,34 @@ Without the camera, pass a saved 1920×1200 frame (a configuration must still be
 
 </details>
 
+<table>
+<tr>
+<td width="33%" valign="top"><a href="images/anyscan-trends-catalogue.jpg"><img src="images/anyscan-trends-catalogue.jpg" width="100%" alt="AnyScan's Trends view in the mounting-plate catalogue mode at station SF4: the cumulative count of objects found over the session's fifteen images, in total and as OK, NOK and Warning, above each image's mean confidence"></a>
+<br><b>Figure 4:</b> Trends, mounting-plate catalogue mode, station SF4, 2026-10-29: the objects found over the session, in total and per state, and each image's mean confidence.</td>
+<td width="33%" valign="top"><a href="images/anyscan-history-catalogue.jpg"><img src="images/anyscan-history-catalogue.jpg" width="100%" alt="AnyScan's History view in the mounting-plate catalogue mode at station SF4: the session's capture sets as thumbnails under the All, OK, NOK and Warning filter, and the chosen set's annotated frame, mask and report"></a>
+<br><b>Figure 5:</b> History, same session: the capture sets filtered by state (All, OK, NOK, Warning), the chosen set's annotated frame, mask and report.</td>
+<td width="33%" valign="top"><a href="images/anyscan-scan-nok-ok.jpg"><img src="images/anyscan-scan-nok-ok.jpg" width="100%" alt="Close-up of a recorded catalogue frame: on the left a mounting plate NOK, its two fingerprint stains tinted and boxed on the machined front, on the right a clean plate OK, each countersink and through-hole boxed and numbered"></a>
+<br><b>Figure 6:</b> A recorded frame, catalogue mode, SF4, 2026-10-29, cropped: plate 2 NOK for two stains (2.5, 2.6), plate 3 OK, each hole's countersink and through-hole boxed.</td>
+</tr>
+</table>
+
 <details>
-<summary><b>Two screenshots</b>: the Live view in each mode</summary>
+<summary><b>More screenshots and scans</b>: the Live view in each mode, the Mask view, a Segment Anything frame</summary>
 
-![AnyScan's Live view in the mounting-plate catalogue mode: five objects boxed on the green table, one plate OK, one plate NOK for two stains on its machined front, three foreign objects as Warnings, and their descriptions in the Scene Understanding panel](images/anyscan-live-catalogue.jpg)
-
-**Figure 4:** The Live view in the mounting-plate catalogue mode, 2026-11-03: one plate OK, one NOK for two stains on
-its machined front (a catalogued defect), three foreign objects as Warnings.
-
-![AnyScan's Live view in the Segment Anything mode at station SF4: ten objects boxed and numbered on the green table, each described in words and measured in millimetres in the Scene Understanding panel](images/anyscan-live-segment-anything.jpg)
-
-**Figure 5:** The Live view in the Segment Anything mode at station SF4, 2026-10-29: every object found, described and
-measured, no state.
+<table>
+<tr>
+<td width="33%" valign="top"><a href="images/anyscan-live-catalogue.jpg"><img src="images/anyscan-live-catalogue.jpg" width="100%" alt="AnyScan's Live view in the mounting-plate catalogue mode: five objects boxed on the green table, one plate OK, one plate NOK for two stains on its machined front, three foreign objects as Warnings, and their descriptions in the Scene Understanding panel"></a>
+<br><b>Figure 7:</b> The Live view in the mounting-plate catalogue mode, 2026-11-03: one plate OK, one NOK for two stains on its machined front (a catalogued defect), three foreign objects as Warnings.</td>
+<td width="33%" valign="top"><a href="images/anyscan-live-segment-anything.jpg"><img src="images/anyscan-live-segment-anything.jpg" width="100%" alt="AnyScan's Live view in the Segment Anything mode at station SF4: ten objects boxed and numbered on the green table, each described in words and measured in millimetres in the Scene Understanding panel"></a>
+<br><b>Figure 8:</b> The Live view in the Segment Anything mode at station SF4, 2026-10-29: every object found, described and measured, no state.</td>
+<td width="33%" valign="top"><a href="images/anyscan-mask-catalogue.jpg"><img src="images/anyscan-mask-catalogue.jpg" width="100%" alt="AnyScan's Mask view in the mounting-plate catalogue mode at station SF4: each object's mask on a black ground, tinted and outlined in its state's colour, a plate NOK, a plate OK and foreign objects as Warnings"></a>
+<br><b>Figure 9:</b> The Mask view, same session: each object's label mask on black, in its state's colour.</td>
+</tr>
+<tr>
+<td width="33%" valign="top"><a href="images/anyscan-scan-segment-anything.jpg"><img src="images/anyscan-scan-segment-anything.jpg" width="100%" alt="Close-up of a recorded Segment Anything frame: six objects on the green table, a maze plate, a blue printed lattice, a red block, a terminal strip, a screw and a washer, each outlined and numbered"></a>
+<br><b>Figure 10:</b> A recorded frame, Segment Anything mode, SF4, 2026-10-29, cropped: every object numbered and outlined (solid the rotated outline, dashed the outer box), its size in the Scene Understanding panel (1 at 50.2 × 50.1 mm, 3 at 96.3 × 25.8 mm).</td>
+</tr>
+</table>
 
 </details>
 
@@ -232,13 +276,6 @@ off-hardware on the 41 test frames and the 78 edge-of-view frames, and in use at
 What ran on real hardware, and what did not. No part was calipered and no session recorded each part's expected
 result, so nothing here measures accuracy: it shows the station working.
 
-**On the rig, 2026-09-28 to 2026-10-16.** The calibration was solved from 63 views (RMS 0.45 px, 0.102 mm/px), and the
-preview and the scan ran on the rig's camera (3.70 frames a second, a scan in 0.586 s). The suite re-analyses the 41
-recorded test frames (150 objects) against each frame's expected states, and 78 mounting-plate frames out to 66.6 mm
-from the frame centre (beyond 50 mm only by the right edge), every side, hole and stain (the catalogued checks) as
-labelled. Not yet run: a parts session (defects, low contrast, a harsh shadow), the inspection area's left edge and
-corners, a cable pull, and a moving hand under SCAN.
-
 **At station SF4, 2026-10-29.** Two sessions of real use at JIC Smart Factory (Linux, RTX 5070 Ti). Segment Anything:
 13 scans, 70 objects, each described and measured. Mounting plate: 15 scans, 51 objects, 12 OK, 10 NOK and 29 Warning
 (27 foreign objects, 2 outside the area). Its 20 plate judgements were within tolerance on all 212 feature checks, at
@@ -246,6 +283,18 @@ corners, a cable pull, and a moving hand under SCAN.
 judgements of a stained front. v1.0 reproduced both sessions offline on macOS from the recorded frames: all 121
 objects kept their state, warning kind and reason, sizes within 0.284 mm and confidence within 1 point. The wording of
 the descriptions differs (15 of 121 identical).
+
+<details>
+<summary><b>On the rig, 2026-09-28 to 2026-10-16</b>: the calibration, the camera, the test frames, what is not yet run</summary>
+
+The calibration was solved from 63 views (RMS 0.45 px, 0.102 mm/px), and the
+preview and the scan ran on the rig's camera (3.70 frames a second, a scan in 0.586 s). The suite re-analyses the 41
+recorded test frames (150 objects) against each frame's expected states, and 78 mounting-plate frames out to 66.6 mm
+from the frame centre (beyond 50 mm only by the right edge), every side, hole and stain (the catalogued checks) as
+labelled. Not yet run: a parts session (defects, low contrast, a harsh shadow), the inspection area's left edge and
+corners, a cable pull, and a moving hand under SCAN.
+
+</details>
 
 ## Tests
 
@@ -278,12 +327,18 @@ movement since the one before (`Camera.Utilities.Stillness.Is_Still`) is the sca
 something still moves after about a second, none is taken. `Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) then
 runs the stages every mode shares (modules under `src/Vision/Utilities/` unless named):
 
+
+<details>
+<summary><b>The four stages</b>: background subtraction, FastSAM, fusion, description, each with its module</summary>
+
 ```text
 (1) background subtraction  Segmentation.Background_Difference   what changed against the empty-surface reference
 (2) FastSAM segmentation    Segmenter.Fast_Sam_Cls               object instances, independent of the reference
 (3) fusion                  Fusion.Fuse_Objects                  (1) OR (2), split, area-filtered, left to right
 (4) description             Describers.Gemma_Describer_Cls       a padded, isolated, contrast-stretched crop each
 ```
+
+</details>
 
 Then `Reporting.Compose` writes the sentences and `Measure.Measure_Objects` the sizes (A x B, Ø or A/F, in mm). A
 **detect-only mode** (Segment Anything) runs these as listed, and a **catalogue mode** measures, recognises and checks
@@ -432,7 +487,7 @@ project shows small and medium-sized enterprises (SMEs) how AI-based visual insp
 
 ![EDIH-DIGIMAT, Ministry of Industry and Trade of the Czech Republic, Funded by the European Union](images/anyscan-funding.svg)
 
-**Figure 6:** The project's, the Ministry's and the EU's logos, generated with Figure 1.
+**Figure 11:** The project's, the Ministry's and the EU's logos, generated with Figure 1.
 
 Funded by the European Union. Views and opinions expressed are however those of the author(s) only and do not
 necessarily reflect those of the European Union or European Commission. Neither the European Union nor the granting

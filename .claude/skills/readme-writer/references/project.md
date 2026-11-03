@@ -30,8 +30,8 @@ The one list of what makes a change update the README (feature-manager's `projec
 | A change to | Updates | Then run |
 |---|---|---|
 | the pipeline's stages, cues or their modules | Figure 1, *Detection logic*, the top paragraph | `.venv/bin/python Example/UI/architecture_diagram.py` |
-| the theme, the type scale, the pixel icons, a logo | Figure 1 and Figure 6 | `.venv/bin/python Example/UI/architecture_diagram.py` |
-| the funding logos or `Funding_Row_Cls.DISCLAIMER` | *Funding* (Figure 6 and the disclaimer, word for word) | `.venv/bin/python Example/UI/architecture_diagram.py` |
+| the theme, the type scale, the pixel icons, a logo | Figure 1 and Figure 11 | `.venv/bin/python Example/UI/architecture_diagram.py` |
+| the funding logos or `Funding_Row_Cls.DISCLAIMER` | *Funding* (Figure 11 and the disclaimer, word for word) | `.venv/bin/python Example/UI/architecture_diagram.py` |
 | `install.sh`, `requirements*.txt`, a model or its size | *Setup*, *Platform* | - |
 | an option of `App/run.py` or an `Example/` script | *Run*, *Validation*, *Tests* | - |
 | a run on the rig or at a station, or a capture still to do | *Validation* (and SPEC > *Verified on hardware, and not yet*) | - |
@@ -53,7 +53,7 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 ## Figures
 
 - Script: `Example/UI/architecture_diagram.py` writes `images/anyscan-architecture.svg` (Figure 1)
-  and `images/anyscan-funding.svg` (Figure 6), from the theme's tokens, `Style.py`'s type scale and
+  and `images/anyscan-funding.svg` (Figure 11), from the theme's tokens, `Style.py`'s type scale and
   font fallbacks, and the pixel icon set; regenerated, never edited by hand. `Example/UI/build_logo.py`
   derives the logo copies in `App/assets/` from `images/anyscan-logo.svg`, never edited by hand either.
   After replacing the logo, run `build_logo.py` first, then `architecture_diagram.py` (the diagram embeds
@@ -71,6 +71,16 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   dropped (the station photo carried GPS tags), the station photo cropped above the monitor so no window or office
   shows. Each passed the publication rule below when it was added (R4, 2026-11-03). They are single-version: each
   carries its own ground.
+- **The gallery** (R5, 2026-11-03), in *Run*: three screenshots cropped to their view's panel
+  (`images/anyscan-trends-catalogue.jpg`, `-history-catalogue.jpg` and `-mask-catalogue.jpg`, from the archive's
+  UI/ screenshots of 2026-10-29 14-45-59, 14-46-13 and 14-45-38) and two crops of recorded frames
+  (`images/anyscan-scan-nok-ok.jpg` from captures/20261029-143904_s1 set `20261029-144027_8`,
+  `images/anyscan-scan-segment-anything.jpg` from captures/20261029-142803_s2 set `20261029-143609_13`, each its
+  `_annotated.png`). The same export rule, at most 1600 px wide, cropped from the full resolution and never
+  upscaled. Kept out: the Log views (unreadable at README width), Similarity (it reads like a defect map), and
+  anything the Live screenshots, the station photo or the animation already show. Each passed the publication
+  rule below. The gallery is an HTML table, three to a row, each image linked to itself, its `<br><b>Figure N:</b>`
+  caption on the line after it (the checker reads that line).
 - Folder: `images/` (the generic default is `Media/`; project-style-rpx `project.md` > *Root*).
 - **Nothing private is published.** Before any image, screenshot or recording goes into `images/`, every frame of it
   is checked for people and faces, name badges, business cards, screens showing personal or confidential data, and
@@ -82,18 +92,19 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 - The project poster, `images/anyscan-poster.pdf`, is the owner's export (its source is outside the repository, its
   metadata stripped), not generated; every claim on it holds against SPEC (checked 2026-11-03, R5).
 - Numbering, in document order: Figure 1 the architecture, Figure 2 the station photo and Figure 3 the animation,
-  all three in the top block; Figures 4 and 5 the Live screenshots, collapsed under *Run*; Figure 6 the funding row.
-  Captions `**Figure N:** …` directly below.
+  all three in the top block; under *Run*, the gallery: Figures 4 to 6 visible (Trends, History, the NOK plate beside
+  the OK one), Figures 7 to 10 collapsed (the two Live screenshots, the Mask view, the Segment Anything frame);
+  Figure 11 the funding row. Captions `**Figure N:** …` directly below, in the gallery `<b>Figure N:</b>`.
 
 ## Rules
 
 - **The top block**: Figure 1 and its caption, the paragraph that says two cues are fused and links
-  *Detection logic* and the project poster, the station photo (Figure 2, the README's first view of the system) and the animation
+  *Detection logic*, the station photo (Figure 2, the README's first view of the system) and the animation
   (Figure 3) with their captions, one `[!IMPORTANT]` alert repeating only the must-not-miss part of *Limitations*,
-  then the Contents line (R4, 2026-11-03).
-- **Detection logic** states the stages briefly: the shared stages in one `text` block naming each
-  stage's module and function, and the catalogue stages, one numbered item each with their thresholds,
-  in a `<details>` block; `.claude/project-docs/SPEC.md` > *Pipeline stages* lists them one line each,
+  then the Contents line (R4, 2026-11-03), which ends with the project poster's link (R5).
+- **Detection logic** states the stages briefly: the shared stages named in one sentence, then in one `text` block
+  naming each stage's module and function, collapsed (R5), and the catalogue stages, one numbered item each with
+  their thresholds, in a `<details>` block; `.claude/project-docs/SPEC.md` > *Pipeline stages* lists them one line each,
   and the two agree.
 - **Headings cited from elsewhere stay as they are**: *Setup*, *Platform*, *Limitations* and *Licence
   note* are named in operator messages and code comments ("README > Setup"), and SPEC links `#setup`,
@@ -119,13 +130,13 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   (GitHub's avatar service), the README's only ones.
 - **Funding** reads: "Developed within internal research at JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT project shows small and medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts." (the owner's words,
   2026-10-24, the README's only sentence on where AnyScan was developed; Figure 1's description
-  carries the same sentence, then "Funded by the European Union.", from its generator), Figure 6, its
+  carries the same sentence, then "Funded by the European Union.", from its generator), Figure 11, its
   caption, then the EU disclaimer word for word as `Funding_Row_Cls.DISCLAIMER` holds it. The window's
-  band does not carry the disclaimer; the README and Figure 6's source do.
+  band does not carry the disclaimer; the README and Figure 11's source do.
 - **No semicolons in prose** (readme-writer `style.md` > *Language*, the owner's rule of 2026-10-24;
   `check_readme.py` reports one as ERROR [semicolons]). The EU disclaimer has none, so it needs no
   exception. The semicolons left in the README are syntax, which the check skips: the FastSAM
-  `python -c` one-liner, the folders' `text` block and the avatars' `width="120px;"`. Figure 6's alt
+  `python -c` one-liner, the folders' `text` block and the avatars' `width="120px;"`. Figure 11's alt
   text and the funding SVG's `aria-label` (written by `Example/UI/architecture_diagram.py`) list the
   three logos the same way, with commas.
 - **Limitations** follow project-style-rpx `project.md` > *Records*: three limitations, each the
@@ -134,11 +145,12 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   `.claude/project-docs/`, and never the Claude Code skills. A fact the README needs is stated where it
   is used; a reader who needs more reads the code and its comments.
 - The root layout is project-style-rpx `project.md` > *Root*; this file does not repeat it.
-- **Length**: within the generic 250-line budget (249 visible lines, 2026-11-03), with ten `<details>` blocks:
-  the setup by hand, `--frame` and `scan.py`, the two Live screenshots, the configuration's file names, the golden
-  file, the catalogue stages, the models and the Linux measurement, the repository's folders, swapping a component,
-  and the third-party components (the owner's rulings of 2026-10-24 and 2026-11-03). The platforms, `./install.sh`,
-  the top block's figures, the alert, the limitations and the validation stay visible.
+- **Length**: within the generic 250-line budget (250 visible lines, R5, 2026-11-03), with thirteen `<details>`
+  blocks: the setup by hand, back to an earlier release, `--frame` and `scan.py`, the gallery's second half, the
+  configuration's file names, the rig's validation, the golden file, the four shared stages, the catalogue stages,
+  the models and the Linux measurement, the repository's folders, swapping a component, and the third-party
+  components (the owner's rulings of 2026-10-24 and 2026-11-03, and R5's). The platforms, `./install.sh`, the top
+  block's figures, the gallery's first row, the alert, the limitations and the station's validation stay visible.
 - **Checker false positive**: `5.0.0.93` (line ~62, the opencv-python-headless version) is reported as
   an IP address; it is a version.
 
@@ -148,7 +160,7 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 |---|---|
 | `test/UI/test_brand_figures.py::test_the_readme_shows_the_diagram` | Figure 1 is in the README |
 | `test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output` | Figure 1 is the script's output |
-| `test/UI/test_brand_figures.py::test_the_readme_funding_row_is_the_generators_and_self_contained` | Figure 6 is the script's output |
+| `test/UI/test_brand_figures.py::test_the_readme_funding_row_is_the_generators_and_self_contained` | Figure 11 is the script's output |
 | `test/UI/test_analysis_animation.py` | Figure 3's script, and the committed clip's width, length and size |
 | `test/UI/test_funding_band.py::test_the_disclaimer_is_kept_word_for_word_in_the_readme_and_the_diagram` | the EU disclaimer, word for word |
 | `test/integration/test_pipeline.py::test_the_inventory_names_every_frame_of_the_test_set` | the test set the README counts |
