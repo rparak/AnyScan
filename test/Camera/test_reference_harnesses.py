@@ -353,7 +353,7 @@ def test_a_camera_held_by_another_program_is_named_and_nothing_is_written(tmp_pa
     import Camera.Core
 
     def _Held(*args: tp.Any, **kwargs: tp.Any) -> None:
-        raise Basler.Basler_In_Use_Error_Cls('a2A1920-51gcPRO at 192.168.1.11 is in use by another program.')
+        raise Basler.Basler_In_Use_Error_Cls('a2A1920-51gcPRO at 192.0.2.11 is in use by another program.')
 
     monkeypatch.setattr(Basler, 'Basler_Cls', _Held)
     references = tmp_path / 'Background'
@@ -363,7 +363,7 @@ def test_a_camera_held_by_another_program_is_named_and_nothing_is_written(tmp_pa
     code, _make_reference = _Run_Main(monkeypatch, mode, references, [], camera=Camera.Core.Basler_Camera_Cls)
     out = capsys.readouterr().out
     assert code == 1
-    assert ('[ERROR] The camera a2A1920-51gcPRO at 192.168.1.11 is in use by another program. It is held by the '
+    assert ('[ERROR] The camera a2A1920-51gcPRO at 192.0.2.11 is in use by another program. It is held by the '
             'AnyScan application connected to it, or by a camera script still running: press DISCONNECT in AnyScan '
             '(or close the other program), then try again.') in out
     assert 'No Basler camera' not in out and '[ERROR] No reference was written.' in out

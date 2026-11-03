@@ -390,7 +390,7 @@ def test_a_camera_held_by_another_program_is_refused_at_once_without_retries(mon
     """
 
     info = type('_Info', (), {'GetModelName': lambda self: 'a2A1920-51gcPRO',
-                              'GetIpAddress': lambda self: '192.168.1.11',
+                              'GetIpAddress': lambda self: '192.0.2.11',
                               'GetSerialNumber': lambda self: '0030533690A7'})()
     opened, slept = [], []
     factory = type('_Factory', (), {'EnumerateDevices': lambda self: [info],
@@ -399,7 +399,7 @@ def test_a_camera_held_by_another_program_is_refused_at_once_without_retries(mon
     monkeypatch.setattr(Basler.pylon.TlFactory, 'GetInstance', staticmethod(lambda: factory))
     monkeypatch.setattr(Basler.pylon, 'InstantCamera', lambda device: opened.append('opened'))
     monkeypatch.setattr(Basler.time, 'sleep', slept.append)
-    with pytest.raises(Basler_In_Use_Error_Cls, match=r'^a2A1920-51gcPRO at 192.168.1.11 is in use by another '
+    with pytest.raises(Basler_In_Use_Error_Cls, match=r'^a2A1920-51gcPRO at 192.0.2.11 is in use by another '
                                                       r'program\.$'):
         Basler_Cls(config=dict(CONST_CUSTOM_CFG), resolution=(1920, 1200), offset=(8, 8))
     assert opened == [] and slept == []
@@ -413,7 +413,7 @@ class _Fake_Basler_Cls(object):
 
     def __init__(self, config: tp.Dict, resolution: tp.Tuple[int, int], offset: tp.Tuple[int, int]) -> None:
         if self.held:
-            raise Basler_In_Use_Error_Cls('a2A1920-51gcPRO at 192.168.1.11 is in use by another program.')
+            raise Basler_In_Use_Error_Cls('a2A1920-51gcPRO at 192.0.2.11 is in use by another program.')
         if self.refuse:
             raise Basler_Settings_Error_Cls(self.refuse)
         self.camera = object()
@@ -488,7 +488,7 @@ def test_a_camera_in_use_is_reported_as_in_use_not_as_no_camera(monkeypatch) -> 
     with pytest.raises(Camera_In_Use_Error_Cls) as error:
         camera.Connect()
     assert isinstance(error.value, Camera_Error_Cls)
-    assert str(error.value) == ('The camera a2A1920-51gcPRO at 192.168.1.11 is in use by another program. It is held '
+    assert str(error.value) == ('The camera a2A1920-51gcPRO at 192.0.2.11 is in use by another program. It is held '
                                 'by the AnyScan application connected to it, or by a camera script still running: '
                                 'press DISCONNECT in AnyScan (or close the other program), then try again.')
     assert not camera.Connected

@@ -902,7 +902,7 @@ class Session_Logger_Cls(object):
             Log that a connection to the camera is being attempted.
 
         Args:
-            (1) info [string]: Optional detail (e.g. 'id=cam0, ip=192.168.1.40').
+            (1) info [string]: Optional detail (e.g. 'id=cam0, ip=192.0.2.40').
         """
 
         with self.__lock:
