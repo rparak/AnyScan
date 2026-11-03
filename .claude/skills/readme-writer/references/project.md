@@ -79,15 +79,8 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 - Light and dark: each figure carries its own opaque ground (a white card, the purple band), so no
   `<picture>` variants. **Unchecked** on GitHub's dark theme until the owner looks at both figures
   there after the push (2026-10-23).
-- The project poster, `images/anyscan-poster.pdf`, is the delivered file, not generated, and its source is outside
-  the repository. **It is not linked from the README** (R4, 2026-11-03): checked against SPEC > *Verified on
-  hardware, and not yet*, six of its claims go beyond the records. "Find defects" and "spot surface defects" are
-  unqualified, while only a catalogued item's defined defects are detected. "Quality control on every part" holds
-  only for the catalogued part inside the inspection area. The "Surface contamination … perspiration residue" text
-  and the "Surface contamination" NOK verdict name no check AnyScan has: it reports "two stains on the machined
-  front". "Counterbored" / "Counterbore" holes are countersinks in the catalogue item. "Not classified as a defect"
-  for the tool marks is a classification nothing makes. It is linked again once the owner's corrected poster holds
-  against SPEC.
+- The project poster, `images/anyscan-poster.pdf`, is the owner's export (its source is outside the repository, its
+  metadata stripped), not generated; every claim on it holds against SPEC (checked 2026-11-03, R5).
 - Numbering, in document order: Figure 1 the architecture, Figure 2 the station photo and Figure 3 the animation,
   all three in the top block; Figures 4 and 5 the Live screenshots, collapsed under *Run*; Figure 6 the funding row.
   Captions `**Figure N:** …` directly below.
@@ -95,7 +88,7 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 ## Rules
 
 - **The top block**: Figure 1 and its caption, the paragraph that says two cues are fused and links
-  *Detection logic*, the station photo (Figure 2, the README's first view of the system) and the animation
+  *Detection logic* and the project poster, the station photo (Figure 2, the README's first view of the system) and the animation
   (Figure 3) with their captions, one `[!IMPORTANT]` alert repeating only the must-not-miss part of *Limitations*,
   then the Contents line (R4, 2026-11-03).
 - **Detection logic** states the stages briefly: the shared stages in one `text` block naming each

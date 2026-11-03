@@ -13,6 +13,7 @@ edited by hand. Read it top to bottom: the frame, the two cues and their fusion,
 measurement, and in a catalogue mode its state.
 
 Two independent cues are fused, so an object is kept if **either** one finds it ([Detection logic](#detection-logic)).
+The project poster is [images/anyscan-poster.pdf](images/anyscan-poster.pdf).
 
 ![The AnyScan station at JIC Smart Factory: on a desk, a black JIC Smart Factory enclosure beside an aluminium frame around the green table, and a monitor showing AnyScan's Live view in the mounting-plate catalogue mode, with a keyboard and a mouse](images/anyscan-station.jpg)
 
