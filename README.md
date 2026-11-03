@@ -248,56 +248,6 @@ previous one stays). After the first CONNECT it is fixed for the run.
 directory in a local copy of the mode file, never the shipped one**: copy it outside the repository, keeping its
 name, change only `General.Station_Events.Directory`, and start with `--config <that copy>`.
 
-## Limitations
-
-Three limitations affect any decision built on this output. They stand **unverified in this version**: nothing
-here checks them against ground truth, and nothing under [Validation](#validation) changes that.
-
-### Measurements are repeatable, not absolute
-
-**Outside a catalogue mode, don't build a tolerance on these numbers. Inside one, trust its outline check only for
-its part, within 46.4 mm of the frame centre.** A part's size varies with its thickness and with where it lies: a
-12 mm hex nut, 6 mm thick, is predicted (below) to read about 0.2 mm large at the frame centre, 1.5 mm near the edge.
-
-- **Spread:** on the 41 test frames (2026-10-11, before the reference was re-shot), the 22 mounting plates read
-  60.33–61.40 × 39.64–41.15 mm at the calibration's scale. That says nothing about correctness: a wrong scale is wrong
-  in every frame.
-- **Position and thickness:** a single ordinary lens looking down sees a thick part's outline above the calibrated
-  plane, and off the optical axis its side wall too. Away from the axis a size reads **W + X · t / (Z − t)**
-  (footprint W, thickness t, far edge X from the axis, lens height Z). Only a telecentric lens removes this.
-- **Scale unverified:** the calibration in force is a multi-view solve from 2026-09-28, 63 views at a reprojection
-  RMS of 0.45 px, 0.102 mm/px. A good fit shows that the lens model is consistent, not that the sizes are right.
-- **Catalogue mode:** with the scale moved to the part's top face, the 22 plates read −0.77 to +0.76 mm off 60 × 40
-  (tolerance ±1.5 mm, 2026-10-11), their centres up to 46.3 mm from the frame centre. **Not verified:** the parts were
-  not calipered. Beyond 46.4 mm, where the side-wall term predicts up to about 1 mm more, plates out to 66.6 mm read
-  within tolerance, uncalipered, noted in the session log only. The 0.01 mm display is formatting: a pixel is ~0.10 mm.
-
-### The describer is not a defect detector
-
-**A description without a stain is not evidence there isn't one.** Whether a stain, scratch or corrosion is reported
-depends on how the part is framed, and nothing in the output marks a miss. A defect no check names (a scratch, a
-dent) is detected by nothing. A catalogue mode detects only its item's defined defects (for the mounting plate:
-stains on the machined front, missing through-holes, a size out of tolerance), within the limits of the next section.
-
-- **Evidence** (an earlier seven-frame test set): one rust stain was named at crop paddings 0.20 and 0.36 and
-  missed at 0.00–0.12 and 0.28 (0.00 and 0.20 the same when run again), a step with the framing. The shipped 0.20
-  happens to report it. One stain on one frame is a reason for more caution, not less.
-
-### A catalogue mode checks only what its item lists
-
-**An OK means the part passed the checks its catalogue item lists, not that nothing else is wrong.** Checked
-off-hardware on the 41 test frames and the 78 edge-of-view frames, and in use at station SF4 on 2026-10-29.
-
-- **A hole where the catalogue puts none is not reported**: holes are counted near their expected positions only.
-- **A stain is caught by its colour under this light**: a yellow-brown area of 1 mm² or more on the mounting
-  plate's front. Another colour, or this colour under another light, is not verified.
-- **A part outside the inspection area is never judged**: only one wholly inside the frame inset by 10 mm (top,
-  bottom) and 13 mm (sides) gets OK or NOK, the rest a Warning with no hole or stain check. The area is ~101 mm high,
-  so an upright plate can move only ~±20 mm. The insets are not verified by the left and bottom edges or corners.
-- **The Similarity tab is not a defect map**: glare shows on it too, and no state reads it.
-- **The describer's words are guarded, not trusted**: a sentence contradicting the checks, naming them or with a
-  number is dropped and logged, by reading words, so a paraphrase can pass. The state never comes from it.
-
 ## Validation
 
 What ran on real hardware, and what did not. No part was calipered and no session recorded each part's expected
