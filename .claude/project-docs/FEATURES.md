@@ -7,6 +7,16 @@ KNOWN_ISSUES.
 
 ## Open
 
+- **C - The v1.1 media** (owner, Phase C, 2026-11-26), on branch `c-media`: main repaired after the README web edits
+  (the three limitations moved to SPEC > *Known limitations*, every citation repointed, Figure 3 a screen recording);
+  `Example/UI/readme_diagrams.py` and its test (the pipeline and the models, light and dark, through `<picture>`);
+  the README's media (the video poster, the History animation, both diagrams, the figures renumbered). The 70 s video,
+  the LinkedIn cut and the four thumbnails are built outside the repository (`~/Desktop/AnyScan-Video/`) and never
+  committed (design-decisions, *The README's media come from the station's own recordings*). Awaiting the owner's
+  acceptance.
+- **Figure 4's link** (owner, 2026-11-26): the video poster links to the owner's YouTube channel
+  (`https://www.youtube.com/@RomanParak/videos`) until the video is published; then a small commit changes it to the
+  video's own URL.
 - **R6 - The poster dropped, history rewritten** (owner, 2026-11-03): the poster's PDFs embedded the GT fonts, and
   JIC Smart Factory's Desktop EULA does not expressly grant publishing a PDF with them embedded (6.4). The poster is
   dropped, and every version left history on 2026-11-03 (`images/anyscan-poster.pdf`, `images/AnyScan_poster.pdf`,

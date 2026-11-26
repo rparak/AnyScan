@@ -15,7 +15,7 @@ differ. The checker's reasoned exceptions are in `check_readme.json`, beside thi
 | What the README shows | Source | Pinned by |
 |---|---|---|
 | Platform: per-object times, memory peaks, GPU minimum, identical output across runs | DD entries of the measured runs (macOS; Linux 2026-09-29, commit `3cec51a`) | - (by hand) |
-| Model and download sizes (5.2 GB, 145 MB, 346 MB) | `install.sh` constants and the Setup instructions | - (by hand) |
+| Model download sizes (5.2 GB, 145 MB, 346 MB) and pins, Figure 5 | `install.sh`'s constants and file lists, summed by `Example/UI/readme_diagrams.py` | `test/UI/test_readme_diagrams.py` |
 | The test set: 41 frames, `Image_055`-`095` | `Data/Images/Test/` | `test/integration/test_pipeline.py::test_the_inventory_names_every_frame_of_the_test_set` |
 | The EU disclaimer | `UI.Widgets.Funding_Row_Cls.DISCLAIMER` | `test/UI/test_funding_band.py` |
 
@@ -28,14 +28,14 @@ The one list of what makes a change update the README (feature-manager's `projec
 
 | A change to | Updates | Then run |
 |---|---|---|
-| the pipeline's stages, cues or their modules | Figure 1, *Detection logic*, the top paragraph | `.venv/bin/python Example/UI/architecture_diagram.py` |
-| the theme, the type scale, the pixel icons, a logo | Figure 1 and Figure 11 | `.venv/bin/python Example/UI/architecture_diagram.py` |
-| the funding logos or `Funding_Row_Cls.DISCLAIMER` | *Funding* (Figure 11 and the disclaimer, word for word) | `.venv/bin/python Example/UI/architecture_diagram.py` |
-| `install.sh`, `requirements*.txt`, a model or its size | *Setup*, *Platform* | - |
+| the pipeline's stages, cues or their modules | Figure 1, Figure 13, *Detection logic*, the top paragraph | `.venv/bin/python Example/UI/architecture_diagram.py` and `readme_diagrams.py` |
+| the theme, the type scale, the pixel icons, a logo | Figures 1, 5, 13 and 14 | `.venv/bin/python Example/UI/architecture_diagram.py` and `readme_diagrams.py` |
+| the funding logos or `Funding_Row_Cls.DISCLAIMER` | *Funding* (Figure 14 and the disclaimer, word for word), the video's end card | `.venv/bin/python Example/UI/architecture_diagram.py` |
+| `install.sh`, `requirements*.txt`, a model, its pin or its size | *Setup* (Figure 5), *Platform* | `.venv/bin/python Example/UI/readme_diagrams.py` |
 | an option of `App/run.py` or an `Example/` script | *Workflow*, *Validation*, *Tests* | - |
 | a step of the operator's sequence, a tool's output path or message (`install.sh`, `calibrate.py`, `make_reference.py`, the window), or a time it quotes | *Workflow* (and SPEC > *Run sequence*) | - |
 | a run on the rig or at a station, or a capture still to do | *Validation* (and SPEC > *Verified on hardware, and not yet*) | - |
-| the window, the analysis or the mounting-plate mode as the clip shows them | Figure 3 (a new screen recording, cut as *Figures* says) | - |
+| the window, the analysis or the mounting-plate mode as the clips show them | Figures 3 and 7 (a new screen recording, cut as *Figures* says) | - |
 | a configuration file name, kind or link | *Configuration* | - |
 | a measured run on a platform | *Platform* (the table and its numbers) | - |
 | a limitation found, measured or lifted | nothing in the README: SPEC > *Known limitations* holds them (and KNOWN_ISSUES, the DD) | - |
@@ -53,28 +53,39 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 ## Figures
 
 - Script: `Example/UI/architecture_diagram.py` writes `images/anyscan-architecture.svg` (Figure 1)
-  and `images/anyscan-funding.svg` (Figure 11), from the theme's tokens, `Style.py`'s type scale and
+  and `images/anyscan-funding.svg` (Figure 14), from the theme's tokens, `Style.py`'s type scale and
   font fallbacks, and the pixel icon set; regenerated, never edited by hand. `Example/UI/build_logo.py`
   derives the logo copies in `App/assets/` from `images/anyscan-logo.svg`, never edited by hand either.
   After replacing the logo, run `build_logo.py` first, then `architecture_diagram.py` (the diagram embeds
   the logo); `test/UI/test_brand_figures.py` fails when they disagree. This is the one place the
   regeneration rule is written; project-style-rpx and jic-sf-ui-style point here.
+- Script: `Example/UI/readme_diagrams.py` (Phase C, 2026-11-26) writes the two light/dark pairs,
+  `images/anyscan-models-{light,dark}.png` (Figure 5, *Setup*: each model's role, what it runs on, its pin and its
+  download size, read from `install.sh`) and `images/anyscan-pipeline-{light,dark}.png` (Figure 13, *Detection logic*:
+  frame, find, describe and measure, judge, record), PNG at 1760 px with the bundled OFL fonts drawn in;
+  regenerated, never edited. `test/UI/test_readme_diagrams.py` holds them to its output pixel for pixel.
 - **The animations** (Phase C, the owner, 2026-11-26): Figure 3, `images/anyscan-scan-analyze.webp` (live preview,
   SCAN, the frame, the analysis grid, the result), is cut from the AnyScan-Media archive's screen recording of station
   SF4 (footage/Screen, 2026-11-19): only the Camera View card, never the recording's first seconds (an editor and a
   terminal) or a stretch with a hand under the camera. Animated WebP, at most 720 px wide, 12-15 fps, 3-6 s, under
   400 kB, each action shown to its end; a part played faster says so in the caption (the analysis at 2.5x). Not
   generated, so not reproduced byte for byte; the cut is kept outside the repository with the video's build.
+  Figure 7, `images/anyscan-history-filter.webp`, is the same recording's History view: the Captures card's state
+  filter from All through NOK, OK and Warning back to All, in real time (640 px, 12 fps, 5.3 s, 66 kB).
   `test/UI/test_analysis_animation.py` holds each README animation to these limits, and
   `Example/UI/analysis_animation.py` on the stand-in runtimes (its replay clip is no longer the README's).
+- **The video poster** (Figure 4, `images/anyscan-video.jpg`): the video's opening frame with a marker block saying
+  where it leads, 1920 px, JPEG, under 500 kB, no metadata, from the video's build outside the repository (the video
+  itself is never committed). It links to the owner's YouTube channel until the video is published, then to the
+  video's own URL (`.claude/project-docs/FEATURES.md` > *Open*).
 - **Photographs and screenshots** (`images/anyscan-station.jpg`, `images/anyscan-live-*.jpg`): taken from the
   AnyScan-Media archive, not generated. They are exported as JPEG quality 85, 1600 px wide, with every metadata block
   dropped (the station photo carried GPS tags), the station photo cropped above the monitor so no window or office
   shows. Each passed the publication rule below when it was added (R4, 2026-11-03). They are single-version: each
   carries its own ground.
 - **The gallery** (R5, 2026-11-03), at the end of *Workflow*: three screenshots cropped to their view's panel
-  (`images/anyscan-trends-catalogue.jpg`, `-history-catalogue.jpg` and `-mask-catalogue.jpg`, from the archive's
-  UI/ screenshots of 2026-10-29 14-45-59, 14-46-13 and 14-45-38) and two crops of recorded frames
+  (`images/anyscan-trends-catalogue.jpg` and `-mask-catalogue.jpg`, from the archive's UI/ screenshots of
+  2026-10-29 14-45-59 and 14-45-38; History is the animation, Figure 7, since 2026-11-26) and two crops of recorded frames
   (`images/anyscan-scan-nok-ok.jpg` from captures/20261029-143904_s1 set `20261029-144027_8`,
   `images/anyscan-scan-segment-anything.jpg` from captures/20261029-142803_s2 set `20261029-143609_13`, each its
   `_annotated.png`). The same export rule, at most 1600 px wide, cropped from the full resolution and never
@@ -91,22 +102,26 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   and images made under JIC Smart Factory's GT licence are allowed (the logo, the screenshots, the animation, the
   photo), as are the OFL fonts in `App/assets/fonts/` (R6, 2026-11-03; design-decisions, *The poster is dropped
   and every version removed from history*).
-- Light and dark: each figure carries its own opaque ground (a white card, the purple band), so no
-  `<picture>` variants. **Unchecked** on GitHub's dark theme until the owner looks at both figures
-  there after the push (2026-10-23).
+- Light and dark (the owner, 2026-11-26): the diagrams drawn for the README since Phase C (Figures 5 and 13) are
+  `<picture>` pairs, `<source media="(prefers-color-scheme: dark)">` the dark version and the `<img>` the light one
+  with the alt text: light on white, dark on a transparent ground with white words and periwinkle rules. Figures 1
+  and 14 carry their own opaque ground (a white card, the purple band), and the photographs, screenshots, animations
+  and the poster their own picture, so they are single-version. Looked at in both appearances through the rendered
+  README in a headless browser (2026-11-26); not yet on GitHub itself.
 - There is no project poster. The owner dropped it, and every version was removed from history: its PDFs embedded
   the GT fonts, whose public distribution embedded in a PDF the EULA does not expressly grant (R6, 2026-11-03;
   design-decisions, *The poster is dropped and every version removed from history*).
-- Numbering, in document order: Figure 1 the architecture, Figure 2 the station photo and Figure 3 the animation,
-  all three in the top block; at the end of *Workflow*, the gallery: Figures 4 to 6 visible (Trends, History, the NOK plate beside
-  the OK one), Figures 7 to 10 collapsed (the two Live screenshots, the Mask view, the Segment Anything frame);
-  Figure 11 the funding row. Captions `**Figure N:** …` directly below, in the gallery `<b>Figure N:</b>`.
+- Numbering, in document order: Figure 1 the architecture, Figure 2 the station photo, Figure 3 the SCAN and
+  ANALYZE animation and Figure 4 the video poster, all in the top block; Figure 5 the models diagram in *Setup*; at
+  the end of *Workflow*, the gallery: Figures 6 to 8 visible (Trends, the History animation, the NOK plate beside the
+  OK one), Figures 9 to 12 collapsed (the two Live screenshots, the Mask view, the Segment Anything frame); Figure 13
+  the pipeline diagram at the top of *Detection logic*; Figure 14 the funding row. Captions `**Figure N:** …` directly below, in the gallery `<b>Figure N:</b>`.
 
 ## Rules
 
 - **The top block**: Figure 1 and its caption, the paragraph that says two cues are fused and links
-  *Detection logic*, the station photo (Figure 2, the README's first view of the system) and the animation
-  (Figure 3) with their captions, then the Contents line (R4, 2026-11-03). No alert: the owner removed it with
+  *Detection logic*, the station photo (Figure 2, the README's first view of the system), the animation
+  (Figure 3) and the video poster (Figure 4) with their captions, then the Contents line (R4, 2026-11-03). No alert: the owner removed it with
   *Limitations* on 2026-11-03 (`ea26ff0`).
 - **Detection logic** states the stages briefly: the shared stages named in one sentence, then in one `text` block
   naming each stage's module and function, collapsed (R5), and the catalogue stages, one numbered item each with
@@ -136,13 +151,13 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   (GitHub's avatar service), the README's only ones.
 - **Funding** reads: "Developed within internal research at JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT project shows small and medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts." (the owner's words,
   2026-10-24, the README's only sentence on where AnyScan was developed; Figure 1's description
-  carries the same sentence, then "Funded by the European Union.", from its generator), Figure 11, its
+  carries the same sentence, then "Funded by the European Union.", from its generator), Figure 14, its
   caption, then the EU disclaimer word for word as `Funding_Row_Cls.DISCLAIMER` holds it. The window's
-  band does not carry the disclaimer; the README and Figure 11's source do.
+  band does not carry the disclaimer; the README and Figure 14's source do.
 - **No semicolons in prose** (readme-writer `style.md` > *Language*, the owner's rule of 2026-10-24;
   `check_readme.py` reports one as ERROR [semicolons]). The EU disclaimer has none, so it needs no
   exception. The semicolons left in the README are syntax, which the check skips: the FastSAM
-  `python -c` one-liner, the folders' `text` block and the avatars' `width="120px;"`. Figure 11's alt
+  `python -c` one-liner, the folders' `text` block and the avatars' `width="120px;"`. Figure 14's alt
   text and the funding SVG's `aria-label` (written by `Example/UI/architecture_diagram.py`) list the
   three logos the same way, with commas.
 - **No *Limitations* section** (the owner removed it and the top block's alert on 2026-11-03, `ea26ff0`): the three
@@ -158,13 +173,14 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   only where one was measured. Each fact is stated once: *Configuration*, *Detection logic* and *Platform* hold the
   details and are linked from the steps.
 - **Length**: within the generic 250-line budget (250 visible lines, R6, 2026-11-03), with fourteen `<details>`
-  blocks: the three models and setup by hand, back to an earlier release, `--frame` and `scan.py`, the gallery's
+  blocks: setup by hand, back to an earlier release, `--frame` and `scan.py`, the gallery's
   second half, the configuration's file names, what each configuration file holds, the rig's validation, the golden
   file, the four shared stages, the catalogue stages, the models and the Linux measurement (with the determinism
   note), the repository's folders, swapping a component, and the third-party components (the owner's rulings of
-  2026-10-24 and 2026-11-03, and R5's and R6's). The platforms, `./install.sh`, the Workflow, the top block's figures,
-  the gallery's first row, the lamp and station-copy rules and the station's validation stay visible.
-- **Checker false positive**: `5.0.0.93` (line ~62, the opencv-python-headless version) is reported as
+  2026-10-24 and 2026-11-03, and R5's and R6's). The platforms, `./install.sh`, the models diagram, the Workflow, the top block's figures,
+  the gallery's first row, the pipeline diagram, the lamp and station-copy rules and the station's validation stay
+  visible.
+- **Checker false positive**: `5.0.0.93` (line ~74, the opencv-python-headless version) is reported as
   an IP address; it is a version.
 
 ## README tests
@@ -173,15 +189,16 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 |---|---|
 | `test/UI/test_brand_figures.py::test_the_readme_shows_the_diagram` | Figure 1 is in the README |
 | `test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output` | Figure 1 is the script's output |
-| `test/UI/test_brand_figures.py::test_the_readme_funding_row_is_the_generators_and_self_contained` | Figure 11 is the script's output |
+| `test/UI/test_brand_figures.py::test_the_readme_funding_row_is_the_generators_and_self_contained` | Figure 14 is the script's output |
 | `test/UI/test_analysis_animation.py` | the replay script, and each README animation's width, length, frame rate and size |
+| `test/UI/test_readme_diagrams.py` | Figures 5 and 13: each light and dark image is the generator's output, its ground, the pins, the `<picture>` blocks |
 | `test/UI/test_funding_band.py::test_the_disclaimer_is_kept_word_for_word_in_the_readme_and_the_diagram` | the EU disclaimer, word for word |
 | `test/integration/test_pipeline.py::test_the_inventory_names_every_frame_of_the_test_set` | the test set the README counts |
 
 Commands:
 
 ```bash
-.venv/bin/python -m pytest -q test/UI/test_brand_figures.py test/UI/test_funding_band.py
+.venv/bin/python -m pytest -q test/UI/test_brand_figures.py test/UI/test_funding_band.py test/UI/test_readme_diagrams.py test/UI/test_analysis_animation.py
 .venv/bin/python .claude/skills/readme-writer/scripts/check_readme.py README.md   # 0 errors, 1 warning (the version read as an IP, above)
 <throwaway python with cmarkgfm> .claude/skills/readme-writer/scripts/render_readme.py README.md   # 0 leftovers, 2026-11-03
 ```
@@ -221,7 +238,7 @@ changed here changes the README's table in the same commit.
 | Public Sans | the google/fonts commit pinned in `build_fonts.py` | the UI typeface | in the repository (`App/assets/fonts/`) | OFL-1.1 | `PublicSans-OFL.txt` beside the files | [OFL](https://openfontlicense.org) | [Public Sans](https://github.com/uswds/public-sans) |
 | JetBrains Mono | the same commit | the UI's monospace face | in the repository | OFL-1.1 | `JetBrainsMono-OFL.txt` | [OFL](https://openfontlicense.org) | [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) |
 | JIC Smart Factory logo | `App/assets/jic-smart-factory.svg` | the header's brand mark | in the repository | usage rules, not a licence | jic-sf-ui-style `assets/logos/USAGE.md`; the owner's source of the rules **unconfirmed** | - | jic.cz |
-| EDIH-DIGIMAT, Ministry of Industry and Trade, EU emblem | traced SVGs in `App/assets/` | the funding band and Figure 6 (a funding obligation) | in the repository | the funders' usage and visibility rules | `USAGE.md`; the EU's [visibility rules](https://commission.europa.eu/funding-tenders/managing-your-project/communicating-and-raising-eu-visibility_en); the other two sources **unconfirmed** | - | edih-digimat.cz, mpo.gov.cz |
+| EDIH-DIGIMAT, Ministry of Industry and Trade, EU emblem | traced SVGs in `App/assets/` | the funding band and Figure 14 (a funding obligation) | in the repository | the funders' usage and visibility rules | `USAGE.md`; the EU's [visibility rules](https://commission.europa.eu/funding-tenders/managing-your-project/communicating-and-raising-eu-visibility_en); the other two sources **unconfirmed** | - | edih-digimat.cz, mpo.gov.cz |
 | `src/Transformation/` | inherited | nothing imports it | in the repository | MIT | file headers ("Copyright (c) 2023 JIC Smart Factory"); the style's origin credit, DD *File headers carry JIC Smart Factory* | `LICENSE` | [RoLE](https://github.com/rparak/RoLE) |
 
 **Copyleft and non-open terms**, in plain words, not a legal conclusion:

@@ -37,7 +37,8 @@ import pytest
 Description:
     Example/UI/readme_diagrams.py, the README's pipeline and models diagrams: each committed image, light and dark, is
     exactly the generator's output (compared pixel by pixel), the dark versions lie on a transparent ground and the
-    light ones on white, and the models diagram's pins are the revisions the README's download commands use.
+    light ones on white, the models diagram's pins are the revisions the README's download commands use, and the
+    README shows each through <picture>.
 """
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 CONST_GENERATOR = os.path.join(CONST_PROJECT_FOLDER, 'Example', 'UI', 'readme_diagrams.py')
@@ -104,13 +105,32 @@ def test_the_dark_versions_lie_on_a_transparent_ground_and_the_light_on_white(na
 def test_the_models_diagram_pins_the_revisions_the_readme_downloads(generator) -> None:
     """
     Description:
-        The pins the models diagram states, read from install.sh, are the revisions the README's download commands
-        fetch, and the sizes are the installer's files summed.
+        The revisions install.sh pins, whose first 7 characters the models diagram states, are the full revisions the
+        README's download commands fetch, and the sizes are the installer's files summed.
     """
 
     with open(CONST_README, 'r', encoding='utf-8') as handle:
         readme = handle.read()
+    with open(generator.CONST_INSTALLER, 'r', encoding='utf-8') as handle:
+        installer = handle.read()
     pins = generator.Read_Installer()
-    for key in ('gemma_pin', 'dino_pin'):
-        assert '--revision ' + pins[key].split()[-1] in readme
+    for key, constant in (('gemma_pin', 'CONST_GEMMA_REVISION'), ('dino_pin', 'CONST_DINOV2_REVISION')):
+        revision = generator.Installer_Value(installer, constant)
+        assert pins[key] == 'revision ' + revision[:7]
+        assert '--revision ' + revision + ' ' in readme or '--revision ' + revision + '\n' in readme
     assert (pins['fastsam_size'], pins['gemma_size'], pins['dino_size']) == ('145 MB', '5.2 GB', '346 MB')
+
+
+@pytest.mark.parametrize('figure', ['anyscan-pipeline', 'anyscan-models'])
+def test_the_readme_shows_each_diagram_light_and_dark_through_picture(figure) -> None:
+    """
+    Description:
+        The README shows each diagram through <picture>: the dark version as the source for a dark appearance, the
+        light one as the <img> fallback with its alt text, so GitHub picks the version for the reader's theme.
+    """
+
+    with open(CONST_README, 'r', encoding='utf-8') as handle:
+        readme = handle.read()
+    block = '<picture>\n  <source media="(prefers-color-scheme: dark)" srcset="images/%s-dark.png">\n' \
+            '  <img src="images/%s-light.png" width="100%%" alt="' % (figure, figure)
+    assert block in readme
