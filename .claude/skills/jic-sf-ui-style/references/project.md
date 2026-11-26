@@ -140,8 +140,8 @@ Do not copy the skill's templates here: they were generalised from these modules
   ✅ `test/UI/test_grid_fit.py`.
 - The band's three logos are traced SVGs (DD *The band's logos are traced SVGs*),
   ✅ `test/UI/test_funding_band.py`, `test_logo_rendering.py::test_no_logo_is_a_pixmap`. The EU
-  disclaimer is `Funding_Row_Cls.DISCLAIMER`, carried by the README and the architecture diagram's
-  band, not the window's (DD *The funding band carries the project's, the Ministry's and the EU's
+  disclaimer is `Funding_Row_Cls.DISCLAIMER`, carried by the README as text under its funding row,
+  not by the window's band nor the architecture diagram, which has none since README v11 (DD *The funding band carries the project's, the Ministry's and the EU's
   logos*); the motif keeps out of every logo's clear space (DD *The funding band carries the brand's
   pixel motif*); ✅ `test/UI/test_funding_band.py`.
 - The brand's squares are in the funding band and the empty Camera View's corner only, never in Scene
@@ -149,6 +149,10 @@ Do not copy the skill's templates here: they were generalised from these modules
   cluster*); ✅ `test/UI/test_empty_view_motif.py`.
 - The README's funding logo row (`images/anyscan-funding.svg`) is generated with the architecture
   diagram; ✅ `test/UI/test_brand_figures.py`.
+- The README's headline (`images/anyscan-headline-{light,dark}.svg`) draws the AnyScan logo and the JIC Smart
+  Factory logo as in the top bar, both files inlined unchanged. Its dark version, for GitHub's dark page, only makes
+  their one fill white: the one exception to `assets/logos/USAGE.md`'s *never recoloured*, a single-colour light
+  version of the same files, decided by the owner (README v11, 2026-11-26); ✅ `test/UI/test_brand_figures.py`.
 
 ## Content type comes from the scale; one content, one size ✅ (content) 📄 (chrome) - jic-sf-ui-style: `typography.md`
 

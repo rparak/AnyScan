@@ -25,6 +25,9 @@
 import importlib.util
 import os
 import re
+import io
+import html
+import base64
 import subprocess
 import sys
 # Qt must never open a window during tests: the offscreen platform renders without a display.
@@ -37,6 +40,8 @@ import numpy as np
 import pytest
 # Pillow (Read the window icon's .ico) [pip3 install Pillow]
 from PIL import Image
+# fontTools (Read the diagram's embedded font subsets) [pip3 install fonttools]
+from fontTools.ttLib import TTFont
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
 from PyQt5.QtCore import QByteArray, QRectF, Qt
 from PyQt5.QtGui import QFont, QFontInfo, QImage, QPainter
@@ -51,7 +56,7 @@ import UI.Utilities.Style as Style
 # Custom Lib.: AnyScan UI — the one set of pixel icons the diagram and the application draw
 #   ../UI/Utilities/Pixel_Motif
 from UI.Utilities.Pixel_Motif import CONST_PIXEL_ICONS, CONST_BUSY_STEPS
-# Custom Lib.: AnyScan UI — the console's funding band, whose logos the diagram must carry
+# Custom Lib.: AnyScan UI — the console's funding band, whose logos the README's funding row carries
 #   ../UI/Widgets
 from UI.Widgets import Funding_Row_Cls
 
@@ -99,7 +104,7 @@ CONST_JIC = os.path.join(CONST_ROOT, 'App', 'assets', 'jic-smart-factory.svg')
 CONST_TEXT_LEFT_UNITS = 152.0
 CONST_LINE_SPLIT_UNITS = 107.5
 CONST_ASSETS = os.path.join(CONST_ROOT, 'App', 'assets')
-# The traced SVG logos the diagram inlines: the console's funding band's.
+# The traced SVG logos of the console's funding band, which the README's funding row inlines and the diagram does not.
 #   Unit [List<string>]
 CONST_EMBEDDED_MARKS = [name for name, _ in Funding_Row_Cls.LOGOS if name is not None]
 # The marker comments around the inline logos in the diagram: the AnyScan logo and the JIC Smart Factory logo.
@@ -296,6 +301,21 @@ def test_the_diagram_draws_only_theme_tokens() -> None:
     assert sorted(used - tokens) == []
 
 
+def _Generator() -> tp.Any:
+    """
+    Description:
+        Example/UI/architecture_diagram.py, loaded as a module.
+
+    Returns:
+        (1) parameter [module]: The generator.
+    """
+
+    spec = importlib.util.spec_from_file_location('architecture_diagram', CONST_GENERATOR)
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    return generator
+
+
 def _Generated() -> str:
     """
     Description:
@@ -305,31 +325,75 @@ def _Generated() -> str:
         (1) parameter [string]: The SVG document.
     """
 
-    spec = importlib.util.spec_from_file_location('architecture_diagram', CONST_GENERATOR)
-    generator = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(generator)
-    return generator.Draw_Architecture(_Read(CONST_LOGO))
+    return _Generator().Draw_Architecture(_Read(CONST_LOGO))
 
 
 def test_the_diagram_is_the_generators_output() -> None:
     """
     Description:
-        The committed SVG is exactly what the generator writes from the current theme and logo, so a
-        hand edit, or a theme change without regenerating, fails here. Fix it by running
+        The committed SVG is exactly what the generator writes from the current theme and logo, the embedded font
+        bytes aside (they depend on the fontTools version that subset them; the next test holds what they contain),
+        so a hand edit, or a theme change without regenerating, fails here. Fix it by running
         python Example/UI/architecture_diagram.py, never by editing the SVG.
     """
 
-    assert _Read(CONST_DIAGRAM) == _Generated(), \
+    generator = _Generator()
+    assert generator.Without_Font_Data(_Read(CONST_DIAGRAM)) == generator.Without_Font_Data(_Generated()), \
         'images/anyscan-architecture.svg is stale or hand-edited; run python Example/UI/architecture_diagram.py'
 
 
-def test_the_diagram_is_self_contained_and_carries_every_logo() -> None:
+def test_the_diagram_embeds_public_sans_for_every_character_it_sets() -> None:
+    """
+    Description:
+        The committed diagram carries one embedded Public Sans subset per weight it sets, each a font whose name table
+        still names Public Sans and its SIL Open Font License, holding a glyph for every character the diagram's
+        text in that weight uses. So a reader without Public Sans sees the figure in it, not in a fallback face whose
+        wider letters overflow the cards.
+    """
+
+    diagram = _Read(CONST_DIAGRAM)
+    faces = re.findall(r"font-weight: (\d+); src: url\(data:font/woff;base64,([A-Za-z0-9+/=]+)\)", diagram)
+    assert faces, 'the diagram embeds no font'
+    used = {}
+    for attributes, text in re.findall(r'<text ([^>]*)>([^<]*)</text>', diagram):
+        weight = re.search(r'font-weight="(\d+)"', attributes)
+        used.setdefault(weight.group(1) if weight else '400', set()).update(html.unescape(text))
+    assert sorted(used) == sorted(weight for weight, _ in faces)
+    for weight, data in faces:
+        with TTFont(io.BytesIO(base64.b64decode(data))) as font:
+            names = ' '.join(record.toUnicode() for record in font['name'].names)
+            cmap = font.getBestCmap()
+        assert 'Public Sans' in names and 'Open Font License' in names, weight
+        missing = sorted(ch for ch in used[weight] if ch != ' ' and ord(ch) not in cmap)
+        assert missing == [], 'weight %s misses %s' % (weight, missing)
+
+
+def test_the_diagram_follows_the_stations_order() -> None:
+    """
+    Description:
+        The diagram draws the stages in the order the station runs them: capture, find, measure, what a catalogue
+        mode adds (recognise, the inspection area, check, the verdict), then describe, so a catalogue mode's
+        description comes after the checks it is told about; and each stage's card sits below or right of the one
+        before it.
+    """
+
+    diagram = _Read(CONST_DIAGRAM)
+    groups = ['capture', 'find', 'measure', 'catalogue', 'describe', 'application']
+    assert [g for g in re.findall(r'<g id="([a-z-]+)"', diagram) if g in groups] == groups
+    tops = {}
+    for group in groups[:-1]:
+        block = diagram.split('<g id="%s">' % group, 1)[1].split('</g>', 1)[0]
+        tops[group] = [float(v) for v in re.findall(r'<rect x="[\d.]+" y="([\d.]+)"', block)]
+    assert max(tops['measure']) < min(tops['catalogue']) < max(tops['catalogue']) < min(tops['describe'])
+
+
+def test_the_diagram_is_self_contained_and_carries_its_two_logos() -> None:
     """
     Description:
         The README shows the diagram through <img>, which fetches nothing: a linked file, an @import or
         a <link> would draw nothing, with no error. So every href and url() the generator writes is a
-        #fragment or a data: URI, and every logo is inside the file — the AnyScan logo and the JIC Smart Factory
-        logo inlined, and each logo of the console's funding band, a traced SVG, inlined with its own outline.
+        #fragment or a data: URI, and both logos are inside the file, the AnyScan logo and the JIC Smart Factory
+        logo inlined. The funding band is not: the README's Funding section shows it with the disclaimer as text.
     """
 
     diagram = _Generated()
@@ -343,7 +407,9 @@ def test_the_diagram_is_self_contained_and_carries_every_logo() -> None:
     for name in CONST_EMBEDDED_MARKS:
         with open(os.path.join(CONST_ASSETS, name), 'r', encoding='utf-8') as handle:
             outline = re.search(r' d="([^"]+)"', handle.read()).group(1)
-        assert outline in diagram, '%s is not inlined' % name
+        assert outline not in diagram, '%s is still in the diagram' % name
+    assert 'funding-band' not in diagram and Funding_Row_Cls.DISCLAIMER.split('.')[1] not in diagram, \
+        'the diagram still draws the funding band'
 
 
 def test_the_readme_shows_the_diagram() -> None:
@@ -475,9 +541,7 @@ def test_the_diagram_icons_are_twelve_by_twelve_pixel_grids() -> None:
         (CONST_BUSY_STEPS) also marks animation cells, with digits, which the diagram leaves empty.
     """
 
-    spec = importlib.util.spec_from_file_location('architecture_diagram', CONST_GENERATOR)
-    generator = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(generator)
+    generator = _Generator()
     assert generator.CONST_ICON_SIZE % 12 == 0
     for name, grid in CONST_PIXEL_ICONS.items():
         marks = {'#', '.'} | (set('123456789') if name in CONST_BUSY_STEPS else set())
@@ -494,10 +558,7 @@ def _Generated_Funding() -> str:
         (1) parameter [string]: The SVG document.
     """
 
-    spec = importlib.util.spec_from_file_location('architecture_diagram', CONST_GENERATOR)
-    generator = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(generator)
-    return generator.Draw_Funding_Band()
+    return _Generator().Draw_Funding_Band()
 
 
 def test_the_readme_funding_row_is_the_generators_and_self_contained() -> None:
@@ -520,3 +581,29 @@ def test_the_readme_funding_row_is_the_generators_and_self_contained() -> None:
     readme = _Read(CONST_README)
     section = readme[readme.index('## Funding'):]
     assert section.index('(images/anyscan-funding.svg)') < section.index(' '.join(Funding_Row_Cls.DISCLAIMER.split()[:6]))
+
+
+def test_the_headline_is_the_generators_and_draws_the_two_logo_files_unchanged() -> None:
+    """
+    Description:
+        images/anyscan-headline-light.svg and -dark.svg are the generator's output. The light version inlines the
+        AnyScan logo and the JIC Smart Factory logo exactly as their files are; the dark version is the same files with
+        only their one fill, the brand purple, made white (a single-colour light version, never a redrawing), and no
+        purple left in it.
+    """
+
+    generator = _Generator()
+    logo = _Read(CONST_LOGO)
+    jic = re.sub(r'<\?xml[^>]*>\s*', '', _Read(CONST_JIC)).strip()
+    for version in ('light', 'dark'):
+        path = os.path.join(CONST_ROOT, 'images', 'anyscan-headline-%s.svg' % version)
+        headline = _Read(path)
+        assert headline == generator.Draw_Headline(logo, version == 'dark'), \
+            '%s is stale or hand-edited; run python Example/UI/architecture_diagram.py' % path
+        assert 'aria-label="AnyScan, developed at JIC Smart Factory"' in headline
+        expected_logo, expected_jic = logo.strip(), jic.split('<svg ', 1)[1]
+        if version == 'dark':
+            expected_logo = re.sub('#640aba', Theme.CONST_ON_INK, expected_logo, flags=re.I)
+            expected_jic = re.sub('#640aba', Theme.CONST_ON_INK, expected_jic, flags=re.I)
+            assert '#640aba' not in headline.lower()
+        assert expected_logo in headline and expected_jic in headline, version

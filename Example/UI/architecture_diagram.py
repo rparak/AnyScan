@@ -26,6 +26,8 @@ import sys
 import os
 import argparse
 import re
+import io
+import base64
 # Resolve the project folder from this file's own location (Example/UI -> ..), so the script
 # runs the same whether launched from Example/UI/ or the repo root.
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -37,6 +39,8 @@ if _SRC not in sys.path:
 from xml.sax.saxutils import escape
 # Typing (Support for type hints)
 import typing as tp
+# fontTools (Subsetting the bundled Public Sans for the embedded @font-face)
+from fontTools import subset as Font_Subset
 # Custom Lib.: AnyScan — the colour tokens, the ONLY source of the diagram's colours
 #   ../Parameters/Theme
 import Parameters.Theme as Theme
@@ -54,36 +58,35 @@ from UI.Utilities.Pixel_Motif import Motif_Cells, Icon_Cells, CONST_ICON_GRID
 Description:
     Initialization of constants.
 
-    The generator of images/anyscan-architecture.svg, the diagram the README opens with: what
-    AnyScan is and how it works in its two modes, at the top level only — the camera (a live preview,
-    then a fresh frame once nothing moves), finding the objects, describing and measuring each one, the
-    desktop application; what a catalogue mode adds (recognising its part, the inspection area that
-    decides which parts are judged and tells a part outside it from a foreign object, the kinds of check
-    an item can define on the side that is up, a state per object, and a description held to the
-    checks); the files that set the stages up (the mode names the station, the station the calibration,
-    and the catalogue item and the reference); and the records the application writes and reads back. No
-    class, model or product names, no configuration fields, no number; README > Detection logic and
-    SPEC.md have the detail. Each card
-    carries a pixel icon from the application's own set (UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS), so the figure
-    and the console never draw two versions of one icon, and the figure needs no icon set or its licence.
+    The generator of images/anyscan-architecture.svg, the README's architecture figure: what AnyScan is and
+    how it works in its two modes, at the top level only, in the station's order - the camera (a live preview,
+    then a fresh frame once nothing moves), finding the objects, measuring each one, what a catalogue mode adds
+    for each object (recognising its part, the inspection area that decides which parts are judged and tells a
+    part outside it from a foreign object, the checks an item can define on the side that is up, and a verdict
+    per object), then describing each object, told in a catalogue mode what the checks found; the desktop
+    application; the files that set the stages up (the mode names the station, the station the calibration, and
+    the catalogue item and the reference); and the records the application writes and reads back. No class,
+    model or product names, no configuration fields, no number; README > Architecture and SPEC.md have the
+    detail. Each card carries a pixel icon from the application's own set
+    (UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS), so the figure and the console never draw two versions of one
+    icon. The funding band is not part of it: the README's Funding section shows it (images/anyscan-funding.svg,
+    written here too) with the EU disclaimer as text.
 
     Regenerating is the way to change it; the SVG is never edited by hand. Every colour comes
     from a Parameters/Theme.py token and every size from the console's type scale, so the
     figure moves with the theme instead of drifting from it. The SVG is self-contained, because
     the README shows it through <img>, and an SVG loaded that way never fetches another file:
     the AnyScan logo is copied in byte for byte from images/anyscan-logo.svg, the JIC Smart Factory
-    logo from App/assets/, and the funding band's traced logos are inlined from App/assets/. The band is the
-    console's own (UI.Widgets.Funding_Row_Cls): the same logos, heights (scaled), order, opacities and disclaimer.
+    logo from App/assets/, and the words are set in Public Sans, embedded as a subset of the bundled
+    App/assets/fonts files (SIL Open Font License 1.1, which declares no Reserved Font Name, so a subset keeps
+    the name) holding only the characters the figure uses, as data: URIs, so every reader sees the same type.
 
-    test/UI/test_brand_figures.py fails when the committed SVG is not this script's output, or
-    draws a colour that is not a token.
+    test/UI/test_brand_figures.py fails when the committed SVG is not this script's output (the embedded font
+    bytes aside, which depend on the fontTools version: Without_Font_Data), or draws a colour that is not a
+    token, or when an embedded font misses a character the figure uses.
 
         python Example/UI/architecture_diagram.py            # rewrite the SVG
         python Example/UI/architecture_diagram.py --check    # exit 1 if it is stale
-
-    The layout is checked against FALLBACK font metrics (Helvetica Neue / Arial), which is
-    what most README readers get: an <img> SVG cannot load Public Sans as a web font. A layout that
-    only fits with Public Sans installed will overflow for them.
 """
 # The source logo, the folder of the marks, the JIC Smart Factory logo, and the diagram this script writes.
 #   Unit [string]
@@ -93,6 +96,9 @@ CONST_JIC_FILE = os.path.join(CONST_ASSETS_FOLDER, 'jic-smart-factory.svg')
 CONST_DIAGRAM_FILE = os.path.join(CONST_PROJECT_FOLDER, 'images', 'anyscan-architecture.svg')
 # The README's funding logo row: the console's funding band, drawn as an SVG.
 CONST_FUNDING_FILE = os.path.join(CONST_PROJECT_FOLDER, 'images', 'anyscan-funding.svg')
+# The README's headline, a light and a dark version: the AnyScan logo and the JIC Smart Factory logo as in the top bar.
+#   Unit [string]
+CONST_HEADLINE_FILE = os.path.join(CONST_PROJECT_FOLDER, 'images', 'anyscan-headline-%s.svg')
 # The marker comments around the inline logo; the test reads the copy between them.
 #   Unit [string]
 CONST_LOGO_BEGIN = '<!-- logo:begin -->'
@@ -101,11 +107,11 @@ CONST_LOGO_END = '<!-- logo:end -->'
 #   Unit [string]
 CONST_JIC_BEGIN = '<!-- jic:begin -->'
 CONST_JIC_END = '<!-- jic:end -->'
-# The drawing size in user units: wide, so it stays legible at README width (~900 px renders
-# it at 0.75).
+# The drawing size in user units: wide, so it stays legible at README width (~880 px renders
+# it at 0.73).
 #   Unit [px]
 CONST_WIDTH = 1200
-CONST_HEIGHT = 1425
+CONST_HEIGHT = 1350
 # The header's logo: its top-left corner and its scale (logo units -> diagram units). The divider and
 # the JIC mark follow the top bar's rule (UI/Core.py): Style.CONST_MARK_GAP from ink to divider and
 # from divider to ink, scaled from the bar's Style.CONST_LOGO_HEIGHT px lockup to this logo's height.
@@ -127,21 +133,24 @@ CONST_JIC_Y = 52.2
 CONST_DIVIDER_WIDTH = 1.5
 # The top edge of the group of what sets the stages up.
 #   Unit [px]
-CONST_SET_TOP = 938
+CONST_SET_TOP = 1046
 # The icon's drawn size (12 cells of 3 px: at the earlier 28 px line icons' size a cell would be 2.33 px and the grid
 # would smear) and its inset from a card's right edge; it is centred on the title's capitals.
 #   Unit [px]
 CONST_ICON_SIZE = 36
 CONST_ICON_INSET = 16
-# The funding band: its top edge, the console's per-logo heights scaled by this factor (the
-# heights are tuned per logo there, so they are scaled, never replaced), and the gap between logos.
-#   Unit [px] / [-]
-CONST_BAND_TOP = 1242
-CONST_BAND_SCALE = 1.35
-CONST_BAND_GAP = 36
-# The band's inner space: above the logos, and from the logos to the rule under them.
-#   Unit [px]
-CONST_BAND_PAD = 20
+# The bundled Public Sans file of each weight the figure draws, embedded as a subset (App/assets/fonts).
+#   Unit [Dictionary<string, string>]
+CONST_FONT_FOLDER = os.path.join(CONST_ASSETS_FOLDER, 'fonts')
+CONST_FONT_FILES = {'400': 'PublicSans-Regular.ttf', '500': 'PublicSans-Medium.ttf',
+                    '600': 'PublicSans-SemiBold.ttf', '700': 'PublicSans-Bold.ttf'}
+# The line the embedded @font-face rules replace once every word is written (the subsets hold only the characters
+# the figure uses, so they are built last).
+#   Unit [string]
+CONST_FONT_SLOT = '/* font-face */'
+# The embedded font data, as the generator writes it and as Without_Font_Data masks it.
+#   Unit [re.Pattern]
+CONST_FONT_DATA = re.compile(r'(data:font/woff;base64,)[A-Za-z0-9+/=]+')
 # What each band logo is, for screen readers.
 #   Unit [Dictionary<string, string>]
 CONST_BAND_LABELS = {'edih-digimat-white.svg': 'EDIH-DIGIMAT',
@@ -182,6 +191,7 @@ class Svg_Writer_Cls(object):
         # << PRIVATE >> #
         self.__lines = []
         self.__depth = 0
+        self.__characters = {}
 
     def Add(self, element: str) -> None:
         """
@@ -251,6 +261,17 @@ class Svg_Writer_Cls(object):
 
         return '\n'.join(self.__lines) + '\n'
 
+    def Characters(self) -> tp.Dict[str, str]:
+        """
+        Description:
+            The characters each font weight has set so far, for the embedded subsets.
+
+        Returns:
+            (1) parameter [Dictionary<string, string>]: Each weight ('400' ... '700') and its characters, sorted.
+        """
+
+        return {weight: ''.join(sorted(characters)) for weight, characters in sorted(self.__characters.items())}
+
     def Text(self, x: float, y: float, text: str, size: float, fill: str, weight: tp.Optional[str] = None,
              anchor: tp.Optional[str] = None, spacing: tp.Optional[str] = None, opacity: float = 1.0) -> None:
         """
@@ -268,6 +289,7 @@ class Svg_Writer_Cls(object):
             (9) opacity [float]: The fill's opacity, 0..1.
         """
 
+        self.__characters.setdefault(weight or '400', set()).update(text)
         attributes = ''.join([' font-weight="%s"' % weight if weight else '',
                               ' text-anchor="%s"' % anchor if anchor else '',
                               ' letter-spacing="%s"' % spacing if spacing else '',
@@ -479,16 +501,64 @@ def Header_Positions(logo_svg: str) -> tp.Tuple[float, float]:
     return round(divider, 2), round(divider + CONST_DIVIDER_WIDTH / 2 + gap, 2)
 
 
+def Font_Face_Css(characters: tp.Dict[str, str]) -> str:
+    """
+    Description:
+        The @font-face rules that embed Public Sans: for each weight the figure sets, the bundled file
+        (CONST_FONT_FILES) subset to the characters that weight draws, as WOFF in a data: URI. The subset keeps the
+        font's whole name table, so its copyright and its SIL Open Font License 1.1 notice travel with it.
+
+    Args:
+        (1) characters [Dictionary<string, string>]: Each weight and the characters it draws (Svg_Writer_Cls.Characters).
+
+    Returns:
+        (1) parameter [string]: The rules, one per line.
+    """
+
+    rules = []
+    for weight, text in characters.items():
+        options = Font_Subset.Options()
+        options.flavor = 'woff'
+        options.name_IDs = ['*']
+        options.name_languages = ['*']
+        options.notdef_outline = True
+        options.recalc_timestamp = False
+        buffer = io.BytesIO()
+        with Font_Subset.load_font(os.path.join(CONST_FONT_FOLDER, CONST_FONT_FILES[weight]), options) as font:
+            subsetter = Font_Subset.Subsetter(options)
+            subsetter.populate(text=text)
+            subsetter.subset(font)
+            Font_Subset.save_font(font, buffer, options)
+        rules.append("@font-face { font-family: 'Public Sans'; font-weight: %s; src: url(data:font/woff;base64,%s) "
+                     "format('woff'); }" % (weight, base64.b64encode(buffer.getvalue()).decode('ascii')))
+    return '\n'.join(rules)
+
+
+def Without_Font_Data(svg: str) -> str:
+    """
+    Description:
+        An SVG with its embedded font bytes masked: the bytes depend on the fontTools version that subset them, the
+        rest of the file on this script alone. What --check and the test compare.
+
+    Args:
+        (1) svg [string]: The SVG text.
+
+    Returns:
+        (1) parameter [string]: The text with each embedded font's data replaced by '...'.
+    """
+
+    return CONST_FONT_DATA.sub(r'\1...', svg)
+
+
 def Draw_Architecture(logo_svg: str) -> str:
     """
     Description:
-        The whole diagram: the header (the AnyScan logo and the JIC mark) and the tagline; the
-        flow left to right — capture, find the objects, describe and measure each one, the
-        desktop application; under it what a catalogue mode adds for each object — recognise, the
-        inspection area, check, the state; the mode, station, calibration (a chain, each naming the next),
-        catalogue item and reference that set the stages up, and the records under the application that
-        writes them; and the console's
-        funding band (the EDIH-DIGIMAT, Ministry and EU logos and the EU disclaimer). Everything drawn is in the code; nothing is planned.
+        The whole diagram, in the station's order: the header (the AnyScan logo and the JIC mark) and the tagline;
+        capture, find the objects and measure each one, left to right; under them what a catalogue mode adds for
+        each object - recognise, the inspection area, check, the verdict; then describe each object, after the
+        verdict in a catalogue mode; the desktop application they feed; the mode, station, calibration (a chain,
+        each naming the next), catalogue item and reference that set the stages up, and the records under the
+        application that writes them. Everything drawn is in the code; nothing is planned.
 
     Args:
         (1) logo_svg [string]: The content of images/anyscan-logo.svg, inlined unchanged.
@@ -502,31 +572,31 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Open('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" '
            'aria-label="AnyScan architecture">' % (CONST_WIDTH, CONST_HEIGHT, CONST_WIDTH, CONST_HEIGHT))
     c.Add('<!-- Generated by Example/UI/architecture_diagram.py. Regenerate it, do not edit it by hand. -->')
+    c.Add('<!-- The words are set in Public Sans (Copyright 2015 The Public Sans Project Authors), embedded as subsets '
+          'under the SIL Open Font License 1.1: https://openfontlicense.org -->')
     c.Add('<title>AnyScan architecture</title>')
-    c.Add('<desc>AnyScan finds every object on a work surface, describes it and measures it. A catalogue mode '
+    c.Add('<desc>AnyScan finds every object on a work surface, measures it and describes it. A catalogue mode '
           'also judges it. In every mode the camera shows a live preview while parts are placed, then takes a fresh '
           'frame once nothing moves, undistorted. Two cues, fused, find the objects: what differs from the empty '
-          'surface, and a segmentation model. Each object is described in words by a local vision-language model '
-          'and measured in mm through the calibration, and the desktop application shows the result in its Live, '
-          'Trends, History and Log views. A catalogue mode adds four steps for each object found. It recognises the '
-          'catalogued part by its reference images. Only a part wholly inside the inspection area is judged, and '
-          'one outside is told apart as a part or a foreign object by similarity, size and colour. A judged part is '
-          'checked on the side that is up, told by its references or else by its countersinks: its size, its '
-          'holes, each bore centred in its countersink with the view angle corrected, and its stains. Each object '
-          'then gets a state: OK, NOK or Warning, a Warning with its kind: outside the area, a foreign object, several '
-          'parts, or a side unclear or mismatched. In a catalogue mode each object '
-          'is described after its state, told what the checks found, and a sentence that contradicts them is '
-          'dropped. The stages are set up by the mode (models and prompts), which names its station (camera, '
-          'light, table and inspection area). The station names its calibration (undistortion and mm per pixel) '
-          'and the empty-surface reference, and a catalogue mode also names its catalogue item (the part, its '
-          'checks and its reference images). Every analysis is recorded with its images and results, alongside '
-          'the session log, a run summary and the daily station events. Developed within internal research at '
-          'JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT project shows small and '
-          'medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts. '
-          'Funded by the European Union.</desc>')
+          'surface, and a segmentation model. Each object is measured in mm through the calibration. A catalogue '
+          'mode then adds four steps for each object. It recognises the catalogued part by its reference images. '
+          'Only a part wholly inside the inspection area is judged, and one outside is told apart as a part or a '
+          'foreign object by similarity, size and colour. A judged part is checked on the side that is up, told by '
+          'its references or else by its countersinks: its size, its holes, each bore centred in its countersink '
+          'with the view angle corrected, and its stains. Each object then gets a verdict: OK, NOK or Warning, a '
+          'Warning with its kind: outside the area, a foreign object, several parts, or a side unclear or '
+          'mismatched. Then each object is described in words by a local vision-language model, in a catalogue '
+          'mode told what the checks found, and a sentence that contradicts them is dropped. The desktop '
+          'application shows the result in its Live, Trends, History and Log views. The stages are set up by the '
+          'mode (models and prompts), which names its station (camera, light, table and inspection area). The '
+          'station names its calibration (undistortion and mm per pixel) and the empty-surface reference, and a '
+          'catalogue mode also names its catalogue item (the part, its checks and its reference images). Every '
+          'analysis is recorded with its images and results, alongside the session log, a run summary and the '
+          'daily station events.</desc>')
     c.Blank()
     c.Open('<defs>')
     c.Open('<style>')
+    c.Add(CONST_FONT_SLOT)
     c.Add('text { font-family: %s; }' % CONST_UI_FONT)
     c.Close('style')
     c.Open('<marker id="arch-tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" '
@@ -565,49 +635,47 @@ def Draw_Architecture(logo_svg: str) -> str:
 
     c.Open('<g id="tagline">', 'Tagline')
     c.Add('<line x1="40" y1="126" x2="1160" y2="126" stroke="%s" stroke-width="1.5"/>' % T.CONST_CARD_BORDER)
-    c.Text(40, 168, 'AnyScan finds every object on a work surface, describes it and measures it. A catalogue mode also judges it.',
+    c.Text(40, 168, 'AnyScan finds every object on a work surface, measures it and describes it. A catalogue mode also judges it.',
            S[5], T.CONST_INK, weight='500')
     c.Close('g')
     c.Blank()
 
-    # Every mode: four columns at one height; the arrows sit on the cards' middle line.
+    # Every mode: three columns at one height; the arrows sit on the cards' middle line.
     y, h = 232, 224
     mid = y + h / 2
     c.Open('<g id="capture">', '1. Capture: a live preview, then a fresh frame once nothing moves')
-    c.Card(40, y, 180, h, 'Capture', ['a live preview', 'while parts are', 'placed, then a', 'fresh frame once',
-                                      'nothing moves,', 'undistorted'], icon='camera')
+    c.Card(40, y, 220, h, 'Capture', ['a live preview while', 'parts are placed,', 'then a fresh frame',
+                                      'once nothing moves,', 'undistorted'], icon='camera')
     c.Close('g')
-    c.Arrow(226, mid, 258)
+    c.Arrow(266, mid, 300)
     c.Blank()
 
     c.Open('<g id="find">', '2. Find the objects: two cues, fused')
-    c.Card(264, y, 250, h, 'Find objects', ['two cues, fused: what', 'differs from the empty', 'surface, and a', 'segmentation model'],
-           icon='magnifier')
+    c.Card(306, y, 260, h, 'Find objects', ['two cues, fused: what', 'differs from the empty', 'surface, and a',
+                                            'segmentation model'], icon='magnifier')
     c.Close('g')
-    c.Arrow(520, mid, 552)
+    c.Arrow(572, mid, 606)
     c.Blank()
 
-    c.Open('<g id="each-object">', '3. Each object: described and measured')
-    c.Rect(558, y - 20, 290, h + 40, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
-    c.Rect(578, y - 34, 124, 28, T.CONST_BRAND)
-    c.Text(640, y - 14, 'each object', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
-    c.Card(574, y + 4, 258, 104, 'Describe', ['in words, by a local', 'vision-language model'], icon='text')
-    c.Card(574, y + h - 108, 258, 104, 'Measure', ['size in mm, through', 'the calibration'], icon='ruler')
+    c.Open('<g id="measure">', '3. Each object: measured')
+    c.Rect(598, y - 20, 250, h + 40, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
+    c.Rect(618, y - 34, 124, 28, T.CONST_BRAND)
+    c.Text(680, y - 14, 'each object', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
+    c.Card(614, y, 218, h, 'Measure', ['size in mm,', 'through the', 'calibration'], icon='ruler')
     c.Close('g')
-    c.Arrow(854, mid, 886)
     c.Blank()
 
-    # What a catalogue mode adds, for each object, in a group marked like 'each object': recognise, then the
-    # inspection area under it (stacked as Describe and Measure are), then the check and the state.
+    # What a catalogue mode adds, for each object measured, in a group marked like 'each object': recognise, then the
+    # inspection area under it, then the check and the verdict.
     y_cat, h_cat = 546, 276
     mid_cat = y_cat + h_cat / 2
     h_recognise, gap = 96, 34
     y_area, h_area = y_cat + h_recognise + gap, h_cat - h_recognise - gap
-    c.Open('<g id="catalogue">', '4. A catalogue mode also recognises its part, judges only inside the inspection area, '
-           'checks the side that is up and gives each object a state')
-    # Every object found goes on to these steps: down from Find objects, over, and into Recognise.
-    c.Elbow([(389, y + h + 6), (389, y + h + 33), (191, y + h + 33), (191, y_cat - 6)])
-    c.Rect(40, y_cat - 20, 808, h_cat + 90, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
+    c.Open('<g id="catalogue">', '4. A catalogue mode then recognises its part, judges only inside the inspection area, '
+           'checks the side that is up and gives each object a verdict')
+    # Every object measured goes on to these steps: down from Measure, over, and into Recognise.
+    c.Elbow([(723, y + h + 26), (723, y + h + 45), (191, y + h + 45), (191, y_cat - 6)])
+    c.Rect(40, y_cat - 20, 808, h_cat + 40, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
     c.Rect(214, y_cat - 34, 320, 28, T.CONST_BRAND)
     c.Text(374, y_cat - 14, 'catalogue mode adds, for each object', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
     c.Card(56, y_cat, 270, h_recognise, 'Recognise', ['the catalogued part, by', 'its reference images'], icon='focus')
@@ -621,13 +689,13 @@ def Draw_Architecture(logo_svg: str) -> str:
                                             'centred in its countersink', '(view angle corrected)', 'and stains'],
            icon='checklist')
     c.Arrow(612, mid_cat, 640)
-    # The three states, each a label in the purple on its state's ground, as the console's badges and History's filter,
-    # and under Warning the kinds Scene Understanding names (Parameters.Vision.CONST_WARNING_KINDS).
+    # The three verdicts, each a label in the purple on its state's ground, as the console's badges and History's
+    # filter, and under Warning the kinds Scene Understanding names (Parameters.Vision.CONST_WARNING_KINDS).
     kinds = ['a kind: outside area,', 'foreign object,', 'several parts,', 'side unclear or', 'side mismatch']
     h_states = 42 + 2 * 40 + 22 * len(kinds) - 6
     top_states = y_cat + (h_cat - h_states) / 2
     c.Rect(646, y_cat, 186, h_cat, T.CONST_CARD, T.CONST_CARD_BORDER)
-    c.Text(670, top_states + 22, 'State', S[6], T.CONST_INK, weight='700')
+    c.Text(670, top_states + 22, 'Verdict', S[6], T.CONST_INK, weight='700')
     c.Icon(832 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top_states + 22), 'badge', T.CONST_INK_SOFT)
     for state, x_chip, row, w_chip in [('OK', 670, 0, 64), ('NOK', 742, 0, 72), ('Warning', 670, 1, 98)]:
         y_chip = top_states + 42 + 40 * row
@@ -635,21 +703,30 @@ def Draw_Architecture(logo_svg: str) -> str:
         c.Text(x_chip + w_chip / 2, y_chip + 21, state, S[2], T.CONST_INK, weight='700', anchor='middle')
     for i, line in enumerate(kinds):
         c.Text(670, top_states + 42 + 2 * 40 + 14 + 22 * i, line, S[2], T.CONST_INK_SOFT)
-    c.Arrow(854, mid_cat, 886)
-    # In a catalogue mode the description comes last: it is written with what the checks found, and held to it.
-    for i, line in enumerate(['In this mode each object is described after its state, told what the checks found,',
-                              'and a sentence that contradicts them is dropped.']):
-        c.Text(832, y_cat + h_cat + 32 + 22 * i, line, S[2], T.CONST_INK_MUTE, anchor='end')
     c.Close('g')
     c.Blank()
 
-    c.Open('<g id="application">', '5. The desktop application and its four views')
-    h_app = y_cat + h_cat + 70 - y
+    # Then every mode describes each object: after the verdict in a catalogue mode, told what the checks found; in a
+    # detect-only mode straight after Measure, as the note above the card says.
+    y_describe, h_describe = 878, 120
+    c.Open('<g id="describe">', '5. Each object: described, in a catalogue mode after its verdict and held to the checks')
+    c.Elbow([(739, y_cat + h_cat + 6), (739, y_describe - 6)])
+    c.Text(720, y_describe - 14, 'A detect-only mode goes from Measure straight to Describe.', S[2], T.CONST_INK_MUTE,
+           anchor='end')
+    c.Card(40, y_describe, 808, h_describe, 'Describe', ['each object in words, by a local vision-language model. In a catalogue mode it is',
+                                                         'told what the checks found, and a sentence that contradicts them is dropped.'],
+           icon='text')
+    c.Close('g')
+    c.Arrow(854, y_describe + h_describe / 2, 886)
+    c.Blank()
+
+    c.Open('<g id="application">', '6. The desktop application and its four views')
+    h_app = y_describe + h_describe - y
     c.Rect(892, y, 268, h_app, T.CONST_VIEWPORT)
     top = y + (h_app - 250) / 2 + 22
     c.Text(916, top, 'Desktop app', S[6], T.CONST_VIEWPORT_TEXT, weight='700')
     c.Icon(1160 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top), 'window', T.CONST_VIEWPORT_TEXT)
-    for i, line in enumerate(['shows each object, its', 'description and size,', 'and, in a catalogue', 'mode, its state']):
+    for i, line in enumerate(['shows each object, its', 'size and description,', 'and, in a catalogue', 'mode, its verdict']):
         c.Text(916, top + 30 + 24 * i, line, S[3], T.CONST_VIEWPORT_TEXT)
     for i, view in enumerate(['Live', 'Trends', 'History', 'Log']):
         x_view, y_view = 916 + 114 * (i % 2), top + 140 + 44 * (i // 2)
@@ -687,41 +764,64 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Card(892, y_set, 268, h_set, 'Records', ['images and results', 'of every analysis,', 'the session log,',
                                                    'a run summary and', 'daily station events'], icon='folder')
     c.Close('g')
-    c.Blank()
-
-    c.Open('<g id="funding-band">', 'The funding band, as in the console: the logos in its order, faint rules, '
-           'the EU disclaimer')
-    c.Add('<rect x="0.75" y="%g" width="1198.5" height="%g" fill="%s"/>' % (CONST_BAND_TOP, CONST_HEIGHT - 0.75 - CONST_BAND_TOP, T.CONST_BAND))
-    # The row is centred like the console's (stretch on both sides); None is its hairline divider. The console sets
-    # the disclaimer beside the logos; the diagram's 1200 px leave no room for it there, so it keeps the poster's
-    # place, under a rule.
-    tallest = max(height for _, height in Funding_Row_Cls.LOGOS) * CONST_BAND_SCALE
-    row = []
-    for name, height in Funding_Row_Cls.LOGOS:
-        if name is None:
-            row.append((None, 0.0, Funding_Row_Cls.DIVIDER_SHARE * tallest))
-            continue
-        w, h_box = Svg_Size(os.path.join(CONST_ASSETS_FOLDER, name))
-        row.append((name, height * CONST_BAND_SCALE * w / h_box, height * CONST_BAND_SCALE))
-    x = (CONST_WIDTH - sum(w for _, w, _ in row) - CONST_BAND_GAP * (len(row) - 1)) / 2
-    y_row = CONST_BAND_TOP + CONST_BAND_PAD + tallest / 2
-    for name, w, h in row:
-        if name is None:
-            c.Add('<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-opacity="%g" stroke-width="1.5"/>'
-                  % (x, round(y_row - h / 2, 1), x, round(y_row + h / 2, 1), T.CONST_BAND_LINE, T.CONST_BAND_LINE_ALPHA))
-        else:
-            c.Svg_Logo(round(x, 1), round(y_row - h / 2, 1), round(h, 1), os.path.join(CONST_ASSETS_FOLDER, name),
-                       CONST_BAND_LABELS[name])
-        x += w + CONST_BAND_GAP
-    y_rule = round(y_row + tallest / 2 + CONST_BAND_PAD, 1)
-    c.Add('<line x1="40" y1="%g" x2="1160" y2="%g" stroke="%s" stroke-opacity="%g" stroke-width="1"/>'
-          % (y_rule, y_rule, T.CONST_BAND_LINE, T.CONST_BAND_LINE_ALPHA))
-    for i, line in enumerate(Split_In_Two(Funding_Row_Cls.DISCLAIMER)):
-        c.Text(CONST_WIDTH / 2, round(y_rule + 26 + 21 * i, 1), line, S[1], T.CONST_BAND_TEXT, anchor='middle',
-               opacity=T.CONST_BAND_TEXT_ALPHA)
-    c.Close('g')
     c.Close('svg')
-    return c.Markup()
+    return c.Markup().replace(CONST_FONT_SLOT, Font_Face_Css(c.Characters()), 1)
+
+
+# The headline's logo height in its own units (the logo's viewBox height, drawn at scale 1), the JIC Smart Factory
+# logo's height beside it (the top bar's ratio, UI/Core.py CONST_JIC_LOGO_HEIGHT over Style.CONST_LOGO_HEIGHT), and
+# the brand purple both logo files fill with, which the dark version replaces with the white on the purple.
+#   Unit [px] / [string]
+CONST_HEADLINE_LOGO_HEIGHT = 140.0
+CONST_HEADLINE_JIC_HEIGHT = round(140.0 * 26 / Style.CONST_LOGO_HEIGHT, 2)
+CONST_LOGO_FILL = '#640aba'
+
+
+def Draw_Headline(logo_svg: str, dark: bool) -> str:
+    """
+    Description:
+        The README's headline: the AnyScan logo and the JIC Smart Factory logo side by side, a thin rule between them,
+        spaced by the top bar's rule (Style.CONST_MARK_GAP from ink to rule and rule to ink, scaled), on a transparent
+        ground. Both files are inlined unchanged; the dark version only replaces their one fill, the brand purple, with
+        Theme.CONST_ON_INK (a single-colour light version of the same files), and draws the rule in the periwinkle.
+
+    Args:
+        (1) logo_svg [string]: The content of images/anyscan-logo.svg.
+        (2) dark [bool]: The version for GitHub's dark theme.
+
+    Returns:
+        (1) parameter [string]: The SVG document.
+    """
+
+    T = Theme
+    _, _, view_w, view_h = (float(v) for v in re.search(r'viewBox="([^"]+)"', logo_svg).group(1).split())
+    scale = CONST_HEADLINE_LOGO_HEIGHT / view_h
+    gap = Style.CONST_MARK_GAP * CONST_HEADLINE_LOGO_HEIGHT / Style.CONST_LOGO_HEIGHT
+    ink_right = scale * (view_w - CONST_LOGO_RIGHT_MARGIN)
+    rule_x = round(ink_right + gap + CONST_DIVIDER_WIDTH, 2)
+    with open(CONST_JIC_FILE, 'r', encoding='utf-8') as handle:
+        jic = re.sub(r'<\?xml[^>]*>\s*', '', handle.read()).strip()
+    _, _, jic_w, jic_h = (float(v) for v in re.search(r'viewBox="([^"]+)"', jic).group(1).split())
+    jic_x = round(rule_x + CONST_DIVIDER_WIDTH + gap, 2)
+    jic_width = round(CONST_HEADLINE_JIC_HEIGHT * jic_w / jic_h, 2)
+    width, height = round(jic_x + jic_width, 2), CONST_HEADLINE_LOGO_HEIGHT
+    logo, rule = logo_svg.strip(), T.CONST_TOPBAR_DIVIDER
+    if dark:
+        logo = re.sub(CONST_LOGO_FILL, T.CONST_ON_INK, logo, flags=re.I)
+        jic = re.sub(CONST_LOGO_FILL, T.CONST_ON_INK, jic, flags=re.I)
+        rule = T.CONST_SCROLLBAR_HANDLE
+    jic_y = round((height - CONST_HEADLINE_JIC_HEIGHT) / 2, 2)
+    lines = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %g %g" width="%g" height="%g" role="img" '
+             'aria-label="AnyScan, developed at JIC Smart Factory">' % (width, height, width, height),
+             '<!-- Generated by Example/UI/architecture_diagram.py from images/anyscan-logo.svg and '
+             'App/assets/jic-smart-factory.svg%s; do not edit. -->' % (', their fill made white' if dark else ''),
+             '<g transform="scale(%g)">' % scale, logo, '</g>',
+             '<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="%g"/>'
+             % (rule_x, round(height * 0.12, 2), rule_x, round(height * 0.88, 2), rule, CONST_DIVIDER_WIDTH * 2),
+             jic.replace('<svg ', '<svg x="%g" y="%g" width="%g" height="%g" ' % (jic_x, jic_y, jic_width,
+                                                                              CONST_HEADLINE_JIC_HEIGHT), 1),
+             '</svg>']
+    return '\n'.join(lines) + '\n'
 
 
 # The README's funding band: its width (the logos, the console's sizes, centred with room for the motif at both
@@ -781,8 +881,9 @@ def Draw_Funding_Band() -> str:
 def main():
     """
     Description:
-        Write images/anyscan-architecture.svg and the README's funding logo row, images/anyscan-funding.svg, from the
-        theme and the logos, or with --check report whether either committed file is stale.
+        Write images/anyscan-architecture.svg, the README's funding logo row (images/anyscan-funding.svg) and its
+        headline (images/anyscan-headline-light.svg and -dark.svg) from the theme and the logos, or with --check
+        report whether a committed file is stale.
 
             python Example/UI/architecture_diagram.py [--check]
     """
@@ -793,7 +894,10 @@ def main():
     args = parser.parse_args()
 
     with open(CONST_LOGO_FILE, 'r', encoding='utf-8') as handle:
-        figures = [(CONST_DIAGRAM_FILE, Draw_Architecture(handle.read())), (CONST_FUNDING_FILE, Draw_Funding_Band())]
+        logo = handle.read()
+    figures = [(CONST_DIAGRAM_FILE, Draw_Architecture(logo)), (CONST_FUNDING_FILE, Draw_Funding_Band()),
+               (CONST_HEADLINE_FILE % 'light', Draw_Headline(logo, False)),
+               (CONST_HEADLINE_FILE % 'dark', Draw_Headline(logo, True))]
     stale = 0
     for path, markup in figures:
         if args.check:
@@ -801,7 +905,7 @@ def main():
             if os.path.exists(path):
                 with open(path, 'r', encoding='utf-8') as handle:
                     current = handle.read()
-            if current != markup:
+            if Without_Font_Data(current) != Without_Font_Data(markup):
                 print('[ERROR] %s is stale or was edited by hand; regenerate it with this script.' % path)
                 stale = 1
             else:

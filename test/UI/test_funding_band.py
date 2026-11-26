@@ -49,8 +49,8 @@ Description:
     The funding band at the foot of the window (the owner's decisions, 2026-10-14 and 2026-10-15): one centred group of
     the EDIH-DIGIMAT wordmark, a faint rule, the Ministry of Industry and Trade's logo and the EU emblem, each a white SVG
     traced from its PNG, on the purple, with the brand's pixel motif in the rest of the band, never within the EU
-    emblem's protection area of a logo. The EU disclaimer is not in the window's band; the README and the architecture
-    diagram's band carry it. Measured on the built band, shown in the window at its default and minimum widths.
+    emblem's protection area of a logo. The EU disclaimer is not in the window's band; the README carries it, as text
+    under its funding row. Measured on the built band, shown in the window at its default and minimum widths.
 """
 # The EU's required disclaimer, word for word.
 #   Unit [string]
@@ -132,11 +132,11 @@ def test_the_band_carries_the_three_traced_logos_and_no_text(shown) -> None:
     assert [label for label in band.findChildren(QLabel) if label.text()] == []
 
 
-def test_the_disclaimer_is_kept_word_for_word_in_the_readme_and_the_diagram() -> None:
+def test_the_disclaimer_is_kept_word_for_word_in_the_readme() -> None:
     """
     Description:
-        The EU disclaimer, out of the window's band, is in the README word for word (across its line breaks) and is the
-        text the architecture diagram's band carries.
+        The EU disclaimer, out of the window's band, is in the README word for word (across its line breaks), as text
+        under the README's funding row.
     """
 
     assert Funding_Row_Cls.DISCLAIMER == CONST_EU_DISCLAIMER
