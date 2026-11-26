@@ -67,7 +67,7 @@ Description:
       - not the full install: that machine's environment was set up by hand, so the .venv
         creation, the pip resolves (the cu130 index, the mlx extra), the import check, the
         FastSAM step and the configuration check have not run on Linux.
-    Stubs only - UNVERIFIED in the sense of README > Platform:
+    Stubs only - UNVERIFIED in the sense of README > Requirements and platforms:
       - every other Linux branch (CUDA 12, the refusal and the --cpu opt-in, failing /
         missing / old nvidia-smi, low compute capability, GPU 0's memory against the 11 GB
         floor, a busy card, old glibc, musl, aarch64), macOS on Intel, macOS < 14, and

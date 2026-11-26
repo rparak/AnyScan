@@ -148,7 +148,7 @@ class Dino_Identifier_Cls(object):
         except ImportError as exc:
             raise Identifier_Error_Cls(
                 'The identification runtime is not installed. Install torch and transformers into this '
-                'environment (see README > Setup), then load the configuration again.') from exc
+                'environment (see README > Quick start), then load the configuration again.') from exc
         device = self.__device_setting
         if device == 'auto':
             device = 'cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu')

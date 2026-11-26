@@ -607,3 +607,18 @@ def test_the_headline_is_the_generators_and_draws_the_two_logo_files_unchanged()
             expected_jic = re.sub('#640aba', Theme.CONST_ON_INK, expected_jic, flags=re.I)
             assert '#640aba' not in headline.lower()
         assert expected_logo in headline and expected_jic in headline, version
+
+
+def test_the_readme_opens_with_the_headline_light_and_dark() -> None:
+    """
+    Description:
+        The README opens with the headline through <picture>, centred, before its title: the dark version as the
+        source for a dark appearance, the light one as the <img> with the owner's alt text.
+    """
+
+    readme = _Read(CONST_README)
+    block = ('<p align="center">\n<picture>\n  <source media="(prefers-color-scheme: dark)" '
+             'srcset="images/anyscan-headline-dark.svg">\n  <img src="images/anyscan-headline-light.svg" width="820" '
+             'alt="AnyScan, developed at JIC Smart Factory">\n</picture>\n</p>\n')
+    assert readme.startswith(block)
+    assert readme.index(block) < readme.index('\n# AnyScan\n')

@@ -68,7 +68,7 @@ UI                               → everything above but Calibration  (App/run.
 - A domain module never holds the UI or the logger: it reports through callbacks injected by the
   caller (`Set_Log_Callback`, `stage_cb`, `progress_cb`), and its failures are `*_Error_Cls` sentences.
 - `src/Transformation/` is inherited (rparak/RoLE), under its own convention; nothing in the
-  repository imports it (README > Repository layout). The checker excludes it.
+  repository imports it (README > Development, *Repository layout*). The checker excludes it.
 
 ## Root ✅
 
@@ -239,7 +239,7 @@ disagreement is a question, not a new rule. ✅ = `test/Install/test_install.py`
   tested on Linux as well as macOS, since pinning changes what installs on every platform
   (`requirements/linux-*.txt` included).
 - Targets: macOS on Apple silicon (verified) and Linux with an NVIDIA GPU (verified on one machine,
-  2026-09-29); Windows is not a target, so there is no `.bat` (README > Platform).
+  2026-09-29); Windows is not a target, so there is no `.bat` (README > Requirements and platforms).
 - Written for bash 3.2 (macOS's): no associative arrays, no `mapfile`, no `${var,,}`.
 - Every line in the application's log format, through one `Log` function, the level padded to
   `CONST_LEVEL_WIDTH` (7, the logger's own constant) ✅:
@@ -392,7 +392,7 @@ jic-sf-ui-style, in `.claude/skills/jic-sf-ui-style/references/project.md`.
 - Root entries beyond the generic list, each with its reason (Root).
 - `src/Transformation/` is excluded from the checker (Header and checker).
 - **Python 3.10**, not the generic 3.11: the `.venv` `install.sh` creates runs 3.10.10 on the development Mac
-  (2026-10-29); the Linux machine ran 3.11.16 (README > Platform).
+  (2026-10-29); the Linux machine ran 3.11.16 (README > Requirements and platforms).
 - **`images/`** is the media folder (the generic default is `Media/`).
 - The two check tiers, their commands and their measured times are in `CLAUDE.md` > Commands, the one place
   they are written.

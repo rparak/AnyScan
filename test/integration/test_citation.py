@@ -127,3 +127,22 @@ def test_the_version_and_release_date_are_the_tags(project_root) -> None:
     citation = yaml.safe_load(tagged.stdout)
     assert str(citation['version']) == version
     assert str(citation['date-released']) == date.stdout.strip()
+
+
+def test_the_readme_bibtex_is_the_citation_files(project_root) -> None:
+    """
+    Description:
+        README > Citation's BibTeX entry states what CITATION.cff states: its authors as 'Family, Given' in order, the
+        title, the version, the year of the release date and the repository's URL.
+    """
+
+    with open(os.path.join(project_root, CONST_README), 'r', encoding='utf-8') as handle:
+        readme = handle.read()
+    entry = readme[readme.index('```bibtex'):].split('```', 2)[1]
+    fields = dict(re.findall(r'^\s*(\w+)\s*=\s*\{(.*)\},?\s*$', entry, re.M))
+    citation = _Citation(project_root)
+    assert fields['author'] == ' and '.join('%s, %s' % (a['family-names'], a['given-names']) for a in citation['authors'])
+    assert fields['title'] == citation['title']
+    assert fields['version'] == str(citation['version'])
+    assert fields['year'] == str(citation['date-released'])[:4]
+    assert fields['url'] == citation['repository-code']

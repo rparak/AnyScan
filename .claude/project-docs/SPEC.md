@@ -5,7 +5,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 
 | Question | Where |
 |---|---|
-| How do I install and run it? | [README](../../README.md#setup) |
+| How do I install and run it? | [README > Quick start](../../README.md#quick-start) |
 | What does it do? | This file |
 | Why does it do it that way? | [design-decisions.md](design-decisions.md) |
 | What limits a decision built on its output? | [Known limitations](#known-limitations), below |
@@ -24,7 +24,7 @@ AnyScan is a desktop inspection console for one Basler camera looking down at a 
 frame of the surface with parts on it goes in. Out comes each part found, with a short description
 from a local vision-language model, its size in mm when the camera is calibrated, a confidence, and
 an annotated image. Every analysis is recorded on disk. It runs on Apple-silicon macOS and on Linux
-with an NVIDIA GPU ([README > Platform](../../README.md#platform)).
+with an NVIDIA GPU ([README > Requirements and platforms](../../README.md#requirements-and-platforms)).
 
 ## Architecture
 
@@ -81,7 +81,7 @@ and *Formats*, and are not repeated here.
 
 `Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) runs each frame through four numbered stages,
 then composes and measures. The numbers are the ones the README and the mode file's comments use.
-[README > Detection logic](../../README.md#detection-logic) has the stages and their thresholds.
+[README > Architecture](../../README.md#architecture) and [README > Catalogue mode](../../README.md#catalogue-mode) have the stages and their thresholds.
 
 - **Before the stages: undistortion.** When a calibration is in force, the camera undistorts every
   frame before anything else sees it.
@@ -197,7 +197,7 @@ it names. The modes shipped today:
    names the two commands that leave the headless build only. The configuration is validated as a whole, both models are
    loaded, and the first analysis's one-time costs are paid ("Warming up…"). CONNECT stays
    unavailable until then. The README's *Workflow* gives the whole sequence, from the install to the results
-   ([README > Workflow](../../README.md#workflow)).
+   ([README > Quick start](../../README.md#quick-start)).
 2. **CONNECT** — sets the camera's sensor window and its fixed exposure, gain and white balance (the
    automatic modes switched off and read back, a camera keeping one on refused; the white-balance ratios read
    back and refused beyond half the camera's step), reads gamma and the colour preset (logged; refused when the
@@ -486,15 +486,17 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
   the application's copies of the delivered logo (the logo without its tagline, the mark, and the icon: the mark on a
   transparent ground, grid-fitted at each of 16-256 px), and build the
   bundled fonts (Public Sans and JetBrains Mono).
-- `UI/readme_diagrams.py` — draw the README's two light/dark diagram pairs for `<picture>`: the pipeline in a catalogue
+- `UI/readme_diagrams.py` — draw the README's two light/dark pairs for `<picture>`: the pipeline in a catalogue
   mode's order (frame, find, measure, judge, describe, record, Judge marked as the catalogue mode's step;
-  `images/anyscan-pipeline-{light,dark}.png`) and the three models (role, what
-  it runs on, the pin and the size `install.sh` holds; `images/anyscan-models-{light,dark}.png`), from the theme
-  tokens, the pixel icon set and the bundled fonts, at 1760 px for the README's ~880. The dark versions lie on a
-  transparent ground. `--check` exits 1 when a committed image is stale, `--out` writes elsewhere;
-  `test/UI/test_readme_diagrams.py` holds the committed images to its output, pixel for pixel.
+  `images/anyscan-pipeline-{light,dark}.png`) and the shipped catalogue item's card (its reference images and what it
+  is checked on, read through `Load_Catalogue`; `images/anyscan-catalogue-item-{light,dark}.webp`), from the theme
+  tokens, the pixel icon set and the bundled fonts, at 1760 px for the README's ~880; and the README's models table
+  (role, what each runs on, the pin and the size `install.sh` holds). The dark versions lie on a transparent ground.
+  `--check` exits 1 when a committed image is stale or the README's table differs, `--out` writes elsewhere;
+  `test/UI/test_readme_diagrams.py` holds the committed images to its output (the PNGs pixel for pixel, the WebP card
+  within the encoder's error).
 - `UI/analysis_animation.py` — write a replay clip of the window (by default `images/anyscan-analysis.webp`, which the
-  README no longer shows: its Figure 4 is a screen recording since 2026-11-26): the window offscreen
+  README does not show: it shows no animation since 2026-11-26): the window offscreen
   replaying one recorded frame (`--frame`, as `App/run.py --frame`) through the shipped mounting-plate mode with the
   real models, loaded through the Configuration dialog, then CONNECT, SCAN and ANALYZE, grabbed on events (each badge
   change), never on a timer, with the window's clock frozen. The analysis plays in 3 s whatever it took, and the
@@ -503,7 +505,7 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
 ## Known limitations
 
 Three limitations affect any decision built on this output. They stand **unverified in this version**: nothing
-here checks them against ground truth, and nothing under [README > Validation](../../README.md#validation)
+here checks them against ground truth, and nothing under [Verified on hardware, and not yet](#verified-on-hardware-and-not-yet)
 changes that.
 
 ### Measurements are repeatable, not absolute
@@ -562,12 +564,12 @@ Each row names its evidence. A row with none is not verified.
 
 | Capability | Status | Evidence |
 |---|---|---|
-| The whole application on Apple-silicon macOS | Verified, measured | [README > Platform](../../README.md#platform) |
-| The whole application on Linux (RTX 5070 Ti, CUDA 13) | Verified on one machine, 2026-09-29, and in real use on it as station `SF4` on 2026-10-29 (the row *Use at the station*, below) | README > Platform, commit `3cec51a` |
+| The whole application on Apple-silicon macOS | Verified, measured | [README > Requirements and platforms](../../README.md#requirements-and-platforms) |
+| The whole application on Linux (RTX 5070 Ti, CUDA 13) | Verified on one machine, 2026-09-29, and in real use on it as station `SF4` on 2026-10-29 (the row *Use at the station*, below) | README > Requirements and platforms, commit `3cec51a` |
 | Installer on Linux: detection and the Gemma download | Verified, 2026-09-29 | [*The installer on Linux…*](design-decisions.md#the-installer-on-linux-detection-and-the-gemma-download-ran-the-rest-did-not) |
 | Installer on Linux: the full install, the CUDA 12 path, the CPU path, every refusal | **Not run** (stubbed tests only) | Same entry |
 | Installer: OpenCV's headless build only | Its step ran for real on the development Linux machine (2026-10-13) against a scratch environment with both OpenCV 5.0.0.93 builds: the GUI build removed, the headless one reinstalled, cv2 importing without Qt plugins, a second run installing nothing. **Not run on the station**, where the abort was seen | [*Only OpenCV's headless build is installed…*](design-decisions.md#only-opencvs-headless-build-is-installed-the-installer-removes-the-gui-build-and-the-application-refuses-it) |
-| Windows | **Never tried**, not a target | README > Platform |
+| Windows | **Never tried**, not a target | README > Requirements and platforms |
 | Multi-view calibration of the rig's camera | Solved on the rig, 2026-09-28: 63 views, RMS 0.45 px | `Calibration.Solved` in the calibration file; commit `eb00508` |
 | Absolute size against parts of known size | **Not verified** | [Known limitations](#known-limitations) |
 | Empty-surface reference `Image_Background_001` | Re-shot on the rig 2026-10-12, with its provenance sidecar; on the 41 test frames (shot with the previous one) no object, side or verdict changes, sizes within 0.23 mm | commit `8798dae` |

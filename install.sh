@@ -473,7 +473,7 @@ Detect_Platform() {
         Darwin) Detect_Macos ;;
         Linux)  Detect_Linux ;;
         *)      Die "This installer supports macOS (Apple silicon) and Linux; this system reports '${os}'." \
-                    "Windows is not a target (README > Platform). Install manually per README > Setup if you want to try it." ;;
+                    "Windows is not a target (README > Requirements and platforms). Install manually per README > Quick start if you want to try it." ;;
     esac
 }
 
@@ -486,7 +486,7 @@ Detect_Macos() {
     arm64="$(sysctl -n hw.optional.arm64 2>/dev/null || true)"
     if [ "${arm64}" != '1' ]; then
         Die 'Detected macOS on an Intel processor, which is unsupported: the describer runs on MLX, and MLX needs Apple silicon.' \
-            'Run AnyScan on an Apple-silicon Mac (M1 or newer) or on Linux; see README > Platform.'
+            'Run AnyScan on an Apple-silicon Mac (M1 or newer) or on Linux; see README > Requirements and platforms.'
     fi
     if [ "${CPU_OPT_IN}" = '1' ]; then
         Log WARNING '--cpu applies to Linux only; ignored on macOS, where the describer runs on the Apple GPU.'
@@ -1207,7 +1207,7 @@ Main() {
     Log INFO "Setup complete in $(( SECONDS - start )) s: ${PLATFORM_SUMMARY}."
     Report_Unused_Cpu_Flag
     if [ "${PLATFORM_OS}" = 'linux' ]; then
-        Log INFO 'Linux was measured on one machine, with the CUDA 13 backend (README > Platform); the CUDA 12 and CPU builds have not been measured.'
+        Log INFO 'Linux was measured on one machine, with the CUDA 13 backend (README > Requirements and platforms); the CUDA 12 and CPU builds have not been measured.'
     fi
     Log INFO 'Start the application with: .venv/bin/python App/run.py'
 }

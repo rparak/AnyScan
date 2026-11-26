@@ -1109,7 +1109,7 @@ Tests `test/Reporting/test_core.py::test_the_description_is_kept_as_written_and_
 
 "Supported" and "verified" are kept apart, because "chosen not to support" and "not yet
 verified" are different things. Each platform has its own state; the measured figures are in
-README > Platform:
+README > Requirements and platforms:
 
 - **macOS on Apple silicon — supported, measured.** MLX on the Apple GPU (Metal), output identical
   word for word across runs, processes and memory pressure.
@@ -2171,7 +2171,7 @@ Tests `test/Vision/Utilities/test_caption.py::test_condense_label_names_the_part
 
 ## The installer on Linux: detection and the Gemma download ran, the rest did not
 
-Recorded 2026-09-29 from that day's Linux run (commit `3cec51a`, README > Platform; the machine's
+Recorded 2026-09-29 from that day's Linux run (commit `3cec51a`, README > Requirements and platforms; the machine's
 measurements are in *E4B stays the describer on both machines*). Nothing was re-run for this entry.
 It keeps "tested" and "ran for real" apart for each installer path, as the Mac's runs are kept apart
 in `test/Install/test_install.py`'s docstring.
@@ -2193,7 +2193,7 @@ in `test/Install/test_install.py`'s docstring.
   The installer's comment and refusal message now give the measured peak.
 
 **Revisit if** a machine runs the full Linux install, the CUDA 12 path or the CPU path: record it
-here, then update README > Setup and the docstring of `test/Install/test_install.py`.
+here, then update README > Quick start and the docstring of `test/Install/test_install.py`.
 Tests `test/Install/test_install.py` (the stubbed branches); commit `3cec51a` for the run.
 
 ## The daily station event file is exported from the session log at close, not written live
@@ -2259,7 +2259,7 @@ An event in the second pass gets a `ts` one hour early, so a cycle spanning that
 short or negative. This is recorded rather than engineered around, because the log cannot tell the passes
 apart.
 
-The live-log lock is `fcntl` only: Windows is not a target (the installer stops on it, README > Platform).
+The live-log lock is `fcntl` only: Windows is not a target (the installer stops on it, README > Requirements and platforms).
 
 *History:* until 2026-10-07 a cycle was one camera connection, CONNECT to its end, marked `#connection-start` /
 `#connection-end`; rows before that date bracket connections.

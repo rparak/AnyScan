@@ -575,7 +575,7 @@ def require_weights(request: pytest.FixtureRequest) -> tp.Callable[[tp.List[str]
         if not missing:
             return
         message = ('MODEL WEIGHTS ABSENT: the real vision path was NOT verified. Missing: '
-                   + ', '.join(missing) + '. Download them (see README > Setup), then re-run `pytest`.')
+                   + ', '.join(missing) + '. Download them (see README > Quick start), then re-run `pytest`.')
         if request.config.getoption('--runslow'):
             pytest.fail(message, pytrace=False)
         reporter = request.config.pluginmanager.getplugin('terminalreporter')

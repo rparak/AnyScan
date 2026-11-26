@@ -68,7 +68,7 @@ CONST_PURPOSE_BACKGROUND = 'background'
 # silicon (Metal): repeated runs on the same crop, runs on other threads, in other processes and
 # under memory pressure were identical word for word. Greedy decoding fixes the sampler, not the
 # arithmetic: another MLX backend (Linux CUDA / CPU) can differ in floating point and so in text,
-# so this is a measured property of that build, not a guarantee that travels (README > Platform).
+# so this is a measured property of that build, not a guarantee that travels (README > Requirements and platforms).
 # Gemma 4's thinking mode stays off: the answer, not a reasoning trace, is the description.
 #   Unit [bool]
 CONST_GEMMA_THINKING = False
@@ -288,7 +288,7 @@ class Gemma_Describer_Cls(Describer_Backend_Cls):
             raise Describer_Error_Cls(
                 'The Gemma describer needs MLX (mlx and mlx-vlm). requirements.txt installs them on '
                 'macOS on Apple silicon; on Linux install mlx with the backend extra for the '
-                'machine (README > Platform).') from exc
+                'machine (README > Requirements and platforms).') from exc
         if not os.path.isdir(self.__model_dir):
             raise Describer_Error_Cls('The model weights are not at "%s". Check that the directory '
                                       'is complete and readable.' % self.__model_dir)

@@ -136,7 +136,7 @@ CONST_BACKGROUND_FALLBACK = 'The background is a plain surface.'
 # floor(-log10(mm/px))) silently dropped from 0.1 mm to whole millimetres when the recalibration
 # moved the factor from 0.098 to 0.102 mm/px. The second digit is BELOW one pixel (~0.1 mm) at the
 # current factor, and a size already carries a position-dependent error of up to ~1.5 mm near the
-# frame edge (README > Limitations): two decimals are not improved resolution — do not read them as
+# frame edge (SPEC > Known limitations): two decimals are not improved resolution — do not read them as
 # such, and do not revert them to a scale-derived count (design-decisions.md).
 #   Unit [int]
 CONST_SIZE_DECIMALS = 2

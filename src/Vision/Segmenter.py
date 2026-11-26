@@ -297,7 +297,7 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
         if not os.path.isfile(self.__weights_path):
             raise Segmenter_Error_Cls(
                 'The FastSAM weights at "%s" could not be found. Download FastSAM-x.pt '
-                '(see README > Setup) and save it there, or point Segmentation.Model in the '
+                '(see README > Quick start) and save it there, or point Segmentation.Model in the '
                 'configuration at it.'
                 % self.__weights_path
             )
@@ -318,7 +318,7 @@ class Fast_Sam_Cls(Segmenter_Backend_Cls):
         except ImportError as exc:
             raise Segmenter_Error_Cls(
                 'The segmentation runtime is not installed. Install ultralytics into '
-                'this environment (see README > Setup), then scan again.'
+                'this environment (see README > Quick start), then scan again.'
             ) from exc
 
         device = self.__Pick_Device(torch)

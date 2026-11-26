@@ -26,6 +26,7 @@ import sys
 import os
 import argparse
 import re
+import io
 # Resolve the project folder from this file's own location (Example/UI -> ..), so the script
 # runs the same whether launched from Example/UI/ or the repo root.
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -45,15 +46,20 @@ import Parameters.Theme as Theme
 # Custom Lib.: AnyScan UI — the pixel icons the application draws too (Qt-free)
 #   ../../src/UI/Utilities/Pixel_Motif
 from UI.Utilities.Pixel_Motif import Icon_Cells, CONST_ICON_GRID
+# Custom Lib.: AnyScan — the one reader of a catalogue item file
+#   ../Configuration/Core
+from Configuration.Core import Load_Catalogue
 
 """
 Description:
     Initialization of constants.
 
-    The generator of the README's two light/dark diagram pairs, shown through <picture>:
+    The generator of the README's two light/dark figure pairs, shown through <picture>, and of its models table:
     images/anyscan-pipeline-{light,dark}.png, a frame's way to the record in the station's order (frame -> find ->
-    measure -> judge -> describe -> record, the judge step a catalogue mode's only), and images/anyscan-models-{light,dark}.png, the three
-    models with what each does, what it runs on, the revision install.sh pins and its download size (both read from
+    measure -> judge -> describe -> record, the judge step a catalogue mode's only); images/anyscan-catalogue-item-
+    {light,dark}.webp, the shipped catalogue item's card (its reference images and what it is checked on, read from
+    Data/Catalogue/mounting_plate/ through Configuration.Core.Load_Catalogue); and the README's models table
+    (Models_Table: each model's role, what it runs on, the revision install.sh pins and its download size, read from
     install.sh, never typed here).
 
     Light: the window's white card, purple words, grey-lilac rules. Dark: a transparent ground under white words and
@@ -63,7 +69,8 @@ Description:
     (~880 px), so its smallest words render at 13 px there.
 
     Regenerating is the way to change them; the images are never edited by hand. test/UI/test_readme_diagrams.py
-    fails when a committed image is not this script's output.
+    fails when a committed image is not this script's output (the WebP pair within CONST_LOSSY_TOLERANCE), or when
+    the README's models table is not Models_Table().
 
         .venv/bin/python Example/UI/readme_diagrams.py              # rewrite the four images
         .venv/bin/python Example/UI/readme_diagrams.py --check      # exit 1 if one is stale
@@ -74,9 +81,18 @@ Description:
 CONST_IMAGES_FOLDER = os.path.join(CONST_PROJECT_FOLDER, 'images')
 CONST_FONT_FOLDER = os.path.join(CONST_PROJECT_FOLDER, 'App', 'assets', 'fonts')
 CONST_INSTALLER = os.path.join(CONST_PROJECT_FOLDER, 'install.sh')
+CONST_README = os.path.join(CONST_PROJECT_FOLDER, 'README.md')
 # The files this script writes, each a light and a dark version.
 #   Unit [List<string>]
-CONST_FIGURES = ['anyscan-pipeline', 'anyscan-models']
+CONST_FIGURES = ['anyscan-pipeline-%s.png', 'anyscan-catalogue-item-%s.webp']
+# The item card holds photographs, so it is WebP at this quality (lossless would be about 1 MB a version). A lossy
+# file is compared with this script's pixels block by block: no CONST_LOSSY_BLOCK px square may differ by more than
+# CONST_LOSSY_TOLERANCE on average per channel. The encoder's own error peaks at about 10 there (2026-11-26); one
+# changed character of the card moves its block by about 88.
+#   Unit [int] / [int] (px) / [float] (0-255)
+CONST_WEBP_QUALITY = 92
+CONST_LOSSY_BLOCK = 16
+CONST_LOSSY_TOLERANCE = 24.0
 # The drawing width: twice the README's ~880 px, so 26 px words render at 13 px there.
 #   Unit [px]
 CONST_WIDTH = 1760
@@ -299,14 +315,14 @@ class Canvas_Cls(object):
                 p = q + 10
 
 
-# The pipeline diagram's steps, in the station's order for a catalogue mode (README > Detection logic: a catalogue
+# The pipeline diagram's steps, in the station's order for a catalogue mode (README > Architecture: a catalogue
 # mode measures, recognises and checks each object before it is described, and tells the describer what the checks
 # found): each step's pixel icon, its name and its words. The catalogue mode's own step is CONST_CATALOGUE_STEP.
 #   Unit [List<Tuple<string, string, string>>]
 CONST_PIPELINE_STEPS = [('camera', 'Frame', 'SCAN takes one frame once nothing moves'),
                         ('magnifier', 'Find', 'what changed against the empty table, OR FastSAM segmentation'),
                         ('ruler', 'Measure', 'the size in mm, through the calibration'),
-                        ('badge', 'Judge', 'DINOv2 recognises the part, the checks give a state'),
+                        ('badge', 'Judge', 'DINOv2 recognises the part, the checks give a verdict'),
                         ('text', 'Describe', 'a local vision-language model, told what the checks found'),
                         ('log', 'Record', 'capture set, session log, run summary')]
 CONST_CATALOGUE_STEP = 'Judge'
@@ -388,7 +404,7 @@ def Files_Size(text: str, name: str) -> int:
 def Size_Text(total: int) -> str:
     """
     Description:
-        A download's size as the README's Setup table writes it: GB to one decimal, else whole MB (10^6 bytes).
+        A download's size as the README's models table writes it: GB to one decimal, else whole MB (10^6 bytes).
 
     Args:
         (1) total [int]: The bytes.
@@ -403,8 +419,8 @@ def Size_Text(total: int) -> str:
 def Read_Installer() -> tp.Dict[str, str]:
     """
     Description:
-        What the diagram states about the models, read from install.sh: each pin shortened to 7 characters, and
-        each download's size (the sum of its files) in MB or GB, rounded as the README's Setup table rounds it.
+        What the models table states about the models, read from install.sh: each pin shortened to 7 characters, and
+        each download's size (the sum of its files) in MB or GB, rounded as the README's models table rounds it.
 
     Returns:
         (1) parameter [Dictionary<string, string>]: The pins and the sizes.
@@ -421,11 +437,71 @@ def Read_Installer() -> tp.Dict[str, str]:
             'dino_size': Size_Text(Files_Size(text, 'CONST_DINOV2_FILES'))}
 
 
-def Draw_Models(dark: bool) -> Image.Image:
+def Models_Table() -> str:
     """
     Description:
-        The three models side by side, each by its role in plain words, then its name, what it does, what it runs
-        on, its pin and its size (install.sh) and the modes that use it.
+        The README's models table (README > Architecture), Markdown, its pins and download sizes read from install.sh
+        (Read_Installer): each model, what it does, what it runs on, its pin and its download. The README holds it
+        word for word; test/UI/test_readme_diagrams.py and --check fail when it does not.
+
+    Returns:
+        (1) parameter [string]: The table, one row per line.
+    """
+
+    pins = Read_Installer()
+    rows = [('Model', 'What it does', 'Runs on', 'Pinned by the installer', 'Download'),
+            ('---', '---', '---', '---', '---:'),
+            ('FastSAM-x', "finds every object, and a part's holes", 'PyTorch (ultralytics)',
+             '`%s`' % pins['fastsam_pin'], pins['fastsam_size']),
+            ('Gemma 4 E4B, 4-bit', 'describes each object in words: the local vision-language model',
+             'MLX: Metal on macOS, CUDA on Linux', '`%s`' % pins['gemma_pin'], pins['gemma_size']),
+            ('DINOv2 base', 'recognises the catalogued part and its side (catalogue modes only)',
+             'PyTorch (transformers)', '`%s`' % pins['dino_pin'], pins['dino_size'])]
+    return '\n'.join('| %s |' % ' | '.join(row) for row in rows)
+
+
+# The catalogue item the README's item card draws, and how much of each reference frame round the part it shows (the
+# part's box from the reference's sidecar, widened by this share of its size on each side).
+#   Unit [string] / [float]
+CONST_CATALOGUE_ITEM = os.path.join(CONST_PROJECT_FOLDER, 'Data', 'Catalogue', 'mounting_plate', 'mounting_plate.yaml')
+CONST_REFERENCE_MARGIN = 0.22
+
+
+def Item_Rows(item: tp.Any) -> tp.List[tp.Tuple[str, tp.List[str]]]:
+    """
+    Description:
+        What the item card lists, from the loaded item: its outline with the tolerance, each side's hole groups, the
+        stain check by the side's name, and its known defects.
+
+    Args:
+        (1) item [Catalogue_Item_Str]: The item, as Configuration.Core.Load_Catalogue reads it.
+
+    Returns:
+        (1) parameter [List<Tuple<string, List<string>>>]: Each label and its lines.
+    """
+
+    names = {side.Side: side.Name for side in item.Sides}
+    rows = [('OUTLINE', ['%g × %g mm, ± %g mm' % (item.Outline.Length_Mm, item.Outline.Width_Mm, item.Tolerance_Mm)])]
+    for side, groups in item.Holes.items():
+        lines = []
+        for group in groups:
+            line = '%d %ss, Ø %g mm' % (group.Count, group.Name, group.Diameter_Mm)
+            lines.append(line + (', %g mm apart' % group.Pitch_Mm if group.Pitch_Mm else ''))
+        rows.append(('HOLES, %s' % names.get(side, side).upper(), lines))
+    for side, stain in item.Stain.items():
+        rows.append(('STAINS', ['none of %g mm² or more on the %s' % (stain.Min_Area_Mm2, names.get(side, side))]))
+    rows.append(('KNOWN DEFECTS', ['%s, on the %s' % (defect.Name, names.get(defect.Side, defect.Side))
+                                   for defect in item.Defects]))
+    return rows
+
+
+def Draw_Catalogue_Item(dark: bool) -> Image.Image:
+    """
+    Description:
+        The README's catalogue item card (README > Catalogue mode): the item's reference image of each side, cropped
+        round the part by its sidecar's box and named by the side, beside the item's name and what it is checked on
+        (Item_Rows), all read through Configuration.Core.Load_Catalogue from Data/Catalogue/mounting_plate/. Every word
+        is 26 px or more, so 13 px or more at the README's width.
 
     Args:
         (1) dark [bool]: The dark version.
@@ -434,35 +510,33 @@ def Draw_Models(dark: bool) -> Image.Image:
         (1) parameter [Image.Image]: The image.
     """
 
-    pins = Read_Installer()
-    models = [('Segmentation', 'FastSAM-x',
-               [('Does', "finds every object, and a part's holes"), ('Runs on', 'PyTorch, through ultralytics'),
-                ('Pinned', pins['fastsam_pin']), ('Size', pins['fastsam_size']), ('Used in', 'every mode')]),
-              ('Description', 'a local vision-language model: Gemma 4 E4B, 4-bit',
-               [('Does', 'describes each object in words'), ('Runs on', 'MLX: Metal on macOS, CUDA on Linux'),
-                ('Pinned', pins['gemma_pin']), ('Size', pins['gemma_size']), ('Used in', 'every mode')]),
-              ('Identification', 'DINOv2 base',
-               [('Does', 'recognises the catalogued part'), ('Runs on', 'PyTorch, through transformers'),
-                ('Pinned', pins['dino_pin']), ('Size', pins['dino_size']), ('Used in', 'catalogue modes')])]
-    canvas = Canvas_Cls(548, dark)
-    key, value, machine, name_font = Font(24, 700), Font(26, 400), Font(24, 500, mono=True), Font(26, 600)
-    w, gap, y, h = 552, 32, 24, 500
-    x0 = (CONST_WIDTH - 3 * w - 2 * gap) / 2
-    for i, (role, name, rows) in enumerate(models):
-        x = x0 + i * (w + gap)
-        baseline = canvas.Card(x, y, w, h, 'model', role, Font(36, 700), 44) + 2
-        for line in Wrap(name, name_font, w - 48):
-            canvas.Text(x + 24, baseline, line, name_font, 'ink')
-            baseline += 36
-        canvas.draw.line([(x + 24, baseline - 12), (x + w - 24, baseline - 12)], fill=canvas.c['edge'], width=2)
-        baseline += 24
-        for label, words in rows:
-            canvas.Text(x + 24, baseline, label.upper(), key, 'mute')
-            font = machine if label in ('Pinned', 'Size') else value
-            for line in Wrap(words, font, w - 48 - 160):
-                canvas.Text(x + 24 + 160, baseline, line, font, 'ink')
-                baseline += 36
-            baseline += 16
+    item = Load_Catalogue(CONST_CATALOGUE_ITEM)
+    names = {side.Side: side.Name for side in item.Sides}
+    canvas = Canvas_Cls(720, dark)
+    title, body, label = Font(36, 700), Font(28, 400), Font(26, 700)
+    x, top, photo_h = 40, 40, 580
+    for reference in item.References:
+        with Image.open(reference.Image_Path) as frame:
+            frame = frame.convert('RGB')
+            cx, cy, w, h = reference.Box
+            W, H = frame.size
+            left, right = (cx - w / 2 - w * CONST_REFERENCE_MARGIN) * W, (cx + w / 2 + w * CONST_REFERENCE_MARGIN) * W
+            upper, lower = (cy - h / 2 - h * CONST_REFERENCE_MARGIN / 2) * H, (cy + h / 2 + h * CONST_REFERENCE_MARGIN / 2) * H
+            crop = frame.crop((round(left), round(upper), round(right), round(lower)))
+        crop = crop.resize((round(crop.width * photo_h / crop.height), photo_h), Image.LANCZOS)
+        canvas.image.paste(crop, (x, top))
+        canvas.draw.rectangle([x, top, x + crop.width - 1, top + photo_h - 1], outline=canvas.c['edge'], width=2)
+        canvas.Text(x, top + photo_h + 44, names.get(reference.Side, reference.Side), body, 'ink')
+        x += crop.width + 32
+    x += 40
+    canvas.Text(x, top + 40, item.Display_Name, title, 'ink')
+    baseline = top + 40
+    for name, lines in Item_Rows(item):
+        baseline += 62
+        canvas.Text(x, baseline, name, label, 'mute')
+        for line in lines:
+            baseline += 40
+            canvas.Text(x, baseline, line, body, 'ink')
     return canvas.image
 
 
@@ -476,31 +550,55 @@ def Figures() -> tp.Dict[str, Image.Image]:
     """
 
     figures = {}
-    for name, draw in zip(CONST_FIGURES, [Draw_Pipeline, Draw_Models]):
+    for name, draw in zip(CONST_FIGURES, [Draw_Pipeline, Draw_Catalogue_Item]):
         for dark in (False, True):
             image = draw(dark)
-            figures['%s-%s.png' % (name, 'dark' if dark else 'light')] = image if dark else image.convert('RGB')
+            figures[name % ('dark' if dark else 'light')] = image if dark else image.convert('RGB')
     return figures
 
 
 def Same_Pixels(path: str, image: Image.Image) -> bool:
     """
     Description:
-        Whether a file holds exactly these pixels (compared decoded, so the PNG encoder's settings do not matter).
+        Whether a file holds these pixels (compared decoded, so the encoder's settings do not matter): a PNG exactly, a
+        WebP within the lossy tolerance of every CONST_LOSSY_BLOCK square.
 
     Args:
         (1) path [string]: The committed image.
         (2) image [Image.Image]: This script's output.
 
     Returns:
-        (1) parameter [bool]: True when every pixel is the same.
+        (1) parameter [bool]: True when the pixels match.
     """
 
     if not os.path.exists(path):
         return False
     with Image.open(path) as committed:
-        return committed.mode == image.mode and committed.size == image.size and \
-            np.array_equal(np.asarray(committed), np.asarray(image))
+        if committed.mode != image.mode or committed.size != image.size:
+            return False
+        if path.endswith('.webp'):
+            n = CONST_LOSSY_BLOCK
+            difference = np.abs(np.asarray(committed, dtype=float) - np.asarray(image, dtype=float)).mean(axis=2)
+            h, w = (difference.shape[0] // n) * n, (difference.shape[1] // n) * n
+            blocks = difference[:h, :w].reshape(h // n, n, w // n, n).mean(axis=(1, 3))
+            return float(blocks.max()) <= CONST_LOSSY_TOLERANCE
+        return np.array_equal(np.asarray(committed), np.asarray(image))
+
+
+def Save(image: Image.Image, path: str) -> None:
+    """
+    Description:
+        Write an image with no metadata: a PNG optimised, a WebP at CONST_WEBP_QUALITY (its alpha exact).
+
+    Args:
+        (1) image [Image.Image]: The image.
+        (2) path [string]: The file.
+    """
+
+    if path.endswith('.webp'):
+        image.save(path, 'WEBP', quality=CONST_WEBP_QUALITY, method=6, exact=True)
+    else:
+        image.save(path, optimize=True)
 
 
 def main():
@@ -512,7 +610,8 @@ def main():
             .venv/bin/python Example/UI/readme_diagrams.py [--check | --out <dir>]
     """
 
-    parser = argparse.ArgumentParser(description="Generate the README's pipeline and models diagrams, light and dark.")
+    parser = argparse.ArgumentParser(description="Generate the README's pipeline diagram and catalogue item card, light "
+                                                 "and dark, and check its models table.")
     parser.add_argument('--check', action='store_true',
                         help='do not write; exit 1 if a committed image differs from the output')
     parser.add_argument('--out', default=CONST_IMAGES_FOLDER, help='the folder to write into (default: images/)')
@@ -530,8 +629,13 @@ def main():
             continue
         os.makedirs(args.out, exist_ok=True)
         path = os.path.join(args.out, name)
-        image.save(path, optimize=True)
+        Save(image, path)
         print('[INFO] Wrote %s.' % path)
+    with open(CONST_README, 'r', encoding='utf-8') as handle:
+        if Models_Table() not in handle.read():
+            print('[%s] README.md does not hold the models table install.sh gives; paste this in:\n%s'
+                  % ('ERROR' if args.check else 'WARNING', Models_Table()))
+            stale = 1 if args.check else stale
     return stale
 
 

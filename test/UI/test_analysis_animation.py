@@ -23,6 +23,7 @@
 
 # System (Default)
 import os
+import re
 import sys
 import struct
 import subprocess
@@ -35,6 +36,8 @@ import typing as tp
 import cv2
 # PyYAML (YAML parsing)
 import yaml
+# Pillow (Reading the README's images) [pip3 install Pillow]
+from PIL import Image
 # Pytest (Testing framework) [pip3 install pytest]
 import pytest
 # PyQt5 (Qt bindings) [pip3 install PyQt5]
@@ -53,27 +56,18 @@ Description:
     workers on the stand-in runtimes (test/conftest.py fake_runtimes) and grabs on events in order, the clip it
     writes stays within 10 s, the clock is frozen, and the script refuses a missing frame in a fresh interpreter.
 
-    The README's two animations, images/anyscan-scan-analyze.webp (Figure 4) and images/anyscan-history-filter.webp,
-    are cut from the owner's screen recording of the station, not written by the script (readme-writer
-    references/project.md > Figures); they are held here to the README's limits for an animation.
+    The README shows no animation (the owner, README v11, 2026-11-26): every image it shows is a single frame. The
+    script's clip is a harness output only.
 """
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 CONST_SCRIPT = os.path.join(CONST_PROJECT_FOLDER, 'Example', 'UI', 'analysis_animation.py')
-CONST_CLIPS = [os.path.join(CONST_PROJECT_FOLDER, 'images', name)
-               for name in ('anyscan-scan-analyze.webp', 'anyscan-history-filter.webp')]
+CONST_README = os.path.join(CONST_PROJECT_FOLDER, 'README.md')
 CONST_HARDWARE = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
 CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
 # The script's limits for the clip it writes: its length and its width.
 #   Unit [ms] / [px]
 CONST_MAX_LENGTH_MS = 10000
 CONST_WIDTH = 960
-# The README's limits for an animation (the owner, Phase C, 2026-11-26): its width, its length, its frame rate (a
-# frame lasts 1/15 to 1/12 s, or a whole number of those when the encoder merged identical frames) and its size.
-#   Unit [px] / [ms] / [ms] / [byte]
-CONST_README_MAX_WIDTH = 720
-CONST_README_LENGTH_MS = (3000, 6000)
-CONST_README_FRAME_MS = (66, 84)
-CONST_README_MAX_BYTES = 400 * 1024
 
 
 @pytest.fixture(scope='module')
@@ -198,19 +192,17 @@ def test_the_script_refuses_a_missing_frame_in_a_fresh_interpreter(tmp_path) -> 
     assert not os.path.exists(output)
 
 
-@pytest.mark.parametrize('clip', CONST_CLIPS, ids=os.path.basename)
-def test_each_readme_animation_is_within_the_readmes_limits(clip) -> None:
+def test_the_readme_shows_no_animation() -> None:
     """
     Description:
-        Each of the README's animations is an animated WebP of more than one frame, at most CONST_README_MAX_WIDTH
-        wide, CONST_README_LENGTH_MS long, played at 12 to 15 frames a second, and under CONST_README_MAX_BYTES.
+        Every local image the README shows is one frame: no animated WebP, GIF or APNG (the owner, 2026-11-26).
     """
 
-    width, durations = _Webp_Frames(clip)
-    assert 0 < width <= CONST_README_MAX_WIDTH
-    assert len(durations) > 1
-    assert CONST_README_LENGTH_MS[0] <= sum(durations) <= CONST_README_LENGTH_MS[1]
-    frame = min(durations)
-    assert CONST_README_FRAME_MS[0] <= frame <= CONST_README_FRAME_MS[1]
-    assert all(d % frame == 0 for d in durations), 'a frame is not a whole number of the clip\'s frame time'
-    assert os.path.getsize(clip) < CONST_README_MAX_BYTES
+    with open(CONST_README, 'r', encoding='utf-8') as handle:
+        readme = handle.read()
+    shown = sorted(set(re.findall(r'(?:src|srcset)="(images/[^"]+)"|\]\((images/[^)\s]+)\)', readme)))
+    paths = sorted({a or b for a, b in shown if not (a or b).endswith('.svg')})
+    assert paths, 'the scan found no image at all'
+    for path in paths:
+        with Image.open(os.path.join(CONST_PROJECT_FOLDER, path)) as image:
+            assert getattr(image, 'n_frames', 1) == 1, '%s is animated' % path

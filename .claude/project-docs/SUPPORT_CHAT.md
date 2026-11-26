@@ -70,7 +70,7 @@ table, the left edge and corners of the inspection area, the cable pull, a movin
 
 What was tested: two sessions of real use at JIC Smart Factory on station `SF4`, the Linux machine with the RTX 5070 Ti
 (DD *The owner's statements of 2026-10-29*). Source: AnyScan-Media archive, captures/20261029-142803_s2 and
-captures/20261029-143904_s1, SPEC > Verified on hardware, README > Validation.
+captures/20261029-143904_s1, SPEC > Verified on hardware.
 
 - Seg_Anything: 13 scans, 70 objects. Mounting_Plate: 15 scans, 51 objects, 12 OK, 10 NOK, 29 Warning (27 foreign
   objects, 2 outside the area). 20 plate judgements (12 OK, 8 NOK), all 212 feature checks within tolerance, sizes
@@ -197,7 +197,7 @@ engineer, if a verdict is ever to gate a part without a person.
 **E. Real-time and deployment (in).** Inference on station `SF4` (Linux, RTX 5070 Ti, DD *The owner's statements of
 2026-10-29*) on 2026-10-29: median 3,156 ms (Seg_Anything) and 1,725 ms (Mounting_Plate) (`inference_ms` in the
 archive's records). Interfaces: GigE to the camera, the daily station event CSV (`station_id,event_type,ts`, DD *The
-daily station event file…*). Rollback: README > Setup, *Back to an earlier release*.
+daily station event file…*). Rollback: README > Quick start, *Back to an earlier release*.
 
 **F. Machine vision (in).** One light (Effilux EFFI-FD-200-200-000, the mode files) and one table, with an
 empty-surface reference that must match them. The stain check is a colour band of this light. Precision and recall

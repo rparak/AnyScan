@@ -1,76 +1,239 @@
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/anyscan-headline-dark.svg">
+  <img src="images/anyscan-headline-light.svg" width="820" alt="AnyScan, developed at JIC Smart Factory">
+</picture>
+</p>
+
 # AnyScan
 
 *The camera sees, the model describes.*
 
-AnyScan is a desktop inspection station for one Basler camera looking down at a work surface. It finds every
-object on the table, describes each one with a local vision-language model, measures it in mm and records the
-analysis. A catalogue mode also recognises the catalogued part, checks it and gives a state: OK, NOK or Warning.
+[![The AnyScan video's thumbnail: the words OK or NOK in purple beside a hand holding a mounting plate with brown stains over the lit green table, and a purple play mark with the words Watch the video](images/anyscan-video.webp)](https://www.youtube.com/@RomanParak/videos)
 
-![AnyScan architecture: in every mode the camera shows a live preview, then takes a fresh frame once nothing moves, two cues, fused, find every object, and each object is described in words and measured in mm. The desktop app shows Live, Trends, History and Log. A catalogue mode adds, for each object found, recognising the catalogued part, the inspection area (only a part wholly inside is judged, one outside is a part or a foreign object by similarity, size and colour), the checks on the side that is up (size, holes with each bore centred in its countersink, stains) and a state: OK, NOK or Warning, a Warning with its kind. It describes each object after its state and drops a sentence that contradicts the checks. The mode names the station, the station the calibration, and the catalogue item and empty-surface reference set the stages up too. Every analysis is recorded, with the session log, a run summary and the daily station events](images/anyscan-architecture.svg)
+**Figure 1:** The AnyScan video on YouTube: the station, each step and a plate judged NOK.
 
-**Figure 1:** AnyScan's architecture, generated from the theme by `Example/UI/architecture_diagram.py` and never
-edited by hand. Read it top to bottom: the frame, the two cues and their fusion, then each object's description and
-measurement, and in a catalogue mode its state.
+AnyScan is a desktop inspection station. One camera looks down at a table. AnyScan finds every object on it,
+measures each one in millimetres, describes it in words and records the result. In a **catalogue mode** it also
+recognises a known part, checks it and gives a **verdict**: OK, NOK or Warning. Its three models run on the station's
+own computer.
 
-Two independent cues are fused, so an object is kept if **either** one finds it ([Detection logic](#detection-logic)).
+**Contents:** [What it does](#what-anyscan-does) · [Architecture](#architecture) · [Catalogue mode](#catalogue-mode) ·
+[The station](#the-station) · [Quick start](#quick-start) · [Requirements](#requirements-and-platforms) · [Configuration](#configuration) ·
+[Records](#records) · [Development](#development) · [Documentation](#documentation) · [Authors](#authors) · [Licence](#licence) · [Citation](#citation) · [Funding](#funding)
+
+## What AnyScan does
+
+<img src="images/anyscan-frame-find-judge.webp" width="100%" alt="One recorded analysis in three crops: the frame of five objects on the green table, the objects found as coloured masks on black, and the result with the mounting plate outlined in orange-red as NOK and four foreign objects in amber as Warnings">
+
+**Figure 2:** One analysis at the Linux station, 2026-11-19 (capture set `20261119-120833_1`, cropped): the frame, the
+objects found, the result. Plate 3 is NOK for two stains, the four other objects are Warnings (foreign objects).
+
+| Mode | What you get for each object | Shipped example |
+|---|---|---|
+| **Detect-only** | found, measured in mm and described in words. No verdict. | Segment Anything |
+| **Catalogue** | the same, and a verdict: the known part is recognised and checked. | Mounting plate |
+
+<img src="images/anyscan-detect-only.webp" width="100%" alt="A recorded detect-only frame: ten different objects on the green table, a maze plate, a mounting plate, a blue printed lattice, washers, a red block, a terminal strip, a nut, a screw and a bolt, each outlined and numbered in purple">
+
+**Figure 3:** Detect-only mode at the Linux station, 2026-10-29 (capture set `20261029-143609_13`): ten objects, each
+numbered, outlined and measured (object 1 at 50.23 × 50.07 mm, object 3 at 96.33 × 25.77 mm).
+
+| Verdict | Meaning |
+|---|---|
+| **OK** | The catalogued part, and every check passed. |
+| **NOK** | The catalogued part, and a check failed: the outline, a hole or a stain. The reason is given. |
+| **Warning** | Not judged, with its kind: *foreign object*, *outside area*, *several parts*, *side unclear* or *side mismatch*. |
+
+<img src="images/anyscan-scene-understanding.webp" width="100%" alt="The window's Scene Understanding panel: object 1, a plate with its unmachined back up, OK; object 2 a Warning, a foreign object outside the inspection area, with the action to remove it; object 3 NOK for two stains on the machined front, each with its size, confidence and description">
+
+**Figure 4:** What the operator reads: the window's Scene Understanding panel, mounting-plate catalogue mode, the Linux
+station, 2026-10-29 (a screenshot, cropped to the reading). Each object has its size, its verdict with a reason and its description.
+
+## Architecture
+
+<a href="images/anyscan-architecture.svg"><img src="images/anyscan-architecture.svg" width="100%" alt="AnyScan architecture in the station's order: capture a fresh frame once nothing moves, find the objects with two fused cues, measure each in mm, then in a catalogue mode recognise the part, keep to the inspection area, check the side that is up and give a verdict, then describe each object in words. The desktop app shows the result. The mode, station, calibration, catalogue item and reference set the stages up, and every analysis is recorded"></a>
+
+**Figure 5:** AnyScan's architecture, generated by `Example/UI/architecture_diagram.py`, top to bottom in the station's
+order. Click to open it full size.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/anyscan-pipeline-dark.png">
+  <img src="images/anyscan-pipeline-light.png" width="100%" alt="A frame's way to the record in six cards, in a catalogue mode's order: Frame, SCAN takes one frame once nothing moves; Find, what changed against the empty table or FastSAM segmentation; Measure, the size in mm through the calibration; Judge, catalogue mode, DINOv2 recognises the part and the checks give a verdict; Describe, a local vision-language model told what the checks found; Record, the capture set, session log and run summary">
+</picture>
+
+**Figure 6:** A frame's way to the record, generated by `Example/UI/readme_diagrams.py`. A detect-only mode skips
+Judge.
+
+1. **Frame.** SCAN takes one frame once nothing moves, undistorted with the camera's calibration.
+2. **Find.** Two independent cues: what changed against a photo of the empty table (the empty-surface reference), and
+   FastSAM's segmentation. An object either one finds is kept.
+3. **Measure.** Each object's size in mm (A × B, Ø or A/F), from the calibration's mm per pixel. A catalogue mode
+   measures at the part's top face, from its thickness.
+4. **Judge** (catalogue mode). DINOv2 recognises the part and the side that is up. The checks give the verdict.
+5. **Describe.** A local vision-language model describes each object. In a catalogue mode it is told what the checks
+   found, a sentence that contradicts them is dropped, and the verdict never changes.
+6. **Record.** Every analysis is saved with its frame, results and log ([Records](#records)).
+
+| Model | What it does | Runs on | Pinned by the installer | Download |
+| --- | --- | --- | --- | ---: |
+| FastSAM-x | finds every object, and a part's holes | PyTorch (ultralytics) | `v8.4.0 · sha256 752cadc` | 145 MB |
+| Gemma 4 E4B, 4-bit | describes each object in words: the local vision-language model | MLX: Metal on macOS, CUDA on Linux | `revision 475b908` | 5.2 GB |
+| DINOv2 base | recognises the catalogued part and its side (catalogue modes only) | PyTorch (transformers) | `revision f9e44c8` | 346 MB |
+
+<details>
+<summary><b>The stages in the code</b>: each shared stage's module and function</summary>
+
+SCAN takes the first frame with no movement since the one before (`Camera.Utilities.Stillness.Is_Still`), and
+`Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) runs the stages every mode shares (modules under
+`src/Vision/Utilities/` unless named):
+
+```text
+(1) background subtraction  Segmentation.Background_Difference   what changed against the empty-surface reference
+(2) FastSAM segmentation    Segmenter.Fast_Sam_Cls               object instances, independent of the reference
+(3) fusion                  Fusion.Fuse_Objects                  (1) OR (2), split, area-filtered, left to right
+(4) description             Describers.Gemma_Describer_Cls       a padded, isolated, contrast-stretched crop each
+```
+
+Then `Reporting.Compose` writes the sentences and `Measure.Measure_Objects` the sizes. A detect-only mode runs these as
+listed. A catalogue mode measures, recognises and checks each object before stage 4, then describes it with what the
+checks found ([Catalogue mode](#catalogue-mode)).
+
+</details>
+
+## Catalogue mode
+
+A catalogue mode inspects one known part, its **catalogue item**: a folder `Data/Catalogue/<item>/` with one YAML file
+and a reference image of each side. The item defines:
+
+- **Outline**: length and width, with a tolerance in mm.
+- **Holes**, per side: how many, their diameter, their distance from the edges and from each other.
+- **Stains**: the colour that counts as a stain and the smallest area that fails (1 mm² on the mounting plate).
+- **Sides**: what each side looks like and its known defects. The describer is given these words, never a number.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/anyscan-catalogue-item-dark.webp">
+  <img src="images/anyscan-catalogue-item-light.webp" width="100%" alt="The mounting plate's catalogue item: its two reference images, the machined front with two countersunk holes and the unmachined back with two through-holes, and its checks: outline 60 by 40 mm within 1.5 mm, on the front two countersinks of 12 mm and two through-holes of 6 mm 25 mm apart, on the back two through-holes of 6 mm, no stain of 1 mm² or more on the front, and the known defect, a fingerprint">
+</picture>
+
+**Figure 7:** The shipped catalogue item, drawn from `Data/Catalogue/mounting_plate/` by `Example/UI/readme_diagrams.py`.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/anyscan-verdict-dark.webp">
+  <img src="images/anyscan-verdict-light.webp" width="100%" alt="Two recorded plates side by side: plate 3 with two stain boxes, NOK, 60.33 by 40.17 mm, machined front up, because there are two stains on the machined front, and the clean plate in its place, OK, 59.85 by 39.48 mm, every check passed; below, two sentences of plate 3's description by the local vision-language model, the words yellow-brown to brown stains of irregular shape highlighted">
+</picture>
+
+**Figure 8:** The checks decide, the model explains. Left, plate 3 of Figure 2 (`20261119-120833_1`), NOK. Right, the
+clean plate put in its place 23 s later (`20261119-120856_2`), OK. Below, plate 3's recorded description, abridged.
+
+**Adding an item:** copy `Data/Catalogue/mounting_plate/`, rename the folder and its YAML file to the new item's name,
+replace the reference images with a frame of each side on the table (each with its box file), set the checks, and name
+the file in a mode file's `Catalogue.Item`. The file's comments give every field's meaning and unit. **Load** reports a
+missing or wrong field with its line.
+
+<details>
+<summary><b>The catalogue stages</b>: recognition, the inspection area, the side up, holes, stains and the verdict</summary>
+
+1. **Measurement and outline** (`Measure.Measure_Objects`, `Dimensions.Check_Objects`): the size at the part's top
+   face against the item's outline and its tolerance.
+2. **Recognition** (`Identifier.Dino_Identifier_Cls`, `Classify.Best_Match`, `Classify.Classify`): each object's
+   upright crop against the item's reference image of each side, by DINOv2. An area 1.7× the part's or more is a
+   Warning, several parts. A similarity of 0.75 or more is the part, OK or NOK by its outline. The outline alone
+   within tolerance is NOK. Anything else is a Warning, foreign object.
+3. **Inspection area** (`Classify.Inspection_Area_Px`, `Inside_Area`, `Resembles_Part`, `Settle_Area`): only an object
+   wholly inside the frame inset by the station's `Inspection_Area` is judged. Outside, it is a Warning: outside area
+   when it resembles the part (similarity 0.657 or more, mean saturation 76.3 or less, its extent no larger than the
+   part's diagonal plus its tolerance), else foreign object.
+4. **Side up** (`Holes.Hole_Candidates`, `Holes.Side_Evidence`, `Classify.Decide_Side`, `Classify.Settle_Side`):
+   FastSAM again on the upright crop for holes. DINOv2's side when its margin over the next is 0.265 or more, else
+   the side a hole only it has shows. Sides that disagree are a Warning, side unclear. Holes against look are a Warning,
+   side mismatch.
+5. **Holes** (`Holes.Check_Holes`, `Classify.Apply_Holes`): each group's count near its positions, diameter, edge
+   distances and pitch, and each stepped hole's bore within 0.85 mm of its countersink once the camera's predicted
+   shift is taken out. A missing, extra or out-of-tolerance hole makes the part NOK.
+6. **Stains** (`Stain.Check_Stain`, `Classify.Apply_Stain`): the item's colour band inside the part, its edge and
+   holes left out. A region of 1 mm² or more makes it NOK.
+7. **Verdict** (`Reporting.State_Word`, `Reporting.Badges`): OK, NOK or Warning with its kind and the operator's action.
+8. **Description, held to the checks** (`Reporting.Describer_Prompt`, `Guard_Description`, `Restated_Prompt`): the
+   prompt carries the side and what the checks found, no number. A sentence with a number, naming the checks or
+   contradicting them is dropped. On a contradiction it is asked once more. The verdict is never changed.
+   `Classify.Similarity_Grid` draws the Similarity view.
+
+Each threshold lies between measured values, except the 1 mm² stain area (the owner's ruling) and the 1.7 area ratio
+(no measurement recorded).
+
+</details>
+
+## The station
+
+| Part | At JIC Smart Factory |
+|---|---|
+| Camera | Basler a2A1920-51gcPRO, colour, over GigE, set to a 1920 × 1200 window, looking straight down |
+| Lens | Computar M1228-MPW3 |
+| Light | Effilux EFFI-FD-200-200-000 |
+| Table | a green surface inside an aluminium frame, with a photo of it empty (the empty-surface reference) |
+| Scale | 0.102 mm per pixel, from the calibration of 2026-09-28 (63 views of a printed checkerboard, RMS 0.45 px) |
+| Computer | Linux with an NVIDIA RTX 5070 Ti, in real use since 2026-10-29 ([Requirements](#requirements-and-platforms)) |
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="images/anyscan-station.jpg"><img src="images/anyscan-station.jpg" width="100%" alt="The AnyScan station at JIC Smart Factory: on a desk, a black JIC Smart Factory enclosure beside an aluminium frame around the green table, and a monitor showing AnyScan's Live view in the mounting-plate catalogue mode, with a keyboard and a mouse"></a>
-<br><b>Figure 2:</b> The station at JIC Smart Factory, AnyScan in the mounting-plate catalogue mode, 2026-11-03.</td>
+<td width="50%" valign="top"><a href="images/anyscan-station-photo.webp"><img src="images/anyscan-station-photo.webp" width="100%" alt="The AnyScan station at JIC Smart Factory: on a desk, the monitor showing AnyScan's Live view in the mounting-plate catalogue mode beside a black JIC Smart Factory enclosure and the green table in its aluminium frame, with a keyboard and a mouse"></a>
+<br><b>Figure 9:</b> The station at JIC Smart Factory, 2026-11-03: the window in the mounting-plate catalogue mode.</td>
 <td width="50%" valign="top"><a href="images/anyscan-station.webp"><img src="images/anyscan-station.webp" width="100%" alt="The station at JIC Smart Factory from beside the desk: the monitor with AnyScan's reading and status strip, the black enclosure with the JIC Smart Factory mark, and the lit green table inside the aluminium frame with a mounting plate, a terminal strip, a red block, a nut and a screw"></a>
-<br><b>Figure 3:</b> The station at JIC Smart Factory, 2026-11-19, a frame of the station footage.</td>
+<br><b>Figure 10:</b> The station, 2026-11-19, a frame of the station footage: the lit table with parts on it.</td>
 </tr>
 </table>
 
-![AnyScan's Camera View on the station: the live preview of five objects on the green table, SCAN takes a still frame, ANALYZE sweeps a pixel grid across it, then the mounting plate is boxed in orange-red as NOK for two stains and four foreign objects in amber as Warnings](images/anyscan-scan-analyze.webp)
+## Quick start
 
-**Figure 4:** SCAN, then ANALYZE, on the station's screen, 2026-11-19, a screen recording of the Camera View:
-the live preview, the frame taken once nothing moves, the analysis grid, then each object in its state's colour. The
-analysis is shown at 2.5 times its speed, the rest in real time.
+1. **Install**: `./install.sh` creates `.venv/` and downloads the three models, each checksum-verified. It is safe to
+   re-run. Every later command runs `.venv/bin/python`.
+2. **Set the station up once**: calibrate the camera with `Example/Camera/calibrate.py` and shoot the empty table with
+   `Example/Camera/make_reference.py` (both below).
+3. **Run**: `.venv/bin/python App/run.py`, then CONFIGURATION → **Load** a mode, **CONNECT**, **SCAN** and
+   **ANALYZE**. The results are in `logger/` ([Records](#records)).
 
-[![The AnyScan video's opening frame: the words Any part on the table, then Found, Described, Measured and Judged, each beside its pixel icon, in AnyScan's purple on white, linking to the AnyScan video on YouTube](images/anyscan-video.jpg)](https://www.youtube.com/@RomanParak/videos)
+<details>
+<summary><b>Each step in detail</b>: from a fresh clone to the first analysis, what each writes and how to tell it worked</summary>
 
-**Figure 5:** The AnyScan video on YouTube: the station, each step (find, describe and measure, judge) and its use
-at the station.
+From a fresh clone to the first analysis. Steps 2 and 3 set a station up once: repeat both when the camera, the lens,
+its focus or the mount changes, and step 3 alone when the light or the table changes.
 
-**Contents:** [Setup](#setup) · [Workflow](#workflow) · [Configuration](#configuration) ·
-[Validation](#validation) · [Tests](#tests) · [Detection logic](#detection-logic) ·
-[Platform](#platform) · [Repository layout](#repository-layout) · [Swapping a component](#swapping-a-component) ·
-[Authors](#authors) · [Funding](#funding) · [Licence note](#licence-note)
+1. **Install**: `./install.sh` creates `.venv/` and downloads the three models into `models/`, each checksum-verified
+   (`./install.sh --detect-only` shows what it would do). It worked when it prints `Setup complete in … s`. It is safe
+   to re-run. Every later command runs `.venv/bin/python`.
+2. **Calibrate the camera**. Print `Data/Calibration/Checkerboard_11x8_12mm_A4.pdf`, caliper one square, capture views
+   of the board flat and tilted, and solve them:
+   ```bash
+   .venv/bin/python Example/Camera/calibrate.py --capture --board-squares 11x8    # f flat, t tilted, q quit
+   .venv/bin/python Example/Camera/calibrate.py --images Data/Images/Calibration/<timestamp> --board-squares 11x8 \
+       --square-mm <calipered> --board-height-mm <board height>                  # example: replace the <...>
+   ```
+   It writes a new `Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml`, reports each view and
+   the RMS, and prints the station file's line to change. Change it. A set from another sensor window or board is
+   refused, and nothing is written.
+3. **Shoot the empty-surface reference** with the table clear: `.venv/bin/python Example/Camera/make_reference.py`
+   writes `Data/Images/Background/Image_Background_<NNN>.png` and its sidecar (8 frames, about 2.6 s) and prints the
+   station line to change. Change it. Anything part-sized left on the table is listed, and nothing is written.
+4. **Choose the mode**: `…_Mode_Seg_Anything.yaml` (detect-only) or `…_Mode_Mounting_Plate.yaml` (catalogue), in
+   `Configuration/Mode/`. A station runs its own copy ([Configuration](#configuration)).
+5. **Start**: `.venv/bin/python App/run.py` (a station adds `--config <its copy>`), then CONFIGURATION → **Load**,
+   4.8 s on the Linux station. A broken file is named, with its line.
+6. **CONNECT** sets the camera's window, exposure, gain and white balance. A camera another program holds is named.
+7. **PREVIEW** (optional) shows the table live with the inspection area, about 3.7 frames a second.
+8. **SCAN** takes one frame once the scene is still, about 0.59 s, or none (*Not scanned*) after a second.
+9. **ANALYZE** finds, measures and describes each object, and in a catalogue mode gives each a verdict: 0.65 s per
+   object on the Linux station, 2.20 s on the M2 Pro. **CLEAR** resets the figures, `Esc` closes.
+10. **The results** are in `logger/` ([Records](#records)).
 
-## Setup
-
-AnyScan runs on **macOS on Apple silicon** (Verified, measured) and on **Linux with an NVIDIA GPU** (Verified on one
-machine, 2026-09-29, and in real use on it as a station at JIC Smart Factory on 2026-10-29). Windows is Never tried, not a target
-([Platform](#platform)). The installer creates the virtual environment, installs the dependencies for the hardware
-(Metal, or MLX's CUDA 12 or 13 backend by the driver) and downloads the three models, each checksum-verified. It is
-safe to re-run. Every later command runs `.venv/bin/python`:
-
-```bash
-./install.sh                 # or ./install.sh --detect-only to see what it would do
-```
-
-On Linux it stops, naming the card and its memory, when GPU 0 has less than 11 GB or there is no usable NVIDIA GPU.
-`--cpu` installs the CPU builds instead (unmeasured, expected to be far slower). **Some installer paths have never
-run for real**: the full Linux install, the Gemma download on macOS, the DINOv2 download from scratch, the CUDA 12 and
-CPU branches and every refusal ran against stubs only. If one fails, please report it with the installer's output.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/anyscan-models-dark.png">
-  <img src="images/anyscan-models-light.png" width="100%" alt="The three models as three cards: Segmentation, FastSAM-x, finds every object and a part's holes, on PyTorch, pinned v8.4.0, 145 MB; Description, a local vision-language model, Gemma 4 E4B 4-bit, on MLX, revision 475b908, 5.2 GB; Identification, DINOv2 base, recognises the catalogued part, on PyTorch, revision f9e44c8, 346 MB, catalogue modes only">
-</picture>
-
-**Figure 6:** The three models, generated by `Example/UI/readme_diagrams.py` from `install.sh`: what each does, what it
-runs on, the revision the installer pins and its download size.
+</details>
 
 <details>
 <summary><b>Setup by hand</b>: the environment, the OpenCV fix and the model downloads</summary>
 
-The weights go to `models/`, which git does not track. The window and the tests run without the weights. A missing one is reported, with what to do, when first used.
-
-Python 3.10 to 3.12, the installer's range (developed and characterized on 3.10, run on 3.11 on Linux, never on
-3.12):
+The weights go to `models/`, which git does not track. The window and the tests run without the weights. A missing one
+is reported, with what to do, when first used. Python 3.10 to 3.12, the installer's range (developed and
+characterized on 3.10, run on 3.11 on Linux, never on 3.12):
 
 ```bash
 python3 -m venv .venv
@@ -84,8 +247,7 @@ plugins make the window abort with "Could not load the Qt platform plugin xcb". 
 the two builds share, so the headless build is reinstalled whole. `./install.sh` does this after every install, and
 `App/run.py` refuses to start, naming these two commands, while the GUI build is there. On Linux, `mlx` also needs
 its backend, one of `requirements/linux-cuda12.txt`, `linux-cuda13.txt` or `linux-cpu.txt`, and PyTorch from the
-matching index (`cu126`, `cu130` or `cpu`), see [Platform](#platform). `pypylon` (the Basler SDK) is needed only for
-the live camera.
+matching index (`cu126`, `cu130` or `cpu`). `pypylon` (the Basler SDK) is needed only for the live camera.
 
 Download the describer, Gemma 4 E4B, at the revision the application was measured with (10 files, 5.2 GB). The
 public repository needs no token, and `hf` is the Hugging Face CLI from `huggingface_hub`:
@@ -143,40 +305,6 @@ only what differs. Git holds none of these:
 
 </details>
 
-## Workflow
-
-From a fresh clone to the first analysis, in order. Steps 2 and 3 set a station up once: repeat both when the camera,
-the lens, its focus or the mount changes, and step 3 alone when the light or the table changes.
-
-1. **Install**: `./install.sh` ([Setup](#setup)) writes `.venv/` and the three models into `models/`. It worked when it
-   prints `Setup complete in … s`. On Linux it stops when GPU 0 has less than 11 GB.
-2. **Calibrate the camera**, connected over GigE. Print `Data/Calibration/Checkerboard_11x8_12mm_A4.pdf`, caliper
-   one square, capture views of the board flat and tilted, and solve them:
-   ```bash
-   .venv/bin/python Example/Camera/calibrate.py --capture --board-squares 11x8    # f flat, t tilted, q quit
-   .venv/bin/python Example/Camera/calibrate.py --images Data/Images/Calibration/<timestamp> --board-squares 11x8 \
-       --square-mm <calipered> --board-height-mm <board height>                  # example: replace the <...>
-   ```
-   It writes a new `Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml`, reports each view and
-   the RMS (the rig's: 63 views, 0.45 px) and prints the station file's line to change. Change it. A set captured
-   at another sensor window or with another board is refused, and nothing is written.
-3. **Shoot the empty-surface reference** with the table clear: `.venv/bin/python Example/Camera/make_reference.py`
-   writes `Data/Images/Background/Image_Background_<NNN>.png` and its sidecar (8 frames, about 2.6 s) and prints the
-   station line to change. Change it. Anything part-sized left on the table is listed, and nothing is written.
-4. **Choose the mode**: `Configuration/Mode/Config_<Hardware>_Mode_Seg_Anything.yaml` finds, describes and measures
-   every object, `…_Mode_Mounting_Plate.yaml` also checks the mounting plate. A station runs its own copy
-   ([Configuration](#configuration)).
-5. **Start**: `.venv/bin/python App/run.py` (a station adds `--config <its copy>`), then CONFIGURATION → **Load**,
-   4.8 s on the Linux station ([Platform](#platform)). CONNECT becomes available. A broken file is named, with its line.
-6. **CONNECT** sets the camera's window, exposure, gain and white balance. A camera another program holds is named.
-7. **PREVIEW** (optional) shows the table live with the inspection area, about 3.7 frames a second on the rig.
-8. **SCAN** takes one frame once the scene is still, about 0.59 s on the rig, or none (*Not scanned*) after a second.
-9. **ANALYZE** finds, describes and measures each object, and in a catalogue mode gives each a state: 0.65 s per
-   object on the Linux station, 2.20 s on the M2 Pro. **CLEAR** resets the figures, `Esc` closes.
-10. **The results**, in `logger/`: each analysis's capture set in `captures/<connection>/` (the newest 50, listed in
-    History), the session log `log_<date>_<time>.txt` and the run summary `log_<Hardware>.csv`. Closing writes the
-    day's station events to `<station-event directory>/<YYYY-MM-DD>.csv`.
-
 <details>
 <summary><b>Without the camera, and one frame without the window</b>: <code>--frame</code> and <code>scan.py</code></summary>
 
@@ -191,199 +319,10 @@ Without the camera, pass a saved 1920×1200 frame (a configuration must still be
 
 </details>
 
-<table>
-<tr>
-<td width="33%" valign="top"><a href="images/anyscan-trends-catalogue.jpg"><img src="images/anyscan-trends-catalogue.jpg" width="100%" alt="AnyScan's Trends view in the mounting-plate catalogue mode on the Linux station: the cumulative count of objects found over the session's fifteen images, in total and as OK, NOK and Warning, above each image's mean confidence"></a>
-<br><b>Figure 7:</b> Trends, mounting-plate catalogue mode, the Linux station, 2026-10-29: the objects found over the session, in total and per state, and each image's mean confidence.</td>
-<td width="33%" valign="top"><a href="images/anyscan-history-filter.webp"><img src="images/anyscan-history-filter.webp" width="100%" alt="AnyScan's History view on the Linux station, a screen recording: the Captures card's state filter steps from All to NOK, OK and Warning and back to All, the capture-set thumbnails changing with each, each set outlined in its state's colour"></a>
-<br><b>Figure 8:</b> History on the Linux station, 2026-11-19, a screen recording in real time: the session's capture sets filtered by state, from All through NOK, OK and Warning back to All.</td>
-<td width="33%" valign="top"><a href="images/anyscan-scan-nok-ok.jpg"><img src="images/anyscan-scan-nok-ok.jpg" width="100%" alt="Close-up of a recorded catalogue frame: on the left a mounting plate NOK, its two fingerprint stains tinted and boxed on the machined front, on the right a clean plate OK, each countersink and through-hole boxed and numbered"></a>
-<br><b>Figure 9:</b> A recorded frame, catalogue mode, the Linux station, 2026-10-29, cropped: plate 2 NOK for two stains (2.5, 2.6), plate 3 OK, each hole's countersink and through-hole boxed.</td>
-</tr>
-</table>
+## Requirements and platforms
 
-<details>
-<summary><b>More screenshots and scans</b>: the Live view in each mode, the Mask view, a Segment Anything frame</summary>
-
-<table>
-<tr>
-<td width="33%" valign="top"><a href="images/anyscan-live-catalogue.jpg"><img src="images/anyscan-live-catalogue.jpg" width="100%" alt="AnyScan's Live view in the mounting-plate catalogue mode: five objects boxed on the green table, one plate OK, one plate NOK for two stains on its machined front, three foreign objects as Warnings, and their descriptions in the Scene Understanding panel"></a>
-<br><b>Figure 10:</b> The Live view in the mounting-plate catalogue mode, 2026-11-03: one plate OK, one NOK for two stains on its machined front (a catalogued defect), three foreign objects as Warnings.</td>
-<td width="33%" valign="top"><a href="images/anyscan-live-segment-anything.jpg"><img src="images/anyscan-live-segment-anything.jpg" width="100%" alt="AnyScan's Live view in the Segment Anything mode on the Linux station: ten objects boxed and numbered on the green table, each described in words and measured in millimetres in the Scene Understanding panel"></a>
-<br><b>Figure 11:</b> The Live view in the Segment Anything mode on the Linux station, 2026-10-29: every object found, described and measured, no state.</td>
-<td width="33%" valign="top"><a href="images/anyscan-mask-catalogue.jpg"><img src="images/anyscan-mask-catalogue.jpg" width="100%" alt="AnyScan's Mask view in the mounting-plate catalogue mode on the Linux station: each object's mask on a black ground, tinted and outlined in its state's colour, a plate NOK, a plate OK and foreign objects as Warnings"></a>
-<br><b>Figure 12:</b> The Mask view, same session: each object's label mask on black, in its state's colour.</td>
-</tr>
-<tr>
-<td width="33%" valign="top"><a href="images/anyscan-scan-segment-anything.jpg"><img src="images/anyscan-scan-segment-anything.jpg" width="100%" alt="Close-up of a recorded Segment Anything frame: six objects on the green table, a maze plate, a blue printed lattice, a red block, a terminal strip, a screw and a washer, each outlined and numbered"></a>
-<br><b>Figure 13:</b> A recorded frame, Segment Anything mode, the Linux station, 2026-10-29, cropped: every object numbered and outlined (solid the rotated outline, dashed the outer box), its size in the Scene Understanding panel (1 at 50.2 × 50.1 mm, 3 at 96.3 × 25.8 mm).</td>
-</tr>
-</table>
-
-</details>
-
-## Configuration
-
-Three kinds of file, each in its own folder, linked by name (a reference is a file name, never a path):
-
-<details>
-<summary><b>The file names</b>: each kind's folder and pattern, and the name it links to</summary>
-
-```text
-Configuration/Mode/Config_<Hardware>_Mode_<Mode>.yaml      Station: Station_<...>.yaml
-Configuration/Station/Station_<Hardware>[_<Name>].yaml     Calibration: Calibration_<...>.yaml
-Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml
-```
-
-</details>
-
-<details>
-<summary><b>What each file holds</b>, and how the three are checked when they load</summary>
-
-- **Mode**: what a user changes without code (models, prompts, thresholds, and a catalogue mode's item,
-  `Data/Catalogue/<item>/<item>.yaml`). Its comments give every field's default and unit.
-- **Station**: the camera, lens, lighting, sensor window, empty-surface reference, inspection area and the
-  calibration in force. A mode file that holds any of these fails to load.
-- **Calibration**: a new file from every `Example/Camera/calibrate.py` run ([Workflow](#workflow), step 2).
-
-`Configuration.Core.Load_Configuration` checks the three as a whole: a missing required field, a link that disagrees
-or a reference that does not match its sidecar fails the load, naming the file and the line. A missing optional field
-takes its default and is logged. CONFIGURATION lists `Configuration/Mode/`, and **Load** applies one (on failure the
-previous one stays). After the first CONNECT it is fixed for the run.
-
-</details>
-
-**Changing the lamp without updating `Camera.Lighting` goes unnoticed.** **A station sets its station-event
-directory in a local copy of the mode file, never the shipped one**: copy it outside the repository, keeping its
-name, change only `General.Station_Events.Directory`, and start with `--config <that copy>`.
-
-## Validation
-
-What ran on real hardware, and what did not. No part was calipered and no session recorded each part's expected
-result, so nothing here measures accuracy: it shows the station working.
-
-**At the Linux station, 2026-10-29.** Two sessions of real use at JIC Smart Factory (Linux, RTX 5070 Ti). Segment Anything:
-13 scans, 70 objects, each described and measured. Mounting plate: 15 scans, 51 objects, 12 OK, 10 NOK and 29 Warning
-(27 foreign objects, 2 outside the area). Its 20 plate judgements were within tolerance on all 212 feature checks, at
-59.78–60.69 × 39.21–40.64 mm against 60 × 40 ± 1.5 mm, and the catalogued stain check reported the stains in all 8
-judgements of a stained front. v1.0 reproduced both sessions offline on macOS from the recorded frames: all 121
-objects kept their state, warning kind and reason, sizes within 0.284 mm and confidence within 1 point. The wording of
-the descriptions differs (15 of 121 identical).
-
-<details>
-<summary><b>On the rig, 2026-09-28 to 2026-10-16</b>: the calibration, the camera, the test frames, what is not yet run</summary>
-
-The calibration was solved from 63 views (RMS 0.45 px, 0.102 mm/px), and the
-preview and the scan ran on the rig's camera (3.70 frames a second, a scan in 0.586 s). The suite re-analyses the 41
-recorded test frames (150 objects) against each frame's expected states, and 78 mounting-plate frames out to 66.6 mm
-from the frame centre (beyond 50 mm only by the right edge), every side, hole and stain (the catalogued checks) as
-labelled. Not yet run: a parts session (defects, low contrast, a harsh shadow), the inspection area's left edge and
-corners, a cable pull, and a moving hand under SCAN.
-
-</details>
-
-## Tests
-
-None needs a camera. They mirror `src/` as `test/<Domain>/test_<module>.py`, with integration and installer tests:
-
-```bash
-.venv/bin/python -m pytest              # the default run
-.venv/bin/python -m pytest --runslow    # also runs the `slow` tests, which need the weights
-```
-
-With the FastSAM and Gemma weights the default run smoke-tests the real `Analyze`. Without them it prints
-`REAL VISION PATH NOT VERIFIED` and passes.
-
-<details>
-<summary><b>The golden file</b>: updating it after an intended change</summary>
-
-`test/Vision/test_characterize.py` has a golden file. After an intended change:
-
-```bash
-.venv/bin/python -m pytest test/Vision/test_characterize.py --update-golden
-git diff test/Vision/data/characterization.txt
-```
-
-</details>
-
-## Detection logic
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/anyscan-pipeline-dark.png">
-  <img src="images/anyscan-pipeline-light.png" width="100%" alt="A frame's way to the record in six cards, in a catalogue mode's order: Frame, SCAN takes one frame once nothing moves; Find, what changed against the empty table or FastSAM segmentation; Measure, the size in mm through the calibration; Judge, catalogue mode, DINOv2 recognises the part and the checks give OK, NOK or Warning; Describe, a local vision-language model told what the checks found; Record, the capture set, session log and run summary">
-</picture>
-
-**Figure 14:** From a frame to the record in a catalogue mode's order, generated by `Example/UI/readme_diagrams.py`:
-each object is measured and judged (the dashed step), then described with what the checks found. A detect-only mode
-skips Judge.
-
-SCAN takes the first frame with no movement since the one before (`Camera.Utilities.Stillness.Is_Still`), and
-`Vision_Pipeline_Cls.Analyze` (`src/Vision/Core.py`) runs the stages every mode shares (modules under
-`src/Vision/Utilities/` unless named):
-
-
-<details>
-<summary><b>The four stages</b>: background subtraction, FastSAM, fusion, description, each with its module</summary>
-
-```text
-(1) background subtraction  Segmentation.Background_Difference   what changed against the empty-surface reference
-(2) FastSAM segmentation    Segmenter.Fast_Sam_Cls               object instances, independent of the reference
-(3) fusion                  Fusion.Fuse_Objects                  (1) OR (2), split, area-filtered, left to right
-(4) description             Describers.Gemma_Describer_Cls       a padded, isolated, contrast-stretched crop each
-```
-
-</details>
-
-Then `Reporting.Compose` writes the sentences and `Measure.Measure_Objects` the sizes (A x B, Ø or A/F, in mm). A
-**detect-only mode** (Segment Anything) runs these as listed, and a **catalogue mode** measures, recognises and checks
-each object before stage 4, then describes it with what the checks found. Each threshold lies between measured
-values, except the 1 mm² stain area (the owner's ruling) and the 1.7 area ratio (no measurement recorded).
-
-<table>
-<tr>
-<td width="50%" valign="top"><a href="images/anyscan-catalogue-card.webp"><img src="images/anyscan-catalogue-card.webp" width="100%" alt="The mounting plate's catalogue item: its front and back reference images, and its checks, an outline of 60 by 40 mm within 1.5 mm, two countersinks of 12 mm and two through-holes of 6 mm 25 mm apart on the front, two through-holes on the back, and no stain of 1 mm² or more on the machined front"></a>
-<br><b>Figure 15:</b> The catalogue item a catalogue mode checks, drawn from <code>Data/Catalogue/mounting_plate/</code>.</td>
-<td width="50%" valign="top"><a href="images/anyscan-catalogue-nok.webp"><img src="images/anyscan-catalogue-nok.webp" width="100%" alt="Mounting plate 3 of a recorded frame judged NOK: its rotated outline in orange-red, both holes circled, two stain boxes on the machined front, and the reason There are two stains on the machined front"></a>
-<br><b>Figure 16:</b> The checks decide: plate 3 NOK. Visualised from the recorded analysis (capture set 20261119-120833_1).</td>
-</tr>
-</table>
-
-<img src="images/anyscan-describe.webp" width="100%" alt="Plate 3 with the rest of the frame dimmed, and its recorded description by a local vision-language model told what the checks found, the words yellow-brown to brown stains of irregular shape highlighted">
-
-**Figure 17:** The model explains, after the checks: plate 3's recorded description, two of its sentences. Visualised
-from the recorded analysis (capture set 20261119-120833_1).
-
-<details>
-<summary><b>The catalogue stages</b>: recognition, the inspection area, the side up, holes, stains and the state</summary>
-
-1. **Measurement and outline** (`Measure.Measure_Objects`, `Dimensions.Check_Objects`): the size at the part's top
-   face against the item's outline and its tolerance.
-2. **Recognition** (`Identifier.Dino_Identifier_Cls`, `Classify.Best_Match`, `Classify.Classify`): each object's
-   upright crop against the item's reference image of each side, by DINOv2. An area 1.7× the part's or more is a
-   Warning, several parts. A similarity of 0.75 or more is the part, OK or NOK by its outline. The outline alone
-   within tolerance is NOK. Anything else is a Warning, foreign object.
-3. **Inspection area** (`Classify.Inspection_Area_Px`, `Inside_Area`, `Resembles_Part`, `Settle_Area`): only an object
-   wholly inside the frame inset by the station's `Inspection_Area` is judged. Outside, it is a Warning: outside area
-   when it resembles the part (similarity 0.657 or more, mean saturation 76.3 or less, its extent no larger than the
-   part's diagonal plus its tolerance), else foreign object.
-4. **Side up** (`Holes.Hole_Candidates`, `Holes.Side_Evidence`, `Classify.Decide_Side`, `Classify.Settle_Side`):
-   FastSAM again on the upright crop for holes. DINOv2's side when its margin over the next is 0.265 or more, else
-   the side a hole only it has shows. Sides that disagree are a Warning, side unclear. Holes against look are a Warning,
-   side mismatch.
-5. **Holes** (`Holes.Check_Holes`, `Classify.Apply_Holes`): each group's count near its positions, diameter, edge
-   distances and pitch, and each stepped hole's bore within 0.85 mm of its countersink once the camera's predicted
-   shift is taken out. A missing, extra or out-of-tolerance hole makes the part NOK.
-6. **Stains** (`Stain.Check_Stain`, `Classify.Apply_Stain`): the item's colour band inside the part, its edge and
-   holes left out. A region of 1 mm² or more makes it NOK.
-7. **State** (`Reporting.State_Word`, `Reporting.Badges`): OK, NOK or Warning with its kind and the operator's action.
-8. **Description, held to the checks** (`Reporting.Describer_Prompt`, `Guard_Description`, `Restated_Prompt`): the
-   prompt carries the side and what the checks found, no number. A sentence with a number, naming the checks or
-   contradicting them is dropped. On a contradiction it is asked once more. The state is never changed.
-   `Classify.Similarity_Grid` draws the Similarity view.
-
-</details>
-
-## Platform
+Python 3.10 to 3.12 and one of these platforms. On Linux the installer stops when GPU 0 has less than 11 GB or there is
+no usable NVIDIA GPU, naming the card. `./install.sh --cpu` installs the CPU builds instead (unmeasured, expected to be far slower).
 
 | Platform | Status | What is known |
 |---|---|---|
@@ -391,13 +330,16 @@ from the recorded analysis (capture set 20261119-120833_1).
 | **Linux** | **Verified on one machine, 2026-09-29, and in real use on it as a station at JIC Smart Factory on 2026-10-29** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer refuses below it). On an RTX 5070 Ti with the CUDA 13 backend: 0.65 s per object (warm), 9.5 GB GPU peak for the whole application, output identical word for word between two processes. Not compared with the Mac's text. |
 | **Windows** | **Never tried, not a target** | Nothing known prevents it (`mlx` publishes Windows wheels), but it is not supported. |
 
+> [!NOTE]
+> **Some installer paths have never run for real**: the full Linux install, the Gemma download on macOS, the DINOv2
+> download from scratch, the CUDA 12 and CPU branches and every refusal ran against stubs only. If one fails, please
+> report it with the installer's output.
+
 <details>
 <summary><b>The models and the Linux measurement</b>: what decides where AnyScan runs, the machine, the installer's run and the numbers</summary>
 
 - **Determinism does not travel**: greedy decoding fixes the sampler, but another backend can still change the text
   through floating-point differences. No test pins live describer text.
-
-
 - **The models**: the describer, Gemma 4 E4B in 4-bit **MLX** at revision `475b908`, decides where AnyScan runs, and the
   rest is portable. DINOv2 base (`f9e44c8`, catalogue modes) only compares objects with the item's reference images.
   No packaging recipe has been verified on any platform. Run from source.
@@ -421,10 +363,70 @@ from the recorded analysis (capture set 20261119-120833_1).
 
 </details>
 
-## Repository layout
+## Configuration
+
+Three kinds of file, each in its own folder, linked by name (a reference is a file name, never a path):
+
+| Kind | File | Holds |
+|---|---|---|
+| **Mode** | `Configuration/Mode/Config_<Hardware>_Mode_<Mode>.yaml` | what a user changes without code: models, prompts, thresholds, a catalogue mode's item. It names its station. |
+| **Station** | `Configuration/Station/Station_<Hardware>[_<Name>].yaml` | the camera, lens, light, sensor window, empty-surface reference, inspection area and the calibration in force |
+| **Calibration** | `Configuration/Calibration/Calibration_<Hardware>_<YYYYMMDD-HHMMSS>.yaml` | a new file from every `calibrate.py` run |
 
 <details>
-<summary><b>The folders</b>: what is committed, what is git-ignored, the packages under <code>src/</code>, the figures</summary>
+<summary><b>How the three are checked when they load</b></summary>
+
+Each file's comments give every field's default and unit. `Configuration.Core.Load_Configuration` checks the three as a
+whole: a missing required field, a link that disagrees, a mode file holding a station's field or a reference that does
+not match its sidecar fails the load, naming the file and the line. A missing optional field takes its default and is
+logged. CONFIGURATION lists `Configuration/Mode/`, and **Load** applies one (on failure the previous one stays). After
+the first CONNECT it is fixed for the run.
+
+</details>
+
+> [!IMPORTANT]
+> **Changing the lamp without updating `Camera.Lighting` goes unnoticed.** **A station sets its station-event
+> directory in a local copy of the mode file, never the shipped one**: copy it outside the repository, keeping its
+> name, change only `General.Station_Events.Directory`, and start with `--config <that copy>`.
+
+## Records
+
+Everything is written under `logger/`, except the station events, and none of it is committed.
+
+| Record | Where | What |
+|---|---|---|
+| **Capture set** | `logger/captures/<connection>/<set>_*` | per analysis: the frame (`_raw.png`, undistorted, and `_distorted.png`), the annotated image, the label mask, a thumbnail, the Scene Understanding text, YOLO boxes and outlines, and `_objects.json`, the machine-readable record. The newest 50 are kept and listed in History. A failed analysis writes a partial set on purpose. |
+| **Session log** | `logger/log_<date>_<time>.txt` | every event of one run, with date, time and level. The Log view shows it. |
+| **Run summary** | `logger/log_<Hardware>.csv` | one row per run: its start, stop, cycle time, time spent analysing and idle time |
+| **Station events** | `<General.Station_Events.Directory>/<YYYY-MM-DD>.csv` | `station_id,event_type,ts` (UTC) for the system that tracks the station's uptime: `STATION_ON`, `STATION_OFF`, `CYCLE_START`, `CYCLE_DONE`. Written when the application closes, or at the next start after a crash. |
+
+## Development
+
+None of the tests needs a camera. They mirror `src/` as `test/<Domain>/test_<module>.py`, with integration and
+installer tests:
+
+```bash
+.venv/bin/python -m pytest              # the default run
+.venv/bin/python -m pytest --runslow    # also runs the `slow` tests, which need the weights
+```
+
+<details>
+<summary><b>Without the weights, and the golden file</b>: what the default run verifies, and updating it after an intended change</summary>
+
+With the FastSAM and Gemma weights the default run smoke-tests the real `Analyze`. Without them it prints
+`REAL VISION PATH NOT VERIFIED` and passes.
+
+`test/Vision/test_characterize.py` has a golden file. After an intended change:
+
+```bash
+.venv/bin/python -m pytest test/Vision/test_characterize.py --update-golden
+git diff test/Vision/data/characterization.txt
+```
+
+</details>
+
+<details>
+<summary><b>Repository layout</b>: what is committed, what is git-ignored, the packages under <code>src/</code>, the figures</summary>
 
 `Data/` is input and output, `images/` is documentation, and only `models/` is supplied by you (`./install.sh`).
 
@@ -444,7 +446,7 @@ Data/Images/Calibration/  calibration capture sets (calibrate.py --capture); git
 Data/Calibration/         the calibration board to print, Checkerboard_11x8_12mm_A4.pdf; committed
 Data/Results/             analyze.py and scan.py output; git-ignored
 images/                   the README's figures, photographs and screenshots, and the logo; committed
-models/                   the model weights, downloaded per Setup; git-ignored
+models/                   the model weights, downloaded per Quick start; git-ignored
 ```
 
 Under `src/`, the application is `Camera/` (the camera backends and the pypylon driver), `Vision/` (the pipeline,
@@ -456,11 +458,12 @@ with PyQt5 unavailable, a tested contract. `Calibration/` holds the multi-view c
 `calibrate.py` drives, and `Transformation/` is an inherited robotics library that nothing imports today.
 
 The figures are regenerated, never edited. After replacing `images/anyscan-logo.svg`, rebuild the logo copies, then
-the diagram, which embeds the logo. `test/UI/test_brand_figures.py` fails when they disagree:
+the diagrams, which embed the logo. `test/UI/test_brand_figures.py` fails when they disagree:
 
 ```bash
 .venv/bin/python Example/UI/build_logo.py
 .venv/bin/python Example/UI/architecture_diagram.py
+.venv/bin/python Example/UI/readme_diagrams.py
 ```
 
 A frame is added to `Data/Images/Test/` under a new name, never over an old one, and only together with the tests'
@@ -468,10 +471,8 @@ expectations: they refer to the frames by name.
 
 </details>
 
-## Swapping a component
-
 <details>
-<summary><b>The camera and the describer</b>: the two classes to subclass</summary>
+<summary><b>Swapping a component</b>: the camera and the describer, the two classes to subclass</summary>
 
 - **Camera**: subclass `Camera_Backend_Cls` (`src/Camera/Core.py`) and implement `_Open`, `_Close` and `_Grab`,
   which returns an **RGB NumPy array**, the exchange format for the whole application.
@@ -482,6 +483,12 @@ expectations: they refer to the frames by name.
 
 </details>
 
+## Documentation
+
+`./install.sh --help` and the `--help` of `App/run.py` and of each script in `Example/` say what each does. Each file in
+`Configuration/` and `Data/Catalogue/mounting_plate/mounting_plate.yaml` gives every field with its default and unit in
+its comments. [LICENSE](LICENSE) and [CITATION.cff](CITATION.cff) are at the root.
+
 ## Authors
 
 <table><tr><td align="center"><a href="https://github.com/rparak"><img src="https://avatars.githubusercontent.com/rparak" width="120px;" alt="GitHub avatar of Roman Parak, author of AnyScan, linking to the GitHub profile rparak"/><br /><strong>Roman Parak</strong></a><br />Author</td>
@@ -489,20 +496,7 @@ expectations: they refer to the frames by name.
 <td align="center"><a href="https://github.com/vojtechmarek13"><img src="https://avatars.githubusercontent.com/vojtechmarek13" width="120px;" alt="GitHub avatar of Vojtěch Marek, contributor of AnyScan, linking to the GitHub profile vojtechmarek13"/><br /><strong>Vojtěch Marek</strong></a><br />Contributor</td>
 <td align="center"><a href="https://github.com/piifl"><img src="https://avatars.githubusercontent.com/piifl" width="120px;" alt="GitHub avatar of Filip Rusnak, contributor of AnyScan, linking to the GitHub profile piifl"/><br /><strong>Filip Rusnak</strong></a><br />Contributor</td></tr></table>
 
-## Funding
-
-Developed within internal research at JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT
-project shows small and medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts.
-
-![EDIH-DIGIMAT, Ministry of Industry and Trade of the Czech Republic, Funded by the European Union](images/anyscan-funding.svg)
-
-**Figure 18:** The project's, the Ministry's and the EU's logos, generated with Figure 1.
-
-Funded by the European Union. Views and opinions expressed are however those of the author(s) only and do not
-necessarily reflect those of the European Union or European Commission. Neither the European Union nor the granting
-authority can be held responsible for them.
-
-## Licence note
+## Licence
 
 AnyScan's own code is under the MIT licence ([LICENSE](LICENSE)), held by JIC Smart Factory. The libraries, models
 and fonts keep their own licences, and no model ships with the repository. Three of them limit what you may do when
@@ -536,12 +530,12 @@ you reuse AnyScan. In plain words, not legal advice:
 | MLX (`mlx`, `mlx-metal`, the Linux backends) | running Gemma on the GPU | MIT | [MLX](https://github.com/ml-explore/mlx) |
 | mlx-vlm | Gemma's vision-language interface | MIT | [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) |
 | pytest | the tests | MIT | [pytest](https://github.com/pytest-dev/pytest/blob/main/LICENSE) |
-| fontTools | building the bundled fonts (maintenance only) | MIT | [fonttools](https://github.com/fonttools/fonttools) |
+| fontTools | building the bundled fonts and embedding them in the architecture figure (maintenance only) | MIT | [fonttools](https://github.com/fonttools/fonttools) |
 | FastSAM-x weights | finding the objects in the frame | AGPL-3.0 | [FastSAM](https://github.com/CASIA-IVA-Lab/FastSAM) |
 | Gemma 4 E4B, 4-bit MLX conversion | describing each object | Apache-2.0 | [base model](https://huggingface.co/google/gemma-4-E4B-it), [licence](https://ai.google.dev/gemma/docs/gemma_4_license) |
 | DINOv2 base | recognising the catalogued part | Apache-2.0 | [model](https://huggingface.co/facebook/dinov2-base) |
-| Public Sans, JetBrains Mono (`App/assets/fonts/`) | the window's typefaces | SIL Open Font License 1.1, beside the files | [Public Sans](https://github.com/uswds/public-sans), [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) |
-| JIC Smart Factory, EDIH-DIGIMAT, Ministry and EU logos | the header and the funding band | their owners' usage rules, not a licence | — |
+| Public Sans, JetBrains Mono (`App/assets/fonts/`) | the window's typefaces, and Public Sans embedded in the architecture figure | SIL Open Font License 1.1, beside the files | [Public Sans](https://github.com/uswds/public-sans), [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) |
+| JIC Smart Factory, EDIH-DIGIMAT, Ministry and EU logos | the header, the headline and the funding band | their owners' usage rules, not a licence | — |
 
 Gemma 4 E4B and DINOv2 base are under the Apache License 2.0, Public Sans and JetBrains Mono under the SIL Open Font
 License 1.1. `google/gemma-4-E4B-it` is tagged `apache-2.0` at `fee6332`, the revision the weights were converted
@@ -549,3 +543,35 @@ from. The conversion's `license: gemma` tag looks like converter boilerplate, an
 Gemma 4.
 
 </details>
+
+## Citation
+
+If you use AnyScan, please cite it. GitHub's *Cite this repository* reads the same from [CITATION.cff](CITATION.cff).
+
+<details>
+<summary><b>BibTeX</b></summary>
+
+```bibtex
+@software{AnyScan,
+  author  = {Parak, Roman and Moravansky, Lukas and Marek, Vojtěch and Rusnak, Filip},
+  title   = {AnyScan},
+  version = {1.0},
+  year    = {2026},
+  url     = {https://github.com/rparak/AnyScan}
+}
+```
+
+</details>
+
+## Funding
+
+Developed within internal research at JIC Smart Factory as a demonstrator through which the EDIH-DIGIMAT
+project shows small and medium-sized enterprises (SMEs) how AI-based visual inspection can work on their own parts.
+
+![EDIH-DIGIMAT, Ministry of Industry and Trade of the Czech Republic, Funded by the European Union](images/anyscan-funding.svg)
+
+**Figure 11:** The project's, the Ministry's and the EU's logos, generated with Figure 5.
+
+Funded by the European Union. Views and opinions expressed are however those of the author(s) only and do not
+necessarily reflect those of the European Union or European Commission. Neither the European Union nor the granting
+authority can be held responsible for them.
