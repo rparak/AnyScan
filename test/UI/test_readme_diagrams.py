@@ -38,7 +38,7 @@ Description:
     Example/UI/readme_diagrams.py, the README's pipeline and models diagrams: each committed image, light and dark, is
     exactly the generator's output (compared pixel by pixel), the dark versions lie on a transparent ground and the
     light ones on white, the models diagram's pins are the revisions the README's download commands use, and the
-    README shows each through <picture>.
+    README shows each through <picture>, and the pipeline follows the station's order.
 """
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 CONST_GENERATOR = os.path.join(CONST_PROJECT_FOLDER, 'Example', 'UI', 'readme_diagrams.py')
@@ -134,3 +134,17 @@ def test_the_readme_shows_each_diagram_light_and_dark_through_picture(figure) ->
     block = '<picture>\n  <source media="(prefers-color-scheme: dark)" srcset="images/%s-dark.png">\n' \
             '  <img src="images/%s-light.png" width="100%%" alt="' % (figure, figure)
     assert block in readme
+
+
+def test_the_pipeline_follows_the_stations_order(generator) -> None:
+    """
+    Description:
+        The pipeline diagram draws a catalogue mode's order (README > Detection logic: each object is measured,
+        recognised and checked before it is described, the describer told what the checks found): Frame, Find,
+        Measure, Judge, Describe, Record, with Judge marked as the catalogue mode's step.
+    """
+
+    names = [name for _icon, name, _words in generator.CONST_PIPELINE_STEPS]
+    assert names == ['Frame', 'Find', 'Measure', 'Judge', 'Describe', 'Record']
+    assert generator.CONST_CATALOGUE_STEP == 'Judge'
+    assert names.index('Judge') < names.index('Describe')

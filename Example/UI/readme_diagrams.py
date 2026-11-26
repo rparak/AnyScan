@@ -51,8 +51,8 @@ Description:
     Initialization of constants.
 
     The generator of the README's two light/dark diagram pairs, shown through <picture>:
-    images/anyscan-pipeline-{light,dark}.png, a frame's way to the record (frame -> find -> describe and measure ->
-    judge -> record, the judge step a catalogue mode's only), and images/anyscan-models-{light,dark}.png, the three
+    images/anyscan-pipeline-{light,dark}.png, a frame's way to the record in the station's order (frame -> find ->
+    measure -> judge -> describe -> record, the judge step a catalogue mode's only), and images/anyscan-models-{light,dark}.png, the three
     models with what each does, what it runs on, the revision install.sh pins and its download size (both read from
     install.sh, never typed here).
 
@@ -299,11 +299,25 @@ class Canvas_Cls(object):
                 p = q + 10
 
 
+# The pipeline diagram's steps, in the station's order for a catalogue mode (README > Detection logic: a catalogue
+# mode measures, recognises and checks each object before it is described, and tells the describer what the checks
+# found): each step's pixel icon, its name and its words. The catalogue mode's own step is CONST_CATALOGUE_STEP.
+#   Unit [List<Tuple<string, string, string>>]
+CONST_PIPELINE_STEPS = [('camera', 'Frame', 'SCAN takes one frame once nothing moves'),
+                        ('magnifier', 'Find', 'what changed against the empty table, OR FastSAM segmentation'),
+                        ('ruler', 'Measure', 'the size in mm, through the calibration'),
+                        ('badge', 'Judge', 'DINOv2 recognises the part, the checks give a state'),
+                        ('text', 'Describe', 'a local vision-language model, told what the checks found'),
+                        ('log', 'Record', 'capture set, session log, run summary')]
+CONST_CATALOGUE_STEP = 'Judge'
+
+
 def Draw_Pipeline(dark: bool) -> Image.Image:
     """
     Description:
-        A frame's way to the record, left to right: Frame, Find, Describe and measure, Judge (a catalogue mode's only,
-        in a dashed group with its tag, and its three states as badges) and Record.
+        A frame's way to the record, left to right, in the station's order for a catalogue mode
+        (CONST_PIPELINE_STEPS): Frame, Find, Measure, Judge (the catalogue mode's step, in a dashed group with its tag,
+        its three states as badges), Describe and Record. A detect-only mode skips Judge.
 
     Args:
         (1) dark [bool]: The dark version.
@@ -312,34 +326,30 @@ def Draw_Pipeline(dark: bool) -> Image.Image:
         (1) parameter [Image.Image]: The image.
     """
 
-    canvas = Canvas_Cls(520, dark)
-    title, body = Font(34, 700), Font(26, 400)
-    steps = [('camera', 'Frame', 'SCAN takes one frame once nothing moves'),
-             ('magnifier', 'Find', 'what changed against the empty table, OR FastSAM segmentation'),
-             ('text', 'Describe and measure', 'in words, by a local vision-language model; the size in mm'),
-             ('badge', 'Judge', 'DINOv2 identifies the part, the checks give a state'),
-             ('log', 'Record', 'capture set, session log, run summary')]
-    w, gap, y, h = 304, 48, 96, 330
-    x0 = (CONST_WIDTH - 5 * w - 4 * gap) / 2
-    for i, (icon, name, words) in enumerate(steps):
+    canvas = Canvas_Cls(560, dark)
+    title, body = Font(32, 700), Font(26, 400)
+    n = len(CONST_PIPELINE_STEPS)
+    w, gap, y, h = 250, 44, 96, 370
+    x0 = (CONST_WIDTH - n * w - (n - 1) * gap) / 2
+    for i, (icon, name, words) in enumerate(CONST_PIPELINE_STEPS):
         x = x0 + i * (w + gap)
-        baseline = canvas.Card(x, y, w, h, icon, name, title, 42)
+        baseline = canvas.Card(x, y, w, h, icon, name, title, 40)
         for line in Wrap(words, body, w - 48):
             canvas.Text(x + 24, baseline, line, body, 'ink')
             baseline += 36
-        if name == 'Judge':
-            bx = x + 24
-            for state in ['OK', 'NOK', 'Warning']:
-                bx += canvas.Badge(bx, baseline - 8, state, 20, 38) + 8
+        if name == CONST_CATALOGUE_STEP:
+            for row, states in enumerate([['OK', 'NOK'], ['Warning']]):
+                bx = x + 24
+                for state in states:
+                    bx += canvas.Badge(bx, baseline - 8 + row * 46, state, 20, 38) + 8
             canvas.Dashed_Rect((x - 10, y - 10, x + w + 10, y + h + 10))
             tag = Font(24, 700)
-            tw = tag.getlength('catalogue mode only') + 28
+            tw = tag.getlength('catalogue mode') + 28
             canvas.draw.rectangle([x + w / 2 - tw / 2, y - 52, x + w / 2 + tw / 2, y - 16], fill=canvas.c['tag'])
-            canvas.Text(x + w / 2, y - 34, 'catalogue mode only', tag, 'tag_ink', anchor='mm')
-        if i < len(steps) - 1:
+            canvas.Text(x + w / 2, y - 34, 'catalogue mode', tag, 'tag_ink', anchor='mm')
+        if i < n - 1:
             canvas.Arrow(x + w + 6, x + w + gap - 6, y + h / 2)
-    canvas.Text(x0, 490, 'Every mode finds, describes and measures. A catalogue mode also judges each object it finds.',
-                body, 'mute')
+    canvas.Text(x0, 530, 'The order of a catalogue mode. A detect-only mode skips Judge.', body, 'mute')
     return canvas.image
 
 

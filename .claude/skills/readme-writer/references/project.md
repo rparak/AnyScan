@@ -62,7 +62,7 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 - Script: `Example/UI/readme_diagrams.py` (Phase C, 2026-11-26) writes the two light/dark pairs,
   `images/anyscan-models-{light,dark}.png` (Figure 5, *Setup*: each model's role, what it runs on, its pin and its
   download size, read from `install.sh`) and `images/anyscan-pipeline-{light,dark}.png` (Figure 13, *Detection logic*:
-  frame, find, describe and measure, judge, record), PNG at 1760 px with the bundled OFL fonts drawn in;
+  frame, find, measure, judge, describe, record, a catalogue mode's order with Judge marked as its step), PNG at 1760 px with the bundled OFL fonts drawn in;
   regenerated, never edited. `test/UI/test_readme_diagrams.py` holds them to its output pixel for pixel.
 - **The animations** (Phase C, the owner, 2026-11-26): Figure 3, `images/anyscan-scan-analyze.webp` (live preview,
   SCAN, the frame, the analysis grid, the result), is cut from the AnyScan-Media archive's screen recording of station
