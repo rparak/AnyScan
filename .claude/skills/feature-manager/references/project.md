@@ -24,9 +24,9 @@ station, recorded in the capture set, the run-summary CSV and the daily station 
 ## Physical system and safety
 
 None. AnyScan drives no hardware beyond the camera it reads; a person acts on its verdicts. What a
-verdict may claim is bounded by README > Limitations (sizes are repeatable, not absolute; the
-describer is not a defect detector; a catalogue mode checks only what its item lists). The sentence a
-result carries is the README's own warning (README.md, the `[!IMPORTANT]` alert in the top block): a
+verdict may claim is bounded by SPEC > Known limitations (sizes are repeatable, not absolute; the
+describer is not a defect detector; a catalogue mode checks only what its item lists; the README states
+none of them since the owner removed its *Limitations* and its alert on 2026-11-03): a
 verdict is advice to the operator, verified only as SPEC > *Verified on hardware, and not yet* states.
 
 ## Always "large" (ask before building)
@@ -82,7 +82,7 @@ Each item links to where it happened here. Read the record; it is not retold.
       [*The configuration sets the camera's sensor window*](../../../project-docs/design-decisions.md#the-configuration-sets-the-cameras-sensor-window).
 - [ ] Precision shown versus precision measured:
       [*Sizes keep full precision…*](../../../project-docs/design-decisions.md#sizes-keep-full-precision-only-the-display-rounds-to-a-fixed-two-decimals)
-      and [README > Limitations](../../../../README.md#measurements-are-repeatable-not-absolute).
+      and [SPEC > Known limitations](../../../project-docs/SPEC.md#measurements-are-repeatable-not-absolute).
 - [ ] Results from one table's frames generalising:
       [*The fusion's parameters are validated on one table under one light*](../../../project-docs/KNOWN_ISSUES.md#the-fusions-parameters-are-validated-on-one-table-under-one-light).
 - [ ] Parts touching:
@@ -96,7 +96,7 @@ Each item links to where it happened here. Read the record; it is not retold.
       and [*Gemma reads some through-holes as "a central green element"*](../../../project-docs/KNOWN_ISSUES.md#gemma-reads-some-through-holes-as-a-central-green-element),
       where wording tuned to one frame made another worse.
 - [ ] A describer is not a detector:
-      [README > Limitations](../../../../README.md#the-describer-is-not-a-defect-detector).
+      [SPEC > Known limitations](../../../project-docs/SPEC.md#the-describer-is-not-a-defect-detector).
 - [ ] Model comparisons on the same crops and settings:
       [*E4B stays the describer on both machines…*](../../../project-docs/design-decisions.md#e4b-stays-the-describer-on-both-machines-the-owners-choice-one-wrong-statement-ahead-of-the-12b).
 - [ ] Provenance of weights: the pinned revision and the licence check in
@@ -126,7 +126,7 @@ Each item links to where it happened here. Read the record; it is not retold.
 
 Beyond the generic report: **Records** - any change to a capture set, the run-summary CSV, the station
 event file or the session log's markers; **Docs** - which `.claude/project-docs/SPEC.md` rows, which DD entry,
-which KNOWN_ISSUES or README > Limitations entry; **Risks** - what cannot be tested without the rig
+which KNOWN_ISSUES or SPEC > Known limitations entry; **Risks** - what cannot be tested without the rig
 (`.claude/project-docs/capture-checklist.md`).
 
 ## Configuration

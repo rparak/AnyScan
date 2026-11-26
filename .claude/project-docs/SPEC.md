@@ -8,7 +8,7 @@ It is a map: each capability in a sentence or two, with a link to where it is ex
 | How do I install and run it? | [README](../../README.md#setup) |
 | What does it do? | This file |
 | Why does it do it that way? | [design-decisions.md](design-decisions.md) |
-| What limits a decision built on its output? | [README > Limitations](../../README.md#limitations) |
+| What limits a decision built on its output? | [Known limitations](#known-limitations), below |
 | What odd behaviour is known and left open? | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
 | What must be captured on the rig? | [capture-checklist.md](capture-checklist.md) |
 
@@ -183,10 +183,10 @@ it names. The modes shipped today:
   untouched, and each step logged
   ([*The describer is told what the checks found…*](design-decisions.md#the-describer-is-told-what-the-checks-found-never-a-number-and-its-contradictions-are-dropped-and-logged)).
   What it does not check — a hole where the catalogue puts none, a defect no check names — it cannot fail
-  ([README > Limitations](../../README.md#a-catalogue-mode-checks-only-what-its-item-lists);
+  ([Known limitations](#a-catalogue-mode-checks-only-what-its-item-lists);
   [*A catalogue mode is a Catalogue block…*](design-decisions.md#a-catalogue-mode-is-a-catalogue-block-naming-an-item-folder-and-the-configuration-picks-checks-never-their-order)).
   Within tolerance means consistent with nominal: the parts were not calipered
-  ([README > Limitations](../../README.md#measurements-are-repeatable-not-absolute)).
+  ([Known limitations](#measurements-are-repeatable-not-absolute)).
 - **Without a camera**, `.venv/bin/python App/run.py --frame <png>` analyses a saved frame of the reference's
   size.
 
@@ -400,7 +400,7 @@ solved on the rig on 2026-09-28 (commit `eb00508`). It used 63
 views (22 flat, 41 tilted), with a reprojection RMS of 0.45 px. Its principal point lies about 25 px
 from the frame centre, and its factor is 0.102 mm/px in both axes. `Calibration.Solved` in the
 calibration file is the record. Its scale has not been checked against parts of known size
-([README > Limitations](../../README.md#limitations)).
+([Known limitations](#known-limitations)).
 
 Why many views, and why the factor comes from flat boards only:
 [*Calibration: many views solved together…*](design-decisions.md#calibration-many-views-solved-together-the-factor-from-flat-boards-undistorted-corners).
@@ -485,7 +485,8 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
   the application's copies of the delivered logo (the logo without its tagline, the mark, and the icon: the mark on a
   transparent ground, grid-fitted at each of 16-256 px), and build the
   bundled fonts (Public Sans and JetBrains Mono).
-- `UI/analysis_animation.py` — write the README's animation, `images/anyscan-analysis.webp`: the window offscreen
+- `UI/analysis_animation.py` — write a replay clip of the window (by default `images/anyscan-analysis.webp`, which the
+  README no longer shows: its Figure 3 is a screen recording since 2026-11-26): the window offscreen
   replaying one recorded frame (`--frame`, as `App/run.py --frame`) through the shipped mounting-plate mode with the
   real models, loaded through the Configuration dialog, then CONNECT, SCAN and ANALYZE, grabbed on events (each badge
   change), never on a timer, with the window's clock frozen. The analysis plays in 3 s whatever it took, and the
@@ -493,8 +494,58 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
 
 ## Known limitations
 
-The three limitations that affect a decision are in [README > Limitations](../../README.md#limitations);
-the open behaviours that decide nothing are in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+Three limitations affect any decision built on this output. They stand **unverified in this version**: nothing
+here checks them against ground truth, and nothing under [README > Validation](../../README.md#validation)
+changes that.
+
+### Measurements are repeatable, not absolute
+
+**Outside a catalogue mode, don't build a tolerance on these numbers. Inside one, trust its outline check only for
+its part, within 46.4 mm of the frame centre.** A part's size varies with its thickness and with where it lies: a
+12 mm hex nut, 6 mm thick, is predicted (below) to read about 0.2 mm large at the frame centre, 1.5 mm near the edge.
+
+- **Spread:** on the 41 test frames (2026-10-11, before the reference was re-shot), the 22 mounting plates read
+  60.33–61.40 × 39.64–41.15 mm at the calibration's scale. That says nothing about correctness: a wrong scale is wrong
+  in every frame.
+- **Position and thickness:** a single ordinary lens looking down sees a thick part's outline above the calibrated
+  plane, and off the optical axis its side wall too. Away from the axis a size reads **W + X · t / (Z − t)**
+  (footprint W, thickness t, far edge X from the axis, lens height Z). Only a telecentric lens removes this.
+- **Scale unverified:** the calibration in force is a multi-view solve from 2026-09-28, 63 views at a reprojection
+  RMS of 0.45 px, 0.102 mm/px. A good fit shows that the lens model is consistent, not that the sizes are right.
+- **Catalogue mode:** with the scale moved to the part's top face, the 22 plates read −0.77 to +0.76 mm off 60 × 40
+  (tolerance ±1.5 mm, 2026-10-11), their centres up to 46.3 mm from the frame centre. **Not verified:** the parts were
+  not calipered. Beyond 46.4 mm, where the side-wall term predicts up to about 1 mm more, plates out to 66.6 mm read
+  within tolerance, uncalipered, noted in the session log only. The 0.01 mm display is formatting: a pixel is ~0.10 mm.
+
+### The describer is not a defect detector
+
+**A description without a stain is not evidence there isn't one.** Whether a stain, scratch or corrosion is reported
+depends on how the part is framed, and nothing in the output marks a miss. A defect no check names (a scratch, a
+dent) is detected by nothing. A catalogue mode detects only its item's defined defects (for the mounting plate:
+stains on the machined front, missing through-holes, a size out of tolerance), within the limits of the next section.
+
+- **Evidence** (an earlier seven-frame test set): one rust stain was named at crop paddings 0.20 and 0.36 and
+  missed at 0.00–0.12 and 0.28 (0.00 and 0.20 the same when run again), a step with the framing. The shipped 0.20
+  happens to report it. One stain on one frame is a reason for more caution, not less.
+
+### A catalogue mode checks only what its item lists
+
+**An OK means the part passed the checks its catalogue item lists, not that nothing else is wrong.** Checked
+off-hardware on the 41 test frames and the 78 edge-of-view frames, and in use at station SF4 on 2026-10-29.
+
+- **A hole where the catalogue puts none is not reported**: holes are counted near their expected positions only.
+- **A stain is caught by its colour under this light**: a yellow-brown area of 1 mm² or more on the mounting
+  plate's front. Another colour, or this colour under another light, is not verified.
+- **A part outside the inspection area is never judged**: only one wholly inside the frame inset by 10 mm (top,
+  bottom) and 13 mm (sides) gets OK or NOK, the rest a Warning with no hole or stain check. The area is ~101 mm high,
+  so an upright plate can move only ~±20 mm. The insets are not verified by the left and bottom edges or corners.
+- **The Similarity tab is not a defect map**: glare shows on it too, and no state reads it.
+- **The describer's words are guarded, not trusted**: a sentence contradicting the checks, naming them or with a
+  number is dropped and logged, by reading words, so a paraphrase can pass. The state never comes from it.
+
+The open behaviours that decide nothing are in [KNOWN_ISSUES.md](KNOWN_ISSUES.md). These three were the
+README's *Limitations* until the owner removed that section on 2026-11-03 (`ea26ff0`); they are kept here, worded
+as they were.
 
 ## Verified on hardware, and not yet
 
@@ -510,7 +561,7 @@ Each row names its evidence. A row with none is not verified.
 | Installer: OpenCV's headless build only | Its step ran for real on the development Linux machine (2026-10-13) against a scratch environment with both OpenCV 5.0.0.93 builds: the GUI build removed, the headless one reinstalled, cv2 importing without Qt plugins, a second run installing nothing. **Not run on the station**, where the abort was seen | [*Only OpenCV's headless build is installed…*](design-decisions.md#only-opencvs-headless-build-is-installed-the-installer-removes-the-gui-build-and-the-application-refuses-it) |
 | Windows | **Never tried**, not a target | README > Platform |
 | Multi-view calibration of the rig's camera | Solved on the rig, 2026-09-28: 63 views, RMS 0.45 px | `Calibration.Solved` in the calibration file; commit `eb00508` |
-| Absolute size against parts of known size | **Not verified** | [README > Limitations](../../README.md#limitations) |
+| Absolute size against parts of known size | **Not verified** | [Known limitations](#known-limitations) |
 | Empty-surface reference `Image_Background_001` | Re-shot on the rig 2026-10-12, with its provenance sidecar; on the 41 test frames (shot with the previous one) no object, side or verdict changes, sizes within 0.23 mm | commit `8798dae` |
 | `make_reference.py`: 8 frames, the empty-table check, the camera-in-use message | Off-hardware with a stand-in camera; the check with the real FastSAM on the shipped reference and `Image_062`. On the rig (2026-10-13): 16 empty frames through the same camera path found nothing in either mode; the script itself, writing into a scratch directory, shot 8 frames, compared with `Image_Background_001`, wrote a reference whose station loads, left the station file unchanged and printed line 99; with a second process holding the camera it named the camera as in use and wrote nothing. **Not run against the running AnyScan application** (a second pylon process stood in for it), **and no reference adopted from it** | `test/Camera/test_reference_harnesses.py`; [*A new reference is the mean of 8 frames…*](design-decisions.md#a-new-reference-is-the-mean-of-8-frames-shot-by-the-tool-and-refused-if-the-application-finds-anything-on-it) |
 | The sensor window set and read back on CONNECT | Verified, 2026-09-24 16:20, after a power-cycle from factory defaults | Session log: *Camera set to 1920 × 1200 at offset (8, 8) of its 1936 × 1216 sensor, exposure 10000 µs, gain 10.00, BayerRG8 (read back from the camera)*; status bar 1920 × 1200 |
@@ -530,7 +581,7 @@ Each row names its evidence. A row with none is not verified.
 | Inspection area | Off-hardware, 2026-10-16, on the 91 mounting-plate frames of the test set and the three capture sets on disk (215 objects): every object outside the area a Warning, every one inside keeping its verdict. The insets were chosen from the plates' measured errors (design-decisions). Drawn and looked at in the offscreen Camera View, **not looked at on the rig's screen**. By the bottom edge, one plate judgement 2.3 mm inside the area (2026-10-29, the row *Use at the station*). **No capture yet along the left edge or in the corners** | `test/Vision/Utilities/test_classify.py::test_only_an_object_wholly_inside_the_inspection_area_is_judged`, `test/UI/test_inspection_area.py`, `test/integration/test_edge_of_view.py` |
 | Side, holes and stains by the edge of the view | Off-hardware, 2026-10-15, on the 78 mounting-plate frames (the test set and the five capture sets), plate centres 3.4–66.6 mm from the frame centre: every plate's side right, every hole found and within tolerance (bores within 0.205 mm of their countersinks' axes), every stain found; synthetic bores 1.5–3 mm off their countersinks' axes caught everywhere (3,584 of 3,584). Beyond 50 mm only the right edge was covered. These measurements set the inspection area's insets; the plates beyond it are now Warnings, not checked. The regression frames are stored as crops that reproduce every decision, not every measured value | `test/integration/test_edge_of_view.py`; [KNOWN_ISSUES](KNOWN_ISSUES.md#the-inspection-areas-insets-rest-on-plates-measured-mostly-by-the-right-edge) |
 | Defect detection, a catalogued item's defined defects (the mounting plate: stains on the machined front, missing through-holes, a size out of tolerance; the hole check also counts extra holes and measures each hole's diameter, position and pitch) | Built. **Stains** caught on real frames: the five fingerprinted fronts of the test set (off-hardware), every stain on the 78 edge-of-view frames (off-hardware, 2026-10-15), and stains reported in all 8 judgements of a stained front at station `SF4` (2026-10-29). **Missing holes and sizes out of tolerance**: decided by logic tested on synthetic inputs only, since no recorded part had either. Limits: this light and this table (the stain check is a colour band of this light), no calipered ground truth, precision and recall unmeasured | the rows *Catalogue stain check on the test set*, *Side, holes and stains by the edge of the view* and *Use at the station*, above; `test/Vision/Utilities/test_holes.py`, `test/Vision/Utilities/test_dimensions.py`; [KNOWN_ISSUES](KNOWN_ISSUES.md#the-stain-checks-colour-band-is-this-lights) |
-| Open-set defect detection on any part (a scratch, a dent, any defect no catalogue check names) | **Not built**: the describer is not a defect detector | [README > Limitations](../../README.md#the-describer-is-not-a-defect-detector) |
+| Open-set defect detection on any part (a scratch, a dent, any defect no catalogue check names) | **Not built**: the describer is not a defect detector | [Known limitations](#the-describer-is-not-a-defect-detector) |
 
 ## Keeping this file true
 

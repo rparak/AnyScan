@@ -24,8 +24,8 @@ visual inspection can work on their own parts (README > Funding).
 - **People:** Roman Parak (author, owner), Lukas Moravansky, Vojtěch Marek, Filip Rusnak (contributors)
   (README > Authors).
 - **Disclaimer the project states:** sizes are repeatable, not absolute, and their scale is not verified. The
-  describer is not a defect detector, and a catalogue mode's OK covers only its item's checks (README, the
-  `[!IMPORTANT]` alert).
+  describer is not a defect detector, and a catalogue mode's OK covers only its item's checks (SPEC > Known
+  limitations; the README's alert and *Limitations* were removed by the owner on 2026-11-03).
 
 | Step | What happens | Where |
 |---|---|---|
@@ -61,7 +61,7 @@ What was tested: the calibration, solved on the rig from 63 views at a reproject
 (`test/integration/test_pipeline.py`, `CONST_INVENTORY`), which run in the suite on the current code. The 78
 edge-of-view mounting-plate frames: every side, hole and stain right (SPEC > Verified on hardware, *Side, holes and
 stains by the edge of the view*). The size checks verified out to 46.4 mm from the frame centre
-(`CONST_VERIFIED_RADIUS_MM`, `src/Vision/Utilities/Classify.py`). No part was calipered (README > Limitations).
+(`CONST_VERIFIED_RADIUS_MM`, `src/Vision/Utilities/Classify.py`). No part was calipered (SPEC > Known limitations).
 
 Cannot cite: accuracy or error rates, absolute sizes, real use at the station, other defect types, another light or
 table, the left edge and corners of the inspection area, the cable pull, a moving hand, the station event export.
@@ -118,7 +118,7 @@ moving hand, the station event export.
 - Never give a replaced image its old name (DD *A replaced image never keeps its name*).
 - Regenerate generated figures, never edit them (SPEC > Architecture).
 - Keep Gemma 4 E4B as the describer unless a measurement beats it (DD *E4B stays the describer on both machines…*).
-- Claim no accuracy without a recorded ground truth (README > Limitations).
+- Claim no accuracy without a recorded ground truth (SPEC > Known limitations).
 
 ## 5. How work is done
 
@@ -154,7 +154,7 @@ moving hand, the station event export.
 - **Known issues** (`KNOWN_ISSUES.md`): sizes beyond 46.4 mm unverified, the inspection area's insets measured
   mostly by the right edge, the capture sets of 2026-10-29 stamped one hour ahead (station not checked yet),
   touching parts merging, and the stain check's colour band being this light's.
-- **Three limitations that affect decisions:** README > Limitations.
+- **Three limitations that affect decisions:** SPEC > Known limitations.
 
 ## 7. The assistant's role
 

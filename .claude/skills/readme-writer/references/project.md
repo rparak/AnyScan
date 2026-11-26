@@ -15,7 +15,6 @@ differ. The checker's reasoned exceptions are in `check_readme.json`, beside thi
 | What the README shows | Source | Pinned by |
 |---|---|---|
 | Platform: per-object times, memory peaks, GPU minimum, identical output across runs | DD entries of the measured runs (macOS; Linux 2026-09-29, commit `3cec51a`) | - (by hand) |
-| Limitations: size errors, scale, the side-wall term, tolerances | the DD and KNOWN_ISSUES entries behind each limitation (not linked) | - (by hand) |
 | Model and download sizes (5.2 GB, 145 MB, 346 MB) | `install.sh` constants and the Setup instructions | - (by hand) |
 | The test set: 41 frames, `Image_055`-`095` | `Data/Images/Test/` | `test/integration/test_pipeline.py::test_the_inventory_names_every_frame_of_the_test_set` |
 | The EU disclaimer | `UI.Widgets.Funding_Row_Cls.DISCLAIMER` | `test/UI/test_funding_band.py` |
@@ -36,10 +35,10 @@ The one list of what makes a change update the README (feature-manager's `projec
 | an option of `App/run.py` or an `Example/` script | *Workflow*, *Validation*, *Tests* | - |
 | a step of the operator's sequence, a tool's output path or message (`install.sh`, `calibrate.py`, `make_reference.py`, the window), or a time it quotes | *Workflow* (and SPEC > *Run sequence*) | - |
 | a run on the rig or at a station, or a capture still to do | *Validation* (and SPEC > *Verified on hardware, and not yet*) | - |
-| the window, the analysis or the mounting-plate mode as the clip shows them | Figure 3 | `.venv/bin/python Example/UI/analysis_animation.py --frame <set>_raw.png` |
+| the window, the analysis or the mounting-plate mode as the clip shows them | Figure 3 (a new screen recording, cut as *Figures* says) | - |
 | a configuration file name, kind or link | *Configuration* | - |
 | a measured run on a platform | *Platform* (the table and its numbers) | - |
-| a limitation found, measured or lifted | *Limitations* (and KNOWN_ISSUES, the DD) | - |
+| a limitation found, measured or lifted | nothing in the README: SPEC > *Known limitations* holds them (and KNOWN_ISSUES, the DD) | - |
 | a root entry, a folder, a committed asset | *Repository layout* (its `<details>`, with the packages under `src/`) | - |
 | the test layers or their commands | *Tests* | - |
 | an author or a contributor added or renamed (the owner's words only) | *Authors* (a cell: avatar, name, role) | - |
@@ -60,13 +59,14 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   After replacing the logo, run `build_logo.py` first, then `architecture_diagram.py` (the diagram embeds
   the logo); `test/UI/test_brand_figures.py` fails when they disagree. This is the one place the
   regeneration rule is written; project-style-rpx and jic-sf-ui-style point here.
-- **The animation**, `images/anyscan-analysis.webp`: written by `Example/UI/analysis_animation.py --frame <set>_raw.png`
-  (the README's replays set `20261029-144501_15` of the AnyScan-Media archive, captures/20261029-143904_s1),
-  regenerated, never edited. **It is the one figure not reproduced byte for byte** (the owner's ruling, 2026-11-03): it
-  runs the real models, so the panel's measured inference time differs between runs, and on another backend so may
-  the descriptions' wording. Its grabs follow events and its clock is frozen, so nothing else of the run shows.
-  `test/UI/test_analysis_animation.py` holds the script on the stand-in runtimes and the committed clip to the
-  README's limits: 960 px wide, at most 10 s, at most 5 MB. Its caption gives the analysis time the script printed.
+- **The animations** (Phase C, the owner, 2026-11-26): Figure 3, `images/anyscan-scan-analyze.webp` (live preview,
+  SCAN, the frame, the analysis grid, the result), is cut from the AnyScan-Media archive's screen recording of station
+  SF4 (footage/Screen, 2026-11-19): only the Camera View card, never the recording's first seconds (an editor and a
+  terminal) or a stretch with a hand under the camera. Animated WebP, at most 720 px wide, 12-15 fps, 3-6 s, under
+  400 kB, each action shown to its end; a part played faster says so in the caption (the analysis at 2.5x). Not
+  generated, so not reproduced byte for byte; the cut is kept outside the repository with the video's build.
+  `test/UI/test_analysis_animation.py` holds each README animation to these limits, and
+  `Example/UI/analysis_animation.py` on the stand-in runtimes (its replay clip is no longer the README's).
 - **Photographs and screenshots** (`images/anyscan-station.jpg`, `images/anyscan-live-*.jpg`): taken from the
   AnyScan-Media archive, not generated. They are exported as JPEG quality 85, 1600 px wide, with every metadata block
   dropped (the station photo carried GPS tags), the station photo cropped above the monitor so no window or office
@@ -106,15 +106,15 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 
 - **The top block**: Figure 1 and its caption, the paragraph that says two cues are fused and links
   *Detection logic*, the station photo (Figure 2, the README's first view of the system) and the animation
-  (Figure 3) with their captions, one `[!IMPORTANT]` alert repeating only the must-not-miss part of *Limitations*,
-  then the Contents line (R4, 2026-11-03).
+  (Figure 3) with their captions, then the Contents line (R4, 2026-11-03). No alert: the owner removed it with
+  *Limitations* on 2026-11-03 (`ea26ff0`).
 - **Detection logic** states the stages briefly: the shared stages named in one sentence, then in one `text` block
   naming each stage's module and function, collapsed (R5), and the catalogue stages, one numbered item each with
   their thresholds, in a `<details>` block; `.claude/project-docs/SPEC.md` > *Pipeline stages* lists them one line each,
   and the two agree.
-- **Headings cited from elsewhere stay as they are**: *Setup*, *Platform*, *Limitations* and *Licence
-  note* are named in operator messages and code comments ("README > Setup"), and SPEC links `#setup`,
-  `#limitations`, `#platform` and `#detection-logic` (checked by `test_capabilities_doc.py`).
+- **Headings cited from elsewhere stay as they are**: *Setup*, *Platform* and *Licence note* are named in
+  operator messages and code comments ("README > Setup"), and SPEC links `#setup`, `#validation`, `#platform`
+  and `#detection-logic` (checked by `test_capabilities_doc.py`).
 - **Commands** use one spelling, the interpreter `./install.sh` creates: `.venv/bin/python …`, the tests as
   `.venv/bin/python -m pytest`, the Hugging Face CLI as `.venv/bin/hf`, never an activated environment (the owner,
   2026-11-03; `CLAUDE.md` spells them the same).
@@ -145,8 +145,9 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   `python -c` one-liner, the folders' `text` block and the avatars' `width="120px;"`. Figure 11's alt
   text and the funding SVG's `aria-label` (written by `Example/UI/architecture_diagram.py`) list the
   three logos the same way, with commas.
-- **Limitations** follow project-style-rpx `project.md` > *Records*: three limitations, each the
-  consequence first, then the evidence, then whether it is verified.
+- **No *Limitations* section** (the owner removed it and the top block's alert on 2026-11-03, `ea26ff0`): the three
+  limitations are SPEC > *Known limitations*, worded as they were, and the README states none of them. *Validation*
+  keeps its own sentence that nothing there measures accuracy.
 - **No internal document is linked or named** (the owner's ruling, 2026-10-24): nothing in
   `.claude/project-docs/`, and never the Claude Code skills. A fact the README needs is stated where it
   is used; a reader who needs more reads the code and its comments.
@@ -162,8 +163,7 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
   file, the four shared stages, the catalogue stages, the models and the Linux measurement (with the determinism
   note), the repository's folders, swapping a component, and the third-party components (the owner's rulings of
   2026-10-24 and 2026-11-03, and R5's and R6's). The platforms, `./install.sh`, the Workflow, the top block's figures,
-  the gallery's first row, the alert, the lamp and station-copy rules, the limitations and the station's validation
-  stay visible.
+  the gallery's first row, the lamp and station-copy rules and the station's validation stay visible.
 - **Checker false positive**: `5.0.0.93` (line ~62, the opencv-python-headless version) is reported as
   an IP address; it is a version.
 
@@ -174,7 +174,7 @@ machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** (Linux
 | `test/UI/test_brand_figures.py::test_the_readme_shows_the_diagram` | Figure 1 is in the README |
 | `test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output` | Figure 1 is the script's output |
 | `test/UI/test_brand_figures.py::test_the_readme_funding_row_is_the_generators_and_self_contained` | Figure 11 is the script's output |
-| `test/UI/test_analysis_animation.py` | Figure 3's script, and the committed clip's width, length and size |
+| `test/UI/test_analysis_animation.py` | the replay script, and each README animation's width, length, frame rate and size |
 | `test/UI/test_funding_band.py::test_the_disclaimer_is_kept_word_for_word_in_the_readme_and_the_diagram` | the EU disclaimer, word for word |
 | `test/integration/test_pipeline.py::test_the_inventory_names_every_frame_of_the_test_set` | the test set the README counts |
 

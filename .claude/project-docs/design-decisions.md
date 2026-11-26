@@ -3,7 +3,7 @@
 The reasoning behind the non-obvious choices in the vision port, so the next person does
 not undo them. Each entry states the decision, the reason, and what would justify
 revisiting it. This is the counterpart to [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md), which
-records open behaviours, and to README > Limitations, which records the three limitations that
+records open behaviours, and to SPEC > Known limitations, which records the three limitations that
 affect decisions; this file records deliberate choices whose motivation is not visible in the
 code. A change that contradicts one of these should cite why the reason no longer holds.
 
@@ -715,7 +715,7 @@ Each masked object is measured from the minimum-area rotated rectangle of its ma
   confused shape. Symmetric and unmeasured objects keep the single solid axis box; the label mask
   is unchanged.
 
-**Revisit if** a part family needs orientation modulo 60° (hex). See README > Limitations: the
+**Revisit if** a part family needs orientation modulo 60° (hex). See SPEC > Known limitations: the
 sizes are repeatable, not absolute, and stand unverified against parts of known size.
 Tests `test/Vision/Utilities/test_measure.py`, `test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
 
@@ -733,7 +733,7 @@ and every size became whole millimetres — coarser at the moment the lens model
 warning. A value whose meaning changes when the calibration moves is worse than a fixed constant.
 **Displayed precision is now finer than measured precision:** the second digit is below one pixel
 (0.10 mm) at the current factor, and a size already carries a position-dependent error of up to
-about 1.5 mm near the frame edge (README > Limitations). Two decimals are a formatting choice — not
+about 1.5 mm near the frame edge (SPEC > Known limitations). Two decimals are a formatting choice — not
 improved resolution, and not a reason to go back to a derived count.
 
 **Revisit if** a size is ever compared or tolerance-checked as text, or the display needs to state
@@ -773,7 +773,7 @@ number.
 
 **Revisit if** another polygonal family appears (an octagonal part would need its own harmonic and
 its own evidence), or if the nuts' measured A/F disagrees with a caliper by more than the position
-and thickness effect in README > Limitations explains.
+and thickness effect in SPEC > Known limitations explains.
 Tests `test/Vision/Utilities/test_measure.py` (`test_hexagonal_part_reports_across_flats`,
 `test_a_disc_of_any_size_is_round_not_across_flats`, label and stored-record tests),
 `test/integration/test_pipeline.py::test_symmetric_parts_measure_as_diameters_on_real_captures` (slow).
@@ -1310,7 +1310,7 @@ costs are neighbours in the crop and what the framing does to the description.
   edge"). It misses it at 0.00–0.12 ("unevenness", "patina", "signs of handling") and again at
   **0.28** ("slight discoloration … upper section"). The result is deterministic but not
   monotonic: whether the most important condition in the set is reported depends on the framing,
-  not on how much context there is (README > Limitations, *The describer is not a defect detector*).
+  not on how much context there is (SPEC > Known limitations, *The describer is not a defect detector*).
 - **Shape.** The hex nut #7 reads as a circular washer or ring at 0.00 and 0.04, and as polygonal
   from 0.08 ("outer hexagonal profile" at 0.12). That is the Florence failure mode in milder form.
   The other hex nut, #8, reads as circular at **every** padding. This is the limitation already in
@@ -1456,7 +1456,7 @@ reads, mode → station → calibration, as arrows: the station holds the refere
 calibration, which is required, gives the undistortion and the mm/px. A Records card under the application shows
 the capture sets, the run CSV and the session log, because History and Log are views of those records. The
 wording is held to the real limits: the describer describes objects (no defect or pass/fail claim), and the
-measurement is "in mm, when the camera is calibrated" with no accuracy adjective (README > Limitations).
+measurement is "in mm, when the camera is calibrated" with no accuracy adjective (SPEC > Known limitations).
 
 *History:* the first diagram went 111 commits without an update because nothing linked to it; a detailed version
 (class names, configuration sections, import layers) was replaced on 2026-09-27 by this overview, which was brought
@@ -2635,10 +2635,10 @@ object on the 41 frames the item's size.
   identified, and a size shown must be the size checked. Other objects' sizes are off by the
   difference between their height and the item's, about 0.28 % per millimetre.
 - **The parts are not calipered.** The owner's ruling: treat them as nominal, so a part within tolerance
-  reads within. "Within tolerance" here means consistent with nominal, not a verified size; README >
-  Limitations says what that leaves open.
+  reads within. "Within tolerance" here means consistent with nominal, not a verified size; SPEC > Known
+  limitations says what that leaves open.
 
-**Revisit if** a part's measured sizes drift with its position (the side wall: see README > Limitations),
+**Revisit if** a part's measured sizes drift with its position (the side wall: see SPEC > Known limitations),
 the parts are calipered (then compare against the true sizes, not the nominal), or the calibration is
 re-solved at another board height (the correction follows it, but re-check the margins).
 Tests `test/Configuration/test_core.py::test_the_scale_at_a_height_follows_the_pinhole_model`,
@@ -2900,7 +2900,7 @@ stains unmerged). 2–4 mm gives exactly two regions on every fingerprinted fron
 two across the hole on 074 and 076; 3 mm is the middle. The merge changes no verdict: what makes a part NOK is the
 1 mm² fragment.
 
-**Why colour, not the describer.** A describer is not a detector (README > Limitations), and the stain is a
+**Why colour, not the describer.** A describer is not a detector (SPEC > Known limitations), and the stain is a
 texture with no boundary FastSAM would give.
 
 **Revisit if** the light, the camera's settings or the table change (the band is this light's: KNOWN_ISSUES),

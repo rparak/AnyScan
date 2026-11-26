@@ -2,7 +2,7 @@
 
 Open behaviours of the pipeline that show up in its text or its numbers, recorded so they are
 recognised when they appear. Nobody decides anything on them. **The three limitations that do affect
-decisions are in the README, under [Limitations](../../README.md#limitations).**
+decisions are in the SPEC, under [Known limitations](SPEC.md#known-limitations).**
 
 Each entry states the behaviour, what it affects, and why it is not fixed. An entry is removed when
 the behaviour is fixed, and the resolution is recorded in `design-decisions.md`.
@@ -375,7 +375,7 @@ capture `20261015-143622_s1`, object 3: a back with no holes, NOK, no hole mark.
 
 The size checks were verified on real frames only out to 46.4 mm from the frame centre
 (`Vision.Utilities.Classify.CONST_VERIFIED_RADIUS_MM`: the farthest judged mounting plate of the test set, 46.32 mm,
-Image_072). Farther out the side-wall term predicts up to about 1 mm more (README > Limitations), beyond the plates'
+Image_072). Farther out the side-wall term predicts up to about 1 mm more (SPEC > Known limitations), beyond the plates'
 0.73 mm margin to the tolerance. A part there is judged on its size exactly as one at the centre: this radius is
 evidence for the log, not a branch of the rule. (Outside the station's inspection area a part is not judged at all:
 *The inspection area's insets rest on plates measured mostly by the right edge*, below. The 2026-10-15 captures
@@ -429,7 +429,7 @@ and hole-diameter error of the plates inside stays within half its tolerance. Wh
 - **The corners are not measured.** A plate wholly inside the area can lie up to about 67 mm from the frame centre
   (in a corner, its long side upright); the farthest judged inside lies 58.4 mm out. Between, nothing was measured.
 - **One plate exceeds the criterion wherever the area lies.** `Image_083`'s plate, 14.2 mm from the centre, reads
-  0.77 mm off its nominal size against the 0.75 mm half tolerance. No inset could change it, so it was set aside; the plates are not measured with calipers (README > Limitations), so part of
+  0.77 mm off its nominal size against the 0.75 mm half tolerance. No inset could change it, so it was set aside; the plates are not measured with calipers (SPEC > Known limitations), so part of
   that is the plate itself.
 - **The plates past the area are not judged.** By the right edge, where the captures of 2026-10-15 and
   2026-10-16 put them on purpose, they lie over the area's edge and are Warnings, with no check run on them.

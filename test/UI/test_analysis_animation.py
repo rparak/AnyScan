@@ -51,20 +51,29 @@ import UI.Core as UI_Core
 Description:
     Example/UI/analysis_animation.py, the README's animation: its recording runs the real window, dialog and
     workers on the stand-in runtimes (test/conftest.py fake_runtimes) and grabs on events in order, the clip it
-    writes stays within 10 s, the clock is frozen, the script refuses a missing frame in a fresh interpreter, and
-    the committed images/anyscan-analysis.webp is an animation within the README's limits. The clip itself is not
-    compared byte for byte: it runs the real models (readme-writer references/project.md > Figures).
+    writes stays within 10 s, the clock is frozen, and the script refuses a missing frame in a fresh interpreter.
+
+    The README's two animations, images/anyscan-scan-analyze.webp (Figure 3) and images/anyscan-history-filter.webp,
+    are cut from the owner's screen recording of station SF4, not written by the script (readme-writer
+    references/project.md > Figures); they are held here to the README's limits for an animation.
 """
 CONST_PROJECT_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 CONST_SCRIPT = os.path.join(CONST_PROJECT_FOLDER, 'Example', 'UI', 'analysis_animation.py')
-CONST_CLIP = os.path.join(CONST_PROJECT_FOLDER, 'images', 'anyscan-analysis.webp')
+CONST_CLIPS = [os.path.join(CONST_PROJECT_FOLDER, 'images', name)
+               for name in ('anyscan-scan-analyze.webp', 'anyscan-history-filter.webp')]
 CONST_HARDWARE = 'a2A1920_51gcPRO_Computar_M1228_MPW3'
 CONST_RECTS = [(300, 300, 560, 560), (1200, 700, 1480, 980)]
-# The README's limits for the clip: its length, its file size and its width.
-#   Unit [ms] / [byte] / [px]
+# The script's limits for the clip it writes: its length and its width.
+#   Unit [ms] / [px]
 CONST_MAX_LENGTH_MS = 10000
-CONST_MAX_BYTES = 5 * 1024 * 1024
 CONST_WIDTH = 960
+# The README's limits for an animation (the owner, Phase C, 2026-11-26): its width, its length, its frame rate (a
+# frame lasts 1/15 to 1/12 s, or a whole number of those when the encoder merged identical frames) and its size.
+#   Unit [px] / [ms] / [ms] / [byte]
+CONST_README_MAX_WIDTH = 720
+CONST_README_LENGTH_MS = (3000, 6000)
+CONST_README_FRAME_MS = (66, 84)
+CONST_README_MAX_BYTES = 400 * 1024
 
 
 @pytest.fixture(scope='module')
@@ -189,15 +198,19 @@ def test_the_script_refuses_a_missing_frame_in_a_fresh_interpreter(tmp_path) -> 
     assert not os.path.exists(output)
 
 
-def test_the_committed_clip_is_an_animation_within_the_readmes_limits() -> None:
+@pytest.mark.parametrize('clip', CONST_CLIPS, ids=os.path.basename)
+def test_each_readme_animation_is_within_the_readmes_limits(clip) -> None:
     """
     Description:
-        images/anyscan-analysis.webp is an animated WebP, CONST_WIDTH wide, at most CONST_MAX_LENGTH_MS long and
-        CONST_MAX_BYTES large, with more than the three frames before the analysis.
+        Each of the README's animations is an animated WebP of more than one frame, at most CONST_README_MAX_WIDTH
+        wide, CONST_README_LENGTH_MS long, played at 12 to 15 frames a second, and under CONST_README_MAX_BYTES.
     """
 
-    width, durations = _Webp_Frames(CONST_CLIP)
-    assert width == CONST_WIDTH
-    assert len(durations) > 3
-    assert sum(durations) <= CONST_MAX_LENGTH_MS
-    assert os.path.getsize(CONST_CLIP) <= CONST_MAX_BYTES
+    width, durations = _Webp_Frames(clip)
+    assert 0 < width <= CONST_README_MAX_WIDTH
+    assert len(durations) > 1
+    assert CONST_README_LENGTH_MS[0] <= sum(durations) <= CONST_README_LENGTH_MS[1]
+    frame = min(durations)
+    assert CONST_README_FRAME_MS[0] <= frame <= CONST_README_FRAME_MS[1]
+    assert all(d % frame == 0 for d in durations), 'a frame is not a whole number of the clip\'s frame time'
+    assert os.path.getsize(clip) < CONST_README_MAX_BYTES

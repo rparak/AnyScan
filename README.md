@@ -18,10 +18,11 @@ Two independent cues are fused, so an object is kept if **either** one finds it 
 
 **Figure 2:** The station at JIC Smart Factory, AnyScan in the mounting-plate catalogue mode, 2026-11-03.
 
-![A recorded frame, catalogue mode, SF4, 2026-10-29, cropped: plate 2 NOK for two stains (2.5, 2.6), plate 3 OK, each hole's countersink and through-hole boxed.](images/anyscan-analysis.png)
+![AnyScan's Camera View at station SF4: the live preview of five objects on the green table, SCAN takes a still frame, ANALYZE sweeps a pixel grid across it, then the mounting plate is boxed in orange-red as NOK for two stains and four foreign objects in amber as Warnings](images/anyscan-scan-analyze.webp)
 
-**Figure 3:** SCAN, then ANALYZE, replayed offscreen by `Example/UI/analysis_animation.py` on a frame recorded at
-station SF4 on 2026-10-29, not a live recording. The analysis took 19 s on the Mac and is shown in 3 s.
+**Figure 3:** SCAN, then ANALYZE, on the station's screen at SF4, 2026-11-19, a screen recording of the Camera View:
+the live preview, the frame taken once nothing moves, the analysis grid, then each object in its state's colour. The
+analysis is shown at 2.5 times its speed, the rest in real time.
 
 **Contents:** [Setup](#setup) · [Workflow](#workflow) · [Configuration](#configuration) ·
 [Validation](#validation) · [Tests](#tests) · [Detection logic](#detection-logic) ·
