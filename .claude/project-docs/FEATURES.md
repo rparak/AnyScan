@@ -14,6 +14,13 @@ KNOWN_ISSUES.
   the LinkedIn cut and the four thumbnails are built outside the repository (`~/Desktop/AnyScan-Video/`) and never
   committed (design-decisions, *The README's media come from the station's own recordings*). Awaiting the owner's
   acceptance.
+- **README v11** (owner, 2026-11-26, before Phase D), on branch `readme-v11`: the README restructured (headline,
+  poster, what AnyScan does, architecture, catalogue mode, the station, quick start, requirements and platforms,
+  configuration, records, development, documentation, authors, licence, citation, funding; 250 visible lines), every
+  figure a still (no animation), Figure 1 in the station's order with Public Sans embedded and without the funding
+  band, the headline, the catalogue item card and the models table generated, the recorded stills built outside the
+  repository; the headings renamed with every citation (design-decisions, *The README shows stills only, each
+  explaining one thing*). Phase D adds the `docs/` links, the limitations included. Awaiting the owner's acceptance.
 - **Figure 5's link** (owner, 2026-11-26): the video poster links to the owner's YouTube channel
   (`https://www.youtube.com/@RomanParak/videos`) until the video is published; then a small commit changes it to the
   video's own URL.

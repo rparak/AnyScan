@@ -48,8 +48,8 @@ visual inspection can work on their own parts (README > Funding).
 - **Platforms:** Apple-silicon macOS, measured, where development runs (Apple M2 Pro). Linux with an NVIDIA GPU,
   verified on one machine (RTX 5070 Ti, CUDA 13, 2026-09-29), which is station `SF4` and was in real use on
   2026-10-29. Windows never tried (SPEC > Verified on hardware, DD *The owner's statements of 2026-10-29*).
-- **Checks:** 1560 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
-  189 s by default and 484 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
+- **Checks:** 1567 tests collected in both tiers (slow tests are collected and skipped without `--runslow`),
+  183 s by default and 496 s with `--runslow`, the style checker at 11 known issues (`CLAUDE.md` > Commands). A
   file a test leaves open fails the suite (`pytest.ini`).
 - **Revisions:** R1 and R2 accepted 2026-10-29, R3, R4 and R5 2026-11-03. R6 (the poster dropped, history
   rewritten) is open (`FEATURES.md`).
