@@ -485,6 +485,12 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
   the application's copies of the delivered logo (the logo without its tagline, the mark, and the icon: the mark on a
   transparent ground, grid-fitted at each of 16-256 px), and build the
   bundled fonts (Public Sans and JetBrains Mono).
+- `UI/readme_diagrams.py` — draw the README's two light/dark diagram pairs for `<picture>`: the pipeline (frame, find,
+  describe and measure, judge, record; `images/anyscan-pipeline-{light,dark}.png`) and the three models (role, what
+  it runs on, the pin and the size `install.sh` holds; `images/anyscan-models-{light,dark}.png`), from the theme
+  tokens, the pixel icon set and the bundled fonts, at 1760 px for the README's ~880. The dark versions lie on a
+  transparent ground. `--check` exits 1 when a committed image is stale, `--out` writes elsewhere;
+  `test/UI/test_readme_diagrams.py` holds the committed images to its output, pixel for pixel.
 - `UI/analysis_animation.py` — write a replay clip of the window (by default `images/anyscan-analysis.webp`, which the
   README no longer shows: its Figure 3 is a screen recording since 2026-11-26): the window offscreen
   replaying one recorded frame (`--frame`, as `App/run.py --frame`) through the shipped mounting-plate mode with the
