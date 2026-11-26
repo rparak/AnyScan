@@ -53,7 +53,7 @@ Description:
     workers on the stand-in runtimes (test/conftest.py fake_runtimes) and grabs on events in order, the clip it
     writes stays within 10 s, the clock is frozen, and the script refuses a missing frame in a fresh interpreter.
 
-    The README's two animations, images/anyscan-scan-analyze.webp (Figure 3) and images/anyscan-history-filter.webp,
+    The README's two animations, images/anyscan-scan-analyze.webp (Figure 4) and images/anyscan-history-filter.webp,
     are cut from the owner's screen recording of station SF4, not written by the script (readme-writer
     references/project.md > Figures); they are held here to the README's limits for an animation.
 """

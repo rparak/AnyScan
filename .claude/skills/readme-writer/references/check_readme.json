@@ -6,6 +6,9 @@
     {"src": "https://avatars.githubusercontent.com/piifl", "reason": "an author avatar in the README's Authors row, not a figure (owner, 2026-10-29)"}
   ],
   "image_budgets": [
+    {"glob": "images/anyscan-station.webp", "max_kb": 400, "reason": "a still of the station footage, 1600 px, under 400 kB (the owner, 2026-11-26)"},
+    {"glob": "images/anyscan-catalogue-*.webp", "max_kb": 400, "reason": "stills from the video, the catalogue card and the NOK verdict, 1600 px, under 400 kB (the owner, 2026-11-26)"},
+    {"glob": "images/anyscan-describe.webp", "max_kb": 400, "reason": "a still from the video, the model's words, 1600 px, under 400 kB (the owner, 2026-11-26)"},
     {"glob": "images/anyscan-*.webp", "max_kb": 400, "reason": "the README's animations: at most 720 px, 12-15 fps, 3-6 s, under 400 kB (the owner, Phase C, 2026-11-26)"},
     {"glob": "images/anyscan-video.jpg", "max_kb": 500, "reason": "the video poster, 1920 px, under 500 kB (the owner, Phase C, 2026-11-26)"},
     {"glob": "images/anyscan-*-dark.png", "max_kb": 400, "reason": "the dark half of a <picture> diagram pair, drawn at 1760 px (Example/UI/readme_diagrams.py)"},

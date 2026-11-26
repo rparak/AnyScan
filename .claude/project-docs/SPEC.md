@@ -493,7 +493,7 @@ path; the one exception, `calibrate.py --capture`, says so where it is.
   transparent ground. `--check` exits 1 when a committed image is stale, `--out` writes elsewhere;
   `test/UI/test_readme_diagrams.py` holds the committed images to its output, pixel for pixel.
 - `UI/analysis_animation.py` — write a replay clip of the window (by default `images/anyscan-analysis.webp`, which the
-  README no longer shows: its Figure 3 is a screen recording since 2026-11-26): the window offscreen
+  README no longer shows: its Figure 4 is a screen recording since 2026-11-26): the window offscreen
   replaying one recorded frame (`--frame`, as `App/run.py --frame`) through the shipped mounting-plate mode with the
   real models, loaded through the Configuration dialog, then CONNECT, SCAN and ANALYZE, grabbed on events (each badge
   change), never on a timer, with the window's clock frozen. The analysis plays in 3 s whatever it took, and the
