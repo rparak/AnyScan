@@ -23,16 +23,16 @@ Two independent cues are fused, so an object is kept if **either** one finds it 
 </tr>
 </table>
 
-![AnyScan's Camera View at station SF4: the live preview of five objects on the green table, SCAN takes a still frame, ANALYZE sweeps a pixel grid across it, then the mounting plate is boxed in orange-red as NOK for two stains and four foreign objects in amber as Warnings](images/anyscan-scan-analyze.webp)
+![AnyScan's Camera View on the station: the live preview of five objects on the green table, SCAN takes a still frame, ANALYZE sweeps a pixel grid across it, then the mounting plate is boxed in orange-red as NOK for two stains and four foreign objects in amber as Warnings](images/anyscan-scan-analyze.webp)
 
-**Figure 4:** SCAN, then ANALYZE, on the station's screen at SF4, 2026-11-19, a screen recording of the Camera View:
+**Figure 4:** SCAN, then ANALYZE, on the station's screen, 2026-11-19, a screen recording of the Camera View:
 the live preview, the frame taken once nothing moves, the analysis grid, then each object in its state's colour. The
 analysis is shown at 2.5 times its speed, the rest in real time.
 
 [![The AnyScan video's opening frame: the words Any part on the table, then Found, Described, Measured and Judged, each beside its pixel icon, in AnyScan's purple on white, linking to the AnyScan video on YouTube](images/anyscan-video.jpg)](https://www.youtube.com/@RomanParak/videos)
 
 **Figure 5:** The AnyScan video on YouTube: the station, each step (find, describe and measure, judge) and its use
-at SF4.
+at the station.
 
 **Contents:** [Setup](#setup) · [Workflow](#workflow) · [Configuration](#configuration) ·
 [Validation](#validation) · [Tests](#tests) · [Detection logic](#detection-logic) ·
@@ -42,7 +42,7 @@ at SF4.
 ## Setup
 
 AnyScan runs on **macOS on Apple silicon** (Verified, measured) and on **Linux with an NVIDIA GPU** (Verified on one
-machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29). Windows is Never tried, not a target
+machine, 2026-09-29, and in real use on it as a station at JIC Smart Factory on 2026-10-29). Windows is Never tried, not a target
 ([Platform](#platform)). The installer creates the virtual environment, installs the dependencies for the hardware
 (Metal, or MLX's CUDA 12 or 13 backend by the driver) and downloads the three models, each checksum-verified. It is
 safe to re-run. Every later command runs `.venv/bin/python`:
@@ -193,12 +193,12 @@ Without the camera, pass a saved 1920×1200 frame (a configuration must still be
 
 <table>
 <tr>
-<td width="33%" valign="top"><a href="images/anyscan-trends-catalogue.jpg"><img src="images/anyscan-trends-catalogue.jpg" width="100%" alt="AnyScan's Trends view in the mounting-plate catalogue mode at station SF4: the cumulative count of objects found over the session's fifteen images, in total and as OK, NOK and Warning, above each image's mean confidence"></a>
-<br><b>Figure 7:</b> Trends, mounting-plate catalogue mode, station SF4, 2026-10-29: the objects found over the session, in total and per state, and each image's mean confidence.</td>
-<td width="33%" valign="top"><a href="images/anyscan-history-filter.webp"><img src="images/anyscan-history-filter.webp" width="100%" alt="AnyScan's History view at station SF4, a screen recording: the Captures card's state filter steps from All to NOK, OK and Warning and back to All, the capture-set thumbnails changing with each, each set outlined in its state's colour"></a>
-<br><b>Figure 8:</b> History at station SF4, 2026-11-19, a screen recording in real time: the session's capture sets filtered by state, from All through NOK, OK and Warning back to All.</td>
+<td width="33%" valign="top"><a href="images/anyscan-trends-catalogue.jpg"><img src="images/anyscan-trends-catalogue.jpg" width="100%" alt="AnyScan's Trends view in the mounting-plate catalogue mode on the Linux station: the cumulative count of objects found over the session's fifteen images, in total and as OK, NOK and Warning, above each image's mean confidence"></a>
+<br><b>Figure 7:</b> Trends, mounting-plate catalogue mode, the Linux station, 2026-10-29: the objects found over the session, in total and per state, and each image's mean confidence.</td>
+<td width="33%" valign="top"><a href="images/anyscan-history-filter.webp"><img src="images/anyscan-history-filter.webp" width="100%" alt="AnyScan's History view on the Linux station, a screen recording: the Captures card's state filter steps from All to NOK, OK and Warning and back to All, the capture-set thumbnails changing with each, each set outlined in its state's colour"></a>
+<br><b>Figure 8:</b> History on the Linux station, 2026-11-19, a screen recording in real time: the session's capture sets filtered by state, from All through NOK, OK and Warning back to All.</td>
 <td width="33%" valign="top"><a href="images/anyscan-scan-nok-ok.jpg"><img src="images/anyscan-scan-nok-ok.jpg" width="100%" alt="Close-up of a recorded catalogue frame: on the left a mounting plate NOK, its two fingerprint stains tinted and boxed on the machined front, on the right a clean plate OK, each countersink and through-hole boxed and numbered"></a>
-<br><b>Figure 9:</b> A recorded frame, catalogue mode, SF4, 2026-10-29, cropped: plate 2 NOK for two stains (2.5, 2.6), plate 3 OK, each hole's countersink and through-hole boxed.</td>
+<br><b>Figure 9:</b> A recorded frame, catalogue mode, the Linux station, 2026-10-29, cropped: plate 2 NOK for two stains (2.5, 2.6), plate 3 OK, each hole's countersink and through-hole boxed.</td>
 </tr>
 </table>
 
@@ -209,14 +209,14 @@ Without the camera, pass a saved 1920×1200 frame (a configuration must still be
 <tr>
 <td width="33%" valign="top"><a href="images/anyscan-live-catalogue.jpg"><img src="images/anyscan-live-catalogue.jpg" width="100%" alt="AnyScan's Live view in the mounting-plate catalogue mode: five objects boxed on the green table, one plate OK, one plate NOK for two stains on its machined front, three foreign objects as Warnings, and their descriptions in the Scene Understanding panel"></a>
 <br><b>Figure 10:</b> The Live view in the mounting-plate catalogue mode, 2026-11-03: one plate OK, one NOK for two stains on its machined front (a catalogued defect), three foreign objects as Warnings.</td>
-<td width="33%" valign="top"><a href="images/anyscan-live-segment-anything.jpg"><img src="images/anyscan-live-segment-anything.jpg" width="100%" alt="AnyScan's Live view in the Segment Anything mode at station SF4: ten objects boxed and numbered on the green table, each described in words and measured in millimetres in the Scene Understanding panel"></a>
-<br><b>Figure 11:</b> The Live view in the Segment Anything mode at station SF4, 2026-10-29: every object found, described and measured, no state.</td>
-<td width="33%" valign="top"><a href="images/anyscan-mask-catalogue.jpg"><img src="images/anyscan-mask-catalogue.jpg" width="100%" alt="AnyScan's Mask view in the mounting-plate catalogue mode at station SF4: each object's mask on a black ground, tinted and outlined in its state's colour, a plate NOK, a plate OK and foreign objects as Warnings"></a>
+<td width="33%" valign="top"><a href="images/anyscan-live-segment-anything.jpg"><img src="images/anyscan-live-segment-anything.jpg" width="100%" alt="AnyScan's Live view in the Segment Anything mode on the Linux station: ten objects boxed and numbered on the green table, each described in words and measured in millimetres in the Scene Understanding panel"></a>
+<br><b>Figure 11:</b> The Live view in the Segment Anything mode on the Linux station, 2026-10-29: every object found, described and measured, no state.</td>
+<td width="33%" valign="top"><a href="images/anyscan-mask-catalogue.jpg"><img src="images/anyscan-mask-catalogue.jpg" width="100%" alt="AnyScan's Mask view in the mounting-plate catalogue mode on the Linux station: each object's mask on a black ground, tinted and outlined in its state's colour, a plate NOK, a plate OK and foreign objects as Warnings"></a>
 <br><b>Figure 12:</b> The Mask view, same session: each object's label mask on black, in its state's colour.</td>
 </tr>
 <tr>
 <td width="33%" valign="top"><a href="images/anyscan-scan-segment-anything.jpg"><img src="images/anyscan-scan-segment-anything.jpg" width="100%" alt="Close-up of a recorded Segment Anything frame: six objects on the green table, a maze plate, a blue printed lattice, a red block, a terminal strip, a screw and a washer, each outlined and numbered"></a>
-<br><b>Figure 13:</b> A recorded frame, Segment Anything mode, SF4, 2026-10-29, cropped: every object numbered and outlined (solid the rotated outline, dashed the outer box), its size in the Scene Understanding panel (1 at 50.2 × 50.1 mm, 3 at 96.3 × 25.8 mm).</td>
+<br><b>Figure 13:</b> A recorded frame, Segment Anything mode, the Linux station, 2026-10-29, cropped: every object numbered and outlined (solid the rotated outline, dashed the outer box), its size in the Scene Understanding panel (1 at 50.2 × 50.1 mm, 3 at 96.3 × 25.8 mm).</td>
 </tr>
 </table>
 
@@ -262,7 +262,7 @@ name, change only `General.Station_Events.Directory`, and start with `--config <
 What ran on real hardware, and what did not. No part was calipered and no session recorded each part's expected
 result, so nothing here measures accuracy: it shows the station working.
 
-**At station SF4, 2026-10-29.** Two sessions of real use at JIC Smart Factory (Linux, RTX 5070 Ti). Segment Anything:
+**At the Linux station, 2026-10-29.** Two sessions of real use at JIC Smart Factory (Linux, RTX 5070 Ti). Segment Anything:
 13 scans, 70 objects, each described and measured. Mounting plate: 15 scans, 51 objects, 12 OK, 10 NOK and 29 Warning
 (27 foreign objects, 2 outside the area). Its 20 plate judgements were within tolerance on all 212 feature checks, at
 59.78–60.69 × 39.21–40.64 mm against 60 × 40 ± 1.5 mm, and the catalogued stain check reported the stains in all 8
@@ -388,7 +388,7 @@ from the recorded analysis (capture set 20261119-120833_1).
 | Platform | Status | What is known |
 |---|---|---|
 | **macOS, Apple silicon** | **Verified, measured** | MLX on the Apple GPU (Metal), on a 16 GB M2 Pro. 2.20 s per object (warm) and a 9.35 GB pipeline peak, on a seven-frame test set before the current one (2026-09-25). A replay repeats word for word on the same machine (2026-10-29). |
-| **Linux** | **Verified on one machine, 2026-09-29, and in real use on it as station SF4 on 2026-10-29** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer refuses below it). On an RTX 5070 Ti with the CUDA 13 backend: 0.65 s per object (warm), 9.5 GB GPU peak for the whole application, output identical word for word between two processes. Not compared with the Mac's text. |
+| **Linux** | **Verified on one machine, 2026-09-29, and in real use on it as a station at JIC Smart Factory on 2026-10-29** | MLX's CUDA backend on an NVIDIA GPU with at least 11 GB (the installer refuses below it). On an RTX 5070 Ti with the CUDA 13 backend: 0.65 s per object (warm), 9.5 GB GPU peak for the whole application, output identical word for word between two processes. Not compared with the Mac's text. |
 | **Windows** | **Never tried, not a target** | Nothing known prevents it (`mlx` publishes Windows wheels), but it is not supported. |
 
 <details>
