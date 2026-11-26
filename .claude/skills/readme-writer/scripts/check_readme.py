@@ -71,7 +71,8 @@ TMP_PATH_PATTERN = r'(?<![\w.~/])/tmp/[^\s)"\'`<>]*'
 # The project's exceptions (readme-writer's project layer, as check_style.json is project-style-rpx's), each with its
 # reason and reported as an INFO line when it applies:
 #   uncaptioned_figures  figures that are not figures - a brand mark in the header - listed by their image file; they
-#                        need no caption and are not numbered;
+#                        need no caption and are not numbered; an entry may set "min_alt_words" (a positive integer)
+#                        when the mark's alt text is only its names, its reason saying so;
 #   image_budgets        per-image size budgets by glob over the path as the README writes it ([{"glob", "max_kb",
 #                        "reason"}], the first match wins), for media the project decided may be larger (an animated preview);
 #   media_budget         the budget of all images shown together ({"max_mb", "reason"}).
@@ -365,6 +366,8 @@ def load_config(readme, findings):
         for entry in config.get('uncaptioned_figures', []):
             if not isinstance(entry, dict) or not entry.get('src') or not entry.get('reason'):
                 raise ValueError('each uncaptioned_figures entry needs "src" and "reason"')
+            if 'min_alt_words' in entry and not (isinstance(entry['min_alt_words'], int) and entry['min_alt_words'] > 0):
+                raise ValueError('an uncaptioned_figures entry\'s "min_alt_words" must be a positive integer')
         for entry in config.get('image_budgets', []):
             if not isinstance(entry, dict) or not entry.get('glob') or not entry.get('reason') \
                     or not _positive(entry.get('max_kb')):
@@ -387,10 +390,12 @@ def _positive(value):
 def check_figures(readme, min_alt_words, findings, config):
     numbers = []
     exempt = {entry['src']: entry['reason'] for entry in config.get('uncaptioned_figures', [])}
+    alt_minimum = {entry['src']: entry['min_alt_words'] for entry in config.get('uncaptioned_figures', [])
+                   if 'min_alt_words' in entry}
     for start, end, alt, source in figures(readme, with_source=True):
-        words = len((alt or '').split())
-        if words < min_alt_words:
-            findings.append(Finding('ERROR', 'alt-text', start, 'alt text has %d words, at least %d needed' % (words, min_alt_words)))
+        words, needed = len((alt or '').split()), alt_minimum.get(source, min_alt_words)
+        if words < needed:
+            findings.append(Finding('ERROR', 'alt-text', start, 'alt text has %d words, at least %d needed' % (words, needed)))
         caption, number = None, end + 1
         while number <= len(readme.prose):
             line = readme.prose[number - 1]

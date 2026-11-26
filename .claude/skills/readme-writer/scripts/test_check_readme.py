@@ -116,6 +116,23 @@ class CheckReadmeTest(unittest.TestCase):
         self.write(check_readme.CONFIG_RELATIVE, '{"uncaptioned_figures": [{"src": "Media/logo.png"}]}')
         self.assertEqual(len(self.errors(text, 'config')), 1)
 
+    def test_a_listed_brand_mark_may_lower_its_alt_text_minimum_and_nothing_else_does(self):
+        text = CLEAN.replace('<picture>', ('<picture>\n  <source media="(prefers-color-scheme: dark)" srcset="Media/logo_dark.svg">\n'
+                                                '  <img src="Media/logo.svg" alt="Product, made at Lab" width="400">\n</picture>\n\n<picture>'), 1)
+        self.write('Media/logo.svg', '<svg/>')
+        self.write('Media/logo_dark.svg', '<svg/>')
+        self.write(check_readme.CONFIG_RELATIVE, '{"uncaptioned_figures": [{"src": "Media/logo.svg", "reason": "the mark"}]}')
+        self.assertEqual(len(self.errors(text, 'alt-text')), 1)
+        self.write(check_readme.CONFIG_RELATIVE, '{"uncaptioned_figures": [{"src": "Media/logo.svg", "reason": "the mark, '
+                                                 'its alt its names", "min_alt_words": 4}]}')
+        self.assertEqual(self.errors(text), [])
+        self.write(check_readme.CONFIG_RELATIVE, '{"uncaptioned_figures": [{"src": "Media/logo.svg", "reason": "x", '
+                                                 '"min_alt_words": 5}]}')
+        self.assertEqual(len(self.errors(text, 'alt-text')), 1)
+        self.write(check_readme.CONFIG_RELATIVE, '{"uncaptioned_figures": [{"src": "Media/logo.svg", "reason": "x", '
+                                                 '"min_alt_words": 0}]}')
+        self.assertEqual(len(self.errors(text, 'config')), 1)
+
     # -- the clean README
 
     def test_the_clean_readme_has_no_errors_or_warnings(self):
