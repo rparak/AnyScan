@@ -78,7 +78,7 @@ recorded annotation keeps the application's own type (below). Numbering, in docu
 | 5 architecture | `images/anyscan-architecture.svg` | `Example/UI/architecture_diagram.py` (below) |
 | 6 pipeline | `images/anyscan-pipeline-{light,dark}.png` | `Example/UI/readme_diagrams.py`, 1760 px |
 | 7 catalogue item | `images/anyscan-catalogue-item-{light,dark}.webp` | `Example/UI/readme_diagrams.py` from `Data/Catalogue/mounting_plate/`, 1760 px, WebP 92 |
-| 8 NOK and OK, and the words | `images/anyscan-verdict-{light,dark}.webp` | plate 3 of `20261119-120833_1` (NOK) beside plate 3 of `20261119-120856_2` (OK, the clean plate in its place 23 s later), both cropped to 760-1300 × 300-1010 of `_annotated.png`, each verdict, size and side from `_objects.json` and `_understanding.txt`, and two sentences of the NOK plate's recorded description, 1760 px, WebP 92 |
+| 8 NOK and OK, and the words | `images/anyscan-verdict-{light,dark}.webp` | plate 3 of `20261119-120833_1` (NOK) beside plate 3 of `20261119-120856_2` (OK, the clean plate in its place 23 s later), both cropped to 760-1300 × 300-1010 of `_annotated.png`, each verdict, size and side from `_objects.json` and `_understanding.txt`, under the NOK plate its `Reason:` line and under the OK plate (whose record has no reason line) one sentence of its own description, both quoted exactly and checked against the record by the build, then two sentences of the NOK plate's recorded description, 1760 px, WebP 92 |
 | 9, 10 the station | `images/anyscan-station-photo.webp`, `images/anyscan-station.webp` | the photo `Photos/IMG_2658.jpeg` (2026-11-03), cropped where the earlier JPEG was (found by template matching, 0.989), 2000 px, WebP 90, its metadata dropped (it carried GPS tags); the still of the station footage IMG_2704 6.0-7.5 s, tone-mapped HLG to BT.709, 1600 px, side by side |
 | 11 funding | `images/anyscan-funding.svg` | `Example/UI/architecture_diagram.py` (`Draw_Funding_Band`) |
 
@@ -88,10 +88,12 @@ recorded annotation keeps the application's own type (below). Numbering, in docu
 - **Figure 5** is `Example/UI/architecture_diagram.py`'s SVG, in the station's order (capture, find, measure, what a
   catalogue mode adds, then describe), without the funding band (Figure 11 and the disclaimer carry it), its words in
   Public Sans subsets embedded as WOFF data URIs (OFL 1.1 declares no Reserved Font Name, so a subset keeps the name,
-  and each subset keeps the font's name table with its copyright and licence notice). Its smallest words (the group
-  tags, the verdict kinds) render at 11.8 px at 880, its card words at 12.8 px; the owner kept the figure's layout
-  (2026-11-26). `test/UI/test_brand_figures.py` holds it to the generator (the font bytes masked), its subsets to
-  every character, and its order. `Example/UI/build_logo.py` derives the logo copies in `App/assets/` from
+  and each subset keeps the font's name table with its copyright and licence notice). Its type is the console's scale
+  at 1.55x: the smallest words (the group tags, the verdicts and their kinds, the view buttons, the notes) render at
+  13.05 px at 880, the card words at 14.2 px, the titles at 18.8 px (the owner, 2026-11-26). The generator wraps
+  every card's words by measuring them in the embedded face, sizes each card and the figure to its words, and refuses
+  a title or a word that cannot fit. `test/UI/test_brand_figures.py` holds it to the generator (the font bytes
+  masked), its subsets to every character, its order, and every font size to 13 px or more at 880. `Example/UI/build_logo.py` derives the logo copies in `App/assets/` from
   `images/anyscan-logo.svg`, never edited by hand either. After replacing the logo, run `build_logo.py` first, then
   `architecture_diagram.py` (the diagram and the headline embed the logo); `test/UI/test_brand_figures.py` fails when
   they disagree. This is the one place the regeneration rule is written; project-style-rpx and jic-sf-ui-style point
@@ -181,6 +183,7 @@ recorded annotation keeps the application's own type (below). Numbering, in docu
 | `test/UI/test_brand_figures.py::test_the_diagram_is_the_generators_output` | Figure 5 is the script's output (the font bytes masked) |
 | `test/UI/test_brand_figures.py::test_the_diagram_embeds_public_sans_for_every_character_it_sets` | Figure 5's embedded subsets |
 | `test/UI/test_brand_figures.py::test_the_diagram_follows_the_stations_order` | Figure 5's order |
+| `test/UI/test_brand_figures.py::test_every_word_of_the_diagram_is_13_px_or_more_at_the_readme_width` | Figure 5's smallest text |
 | `test/UI/test_brand_figures.py::test_the_headline_is_the_generators_and_draws_the_two_logo_files_unchanged` | the headline |
 | `test/UI/test_brand_figures.py::test_the_readme_opens_with_the_headline_light_and_dark` | the headline's place, `<picture>` and alt text |
 | `test/UI/test_brand_figures.py::test_the_readme_funding_row_is_the_generators_and_self_contained` | Figure 11 is the script's output |

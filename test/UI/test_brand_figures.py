@@ -368,6 +368,22 @@ def test_the_diagram_embeds_public_sans_for_every_character_it_sets() -> None:
         assert missing == [], 'weight %s misses %s' % (weight, missing)
 
 
+def test_every_word_of_the_diagram_is_13_px_or_more_at_the_readme_width() -> None:
+    """
+    Description:
+        Every font size the committed diagram sets, scaled from its width to the README's 880 px, is 13 px or more
+        (the owner, 2026-11-26): the group tags, the verdicts and their kinds, the view buttons and the notes too.
+    """
+
+    generator = _Generator()
+    diagram = _Read(CONST_DIAGRAM)
+    width = float(re.search(r'<svg [^>]*width="([\d.]+)"', diagram).group(1))
+    sizes = sorted({float(v) for v in re.findall(r'<text [^>]*font-size="([\d.]+)"', diagram)})
+    assert sizes, 'the scan found no text'
+    assert sizes[0] * generator.CONST_README_WIDTH / width >= generator.CONST_MIN_README_PX, \
+        'the smallest words render at %.2f px at the README width' % (sizes[0] * generator.CONST_README_WIDTH / width)
+
+
 def test_the_diagram_follows_the_stations_order() -> None:
     """
     Description:

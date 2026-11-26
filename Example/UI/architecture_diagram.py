@@ -41,6 +41,8 @@ from xml.sax.saxutils import escape
 import typing as tp
 # fontTools (Subsetting the bundled Public Sans for the embedded @font-face)
 from fontTools import subset as Font_Subset
+# Pillow (Measuring words in the bundled Public Sans, to wrap them into their cards) [pip3 install Pillow]
+from PIL import ImageFont
 # Custom Lib.: AnyScan — the colour tokens, the ONLY source of the diagram's colours
 #   ../Parameters/Theme
 import Parameters.Theme as Theme
@@ -107,11 +109,11 @@ CONST_LOGO_END = '<!-- logo:end -->'
 #   Unit [string]
 CONST_JIC_BEGIN = '<!-- jic:begin -->'
 CONST_JIC_END = '<!-- jic:end -->'
-# The drawing size in user units: wide, so it stays legible at README width (~880 px renders
-# it at 0.73).
-#   Unit [px]
+# The drawing width in user units (the README's ~880 px renders it at 0.73); its height follows from the cards'
+# words (Draw_Architecture), written where CONST_HEIGHT_SLOT stands.
+#   Unit [px] / [string]
 CONST_WIDTH = 1200
-CONST_HEIGHT = 1350
+CONST_HEIGHT_SLOT = '@HEIGHT@'
 # The header's logo: its top-left corner and its scale (logo units -> diagram units). The divider and
 # the JIC mark follow the top bar's rule (UI/Core.py): Style.CONST_MARK_GAP from ink to divider and
 # from divider to ink, scaled from the bar's Style.CONST_LOGO_HEIGHT px lockup to this logo's height.
@@ -131,9 +133,6 @@ CONST_JIC_Y = 52.2
 # The header divider's stroke width.
 #   Unit [px]
 CONST_DIVIDER_WIDTH = 1.5
-# The top edge of the group of what sets the stages up.
-#   Unit [px]
-CONST_SET_TOP = 1046
 # The icon's drawn size (12 cells of 3 px: at the earlier 28 px line icons' size a cell would be 2.33 px and the grid
 # would smear) and its inset from a card's right edge; it is centred on the title's capitals.
 #   Unit [px]
@@ -156,10 +155,27 @@ CONST_FONT_DATA = re.compile(r'(data:font/woff;base64,)[A-Za-z0-9+/=]+')
 CONST_BAND_LABELS = {'edih-digimat-white.svg': 'EDIH-DIGIMAT',
                      'partner-ministry-white.svg': 'Ministry of Industry and Trade of the Czech Republic',
                      'funder-eu-white.svg': 'Funded by the European Union'}
-# The console's type scale (Style.CONST_TYPE_SCALE, in points) at 1.4x, so the smallest step
-# used still renders at about 12 px at README width.
+# The console's type scale (Style.CONST_TYPE_SCALE, in points) at 1.55x, so the smallest step the diagram uses
+# (S[2], 17.8 units: the group tags, the verdicts and their kinds, the view buttons, the notes) renders at 13 px
+# or more at the README's 880 px (the owner, 2026-11-26), and a card's words (S[3], 19.4) at 14.2 px.
 #   Unit [Vector<float>]
-CONST_SCALE = [round(size * 1.4, 1) for size in Style.CONST_TYPE_SCALE]
+CONST_SCALE = [round(size * 1.55, 1) for size in Style.CONST_TYPE_SCALE]
+# The smallest size the README may show [px] and the README's width [px], which test_brand_figures holds the
+# diagram's every font size to.
+#   Unit [float]
+CONST_MIN_README_PX = 13.0
+CONST_README_WIDTH = 880.0
+# A card's inner space: its words' left inset and the room kept above and below its text block.
+#   Unit [px]
+CONST_CARD_PAD = 24
+CONST_CARD_V_PAD = 22
+# The text block's vertical metrics, in proportion to the font sizes (measured on the 1.4x layout and kept): a
+# title's cap height and the gap from it to the first line, a line's pitch and its descender.
+#   Unit [-]
+CONST_CAP_RATIO = 22 / 23.1
+CONST_TITLE_GAP_RATIO = 30 / 23.1
+CONST_LINE_RATIO = 24 / 17.5
+CONST_DESCENDER_RATIO = 6 / 17.5
 # The font stack: the console's own candidates in its order, then the generic family.
 #   Unit [string]
 CONST_UI_FONT = ','.join(["'%s'" % name for name in Style.CONST_FONT_UI_CANDIDATES] + ['sans-serif'])
@@ -387,36 +403,35 @@ class Svg_Writer_Cls(object):
         self.Raw(Svg_Body(path).replace('<svg ', '<svg x="%g" y="%g" width="%g" height="%g" role="img" aria-label="%s" '
                                         % (x, y, round(h * w / h_box, 1), h, escape(label)), 1))
 
-    def Card(self, x: float, y: float, w: float, h: float, title: str, lines: tp.List[str],
+    def Card(self, x: float, y: float, w: float, h: float, title: str, text: str,
              icon: tp.Optional[str] = None) -> None:
         """
         Description:
-            A block: a card with a bold title and up to three lines under it, centred vertically.
+            A block: a card with a bold title and its words wrapped under it (Card_Lines), centred vertically.
 
         Args:
-            (1 - 4) x, y, w, h [float]: The position and size.
+            (1 - 4) x, y, w, h [float]: The position and size; h at least Card_Height(w, title, text).
             (5) title [string]: The block's name.
-            (6) lines [List<string>]: What it does, one short line each.
+            (6) text [string]: What it does, wrapped to the card.
             (7) icon [string]: The key in Pixel_Motif.CONST_PIXEL_ICONS drawn in the top-right corner, or None.
         """
 
         S = CONST_SCALE
+        lines = Card_Lines(w, title, text)
         self.Rect(x, y, w, h, Theme.CONST_CARD, Theme.CONST_CARD_BORDER)
-        # The text block runs from the title's cap height (~22 above its baseline) to the last
-        # line's descender (~6 below its baseline).
-        top = y + (h - (22 + 30 + 24 * (len(lines) - 1) + 6)) / 2 + 22
+        top = round(y + (h - Block_Height(len(lines), S[3])) / 2 + CONST_CAP_RATIO * S[6], 1)
         if icon is not None:
-            self.Icon(x + w - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top), icon,
-                      Theme.CONST_INK_SOFT)
-        self.Text(x + 24, top, title, S[6], Theme.CONST_INK, weight='700')
+            self.Icon(x + w - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top), icon, Theme.CONST_INK_SOFT)
+        self.Text(x + CONST_CARD_PAD, top, title, S[6], Theme.CONST_INK, weight='700')
         for i, line in enumerate(lines):
-            self.Text(x + 24, top + 30 + 24 * i, line, S[3], Theme.CONST_INK_SOFT)
+            self.Text(x + CONST_CARD_PAD, round(top + Title_Gap() + Line_Pitch(S[3]) * i, 1), line, S[3],
+                      Theme.CONST_INK_SOFT)
 
 
 def Icon_Top(baseline: float) -> float:
     """
     Description:
-        The top of a card's icon, centred on its title's capitals (~8 above the baseline, in S[6]).
+        The top of a card's icon, centred on its title's capitals (about 0.35 of the title size above the baseline).
 
     Args:
         (1) baseline [float]: The title's baseline.
@@ -425,7 +440,155 @@ def Icon_Top(baseline: float) -> float:
         (1) parameter [float]: The icon's top edge.
     """
 
-    return baseline - 8 - CONST_ICON_SIZE / 2
+    return round(baseline - 8 / 23.1 * CONST_SCALE[6] - CONST_ICON_SIZE / 2, 1)
+
+
+def Text_Width(text: str, size: float, weight: str = '400') -> float:
+    """
+    Description:
+        How wide words are in the bundled Public Sans of a weight (CONST_FONT_FILES), the face the SVG embeds.
+
+    Args:
+        (1) text [string]: The words.
+        (2) size [float]: The font size.
+        (3) weight [string]: '400', '500', '600' or '700'.
+
+    Returns:
+        (1) parameter [float]: The width in user units.
+    """
+
+    return ImageFont.truetype(os.path.join(CONST_FONT_FOLDER, CONST_FONT_FILES[weight]), size).getlength(text)
+
+
+def Wrap_Text(text: str, size: float, width: float, weight: str = '400') -> tp.List[str]:
+    """
+    Description:
+        Words broken into lines no wider than a width, measured in the embedded face.
+
+    Args:
+        (1) text [string]: The words.
+        (2) size [float]: The font size.
+        (3) width [float]: The width the lines may take.
+        (4) weight [string]: The weight.
+
+    Returns:
+        (1) parameter [List<string>]: The lines.
+
+    Raises:
+        ValueError: A single word is wider than the width, so the words cannot fit.
+    """
+
+    lines, line = [], ''
+    for word in text.split(' '):
+        if Text_Width(word, size, weight) > width:
+            raise ValueError("'%s' is wider than %g at %g; widen its card." % (word, width, size))
+        trial = (line + ' ' + word).strip()
+        if Text_Width(trial, size, weight) <= width or not line:
+            line = trial
+        else:
+            lines.append(line)
+            line = word
+    return lines + [line]
+
+
+def Line_Pitch(size: float) -> float:
+    """
+    Description:
+        The distance between two lines of words at a size.
+
+    Args:
+        (1) size [float]: The font size.
+
+    Returns:
+        (1) parameter [float]: The pitch.
+    """
+
+    return round(CONST_LINE_RATIO * size, 1)
+
+
+def Title_Gap() -> float:
+    """
+    Description:
+        The distance from a card title's baseline to its first line's.
+
+    Returns:
+        (1) parameter [float]: The gap.
+    """
+
+    return round(CONST_TITLE_GAP_RATIO * CONST_SCALE[6], 1)
+
+
+def Block_Height(lines: int, size: float) -> float:
+    """
+    Description:
+        A card's text block, from its title's cap height to its last line's descender.
+
+    Args:
+        (1) lines [int]: How many lines of words follow the title.
+        (2) size [float]: Their font size.
+
+    Returns:
+        (1) parameter [float]: The height.
+    """
+
+    return CONST_CAP_RATIO * CONST_SCALE[6] + Title_Gap() + Line_Pitch(size) * (lines - 1) + CONST_DESCENDER_RATIO * size
+
+
+def Card_Lines(w: float, title: str, text: str) -> tp.List[str]:
+    """
+    Description:
+        A card's words wrapped to its width, after checking its title fits beside its icon.
+
+    Args:
+        (1) w [float]: The card's width.
+        (2) title [string]: Its title.
+        (3) text [string]: Its words.
+
+    Returns:
+        (1) parameter [List<string>]: The lines.
+
+    Raises:
+        ValueError: The title or a word does not fit the card.
+    """
+
+    room = w - CONST_CARD_PAD - CONST_ICON_INSET - CONST_ICON_SIZE - 12
+    if Text_Width(title, CONST_SCALE[6], '700') > room:
+        raise ValueError("The title '%s' is wider than its card leaves beside the icon; widen the card." % title)
+    return Wrap_Text(text, CONST_SCALE[3], w - 2 * CONST_CARD_PAD)
+
+
+def Card_Height(w: float, title: str, text: str) -> float:
+    """
+    Description:
+        The height a card needs for its title and its wrapped words, with CONST_CARD_V_PAD above and below.
+
+    Args:
+        (1) w [float]: The card's width.
+        (2) title [string]: Its title.
+        (3) text [string]: Its words.
+
+    Returns:
+        (1) parameter [float]: The height.
+    """
+
+    return round(Block_Height(len(Card_Lines(w, title, text)), CONST_SCALE[3]) + 2 * CONST_CARD_V_PAD)
+
+
+def Tag(c: tp.Any, x_mid: float, y_mid: float, text: str) -> None:
+    """
+    Description:
+        A group's tag: its words in white on the brand purple, as wide as they are, centred on a point.
+
+    Args:
+        (1) c [Svg_Writer_Cls]: The document.
+        (2 - 3) x_mid, y_mid [float]: The tag's centre.
+        (4) text [string]: Its words.
+    """
+
+    S = CONST_SCALE
+    w, h = round(Text_Width(text, S[2], '700') + 28), round(1.75 * S[2])
+    c.Rect(round(x_mid - w / 2, 1), round(y_mid - h / 2, 1), w, h, Theme.CONST_BRAND)
+    c.Text(x_mid, round(y_mid + 0.35 * S[2], 1), text, S[2], Theme.CONST_ON_INK, weight='700', anchor='middle')
 
 
 def Svg_Body(path: str) -> str:
@@ -569,8 +732,8 @@ def Draw_Architecture(logo_svg: str) -> str:
 
     S = CONST_SCALE; T = Theme
     c = Svg_Writer_Cls()
-    c.Open('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" '
-           'aria-label="AnyScan architecture">' % (CONST_WIDTH, CONST_HEIGHT, CONST_WIDTH, CONST_HEIGHT))
+    c.Open('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%s" viewBox="0 0 %d %s" role="img" '
+           'aria-label="AnyScan architecture">' % (CONST_WIDTH, CONST_HEIGHT_SLOT, CONST_WIDTH, CONST_HEIGHT_SLOT))
     c.Add('<!-- Generated by Example/UI/architecture_diagram.py. Regenerate it, do not edit it by hand. -->')
     c.Add('<!-- The words are set in Public Sans (Copyright 2015 The Public Sans Project Authors), embedded as subsets '
           'under the SIL Open Font License 1.1: https://openfontlicense.org -->')
@@ -608,7 +771,8 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Blank()
 
     c.Add('<!-- The card: opaque, so the figure reads the same on a light or a dark README. -->')
-    c.Rect(0.75, 0.75, CONST_WIDTH - 1.5, CONST_HEIGHT - 1.5, T.CONST_BG, T.CONST_CARD_BORDER)
+    c.Add('<rect x="0.75" y="0.75" width="%g" height="%s" fill="%s" stroke="%s" stroke-width="1.5"/>'
+          % (CONST_WIDTH - 1.5, CONST_HEIGHT_SLOT + '-1.5', T.CONST_BG, T.CONST_CARD_BORDER))
     c.Blank()
 
     # The header, as the console's top bar: the lockup, a divider, the JIC mark.
@@ -635,137 +799,162 @@ def Draw_Architecture(logo_svg: str) -> str:
 
     c.Open('<g id="tagline">', 'Tagline')
     c.Add('<line x1="40" y1="126" x2="1160" y2="126" stroke="%s" stroke-width="1.5"/>' % T.CONST_CARD_BORDER)
-    c.Text(40, 168, 'AnyScan finds every object on a work surface, measures it and describes it. A catalogue mode also judges it.',
-           S[5], T.CONST_INK, weight='500')
+    # One sentence a line, each wrapped if it ever outgrows the width.
+    tagline = [line for sentence in ['AnyScan finds every object on a work surface, measures it and describes it.',
+                                     'A catalogue mode also judges it.']
+               for line in Wrap_Text(sentence, S[5], CONST_WIDTH - 80, '500')]
+    for i, line in enumerate(tagline):
+        c.Text(40, round(168 + 1.3 * S[5] * i, 1), line, S[5], T.CONST_INK, weight='500')
     c.Close('g')
     c.Blank()
 
-    # Every mode: three columns at one height; the arrows sit on the cards' middle line.
-    y, h = 232, 224
+    # Every mode: three columns at one height, as tall as the fullest card; the arrows sit on their middle line.
+    row = [(40, 232, 'Capture', 'a live preview while parts are placed, then a fresh frame once nothing moves, '
+                                'undistorted', 'camera'),
+           (316, 262, 'Find objects', 'two cues, fused: what differs from the empty surface, and a segmentation model',
+            'magnifier'),
+           (620, 212, 'Measure', 'size in mm, through the calibration', 'ruler')]
+    y = round(168 + 1.3 * S[5] * (len(tagline) - 1) + 64)
+    h = max([224] + [Card_Height(w, title, text) for _, w, title, text, _ in row])
     mid = y + h / 2
-    c.Open('<g id="capture">', '1. Capture: a live preview, then a fresh frame once nothing moves')
-    c.Card(40, y, 220, h, 'Capture', ['a live preview while', 'parts are placed,', 'then a fresh frame',
-                                      'once nothing moves,', 'undistorted'], icon='camera')
-    c.Close('g')
-    c.Arrow(266, mid, 300)
-    c.Blank()
-
-    c.Open('<g id="find">', '2. Find the objects: two cues, fused')
-    c.Card(306, y, 260, h, 'Find objects', ['two cues, fused: what', 'differs from the empty', 'surface, and a',
-                                            'segmentation model'], icon='magnifier')
-    c.Close('g')
-    c.Arrow(572, mid, 606)
-    c.Blank()
-
-    c.Open('<g id="measure">', '3. Each object: measured')
-    c.Rect(598, y - 20, 250, h + 40, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
-    c.Rect(618, y - 34, 124, 28, T.CONST_BRAND)
-    c.Text(680, y - 14, 'each object', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
-    c.Card(614, y, 218, h, 'Measure', ['size in mm,', 'through the', 'calibration'], icon='ruler')
-    c.Close('g')
-    c.Blank()
+    for (x, w, title, text, icon), (group, comment) in zip(row, [('capture', '1. Capture: a live preview, then a fresh '
+                                                                   'frame once nothing moves'),
+                                                                  ('find', '2. Find the objects: two cues, fused'),
+                                                                  ('measure', '3. Each object: measured')]):
+        c.Open('<g id="%s">' % group, comment)
+        if group == 'measure':
+            c.Rect(604, y - 20, 244, h + 40, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
+            Tag(c, 624 + (Text_Width('each object', S[2], '700') + 28) / 2, y - 20, 'each object')
+        c.Card(x, y, w, h, title, text, icon=icon)
+        c.Close('g')
+        if group != 'measure':
+            c.Arrow(x + w + 6, mid, x + w + 38)
+        c.Blank()
 
     # What a catalogue mode adds, for each object measured, in a group marked like 'each object': recognise, then the
     # inspection area under it, then the check and the verdict.
-    y_cat, h_cat = 546, 276
+    x_rec, w_rec, x_check, w_check, x_verdict, w_verdict = 56, 290, 380, 200, 614, 218
+    recognise = 'the catalogued part, by its reference images'
+    area = 'only a part wholly inside is judged. Outside: a part or a foreign object, by similarity, size, colour'
+    check = ('on the side that is up, by its references, else by its countersinks: size, holes, each bore centred in its '
+             'countersink (view angle corrected) and stains')
+    kinds = Wrap_Text('a kind: outside area, foreign object, several parts, side unclear or side mismatch', S[2],
+                      w_verdict - 2 * CONST_CARD_PAD)
+    chip_h, chip_gap = round(1.9 * S[2]), 10
+    h_states = round(CONST_CAP_RATIO * S[6] + 20 + 2 * chip_h + chip_gap + 18 + Line_Pitch(S[2]) * (len(kinds) - 1)
+                     + CONST_DESCENDER_RATIO * S[2])
+    h_recognise, gap = Card_Height(w_rec, 'Recognise', recognise), 34
+    h_area = Card_Height(w_rec, 'Inspection area', area)
+    y_cat = y + h + 90
+    h_cat = max(h_recognise + gap + h_area, Card_Height(w_check, 'Check', check), h_states + 2 * CONST_CARD_V_PAD)
     mid_cat = y_cat + h_cat / 2
-    h_recognise, gap = 96, 34
     y_area, h_area = y_cat + h_recognise + gap, h_cat - h_recognise - gap
     c.Open('<g id="catalogue">', '4. A catalogue mode then recognises its part, judges only inside the inspection area, '
            'checks the side that is up and gives each object a verdict')
     # Every object measured goes on to these steps: down from Measure, over, and into Recognise.
-    c.Elbow([(723, y + h + 26), (723, y + h + 45), (191, y + h + 45), (191, y_cat - 6)])
+    x_down, x_into = 726, x_rec + w_rec / 2
+    c.Elbow([(x_down, y + h + 26), (x_down, y + h + 45), (x_into, y + h + 45), (x_into, y_cat - 6)])
     c.Rect(40, y_cat - 20, 808, h_cat + 40, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
-    c.Rect(214, y_cat - 34, 320, 28, T.CONST_BRAND)
-    c.Text(374, y_cat - 14, 'catalogue mode adds, for each object', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
-    c.Card(56, y_cat, 270, h_recognise, 'Recognise', ['the catalogued part, by', 'its reference images'], icon='focus')
-    c.Elbow([(191, y_cat + h_recognise + 6), (191, y_area - 6)])
-    c.Card(56, y_area, 270, h_area, 'Inspection area', ['only a part wholly inside', 'is judged. Outside: a part',
-                                                        'or a foreign object, by', 'similarity, size, colour'],
-           icon='area')
-    c.Arrow(332, y_area + h_area / 2, 360)
-    c.Card(366, y_cat, 240, h_cat, 'Check', ['on the side that is up,', 'by its references, else',
-                                            'by its countersinks:', 'size, holes, each bore',
-                                            'centred in its countersink', '(view angle corrected)', 'and stains'],
-           icon='checklist')
-    c.Arrow(612, mid_cat, 640)
+    Tag(c, 440, y_cat - 20, 'catalogue mode adds, for each object')
+    c.Card(x_rec, y_cat, w_rec, h_recognise, 'Recognise', recognise, icon='focus')
+    c.Elbow([(x_into, y_cat + h_recognise + 6), (x_into, y_area - 6)])
+    c.Card(x_rec, y_area, w_rec, h_area, 'Inspection area', area, icon='area')
+    c.Arrow(x_rec + w_rec + 6, y_area + h_area / 2, x_check - 6)
+    c.Card(x_check, y_cat, w_check, h_cat, 'Check', check, icon='checklist')
+    c.Arrow(x_check + w_check + 6, mid_cat, x_verdict - 6)
     # The three verdicts, each a label in the purple on its state's ground, as the console's badges and History's
-    # filter, and under Warning the kinds Scene Understanding names (Parameters.Vision.CONST_WARNING_KINDS).
-    kinds = ['a kind: outside area,', 'foreign object,', 'several parts,', 'side unclear or', 'side mismatch']
-    h_states = 42 + 2 * 40 + 22 * len(kinds) - 6
-    top_states = y_cat + (h_cat - h_states) / 2
-    c.Rect(646, y_cat, 186, h_cat, T.CONST_CARD, T.CONST_CARD_BORDER)
-    c.Text(670, top_states + 22, 'Verdict', S[6], T.CONST_INK, weight='700')
-    c.Icon(832 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top_states + 22), 'badge', T.CONST_INK_SOFT)
-    for state, x_chip, row, w_chip in [('OK', 670, 0, 64), ('NOK', 742, 0, 72), ('Warning', 670, 1, 98)]:
-        y_chip = top_states + 42 + 40 * row
-        c.Rect(x_chip, y_chip, w_chip, 30, T.Label_Ground(state))
-        c.Text(x_chip + w_chip / 2, y_chip + 21, state, S[2], T.CONST_INK, weight='700', anchor='middle')
+    # filter, and under them the Warning kinds Scene Understanding names (Parameters.Vision.CONST_WARNING_KINDS).
+    top_states = round(y_cat + (h_cat - h_states) / 2 + CONST_CAP_RATIO * S[6], 1)
+    c.Rect(x_verdict, y_cat, w_verdict, h_cat, T.CONST_CARD, T.CONST_CARD_BORDER)
+    c.Text(x_verdict + CONST_CARD_PAD, top_states, 'Verdict', S[6], T.CONST_INK, weight='700')
+    c.Icon(x_verdict + w_verdict - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top_states), 'badge', T.CONST_INK_SOFT)
+    x_chip = x_verdict + CONST_CARD_PAD
+    for state, row_index in [('OK', 0), ('NOK', 0), ('Warning', 1)]:
+        if state == 'Warning':
+            x_chip = x_verdict + CONST_CARD_PAD
+        w_chip = round(Text_Width(state, S[2], '700') + 28)
+        y_chip = round(top_states + 20 + (chip_h + chip_gap) * row_index, 1)
+        c.Rect(x_chip, y_chip, w_chip, chip_h, T.Label_Ground(state))
+        c.Text(x_chip + w_chip / 2, round(y_chip + chip_h / 2 + 0.35 * S[2], 1), state, S[2], T.CONST_INK, weight='700',
+               anchor='middle')
+        x_chip += w_chip + 8
     for i, line in enumerate(kinds):
-        c.Text(670, top_states + 42 + 2 * 40 + 14 + 22 * i, line, S[2], T.CONST_INK_SOFT)
+        c.Text(x_verdict + CONST_CARD_PAD, round(top_states + 20 + 2 * chip_h + chip_gap + 18 + CONST_CAP_RATIO * S[2]
+                                                 + Line_Pitch(S[2]) * i, 1), line, S[2], T.CONST_INK_SOFT)
     c.Close('g')
     c.Blank()
 
     # Then every mode describes each object: after the verdict in a catalogue mode, told what the checks found; in a
     # detect-only mode straight after Measure, as the note above the card says.
-    y_describe, h_describe = 878, 120
+    describe = ('each object in words, by a local vision-language model. In a catalogue mode it is told what the checks '
+                'found, and a sentence that contradicts them is dropped.')
+    y_describe = y_cat + h_cat + 20 + 48
+    h_describe = Card_Height(808, 'Describe', describe)
     c.Open('<g id="describe">', '5. Each object: described, in a catalogue mode after its verdict and held to the checks')
-    c.Elbow([(739, y_cat + h_cat + 6), (739, y_describe - 6)])
-    c.Text(720, y_describe - 14, 'A detect-only mode goes from Measure straight to Describe.', S[2], T.CONST_INK_MUTE,
-           anchor='end')
-    c.Card(40, y_describe, 808, h_describe, 'Describe', ['each object in words, by a local vision-language model. In a catalogue mode it is',
-                                                         'told what the checks found, and a sentence that contradicts them is dropped.'],
-           icon='text')
+    x_verdict_mid = x_verdict + w_verdict / 2
+    c.Elbow([(x_verdict_mid, y_cat + h_cat + 6), (x_verdict_mid, y_describe - 6)])
+    c.Text(x_verdict_mid - 20, y_describe - 16, 'A detect-only mode goes from Measure straight to Describe.', S[2],
+           T.CONST_INK_MUTE, anchor='end')
+    c.Card(40, y_describe, 808, h_describe, 'Describe', describe, icon='text')
     c.Close('g')
     c.Arrow(854, y_describe + h_describe / 2, 886)
     c.Blank()
 
     c.Open('<g id="application">', '6. The desktop application and its four views')
     h_app = y_describe + h_describe - y
+    app = Wrap_Text('shows each object, its size and description, and, in a catalogue mode, its verdict', S[3],
+                    268 - 2 * CONST_CARD_PAD)
+    button_h, button_gap = round(2 * S[2]), 10
+    content = Block_Height(len(app), S[3]) + 30 + 2 * button_h + button_gap
+    top = round(y + (h_app - content) / 2 + CONST_CAP_RATIO * S[6], 1)
     c.Rect(892, y, 268, h_app, T.CONST_VIEWPORT)
-    top = y + (h_app - 250) / 2 + 22
     c.Text(916, top, 'Desktop app', S[6], T.CONST_VIEWPORT_TEXT, weight='700')
     c.Icon(1160 - CONST_ICON_INSET - CONST_ICON_SIZE, Icon_Top(top), 'window', T.CONST_VIEWPORT_TEXT)
-    for i, line in enumerate(['shows each object, its', 'size and description,', 'and, in a catalogue', 'mode, its verdict']):
-        c.Text(916, top + 30 + 24 * i, line, S[3], T.CONST_VIEWPORT_TEXT)
+    for i, line in enumerate(app):
+        c.Text(916, round(top + Title_Gap() + Line_Pitch(S[3]) * i, 1), line, S[3], T.CONST_VIEWPORT_TEXT)
+    y_buttons = round(top + Title_Gap() + Line_Pitch(S[3]) * (len(app) - 1) + CONST_DESCENDER_RATIO * S[3] + 30, 1)
     for i, view in enumerate(['Live', 'Trends', 'History', 'Log']):
-        x_view, y_view = 916 + 114 * (i % 2), top + 140 + 44 * (i // 2)
-        c.Rect(x_view, y_view, 106, 34, T.CONST_CARD, T.CONST_INK)
-        c.Text(x_view + 53, y_view + 23, view, S[2], T.CONST_INK, weight='600', anchor='middle')
+        x_view, y_view = 916 + 114 * (i % 2), round(y_buttons + (button_h + button_gap) * (i // 2), 1)
+        c.Rect(x_view, y_view, 106, button_h, T.CONST_CARD, T.CONST_INK)
+        c.Text(x_view + 53, round(y_view + button_h / 2 + 0.35 * S[2], 1), view, S[2], T.CONST_INK, weight='600',
+               anchor='middle')
     c.Close('g')
     c.Blank()
 
     # What sets the stages up, as cards in a group marked like 'each object': the mode names its station and
     # the station its calibration, a chain drawn with arrows; the mode also names any catalogue item, the station
     # the empty-surface reference.
-    y_set, h_set = CONST_SET_TOP, 264
+    chain = [('Mode', 'models and prompts, and its station', 'gear'),
+             ('Station', 'camera, light, table, inspection area, and its calibration', 'station'),
+             ('Calibration', 'undistortion and mm per pixel', 'target')]
+    named = [('Catalogue item', 'named by a catalogue mode: the part, its checks, reference images', 'catalogue'),
+             ('Reference', 'named by the station: the empty surface each frame is compared with', 'image')]
+    records = 'images and results of every analysis, the session log, a run summary and daily station events'
+    h_chain = max([120] + [Card_Height(232, title, text) for title, text, _ in chain])
+    h_named = max([96] + [Card_Height(383, title, text) for title, text, _ in named])
+    y_set = y_describe + h_describe + 48
+    h_set = max(22 + h_chain + 10 + h_named + 16, Card_Height(268, 'Records', records))
     c.Open('<g id="set-up">', 'What sets the stages up: the mode, which names the station, which names the calibration, '
            'the catalogue item, the reference')
     c.Rect(40, y_set, 808, h_set, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')
-    c.Rect(60, y_set - 14, 104, 28, T.CONST_BRAND)
-    c.Text(112, y_set + 6, 'set up by', S[2], T.CONST_ON_INK, weight='700', anchor='middle')
-    for i, (title, lines, icon) in enumerate([('Mode', ['models and prompts,', 'and its station'], 'gear'),
-                                              ('Station', ['camera, light, table,', 'inspection area, and',
-                                                           'its calibration'], 'station'),
-                                              ('Calibration', ['undistortion and', 'mm per pixel'], 'target')]):
-        c.Card(56 + 272 * i, y_set + 22, 232, 120, title, lines, icon=icon)
+    Tag(c, 60 + (Text_Width('set up by', S[2], '700') + 28) / 2, y_set, 'set up by')
+    for i, (title, text, icon) in enumerate(chain):
+        c.Card(56 + 272 * i, y_set + 22, 232, h_chain, title, text, icon=icon)
         if i:
-            c.Arrow(56 + 272 * i - 34, y_set + 82, 56 + 272 * i - 6)
-    for i, (title, lines, icon) in enumerate([('Catalogue item', ['named by a catalogue mode: the',
-                                                                  'part, its checks, reference images'], 'catalogue'),
-                                              ('Reference', ['named by the station: the empty',
-                                                             'surface each frame is compared with'], 'image')]):
-        c.Card(56 + 393 * i, y_set + 152, 383, 96, title, lines, icon=icon)
+            c.Arrow(56 + 272 * i - 34, y_set + 22 + h_chain / 2, 56 + 272 * i - 6)
+    for i, (title, text, icon) in enumerate(named):
+        c.Card(56 + 393 * i, y_set + 22 + h_chain + 10, 383, h_named, title, text, icon=icon)
     c.Close('g')
     c.Blank()
 
     c.Open('<g id="records">', 'What the application writes and reads back')
     c.Connector(1026, y_set, y + h_app + 4)
-    c.Card(892, y_set, 268, h_set, 'Records', ['images and results', 'of every analysis,', 'the session log,',
-                                                   'a run summary and', 'daily station events'], icon='folder')
+    c.Card(892, y_set, 268, h_set, 'Records', records, icon='folder')
     c.Close('g')
+    height = round(y_set + h_set + 40)
     c.Close('svg')
-    return c.Markup().replace(CONST_FONT_SLOT, Font_Face_Css(c.Characters()), 1)
+    markup = c.Markup().replace(CONST_FONT_SLOT, Font_Face_Css(c.Characters()), 1)
+    return markup.replace(CONST_HEIGHT_SLOT + '-1.5', '%g' % (height - 1.5)).replace(CONST_HEIGHT_SLOT, '%d' % height)
 
 
 # The headline's logo height in its own units (the logo's viewBox height, drawn at scale 1), the JIC Smart Factory

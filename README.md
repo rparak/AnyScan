@@ -120,11 +120,11 @@ and a reference image of each side. The item defines:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/anyscan-verdict-dark.webp">
-  <img src="images/anyscan-verdict-light.webp" width="100%" alt="Two recorded plates side by side: plate 3 with two stain boxes, NOK, 60.33 by 40.17 mm, machined front up, because there are two stains on the machined front, and the clean plate in its place, OK, 59.85 by 39.48 mm, every check passed; below, two sentences of plate 3's description by the local vision-language model, the words yellow-brown to brown stains of irregular shape highlighted">
+  <img src="images/anyscan-verdict-light.webp" width="100%" alt="Two recorded plates side by side: plate 3 with two stain boxes, NOK, 60.33 by 40.17 mm, machined front up, because there are two stains on the machined front, and the clean plate in its place, OK, 59.85 by 39.48 mm, with a sentence of its own description on its two stepped holes; below, two sentences of plate 3's description by the local vision-language model, the words yellow-brown to brown stains of irregular shape highlighted">
 </picture>
 
-**Figure 8:** The checks decide, the model explains. Left, plate 3 of Figure 2 (`20261119-120833_1`), NOK. Right, the
-clean plate put in its place 23 s later (`20261119-120856_2`), OK. Below, plate 3's recorded description, abridged.
+**Figure 8:** Left, plate 3 of Figure 2 (`20261119-120833_1`), NOK, and its reason. Right, the clean plate in its place 23 s
+later (`20261119-120856_2`), OK: no reason is recorded, so its own description is quoted. All words as recorded.
 
 **Adding an item:** copy `Data/Catalogue/mounting_plate/`, rename the folder and its YAML file to the new item's name,
 replace the reference images with a frame of each side on the table (each with its box file), set the checks, and name
