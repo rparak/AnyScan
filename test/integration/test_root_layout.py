@@ -30,24 +30,22 @@ import typing as tp
 Description:
     Initialization of constants.
 
-    The root holds only what is declared (project-style-rpx references/structure.md > The root holds
-    only what is declared; this project's exceptions and their reasons are in
-    .claude/skills/project-style-rpx/references/project.md > Root). The set is written out here, never
-    read from the README or the filesystem it checks; a new root entry changes this set and that
-    section in the same commit.
+    The root holds only what is declared. The set is written out here, never read from the README or the
+    filesystem it checks; a new root entry changes this set in the same commit.
 """
 # The entries git tracks at the root.
 #   Unit [Set<string>]
-CONST_ROOT_ENTRIES = {'.claude', '.gitattributes', '.gitignore', 'App', 'CITATION.cff', 'CLAUDE.md', 'Configuration',
-                      'Data', 'docs', 'Example', 'LICENSE', 'README.md', 'images', 'install.sh', 'logger', 'models',
-                      'pytest.ini', 'requirements', 'requirements.txt', 'src', 'test'}
+CONST_ROOT_ENTRIES = {'.gitattributes', '.gitignore', 'App', 'CITATION.cff', 'Configuration', 'Data', 'docs', 'Example',
+                      'LICENSE', 'README.md', 'images', 'install.sh', 'logger', 'models', 'pytest.ini', 'requirements',
+                      'requirements.txt', 'src', 'test'}
 # The git-ignored entries the root may hold, each with what puts it there: the virtual environment install.sh
-# creates, pytest's cache, Finder's folder metadata on macOS, and the owner's brand sources (/design/ in .gitignore,
-# on the development Mac only). Nothing the application or its tools write lands in the root: their output is under
-# logger/, Data/, Configuration/Calibration/, App/assets/, images/, models/ or test/crash_records/, or at an absolute
-# path a configuration names (project-style-rpx references/project.md > Root).
+# creates, pytest's cache, Finder's folder metadata on macOS, the brand's design sources (/design/ in .gitignore,
+# on a development machine only) and the coding assistant's local files (/.claude/ and /CLAUDE.md in .gitignore).
+# Nothing the application or its tools write lands in the root: their output is under logger/, Data/,
+# Configuration/Calibration/, App/assets/, images/, models/ or test/crash_records/, or at an absolute path a
+# configuration names.
 #   Unit [Set<string>]
-CONST_IGNORED_ROOT_ENTRIES = {'.venv', '.pytest_cache', '.DS_Store', 'design'}
+CONST_IGNORED_ROOT_ENTRIES = {'.venv', '.pytest_cache', '.DS_Store', 'design', '.claude', 'CLAUDE.md'}
 # The public records, in docs/: the specification and the known issues, relative to the root.
 #   Unit [Tuple<string>]
 CONST_RECORDS = ('docs/SPEC.md', 'docs/KNOWN_ISSUES.md')
@@ -125,7 +123,7 @@ def test_the_root_holds_only_the_declared_ignored_entries(project_root) -> None:
     ignored = _Root_Entries(_Status_Paths(project_root, '!!'))
     assert ignored - CONST_ROOT_ENTRIES - CONST_IGNORED_ROOT_ENTRIES == set(), (
         'ignored but undeclared at the root: %s - move it out of the repository, or declare it with its reason in '
-        'CONST_IGNORED_ROOT_ENTRIES and project-style-rpx references/project.md > Root'
+        'CONST_IGNORED_ROOT_ENTRIES'
         % sorted(ignored - CONST_ROOT_ENTRIES - CONST_IGNORED_ROOT_ENTRIES))
 
 

@@ -42,13 +42,11 @@ env/
 /logger/Station_Events/*
 !/logger/Station_Events/.gitkeep
 
-# Claude Code: its local state (locks, worktrees, checkpoints, ...) stays out; the project's
-# skills, its internal records (project-docs) and its shared settings.json are tracked. Anchored to the repo root like /models/* and
-# /logger/* above. It is here, not in .git/info/exclude, so it travels with a copy of the repository.
-/.claude/*
-!/.claude/skills/
-!/.claude/project-docs/
-!/.claude/settings.json
+# The coding assistant's local files (Claude Code's .claude/ and CLAUDE.md) stay on the developer's machine, never in
+# the repository. Anchored to the repo root like /models/* and /logger/* above. It is here, not in .git/info/exclude,
+# so it travels with a copy of the repository.
+/.claude/
+/CLAUDE.md
 
 # The test suite's crash record (test/conftest.py): this run's crash_record.txt and the records of
 # runs that crashed, kept (newest ten) so running the suite again never deletes one. Local evidence,
