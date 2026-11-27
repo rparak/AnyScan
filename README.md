@@ -493,7 +493,7 @@ The scripts' `--help` (`./install.sh`, `App/run.py`, `Example/`) and the `Config
 
 <table><tr><td align="center"><a href="https://github.com/rparak"><img src="https://avatars.githubusercontent.com/rparak" width="120px;" alt="GitHub avatar of Roman Parak, author of AnyScan, linking to the GitHub profile rparak"/><br /><strong>Roman Parak</strong></a><br />Author</td>
 <td align="center"><a href="https://github.com/LukasMoravansky"><img src="https://avatars.githubusercontent.com/LukasMoravansky" width="120px;" alt="GitHub avatar of Lukas Moravansky, contributor of AnyScan, linking to the GitHub profile LukasMoravansky"/><br /><strong>Lukas Moravansky</strong></a><br />Contributor</td>
-<td align="center"><a href="https://github.com/vojtechmarek13"><img src="https://avatars.githubusercontent.com/vojtechmarek13" width="120px;" alt="GitHub avatar of Vojtěch Marek, contributor of AnyScan, linking to the GitHub profile vojtechmarek13"/><br /><strong>Vojtěch Marek</strong></a><br />Contributor</td>
+<td align="center"><a href="https://github.com/vojtechmarek13"><img src="https://avatars.githubusercontent.com/vojtechmarek13" width="120px;" alt="GitHub avatar of Vojtech Marek, contributor of AnyScan, linking to the GitHub profile vojtechmarek13"/><br /><strong>Vojtech Marek</strong></a><br />Contributor</td>
 <td align="center"><a href="https://github.com/piifl"><img src="https://avatars.githubusercontent.com/piifl" width="120px;" alt="GitHub avatar of Filip Rusnak, contributor of AnyScan, linking to the GitHub profile piifl"/><br /><strong>Filip Rusnak</strong></a><br />Contributor</td></tr></table>
 
 ## Licence
@@ -553,9 +553,9 @@ If you use AnyScan, please cite it. GitHub's *Cite this repository* reads the sa
 
 ```bibtex
 @software{AnyScan,
-  author  = {Parak, Roman and Moravansky, Lukas and Marek, Vojtěch and Rusnak, Filip},
+  author  = {Parak, Roman and Moravansky, Lukas and Marek, Vojtech and Rusnak, Filip},
   title   = {AnyScan},
-  version = {1.0},
+  version = {1.1},
   year    = {2026},
   url     = {https://github.com/rparak/AnyScan}
 }
