@@ -23,6 +23,7 @@
 
 # System (Default)
 import os
+import re
 import importlib.util
 # Typing (Support for type hints)
 import typing as tp
@@ -169,3 +170,19 @@ def test_the_pipeline_follows_the_stations_order(generator) -> None:
     assert names == ['Frame', 'Find', 'Measure', 'Judge', 'Describe', 'Record']
     assert generator.CONST_CATALOGUE_STEP == 'Judge'
     assert names.index('Judge') < names.index('Describe')
+
+
+def test_the_readme_shows_no_animation() -> None:
+    """
+    Description:
+        Every local image the README shows is one frame: no animated WebP, GIF or APNG (README v11, 2026-11-26).
+    """
+
+    with open(CONST_README, 'r', encoding='utf-8') as handle:
+        readme = handle.read()
+    shown = sorted(set(re.findall(r'(?:src|srcset)="(images/[^"]+)"|\]\((images/[^)\s]+)\)', readme)))
+    paths = sorted({a or b for a, b in shown if not (a or b).endswith('.svg')})
+    assert paths, 'the scan found no image at all'
+    for path in paths:
+        with Image.open(os.path.join(CONST_PROJECT_FOLDER, path)) as image:
+            assert getattr(image, 'n_frames', 1) == 1, '%s is animated' % path

@@ -436,7 +436,7 @@ App/assets/               the logos, the window icon and the fonts (Public Sans,
 src/                      the Qt-free domain packages and the Qt UI (below)
 Example/                  runnable scripts: scan, preview_check, calibrate, calibration_tilt_study,
                           generate_checkerboard, make_reference, analyze, evaluate_describer, architecture_diagram,
-                          analysis_animation, readme_diagrams, build_logo, build_fonts
+                          readme_diagrams, build_logo, build_fonts
 Configuration/            the mode, station and calibration files
 Data/Catalogue/           the catalogue items (the mounting plate's file and reference images); committed
 Data/Images/Test/         the 41 test frames (Image_055-095, each a capture set's undistorted _raw.png); committed
