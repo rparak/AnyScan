@@ -253,7 +253,7 @@ def Measure_Objects(objects: tp.List[Detection_Str], scale: tp.Optional[Scale_St
                     cv2: tp.Any, np: tp.Any) -> None:
     """
     Description:
-        Measure every object that has a mask, in place (det.Measurement). With no scale — the
+        Measure each object that has a mask, in place (det.Measurement). With no scale — the
         configuration has no Conversion_Factor — nothing is measured: every Measurement stays None
         and no size is ever computed from a default. The caller warns once, at configuration load.
 

@@ -56,7 +56,7 @@ def test_the_key_records_the_owners_answers(key) -> None:
     """
     Description:
         The materials the owner gave from the physical parts (2026-09-29): the red block is anodised
-        aluminium, the white washer and the bushing aluminium. Every object counts in the totals (the
+        aluminium, the white washer and the bushing aluminium. Each object counts in the totals (the
         owner's choice); the clipped hex nuts 5.3 and 6.2 carry a note saying why their crop is special.
     """
 

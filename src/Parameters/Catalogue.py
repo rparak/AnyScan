@@ -115,7 +115,7 @@ class Catalogue_Reference_Str:
     Description:
         One reference image of the catalogue part: one side, photographed lying on the table, in its
         OK state, with the part's bounding box (Data/Catalogue/<item>/reference_image/<side>.png and
-        <side>.txt, a YOLO line). The catalogue mode compares every object with these (Vision.Identifier).
+        <side>.txt, a YOLO line). The catalogue mode compares each object with these (Vision.Identifier).
     """
 
     # The side: 'front' or 'back'.

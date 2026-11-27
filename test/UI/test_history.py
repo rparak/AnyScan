@@ -763,7 +763,7 @@ def test_a_set_recorded_in_a_mode_that_no_longer_ships_loads_and_shows(qt_app, t
         A capture set from a catalogue mode that no longer ships still loads and shows in History: its record
         (test/UI/data/removed_mode_objects.json, written by the application on 2026-10-13 before that mode was
         removed) names the old configuration and carries kinds of part this version no longer makes ('word', with
-        the expected_text and read_text this version ignores). It reads complete, every object and part kept, and
+        the expected_text and read_text this version ignores). It reads complete, each object and part kept, and
         History lists it, its objects and its configuration's name.
     """
 

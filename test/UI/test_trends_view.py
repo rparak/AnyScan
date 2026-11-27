@@ -514,7 +514,7 @@ def test_every_series_in_both_charts_has_one_line_width_and_one_marker_size(qt_a
     from Reporting.Trends import Trends_Accumulator_Cls
     from UI.Views.Trends import Objects_Chart_Cls
     from Parameters.Vision import Catalogue_Result_Str
-    # One image of every state, then two empty ones: every objects series is level from image 1 to 3.
+    # One image of every state, then two empty ones: each objects series is level from image 1 to 3.
     acc = Trends_Accumulator_Cls()
     acc.Add_Analysis([Detection_Str(Label='p', Bbox=(0, 0, 8, 8), Segmenter_Score=0.9, Verdict=verdict,
                                     Catalogue=Catalogue_Result_Str(Warning_Kind='foreign' if verdict == 'Warning' else ''))
@@ -569,7 +569,7 @@ def test_each_legend_sample_has_the_width_and_marker_size_of_its_line(qt_app) ->
     """
     Description:
         Every legend entry of both charts is a sample of its own line, at the same width (2 px), with its 7 px square
-        marker: every objects series and the frame mean solid with a filled square, the run mean dashed with a hollow
+        marker: each objects series and the frame mean solid with a filled square, the run mean dashed with a hollow
         one. Rendered: along the legend's row each sample is the longest run of its colour; its thinnest column is the
         line, its thickest the marker's 7 px (a filled square's centre, a hollow square's sides).
     """

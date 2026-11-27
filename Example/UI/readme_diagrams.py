@@ -451,7 +451,7 @@ def Models_Table() -> str:
     pins = Read_Installer()
     rows = [('Model', 'What it does', 'Runs on', 'Pinned by the installer', 'Download'),
             ('---', '---', '---', '---', '---:'),
-            ('FastSAM-x', "finds every object, and a part's holes", 'PyTorch (ultralytics)',
+            ('FastSAM-x', "finds the objects, and a part's holes", 'PyTorch (ultralytics)',
              '`%s`' % pins['fastsam_pin'], pins['fastsam_size']),
             ('Gemma 4 E4B, 4-bit', 'describes each object in words: the local vision-language model',
              'MLX: Metal on macOS, CUDA on Linux', '`%s`' % pins['gemma_pin'], pins['gemma_size']),

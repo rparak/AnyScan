@@ -62,7 +62,7 @@ Description:
     the source capture frame and its SHA-256. The test pastes them onto the mode's empty-surface reference at their
     offsets, so every distance from the frame centre and the camera geometry are the frame's. Measured on all seven
     first frames (2026-10-15): the side, how it was decided, the holes found and passing, the stains and the verdict are
-    the full frame's on every object; the measured values are not (outlines up to 0.79 mm, hole distances up to
+    the full frame's on each object; the measured values are not (outlines up to 0.79 mm, hole distances up to
     0.60 mm), since the background difference's Otsu threshold is taken over the whole frame and the rebuilt frame has
     no table noise outside the crops. So these pin decisions, never values. A set separate from the pinned
     Data/Images/Test.
@@ -104,7 +104,7 @@ CONST_RED_BLOCK_FRAMES = ('20261016-111254_1', '20261016-111301_2', '20261016-11
 CONST_STAINED_EDGE_FRONTS = ('20261015-170809_16', '20261015-170816_17', '20261015-170830_19', '20261015-180936_1',
                              '20261016-070619_6', '20261016-070812_14')
 CONST_CLEAN_EDGE_FRONTS = ('20261015-180955_2', '20261015-181017_6')
-# What every object outside the inspection area's reason opens with.
+# What each object outside the inspection area's reason opens with.
 #   Unit [string]
 CONST_OUTSIDE = 'It lies outside the inspection area, so it is not judged: move it fully inside the area and scan again.'
 CONST_CATALOGUE_MODE_FILE = 'Config_a2A1920_51gcPRO_Computar_M1228_MPW3_Mode_Mounting_Plate.yaml'
@@ -175,7 +175,7 @@ def test_the_inventory_names_every_frame_and_crop_of_the_edge_set() -> None:
 def test_each_edge_frame_gets_its_expected_verdicts(name: str, require_weights, monkeypatch) -> None:
     """
     Description:
-        Every object of every frame takes its labelled state, counted: the stained front by the edge is NOK (it read
+        Each object of every frame takes its labelled state, counted: the stained front by the edge is NOK (it read
         OK on frame 16 when DINOv2 chose its back), and frame 1's clean front, real back and hole-less block keep the
         states they had.
     """

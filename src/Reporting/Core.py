@@ -1402,7 +1402,7 @@ def Yolo_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int]) -> tp.
 def Compose(objects: tp.List[Detection_Str], caption: str = '') -> tp.Tuple[tp.List[Detection_Str], str]:
     """
     Description:
-        Write the line for every object (into det.Sentence) and return the objects
+        Write the line for each object (into det.Sentence) and return the objects
         alongside the note. Nothing the model wrote is rewritten, so there is no
         per-object audit. The objects are never reordered here — their order is the
         operator-visible index contract.

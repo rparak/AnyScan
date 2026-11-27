@@ -79,7 +79,7 @@ def test_objects_accumulate_per_image() -> None:
 def test_ok_nok_split_accumulates_with_the_total() -> None:
     """
     Description:
-        The OK and NOK series accumulate beside the total, and sum to it when every object is OK or NOK.
+        The OK and NOK series accumulate beside the total, and sum to it when each object is OK or NOK.
     """
 
     acc = Trends_Accumulator_Cls()

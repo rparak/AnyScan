@@ -157,7 +157,7 @@ def test_status_confidence_denominator_is_the_scored_count_not_the_total(qt_app,
 def test_status_confidence_is_no_value_when_no_object_has_a_score(qt_app, reference_background_path) -> None:
     """
     Description:
-        When every object across the session was found by the background cue alone (no
+        When each object across the session was found by the background cue alone (no
         FastSAM score), the confidence cell is the no-value placeholder — never '0%', which
         would misstate an absent measurement as a zero confidence.
     """
@@ -217,7 +217,7 @@ def test_frame_confidence_shows_coverage_when_partial_and_dash_when_none(qt_app,
     """
     Description:
         The panel table's frame confidence shows the coverage when the frame is only
-        partially scored ('X% over K of M'), the percentage alone when every object is
+        partially scored ('X% over K of M'), the percentage alone when each object is
         scored, and the no-value placeholder when nothing is scored — never '0%'. The object
         list directly below shows which objects lack a score, so the coverage reconciles.
     """

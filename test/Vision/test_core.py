@@ -624,7 +624,7 @@ def test_a_catalogue_mode_judges_every_object_by_the_rule(fake_models, reference
         matched; a small part is a Warning, a foreign object, and is not hole-checked, the badge counting it with
         every Warning ('Warning · 1'); and the catalogue checks' time is carried
         beside the measurement's. The rule's every branch is pinned in test_classify and test_holes; this pins
-        that Analyze applies them to every object.
+        that Analyze applies them to each object.
     """
 
     import cv2
@@ -662,7 +662,7 @@ def test_segment_anything_judges_nothing(fake_models, reference_background, make
     """
     Description:
         Segment Anything has no identifier: nothing is loaded for it, no object carries catalogue
-        evidence, every object keeps the default verdict, and no identification time is reported.
+        evidence, each object keeps the default verdict, and no identification time is reported.
     """
 
     import cv2

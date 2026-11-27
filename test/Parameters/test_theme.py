@@ -100,7 +100,7 @@ def test_every_warning_is_the_amber_and_the_retired_state_colours_are_gone() -> 
 def test_label_mask_fill_is_a_visible_tint_of_its_box() -> None:
     """
     Description:
-        Every object colour carries a third entry, the label-mask fill, and the fill must do its
+        Each object colour carries a third entry, the label-mask fill, and the fill must do its
         job on screen, not only exist as a token. For the two verdict colours and the neutral
         detection colour:
           - the box outline stays clearly visible against its own fill (ΔE >= the fill floor,

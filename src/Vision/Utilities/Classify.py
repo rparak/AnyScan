@@ -73,7 +73,7 @@ Description:
 #   Unit [float] (mm)
 CONST_VERIFIED_RADIUS_MM = 46.4
 # Whether an object outside the inspection area resembles the catalogue part, by cues that do not depend on where it
-# lies (Resembles_Part), measured on 2026-10-16 on every object outside the area or cut by the frame's border in the
+# lies (Resembles_Part), measured on 2026-10-16 on each object outside the area or cut by the frame's border in the
 # test set and the five mounting-plate captures on disk (86: 43 plates, 43 foreign objects). The similarity: plates
 # 0.668 at least (a stained front cut by the right border, 88.5 mm out), foreign objects 0.645 at most (the red
 # block cut by the top border), so 0.657, midway; the other foreign objects score 0.433 at most. The colour, the mean

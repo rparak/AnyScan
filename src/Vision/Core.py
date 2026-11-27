@@ -288,7 +288,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
                   model must be loaded again.
               (4) The only score is FastSAM's, carried per object as Segmenter_Score;
                   an object the background cue alone found has None there, and
-                  Detection_Str.Confidence stays None for every object. Never invent a
+                  Detection_Str.Confidence stays None for each object. Never invent a
                   number for an unscored object.
               (5) Boxes are in full-frame pixels whichever detector is used; the
                   per-crop pass only describes. Objects are never reordered after
@@ -967,7 +967,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
     def __Classify_Objects(self, objects: tp.List[Detection_Str], frame_bgr: tp.Any, cv2: tp.Any, np: tp.Any) -> tp.Any:
         """
         Description:
-            A catalogue mode's judgement, before the objects are described: every object's crop, turned
+            A catalogue mode's judgement, before the objects are described: each object's crop, turned
             upright, in four quarter turns, through DINOv2 in one pass, its best match to the item's
             references, and its verdict (Vision.Utilities.Classify); then, for each judged part, its hole
             candidates on its upright crop (FastSAM again, Vision.Utilities.Holes), the side up from DINOv2's
@@ -1185,7 +1185,7 @@ class Vision_Pipeline_Cls(Vision_Backend_Cls):
         if stage_cb and objects:
             stage_cb('Describing…')
 
-        # The union of every object's mask, so each crop can subtract its neighbours.
+        # The union of each object's mask, so each crop can subtract its neighbours.
         all_mask = np.zeros(frame_bgr.shape[:2], dtype=bool)
         for det in objects:
             all_mask |= det.Mask.astype(bool)

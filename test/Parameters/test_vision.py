@@ -55,7 +55,7 @@ def test_detection_str_defaults() -> None:
     # The mask-pipeline fields carry their documented defaults.
     assert det.Mask is None
     assert det.Segmenter_Score is None
-    # The verdict defaults to OK: until classification lands, every object is OK.
+    # The verdict defaults to OK: until classification lands, each object is OK.
     assert det.Verdict == 'OK'
 
 

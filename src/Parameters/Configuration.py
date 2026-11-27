@@ -250,7 +250,7 @@ class Configuration_Str:
     # The harness-only settings (analyze.py's test frames).
     Evaluation: Evaluation_Parameters_Str = field(default_factory=Evaluation_Parameters_Str)
     # The catalogue item this mode inspects (the 'Catalogue' block), or None: a mode without one
-    # finds and describes every object and checks none against a catalogue (Segment Anything).
+    # finds and describes the objects and checks none against a catalogue (Segment Anything).
     Catalogue: tp.Optional[Catalogue_Item_Str] = None
     # A catalogue mode's identification (the same block); its defaults stand outside one.
     Identification: Identification_Parameters_Str = field(default_factory=Identification_Parameters_Str)

@@ -13,7 +13,7 @@
 
 **Figure 1:** The AnyScan video on YouTube: the station, each step and a plate judged NOK.
 
-AnyScan is a desktop inspection station. One camera looks down at a table. AnyScan finds every object on it,
+AnyScan is a desktop inspection station. One camera looks down at a table. AnyScan finds the objects on it,
 measures each one in millimetres, describes it in words and records the result. In a **catalogue mode** it also
 recognises a known part, checks it and gives a **verdict**: OK, NOK or Warning. Its three models run on the station's
 own computer.
@@ -77,7 +77,7 @@ Judge.
 
 | Model | What it does | Runs on | Pinned by the installer | Download |
 | --- | --- | --- | --- | ---: |
-| FastSAM-x | finds every object, and a part's holes | PyTorch (ultralytics) | `v8.4.0 · sha256 752cadc` | 145 MB |
+| FastSAM-x | finds the objects, and a part's holes | PyTorch (ultralytics) | `v8.4.0 · sha256 752cadc` | 145 MB |
 | Gemma 4 E4B, 4-bit | describes each object in words: the local vision-language model | MLX: Metal on macOS, CUDA on Linux | `revision 475b908` | 5.2 GB |
 | DINOv2 base | recognises the catalogued part and its side (catalogue modes only) | PyTorch (transformers) | `revision f9e44c8` | 346 MB |
 

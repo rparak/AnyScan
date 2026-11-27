@@ -93,7 +93,7 @@ def test_an_object_without_sides_has_no_outline_to_check(measurement: tp.Any) ->
 def test_every_object_is_checked_against_the_item() -> None:
     """
     Description:
-        Check_Objects runs the outline check on every object, in place: which object is the catalogue
+        Check_Objects runs the outline check on each object, in place: which object is the catalogue
         part is not decided yet, so a washer is checked as much as the plate.
     """
 

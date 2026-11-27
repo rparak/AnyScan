@@ -111,7 +111,7 @@ def test_label_mask_fills_each_object_with_a_tint_of_its_box_colour() -> None:
 def test_detect_only_label_mask_fills_with_the_neutral_tint() -> None:
     """
     Description:
-        With classification off (verdict_colored False) the label mask fills every object with the
+        With classification off (verdict_colored False) the label mask fills each object with the
         light neutral fill and draws its box in the mask's own DARKER neutral outline — not the
         frame's box colour, which the annotated frame keeps — so the outline stands clear of the
         light fill. No verdict fill or box leaks into either image.
@@ -308,7 +308,7 @@ def test_seg_falls_back_to_the_bbox_for_a_maskless_object() -> None:
     Description:
         An object without a mask still gets a polygon — its bounding box as a four-point
         rectangle — so the seg file has one line per object, in the same order as the box file.
-        (Fusion gives every object a mask, one found by the background cue alone included; this
+        (Fusion gives each object a mask, one found by the background cue alone included; this
         pins the guard for any other producer of a Detection_Str.)
     """
 
@@ -320,7 +320,7 @@ def test_seg_falls_back_to_the_bbox_for_a_maskless_object() -> None:
 def test_verdict_colored_false_draws_one_neutral_colour_not_verdicts() -> None:
     """
     Description:
-        When classification is off (verdict_colored=False, Segment Anything), every object — OK or NOK — is drawn in
+        When classification is off (verdict_colored=False, Segment Anything), each object — OK or NOK — is drawn in
         the ONE detect-only colour, the logo purple, so no object's colour depends on a verdict: the NOK orange-red
         appears nowhere, and both objects' bottom edges are the purple. With it on, the NOK object is drawn in the
         verdict orange-red.

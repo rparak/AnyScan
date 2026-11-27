@@ -287,7 +287,7 @@ def test_yolo_lines_are_normalised_and_indexed_from_the_object_list() -> None:
         Yolo_Lines emits one '<class_id> <xc> <yc> <w> <h>' line per object, geometry
         normalised 0..1 against the frame at six decimals, from the SAME ordered object
         list as the numbering — the class id is the object's 0-based index (object 1 in the
-        text is id 0), a per-frame handle, not a class. It lists every object and nothing
+        text is id 0), a per-frame handle, not a class. It lists each object and nothing
         else.
     """
 
@@ -483,7 +483,7 @@ def test_the_verdict_reaches_the_file_and_the_log_keeps_the_similarity() -> None
     Description:
         The Screen Understanding file's object line carries the verdict lines, indented, under the object. The
         log carries the verdict on one line with what Scene Understanding leaves out — the side of a judged
-        part and the similarity of every object — at WARNING for a Warning, of any kind, and at INFO for OK and
+        part and the similarity of each object — at WARNING for a Warning, of any kind, and at INFO for OK and
         NOK. Outside a catalogue mode the object line is exactly what it was.
     """
 

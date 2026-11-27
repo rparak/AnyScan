@@ -738,8 +738,8 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Add('<!-- The words are set in Public Sans (Copyright 2015 The Public Sans Project Authors), embedded as subsets '
           'under the SIL Open Font License 1.1: https://openfontlicense.org -->')
     c.Add('<title>AnyScan architecture</title>')
-    c.Add('<desc>AnyScan finds every object on a work surface, measures it and describes it. A catalogue mode '
-          'also judges it. In every mode the camera shows a live preview while parts are placed, then takes a fresh '
+    c.Add('<desc>AnyScan finds the objects on a work surface, measures them and describes them. A catalogue mode '
+          'also judges them. In every mode the camera shows a live preview while parts are placed, then takes a fresh '
           'frame once nothing moves, undistorted. Two cues, fused, find the objects: what differs from the empty '
           'surface, and a segmentation model. Each object is measured in mm through the calibration. A catalogue '
           'mode then adds four steps for each object. It recognises the catalogued part by its reference images. '
@@ -800,8 +800,8 @@ def Draw_Architecture(logo_svg: str) -> str:
     c.Open('<g id="tagline">', 'Tagline')
     c.Add('<line x1="40" y1="126" x2="1160" y2="126" stroke="%s" stroke-width="1.5"/>' % T.CONST_CARD_BORDER)
     # One sentence a line, each wrapped if it ever outgrows the width.
-    tagline = [line for sentence in ['AnyScan finds every object on a work surface, measures it and describes it.',
-                                     'A catalogue mode also judges it.']
+    tagline = [line for sentence in ['AnyScan finds the objects on a work surface, measures them and describes them.',
+                                     'A catalogue mode also judges them.']
                for line in Wrap_Text(sentence, S[5], CONST_WIDTH - 80, '500')]
     for i, line in enumerate(tagline):
         c.Text(40, round(168 + 1.3 * S[5] * i, 1), line, S[5], T.CONST_INK, weight='500')
@@ -851,7 +851,7 @@ def Draw_Architecture(logo_svg: str) -> str:
     y_area, h_area = y_cat + h_recognise + gap, h_cat - h_recognise - gap
     c.Open('<g id="catalogue">', '4. A catalogue mode then recognises its part, judges only inside the inspection area, '
            'checks the side that is up and gives each object a verdict')
-    # Every object measured goes on to these steps: down from Measure, over, and into Recognise.
+    # Each object measured goes on to these steps: down from Measure, over, and into Recognise.
     x_down, x_into = 726, x_rec + w_rec / 2
     c.Elbow([(x_down, y + h + 26), (x_down, y + h + 45), (x_into, y + h + 45), (x_into, y_cat - 6)])
     c.Rect(40, y_cat - 20, 808, h_cat + 40, 'none', T.CONST_SCROLLBAR_HANDLE, dash='6 6')

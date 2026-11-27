@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 CONST_SCALE_UNITS = 'mm/px'
 # The three states an object takes in a catalogue mode (Vision.Utilities.Classify): OK — the catalogue part, every
 # check passed; NOK — the catalogue part, a check failed; Warning — not judged, for one of the reasons in
-# CONST_WARNING_KINDS (Catalogue_Result_Str.Warning_Kind). A mode without a catalogue judges nothing and every object
+# CONST_WARNING_KINDS (Catalogue_Result_Str.Warning_Kind). A mode without a catalogue judges nothing and each object
 # keeps the default, OK, drawn in the neutral colour.
 #   Unit [Tuple<string>]
 CONST_VERDICTS = ('OK', 'NOK', 'Warning')
@@ -478,7 +478,7 @@ class Timing_Str(object):
     # The measurement's time, which is outside Total_Ms (it runs after the latency stops).
     #   Unit [int] (ms)
     Measurement_Ms: int = 0
-    # A catalogue mode's identification, verdicts and hole checks (DINOv2 on every object, the rule, FastSAM
+    # A catalogue mode's identification, verdicts and hole checks (DINOv2 on each object, the rule, FastSAM
     # on each judged part's crop), also outside Total_Ms; None outside a catalogue mode.
     #   Unit [int] (ms)
     Identification_Ms: tp.Optional[int] = None

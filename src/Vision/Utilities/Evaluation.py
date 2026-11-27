@@ -47,7 +47,7 @@ CONST_ANSWER_KEY_FILE = 'answer_key.json'
 CONST_ATTRIBUTES = ('type', 'material', 'colour')
 CONST_CORRECT, CONST_WRONG, CONST_NOT_STATED, CONST_NOT_DECIDABLE = 'correct', 'wrong', 'not stated', 'not decidable'
 CONST_OUTCOMES = (CONST_CORRECT, CONST_WRONG, CONST_NOT_STATED, CONST_NOT_DECIDABLE)
-# The fields every object in the key carries.
+# The fields each object in the key carries.
 #   Unit [Tuple<string>]
 CONST_OBJECT_FIELDS = ('frame', 'index', 'type', 'type_class', 'material', 'colour', 'colour_terms', 'source', 'status')
 
@@ -63,7 +63,7 @@ class Evaluation_Error_Cls(RuntimeError):
 def Load_Answer_Key(path: str) -> tp.Dict[str, tp.Any]:
     """
     Description:
-        Read and check the answer key: every object has the key's fields, a type class the key
+        Read and check the answer key: each object has the key's fields, a type class the key
         defines and a material the key's material classes name, and no frame and index is listed twice.
 
     Args:
@@ -249,7 +249,7 @@ def Score_Object(text: str, entry: tp.Dict[str, tp.Any], key: tp.Dict[str, tp.An
 def Tally(scores: tp.List[tp.Tuple[tp.Dict[str, tp.Any], tp.Dict[str, str]]]) -> tp.Dict[str, tp.Dict[str, int]]:
     """
     Description:
-        The totals: per attribute, how many objects had each outcome. Every object counts.
+        The totals: per attribute, how many objects had each outcome. Each object counts.
 
     Args:
         (1) scores [Vector<Tuple<Dict, Dict>>]: Each object's key entry and its outcomes.

@@ -274,7 +274,7 @@ CONST_INSPECTION_AREA = '#FFD880'
 CONST_INSPECTION_AREA_EMPTY = CONST_INK
 # The NEUTRAL colours: no pass/fail to encode. Two boxes, one ink:
 #
-#   CONST_DETECTION_BOX — every object's box and chip when a configuration only DETECTS and does not classify
+#   CONST_DETECTION_BOX — each object's box and chip when a configuration only DETECTS and does not classify
 #   (Configuration_Str.Classifies is false, as in Segment Anything): the logo purple, the owner's choice of 2026-10-15
 #   over #655E6D, which all but vanished on the green table (1.12:1, capture 20261015-143622_s1, table median #176550).
 #   It is the OK verdict's colour, accepted because a detect-only mode shows no verdict at all. Measured: white
@@ -718,7 +718,7 @@ def Detection_Color() -> tp.Tuple[str, str, str]:
     """
     Description:
         The (box, ink, fill) colour triple for a plain, unjudged detection — used when the
-        configuration only detects (classification off), so every object is one neutral colour.
+        configuration only detects (classification off), so each object is one neutral colour.
         From the ONE CONST_DETECTION_COLORS definition, a distinct token from the verdict colours
         ('detected, not judged', never a pass/fail). The fill is the label mask's neutral fill,
         DERIVED with its own outline (Neutral_Mask_Colors, Detection_Mask_Outline), never

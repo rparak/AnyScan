@@ -54,7 +54,7 @@ Description:
     (Load_Configuration -> Configure -> Analyze) over the frames the key names, in the configuration's
     Evaluation.Frames (Data/Images/Test; the current set has no answer key yet), score each object's
     description on part type, material and colour (Vision.Utilities.Evaluation; the rules and patterns
-    are the key's), and print a per-object table and the totals over every object.
+    are the key's), and print a per-object table and the totals over all objects.
 
     It needs the model weights, so it is a tool, not part of the test suite. Greedy decoding makes a
     run repeatable on one machine: the same weights and prompts give the same totals.
@@ -102,7 +102,7 @@ def Run_Frames(configuration: tp.Any, frames_dir: tp.Optional[str], frames: tp.L
 def Score_Run(run: tp.Dict[str, tp.Any], key: tp.Dict[str, tp.Any]) -> tp.List[tp.Dict[str, tp.Any]]:
     """
     Description:
-        Score every object of a run against the key. A frame whose object count differs from the key's
+        Score each object of a run against the key. A frame whose object count differs from the key's
         stops the scoring: the key then describes another segmentation, and its numbering would not apply.
 
     Args:
@@ -131,7 +131,7 @@ def Score_Run(run: tp.Dict[str, tp.Any], key: tp.Dict[str, tp.Any]) -> tp.List[t
 def Print_Report(rows: tp.List[tp.Dict[str, tp.Any]]) -> None:
     """
     Description:
-        Print the per-object table, then the totals over every object.
+        Print the per-object table, then the totals over all objects.
 
     Args:
         (1) rows [Vector<Dict<string, Any>>]: From Score_Run.

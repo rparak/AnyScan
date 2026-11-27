@@ -436,7 +436,7 @@ def test_the_check_finds_what_the_application_finds(require_weights, monkeypatch
     """
     Description:
         The check is the application's own stages 1 to 3 with the real FastSAM: on the empty table (the
-        shipped reference against itself) it finds nothing; on Image_062 it finds every object the
+        shipped reference against itself) it finds nothing; on Image_062 it finds each object the
         application's analysis finds, the same boxes; and FastSAM alone, the check used when the reference in
         force no longer matches the camera, finds them too — including the 60 × 40 mm plate the background
         difference does not see.

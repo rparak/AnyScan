@@ -94,7 +94,7 @@ def Check_Outline(measurement: tp.Optional[Measurement_Str],
 def Check_Objects(objects: tp.List[Detection_Str], Catalogue_Item_Str: Catalogue_Item_Str) -> None:
     """
     Description:
-        Run the catalogue's dimension checks on every object, in place (det.Dimension_Checks). Every
+        Run the catalogue's dimension checks on each object, in place (det.Dimension_Checks). Every
         object is checked: which one is the catalogue part is not decided yet, so an object whose
         outline passes is one the size of the part, not one known to be it.
 
