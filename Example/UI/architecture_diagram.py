@@ -68,7 +68,7 @@ Description:
     per object), then describing each object, told in a catalogue mode what the checks found; the desktop
     application; the files that set the stages up (the mode names the station, the station the calibration, and
     the catalogue item and the reference); and the records the application writes and reads back. No class,
-    model or product names, no configuration fields, no number; README > Architecture and SPEC.md have the
+    model or product names, no configuration fields, no number; README > Architecture and docs/SPEC.md have the
     detail. Each card carries a pixel icon from the application's own set
     (UI.Utilities.Pixel_Motif.CONST_PIXEL_ICONS), so the figure and the console never draw two versions of one
     icon. The funding band is not part of it: the README's Funding section shows it (images/anyscan-funding.svg,

@@ -40,8 +40,7 @@ Description:
 
     The catalogue mode's verdict on each object, from its similarity to the item's reference images
     (Vision.Identifier), its area and its dimension checks (Vision.Utilities.Dimensions). Qt-free, OpenCV
-    and NumPy injected. The rule, in order (design-decisions.md, "A catalogue mode identifies by
-    similarity, and an object of the part's shape that does not look like it is NOK"):
+    and NumPy injected. The rule, in order:
 
         (1) area >= Several_Parts_Area_Ratio x the part's    -> Warning, several parts (touching or close)
         (2) similarity >= Identify_Similarity                  -> the part: OK when every dimension
@@ -68,8 +67,8 @@ Description:
 # How far from the frame centre the size checks were verified on real frames: the farthest centre of a
 # judged mounting plate on the 41 frames of Data/Images/Test, measured with Center_Distance_Mm at the plate's
 # top face (2026-10-13), 46.32 mm (Image_072), rounded up to the next 0.1 mm so that plate is inside. Plates
-# placed farther out, in the corners of the view, would widen it (capture-checklist.md). Beyond it the
-# side wall is predicted to add up to about 1 mm (SPEC > Known limitations), so a size check there carries a note
+# placed farther out, in the corners of the view, would widen it. Beyond it the
+# side wall is predicted to add up to about 1 mm (docs/SPEC.md > Known limitations), so a size check there carries a note
 # that it is not verified.
 #   Unit [float] (mm)
 CONST_VERIFIED_RADIUS_MM = 46.4

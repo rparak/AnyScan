@@ -41,7 +41,7 @@ Description:
     (Reporting.Describer_Prompt). A future model plugs in behind the same interface. The describer
     loads its runtime lazily (Load), so importing this module pulls no heavy library. (Florence-2, the
     previous describer, was removed after the comparison over the seven frames of the previous test
-    set, eb00508^ — design-decisions.md.)
+    set, eb00508^.)
 """
 # The two things a describer is asked to describe.
 #   Unit [string]
@@ -59,7 +59,7 @@ CONST_PURPOSE_BACKGROUND = 'background'
 # code carries, so the repository's licence does not cover them; anyone shipping them does so
 # under Apache 2.0's conditions. models/ is gitignored, so the weights are not in the
 # repository. (The mlx-community card's 'license: gemma' tag looks like converter boilerplate;
-# see README > Licence note.)
+# see README > Licence.)
 #
 # Generation (Description.Temperature, Description.Max_Tokens) is configuration. Temperature 0 is
 # greedy decoding: the same crop and prompt give the same text, which the pipeline relies on (a

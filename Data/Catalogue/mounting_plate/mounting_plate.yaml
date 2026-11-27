@@ -24,8 +24,8 @@
 #     single tracked source for the part, from the catalogue-mode request. Each side's Name
 #     is the side sentence of a judged object's description; the side's Description and its
 #     Defects go to the describer through Describer.Prompt. Description and
-#     Measurement_Rules are for people: validated at load, read by nothing (the dated
-#     exception in design-decisions.md, 2026-10-11). What the describer is given holds
+#     Measurement_Rules are for people: validated at load, read by nothing (a dated
+#     exception, 2026-10-11, to the rule that every field is read). What the describer is given holds
 #     no number (the loader refuses one): it is told the appearance, never a dimension.
 #
 #   Checks:
@@ -146,7 +146,7 @@ Checks:
   # Measured on the test set's fronts (2026-10-11, this table and light): the five fingerprinted
   # plates' largest fragment 144-157 mm^2, every clean front no band pixel left after the opening, so the
   # 1 mm^2 threshold (owner's ruling) has the clean side's margin and catches far smaller stains.
-  # The band is the light's: a new light or camera setting is measured again (KNOWN_ISSUES).
+  # The band is the light's: a new light or camera setting is measured again (docs/KNOWN_ISSUES.md).
   Stain:
     front:
       Hue_Min: 5

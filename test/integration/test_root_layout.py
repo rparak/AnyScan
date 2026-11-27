@@ -21,8 +21,6 @@
 # File Name: ../test/integration/test_root_layout.py
 ## =========================================================================== ##
 
-# System (Default)
-import os
 # Subprocess (Subprocess management)
 import subprocess
 # Typing (Support for type hints)
@@ -41,7 +39,7 @@ Description:
 # The entries git tracks at the root.
 #   Unit [Set<string>]
 CONST_ROOT_ENTRIES = {'.claude', '.gitattributes', '.gitignore', 'App', 'CITATION.cff', 'CLAUDE.md', 'Configuration',
-                      'Data', 'Example', 'LICENSE', 'README.md', 'images', 'install.sh', 'logger', 'models',
+                      'Data', 'docs', 'Example', 'LICENSE', 'README.md', 'images', 'install.sh', 'logger', 'models',
                       'pytest.ini', 'requirements', 'requirements.txt', 'src', 'test'}
 # The git-ignored entries the root may hold, each with what puts it there: the virtual environment install.sh
 # creates, pytest's cache, Finder's folder metadata on macOS, and the owner's brand sources (/design/ in .gitignore,
@@ -50,12 +48,9 @@ CONST_ROOT_ENTRIES = {'.claude', '.gitattributes', '.gitignore', 'App', 'CITATIO
 # path a configuration names (project-style-rpx references/project.md > Root).
 #   Unit [Set<string>]
 CONST_IGNORED_ROOT_ENTRIES = {'.venv', '.pytest_cache', '.DS_Store', 'design'}
-# The records, in .claude/project-docs/ (the generic place, with the capture checklist as a fourth, the tracker and
-# the support-chat brief), relative to the root.
+# The public records, in docs/: the specification and the known issues, relative to the root.
 #   Unit [Tuple<string>]
-CONST_RECORDS = ('.claude/project-docs/SPEC.md', '.claude/project-docs/design-decisions.md',
-                 '.claude/project-docs/KNOWN_ISSUES.md', '.claude/project-docs/capture-checklist.md',
-                 '.claude/project-docs/FEATURES.md', '.claude/project-docs/SUPPORT_CHAT.md')
+CONST_RECORDS = ('docs/SPEC.md', 'docs/KNOWN_ISSUES.md')
 
 
 def _Git_Lines(project_root: str, *arguments: str) -> tp.List[str]:
@@ -89,19 +84,19 @@ def test_the_root_holds_only_the_declared_entries(project_root) -> None:
                                                                         sorted(CONST_ROOT_ENTRIES - entries))
 
 
-def test_the_records_are_in_project_docs_and_none_in_docs(project_root) -> None:
+def test_the_records_are_tracked_in_docs_and_nothing_else_is_there(project_root) -> None:
     """
     Description:
-        The records live where CLAUDE.md and the style project reference say: .claude/project-docs/,
-        tracked by git (the .gitignore keeps the rest of .claude/ out). A docs/ folder beside them would
-        split the records in two.
+        The two public records are tracked in docs/, and docs/ holds nothing else, so a record added there is
+        declared here first and a stray file there fails.
     """
 
     result = subprocess.run(['git', 'ls-files', *CONST_RECORDS], cwd=project_root, capture_output=True, text=True,
                             timeout=60)
     assert result.returncode == 0, result.stderr
     assert sorted(result.stdout.split()) == sorted(CONST_RECORDS)
-    assert not os.path.exists(os.path.join(project_root, 'docs'))
+    tracked = _Git_Lines(project_root, 'ls-files', 'docs')
+    assert sorted(tracked) == sorted(CONST_RECORDS), sorted(set(tracked) - set(CONST_RECORDS))
 
 
 def test_the_root_holds_no_untracked_entry(project_root) -> None:

@@ -697,7 +697,7 @@ def Draw_Label_Mask(objects: tp.List[Detection_Str], shape: tp.Tuple[int, int, i
         lightness to stand clear of a light fill — implying no verdict nobody made. Each
         object is filled from its OWN component mask, so two parts that sit close but do not
         touch stay separate shapes; two parts that TOUCH are already one component here
-        (Fuse_Objects), so they render as one shape — see KNOWN_ISSUES.md. Every Warning, whatever its kind, is filled
+        (Fuse_Objects), so they render as one shape — see docs/KNOWN_ISSUES.md. Every Warning, whatever its kind, is filled
         and outlined in the amber's pair, as on the frame.
 
     Args:
@@ -770,7 +770,7 @@ def __Object_Polygon(det: Detection_Str, cv2: tp.Any, np: tp.Any) -> tp.List[tp.
         contour of the SAME per-object mask the label mask fills — not recomputed — so the
         seg file, the YOLO file and both images describe identical objects. Only the outer
         contour is kept: a washer or the lattice bracket has holes, and YOLO segmentation is a
-        single ring per instance, so the holes are dropped (documented in design-decisions).
+        single ring per instance, so the holes are dropped.
         The contour is simplified with approxPolyDP at an epsilon proportional to its own
         perimeter, so a raw thousands-of-point contour becomes a few dozen. An object with no
         mask falls back to its bounding box as a rectangle, so every object still has a polygon
@@ -812,7 +812,7 @@ def Seg_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int],
 
         The class id is the object's 0-BASED index, exactly as in the box file (Yolo_Lines):
         a per-frame handle, not a class — the same warning and caveat apply, so these files
-        must not be used for training as-is (see design-decisions.md).
+        must not be used for training as-is.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.

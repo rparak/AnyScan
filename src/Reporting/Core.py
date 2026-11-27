@@ -97,7 +97,7 @@ CONST_LABEL_HEDGES = ('likely', 'possibly', 'probably', 'perhaps', 'apparently',
 # bright metal'), and so does a bare ' in ' or a participle that follows the noun ('piece rendered in
 # vibrant blues', 'arrow pointing to the right'); commas are handled by the rule above. ' or ' is
 # kept: 'washer or cap' stays 'washer or cap', the model's own hedge, which the label must not turn
-# into certainty (design-decisions.md, "The object label keeps the model's alternatives").
+# into certainty.
 #   Unit [Tuple<string>]
 CONST_LABEL_BOUNDARIES = (
     " is ", " are ", " was ", " with ", " that ", " which ", " has ",
@@ -118,7 +118,7 @@ CONST_LABEL_ALTERNATIVE_WORDS = 2
 # to describe only the part and writes none. On Gemma's text the strip's only effect was harmful:
 # it deleted "…a passage allowing a view of a bright green surface through them" — the red
 # block's description of its own holes — because the sentence named the green surface. It was
-# removed rather than retuned (design-decisions.md). The background is stated once,
+# removed rather than retuned. The background is stated once,
 # globally, by the describer's background prompt (Screen_Header).
 
 # ---- The global background sentence -------------------------------------------- #
@@ -136,8 +136,8 @@ CONST_BACKGROUND_FALLBACK = 'The background is a plain surface.'
 # floor(-log10(mm/px))) silently dropped from 0.1 mm to whole millimetres when the recalibration
 # moved the factor from 0.098 to 0.102 mm/px. The second digit is BELOW one pixel (~0.1 mm) at the
 # current factor, and a size already carries a position-dependent error of up to ~1.5 mm near the
-# frame edge (SPEC > Known limitations): two decimals are not improved resolution — do not read them as
-# such, and do not revert them to a scale-derived count (design-decisions.md).
+# frame edge (docs/SPEC.md > Known limitations): two decimals are not improved resolution — do not read them as
+# such, and do not revert them to a scale-derived count.
 #   Unit [int]
 CONST_SIZE_DECIMALS = 2
 # Counts in a reason are words up to ten, digits above (Count_Word).
@@ -149,7 +149,7 @@ CONST_COUNT_WORDS = ('no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven'
 # of a kind, a stain — and what the words round it claim: there (with a count, 'two', 'both', or all of them,
 # 'each'), not there ('no', 'without', 'free of' just before it; 'are absent' after it), missing or extra. A claim
 # the check that ran does not bear out drops its sentence, and every drop is logged. Words, not judgement
-# (KNOWN_ISSUES). Read per mention, not per sentence: 'features through-holes without countersinks' claims the
+# (docs/KNOWN_ISSUES.md). Read per mention, not per sentence: 'features through-holes without countersinks' claims the
 # through-holes there and the countersinks not; read as one negated sentence it let a back with no hole found
 # keep its through-holes (capture 20261015-160433_s1, 2026-10-15).
 # The hole kinds, each named as the catalogue's hole group it is held to: a stepped hole is its countersink; a
@@ -210,14 +210,14 @@ CONST_GUARD_NUMBER = 'it states a number'
 # sentence naming the checks, a verification, a confirmation or a detection ('the automatic check confirmed both
 # countersinks') reads as the describer's own finding, and is treated as a contradiction (asked again once, then
 # left out). The rule the describer is given, last in its prompt (Describer_Prompt), and the words that break it.
-# Measured: told every hole group, Gemma recited the check on 5 of 11 judged parts (2026-10-15, design-decisions.md).
+# Measured: told every hole group, Gemma recited the check on 5 of 11 judged parts (2026-10-15).
 #   Unit [string]
 CONST_DESCRIBER_CHECKS_RULE = ('Describe holes and stains only as features you see on the part, for example "two '
                                'stepped holes"; never mention the checks, a verification, a confirmation or a detection.')
 CONST_GUARD_CHECKS = r'\b(?:automatic(?:ally)?|automated|checks?|checked|verif\w*|confirm\w*|detect\w*)\b'
 CONST_GUARD_CHECKS_WHY = 'it refers to the checks'
-# A part outside the inspection area has no check run on it (design-decisions.md, *A part outside the inspection
-# area is not checked*): its prompt holds no hole or stain fact and asks for its material, shape and surface alone,
+# A part outside the inspection area has no check run on it: its prompt holds no hole or stain fact and asks for its
+# material, shape and surface alone,
 # and a sentence naming a hole, a countersink or a stain is left out, since nothing measured stands behind it.
 #   Unit [string]
 CONST_DESCRIBER_OUTSIDE_PROMPT = ('Describe this object briefly: only its material, its shape and its surface. Do not '
@@ -871,8 +871,8 @@ def Size_Note(det: Detection_Str) -> str:
         The note a part judged on its size carries in the log (Verdict_Log_Line) when it lies beyond the radius the
         size checks were verified to: its distance and the radius. Not in Scene Understanding (Verdict_Lines): a size
         right for the part read there as one in doubt, the operator cannot act on it, and the verdict does not
-        depend on it (KNOWN_ISSUES, *Sizes beyond 46.4 mm from the frame centre are unverified*). The log keeps it
-        for the rig captures that widen the radius (capture-checklist.md).
+        depend on it (docs/KNOWN_ISSUES.md, *Sizes beyond 46.4 mm from the frame centre are unverified*). The log keeps it
+        for the rig captures that widen the radius.
 
     Args:
         (1) det [Detection_Str(object)]: The object.
@@ -1378,7 +1378,7 @@ def Yolo_Lines(objects: tp.List[Detection_Str], size: tp.Tuple[int, int]) -> tp.
         The class id is the object's 0-BASED index in that list (object 1 in the text ->
         id 0), NOT a class: it is a per-frame handle for finding the object in the text
         and correcting it by hand. The same id means a different part in every frame, so
-        these files must not be used for training as-is — see design-decisions.md.
+        these files must not be used for training as-is.
 
     Args:
         (1) objects [Vector<Detection_Str(object)>]: The located objects, in order.

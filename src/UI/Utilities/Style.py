@@ -73,8 +73,7 @@ CONST_ASSETS = os.path.abspath(
 CONST_GAP           = 16          # gap between cards, everywhere
 CONST_MARK_GAP      = 32          # gap between brand marks and either side of the divider between them
 # The top bar's AnyScan lockup height on a high-density display. On a low-density one Logo_Height grows it until the
-# tagline is CONST_TYPE_FLOOR_LOW_DENSITY (design-decisions.md, "The header draws the delivered logo and sets its
-# tagline as live text").
+# tagline is CONST_TYPE_FLOOR_LOW_DENSITY.
 #   Unit [int] (logical px)
 CONST_LOGO_HEIGHT   = 54
 # Below this device pixel ratio a display is low density (a 1x monitor): Is_Low_Density.
@@ -377,8 +376,7 @@ def Load_Fonts() -> None:
         SemiBold and Bold files (built by Example/UI/build_fonts.py), so every weight
         the UI requests has its own face on every platform. The candidate lists are
         the fallback for a missing directory: the nearest system face is chosen, which
-        shifts the metrics and may merge weights (design-decisions.md, "The UI
-        fonts are bundled").
+        shifts the metrics and may merge weights.
     """
 
     global FONT_UI, FONT_MONO

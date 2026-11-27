@@ -304,13 +304,13 @@ def test_a_session_directory_removed_during_eviction_is_skipped(tmp_path, monkey
     assert (tmp_path / 'B' / 'b1_raw.png').exists()
 
 
-# The classes file's header as sets written before 2026-10-24 carry it (it cited docs/design-decisions.md).
+# The classes file's header as sets written before 2026-10-24 carry it (it cited the records by a path).
 #   Unit [string]
 CONST_OLD_CLASSES_HEADER = (
     '# NOT class labels. Each id is a per-frame object INDEX: object N in the Scene\n'
     '# Understanding text is id N-1, a handle for finding and hand-correcting that\n'
     '# object. The SAME id means a DIFFERENT part in every frame, so the YOLO <set>.txt\n'
-    '# files must NOT be used for training as-is (see docs/design-decisions.md). They\n'
+    '# files must NOT be used for training as-is (see the design decisions). They\n'
     '# become a dataset only once ids are reassigned by real class.\n')
 
 
@@ -318,7 +318,7 @@ def test_the_classes_header_names_its_decision_and_no_repository_path() -> None:
     """
     Description:
         The header travels with the data, outside the repository, so it names the design decision by its
-        title and no path that can go stale (docs/design-decisions.md went stale when the records moved).
+        title and no path that can go stale (a path goes stale when the records move).
     """
 
     assert 'per-frame indices, NOT classes' in CONST_CAPTURE_CLASSES_HEADER

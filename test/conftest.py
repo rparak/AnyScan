@@ -80,7 +80,7 @@ for _path in CONST_IMPORT_PATHS:
 # The crash record: test/crash_records/crash_record.txt (git-ignored) names each test as it starts and
 # receives faulthandler's dump of every thread on a fatal error, so a crash leaves its test and its stacks
 # on disk even when the terminal output is lost. One full run on 2026-10-08 died with only a fatal-error
-# dump's last line seen (KNOWN_ISSUES.md). A run that exits ends its record with CONST_CRASH_RECORD_CLEAN;
+# dump's last line seen (docs/KNOWN_ISSUES.md). A run that exits ends its record with CONST_CRASH_RECORD_CLEAN;
 # the next run overwrites such a record and keeps one without it as crash_record_<its time>.txt, the
 # newest CONST_CRASH_RECORD_KEEP of those, so running the suite again never deletes a crash. It is outside
 # pytest's temp directories, which pytest rotates (three kept; a full run makes three).
@@ -646,7 +646,7 @@ def models_untouched() -> tp.Iterator[None]:
         file removed, added or resized fails the run, naming each one — so a change is attributed to
         this run the moment it happens, not discovered later. (models/ was emptied by hand on 2026-09-24
         and again on 2026-09-25 — manual both times, not code; this fixture is what showed, run by run,
-        that the suite had not done it. See design-decisions.md.)
+        that the suite had not done it.)
     """
 
     before = _Models_Inventory()

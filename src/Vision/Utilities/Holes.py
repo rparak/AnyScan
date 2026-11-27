@@ -57,7 +57,7 @@ Description:
     through-hole's centre lay 0.12-0.36 mm from its countersink's within 10 mm of the frame centre, 0.8-1.15 mm at 60 mm
     and 1.30 mm at 66.6 mm, growing with the distance, while every hole stayed round (0.883-0.916) and its diameter
     within 6.12-6.25 mm. Its short-edge distance read up to 19.37 mm against 17.5 ± 1.5; the countersink's, on the top
-    face, 17.22-18.59 mm at every distance (design-decisions.md). The bore is then checked for its own offset from
+    face, 17.22-18.59 mm at every distance. The bore is then checked for its own offset from
     its step's axis, the camera's shift predicted from the bore's depth taken out (__Concentricity).
 """
 
@@ -84,7 +84,7 @@ CONST_HOLE_CAPTURE_TOLERANCES = 2.0
 # For a group with positions, a hole is counted when its centre is within √2 × tolerance (a hole off by the
 # tolerance on both axes) plus this margin of an expected position: 2.62 mm for the mounting plate's through-holes.
 # Measured on the test set's 22 plates (2026-10-13): every through-hole within 1.23 mm of its position. A hole
-# drilled anywhere else is not counted, and not reported (KNOWN_ISSUES).
+# drilled anywhere else is not counted, and not reported (docs/KNOWN_ISSUES.md).
 #   Unit [float] (mm)
 CONST_HOLE_POSITION_MARGIN_MM = 0.5
 # Two candidates with centres this close and diameters this close are one hole found twice.
@@ -615,7 +615,7 @@ def __Missing_Places(group: Catalogue_Hole_Group_Str, holes: tp.List[Hole_Str], 
         It is anchored at the positions holding its own holes or, with none of its own, at those holding another
         group's found holes (a through-hole at its countersink). With no anchor at all none is placed: the mirrored
         positions are not centred on the part, and which end of the part is which cannot be told from its outline
-        (design-decisions.md, KNOWN_ISSUES).
+        (docs/KNOWN_ISSUES.md).
 
         An unpositioned group's are the centres of other groups' holes it would surround (a countersink at its
         through-hole), found or placed, the first ones without one of its own.

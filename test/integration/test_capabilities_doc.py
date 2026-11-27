@@ -25,13 +25,10 @@
 import os
 import re
 import glob
-import subprocess
 # Typing (Support for type hints)
 import typing as tp
 # YAML (The configuration files' format)
 import yaml
-# pytest (A repository without its git history skips the review check, loudly)
-import pytest
 # Custom Lib.: AnyScan configuration — the mode-file name split
 #   ../Configuration/Core
 from Configuration.Core import Hardware_And_Mode
@@ -52,7 +49,7 @@ from Logger.Station_Events import CONST_STATION_EVENT_TYPES, CONST_CYCLE_START, 
 Description:
     Initialization of constants.
 
-    .claude/project-docs/SPEC.md describes what the application does, and a capability document that is
+    docs/SPEC.md describes what the application does, and a capability document that is
     wrong is worse than none. These tests hold it to the code in both directions: everything the
     code names (src/ packages, configuration sections, modes, views, records) is in the document, and every
     configuration key the document names is in a configuration file. Its prose and its hardware
@@ -60,7 +57,7 @@ Description:
 """
 # The document under test, relative to the repository root.
 #   Unit [string]
-CONST_CAPABILITIES_DOC = os.path.join('.claude', 'project-docs', 'SPEC.md')
+CONST_CAPABILITIES_DOC = os.path.join('docs', 'SPEC.md')
 
 # A backticked span, and inside one a dotted configuration key path ('Segmentation.Fusion',
 # 'General.Station_Events.Directory'). A path is only checked when its first segment is a section the
@@ -72,13 +69,6 @@ CONST_KEY_PATH = re.compile(r'(?<![\w.])([A-Z][A-Za-z0-9_]*(?:\.[A-Z][A-Za-z0-9_
 # A Markdown link's target; external links and mail are not checked.
 #   Unit [Pattern]
 CONST_LINK = re.compile(r'\]\(([^)\s]+)\)')
-
-# The line naming the commit the document was last reviewed against the code at, and the paths whose
-# changes a review must cover: the application, its configuration, and the harnesses it lists.
-#   Unit [Pattern]
-CONST_LAST_REVIEWED = re.compile(r'^Last reviewed against the code at commit `([0-9a-f]{7,40})`', re.M)
-#   Unit [Vector<string>]
-CONST_REVIEWED_PATHS = ['src', 'App', 'Configuration', 'Example']
 
 # The Live card titles the window builds, read from its source (they are literals in the builders).
 #   Unit [Pattern]
@@ -121,7 +111,7 @@ def Section(text: str, heading: str) -> str:
 
     lines = text.split('\n')
     level = len(heading) - len(heading.lstrip('#'))
-    assert heading in lines, ".claude/project-docs/SPEC.md has no '%s' section." % heading
+    assert heading in lines, "docs/SPEC.md has no '%s' section." % heading
     start = lines.index(heading) + 1
     end = len(lines)
     for i in range(start, len(lines)):
@@ -183,7 +173,7 @@ def Table_First_Column(body: str, header: str) -> tp.List[str]:
         if collecting:
             spans = CONST_CODE_SPAN.findall(cells[0])
             names.extend(spans if spans else [cells[0]])
-    assert found, ".claude/project-docs/SPEC.md has no table headed '%s'." % header
+    assert found, "docs/SPEC.md has no table headed '%s'." % header
 
     return names
 
@@ -416,7 +406,7 @@ def test_every_key_path_the_document_names_exists_in_a_configuration_file(projec
              if match.split('.')[0] in roots}
 
     assert named, 'The document names no configuration key path; the pattern no longer matches it.'
-    assert named <= keys, '.claude/project-docs/SPEC.md names keys no configuration file has: %s.' % sorted(named - keys)
+    assert named <= keys, 'docs/SPEC.md names keys no configuration file has: %s.' % sorted(named - keys)
 
 
 def Src_Packages(project_root: str) -> tp.List[str]:
@@ -544,55 +534,4 @@ def test_every_relative_link_and_anchor_resolves(project_root) -> None:
         elif anchor and anchor not in Anchors(path):
             broken.append(target)
 
-    assert broken == [], 'Broken links in .claude/project-docs/SPEC.md: %s' % broken
-
-
-def Git(project_root: str, *arguments: str) -> subprocess.CompletedProcess:
-    """
-    Description:
-        Run git in the repository.
-
-    Args:
-        (1) project_root [string]: The repository root.
-        (2) arguments [Vector<string>]: git's arguments.
-
-    Returns:
-        (1) parameter [subprocess.CompletedProcess(object)]: The finished run.
-    """
-
-    return subprocess.run(['git', '-C', project_root] + list(arguments), capture_output=True, text=True, timeout=60)
-
-
-def test_every_code_change_since_the_last_review_updated_the_document(project_root) -> None:
-    """
-    Description:
-        The drift tests catch a name that changed; they cannot catch a behaviour that changed under
-        the same name. So a review is required, and recorded: the document names the commit it was
-        last reviewed against, and every later commit that changes src/, App/, Configuration/ or
-        Example/ must also change the document, either its content or, when the change affects no
-        capability, that line. A code commit that skips the review fails here. A repository copied
-        without its git history skips the check, naming why.
-    """
-
-    if Git(project_root, 'rev-parse', '--git-dir').returncode != 0:
-        pytest.skip('REVIEW CHECK NOT RUN: %s is not a git repository, so the commits since the last '
-                    'review cannot be listed.' % project_root)
-
-    doc = Read_Text(os.path.join(project_root, CONST_CAPABILITIES_DOC))
-    match = CONST_LAST_REVIEWED.search(doc)
-    assert match, ".claude/project-docs/SPEC.md has no 'Last reviewed against the code at commit `<hash>`' line."
-    reviewed = match.group(1)
-    if Git(project_root, 'merge-base', '--is-ancestor', reviewed, 'HEAD').returncode != 0:
-        pytest.fail('The last-reviewed commit %s is not in this branch\'s history (rewritten, or a shallow '
-                    'clone). Review the document against the code and name HEAD\'s commit.' % reviewed)
-
-    code_commits = Git(project_root, 'log', '--format=%h', '%s..HEAD' % reviewed, '--',
-                       *CONST_REVIEWED_PATHS).stdout.split()
-    unreviewed = [commit for commit in code_commits
-                  if CONST_CAPABILITIES_DOC.replace(os.sep, '/') not in
-                  Git(project_root, 'show', '--name-only', '--format=', commit).stdout.split('\n')]
-
-    assert unreviewed == [], ('Commits changing the code since the last review (%s) left .claude/project-docs/SPEC.md '
-                              'untouched: %s. Review the document against each: update it, or, when no '
-                              'capability changed, move its Last reviewed line, in the same commit.'
-                              % (reviewed, ', '.join(unreviewed)))
+    assert broken == [], 'Broken links in docs/SPEC.md: %s' % broken

@@ -342,7 +342,7 @@ def test_plates_come_back_as_compact_silhouettes_on_a_real_capture(require_weigh
 @pytest.mark.slow
 @pytest.mark.xfail(strict=True, raises=AssertionError,
                    reason='a shadow far darker/larger than any real capture is still '
-                          'absorbed into the component; see KNOWN_ISSUES.md')
+                          'absorbed into the component; see docs/KNOWN_ISSUES.md')
 def test_synthetic_harsh_shadow_not_absorbed_xfail(require_weights, monkeypatch) -> None:
     """
     Description:
@@ -354,7 +354,7 @@ def test_synthetic_harsh_shadow_not_absorbed_xfail(require_weights, monkeypatch)
         The assertion states the DESIRED behaviour (no object reaches into the shadow
         band); it currently fails, which is why this is xfail. strict=True means the
         day the pipeline stops absorbing the shadow, this test XPASSes and the suite
-        fails — the signal to promote it to a plain pass and close the KNOWN_ISSUES
+        fails — the signal to promote it to a plain pass and close the docs/KNOWN_ISSUES.md
         entry. The weights go through require_weights (a loud skip, a failure under
         --runslow — never an early return), so a skip is never mistaken for an
         unexpected pass.

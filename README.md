@@ -485,9 +485,9 @@ expectations: they refer to the frames by name.
 
 ## Documentation
 
-`./install.sh --help` and the `--help` of `App/run.py` and of each script in `Example/` say what each does. Each file in
-`Configuration/` and `Data/Catalogue/mounting_plate/mounting_plate.yaml` gives every field with its default and unit in
-its comments. [LICENSE](LICENSE) and [CITATION.cff](CITATION.cff) are at the root.
+The [specification](docs/SPEC.md) says what AnyScan does and its [known limitations](docs/SPEC.md#known-limitations). The
+[known issues](docs/KNOWN_ISSUES.md) list the open behaviours that show up in its text or numbers but decide nothing.
+The scripts' `--help` (`./install.sh`, `App/run.py`, `Example/`) and the `Configuration/` and catalogue files' comments give every option and field.
 
 ## Authors
 
