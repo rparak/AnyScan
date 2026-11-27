@@ -3,7 +3,7 @@
 All notable changes to AnyScan. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); each
 version is a tag in this repository.
 
-## [1.1] - Unreleased
+## [1.1] - 2026-11-27
 
 AnyScan works as in 1.0: the application, its models, its configuration and its records are unchanged.
 
